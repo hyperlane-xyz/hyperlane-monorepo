@@ -8,7 +8,10 @@ use crate::utils::{as_task, TaskHandle};
 use super::cli::StarknetCLI;
 use super::types::{DeclaredClasses, Deployments};
 
-pub(crate) const STARKNET_ACCOUNT: &str = "katana-0";
+pub(crate) const STARKNET_ACCOUNT: &str =
+    "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691";
+pub(crate) const STARKNET_KEY: &str =
+    "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")

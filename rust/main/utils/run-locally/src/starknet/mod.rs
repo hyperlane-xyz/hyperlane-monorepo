@@ -13,12 +13,12 @@ use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::starknet::types::{AgentConfigOut, ValidatorConfig};
-use crate::starknet::utils::STARKNET_ACCOUNT;
+use crate::starknet::utils::{STARKNET_ACCOUNT, STARKNET_KEY};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
-use self::source::{CLISource, CodeSource, StarknetCLISource};
+use self::source::{CodeSource, StarknetCLISource};
 use self::types::{AgentConfig, Deployments, StarknetEndpoint};
 
 mod cli;
@@ -26,8 +26,8 @@ mod source;
 mod types;
 mod utils;
 
-const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/katana";
-const KATANA_CLI_VERSION: &str = "1.5.0";
+const STARKNET_DEVNET_IMAGE: &str = "shardlabs/starknet-devnet-rs";
+const STARKNET_DEVNET_TAG: &str = "0.3.0-rc.1-seed0";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.3.8"; // we need 0.3.8 because the latest version breaks the rpc schema
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane_starknet";
@@ -37,18 +37,9 @@ const CAIRO_HYPERLANE_VERSION: &str = "0.3.2";
 pub fn install_starknet(
     starknet_cli_dir: Option<PathBuf>,
     starknet_cli_src: Option<StarknetCLISource>,
-    cli_dir: Option<PathBuf>,
-    cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
     codes_src: Option<CodeSource>,
-) -> (PathBuf, PathBuf, BTreeMap<String, PathBuf>) {
-    let katanad = cli_src
-        .unwrap_or(CLISource::Remote {
-            url: KATANA_CLI_GIT.to_string(),
-            version: KATANA_CLI_VERSION.to_string(),
-        })
-        .install(cli_dir);
-
+) -> (PathBuf, BTreeMap<String, PathBuf>) {
     let starklid = starknet_cli_src
         .unwrap_or(StarknetCLISource::Remote {
             url: STARKNET_CLI_GIT.to_string(),
@@ -63,12 +54,11 @@ pub fn install_starknet(
         })
         .install(codes_dir);
 
-    (starklid, katanad, codes)
+    (starklid, codes)
 }
 
 #[derive(Clone)]
 pub struct StarknetConfig {
-    pub cli_path: PathBuf,
     pub node_addr_base: String,
     pub node_port_base: u32,
 }
@@ -86,12 +76,7 @@ impl StarknetResp {
 
 impl Drop for StarknetResp {
     fn drop(&mut self) {
-        if let Err(e) = self.node.1.kill() {
-            eprintln!("Failed to kill katana subprocess: {}", e);
-        }
-        if let Err(e) = self.node.1.wait() {
-            eprintln!("Failed to wait for katana subprocess: {}", e);
-        }
+        stop_child(&mut self.node.1);
     }
 }
 
@@ -138,17 +123,19 @@ impl Drop for StarknetHyperlaneStack {
 
 #[apply(as_task)]
 fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
-    let cli = Program::new(config.cli_path);
-
     println!(
         "host: {}, port: {}",
         config.node_addr_base, config.node_port_base
     );
-
-    let node: AgentHandles = cli
-        .arg("http.port", config.node_port_base.to_string())
-        .arg("block-time", "1000".to_string())
-        .spawn("STARKNET", None);
+    let node: AgentHandles = Program::new("docker")
+        .cmd("run")
+        .arg("name", format!("starknet-{}", config.node_port_base))
+        .flag("rm")
+        .arg("publish", format!("{}:5050", config.node_port_base))
+        .cmd(format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"))
+        .arg("state-archive-capacity", "full")
+        .arg("block-generation-on", "5")
+        .spawn("STAKNET", None);
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
         rpc_addr: format!("http://{}:{}", config.node_addr_base, config.node_port_base),
@@ -250,7 +237,6 @@ fn launch_starknet_scraper(
     scraper
 }
 
-const ENV_CLI_PATH_KEY: &str = "E2E_KATANA_CLI_PATH";
 const ENV_STARKNET_CLI_PATH_KEY: &str = "E2E_STARKLI_CLI_PATH";
 const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
 
@@ -272,13 +258,6 @@ fn run_locally() {
         .run()
         .join();
 
-    let cli_src = Some(
-        env::var(ENV_CLI_PATH_KEY)
-            .as_ref()
-            .map(|v| CLISource::local(v))
-            .unwrap_or_default(),
-    );
-
     let starknet_cli_src = Some(
         env::var(ENV_STARKNET_CLI_PATH_KEY)
             .as_ref()
@@ -293,12 +272,10 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (starklid, katanad, sierra_classes) =
-        install_starknet(None, starknet_cli_src, None, cli_src, None, code_src);
+    let (starklid, sierra_classes) = install_starknet(None, starknet_cli_src, None, code_src);
 
     let addr_base = "0.0.0.0";
     let default_config = StarknetConfig {
-        cli_path: katanad.clone(),
         node_addr_base: addr_base.to_string(),
         node_port_base: 5050,
     };
@@ -324,12 +301,12 @@ fn run_locally() {
 
     let domains = nodes.iter().map(|v| v.3).collect::<Vec<_>>();
 
-    let deployer = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"; // 1st katana account
+    let deployer = "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"; // 1st katana account
     let _linker = "validator";
     let validator = &ValidatorConfig {
-        private_key: "0x00c5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
+        private_key: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
             .to_string(),
-        address: "0x0127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec".to_string(),
+        address: "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691".to_string(),
     };
     let _relayer = "hpl-relayer";
 
@@ -341,8 +318,10 @@ fn run_locally() {
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let mut starknet_cli = launch_resp.cli(&starklid);
             starknet_cli.init(
+                STARKNET_KEY.into(),
                 STARKNET_ACCOUNT.into(),
                 launch_resp.endpoint.rpc_addr.clone(),
+                domain,
             );
 
             let declarations =
@@ -480,8 +459,10 @@ fn run_locally() {
             let msg_body: &[u8] = b"hello world";
 
             cli.init(
+                STARKNET_KEY.into(),
                 STARKNET_ACCOUNT.into(),
                 node.launch_resp.endpoint.rpc_addr.clone(),
+                0u32,
             );
 
             let (strk_msg_len, strk_msg) = to_strk_message_bytes(msg_body);
@@ -525,14 +506,6 @@ fn run_locally() {
             );
 
             sleep(Duration::from_secs(5));
-
-            // we actually send 3 transactions - however, the last one does not get confirmed because katna only builds blocks when a new transaction is sent
-            // and because we have a confirmation threshold of 1 we don't get the last one confirmed
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args,
-            );
         }
     }
 

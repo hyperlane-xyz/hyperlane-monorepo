@@ -8,10 +8,7 @@ use crate::{
     utils::concat_path,
 };
 
-use super::{
-    CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION, KATANA_CLI_GIT, KATANA_CLI_VERSION,
-    STARKNET_CLI_GIT, STARKNET_CLI_VERSION,
-};
+use super::{CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION, STARKNET_CLI_GIT, STARKNET_CLI_VERSION};
 
 pub enum CodeSource {
     Local { path: String },
@@ -91,63 +88,6 @@ impl CodeSource {
         match self {
             CodeSource::Local { path } => Self::install_local(path),
             CodeSource::Remote { url, version } => Self::install_remote(dir, url, version),
-        }
-    }
-}
-
-pub enum CLISource {
-    Local { path: String },
-    Remote { url: String, version: String },
-}
-
-impl Default for CLISource {
-    fn default() -> Self {
-        Self::remote(KATANA_CLI_GIT, KATANA_CLI_VERSION)
-    }
-}
-
-impl CLISource {
-    pub fn local(path: &str) -> Self {
-        Self::Local {
-            path: path.to_string(),
-        }
-    }
-
-    pub fn remote(url: &str, version: &str) -> Self {
-        Self::Remote {
-            url: url.to_string(),
-            version: version.to_string(),
-        }
-    }
-}
-
-impl CLISource {
-    fn install_remote(dir: Option<PathBuf>, git: String, version: String) -> PathBuf {
-        let target = make_target();
-
-        let dir_path = match dir {
-            Some(path) => path,
-            None => tempdir().unwrap().into_path(),
-        };
-        let dir_path = dir_path.to_str().unwrap();
-
-        let release_name = format!("katana_v{version}_{target}");
-        let release_comp = format!("{release_name}.tar.gz");
-
-        log!("Downloading Katana CLI v{}", version);
-        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
-        download(&release_comp, &uri, dir_path);
-
-        log!("Uncompressing Katana release");
-        untar(&release_comp, dir_path);
-
-        concat_path(dir_path, "katana")
-    }
-
-    pub fn install(self, dir: Option<PathBuf>) -> PathBuf {
-        match self {
-            CLISource::Local { path } => path.into(),
-            CLISource::Remote { url, version } => Self::install_remote(dir, url, version),
         }
     }
 }

@@ -8,6 +8,7 @@ use super::types::DeclareResponse;
 pub struct StarknetCLI {
     pub bin: PathBuf,
     rpc_addr: String,
+    key: String,
     account: String,
 }
 
@@ -24,9 +25,27 @@ impl StarknetCLI {
         Program::new(self.bin.clone()).working_dir("../../")
     }
 
-    pub fn init(&mut self, account: String, rpc_addr: String) {
-        self.account = account;
+    pub fn init(&mut self, key: String, account_address: String, rpc_addr: String, index: u32) {
+        self.key = key;
         self.rpc_addr = rpc_addr;
+
+        // fetch the account from the address
+        self.account = self
+            .bin
+            .parent()
+            .unwrap()
+            .join(format!("account_{index}.json"))
+            .to_string_lossy()
+            .to_string();
+
+        self.cli()
+            .cmd("account")
+            .cmd("fetch")
+            .cmd(account_address)
+            .arg("output", &self.account)
+            .arg("rpc", &self.rpc_addr)
+            .run()
+            .join();
     }
 
     pub fn declare(&self, sierra_path: PathBuf) -> DeclareResponse {
@@ -35,6 +54,7 @@ impl StarknetCLI {
             .cmd("declare")
             .cmd(sierra_path.to_str().unwrap())
             .arg("account", &self.account)
+            .arg("private-key", &self.key)
             .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
@@ -53,6 +73,7 @@ impl StarknetCLI {
             .cmd(class_hash)
             .cmds(constructor_args)
             .arg("account", &self.account)
+            .arg("private-key", &self.key)
             .arg("rpc", &self.rpc_addr)
             .arg("salt", "1".to_string()) // Always use salt 1, this makes the deploy deterministic
             .run_with_output()
@@ -71,6 +92,7 @@ impl StarknetCLI {
             .cmd(function_name)
             .cmds(constructor_args)
             .arg("account", &self.account)
+            .arg("private-key", &self.key)
             .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
@@ -86,6 +108,7 @@ impl StarknetCLI {
             .cmd(function_name)
             .cmds(args)
             .arg("account", &self.account)
+            .arg("private-key", &self.key)
             .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
