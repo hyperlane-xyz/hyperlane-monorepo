@@ -569,6 +569,59 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog('✅ Rebalance successful');
   });
 
+  it('should skip rebalance if amount is below minimum threshold', async () => {
+    // Assign rebalancer role
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
+    await chain3CollateralContract.grantRole(
+      rebalancerRole,
+      chain3Signer.address,
+    );
+
+    // Allow destination
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
+    );
+
+    // Deploy the bridge
+    const bridgeContract = await new MockValueTransferBridge__factory(
+      chain3Signer,
+    ).deploy();
+
+    // Allow bridge
+    await chain3CollateralContract.addBridge(
+      bridgeContract.address,
+      chain2Metadata.domainId,
+    );
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: 'weighted',
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: bridgeContract.address,
+        bridgeMinAcceptedAmount: '5000000000000000001',
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      'Rebalance skipped: No routes to execute',
+    );
+  });
+
   it('should successfully rebalance tokens between chains using a mock bridge', async () => {
     const wccTokens = warpCoreConfig.tokens;
 
