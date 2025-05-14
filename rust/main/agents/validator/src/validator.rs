@@ -59,7 +59,7 @@ pub struct Validator {
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
-    reorg_reporter: ReorgReporter,
+    reorg_reporter: Arc<ReorgReporter>,
 }
 
 /// Metadata for `validator`
@@ -142,7 +142,7 @@ impl BaseAgent for Validator {
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
 
-        let reorg_reporter = ReorgReporter::from_settings(&settings, &metrics).await?;
+        let reorg_reporter = Arc::new(ReorgReporter::from_settings(&settings, &metrics).await?);
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -312,6 +312,7 @@ impl Validator {
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
+            self.reorg_reporter.clone(),
         );
 
         let tip_tree = self

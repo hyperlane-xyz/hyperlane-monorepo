@@ -7,6 +7,7 @@ use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
+use crate::reorg_reporter::ReorgReporter;
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
@@ -29,6 +30,7 @@ pub(crate) struct ValidatorSubmitter {
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
+    reorg_reporter: Arc<ReorgReporter>,
 }
 
 impl ValidatorSubmitter {
@@ -43,6 +45,7 @@ impl ValidatorSubmitter {
         db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
         max_sign_concurrency: usize,
+        reorg_reporter: Arc<ReorgReporter>,
     ) -> Self {
         Self {
             reorg_period,
@@ -54,6 +57,7 @@ impl ValidatorSubmitter {
             db,
             metrics,
             max_sign_concurrency,
+            reorg_reporter,
         }
     }
 
