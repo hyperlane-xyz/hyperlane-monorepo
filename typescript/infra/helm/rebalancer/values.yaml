@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   tag:
 hyperlane:
   runEnv: mainnet3
