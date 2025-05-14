@@ -1,5 +1,6 @@
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
+import { logDebug, logGray } from '../../logger.js';
 import type {
   IStrategy,
   RawBalances,
@@ -26,10 +27,15 @@ export abstract class BaseStrategy implements IStrategy {
    * Main method to get rebalancing routes
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
+    logDebug(`[${this.constructor.name}] Input rawBalances:`, rawBalances);
+    logGray(`Calculating rebalancing routes using ${this.constructor.name}...`);
     this.validateRawBalances(rawBalances);
 
     // Get balances categorized by surplus and deficit
     const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
+
+    logDebug(`[${this.constructor.name}] Surpluses:`, surpluses);
+    logDebug(`[${this.constructor.name}] Deficits:`, deficits);
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
     // first and decrease the amount of routes required
@@ -69,6 +75,10 @@ export abstract class BaseStrategy implements IStrategy {
       }
     }
 
+    logDebug(`[${this.constructor.name}] Generated routes:`, routes);
+    logGray(
+      `Found ${routes.length} rebalancing route(s) using ${this.constructor.name}.`,
+    );
     return routes;
   }
 
