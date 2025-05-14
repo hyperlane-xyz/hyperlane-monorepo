@@ -33,6 +33,10 @@ contract OwnableMulticall {
     /// @notice Sets the commitment value that will be executed next
     /// @param _commitment The new commitment value to be set
     function setCommitment(bytes32 _commitment) external onlyOwner {
+        require(
+            commitment == bytes32(0),
+            "ICA: Previous commitment pending execution"
+        );
         commitment = _commitment;
     }
 
@@ -42,11 +46,11 @@ contract OwnableMulticall {
         CallLib.Call[] calldata calls,
         bytes32 salt
     ) external payable returns (bytes32 executedCommitment) {
-        // If there is no active commitment, do nothing.
-        if (commitment == bytes32(0)) return bytes32(0);
-
-        bytes32 revealedHash = keccak256(abi.encode(calls, salt, this));
-        require(commitment == revealedHash, "Invalid Reveal");
+        // Check if metadata matches stored commitment (checks)
+        bytes32 revealedHash = keccak256(
+            abi.encodePacked(salt, abi.encode(calls))
+        );
+        require(commitment == revealedHash, "ICA: Invalid Reveal");
 
         // Delete the commitment (effects)
         executedCommitment = commitment;
