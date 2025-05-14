@@ -124,7 +124,7 @@ fn store_message(
         })?;
     db.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)
         .map_err(|err| {
-            let error_msg = "Failed to store message dipatched block number by nonce";
+            let error_msg = "Failed to store message dispatched block number by nonce";
             tracing::debug!(message_id=?id, ?err, "{error_msg}");
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
