@@ -199,6 +199,16 @@ send-message-ape-to-b3:
         --broadcast \
         -vvvv
 
+send-message-base-to-everclear-staging:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_base }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_everclear_staging }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear_staging }}" && \
+    export MESSAGE_CONTENT="Hello from Base to Everclear Staging!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
 send-message-everclear-staging-to-base:
     export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear_staging }}" && \
     export DESTINATION_DOMAIN="{{ chain_id_base }}" && \
