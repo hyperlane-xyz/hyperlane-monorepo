@@ -319,12 +319,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             ica.multicall{value: msg.value}(calls);
         } else {
             // This is definitely a message of type COMMITMENT
-            require(
-                ica.commitment() == bytes32(0),
-                "ICA Router: Previous commitment pending execution"
-            );
-            bytes32 _commitment = _message.commitment();
-            ica.setCommitment(_commitment);
+            ica.setCommitment(_message.commitment());
         }
     }
 

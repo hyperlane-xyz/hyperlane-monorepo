@@ -54,7 +54,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
 
     /**
      * @notice Verifies the commitment by comparing the calldata hash to the commitment
-     * @param _metadata The encoded (salt, calls) whose hash is the commitment
+     * @param _metadata The encoded (ica, salt, calls)
      * @param _message The reveal hyperlane message
      * @return true If the hash of the metadata matches the commitment.
      */
@@ -62,22 +62,26 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        (CallLib.Call[] memory calls, bytes32 salt, OwnableMulticall ica) = abi
-            .decode(_metadata, (CallLib.Call[], bytes32, OwnableMulticall));
-
-        bytes32 revealedHash = keccak256(_metadata);
+        // This is hash(salt, calls). The ica address is excluded
+        bytes32 revealedHash = keccak256(_metadata[20:]);
         bytes32 msgCommitment = _message.body().commitment();
         require(
             revealedHash == msgCommitment,
             "Commitment ISM: Revealed Hash Invalid"
         );
 
-        // Revert if this is not the ica's currently active commitment
-        require(
-            ica.commitment() == msgCommitment,
-            "Commitment ISM: Invalid Commitment"
+        // Fetch encoded ica, salt, and calls
+        address _ica = address(bytes20(_metadata[:20]));
+        OwnableMulticall ica = OwnableMulticall(payable(_ica));
+
+        bytes32 salt = bytes32(_metadata[20:52]);
+
+        CallLib.Call[] memory calls = abi.decode(
+            _metadata[52:],
+            (CallLib.Call[])
         );
 
+        // The ica will check if the commitment is pending execution, reverting if not.
         ica.revealAndExecute(calls, salt);
 
         return true;
