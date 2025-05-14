@@ -136,7 +136,10 @@ export async function expandWarpDeployConfig(params: {
       const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
         Partial<HypTokenRouterVirtualConfig> = {
         // Default Expansion
-        ...derivedTokenMetadata.getMetadataForChain(chain),
+        name: derivedTokenMetadata.getName(chain),
+        symbol: derivedTokenMetadata.getSymbol(chain),
+        decimals: derivedTokenMetadata.getDecimals(chain),
+        scale: derivedTokenMetadata.getScale(chain),
         remoteRouters,
         destinationGas,
         hook: zeroAddress,
