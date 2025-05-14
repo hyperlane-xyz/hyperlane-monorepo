@@ -1,39 +1,39 @@
 {
   "chains": {
-    "apechain": {
-      "name": "apechain",
-      "domain": 33111,
-      "chainId": 33111,
+    "everclear": {
+      "name": "everclear",
+      "domain": 25327,
+      "chainId": 25327,
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://curtis.rpc.caldera.xyz/http"
+          "http": "https://rpc.everclear.raas.gelato.cloud"
         }
       ],
-      "mailbox": "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28",
+      "mailbox": "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-        "from": 17608070
+        "from": 1357190
       },
       "signer": {
         "type": "hexKey",
         "key": "<replace_with_your_private_key>"
       }
     },
-    "b3": {
-      "name": "b3",
-      "domain": 1993,
-      "chainId": 1993,
+    "base": {
+      "name": "base",
+      "domain": 8453,
+      "chainId": 8453,
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://sepolia.b3.fun/http"
+          "http": "https://mainnet.base.org"
         }
       ],
-      "mailbox": "0x840e5aada7a7aab5f06c5d3152512a246792183f",
+      "mailbox": "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-         "from": 32324786
+         "from": 30200414
       },
       "signer": {
         "type": "hexKey",
@@ -42,7 +42,7 @@
     }
   },
   "db": "/tmp/hyperlane_relayer_db",
-  "relayChains": "apechain,b3",
+  "relayChains": "everclear,base",
   "gasPaymentEnforcement": [
      { "policy": "none" }
   ],
