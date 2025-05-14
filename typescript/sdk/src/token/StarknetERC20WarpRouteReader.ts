@@ -1,4 +1,4 @@
-import { getChecksumAddress, num, uint256 } from 'starknet';
+import { Uint256, getChecksumAddress, num, uint256 } from 'starknet';
 
 import { Address, Domain, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -262,7 +262,7 @@ export class StarknetERC20WarpRouteReader {
       this.provider,
     );
 
-    const domains: number[] = await contract.domains();
+    const domains: number[] = (await contract.domains()).map((d) => Number(d));
 
     const routers: RemoteRouters = {};
 
@@ -270,7 +270,7 @@ export class StarknetERC20WarpRouteReader {
       const routerUint256 = await contract.routers(domain);
       // Convert Uint256 to Address format
       const routerAddress = num.toHex64(
-        uint256.uint256ToBN(routerUint256).toString(),
+        uint256.uint256ToBN(routerUint256 as Uint256).toString(),
       );
       routers[domain.toString()] = { address: routerAddress };
     }
@@ -292,7 +292,7 @@ export class StarknetERC20WarpRouteReader {
       this.provider,
     );
 
-    const domains: number[] = await contract.domains();
+    const domains: number[] = (await contract.domains()).map((d) => Number(d));
 
     const destinationGas: DestinationGas = {};
 

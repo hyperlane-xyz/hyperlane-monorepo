@@ -202,9 +202,9 @@ abstract class TokenDeployer<
           ]);
 
           // Parse the results - extract the values and convert them properly
-          const name = shortString.decodeShortString(nameResult['']);
-          const symbol = shortString.decodeShortString(symbolResult['']);
-          const decimals = Number(decimalsResult['']); // Convert BigInt to number
+          const name = shortString.decodeShortString(nameResult);
+          const symbol = shortString.decodeShortString(symbolResult);
+          const decimals = Number(decimalsResult); // Convert BigInt to number
           return TokenMetadataSchema.parse({
             name,
             symbol,

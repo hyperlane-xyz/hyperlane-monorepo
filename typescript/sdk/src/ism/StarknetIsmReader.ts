@@ -90,7 +90,7 @@ export class StarknetIsmReader {
       type: IsmType.AGGREGATION,
       address,
       modules: moduleConfigs.filter(Boolean),
-      threshold: threshold.toString(),
+      threshold: Number(threshold),
     };
   }
 
@@ -111,8 +111,8 @@ export class StarknetIsmReader {
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
       address,
-      validators: validators.map((v: any) => num.toHex64(v.toString())),
-      threshold: threshold.toString(),
+      validators: validators.map((v) => num.toHex64(v)),
+      threshold: Number(threshold),
     };
   }
 
@@ -133,8 +133,8 @@ export class StarknetIsmReader {
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
       address,
-      validators: validators.map((v: any) => num.toHex64(v.toString())),
-      threshold: threshold.toString(),
+      validators: validators.map((v) => num.toHex64(v)),
+      threshold: Number(threshold),
     };
   }
 

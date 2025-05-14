@@ -4,6 +4,7 @@ import {
   CairoOptionVariant,
   GetTransactionReceiptResponse,
   InvokeFunctionResponse,
+  num,
 } from 'starknet';
 
 import {
@@ -277,7 +278,9 @@ export class StarknetCore {
           mailboxAddress,
           this.multiProtocolSigner.getStarknetSigner(destinationChain),
         );
-        const delivered = await mailboxContract.delivered(messageId);
+        const delivered = await mailboxContract.delivered(
+          num.toBigInt(messageId),
+        );
         if (delivered) {
           this.logger.info(`Message ${messageId} was processed`);
           return true;
