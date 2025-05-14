@@ -26,6 +26,12 @@ contract OPL2ToL1CcipReadIsm is
     using Message for bytes;
     using TypeCasts for address;
 
+    uint32 internal constant OP_PORTAL_VERSION_1 = 1;
+    uint32 internal constant OP_PORTAL_VERSION_2 = 2;
+
+    // OP Portal version
+    uint32 immutable opPortalVersion;
+
     // CCIP-read gateways URLs
     string[] public urls;
     // mailbox on L1
@@ -40,8 +46,19 @@ contract OPL2ToL1CcipReadIsm is
         bytes message
     );
 
-    constructor(string[] memory _urls, address _opPortal, address _mailbox) {
+    constructor(
+        string[] memory _urls,
+        address _opPortal,
+        uint32 _opPortalVersion,
+        address _mailbox
+    ) {
         require(_urls.length > 0, "URLs array is empty");
+        require(
+            _opPortalVersion == OP_PORTAL_VERSION_1 ||
+                _opPortalVersion == OP_PORTAL_VERSION_1,
+            "Unsupported OP portal version"
+        );
+        opPortalVersion = _opPortalVersion;
         urls = _urls;
         mailbox = IMailbox(_mailbox);
         opPortal = IOptimismPortal(_opPortal);
@@ -148,16 +165,19 @@ contract OPL2ToL1CcipReadIsm is
     function _isWithdrawalProvenAlready(
         bytes32 _withdrawalHash
     ) internal view returns (bool) {
-        try opPortal.provenWithdrawals(_withdrawalHash) returns (
-            IOptimismPortal.ProvenWithdrawal memory provenWithdrawal
-        ) {
+        if (opPortalVersion == OP_PORTAL_VERSION_1) {
+            IOptimismPortal.ProvenWithdrawal memory provenWithdrawal = opPortal
+                .provenWithdrawals(_withdrawalHash);
             return provenWithdrawal.timestamp > 0;
-        } catch {
+        } else if (opPortalVersion == OP_PORTAL_VERSION_2) {
             IOptimismPortal2.ProvenWithdrawal
                 memory provenWithdrawal = IOptimismPortal2(address(opPortal))
                     .provenWithdrawals(_withdrawalHash, address(this));
             return provenWithdrawal.timestamp > 0;
         }
+
+        // Can't reach here because contract can't be
+        // created with other versions values
     }
 
     function _finalizeWithdrawal(

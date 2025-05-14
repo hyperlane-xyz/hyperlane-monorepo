@@ -21,6 +21,8 @@ contract TokenBridgeScript is Script {
 
     uint256 L2_DOMAIN = vm.envUint("L2_DOMAIN");
     uint256 L1_DOMAIN = vm.envUint("L1_DOMAIN");
+    uint256 PORTAL_VERSION = vm.envUint("L1_PORTAL_VERSION");
+
     // --------------------- Origin ---------------------
     StaticAggregationHookFactory factory =
         StaticAggregationHookFactory(
@@ -32,6 +34,7 @@ contract TokenBridgeScript is Script {
 
     uint32 origin = uint32(L2_DOMAIN);
     uint32 destination = uint32(L1_DOMAIN);
+    uint32 portalVersion = uint32(PORTAL_VERSION);
 
     // ------------------- Destination -------------------
     address mailboxDestination = vm.envAddress("L1_MAILBOX");
@@ -118,6 +121,7 @@ contract TokenBridgeScript is Script {
         OPL2ToL1CcipReadIsm ism = new OPL2ToL1CcipReadIsm(
             urls,
             opPortal,
+            portalVersion,
             mailboxDestination
         );
         console.log("OPL2ToL1CcipReadIsm @", address(ism));
