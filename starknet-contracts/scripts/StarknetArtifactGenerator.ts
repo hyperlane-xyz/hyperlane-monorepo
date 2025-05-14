@@ -168,18 +168,30 @@ export class StarknetArtifactGenerator {
    * @notice Processes all ABI files
    */
   async processAbis(files: string[]) {
-    for (const filePath of files) {
+    const paths = files.map((filePath) => {
       const baseFileName = basename(filePath);
       const name = baseFileName
         .replace('.json', '')
         .replace(`.${ContractClass.SIERRA}`, '')
         .replace(`.${ContractClass.CASM}`, '');
 
-      execSync(
-        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
-      );
+      return {
+        input: filePath,
+        output: `${this.rootOutputDir}${name}_abi.ts`,
+      };
+    });
 
-      await prettierFileTransformer(`${this.rootOutputDir}${name}_abi.ts`);
+    execSync(
+      paths
+        .map(
+          (path) =>
+            `npx abi-wan-kanabi --input ${path.input} --output ${path.output}`,
+        )
+        .join(' & '),
+    );
+
+    for (const path of paths) {
+      await prettierFileTransformer(path.output);
     }
   }
 
