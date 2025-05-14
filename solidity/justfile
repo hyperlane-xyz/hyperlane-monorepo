@@ -147,6 +147,15 @@ configure-domain-routing-mailbox-everclear-staging:
         --broadcast \
         -vvvv
 
+configure-domain-routing-mailbox-base:
+    export DOMAIN_ROUTING_MAILBOX_ADDRESS="{{ domain_routing_mailbox_addr_base }}" && \
+    export DOMAIN_ID="{{ chain_id_everclear_staging }}" && \
+    export DOMAIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
+    forge script script/ConfigureDomainRoutingMailbox.s.sol:ConfigureDomainRoutingMailbox \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
 deploy-simple-app-b3:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
     export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_b3 }}" && \
