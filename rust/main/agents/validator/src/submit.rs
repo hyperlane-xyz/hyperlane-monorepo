@@ -31,7 +31,7 @@ pub(crate) struct ValidatorSubmitter {
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
-    reorg_reporter: Arc<ReorgReporter>,
+    reorg_reporter: Arc<dyn ReorgReporter>,
 }
 
 impl ValidatorSubmitter {
@@ -46,7 +46,7 @@ impl ValidatorSubmitter {
         db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
         max_sign_concurrency: usize,
-        reorg_reporter: Arc<ReorgReporter>,
+        reorg_reporter: Arc<dyn ReorgReporter>,
     ) -> Self {
         Self {
             reorg_period,
@@ -650,6 +650,19 @@ mod test {
         }
     }
 
+    mockall::mock! {
+        pub ReorgReporter {}
+
+        impl Debug for ReorgReporter {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        #[async_trait]
+        impl ReorgReporter for ReorgReporter {
+            async fn report(&self);
+        }
+    }
+
     fn dummy_metrics() -> ValidatorSubmitterMetrics {
         let origin_domain = dummy_domain(0, "dummy_origin_domain");
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
@@ -758,6 +771,12 @@ mod test {
             .unwrap()
             .into();
 
+        let mut mock_reorg_reporter = MockReorgReporter::new();
+        mock_reorg_reporter
+            .expect_report()
+            .once()
+            .return_once(|| return ());
+
         // instantiate the validator submitter
         let validator_submitter = ValidatorSubmitter::new(
             Duration::from_secs(1),
@@ -769,6 +788,7 @@ mod test {
             Arc::new(db),
             dummy_metrics(),
             50,
+            Arc::new(mock_reorg_reporter),
         );
 
         // mock the correctness checkpoint response

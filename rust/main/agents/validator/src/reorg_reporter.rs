@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use tracing::info;
 use url::Url;
 
@@ -12,14 +14,20 @@ use hyperlane_ethereum::RpcConnectionConf;
 
 use crate::settings::ValidatorSettings;
 
+#[async_trait]
+pub trait ReorgReporter: Send + Sync + Debug {
+    async fn report(&self);
+}
+
 #[derive(Debug)]
-pub struct ReorgReporter {
+pub struct LatestCheckpointReorgReporter {
     hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
     reorg_period: hyperlane_core::ReorgPeriod,
 }
 
-impl ReorgReporter {
-    pub async fn report(&self) {
+#[async_trait]
+impl ReorgReporter for LatestCheckpointReorgReporter {
+    async fn report(&self) {
         for (url, merkle_tree_hook) in &self.hooks {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = merkle_tree_hook.clone();
@@ -34,7 +42,9 @@ impl ReorgReporter {
             );
         }
     }
+}
 
+impl LatestCheckpointReorgReporter {
     pub(crate) async fn from_settings(
         settings: &ValidatorSettings,
         metrics: &CoreMetrics,
@@ -50,7 +60,7 @@ impl ReorgReporter {
             hooks.insert(url, merkle_tree_hook.into());
         }
 
-        let reporter = ReorgReporter {
+        let reporter = LatestCheckpointReorgReporter {
             hooks,
             reorg_period: settings.reorg_period.clone(),
         };

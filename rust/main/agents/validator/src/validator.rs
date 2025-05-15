@@ -27,7 +27,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
-use crate::reorg_reporter::ReorgReporter;
+use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::server as validator_server;
 use crate::settings::ValidatorSettings;
 use crate::submit::{ValidatorSubmitter, ValidatorSubmitterMetrics};
@@ -57,7 +57,7 @@ pub struct Validator {
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
-    reorg_reporter: Arc<ReorgReporter>,
+    reorg_reporter: Arc<dyn ReorgReporter>,
 }
 
 /// Metadata for `validator`
@@ -140,7 +140,9 @@ impl BaseAgent for Validator {
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
 
-        let reorg_reporter = Arc::new(ReorgReporter::from_settings(&settings, &metrics).await?);
+        let reorg_reporter =
+            LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?;
+        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
