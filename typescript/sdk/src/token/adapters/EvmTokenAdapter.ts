@@ -374,11 +374,27 @@ export class EvmHypCollateralAdapter
   /**
    * @param quotes - The quotes returned by getRebalanceQuotes
    */
-  async populateRebalanceTx(
+  populateRebalanceTx(
     domain: Domain,
     amount: Numberish,
     bridge: Address,
     quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    return this.basePopulateRebalanceTx(
+      domain,
+      amount,
+      bridge,
+      quotes,
+      () => quotes[0].amount,
+    );
+  }
+
+  protected async basePopulateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+    getTrxValue: () => bigint,
   ): Promise<PopulatedTransaction> {
     if (quotes.length !== 1) {
       throw new Error('Only 1 quote is currently supported');
@@ -394,7 +410,7 @@ export class EvmHypCollateralAdapter
       domain,
       amount,
       bridge,
-      { value: quote.amount.toString() },
+      { value: getTrxValue() },
     );
   }
 }
@@ -686,6 +702,24 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
+  }
+
+  /**
+   * @param quotes - The quotes returned by getRebalanceQuotes
+   */
+  override populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    return this.basePopulateRebalanceTx(
+      domain,
+      amount,
+      bridge,
+      quotes,
+      () => quotes[0].amount + BigInt(amount),
+    );
   }
 }
 
