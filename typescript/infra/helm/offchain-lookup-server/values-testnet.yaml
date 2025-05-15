@@ -1,0 +1,6 @@
+environment: testnet
+
+ingress:
+  host: testnet-offchain-lookup.services.hyperlane.xyz
+  # This needs to be created/looked up in Google Cloud Console
+  staticIpName: offchain-lookup-server-testnet

@@ -1,3 +1,7 @@
+environment: testnet
+
+# General deployment configuration
+port: 3000
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   # Modify this tag to deploy a new revision.
@@ -5,17 +9,14 @@ image:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
   tag: 0b57705-20250514-150736
 
-port: 3000
-
-service:
-  type: ClusterIP
+# Ingress / Loadbalancer
+# Needs external coordination with Google Cloud External IP and DNS provider
+# TODO move over to testnet values (and shutdown old service)
+ingress:
+  host: offchain-lookup.web3tools.net # Deprecated
+  staticIpName: my-ingress-ip # Deprecated
 
 # TODO split between prod and testnet
-ingress:
-  host: offchain-lookup.web3tools.net
-  staticIpName: my-ingress-ip # TODO rename
-  certificateName: my-cert # TODO rename
-
 env:
   - name: RPC_URL
     value: "https://eth-sepolia.public.blastapi.io"
