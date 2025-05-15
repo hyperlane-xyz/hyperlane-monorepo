@@ -45,8 +45,9 @@ impl CodeSource {
                 let entry = v.unwrap();
                 (entry.file_name().into_string().unwrap(), entry.path())
             })
-            .filter(|(filename, _)| filename.ends_with(".cairo"))
-            .map(|v| (v.0.replace(".cairo", ""), v.1))
+            .filter(|(filename, _)| filename.ends_with(".contract_class.json"))
+            .filter(|(filename, _)| !filename.contains("Mock"))
+            .map(|v| (v.0.replace(".contract_class.json", ""), v.1))
             .collect()
     }
 
