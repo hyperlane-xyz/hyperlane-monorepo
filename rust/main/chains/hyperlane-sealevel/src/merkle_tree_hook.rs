@@ -5,8 +5,8 @@ use derive_new::new;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlockHeight, HyperlaneChain,
-    HyperlaneMessage, IncrementalMerkleAtBlockHeight, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, HyperlaneChain,
+    HyperlaneMessage, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
@@ -17,10 +17,7 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> ChainResult<IncrementalMerkleAtBlockHeight> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         assert!(
             reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
@@ -34,7 +31,7 @@ impl MerkleTreeHook for SealevelMailbox {
     async fn latest_checkpoint(
         &self,
         reorg_period: &ReorgPeriod,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    ) -> ChainResult<CheckpointAtBlock> {
         assert!(
             reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
@@ -45,10 +42,7 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint_at_height(
-        &self,
-        _height: u64,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
         self.get_latest_checkpoint().await
     }
 
@@ -64,7 +58,7 @@ impl MerkleTreeHook for SealevelMailbox {
 }
 
 impl SealevelMailbox {
-    async fn get_tree(&self) -> ChainResult<IncrementalMerkleAtBlockHeight> {
+    async fn get_tree(&self) -> ChainResult<IncrementalMerkleAtBlock> {
         let outbox_account = self
             .get_provider()
             .rpc_client()
@@ -74,7 +68,7 @@ impl SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        let incremental = IncrementalMerkleAtBlockHeight {
+        let incremental = IncrementalMerkleAtBlock {
             tree: outbox.tree,
             // Defaulting to 0 since MerkleTreeHook calls do not depend on block height in Sealevel.
             // We are not using None since we want to be able to produce reorg report with ReorgReporter
@@ -84,7 +78,7 @@ impl SealevelMailbox {
         Ok(incremental)
     }
 
-    async fn get_latest_checkpoint(&self) -> ChainResult<CheckpointAtBlockHeight> {
+    async fn get_latest_checkpoint(&self) -> ChainResult<CheckpointAtBlock> {
         let tree = self.get_tree().await?;
 
         let root = tree.root();
@@ -104,7 +98,7 @@ impl SealevelMailbox {
             index,
         };
 
-        Ok(CheckpointAtBlockHeight {
+        Ok(CheckpointAtBlock {
             checkpoint,
             // Defaulting to 0 since MerkleTreeHook calls do not depend on block height in Sealevel.
             // We are not using None since we want to be able to produce reorg report with ReorgReporter

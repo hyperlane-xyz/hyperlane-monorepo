@@ -14,8 +14,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    CheckpointAtBlockHeight, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, IncrementalMerkleAtBlockHeight, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
@@ -66,7 +66,7 @@ impl CosmosNativeMerkleTreeHook {
         Ok((hook, tree, height))
     }
 
-    fn checkpoint(&self, tree: &TreeResponse, height: u32) -> ChainResult<CheckpointAtBlockHeight> {
+    fn checkpoint(&self, tree: &TreeResponse, height: u32) -> ChainResult<CheckpointAtBlock> {
         let root = H256::from_slice(&tree.root);
         let index = if tree.count == 0 { 0 } else { tree.count - 1 };
 
@@ -77,7 +77,7 @@ impl CosmosNativeMerkleTreeHook {
             index,
         };
 
-        Ok(CheckpointAtBlockHeight {
+        Ok(CheckpointAtBlock {
             checkpoint,
             block_height: Some(height as u64),
         })
@@ -108,10 +108,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> ChainResult<IncrementalMerkleAtBlockHeight> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let (_, tree, height) = self.get_merkle_tree(reorg_period).await?;
         let branch = tree
             .leafs
@@ -132,7 +129,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
             branch,
             count: tree.count as usize,
         };
-        Ok(IncrementalMerkleAtBlockHeight {
+        Ok(IncrementalMerkleAtBlock {
             tree,
             block_height: Some(height as u64),
         })
@@ -149,17 +146,14 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
     async fn latest_checkpoint(
         &self,
         reorg_period: &ReorgPeriod,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    ) -> ChainResult<CheckpointAtBlock> {
         let (_, tree, height) = self.get_merkle_tree(reorg_period).await?;
         self.checkpoint(&tree, height)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint_at_height(
-        &self,
-        height: u64,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let (_, tree, height) = self.get_merkle_tree_with_height(height as u32).await?;
         self.checkpoint(&tree, height)
     }

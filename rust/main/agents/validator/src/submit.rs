@@ -11,9 +11,9 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlockHeight,
+    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlock,
     CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneSignerExt, IncrementalMerkleAtBlockHeight,
+    HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
@@ -72,13 +72,10 @@ impl ValidatorSubmitter {
         }
     }
 
-    pub(crate) fn checkpoint_at_height(
-        &self,
-        tree: &IncrementalMerkleAtBlockHeight,
-    ) -> CheckpointAtBlockHeight {
+    pub(crate) fn checkpoint_at_block(&self, tree: &IncrementalMerkleAtBlock) -> CheckpointAtBlock {
         let checkpoint = self.checkpoint(&tree.tree);
 
-        CheckpointAtBlockHeight {
+        CheckpointAtBlock {
             checkpoint,
             block_height: tree.block_height,
         }
@@ -86,10 +83,7 @@ impl ValidatorSubmitter {
 
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
-    pub(crate) async fn backfill_checkpoint_submitter(
-        self,
-        target_checkpoint: CheckpointAtBlockHeight,
-    ) {
+    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
         let mut tree = IncrementalMerkle::default();
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
@@ -176,7 +170,7 @@ impl ValidatorSubmitter {
     async fn submit_checkpoints_until_correctness_checkpoint(
         &self,
         tree: &mut IncrementalMerkle,
-        correctness_checkpoint: &CheckpointAtBlockHeight,
+        correctness_checkpoint: &CheckpointAtBlock,
     ) {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
@@ -639,10 +633,10 @@ mod test {
 
         #[async_trait]
         impl MerkleTreeHook for MerkleTreeHook {
-            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlockHeight>;
+            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock>;
             async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
-            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<CheckpointAtBlockHeight>;
-            async fn latest_checkpoint_at_height(&self, height: u64) -> ChainResult<CheckpointAtBlockHeight>;
+            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<CheckpointAtBlock>;
+            async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock>;
         }
     }
 
@@ -819,7 +813,7 @@ mod test {
             merkle_tree_hook_address: H256::from_low_u64_be(0),
             mailbox_domain: dummy_domain.id(),
         };
-        let mock_onchain_checkpoint = CheckpointAtBlockHeight {
+        let mock_onchain_checkpoint = CheckpointAtBlock {
             checkpoint: mock_onchain_checkpoint,
             block_height: Some(42),
         };

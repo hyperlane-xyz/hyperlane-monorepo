@@ -30,7 +30,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = merkle_tree_hook.clone();
-                Box::pin(async move { merkle_tree_hook.latest_checkpoint_at_height(height).await })
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint_at_block(height).await })
             })
             .await;
 

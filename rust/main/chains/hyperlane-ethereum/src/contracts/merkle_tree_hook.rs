@@ -11,10 +11,9 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, CheckpointAtBlockHeight, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlockHeight, Indexed,
-    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
-    H512,
+    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -256,7 +255,7 @@ where
     async fn latest_checkpoint(
         &self,
         reorg_period: &ReorgPeriod,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    ) -> ChainResult<CheckpointAtBlock> {
         let call = call_with_reorg_period(
             self.contract.latest_checkpoint(),
             &self.provider,
@@ -273,17 +272,14 @@ where
             root: root.into(),
             index,
         };
-        Ok(CheckpointAtBlockHeight {
+        Ok(CheckpointAtBlock {
             checkpoint,
             block_height,
         })
     }
 
     #[instrument(skip(self))]
-    async fn latest_checkpoint_at_height(
-        &self,
-        height: u64,
-    ) -> ChainResult<CheckpointAtBlockHeight> {
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let call = self
             .contract
             .latest_checkpoint()
@@ -296,7 +292,7 @@ where
             root: root.into(),
             index,
         };
-        Ok(CheckpointAtBlockHeight {
+        Ok(CheckpointAtBlock {
             checkpoint,
             block_height: Some(height),
         })
@@ -304,16 +300,13 @@ where
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> ChainResult<IncrementalMerkleAtBlockHeight> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let call =
             call_with_reorg_period(self.contract.tree(), &self.provider, reorg_period).await?;
         let tree = call.call().await?;
         let block_height = Self::block_height(&call);
 
-        Ok(IncrementalMerkleAtBlockHeight {
+        Ok(IncrementalMerkleAtBlock {
             tree: tree.into(),
             block_height,
         })
