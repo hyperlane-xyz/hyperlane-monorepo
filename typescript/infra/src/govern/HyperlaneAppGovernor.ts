@@ -372,28 +372,36 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    const { ownerType, governanceType: icaGovernanceType } =
-      await determineGovernanceType(chain, account.address);
-    // verify that we expect it to be an ICA
-    assert(ownerType === Owner.ICA, 'ownerType should be ICA');
-    // get the set of safes for this governance type
-    const safes = getGovernanceSafes(icaGovernanceType);
-    const origin = 'ethereum';
-    const remoteOwner = safes[origin];
-    const accountConfig = {
-      origin,
-      owner: remoteOwner,
-    };
+    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+
+    if (!accountConfig) {
+      const { ownerType, governanceType: icaGovernanceType } =
+        await determineGovernanceType(chain, account.address);
+      // verify that we expect it to be an ICA
+      assert(ownerType === Owner.ICA, 'ownerType should be ICA');
+      // get the set of safes for this governance type
+      const safes = getGovernanceSafes(icaGovernanceType);
+      const origin = 'ethereum';
+      const remoteOwner = safes[origin];
+      accountConfig = {
+        origin,
+        owner: remoteOwner,
+      };
+    }
+
+    // WARNING: origin is a reserved word in TypeScript
+    const origin = accountConfig.origin;
 
     // Check that it derives to the ICA
     const derivedIca = await this.interchainAccount.getAccount(
-      accountConfig.origin,
+      chain,
       accountConfig,
     );
-    if (eqAddress(derivedIca, account.address)) {
+
+    if (!eqAddress(derivedIca, account.address)) {
       console.info(
         chalk.gray(
-          `Account ${account.address} is not the expected ICA. Defaulting to manual submission.`,
+          `Account ${account.address} is not the expected ICA ${derivedIca}. Defaulting to manual submission.`,
         ),
       );
       return {
