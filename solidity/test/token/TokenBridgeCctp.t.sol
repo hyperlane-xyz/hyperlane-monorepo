@@ -26,6 +26,9 @@ import {console} from "forge-std/console.sol";
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
 
+    uint32 internal constant CCTP_VERSION_1 = 0;
+    uint32 internal constant CCTP_VERSION_2 = 1;
+
     uint256 internal constant scale = 1;
     uint32 internal constant origin = 1;
     uint32 internal constant destination = 2;
@@ -44,6 +47,7 @@ contract TokenBridgeCctpV1Test is Test {
     MockToken internal tokenOrigin;
     MockToken internal tokenDestination;
 
+    uint32 internal version = 0; // CCTPv1
     uint256 internal amount = 1_000_000; // 1 USDC
     address internal user = address(11);
     uint256 internal balance = 10_000_000; // 10 USDC
@@ -188,6 +192,33 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(tokenBalance, amount);
     }
 
+    function test_revertsWhen_versionIsNotSupported() public virtual {
+        messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
+        MockCircleTokenMessengerV2 tokenMessengerV2 = new MockCircleTokenMessengerV2(
+                tokenOrigin
+            );
+
+        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        TokenBridgeCctpV1 v1 = new TokenBridgeCctpV1(
+            address(tokenOrigin),
+            scale,
+            address(mailboxOrigin),
+            IMessageTransmitter(address(messageTransmitterOrigin)),
+            ITokenMessenger(address(tokenMessengerV2))
+        );
+
+        messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
+
+        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        v1 = new TokenBridgeCctpV1(
+            address(tokenOrigin),
+            scale,
+            address(mailboxOrigin),
+            IMessageTransmitter(address(messageTransmitterOrigin)),
+            ITokenMessenger(address(tokenMessengerOrigin))
+        );
+    }
+
     function _expectOffChainLookUpRevert(bytes memory message) internal {
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -259,5 +290,29 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
+    }
+
+    function test_revertsWhen_versionIsNotSupported() public override {
+        messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
+
+        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            scale,
+            address(mailboxOrigin),
+            IMessageTransmitter(address(messageTransmitterOrigin)),
+            ITokenMessengerV2(address(tokenMessengerOrigin))
+        );
+
+        messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
+
+        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        v2 = new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            scale,
+            address(mailboxOrigin),
+            IMessageTransmitter(address(messageTransmitterOrigin)),
+            ITokenMessengerV2(address(tokenMessengerOriginV2))
+        );
     }
 }
