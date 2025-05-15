@@ -58,7 +58,7 @@ describe('WithSemaphore', () => {
     expect(rebalanceSpy.calledOnce).to.be.false;
   });
 
-  it('should return early if the rebalance is still in progress', async () => {
+  it('should return early if rebalance occurs before waitUntil is reached', async () => {
     const config = {
       chains: {
         chain1: {
