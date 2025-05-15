@@ -1055,11 +1055,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '25',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
+        bridgeTolerance: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '75',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
+        bridgeTolerance: 1,
       },
     });
 
