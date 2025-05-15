@@ -6,11 +6,14 @@ kind: Ingress
 metadata:
   name: {{ .Chart.Name }}--ingress--{{.Values.environment}}
   annotations:
+    kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: {{ .Values.ingress.staticIpName }}
+    networking.gke.io/managed-certificates: {{ .Chart.Name }}--certificate--{{ .Values.environment }}
 spec:
   ingressClassName: "gce"
   rules:
-    - http:
+    - host: {{ .Values.ingress.host }}
+      http:
         paths:
           - path: /
             pathType: Prefix
