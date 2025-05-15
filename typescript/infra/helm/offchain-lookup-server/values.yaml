@@ -1,7 +1,6 @@
 environment: testnet
 
 # General deployment configuration
-port: 3000
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   # Modify this tag to deploy a new revision.
@@ -15,6 +14,8 @@ image:
 ingress:
   host: offchain-lookup.web3tools.net # Deprecated
   staticIpName: my-ingress-ip # Deprecated
+
+port: 3000
 
 # TODO split between prod and testnet
 env:
