@@ -40,9 +40,10 @@ jobs:
         - name: Build hyperlane-monorepo docker image
           run: ./build.sh
 
+        - uses: taiki-e/install-action@nextest
         - name: Run sov-tests
           env:
             CUSTOM_HLP_DOCKER_IMAGE: hyperlane
           run: |
             cd sovereign-sdk-wip
-            cargo test -p sov-hyperlane-integration -- with_agent
+            cargo nextest run -p sov-hyperlane-integration -- with_agent
