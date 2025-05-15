@@ -108,8 +108,11 @@ function getChainConnections(
       ['svmbnb', 'solanamainnet'],
       ['svmbnb', 'bsc'],
       ['svmbnb', 'soon'],
+      ['sonicsvm', 'eclipsemainnet'],
       ['soon', 'solanamainnet'],
       ['soon', 'bsc'],
+      ['soon', 'eclipsemainnet'],
+      ['abstract', 'solanamainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
