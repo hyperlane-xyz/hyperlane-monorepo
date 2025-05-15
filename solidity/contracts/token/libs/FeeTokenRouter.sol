@@ -28,7 +28,7 @@ abstract contract FeeTokenRouter is TokenRouter {
         );
 
         for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token != address(0)) continue;
+            if (quotes[i].token == address(0)) continue;
             IERC20(quotes[i].token).transferFrom(
                 msg.sender,
                 address(this),
@@ -39,17 +39,49 @@ abstract contract FeeTokenRouter is TokenRouter {
         return _transferRemote(destination, recipient, amountIn, msg.value);
     }
 
+    /**
+     * @notice Combines two Quotes arrays into a single array
+     * @param quotes1 First array of quotes
+     * @param quotes2 Second array of quotes
+     * @return Combined array of quotes
+     */
+    function _combineQuotes(
+        Quotes[] memory quotes1,
+        Quotes[] memory quotes2
+    ) internal pure returns (Quotes[] memory) {
+        uint256 totalLength = quotes1.length + quotes2.length;
+        Quotes[] memory combined = new Quotes[](totalLength);
+
+        // Copy first array
+        for (uint256 i = 0; i < quotes1.length; i++) {
+            combined[i] = quotes1[i];
+        }
+
+        // Copy second array
+        for (uint256 i = 0; i < quotes2.length; i++) {
+            combined[quotes1.length + i] = quotes2[i];
+        }
+
+        return combined;
+    }
+
     function quoteTransferRemote(
         uint32 destination,
         bytes32 recipient,
         uint256 amountOut
     ) public view virtual returns (Quotes[] memory) {
-        Quotes[] memory quotes = quoteExternalFees(
+        Quotes[] memory igpFees = new Quotes[](1);
+        igpFees[0] = Quotes({
+            token: address(0),
+            amount: quoteGasPayment(destination)
+        });
+        Quotes[] memory externalFees = quoteExternalFees(
             destination,
             recipient,
             amountOut
         );
-        return quotes;
+
+        return _combineQuotes(igpFees, externalFees);
     }
 
     function quoteExternalFees(

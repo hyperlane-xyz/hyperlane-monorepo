@@ -96,7 +96,6 @@ contract FeeTokenRouterTest is Test {
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
-    TokenRouter internal localToken;
     HypERC20 internal remoteToken;
     MockMailbox internal localMailbox;
     MockMailbox internal remoteMailbox;
@@ -173,7 +172,7 @@ contract FeeTokenRouterTest is Test {
         vm.startPrank(ALICE);
         _mintAndApprove(2e18, address(myRouter));
         myRouter.transferRemote(DESTINATION, ALICE.addressToBytes32(), 1e18);
-        assertEq(primaryToken.balanceOf(ALICE), 1e18);
+        assertEq(primaryToken.balanceOf(ALICE), 0); // 1e18 for quote plus 1e18 for transfer
         vm.stopPrank();
     }
 }
