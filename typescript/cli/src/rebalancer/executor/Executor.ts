@@ -5,6 +5,7 @@ import {
   ChainMetadata,
   ChainName,
   EvmHypCollateralAdapter,
+  InterchainGasQuote,
   Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
@@ -16,7 +17,8 @@ import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 type BridgeConfig = {
   bridge: Address;
-  minAcceptedAmount?: bigint;
+  minAcceptedAmount: bigint;
+  isWarp: boolean;
 };
 
 export class Executor implements IExecutor {
@@ -75,18 +77,18 @@ export class Executor implements IExecutor {
       const signer = new ethers.Wallet(this.rebalancerKey, provider);
       const signerAddress = await signer.getAddress();
       const domain = chainMetadata[toChain].domainId;
-      const { bridge, minAcceptedAmount = 0n } = this.bridges[fromChain];
+      const { bridge, minAcceptedAmount, isWarp } = this.bridges[fromChain];
+      const recipient = destinationToken.addressOrDenom;
 
       if (!(await originHypAdapter.isRebalancer(signerAddress))) {
         throw new Error(`Signer ${signerAddress} is not a rebalancer`);
       }
 
       if (
-        (await originHypAdapter.getAllowedDestination(domain)) !==
-        destinationToken.addressOrDenom
+        (await originHypAdapter.getAllowedDestination(domain)) !== recipient
       ) {
         throw new Error(
-          `Destination ${destinationToken.addressOrDenom} for domain ${domain} is not allowed`,
+          `Destination ${recipient} for domain ${domain} is not allowed`,
         );
       }
 
@@ -105,14 +107,35 @@ export class Executor implements IExecutor {
       }
 
       log(
+        `Getting rebalance quotes: domain=${domain}, amount=${amount}, bridge=${bridge}`,
+      );
+
+      let quotes: InterchainGasQuote[];
+
+      try {
+        quotes = await originHypAdapter.getRebalanceQuotes(
+          bridge,
+          domain,
+          recipient,
+          amount,
+          isWarp,
+        );
+      } catch (error) {
+        throw new Error(
+          `Could not get rebalance quotes: ${(error as Error).message}`,
+        );
+      }
+
+      log(
         `Populating rebalance transaction: domain=${domain}, amount=${amount}, bridge=${bridge}`,
       );
 
-      const populatedTx = await originHypAdapter.populateRebalanceTx({
+      const populatedTx = await originHypAdapter.populateRebalanceTx(
         domain,
         amount,
         bridge,
-      });
+        quotes,
+      );
 
       transactions.push({ signer, populatedTx });
     }
