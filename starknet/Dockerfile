@@ -19,4 +19,4 @@ CMD ["/bin/sh", "-c", "\
     /app/scarb/bin/scarb build && \
     cp -r target/dev/* /app/release && \
     cd ../.. && \
-    rm -r hyperlane_starknet"]
+    rm -r hyperlane-starknet"]
