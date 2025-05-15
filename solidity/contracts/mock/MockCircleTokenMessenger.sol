@@ -8,7 +8,6 @@ import {MockToken} from "./MockToken.sol";
 contract MockCircleTokenMessenger is ITokenMessenger {
     uint64 public nextNonce = 0;
     MockToken token;
-    uint32 public messageBodyVersion;
 
     constructor(MockToken _token) {
         token = _token;
@@ -38,8 +37,8 @@ contract MockCircleTokenMessenger is ITokenMessenger {
         _nonce = nextNonce;
     }
 
-    function setMessageBodyVersion(uint32 _version) external {
-        messageBodyVersion = _version;
+    function messageBodyVersion() external returns (uint32) {
+        return 0;
     }
 }
 
