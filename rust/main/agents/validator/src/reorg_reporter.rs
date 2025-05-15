@@ -94,6 +94,7 @@ impl LatestCheckpointReorgReporter {
                     Sealevel(updated_conn)
                 })
             }
+            // We need only gRPC URLs for Cosmos and CosmosNative to create MerkleTreeHook
             Cosmos(conn) => {
                 Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
