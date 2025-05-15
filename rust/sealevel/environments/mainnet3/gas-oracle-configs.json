@@ -56,6 +56,14 @@
       },
       "overhead": 600000
     },
+    "abstract": {
+      "oracleConfig": {
+        "tokenExchangeRate": "187056373229658428214",
+        "gasPrice": "193418836",
+        "tokenDecimals": 18
+      },
+      "overhead": 333774
+    },
     "artela": {
       "oracleConfig": {
         "tokenExchangeRate": "152446195501249",
