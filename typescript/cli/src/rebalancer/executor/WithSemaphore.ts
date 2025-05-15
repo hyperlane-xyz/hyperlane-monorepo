@@ -9,6 +9,8 @@ import { RebalancingRoute } from '../interfaces/IStrategy.js';
 export class WithSemaphore implements IExecutor {
   // Timestamp until which rebalancing should be blocked
   private waitUntil: number = 0;
+  // Lock to prevent concurrent rebalance execution
+  private executing: boolean = false;
 
   constructor(
     private readonly config: Config,
@@ -20,6 +22,12 @@ export class WithSemaphore implements IExecutor {
    * @param routes - Routes to process
    */
   async rebalance(routes: RebalancingRoute[]) {
+    if (this.executing) {
+      log(`Currently executing rebalance. Skipping.`);
+
+      return;
+    }
+
     // No routes means the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
       log(
@@ -40,8 +48,13 @@ export class WithSemaphore implements IExecutor {
     // The wait period will be determined by the bridge with the highest wait tolerance
     const highestTolerance = this.getHighestTolerance(routes);
 
-    // Execute rebalance
-    await this.executor.rebalance(routes);
+    try {
+      // Execute rebalance
+      this.executing = true;
+      await this.executor.rebalance(routes);
+    } finally {
+      this.executing = false;
+    }
 
     // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;

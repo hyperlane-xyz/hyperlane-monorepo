@@ -105,4 +105,31 @@ describe('WithSemaphore', () => {
       "Cannot read properties of undefined (reading 'bridgeTolerance')",
     );
   });
+
+  it('should not execute if another rebalance is currently executing', async () => {
+    const config = {
+      chains: {
+        chain1: {
+          bridgeTolerance: 1,
+        },
+      },
+    } as any as Config;
+
+    const routes = [
+      {
+        fromChain: 'chain1',
+      } as any as RebalancingRoute,
+    ];
+
+    const executor = new MockExecutor();
+    const rebalanceSpy = Sinon.spy(executor, 'rebalance');
+    const withSemaphore = new WithSemaphore(config, executor);
+
+    const rebalancePromise1 = withSemaphore.rebalance(routes);
+    const rebalancePromise2 = withSemaphore.rebalance(routes);
+    await rebalancePromise1;
+    await rebalancePromise2;
+
+    expect(rebalanceSpy.calledOnce).to.be.true;
+  });
 });
