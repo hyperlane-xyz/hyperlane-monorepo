@@ -14,8 +14,8 @@ ENTRYPOINT []
 
 # Use shell form of CMD
 CMD ["/bin/sh", "-c", "\
-    git clone --depth 1 --branch v0.3.2 https://github.com/hyperlane-xyz/hyperlane_starknet && \
-    cd hyperlane_starknet/cairo && \
+    git clone --depth 1 --branch v0.3.2 https://github.com/hyperlane-xyz/hyperlane-starknet && \
+    cd hyperlane-starknet/cairo && \
     /app/scarb/bin/scarb build && \
     cp -r target/dev/* /app/release && \
     cd ../.. && \
