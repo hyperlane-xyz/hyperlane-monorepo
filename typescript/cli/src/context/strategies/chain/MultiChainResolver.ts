@@ -131,13 +131,12 @@ export class MultiChainResolver implements ChainResolver {
     const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
-    if (argv.chain) {
-      chains.add(argv.chain);
-      return Array.from(chains);
-    }
-
     if (argv.origin) {
       chains.add(argv.origin);
+    }
+
+    if (argv.chain) {
+      chains.add(argv.chain);
     }
 
     if (argv.chains) {
@@ -147,17 +146,15 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and Cosmos Native chains
-    if (argv.origin && !argv.destination) {
+    // If no destination is specified, return all EVM chains
+    if (!argv.destination) {
       return [
         ...this.getEvmChains(multiProvider),
         ...this.getCosmosNativeChains(multiProvider),
       ];
     }
 
-    if (argv.destination) {
-      chains.add(argv.destination);
-    }
+    chains.add(argv.destination);
     return Array.from(chains);
   }
 
