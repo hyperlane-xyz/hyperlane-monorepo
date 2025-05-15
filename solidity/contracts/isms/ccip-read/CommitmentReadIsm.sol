@@ -12,44 +12,27 @@ import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {OwnableMulticall} from "../../middleware/libs/OwnableMulticall.sol";
 
-contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
+contract CommitmentReadIsm is AbstractCcipReadIsm {
     using InterchainAccountMessageReveal for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    string[] public urls;
-    Mailbox public immutable mailbox;
-
-    constructor(Mailbox _mailbox, address _owner) {
-        mailbox = _mailbox;
+    constructor(
+        address _mailbox,
+        address _owner,
+        string[] memory _urls
+    ) AbstractCcipReadIsm(_mailbox, _urls) {
         _transferOwnership(_owner);
     }
 
-    function setUrls(string[] memory _urls) external onlyOwner {
-        urls = _urls;
-    }
-
-    function getOffchainVerifyInfo(
+    function _offchainLookupCalldata(
         bytes calldata _message
-    ) external view override {
-        revert OffchainLookup({
-            sender: address(this),
-            urls: urls,
-            callData: abi.encodeWithSignature(
+    ) internal pure override returns (bytes memory) {
+        return
+            abi.encodeWithSignature(
                 "getCallsFromCommitment(bytes32)",
                 _message.body().commitment()
-            ),
-            callbackFunction: this.process.selector,
-            extraData: _message
-        });
-    }
-
-    /// @dev called by the relayer when the off-chain data is ready
-    function process(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) external {
-        mailbox.process(_metadata, _message);
+            );
     }
 
     /**
