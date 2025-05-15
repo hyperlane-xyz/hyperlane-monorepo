@@ -1,0 +1,20 @@
+# Ingress
+# External load-balancer which redirects traffic to the offchain-lookup-server pods
+# It uses a managed Google Cloud Cert for HTTPS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: offchain-lookup-server-ingress
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-lookup-server
+                port:
+                  number: {{ .Values.port }}
