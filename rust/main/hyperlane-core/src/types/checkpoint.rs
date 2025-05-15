@@ -17,10 +17,6 @@ pub struct Checkpoint {
     pub root: H256,
     /// The index of the checkpoint
     pub index: u32,
-    /// The block height of the checkpoint
-    /// This field is not serialized and not signed
-    #[serde(skip)]
-    pub block_height: u64,
 }
 
 impl PartialEq for Checkpoint {

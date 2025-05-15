@@ -11,9 +11,10 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, IncrementalMerkleAtBlockHeight, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainResult, Checkpoint, CheckpointAtBlockHeight, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlockHeight, Indexed,
+    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -252,7 +253,10 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlockHeight> {
         let call = call_with_reorg_period(
             self.contract.latest_checkpoint(),
             &self.provider,
@@ -263,28 +267,37 @@ where
         let block_height = Self::block_height(&call);
 
         let (root, index) = call.call().await?;
-        Ok(Checkpoint {
+        let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
+        };
+        Ok(CheckpointAtBlockHeight {
+            checkpoint,
             block_height,
         })
     }
 
     #[instrument(skip(self))]
-    async fn latest_checkpoint_at_height(&self, height: u64) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint_at_height(
+        &self,
+        height: u64,
+    ) -> ChainResult<CheckpointAtBlockHeight> {
         let call = self
             .contract
             .latest_checkpoint()
             .block(BlockId::Number(BlockNumber::Number(height.into())));
 
         let (root, index) = call.call().await?;
-        Ok(Checkpoint {
+        let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
+        };
+        Ok(CheckpointAtBlockHeight {
+            checkpoint,
             block_height: height,
         })
     }

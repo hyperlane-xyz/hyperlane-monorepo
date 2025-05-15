@@ -11,9 +11,9 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
-    IncrementalMerkleAtBlockHeight,
+    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlockHeight,
+    CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneSignerExt, IncrementalMerkleAtBlockHeight,
 };
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
@@ -69,23 +69,27 @@ impl ValidatorSubmitter {
             mailbox_domain: self.merkle_tree_hook.domain().id(),
             root: tree.root(),
             index: tree.index(),
-            block_height: 0,
         }
     }
 
-    pub(crate) fn checkpoint_at_height(&self, tree: &IncrementalMerkleAtBlockHeight) -> Checkpoint {
-        Checkpoint {
-            merkle_tree_hook_address: self.merkle_tree_hook.address(),
-            mailbox_domain: self.merkle_tree_hook.domain().id(),
-            root: tree.root(),
-            index: tree.index(),
+    pub(crate) fn checkpoint_at_height(
+        &self,
+        tree: &IncrementalMerkleAtBlockHeight,
+    ) -> CheckpointAtBlockHeight {
+        let checkpoint = self.checkpoint(&tree.tree);
+
+        CheckpointAtBlockHeight {
+            checkpoint,
             block_height: tree.block_height,
         }
     }
 
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
-    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
+    pub(crate) async fn backfill_checkpoint_submitter(
+        self,
+        target_checkpoint: CheckpointAtBlockHeight,
+    ) {
         let mut tree = IncrementalMerkle::default();
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
@@ -172,7 +176,7 @@ impl ValidatorSubmitter {
     async fn submit_checkpoints_until_correctness_checkpoint(
         &self,
         tree: &mut IncrementalMerkle,
-        correctness_checkpoint: &Checkpoint,
+        correctness_checkpoint: &CheckpointAtBlockHeight,
     ) {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
@@ -238,7 +242,7 @@ impl ValidatorSubmitter {
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
-        if checkpoint != *correctness_checkpoint {
+        if checkpoint != correctness_checkpoint.checkpoint {
             let reorg_event = ReorgEvent::new(
                 tree.root(),
                 correctness_checkpoint.root,
@@ -635,8 +639,8 @@ mod test {
         impl MerkleTreeHook for MerkleTreeHook {
             async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlockHeight>;
             async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
-            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint>;
-            async fn latest_checkpoint_at_height(&self, height: u64) -> ChainResult<Checkpoint>;
+            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<CheckpointAtBlockHeight>;
+            async fn latest_checkpoint_at_height(&self, height: u64) -> ChainResult<CheckpointAtBlockHeight>;
         }
     }
 
@@ -812,7 +816,10 @@ mod test {
             index: mock_onchain_merkle_tree.index(),
             merkle_tree_hook_address: H256::from_low_u64_be(0),
             mailbox_domain: dummy_domain.id(),
-            block_height: 0,
+        };
+        let mock_onchain_checkpoint = CheckpointAtBlockHeight {
+            checkpoint: mock_onchain_checkpoint,
+            block_height: 42,
         };
 
         // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.
