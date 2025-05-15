@@ -553,14 +553,18 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
+    // Cosmos Native chains have the correct gRPC URL format in the registry. So only delete the gRPC URL for legacy Cosmos chains.
+    if (metadata?.protocol === ProtocolType.Cosmos) {
+      // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
+      // which is expected by the agents. For now, we intentionally skip this.
+      delete metadata.grpcUrls;
+    }
+
+    // Delete transaction overrides for all Cosmos chains.
     if (
       metadata?.protocol === ProtocolType.Cosmos ||
       metadata?.protocol === ProtocolType.CosmosNative
     ) {
-      // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
-      // which is expected by the agents. For now, we intentionally skip this.
-      delete metadata.grpcUrls;
-
       // The agents expect gasPrice.amount and gasPrice.denom and ignore the transaction overrides.
       // To reduce confusion when looking at the config, we remove the transaction overrides.
       delete metadata.transactionOverrides;

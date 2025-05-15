@@ -16,8 +16,9 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 async-trait.workspace = true
 chrono.workspace = true
 derive-new.workspace = true
-eyre.workspace = true
 ethers.workspace = true
+ethers-core.workspace = true
+eyre.workspace = true
 futures-util.workspace = true
 prometheus.workspace = true
 serde.workspace = true

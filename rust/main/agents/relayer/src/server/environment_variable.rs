@@ -63,24 +63,25 @@ async fn set_environment_variable(
 
 impl EnvironmentVariableApi {
     pub fn router(&self) -> Router {
-        Router::new()
-            .route("/", routing::get(get_environment_variable))
-            .route("/", routing::post(set_environment_variable))
-            .with_state(self.clone())
-    }
-
-    pub fn get_route(&self) -> (&'static str, Router) {
-        (ENVIRONMENT_VARIABLE, self.router())
+        Router::new().nest(
+            ENVIRONMENT_VARIABLE,
+            Router::new()
+                .route("/", routing::get(get_environment_variable))
+                .route("/", routing::post(set_environment_variable))
+                .with_state(self.clone()),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::env::VarError::NotPresent;
-    use std::net::SocketAddr;
 
-    use axum::http::StatusCode;
+    use axum::http::{header::CONTENT_TYPE, Method, Request, StatusCode};
     use serde_json::{json, Value};
+    use tower::ServiceExt;
+
+    use crate::test_utils::request::parse_body_to_json;
 
     use super::*;
 
@@ -89,83 +90,68 @@ mod tests {
 
     #[derive(Debug)]
     struct TestServerSetup {
-        pub socket_address: SocketAddr,
+        pub app: Router,
     }
 
     fn setup_test_server() -> TestServerSetup {
         let api = EnvironmentVariableApi::new();
-        let (path, router) = api.get_route();
+        let app = api.router();
 
-        let app = Router::new().nest(path, router);
-
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        tokio::spawn(server);
-
-        TestServerSetup {
-            socket_address: addr,
-        }
+        TestServerSetup { app }
     }
 
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_environment_variable() {
-        let TestServerSetup {
-            socket_address: addr,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app } = setup_test_server();
 
         let set = set();
-        let response = request(addr, &set, true).await;
+        let response = request(&app, &set, Method::POST).await;
         assert_eq!(NAME, response.name);
         assert_eq!(Some(VALUE.to_string()), response.value);
         assert_eq!("set", response.message);
         assert_eq!(VALUE, env::var(NAME).unwrap());
 
         let get = get_or_remove();
-        let response = request(addr, &get, false).await;
+        let response = request(&app, &get, Method::GET).await;
         assert_eq!(NAME, response.name);
         assert_eq!(Some(VALUE.to_string()), response.value);
         assert_eq!("got", response.message);
         assert_eq!(VALUE, env::var(NAME).unwrap());
 
         let remove = get_or_remove();
-        let response = request(addr, &remove, true).await;
+        let response = request(&app, &remove, Method::POST).await;
         assert_eq!(NAME, response.name);
         assert_eq!(None, response.value);
         assert_eq!("unset", response.message);
         assert_eq!(Err(NotPresent), env::var(NAME));
 
         let get = get_or_remove();
-        let response = request(addr, &get, false).await;
+        let response = request(&app, &get, Method::GET).await;
         assert_eq!(NAME, response.name);
         assert_eq!(None, response.value);
         assert_eq!("got", response.message);
         assert_eq!(Err(NotPresent), env::var(NAME));
     }
 
-    async fn request(addr: SocketAddr, body: &Value, post: bool) -> EnvironmentVariableResponse {
-        let client = reqwest::Client::new();
+    async fn request(app: &Router, body: &Value, method: Method) -> EnvironmentVariableResponse {
+        let api_url = ENVIRONMENT_VARIABLE;
+        let request = Request::builder()
+            .uri(api_url)
+            .method(method)
+            .header(CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(body).expect("Failed to serialize body"))
+            .expect("Failed to build request");
 
-        let builder = if post {
-            client.post(format!("http://{}{}", addr, ENVIRONMENT_VARIABLE))
-        } else {
-            client.get(format!("http://{}{}", addr, ENVIRONMENT_VARIABLE))
-        };
-
-        let request = builder.json(&body).build().unwrap();
-        let response = tokio::spawn(client.execute(request))
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to send request");
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let response = response
-            .json::<EnvironmentVariableResponse>()
-            .await
-            .unwrap();
+        let response: EnvironmentVariableResponse = parse_body_to_json(response.into_body()).await;
         response
     }
 

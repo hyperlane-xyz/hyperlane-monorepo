@@ -20,6 +20,7 @@ export {
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
+  isCosmosIbcDenomAddress,
   isAddressEvm,
   isAddressSealevel,
   isValidAddress,
@@ -113,6 +114,7 @@ export {
   deepEquals,
   deepFind,
   diffObjMerge,
+  keepOnlyDiffObjects,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
@@ -130,6 +132,7 @@ export {
   stringifyObject,
   transformObj,
   TransformObjectTransformer,
+  sortArraysInObject,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {

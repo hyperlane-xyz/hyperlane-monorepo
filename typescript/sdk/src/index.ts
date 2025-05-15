@@ -120,6 +120,7 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { executeWarpDeploy } from './deploy/warp.js';
 export {
   SealevelOverheadIgpAdapter,
   SealevelIgpAdapter,
@@ -459,6 +460,8 @@ export {
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
+export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
+export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
@@ -563,6 +566,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
+  expandVirtualWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
@@ -631,6 +635,11 @@ export {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  derivedHookAddress,
+  derivedIsmAddress,
+  DerivedTokenRouterConfig,
+  DerivedWarpRouteDeployConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,

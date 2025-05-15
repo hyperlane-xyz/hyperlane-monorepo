@@ -221,18 +221,6 @@ export const validatorChainConfig = (
         'citreatestnet',
       ),
     },
-    camptestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('camptestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'camptestnet',
-      ),
-    },
     formtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('formtestnet'),
@@ -367,18 +355,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'abstracttestnet',
-      ),
-    },
-    treasuretopaz: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('treasuretopaz'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'treasuretopaz',
       ),
     },
 
@@ -577,6 +553,47 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x65c7581e14efdf4d9c5320882170f022835bd742'],
         },
         'milkywaytestnet',
+      ),
+    },
+
+    nobletestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nobletestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a'],
+        },
+        'nobletestnet',
+      ),
+    },
+    megaethtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('megaethtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef'],
+        },
+        'megaethtestnet',
+      ),
+    },
+    basecamptestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('basecamptestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x84441e39ed5251410aa2baa72e7747c46d1e5e9d'],
+        },
+        'basecamptestnet',
+      ),
+    },
+    bepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xdb0128bb3d3f204eb18de7e8268e94fde0382daf'],
+        },
+        'bepolia',
       ),
     },
   };

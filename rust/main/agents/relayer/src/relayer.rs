@@ -345,6 +345,20 @@ impl BaseAgent for Relayer {
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                // Extract optional Ethereum signer for CCIP-read authentication
+                let eth_signer: Option<hyperlane_ethereum::Signers> = if let Some(builder) =
+                    &destination_chain_setup.signer
+                {
+                    match builder.build().await {
+                        Ok(s) => Some(s),
+                        Err(err) => {
+                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -362,6 +376,7 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
+                    eth_signer,
                 );
 
                 msg_ctxs.insert(
@@ -542,10 +557,10 @@ impl BaseAgent for Relayer {
 
         // run server
         start_entity_init = Instant::now();
-        let custom_routes = relayer_server::Server::new(self.destination_chains.len())
+        let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
-            .routes();
+            .router();
         let server = self
             .core
             .settings
@@ -553,7 +568,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(relayer_router);
             }
             .instrument(info_span!("Relayer server")),
         );

@@ -31,12 +31,11 @@ async function main() {
       },
     );
 
-    const configFileName = `${warpRouteId}-deploy.yaml`;
-    registry.addWarpRouteConfig(registryConfig, configFileName);
+    registry.addWarpRouteConfig(registryConfig, { warpRouteId });
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
-      `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes/${configFileName}`,
+      `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes/${warpRouteId}-deploy.yaml`,
     );
   }
 }

@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
+use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::identifiers::UniqueIdentifier;
 use hyperlane_core::KnownHyperlaneDomain;
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 use super::*;
 use crate::chain_tx_adapter::*;
@@ -55,7 +54,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
     Transaction {
         id: UniqueIdentifier::random(),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm,
+        vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
         status,
         submission_attempts: 0,

@@ -2,10 +2,8 @@
 #![allow(dead_code)]
 
 use std::fmt::Debug;
-use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
@@ -25,15 +23,19 @@ pub struct PayloadDetails {
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    pub success_criteria: Option<(Vec<u8>, Address)>,
+    pub success_criteria: Option<Vec<u8>>,
 }
 
 impl PayloadDetails {
-    pub fn new(id: PayloadId, metadata: impl Into<String>) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        success_criteria: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             id,
             metadata: metadata.into(),
-            success_criteria: None,
+            success_criteria,
         }
     }
 }
@@ -43,7 +45,7 @@ impl PayloadDetails {
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
-    /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
+    /// serialized `ContractCall` on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
     pub data: Vec<u8>,
     /// defaults to the hyperlane mailbox
     pub to: Address,
@@ -71,9 +73,15 @@ impl Debug for FullPayload {
 }
 
 impl FullPayload {
-    pub fn new(id: PayloadId, metadata: impl Into<String>, data: Vec<u8>, to: Address) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        data: Vec<u8>,
+        success_criteria: Option<Vec<u8>>,
+        to: Address,
+    ) -> Self {
         Self {
-            details: PayloadDetails::new(id, metadata),
+            details: PayloadDetails::new(id, metadata, success_criteria),
             data,
             to,
             status: Default::default(),
