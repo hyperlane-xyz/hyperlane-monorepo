@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  AbstractCcipReadIsm,
   ArbL2ToL1Ism,
   CCIPIsm,
   IAggregationIsm,
@@ -65,6 +66,7 @@ export enum IsmType {
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
+  OFFCHAIN_LOOKUP = 'offchainLookupIsm',
 }
 
 // ISM types that can be updated in-place
@@ -72,6 +74,7 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.ROUTING,
   IsmType.FALLBACK_ROUTING,
   IsmType.PAUSABLE,
+  IsmType.OFFCHAIN_LOOKUP,
 ];
 
 // mapping between the two enums
@@ -103,6 +106,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MERKLE_ROOT_MULTISIG;
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
+    case IsmType.OFFCHAIN_LOOKUP:
+      return ModuleType.CCIP_READ;
   }
 }
 
@@ -128,6 +133,10 @@ export type TrustedRelayerIsmConfig = z.infer<
 >;
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+
+export type OffchainLookupIsmConfig = z.infer<
+  typeof OffchainLookupIsmConfigSchema
+>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -185,6 +194,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -224,6 +234,11 @@ export const TrustedRelayerIsmConfigSchema = z.object({
 export const CCIPIsmConfigSchema = z.object({
   type: z.literal(IsmType.CCIP),
   originChain: z.string(),
+});
+
+export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.OFFCHAIN_LOOKUP),
+  urls: z.array(z.string()),
 });
 
 export const OpStackIsmConfigSchema = z.object({
@@ -307,4 +322,5 @@ export const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
+  OffchainLookupIsmConfigSchema,
 ]);

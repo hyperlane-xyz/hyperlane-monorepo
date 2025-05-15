@@ -288,10 +288,7 @@ export {
 } from './middleware/account/contracts.js';
 export { InterchainAccount } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
-export {
-  InterchainAccountConfig,
-  InterchainAccountDeployer,
-} from './middleware/account/InterchainAccountDeployer.js';
+export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';
 export {
   AccountConfig,
   AccountConfigSchema,
@@ -462,7 +459,6 @@ export {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
   IcaRouterConfigSchema,
-  RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {

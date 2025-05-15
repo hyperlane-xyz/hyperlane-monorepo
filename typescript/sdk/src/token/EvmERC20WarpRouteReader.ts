@@ -1,4 +1,4 @@
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -11,26 +11,15 @@ import {
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  bytes32ToAddress,
-  eqAddress,
-  getLogLevel,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, getLogLevel, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  DerivedMailboxClientConfig,
-  DestinationGas,
-  RemoteRouters,
-  RemoteRoutersSchema,
-} from '../router/types.js';
+import { EvmRouterReader } from '../router/EvmRouterReader.js';
+import { DestinationGas } from '../router/types.js';
 import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
-import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -42,7 +31,7 @@ import {
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
-export class EvmERC20WarpRouteReader extends HyperlaneReader {
+export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
   });
@@ -71,18 +60,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const mailboxClientConfig = await this.fetchMailboxClientConfig(
-      warpRouteAddress,
-    );
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
+    const routerConfig = await this.readRouterConfig(warpRouteAddress);
     const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
-      ...mailboxClientConfig,
+      ...routerConfig,
       ...tokenConfig,
-      remoteRouters,
       proxyAdmin,
       destinationGas,
     };
@@ -169,41 +154,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-  }
-
-  /**
-   * Fetches the base metadata for a Warp Route contract.
-   *
-   * @param routerAddress - The address of the Warp Route contract.
-   * @returns The base metadata for the Warp Route contract, including the mailbox, owner, hook, and ism.
-   */
-  async fetchMailboxClientConfig(
-    routerAddress: Address,
-  ): Promise<DerivedMailboxClientConfig> {
-    const warpRoute = HypERC20Collateral__factory.connect(
-      routerAddress,
-      this.provider,
-    );
-    const [mailbox, owner, hook, ism] = await Promise.all([
-      warpRoute.mailbox(),
-      warpRoute.owner(),
-      warpRoute.hook(),
-      warpRoute.interchainSecurityModule(),
-    ]);
-
-    const derivedIsm = eqAddress(ism, constants.AddressZero)
-      ? constants.AddressZero
-      : await this.evmIsmReader.deriveIsmConfig(ism);
-    const derivedHook = eqAddress(hook, constants.AddressZero)
-      ? constants.AddressZero
-      : await this.evmHookReader.deriveHookConfig(hook);
-
-    return {
-      mailbox,
-      owner,
-      hook: derivedHook,
-      interchainSecurityModule: derivedIsm,
-    };
   }
 
   async fetchXERC20Config(
@@ -349,27 +299,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     ]);
 
     return { name, symbol, decimals };
-  }
-
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const warpRoute = TokenRouter__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    const domains = await warpRoute.domains();
-
-    const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [
-            domain,
-            { address: bytes32ToAddress(await warpRoute.routers(domain)) },
-          ];
-        }),
-      ),
-    );
-
-    return RemoteRoutersSchema.parse(routers);
   }
 
   async fetchProxyAdminConfig(

@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AbstractCcipReadIsm__factory,
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
@@ -28,6 +29,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -40,11 +42,15 @@ import {
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
+  OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
+  deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -118,7 +124,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           derivedIsmConfig = await this.deriveNullConfig(address);
           break;
         case ModuleType.CCIP_READ:
-          throw new Error('CCIP_READ does not have a corresponding IsmType');
+          derivedIsmConfig = await this.deriveOffchainLookupConfig(address);
+          break;
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
         default:
@@ -133,6 +140,28 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     }
 
     return derivedIsmConfig;
+  }
+
+  async deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>> {
+    const ism = AbstractCcipReadIsm__factory.connect(address, this.provider);
+
+    this.assertModuleType(await ism.moduleType(), ModuleType.CCIP_READ);
+
+    const reader = new EvmRouterReader(this.multiProvider, this.chain);
+
+    const [mailboxClientConfig, urls] = await Promise.all([
+      await reader.fetchMailboxClientConfig(address),
+      await ism.urls(),
+    ]);
+
+    return {
+      address,
+      type: IsmType.OFFCHAIN_LOOKUP,
+      urls,
+      ...mailboxClientConfig,
+    };
   }
 
   async deriveRoutingConfig(

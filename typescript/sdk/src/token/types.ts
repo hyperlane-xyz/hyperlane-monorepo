@@ -4,10 +4,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
-import {
-  DerivedMailboxClientFields,
-  GasRouterConfigSchema,
-} from '../router/types.js';
+import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -138,11 +135,8 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  Omit<
-    z.infer<typeof GasRouterConfigSchema>,
-    keyof DerivedMailboxClientFields
-  > &
-  DerivedMailboxClientFields;
+  z.infer<typeof GasRouterConfigSchema> &
+  DerivedRouterConfig;
 
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
   return typeof config.hook === 'string' ? config.hook : config.hook.address;

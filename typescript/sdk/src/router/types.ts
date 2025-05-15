@@ -22,18 +22,14 @@ export type RouterAddress = {
 
 export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
 
-export type DerivedMailboxClientFields = {
-  hook: string | DerivedHookConfig;
-  interchainSecurityModule: string | DerivedIsmConfig;
+export type DerivedMailboxClientConfig = MailboxClientConfig & {
+  hook: DerivedHookConfig | Address;
+  interchainSecurityModule: DerivedIsmConfig | Address;
 };
 
-export type DerivedMailboxClientConfig = Omit<
-  MailboxClientConfig,
-  keyof DerivedMailboxClientFields
-> &
-  DerivedMailboxClientFields;
-
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
+export type DerivedRouterConfig = RouterConfig & DerivedMailboxClientConfig;
+
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
 
 export type ProxiedRouterConfig = RouterConfig & Partial<UpgradeConfig>;

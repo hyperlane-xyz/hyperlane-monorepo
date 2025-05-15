@@ -46,8 +46,6 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
-  derivedHookAddress,
-  derivedIsmAddress,
 } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
@@ -313,7 +311,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualDeployedIsm = derivedIsmAddress(actualConfig);
+    const actualDeployedIsm = await this.getDeployedIsm();
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -354,7 +352,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualDeployedHook = derivedHookAddress(actualConfig);
+    const actualDeployedHook = await MailboxClient__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.chainName),
+    ).hook();
 
     // Try to deploy or update Hook with the expected config
     const {
@@ -404,6 +405,20 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
   }
 
+  async getDeployedHook(): Promise<Address> {
+    return MailboxClient__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.chainName),
+    ).hook();
+  }
+
+  async getDeployedIsm(): Promise<Address> {
+    return MailboxClient__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.chainName),
+    ).interchainSecurityModule();
+  }
+
   /**
    * Updates or deploys the ISM using the provided configuration.
    *
@@ -418,6 +433,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
+    const actualDeployedIsm = await this.getDeployedIsm();
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {
@@ -426,7 +443,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         addresses: {
           ...this.args.addresses,
           mailbox: expectedConfig.mailbox,
-          deployedIsm: derivedIsmAddress(actualConfig),
+          deployedIsm: actualDeployedIsm,
         },
       },
       this.ccipContractCache,
@@ -504,6 +521,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     assert(actualConfig.proxyAdmin?.address, 'ProxyAdmin address is undefined');
     assert(actualConfig.hook, 'Hook is undefined');
 
+    const actualDeployedHook = await this.getDeployedHook();
+
     const hookModule = new EvmHookModule(
       this.multiProvider,
       {
@@ -513,7 +532,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
           proxyAdmin: actualConfig.proxyAdmin?.address,
-          deployedHook: derivedHookAddress(actualConfig),
+          deployedHook: actualDeployedHook,
         },
       },
       this.ccipContractCache,

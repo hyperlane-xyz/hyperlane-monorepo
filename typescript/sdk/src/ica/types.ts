@@ -1,38 +1,19 @@
 import { z } from 'zod';
 
-import { ZHash } from '../metadata/customZodTypes.js';
-import { RemoteRouterDomain, RemoteRouterRouter } from '../router/types.js';
-import { DerivedOwnableSchema } from '../types.js';
+import { WithAddress } from '@hyperlane-xyz/utils';
 
-export const RemoteIcaRouterConfigSchema = z.record(
-  RemoteRouterDomain,
-  RemoteRouterRouter.merge(
-    z.object({
-      interchainSecurityModule: ZHash.optional().describe(
-        'Optional ISM override to be used on the chain',
-      ),
-    }),
-  ),
-);
+import { OffchainLookupIsmConfigSchema } from '../ism/types.js';
+import { RouterConfigSchema } from '../router/types.js';
 
-export const IcaRouterConfigSchema = z.object({
-  owner: ZHash,
-  mailbox: ZHash,
-  remoteIcaRouters: RemoteIcaRouterConfigSchema.optional(),
+export const IcaRouterConfigSchema = RouterConfigSchema.extend({
+  commitmentIsm: OffchainLookupIsmConfigSchema.optional(),
 });
 
 export type IcaRouterConfig = z.infer<typeof IcaRouterConfigSchema>;
 
-export const DerivedIcaRouterConfigSchema = DerivedOwnableSchema.merge(
-  z
-    .object({
-      owner: ZHash,
-      mailbox: ZHash,
-      remoteIcaRouters: RemoteIcaRouterConfigSchema,
-    })
-    .strict(),
-);
+// just an alias
+export const DerivedIcaRouterConfigSchema = IcaRouterConfigSchema;
 
-export type DerivedIcaRouterConfig = z.infer<
-  typeof DerivedIcaRouterConfigSchema
+export type DerivedIcaRouterConfig = WithAddress<
+  z.infer<typeof DerivedIcaRouterConfigSchema>
 >;
