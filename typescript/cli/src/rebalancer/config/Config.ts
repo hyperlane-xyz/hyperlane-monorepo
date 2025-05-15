@@ -49,10 +49,22 @@ const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
     .optional(),
 });
 
-// Union of possible chain configs
-const ChainConfigSchema = z.union([
-  WeightedChainConfigSchema,
-  MinAmountChainConfigSchema,
+const OverrideValueSchema = BaseChainConfigSchema.partial().passthrough();
+
+const BaseChainConfigSchemaWithOverride = BaseChainConfigSchema.extend({
+  override: z.record(z.string(), OverrideValueSchema).optional(),
+});
+
+const WeightedChainConfigSchemaWithOverride =
+  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema);
+
+const MinAmountChainConfigSchemaWithOverride =
+  BaseChainConfigSchemaWithOverride.merge(MinAmountChainConfigSchema);
+
+// Union of possible chain configs with override
+export const ChainConfigSchema = z.union([
+  WeightedChainConfigSchemaWithOverride,
+  MinAmountChainConfigSchemaWithOverride,
 ]);
 
 const BaseConfigSchema = z.object({

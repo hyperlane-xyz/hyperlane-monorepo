@@ -168,4 +168,83 @@ describe('Config', () => {
       },
     });
   });
+
+  describe('override functionality', () => {
+    it('should parse a config with overrides', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        checkFrequency: 1000,
+        coingeckoApiKey: COINGECKO_API_KEY,
+        rebalanceStrategy: 'minAmount',
+        chain1: {
+          minAmount: 1000,
+          bridge: ethers.constants.AddressZero,
+          override: {
+            chain2: {
+              bridge: '0x1234567890123456789012345678901234567890',
+            },
+          },
+        },
+        chain2: {
+          minAmount: 2000,
+          bridge: ethers.constants.AddressZero,
+        },
+        chain3: {
+          minAmount: 3000,
+          bridge: ethers.constants.AddressZero,
+        },
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {});
+      expect(config.chains.chain1).to.have.property('override');
+
+      const override = config.chains.chain1.override;
+      expect(override).to.not.be.undefined;
+      expect(override).to.have.property('chain2');
+
+      const toChain2Override = override!.chain2;
+      expect(toChain2Override).to.have.property('bridge');
+      expect(toChain2Override.bridge).to.equal(
+        '0x1234567890123456789012345678901234567890',
+      );
+    });
+
+    it('should allow multiple chain overrides', () => {
+      data.chain1 = {
+        bridge: ethers.constants.AddressZero,
+        bridgeMinAcceptedAmount: 3000,
+        weight: 100,
+        tolerance: 0,
+        override: {
+          chain2: {
+            bridgeMinAcceptedAmount: 4000,
+          },
+          chain3: {
+            bridge: '0x1234567890123456789012345678901234567890',
+          },
+        },
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {});
+
+      const chain1Overrides = config.chains.chain1.override;
+      expect(chain1Overrides).to.not.be.undefined;
+      expect(chain1Overrides).to.have.property('chain2');
+      expect(chain1Overrides).to.have.property('chain3');
+
+      const chain2Overrides = chain1Overrides!.chain2;
+      expect(chain2Overrides).to.have.property('bridgeMinAcceptedAmount');
+      expect(chain2Overrides.bridgeMinAcceptedAmount).to.equal(4000n);
+
+      const chain3Overrides = chain1Overrides!.chain3;
+      expect(chain3Overrides).to.have.property('bridge');
+      expect(chain3Overrides.bridge).to.equal(
+        '0x1234567890123456789012345678901234567890',
+      );
+    });
+  });
 });
