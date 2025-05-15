@@ -54,13 +54,7 @@ export class WithSemaphore implements IExecutor {
   private getHighestTolerance(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
       const bridgeTolerance =
-        this.config.chains[route.fromChain]?.bridgeTolerance;
-
-      if (!bridgeTolerance) {
-        throw new Error(
-          `Bridge tolerance not found for chain ${route.fromChain}`,
-        );
-      }
+        this.config.chains[route.fromChain].bridgeTolerance;
 
       return Math.max(highest, bridgeTolerance);
     }, 0);
