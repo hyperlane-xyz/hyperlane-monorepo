@@ -83,6 +83,22 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
+export const CctpTokenConfigSchema = CollateralTokenConfigSchema.merge(
+  z.object({
+    type: z.literal(TokenType.collateralCctp),
+  }),
+).extend({
+  messageTransmitter: z
+    .string()
+    .describe('CCTP Message Transmitter contract address'),
+  circleDomainMappings: z
+    .record(z.number())
+    .describe('Mapping from Hyperlane Domain ID to Circle CCTP Domain ID'),
+});
+
+export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
+export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
+
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -141,6 +157,7 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
+  CctpTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 

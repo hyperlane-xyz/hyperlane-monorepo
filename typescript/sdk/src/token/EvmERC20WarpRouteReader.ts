@@ -11,6 +11,7 @@ import {
   IFiatToken__factory,
   IXERC20__factory,
   ProxyAdmin__factory,
+  TokenBridgeCctp__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -38,6 +39,7 @@ import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  CctpTokenConfig,
   CollateralTokenConfig,
   DerivedTokenRouterConfig,
   HypTokenConfig,
@@ -82,6 +84,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralFiatTokenConfig.bind(this),
       [TokenType.collateralVault]:
         this.deriveHypCollateralVaultTokenConfig.bind(this),
+      [TokenType.collateralCctp]:
+        this.deriveHypCollateralCctpTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
@@ -377,6 +381,30 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       type: TokenType.XERC20Lockbox,
       token: lockbox,
       xERC20: xERC20Metadata.xERC20,
+    };
+  }
+
+  private async deriveHypCollateralCctpTokenConfig(
+    hypToken: Address,
+  ): Promise<CctpTokenConfig> {
+    const collateralConfig =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    const tokenBridge = TokenBridgeCctp__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const messageTransmitter = await tokenBridge.messageTransmitter();
+
+    // TODO: implement
+    const circleDomainMappings = {};
+
+    return {
+      ...collateralConfig,
+      type: TokenType.collateralCctp,
+      messageTransmitter,
+      circleDomainMappings,
     };
   }
 

@@ -28,6 +28,7 @@ import {
   OwnableSchema,
   PausableSchema,
 } from '../types.js';
+import { isCompliant } from '../utils/schemas.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -252,6 +253,10 @@ export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
   urls: z.array(z.string()),
 });
+
+export const isOffchainLookupIsmConfig = isCompliant(
+  OffchainLookupIsmConfigSchema,
+);
 
 export const OpStackIsmConfigSchema = z.object({
   type: z.literal(IsmType.OP_STACK),
