@@ -1,0 +1,10 @@
+# Managed Certificate
+# Used for HTTPS, the ip needs to be looked up in GKE.
+# TODO register reserved static IP
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: {{ .Values.ingress.certificateName }}
+spec:
+  domains:
+    - {{ .Values.ingress.host }}

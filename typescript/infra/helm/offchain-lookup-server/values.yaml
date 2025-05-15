@@ -1,0 +1,35 @@
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  # Modify this tag to deploy a new revision.
+  # Images can be found here:
+  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
+  tag: 0b57705-20250514-150736
+
+port: 3000
+
+service:
+  type: ClusterIP
+
+# TODO split between prod and testnet
+ingress:
+  host: offchain-lookup.web3tools.net
+  staticIpName: my-ingress-ip # TODO rename
+  certificateName: my-cert # TODO rename
+
+env:
+  - name: RPC_URL
+    value: "https://eth-sepolia.public.blastapi.io"
+  - name: CHAIN_ID
+    value: "84532"
+  - name: ENABLED_MODULES
+    value: "cctp"
+  - name: HYPERLANE_EXPLORER_API
+    value: "https://api.hyperlane.xyz/v1/graphql"
+  - name: CCTP_ATTESTATION_API
+    value: "https://iris-api-sandbox.circle.com"
+  - name: SERVER_URL_PREFIX
+    value: "/"
+  - name: SERVER_PORT
+    value: "3000"
+  - name: RPC_LIST
+    value: '{"11155111":"https://eth-sepolia.public.blastapi.io", "11155420": "https://optimism-sepolia.api.onfinality.io/public", "421614": "https://sepolia-rollup.arbitrum.io/rpc", "84532": "https://sepolia.base.org"}'
