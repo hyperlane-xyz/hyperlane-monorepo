@@ -1,3 +1,4 @@
+import { utils } from 'ethers';
 import { CairoCustomEnum, num } from 'starknet';
 
 import {
@@ -90,7 +91,7 @@ export class StarknetIsmReader {
       type: IsmType.AGGREGATION,
       address,
       modules: moduleConfigs.filter(Boolean),
-      threshold: threshold.toString(),
+      threshold: Number(threshold),
     };
   }
 
@@ -111,8 +112,10 @@ export class StarknetIsmReader {
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
       address,
-      validators: validators.map((v: any) => num.toHex64(v.toString())),
-      threshold: threshold.toString(),
+      validators: validators.map((v: any) =>
+        utils.getAddress(num.toHex(v.toString())),
+      ),
+      threshold: Number(threshold),
     };
   }
 
@@ -133,8 +136,11 @@ export class StarknetIsmReader {
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
       address,
-      validators: validators.map((v: any) => num.toHex64(v.toString())),
-      threshold: threshold.toString(),
+      validators: validators.map((v: any) =>
+        // checksum address
+        utils.getAddress(num.toHex(v.toString())),
+      ),
+      threshold: Number(threshold),
     };
   }
 

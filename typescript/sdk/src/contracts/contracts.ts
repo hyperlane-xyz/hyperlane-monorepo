@@ -322,7 +322,7 @@ export function transferOwnershipTransactionsStarknet(
 
   // starknet doesn't compile interfaces
   const ownableContract = getStarknetHypERC20Contract(contract);
-  const tx = ownableContract.populateTransaction.transferOwnership(
+  const tx = ownableContract.populateTransaction.transfer_ownership(
     expected.owner,
   );
   return [

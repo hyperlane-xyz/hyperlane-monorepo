@@ -154,44 +154,56 @@ export async function runCoreApply(params: ApplyParams) {
 
   const protocol = multiProvider.getProtocol(chain);
 
+  let transactions: any[] = [];
+  let module: EvmCoreModule | StarknetCoreModule;
+
   if (protocol === ProtocolType.Starknet) {
     const account = multiProtocolSigner!.getStarknetSigner(chain);
     assert(account, 'Starknet account failed!');
-    const starknetCoreModule = new StarknetCoreModule(
-      account,
-      multiProtocolProvider!,
+    module = new StarknetCoreModule(account, multiProtocolProvider!, chain, {
+      addresses: deployedCoreAddresses,
+      config,
       chain,
-      {
-        addresses: deployedCoreAddresses,
-        config,
-        chain,
-      },
-    );
+    });
 
-    const result = await starknetCoreModule.update(config);
+    transactions = await module.update(config);
 
-    logGreen(`Core config updated on ${chain} with result: ${result}`);
-    return;
+    if (transactions.length) {
+      logGray('Updating deployed core contracts');
+      for (const transaction of transactions as any[]) {
+        // Cast to any[] to match starknet transaction structure
+        const tx = await account.execute([
+          {
+            contractAddress: transaction.contractAddress,
+            calldata: transaction.calldata,
+            entrypoint: transaction.entrypoint!,
+          },
+        ]);
+        await account.waitForTransaction(tx.transaction_hash);
+      }
+    }
+  } else {
+    module = new EvmCoreModule(multiProvider, {
+      chain,
+      config,
+      addresses: deployedCoreAddresses,
+    });
+
+    transactions = await module.update(config);
+
+    if (transactions.length) {
+      logGray('Updating deployed core contracts');
+      for (const transaction of transactions) {
+        await multiProvider.sendTransaction(
+          // Using the provided chain id because there might be remote chain transactions included in the batch
+          transaction.chainId ?? chain,
+          transaction,
+        );
+      }
+    }
   }
 
-  const evmCoreModule = new EvmCoreModule(multiProvider, {
-    chain,
-    config,
-    addresses: deployedCoreAddresses,
-  });
-
-  const transactions = await evmCoreModule.update(config);
-
   if (transactions.length) {
-    logGray('Updating deployed core contracts');
-    for (const transaction of transactions) {
-      await multiProvider.sendTransaction(
-        // Using the provided chain id because there might be remote chain transactions included in the batch
-        transaction.chainId ?? chain,
-        transaction,
-      );
-    }
-
     logGreen(`Core config updated on ${chain}.`);
   } else {
     logGreen(

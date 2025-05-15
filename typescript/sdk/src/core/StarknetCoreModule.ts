@@ -258,7 +258,6 @@ export class StarknetCoreModule {
     const transactions: AnnotatedStarknetTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
     );
     return transactions;
