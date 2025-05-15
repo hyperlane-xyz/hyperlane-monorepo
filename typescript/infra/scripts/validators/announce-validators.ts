@@ -73,8 +73,7 @@ async function main() {
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
           // Ensure we skip lumia, as we don't have the addresses in registry.
-          // temporarily skip ontology as we do not have funds, will undo when we deploy
-          if (validatorChain === 'lumia' || validatorChain === 'ontology') {
+          if (validatorChain === 'lumia') {
             return false;
           }
 

@@ -113,7 +113,7 @@ export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+  demandOption: false,
   alias: 'wd',
 };
 

@@ -1,10 +1,14 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use chrono::format;
 use derive_new::new;
 use eyre::Result;
-use std::{path::PathBuf, sync::Arc};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+use tracing::{error, info, instrument::Instrumented, warn};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -12,8 +16,6 @@ use hyperlane_base::{
     settings::{ChainConf, RawChainConf},
 };
 use hyperlane_core::HyperlaneDomain;
-use tokio::task::JoinHandle;
-use tracing::{error, info, instrument::Instrumented, warn};
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
