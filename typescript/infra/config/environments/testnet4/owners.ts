@@ -25,6 +25,12 @@ export const owners: ChainMap<OwnableConfig> = {
   kyvetestnet: {
     owner: 'n/a - CSDK not supported here',
   },
+  milkywaytestnet: {
+    owner: 'n/a - CSDK not supported here',
+  },
+  nobletestnet: {
+    owner: 'n/a - CSDK not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(

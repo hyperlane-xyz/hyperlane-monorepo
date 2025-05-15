@@ -78,8 +78,8 @@ export function useMessageStage({
     stage: data?.stage
       ? data.stage
       : isValidMessage(message)
-      ? Stage.Sent
-      : Stage.Preparing,
+        ? Stage.Sent
+        : Stage.Preparing,
     timings: data?.timings ? data.timings : defaultTiming,
     isLoading,
     error,

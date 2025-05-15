@@ -18,6 +18,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
+  kyvetestnet: {
+    transactionOverrides: {
+      gasPrice: '2.0',
+    },
+  },
+
   // deploy-only overrides
   // scrollsepolia: {
   //   transactionOverrides: {

@@ -5,15 +5,12 @@ import { z } from 'zod';
 import {
   AgentConfig,
   ChainMap,
-  ChainName,
   GasPaymentEnforcement,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
   IsmCacheConfig,
-  IsmCachePolicy,
   MatchingList,
-  ModuleType,
   RelayerConfig as RelayerAgentConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -21,6 +18,7 @@ import {
   ProtocolType,
   addressToBytes32,
   isValidAddressEvm,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -45,6 +43,23 @@ export interface MetricAppContext {
   matchingList: MatchingList;
 }
 
+export interface RelayerMixingConfig {
+  enabled: boolean;
+  salt?: number;
+}
+
+export interface RelayerCacheConfig {
+  enabled: boolean;
+  defaultExpirationSeconds?: number;
+}
+
+export interface RelayerBatchConfig {
+  bypassBatchSimulation?: boolean;
+  defaultBatchSize?: number;
+  batchSizeOverrides?: ChainMap<number>;
+  maxSubmitQueueLength?: ChainMap<number>;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -55,7 +70,13 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
-  allowContractCallCaching?: boolean;
+  dbBootstrap?: boolean;
+  mixing?: RelayerMixingConfig;
+  environmentVariableEndpointEnabled?: boolean;
+  cache?: RelayerCacheConfig;
+  batch?: RelayerBatchConfig;
+  txIdIndexingEnabled?: boolean;
+  igpIndexingEnabled?: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -83,6 +104,20 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   envConfig?: RelayerEnvConfig;
   // Config intended to be set as configMap values
   configMapConfig?: RelayerConfigMapConfig;
+  // Config for setting up the database
+  dbBootstrap?: RelayerDbBootstrapConfig;
+  // Config for setting up the mixing service
+  mixing?: RelayerMixingConfig;
+  // Config for the environment variable endpoint
+  environmentVariableEndpointEnabled?: boolean;
+  // Config for the cache
+  cacheDefaultExpirationSeconds?: number;
+}
+
+export interface RelayerDbBootstrapConfig {
+  enabled: boolean;
+  bucket: string;
+  object_targz: string;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -93,7 +128,7 @@ export interface HelmRelayerChainValues {
 }
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
-  readonly #relayerConfig: BaseRelayerConfig;
+  readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
 
   constructor(agentConfig: RootAgentConfig) {
@@ -101,12 +136,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
 
-    this.#relayerConfig = agentConfig.relayer;
+    this.relayerConfig = agentConfig.relayer;
     this.logger = rootLogger.child({ module: 'RelayerConfigHelper' });
   }
 
   async buildConfig(): Promise<RelayerConfig> {
-    const baseConfig = this.#relayerConfig!;
+    const baseConfig = this.relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
@@ -140,8 +175,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     if (baseConfig.ismCacheConfigs) {
       relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;
     }
-    relayerConfig.allowContractCallCaching =
-      baseConfig.allowContractCallCaching;
+    relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
+    relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
+    relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
+
     return relayerConfig;
   }
 
@@ -226,7 +263,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   get requiresAwsCredentials(): boolean {
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
     if (!this.aws) {
-      console.warn(
+      this.logger.warn(
         `Relayer does not have AWS credentials. Be sure this is a non-k8s-based environment!`,
       );
       return false;
@@ -286,6 +323,16 @@ export function consistentSenderRecipientMatchingList(
       recipientAddress: addressToBytes32(address),
     },
   ];
+}
+
+export function chainMapMatchingList(
+  chainMap: ChainMap<Address>,
+): MatchingList {
+  // Convert to a router matching list
+  const routers = objMap(chainMap, (chain, address) => ({
+    router: address,
+  }));
+  return routerMatchingList(routers);
 }
 
 // Create a matching list for the given contract addresses

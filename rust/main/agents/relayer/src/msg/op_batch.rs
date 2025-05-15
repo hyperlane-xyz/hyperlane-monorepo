@@ -4,7 +4,7 @@ use derive_new::new;
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
-    PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
+    PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
@@ -44,13 +44,10 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-            let reason = ReprepareReason::ErrorSubmitting;
-            let status = Some(PendingOperationStatus::Retry(reason.clone()));
-            for mut op in excluded_ops.into_iter() {
-                op.on_reprepare(None, reason.clone());
-                prepare_queue.push(op, status.clone()).await;
-            }
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
+            OperationBatch::new(excluded_ops, self.domain)
+                .submit_serially(prepare_queue, confirm_queue, metrics)
+                .await;
         }
     }
 
@@ -145,7 +142,7 @@ impl OperationBatch {
         }
     }
 
-    async fn _submit_serially(
+    async fn submit_serially(
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
@@ -172,13 +169,12 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{
-                dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
-            },
+            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
         },
+        test_utils::dummy_data::dummy_submission_metrics,
     };
     use ethers::utils::hex;
     use hyperlane_base::{
@@ -188,7 +184,7 @@ mod tests {
         CoreMetrics,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
+        config::OpSubmissionConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
         MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
     };
     use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
@@ -256,11 +252,9 @@ mod tests {
         ));
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
@@ -314,13 +308,10 @@ mod tests {
         )
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     #[ignore]
     async fn benchmarking_with_real_rpcs() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-
         let arb_chain_conf = ChainConf {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
@@ -347,10 +338,11 @@ mod tests {
                     ],
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: OperationBatchConfig {
+                op_submission_config: OpSubmissionConfig {
                     batch_contract_address: None,
                     max_batch_size: 32,
                     bypass_batch_simulation: false,
+                    ..Default::default()
                 },
             }),
             metrics_conf: Default::default(),
@@ -394,6 +386,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

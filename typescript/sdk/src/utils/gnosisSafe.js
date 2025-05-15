@@ -68,9 +68,8 @@ export async function getSafe(chain, multiProvider, safeAddress) {
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
-  const { version: rawSafeVersion } = await safeService.getSafeInfo(
-    safeAddress,
-  );
+  const { version: rawSafeVersion } =
+    await safeService.getSafeInfo(safeAddress);
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
   const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
 

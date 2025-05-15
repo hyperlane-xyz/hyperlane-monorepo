@@ -65,6 +65,13 @@ pub trait BuildableWithProvider {
     /// Whether this provider requires a signer
     const NEEDS_SIGNER: bool;
 
+    /// Whether this provider requires submission middleware such as gas oracle,
+    /// gas escalator, nonce manager. It defaults to true, since it's only Lander
+    /// that doesn't require it.
+    fn uses_ethers_submission_middleware(&self) -> bool {
+        true
+    }
+
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
@@ -200,25 +207,32 @@ pub trait BuildableWithProvider {
     where
         M: Middleware + 'static,
     {
-        Ok(if let Some(signer) = signer {
-            // The signing provider is used for sending txs, which may end up stuck in the mempool due to
-            // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
-            // We keep nonce manager as the outermost middleware, so that every new tx with a higher gas price reuses the same nonce.
-            let signing_provider = wrap_with_signer(provider, signer.clone())
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
-            let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
-            let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
-            let nonce_manager_provider =
-                wrap_with_nonce_manager(gas_oracle_provider, signer.address())
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?;
+        let Some(signer) = signer else {
+            return Ok(self.build_with_provider(provider, conn, locator).await);
+        };
+        let signing_provider = wrap_with_signer(provider, signer.clone())
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
 
-            self.build_with_provider(nonce_manager_provider, conn, locator)
-        } else {
-            self.build_with_provider(provider, conn, locator)
+        if !self.uses_ethers_submission_middleware() {
+            // don't wrap the signing provider in any middlewares
+            return Ok(self
+                .build_with_provider(signing_provider, conn, locator)
+                .await);
         }
-        .await)
+
+        // The signing provider is used for sending txs, which may end up stuck in the mempool due to
+        // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
+        // We keep nonce manager as the outermost middleware, so that resubmitting a tx with a higher gas price reuses its initial nonce.
+        let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
+        let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
+        let nonce_manager_provider = wrap_with_nonce_manager(gas_oracle_provider, signer.address())
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        Ok(self
+            .build_with_provider(nonce_manager_provider, conn, locator)
+            .await)
     }
 
     /// Construct a new instance of the associated trait using a provider.
@@ -285,7 +299,7 @@ where
     M: Middleware + 'static,
 {
     // Increase the gas price by 25% every 90 seconds
-    const COEFFICIENT: f64 = 1.25;
+    const COEFFICIENT: f64 = 1.125;
 
     // escalating creates a new tx hash, and the submitter tracks each tx hash for at most
     // `PENDING_TX_TIMEOUT_SECS`. So the escalator will send a new tx when the initial

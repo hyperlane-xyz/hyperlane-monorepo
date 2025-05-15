@@ -114,7 +114,8 @@ export class AgentGCPKey extends CloudAgentKey {
         return Keypair.fromSeed(
           Buffer.from(strip0x(this.privateKey), 'hex'),
         ).publicKey.toBase58();
-      case ProtocolType.Cosmos: {
+      case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative: {
         const compressedPubkey = ethers.utils.computePublicKey(
           this.privateKey,
           true,

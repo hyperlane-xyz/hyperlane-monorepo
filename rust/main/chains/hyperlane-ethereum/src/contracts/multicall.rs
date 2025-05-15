@@ -31,7 +31,7 @@ pub async fn build_multicall<M: Middleware + 'static>(
     cache: Arc<Mutex<EthereumMailboxCache>>,
 ) -> eyre::Result<Multicall<M>> {
     let address = conn
-        .operation_batch
+        .op_submission_config
         .batch_contract_address
         .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
     let is_contract_cache = {

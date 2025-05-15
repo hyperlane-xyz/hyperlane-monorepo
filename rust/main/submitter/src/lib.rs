@@ -4,7 +4,7 @@ pub use payload::{
     RetryReason as PayloadRetryReason,
 };
 pub use payload_dispatcher::{
-    DatabaseOrPath, Entrypoint, PayloadDispatcher, PayloadDispatcherEntrypoint,
+    DatabaseOrPath, DispatcherMetrics, Entrypoint, PayloadDispatcher, PayloadDispatcherEntrypoint,
     PayloadDispatcherSettings,
 };
 pub use transaction::{DropReason as TransactionDropReason, TransactionStatus};
