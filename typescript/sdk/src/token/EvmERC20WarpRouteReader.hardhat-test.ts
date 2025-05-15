@@ -124,7 +124,7 @@ describe('ERC20WarpRouterReader', async () => {
     );
   });
 
-  it.only('should derive collateral config correctly', async () => {
+  it('should derive collateral config correctly', async () => {
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
