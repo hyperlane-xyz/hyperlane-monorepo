@@ -70,58 +70,33 @@ impl ReorgReporter {
 
         let chain_conn_confs = match chain_conf.connection {
             ChainConnectionConf::Ethereum(conn) => {
-                let conn_copy = conn.clone();
-
-                let urls = match conn.rpc_connection {
-                    RpcConnectionConf::HttpQuorum { urls } => urls,
-                    RpcConnectionConf::HttpFallback { urls } => urls,
-                    RpcConnectionConf::Http { url } => vec![url],
-                    RpcConnectionConf::Ws { .. } => panic!("Websocket connection not supported"),
-                };
-
-                urls.into_iter()
-                    .map(|url| {
-                        let mut updated_conn = conn_copy.clone();
-                        let rpc_conn_conf = RpcConnectionConf::Http { url: url.clone() };
-
-                        updated_conn.rpc_connection = rpc_conn_conf;
-                        (url, ChainConnectionConf::Ethereum(updated_conn))
-                    })
-                    .collect::<Vec<_>>()
+                Self::map_urls_to_connections(conn.rpc_urls(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.rpc_connection = RpcConnectionConf::Http { url };
+                    ChainConnectionConf::Ethereum(updated_conn)
+                })
             }
             ChainConnectionConf::Fuel(_) => todo!("Fuel connection not implemented"),
             ChainConnectionConf::Sealevel(conn) => {
-                let conn_copy = conn.clone();
-                conn.urls
-                    .into_iter()
-                    .map(|url| {
-                        let mut updated_conn = conn_copy.clone();
-                        updated_conn.urls = vec![url.clone()];
-                        (url, ChainConnectionConf::Sealevel(updated_conn))
-                    })
-                    .collect::<Vec<_>>()
+                Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.urls = vec![url];
+                    ChainConnectionConf::Sealevel(updated_conn)
+                })
             }
             ChainConnectionConf::Cosmos(conn) => {
-                let conn_copy = conn.clone();
-                conn.grpc_urls
-                    .into_iter()
-                    .map(|url| {
-                        let mut updated_conn = conn_copy.clone();
-                        updated_conn.grpc_urls = vec![url.clone()];
-                        (url, ChainConnectionConf::Cosmos(updated_conn))
-                    })
-                    .collect::<Vec<_>>()
+                Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.grpc_urls = vec![url];
+                    ChainConnectionConf::Cosmos(updated_conn)
+                })
             }
             ChainConnectionConf::CosmosNative(conn) => {
-                let conn_copy = conn.clone();
-                conn.grpc_urls
-                    .into_iter()
-                    .map(|url| {
-                        let mut updated_conn = conn_copy.clone();
-                        updated_conn.grpc_urls = vec![url.clone()];
-                        (url, ChainConnectionConf::CosmosNative(updated_conn))
-                    })
-                    .collect::<Vec<_>>()
+                Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.grpc_urls = vec![url];
+                    ChainConnectionConf::CosmosNative(updated_conn)
+                })
             }
         };
 
@@ -141,5 +116,19 @@ impl ReorgReporter {
                 (url, updated_settings)
             })
             .collect::<Vec<_>>()
+    }
+
+    fn map_urls_to_connections<T, F>(
+        urls: Vec<Url>,
+        conn: T,
+        update_conn: F,
+    ) -> Vec<(Url, ChainConnectionConf)>
+    where
+        T: Clone,
+        F: Fn(&T, Url) -> ChainConnectionConf,
+    {
+        urls.into_iter()
+            .map(|url| (url.clone(), update_conn(&conn, url)))
+            .collect()
     }
 }
