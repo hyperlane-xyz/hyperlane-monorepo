@@ -20,11 +20,13 @@ describe('StrategyFactory', () => {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
         chain2: {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
       };
 
@@ -37,10 +39,12 @@ describe('StrategyFactory', () => {
         chain1: {
           minAmount: ethers.utils.parseEther('100').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
         chain2: {
           minAmount: ethers.utils.parseEther('100').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
       };
 
