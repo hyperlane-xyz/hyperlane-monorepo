@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
@@ -29,10 +28,9 @@ use hyperlane_core::{
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
 use crate::reorg_reporter::ReorgReporter;
-use crate::{
-    settings::ValidatorSettings,
-    submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
-};
+use crate::server as validator_server;
+use crate::settings::ValidatorSettings;
+use crate::submit::{ValidatorSubmitter, ValidatorSubmitterMetrics};
 
 /// A validator agent
 #[derive(Debug, AsRef)]

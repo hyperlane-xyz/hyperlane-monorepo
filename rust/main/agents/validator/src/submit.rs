@@ -7,7 +7,6 @@ use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
-use crate::reorg_reporter::ReorgReporter;
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
@@ -17,6 +16,8 @@ use hyperlane_core::{
 };
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
+
+use crate::reorg_reporter::ReorgReporter;
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
