@@ -59,16 +59,23 @@ export class MultiProtocolSignerManager {
   }
 
   /**
+   * @notice Sets up chain-specific signer strategy
+   */
+  initializeStrategy(chain: ChainName): void {
+    const strategy = MultiProtocolSignerFactory.getSignerStrategy(
+      chain,
+      this.submissionStrategy,
+      this.multiProvider,
+    );
+    this.signerStrategies.set(chain, strategy);
+  }
+
+  /**
    * @notice Sets up chain-specific signer strategies
    */
-  protected initializeStrategies(): void {
+  initializeStrategies(): void {
     for (const chain of this.compatibleChains) {
-      const strategy = MultiProtocolSignerFactory.getSignerStrategy(
-        chain,
-        this.submissionStrategy,
-        this.multiProvider,
-      );
-      this.signerStrategies.set(chain, strategy);
+      this.initializeStrategy(chain);
     }
   }
 
@@ -77,7 +84,6 @@ export class MultiProtocolSignerManager {
    */
   async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.compatibleChains) {
-      console.log('initSigner', chain);
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }

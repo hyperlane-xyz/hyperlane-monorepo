@@ -65,6 +65,10 @@ export async function runCoreDeploy(params: DeployParams) {
       chainMetadata,
       'Select chain to connect:',
     );
+
+    assert(multiProtocolSigner, `Multi Protocol Signer is not defined`);
+    multiProtocolSigner.initializeStrategy(chain);
+    await multiProtocolSigner.initSigner(chain);
   }
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)

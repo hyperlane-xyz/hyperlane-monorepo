@@ -147,7 +147,7 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM chains
+    // If no destination is specified, return all EVM and Cosmos Native chains
     if (argv.origin && !argv.destination) {
       return [
         ...this.getEvmChains(multiProvider),
@@ -155,7 +155,9 @@ export class MultiChainResolver implements ChainResolver {
       ];
     }
 
-    chains.add(argv.destination);
+    if (argv.destination) {
+      chains.add(argv.destination);
+    }
     return Array.from(chains);
   }
 
