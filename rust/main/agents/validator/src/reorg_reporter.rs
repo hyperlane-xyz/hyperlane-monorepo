@@ -124,7 +124,6 @@ impl ReorgReporter {
         update_conn: F,
     ) -> Vec<(Url, ChainConnectionConf)>
     where
-        T: Clone,
         F: Fn(&T, Url) -> ChainConnectionConf,
     {
         urls.into_iter()
