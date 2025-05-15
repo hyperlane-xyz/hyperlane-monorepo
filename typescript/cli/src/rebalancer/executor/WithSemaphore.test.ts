@@ -78,8 +78,8 @@ describe('WithSemaphore', () => {
     expect(rebalanceSpy.calledOnce).to.be.true;
     expect(rebalanceSpy.calledWith(routes)).to.be.true;
 
-    await withSemaphore.rebalance(routes);
     rebalanceSpy.resetHistory();
+    await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.false;
   });
