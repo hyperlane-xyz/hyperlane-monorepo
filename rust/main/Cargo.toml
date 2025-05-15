@@ -6,6 +6,7 @@ members = [
   "applications/hyperlane-application",
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
+  "applications/hyperlane-interchain-accounts",
   "chains/hyperlane-cosmos",
   "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",

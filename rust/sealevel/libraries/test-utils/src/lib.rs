@@ -104,7 +104,6 @@ async fn initialize_test_ism(
 ) -> Result<(), BanksClientError> {
     let mut test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(payer));
     test_ism.init().await?;
-
     Ok(())
 }
 

@@ -6,6 +6,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use interchainaccounts::process_interchain_account_cmd;
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
@@ -66,6 +67,7 @@ mod context;
 mod r#core;
 mod helloworld;
 mod igp;
+mod interchainaccounts;
 mod multisig_ism;
 mod router;
 mod serde;
@@ -113,6 +115,7 @@ enum HyperlaneSealevelCmd {
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
+    InterchainAccount(InterchainAccountCmd),
 }
 
 #[derive(Args)]
@@ -699,6 +702,38 @@ pub(crate) struct HelloWorldQuery {
     program_id: Pubkey,
 }
 
+#[derive(Args)]
+pub(crate) struct InterchainAccountCmd {
+    #[command(subcommand)]
+    cmd: InterchainAccountSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum InterchainAccountSubCmd {
+    Deploy(InterchainAccountDeploy),
+    Query(InterchainAccountQuery),
+}
+
+#[derive(Args)]
+pub(crate) struct InterchainAccountDeploy {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+pub(crate) struct InterchainAccountQuery {
+    #[arg(long)]
+    program_id: Pubkey,
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -774,6 +809,7 @@ fn main() {
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::InterchainAccount(cmd) => process_interchain_account_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
     }
 }

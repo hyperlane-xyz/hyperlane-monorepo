@@ -1,0 +1,50 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-interchain-accounts"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+test-client = [
+    "dep:solana-program-test",
+    "dep:solana-sdk",
+    "dep:spl-noop",
+]
+
+[dependencies]
+borsh.workspace = true
+solana-program-test = { workspace = true, optional = true }
+solana-program.workspace = true
+solana-sdk = { workspace = true, optional = true }
+spl-noop = { workspace = true, optional = true }
+
+access-control = { path = "../../libraries/access-control" }
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-interchain-accounts = { path = "../../../main/applications/hyperlane-interchain-accounts" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+
+[dev-dependencies]
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
+    "no-entrypoint",
+] }
+# Unfortunately required for some functions in `solana-program-test`, and is not
+# re-exported
+tarpc = "~0.29"
+
+[lib]
+crate-type = ["cdylib", "lib"]
