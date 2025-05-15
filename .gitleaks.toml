@@ -96,3 +96,13 @@ keywords = [
     "ccvalidators.com"
 ]
 tags = ["key", "Crypto Crew"]
+
+[[rules]]
+id = "ccnodes-api-key"
+description = "CryptoCrew Nodes API Key"
+regex = '''https://[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.ccnodes\.com:?[0-9]*/?[a-zA-Z0-9-]*'''
+keywords = [
+    "ccnodes",
+    "ccnodes.com"
+]
+tags = ["key", "Crypto Crew Nodes"]

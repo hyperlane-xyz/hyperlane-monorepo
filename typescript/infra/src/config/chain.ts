@@ -24,8 +24,6 @@ import { DeployEnvironment } from './environment.js';
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
 export const chainsToSkip: ChainName[] = [
-  'ontology',
-
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',

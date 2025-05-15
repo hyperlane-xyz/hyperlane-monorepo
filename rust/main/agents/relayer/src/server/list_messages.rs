@@ -11,28 +11,39 @@ use crate::msg::op_queue::OperationPriorityQueue;
 
 const LIST_OPERATIONS_API_BASE: &str = "/list_operations";
 
+#[derive(Clone, Debug, new)]
+pub struct ServerState {
+    pub op_queues: HashMap<u32, OperationPriorityQueue>,
+}
+impl ServerState {
+    pub fn router(self) -> Router {
+        Router::new().nest(
+            LIST_OPERATIONS_API_BASE,
+            Router::new()
+                .route("/", routing::get(handler))
+                .with_state(self),
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub struct ListOperationsRequest {
+pub struct QueryParams {
     destination_domain: u32,
 }
 
-impl PartialEq<QueueOperation> for &ListOperationsRequest {
+impl PartialEq<QueueOperation> for &QueryParams {
     fn eq(&self, other: &QueueOperation) -> bool {
         self.destination_domain == other.destination_domain().id()
     }
 }
 
-#[derive(new, Clone)]
-pub struct ListOperationsApi {
-    op_queues: HashMap<u32, OperationPriorityQueue>,
-}
-
-async fn list_operations(
-    State(queues): State<HashMap<u32, OperationPriorityQueue>>,
-    Query(request): Query<ListOperationsRequest>,
+async fn handler(
+    State(state): State<ServerState>,
+    Query(query_params): Query<QueryParams>,
 ) -> String {
-    let domain = request.destination_domain;
-    let Some(op_queue) = queues.get(&domain) else {
+    let domain = query_params.destination_domain;
+
+    let Some(op_queue) = state.op_queues.get(&domain) else {
         return format!("No queue found for domain {}", domain);
     };
     format_queue(op_queue.clone()).await
@@ -83,29 +94,24 @@ pub async fn format_queue(queue: OperationPriorityQueue) -> String {
     }
 }
 
-impl ListOperationsApi {
-    pub fn router(&self) -> Router {
-        Router::new()
-            .route("/", routing::get(list_operations))
-            .with_state(self.op_queues.clone())
-    }
-
-    pub fn get_route(&self) -> (&'static str, Router) {
-        (LIST_OPERATIONS_API_BASE, self.router())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use axum::http::StatusCode;
-    use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
+    use axum::{
+        body::Body,
+        http::{Method, Request, StatusCode},
+    };
+    use std::{cmp::Reverse, sync::Arc};
     use tokio::sync::{self, Mutex};
+    use tower::ServiceExt;
 
     use hyperlane_core::KnownHyperlaneDomain;
 
-    use crate::msg::op_queue::{
-        test::{dummy_metrics_and_label, MockPendingOperation},
-        OpQueue,
+    use crate::{
+        msg::op_queue::{
+            test::{dummy_metrics_and_label, MockPendingOperation},
+            OpQueue,
+        },
+        test_utils::request::parse_body_to_string,
     };
 
     use super::*;
@@ -118,7 +124,13 @@ mod tests {
     const RECIPIENT_ADDRESS_1: &str =
         "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
 
-    fn setup_test_server() -> (SocketAddr, OperationPriorityQueue) {
+    #[derive(Debug)]
+    struct TestServerSetup {
+        pub app: Router,
+        pub op_queue: OperationPriorityQueue,
+    }
+
+    fn setup_test_server() -> TestServerSetup {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
         let op_queue = OpQueue::new(
@@ -129,18 +141,13 @@ mod tests {
         let mut op_queues_map = HashMap::new();
         op_queues_map.insert(DUMMY_DOMAIN as u32, op_queue.queue.clone());
 
-        let list_operations_api = ListOperationsApi::new(op_queues_map);
-        let (path, router) = list_operations_api.get_route();
+        let message_retry_api = ServerState::new(op_queues_map);
+        let app = message_retry_api.router();
 
-        let app = Router::new().nest(path, router);
-
-        // Running the app in the background using a test server
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        tokio::spawn(server);
-
-        (addr, op_queue.queue.clone())
+        TestServerSetup {
+            op_queue: op_queue.queue.clone(),
+            app,
+        }
     }
 
     fn generate_dummy_operation_1(retry_count: u32) -> QueueOperation {
@@ -165,7 +172,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_id_retry() {
-        let (addr, op_queue) = setup_test_server();
+        let TestServerSetup { app, op_queue } = setup_test_server();
         let retry_count_1 = 1;
         let retry_count_2 = 2;
         let dummy_operation_1 = generate_dummy_operation_1(retry_count_1);
@@ -212,24 +219,27 @@ mod tests {
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 
-        // Send a GET request to the server
-        let response = reqwest::get(format!(
-            "http://{}{}?destination_domain={}",
-            addr, LIST_OPERATIONS_API_BASE, DUMMY_DOMAIN as u32
-        ))
-        .await
-        .unwrap();
+        let api_url = format!(
+            "{LIST_OPERATIONS_API_BASE}?destination_domain={}",
+            DUMMY_DOMAIN as u32
+        );
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app.oneshot(request).await.expect("Failed to send request");
 
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let response_text = response.text().await.unwrap();
+        let response_text = parse_body_to_string(response.into_body()).await;
         assert_eq!(response_text, expected_response);
     }
 
     #[tokio::test]
     async fn test_sorted_by_retry_count() {
-        let (addr, op_queue) = setup_test_server();
+        let TestServerSetup { app, op_queue } = setup_test_server();
         let retry_count_1 = 4;
         let retry_count_2 = 1;
         let dummy_operation_1 = generate_dummy_operation_1(retry_count_1);
@@ -276,18 +286,21 @@ mod tests {
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 
-        // Send a GET request to the server
-        let response = reqwest::get(format!(
-            "http://{}{}?destination_domain={}",
-            addr, LIST_OPERATIONS_API_BASE, DUMMY_DOMAIN as u32
-        ))
-        .await
-        .unwrap();
+        let api_url = format!(
+            "{LIST_OPERATIONS_API_BASE}?destination_domain={}",
+            DUMMY_DOMAIN as u32
+        );
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app.oneshot(request).await.expect("Failed to send request");
 
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let response_text = response.text().await.unwrap();
+        let response_text = parse_body_to_string(response.into_body()).await;
         assert_eq!(response_text, expected_response);
     }
 }

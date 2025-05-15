@@ -2,7 +2,6 @@ import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -15,18 +14,11 @@ import {
   ChainSubmissionStrategySchema,
   ContractVerifier,
   EvmERC20WarpModule,
-  EvmHookModule,
-  EvmIsmModule,
   ExplorerLicenseType,
-  HookConfig,
   HypERC20Deployer,
   HypERC20Factories,
-  HypERC721Deployer,
   HypERC721Factories,
-  HypTokenRouterConfig,
   HyperlaneContractsMap,
-  HyperlaneProxyFactoryDeployer,
-  IsmConfig,
   IsmType,
   MultiProvider,
   MultisigIsmConfig,
@@ -45,6 +37,7 @@ import {
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   connectContractsMap,
+  executeWarpDeploy,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
@@ -56,7 +49,6 @@ import {
   splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   ProtocolType,
   assert,
   objMap,
@@ -64,7 +56,6 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
-import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -72,9 +63,7 @@ import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
-  isFile,
   readYamlOrJson,
-  runFileSelectionStep,
   writeYamlOrJson,
 } from '../utils/files.js';
 
@@ -97,35 +86,13 @@ interface WarpApplyParams extends DeployParams {
 
 export async function runWarpRouteDeploy({
   context,
-  warpRouteDeploymentConfigPath,
+  warpDeployConfig,
 }: {
   context: WriteCommandContext;
-  warpRouteDeploymentConfigPath?: string;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
-
-  if (
-    !warpRouteDeploymentConfigPath ||
-    !isFile(warpRouteDeploymentConfigPath)
-  ) {
-    if (skipConfirmation)
-      throw new Error('Warp route deployment config required');
-    warpRouteDeploymentConfigPath = await runFileSelectionStep(
-      './configs',
-      'Warp route deployment config',
-      'warp',
-    );
-  } else {
-    log(
-      `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
-    );
-  }
-  const warpRouteConfig = await readWarpRouteDeployConfig({
-    filePath: warpRouteDeploymentConfigPath,
-    context,
-  });
-
-  const chains = Object.keys(warpRouteConfig);
+  const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -133,7 +100,7 @@ export async function runWarpRouteDeploy({
 
   const deploymentParams = {
     context,
-    warpDeployConfig: warpRouteConfig,
+    warpDeployConfig,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -184,40 +151,21 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, isDryRun, dryRunChain },
+    context: { multiProvider, isDryRun, dryRunChain, registry },
   } = params;
-
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
   const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
       : warpDeployConfig;
+  const registryAddresses = await registry.getAddresses();
 
-  const contractVerifier = new ContractVerifier(
+  const deployedContracts = await executeWarpDeploy(
     multiProvider,
-    apiKeys,
-    coreBuildArtifact,
-    ExplorerLicenseType.MIT,
-  );
-
-  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(
-    multiProvider,
-    contractVerifier,
-  );
-
-  // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  // Then return a modified config with the ism and/or hook address as a string
-  const modifiedConfig = await resolveWarpIsmAndHook(
     config,
-    params.context,
-    ismFactoryDeployer,
-    contractVerifier,
+    registryAddresses,
+    apiKeys,
   );
-
-  const deployedContracts = await deployer.deploy(modifiedConfig);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -233,158 +181,6 @@ async function writeDeploymentArtifacts(
     await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
-}
-
-async function resolveWarpIsmAndHook(
-  warpConfig: WarpRouteDeployConfigMailboxRequired,
-  context: WriteCommandContext,
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
-  contractVerifier?: ContractVerifier,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
-  return promiseObjAll(
-    objMap(warpConfig, async (chain, config) => {
-      const registryAddresses = await context.registry.getAddresses();
-      const ccipContractCache = new CCIPContractCache(registryAddresses);
-      const chainAddresses = registryAddresses[chain];
-
-      if (!chainAddresses) {
-        throw `Registry factory addresses not found for ${chain}.`;
-      }
-
-      config.interchainSecurityModule = await createWarpIsm({
-        ccipContractCache,
-        chain,
-        chainAddresses,
-        context,
-        contractVerifier,
-        ismFactoryDeployer,
-        warpConfig: config,
-      }); // TODO write test
-
-      config.hook = await createWarpHook({
-        ccipContractCache,
-        chain,
-        chainAddresses,
-        context,
-        contractVerifier,
-        ismFactoryDeployer,
-        warpConfig: config,
-      });
-      return config;
-    }),
-  );
-}
-
-/**
- * Deploys the Warp ISM for a given config
- *
- * @returns The deployed ism address
- */
-async function createWarpIsm({
-  ccipContractCache,
-  chain,
-  chainAddresses,
-  context,
-  contractVerifier,
-  warpConfig,
-}: {
-  ccipContractCache: CCIPContractCache;
-  chain: string;
-  chainAddresses: Record<string, string>;
-  context: WriteCommandContext;
-  contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfig;
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
-}): Promise<IsmConfig | undefined> {
-  const { interchainSecurityModule } = warpConfig;
-  if (
-    !interchainSecurityModule ||
-    typeof interchainSecurityModule === 'string'
-  ) {
-    logGray(
-      `Config Ism is ${
-        !interchainSecurityModule ? 'empty' : interchainSecurityModule
-      }, skipping deployment.`,
-    );
-    return interchainSecurityModule;
-  }
-
-  logBlue(`Loading registry factory addresses for ${chain}...`);
-
-  logGray(
-    `Creating ${interchainSecurityModule.type} ISM for token on ${chain} chain...`,
-  );
-
-  logGreen(
-    `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
-  );
-
-  const evmIsmModule = await EvmIsmModule.create({
-    chain,
-    mailbox: chainAddresses.mailbox,
-    multiProvider: context.multiProvider,
-    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
-    config: interchainSecurityModule,
-    ccipContractCache,
-    contractVerifier,
-  });
-  const { deployedIsm } = evmIsmModule.serialize();
-  return deployedIsm;
-}
-
-async function createWarpHook({
-  ccipContractCache,
-  chain,
-  chainAddresses,
-  context,
-  contractVerifier,
-  warpConfig,
-}: {
-  ccipContractCache: CCIPContractCache;
-  chain: string;
-  chainAddresses: Record<string, string>;
-  context: WriteCommandContext;
-  contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfig;
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
-}): Promise<HookConfig | undefined> {
-  const { hook } = warpConfig;
-
-  if (!hook || typeof hook === 'string') {
-    logGray(`Config Hook is ${!hook ? 'empty' : hook}, skipping deployment.`);
-    return hook;
-  }
-
-  logBlue(`Loading registry factory addresses for ${chain}...`);
-
-  logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
-
-  // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
-  const proxyAdminAddress: Address =
-    warpConfig.proxyAdmin?.address ??
-    (
-      await context.multiProvider.handleDeploy(
-        chain,
-        new ProxyAdmin__factory(),
-        [],
-      )
-    ).address;
-
-  const evmHookModule = await EvmHookModule.create({
-    chain,
-    multiProvider: context.multiProvider,
-    coreAddresses: {
-      mailbox: chainAddresses.mailbox,
-      proxyAdmin: proxyAdminAddress,
-    },
-    config: hook,
-    ccipContractCache,
-    contractVerifier,
-    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
-  });
-  logGreen(`Finished creating ${hook.type} Hook for token on ${chain} chain.`);
-  const { deployedHook } = evmHookModule.serialize();
-  return deployedHook;
 }
 
 async function getWarpCoreConfig(
@@ -644,11 +440,11 @@ async function updateExistingWarpRoute(
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
-  const expandedWarpDeployConfig = await expandWarpDeployConfig(
+  const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
-  );
+  });
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
