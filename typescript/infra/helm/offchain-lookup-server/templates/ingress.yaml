@@ -4,10 +4,11 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: offchain-lookup-server-ingress
+  name: {{ .Chart.Name }}--ingress--{{.Values.environment}}
   annotations:
-    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: {{ .Values.ingress.staticIpName }}
 spec:
+  ingressClassName: "gce"
   rules:
     - http:
         paths:
@@ -15,6 +16,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: offchain-lookup-server
+                name: {{ .Chart.Name }}
                 port:
                   number: {{ .Values.port }}
