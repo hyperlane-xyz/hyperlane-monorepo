@@ -272,12 +272,16 @@ async function getTokenBridgedBalance(
   // Only record value for collateralized and xERC20 lockbox tokens.
   if (
     token.isCollateralized() ||
-    token.standard === TokenStandard.EvmHypXERC20Lockbox
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
   ) {
     tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
       .address;
   }
@@ -573,7 +577,8 @@ function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
   const collateralTokens = warpCore.tokens.filter(
     (token) =>
       token.isCollateralized() ||
-      token.standard === TokenStandard.EvmHypXERC20Lockbox,
+      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      token.standard === TokenStandard.EvmHypVSXERC20Lockbox,
   );
 
   if (collateralTokens.length === 0) {
