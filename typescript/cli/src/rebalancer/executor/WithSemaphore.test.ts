@@ -31,7 +31,7 @@ describe('WithSemaphore', () => {
 
     const executor = new MockExecutor();
     const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor, () => {});
+    const withSemaphore = new WithSemaphore(config, executor);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
@@ -49,7 +49,7 @@ describe('WithSemaphore', () => {
 
     const executor = new MockExecutor();
     const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor, () => {});
+    const withSemaphore = new WithSemaphore(config, executor);
     await withSemaphore.rebalance([]);
 
     expect(rebalanceSpy.calledOnce).to.be.false;
@@ -72,7 +72,7 @@ describe('WithSemaphore', () => {
 
     const executor = new MockExecutor();
     const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor, () => {});
+    const withSemaphore = new WithSemaphore(config, executor);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
