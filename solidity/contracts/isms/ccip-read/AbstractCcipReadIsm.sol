@@ -30,15 +30,14 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
 
     string[] internal _urls;
 
-    constructor(
-        address _mailbox,
-        string[] memory __urls
-    ) MailboxClient(_mailbox) {
-        setUrls(__urls);
-    }
+    /**
+     * @notice Emitted when new CCIP-read urls are being set
+     */
+    event UrlsChanged(string[] newUrls);
 
     function setUrls(string[] memory __urls) public onlyOwner {
         _urls = __urls;
+        emit UrlsChanged(__urls);
     }
 
     /// @dev called by the relayer when the off-chain data is ready

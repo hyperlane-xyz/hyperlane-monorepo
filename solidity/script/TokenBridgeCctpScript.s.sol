@@ -117,7 +117,8 @@ contract TokenBridgeCctpScript is Script {
                         scale,
                         mailboxOrigin,
                         IMessageTransmitter(messageTransmitterOrigin),
-                        ITokenMessenger(tokenMessengerOrigin)
+                        ITokenMessenger(tokenMessengerOrigin),
+                        urls
                     )
                 )
             );
@@ -129,7 +130,8 @@ contract TokenBridgeCctpScript is Script {
                         scale,
                         mailboxOrigin,
                         IMessageTransmitter(messageTransmitterOrigin),
-                        ITokenMessengerV2(tokenMessengerOrigin)
+                        ITokenMessengerV2(tokenMessengerOrigin),
+                        urls
                     )
                 )
             );
@@ -160,7 +162,8 @@ contract TokenBridgeCctpScript is Script {
                         scale,
                         mailboxDestination,
                         IMessageTransmitter(messageTransmitterDestination),
-                        ITokenMessenger(tokenMessengerDestination)
+                        ITokenMessenger(tokenMessengerDestination),
+                        urls
                     )
                 )
             );
@@ -172,7 +175,8 @@ contract TokenBridgeCctpScript is Script {
                         scale,
                         mailboxDestination,
                         IMessageTransmitter(messageTransmitterDestination),
-                        ITokenMessengerV2(tokenMessengerDestination)
+                        ITokenMessengerV2(tokenMessengerDestination),
+                        urls
                     )
                 )
             );

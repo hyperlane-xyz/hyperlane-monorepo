@@ -25,8 +25,9 @@ contract TokenBridgeCctpV2 is TokenBridgeCctp {
         uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
-        ITokenMessengerV2 _tokenMessenger
-    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter) {
+        ITokenMessengerV2 _tokenMessenger,
+        string[] memory __urls
+    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter, __urls) {
         uint32 version = _tokenMessenger.messageBodyVersion();
         require(
             version == CCTP_VERSION_2,

@@ -11,6 +11,16 @@ import {CallLib} from "../../middleware/libs/Call.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {OwnableMulticall} from "../../middleware/libs/OwnableMulticall.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+
+interface CommitmentReadIsmService {
+    function getCallsFromCommitment(
+        bytes32 _commitment
+    )
+        external
+        view
+        returns (address ica, bytes32 salt, CallLib.Call[] memory _calls);
+}
 
 contract CommitmentReadIsm is AbstractCcipReadIsm {
     using InterchainAccountMessageReveal for bytes;
@@ -21,7 +31,8 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
         address _mailbox,
         address _owner,
         string[] memory _urls
-    ) AbstractCcipReadIsm(_mailbox, _urls) {
+    ) MailboxClient(_mailbox) {
+        setUrls(_urls);
         _transferOwnership(_owner);
     }
 
@@ -29,9 +40,9 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) internal pure override returns (bytes memory) {
         return
-            abi.encodeWithSignature(
-                "getCallsFromCommitment(bytes32)",
-                _message.body().commitment()
+            abi.encodeCall(
+                CommitmentReadIsmService.getCallsFromCommitment,
+                (_message.body().commitment())
             );
     }
 
