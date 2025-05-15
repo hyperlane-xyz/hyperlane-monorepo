@@ -170,8 +170,8 @@ export async function getWarpRouteIdFromWarpDeployConfig(
     // Validates the user defined warpRouteId by 1) checking if its unique, and 2) check if its formatted correctly
     async (warpRouteId) => {
       try {
-        const isIdUnique = !!(await registry.getWarpDeployConfig(warpRouteId));
-        if (isIdUnique) {
+        const idExists = !!(await registry.getWarpDeployConfig(warpRouteId));
+        if (idExists) {
           throw Error(`Warp deploy config already exists for: ${warpRouteId}.`);
         }
 
