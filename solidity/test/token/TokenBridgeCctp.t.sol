@@ -139,7 +139,7 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(quote[0].amount, expectedQuote);
     }
 
-    function test_transferRemoteXXX() public {
+    function test_transferRemoteCctp() public {
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
