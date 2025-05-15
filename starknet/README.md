@@ -88,7 +88,7 @@ docker compose up
 ```
 
 This builds the contracts from source and puts them under the `release` folder. You can specify
-the commit or version from which the contracts should be build from. Note that this command
+the commit or version from which the contracts should be built from. Note that this command
 will overwrite the contents of the `release` folder if it already exists.
 
 #### Generating TypeScript Artifacts
