@@ -3,34 +3,14 @@ import { assert } from '@hyperlane-xyz/utils';
 import { TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
-  private readonly tokenMetadataMap: Map<string, TokenMetadata>;
+  private tokenMetadataMap: Map<string, TokenMetadata>;
 
-  constructor(map: Record<string, TokenMetadata>) {
-    this.tokenMetadataMap = new Map(Object.entries(map));
+  constructor() {
+    this.tokenMetadataMap = new Map();
+  }
 
-    assert(
-      [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
-      'All decimals must be defined',
-    );
-
-    if (!this.areDecimalsUniform()) {
-      const maxDecimals = Math.max(
-        ...[...this.tokenMetadataMap.values()].map(
-          (config) => config.decimals!,
-        ),
-      );
-
-      for (const [chain, config] of this.tokenMetadataMap.entries()) {
-        if (config.decimals) {
-          const scale = 10 ** (maxDecimals - config.decimals);
-          assert(
-            config.scale && scale !== config.scale,
-            `Scale is not correct for ${chain}`,
-          );
-          config.scale = scale;
-        }
-      }
-    }
+  set(chain: string, metadata: TokenMetadata): void {
+    this.tokenMetadataMap.set(chain, metadata);
   }
 
   getDecimals(chain: string): number | undefined {
@@ -82,5 +62,31 @@ export class TokenMetadataMap {
       }
     }
     return true;
+  }
+
+  finalize(): void {
+    assert(
+      [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
+      'All decimals must be defined',
+    );
+
+    if (!this.areDecimalsUniform()) {
+      const maxDecimals = Math.max(
+        ...[...this.tokenMetadataMap.values()].map(
+          (config) => config.decimals!,
+        ),
+      );
+
+      for (const [chain, config] of this.tokenMetadataMap.entries()) {
+        if (config.decimals) {
+          const scale = 10 ** (maxDecimals - config.decimals);
+          assert(
+            config.scale && scale !== config.scale,
+            `Scale is not correct for ${chain}`,
+          );
+          config.scale = scale;
+        }
+      }
+    }
   }
 }

@@ -35,7 +35,6 @@ import {
 } from './contracts.js';
 import {
   HypTokenRouterConfig,
-  TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -125,7 +124,8 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadataMap> {
-    const metadataMap: Record<string, TokenMetadata> = {};
+    const metadataMap = new TokenMetadataMap();
+
     const priorityGetter = (type: string) => {
       return ['collateral', 'native'].indexOf(type);
     };
@@ -136,7 +136,7 @@ abstract class TokenDeployer<
 
     for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
-        metadataMap[chain] = TokenMetadataSchema.parse(config);
+        metadataMap.set(chain, TokenMetadataSchema.parse(config));
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
@@ -146,9 +146,12 @@ abstract class TokenDeployer<
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          metadataMap[chain] = TokenMetadataSchema.parse({
-            ...nativeToken,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
           continue;
         }
       }
@@ -165,10 +168,13 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          metadataMap[chain] = TokenMetadataSchema.parse({
-            name,
-            symbol,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
           continue;
         }
 
@@ -198,14 +204,19 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        metadataMap[chain] = TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-        });
+        metadataMap.set(
+          chain,
+          TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+          }),
+        );
       }
     }
-    return new TokenMetadataMap(metadataMap);
+
+    metadataMap.finalize();
+    return metadataMap;
   }
 
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
