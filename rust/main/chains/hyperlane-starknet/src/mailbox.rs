@@ -260,6 +260,10 @@ impl Mailbox for StarknetMailbox {
         // For Starknet, we don't need to process the calldata as it's handled by the contract
         Ok(Vec::new())
     }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
+    }
 }
 
 pub struct StarknetMailboxAbi;
