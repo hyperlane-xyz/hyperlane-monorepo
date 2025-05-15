@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TypeCasts} from "../libs/TypeCasts.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {CctpMessage} from "../libs/CctpMessage.sol";
 import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
-import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../isms/ccip-read/AbstractCcipReadIsm.sol";
@@ -29,7 +26,8 @@ abstract contract TokenBridgeCctp is
     /// ATM, known Circle domains are Ethereum = 0, Avalanche = 1, Optimism = 2, Arbitrum = 3.
     /// Note this could result in ambiguity between the Circle domain being
     /// Ethereum or unknown.
-    mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
+    mapping(uint32 hypDomain => uint32 circleDomain)
+        public hyperlaneDomainToCircleDomain;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
@@ -60,7 +58,7 @@ abstract contract TokenBridgeCctp is
     }
 
     /**
-     * @notice Adds a new mapping between a Hyperlane domain and a Circle domain.
+     * @notice Set the CCIP-read URLs
      * @param _urls URLs to be added
      */
     function setUrls(string[] memory _urls) external onlyOwner {

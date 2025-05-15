@@ -80,6 +80,7 @@ library TypedMemView {
         uint8 _nibble = _byte & 0x0f; // keep bottom 4, 0 top 4
         _char = uint8(NIBBLE_LOOKUP[_nibble]);
     }
+
     /**
      * @notice      Returns a uint16 containing the hex-encoded byte.
      * @param _b    The byte
