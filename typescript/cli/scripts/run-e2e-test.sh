@@ -20,7 +20,7 @@ if [ -n "${CLI_E2E_TEST}" ]; then
   echo "Running only ${CLI_E2E_TEST} test"
   yarn mocha --config .mocharc-e2e.json "src/**/${CLI_E2E_TEST}.e2e-test.ts"
 else
-  yarn mocha --config .mocharc-e2e.json "src/tests/core/core-deploy.e2e-test.ts"
+  yarn mocha --config .mocharc-e2e.json "src/**/*.e2e-test.ts"
 fi
 
 cleanup
