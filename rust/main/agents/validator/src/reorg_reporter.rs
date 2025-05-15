@@ -62,6 +62,8 @@ impl ReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
+        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel};
+
         let chain_conf = settings
             .chains
             .get(origin.name())
@@ -69,33 +71,31 @@ impl ReorgReporter {
             .clone();
 
         let chain_conn_confs = match chain_conf.connection {
-            ChainConnectionConf::Ethereum(conn) => {
-                Self::map_urls_to_connections(conn.rpc_urls(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.rpc_connection = RpcConnectionConf::Http { url };
-                    ChainConnectionConf::Ethereum(updated_conn)
-                })
-            }
-            ChainConnectionConf::Fuel(_) => todo!("Fuel connection not implemented"),
-            ChainConnectionConf::Sealevel(conn) => {
+            Ethereum(conn) => Self::map_urls_to_connections(conn.rpc_urls(), conn, |conn, url| {
+                let mut updated_conn = conn.clone();
+                updated_conn.rpc_connection = RpcConnectionConf::Http { url };
+                Ethereum(updated_conn)
+            }),
+            Fuel(_) => todo!("Fuel connection not implemented"),
+            Sealevel(conn) => {
                 Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
                     updated_conn.urls = vec![url];
-                    ChainConnectionConf::Sealevel(updated_conn)
+                    Sealevel(updated_conn)
                 })
             }
-            ChainConnectionConf::Cosmos(conn) => {
+            Cosmos(conn) => {
                 Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
                     updated_conn.grpc_urls = vec![url];
-                    ChainConnectionConf::Cosmos(updated_conn)
+                    Cosmos(updated_conn)
                 })
             }
-            ChainConnectionConf::CosmosNative(conn) => {
+            CosmosNative(conn) => {
                 Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
                     updated_conn.grpc_urls = vec![url];
-                    ChainConnectionConf::CosmosNative(updated_conn)
+                    CosmosNative(updated_conn)
                 })
             }
         };
