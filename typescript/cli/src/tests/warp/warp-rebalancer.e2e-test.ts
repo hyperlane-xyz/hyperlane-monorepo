@@ -5,6 +5,7 @@ import { rmSync } from 'fs';
 import { $ } from 'zx';
 
 import {
+  ERC20,
   ERC20__factory,
   HypERC20Collateral__factory,
   MockValueTransferBridge__factory,
@@ -42,6 +43,7 @@ import {
   deployOrUseExistingCore,
   deployToken,
   getCombinedWarpRoutePath,
+  hyperlaneRelayer,
   restoreSnapshot,
 } from '../commands/helpers.js';
 import {
@@ -76,22 +78,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   let chain3Metadata: ChainMetadata;
   let chain4Metadata: ChainMetadata;
 
+  let chain2Addresses: Record<string, string>;
+  let chain3Addresses: Record<string, string>;
+  let chain4Addresses: Record<string, string>;
+
+  let tokenChain2: ERC20;
+  let tokenChain3: ERC20;
+
   before(async () => {
     ogVerbose = $.verbose;
     $.verbose = false;
 
     console.log('Deploying core contracts on all chains...');
 
-    const [chain2Addresses, chain3Addresses, chain4Addresses] =
-      await Promise.all([
-        deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-        deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-        deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
-      ]);
+    [chain2Addresses, chain3Addresses, chain4Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
     console.log('Deploying ERC20s...');
 
-    const [tokenChain2, tokenChain3] = await Promise.all([
+    [tokenChain2, tokenChain3] = await Promise.all([
       deployToken(ANVIL_KEY, CHAIN_NAME_2),
       deployToken(ANVIL_KEY, CHAIN_NAME_3),
     ]);
@@ -209,13 +217,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   function startRebalancer(
-    options: { withMetrics?: boolean; rebalanceStrategy?: string } = {},
+    options: {
+      checkFrequency?: number;
+      withMetrics?: boolean;
+      rebalanceStrategy?: string;
+    } = {},
   ) {
-    const { withMetrics = false, rebalanceStrategy } = options;
+    const {
+      checkFrequency = CHECK_FREQUENCY,
+      withMetrics = false,
+      rebalanceStrategy,
+    } = options;
 
     return hyperlaneWarpRebalancer(
       warpRouteId,
-      CHECK_FREQUENCY,
+      checkFrequency,
       REBALANCER_CONFIG_PATH,
       withMetrics,
       rebalanceStrategy,
@@ -223,28 +239,46 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   }
 
   async function startRebalancerAndExpectLog(
-    log: string,
+    log: string | string[],
     options: {
       timeout?: number;
+      checkFrequency?: number;
       withMetrics?: boolean;
       rebalanceStrategy?: string;
     } = {},
   ) {
     const {
       timeout = 10_000,
-      withMetrics = false,
+      checkFrequency,
+      withMetrics,
       rebalanceStrategy,
     } = options;
 
-    const process = startRebalancer({ withMetrics, rebalanceStrategy });
+    const process = startRebalancer({
+      checkFrequency,
+      withMetrics,
+      rebalanceStrategy,
+    });
 
     let timeoutId: NodeJS.Timeout;
+
+    const expectedLogs = (() => {
+      if (Array.isArray(log)) {
+        if (log.length === 0) {
+          throw new Error('Expected at least one log');
+        }
+
+        return log;
+      }
+
+      return [log];
+    })();
 
     // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       // Use a timeout to prevent waiting for a log that might never happen and fail faster
       timeoutId = setTimeout(async () => {
-        reject(new Error(`Timeout waiting for log: "${log}"`));
+        reject(new Error(`Timeout waiting for log: "${expectedLogs[0]}"`));
       }, timeout);
 
       // Handle when the process exits due to an error that is not the expected log
@@ -254,7 +288,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
         reject(
           new Error(
-            `Process failed before logging: "${log}" with error: ${error}`,
+            `Process failed before logging: "${expectedLogs[0]}" with error: ${error}`,
           ),
         );
       });
@@ -263,9 +297,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       for await (let chunk of process.stdout) {
         chunk = typeof chunk === 'string' ? chunk : chunk.toString();
 
-        if (chunk.includes(log)) {
-          resolve(void 0);
-          break;
+        if (chunk.includes(expectedLogs[0])) {
+          expectedLogs.shift();
+
+          if (!expectedLogs.length) {
+            resolve(void 0);
+            break;
+          }
         }
       }
     }).finally(() => {
@@ -779,7 +817,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_name":"token","wallet_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"`,
+      `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"${warpCoreConfig.tokens[2].addressOrDenom}","token_name":"token","wallet_address":"${warpCoreConfig.tokens[2].addressOrDenom}","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"}`,
       { withMetrics: true },
     );
   });
@@ -837,5 +875,125 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics: false,
       rebalanceStrategy: 'minAmount',
     });
+  });
+
+  it('should use another warp route as bridge', async () => {
+    // --- Deploy the other warp route ---
+
+    const otherWarpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+    const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: tokenChain2.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: ANVIL_ADDRESS,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.collateral,
+        token: tokenChain3.address,
+        mailbox: chain3Addresses.mailbox,
+        owner: ANVIL_ADDRESS,
+      },
+    };
+    writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
+    await hyperlaneWarpDeploy(otherWarpDeploymentPath);
+
+    const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      otherWarpDeploymentPath,
+    );
+
+    const chain2Signer = new Wallet(
+      ANVIL_KEY,
+      new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
+    );
+
+    const chain3Signer = new Wallet(
+      ANVIL_KEY,
+      new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
+    );
+
+    const chain2Contract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[0].addressOrDenom!,
+      chain2Signer,
+    );
+
+    // --- Grant rebalancer role ---
+
+    await chain2Contract.grantRole(
+      await chain2Contract.REBALANCER_ROLE(),
+      chain2Signer.address,
+    );
+
+    // --- Allow destination ---
+
+    await chain2Contract.addRecipient(
+      chain3Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[1].addressOrDenom!),
+    );
+
+    // --- Allow bridge ---
+
+    await chain2Contract.addBridge(
+      otherWarpCoreConfig.tokens[0].addressOrDenom!,
+      chain3Metadata.domainId,
+    );
+
+    // --- Fund warp route bridge collaterals ---
+
+    await (
+      await tokenChain2
+        .connect(chain2Signer)
+        .transfer(otherWarpCoreConfig.tokens[0].addressOrDenom!, toWei(10))
+    ).wait();
+
+    await (
+      await tokenChain3
+        .connect(chain3Signer)
+        .transfer(otherWarpCoreConfig.tokens[1].addressOrDenom!, toWei(10))
+    ).wait();
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: 'weighted',
+      [CHAIN_NAME_2]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
+      },
+    });
+
+    // --- Start relayer ---
+
+    const relayer = hyperlaneRelayer(
+      [CHAIN_NAME_2, CHAIN_NAME_3],
+      otherWarpDeploymentPath,
+    );
+
+    await sleep(2000);
+
+    // --- Start rebalancer ---
+
+    try {
+      await startRebalancerAndExpectLog(
+        [
+          'Rebalancer started successfully 🚀',
+          'Found 1 rebalancing route(s) using WeightedStrategy',
+          'Populating rebalance transaction: domain=31347, amount=5000000000000000000, bridge=0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
+          '✅ Rebalance successful',
+          'Found 0 rebalancing route(s) using WeightedStrategy.',
+          'No routes to execute',
+        ],
+        { timeout: 30000, checkFrequency: 10000 },
+      );
+    } finally {
+      await relayer.kill();
+    }
   });
 });
