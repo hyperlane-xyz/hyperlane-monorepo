@@ -143,7 +143,29 @@ export class StarknetCoreModule {
       [defaultIsm || noopIsm],
     );
 
+    const defaultCoreAddresses: DeployedCoreAddresses = {
+      staticAggregationHookFactory:
+        '0x0000000000000000000000000000000000000000',
+      staticAggregationIsmFactory: '0x0000000000000000000000000000000000000000',
+      staticMerkleRootMultisigIsmFactory:
+        '0x0000000000000000000000000000000000000000',
+      staticMerkleRootWeightedMultisigIsmFactory:
+        '0x0000000000000000000000000000000000000000',
+      staticMessageIdMultisigIsmFactory:
+        '0x0000000000000000000000000000000000000000',
+      staticMessageIdWeightedMultisigIsmFactory:
+        '0x0000000000000000000000000000000000000000',
+      domainRoutingIsmFactory: '0x0000000000000000000000000000000000000000',
+      interchainAccountRouter: '0x0000000000000000000000000000000000000000',
+      interchainAccountIsm: '0x0000000000000000000000000000000000000000',
+      proxyAdmin: '0x0000000000000000000000000000000000000000',
+      mailbox: '0x0000000000000000000000000000000000000000',
+      validatorAnnounce: '0x0000000000000000000000000000000000000000',
+      testRecipient: '0x0000000000000000000000000000000000000000',
+    };
+
     return {
+      ...defaultCoreAddresses,
       noopIsm,
       defaultIsm: defaultIsm || noopIsm,
       protocolFee,
