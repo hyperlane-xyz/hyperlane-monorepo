@@ -76,7 +76,9 @@ impl SealevelMailbox {
 
         let incremental = IncrementalMerkleAtBlockHeight {
             tree: outbox.tree,
-            block_height: None,
+            // Defaulting to 0 since MerkleTreeHook calls do not depend on block height in Sealevel.
+            // We are not using None since we want to be able to produce reorg report with ReorgReporter
+            block_height: Some(0),
         };
 
         Ok(incremental)
@@ -104,7 +106,9 @@ impl SealevelMailbox {
 
         Ok(CheckpointAtBlockHeight {
             checkpoint,
-            block_height: None,
+            // Defaulting to 0 since MerkleTreeHook calls do not depend on block height in Sealevel.
+            // We are not using None since we want to be able to produce reorg report with ReorgReporter
+            block_height: Some(0),
         })
     }
 }
