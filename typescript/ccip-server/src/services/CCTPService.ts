@@ -1,8 +1,10 @@
 import { ethers } from 'ethers';
 
-import { CCTPAttestationService } from './CCTPAttestationService';
-import { HyperlaneService } from './HyperlaneService';
-import { RPCService } from './RPCService';
+import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
+
+import { CCTPAttestationService } from './CCTPAttestationService.js';
+import { HyperlaneService } from './HyperlaneService.js';
+import { RPCService } from './RPCService.js';
 
 type RPCConfig = {
   readonly url: string;
@@ -36,14 +38,13 @@ class CCTPService {
   async getCCTPMessageFromReceipt(
     receipt: ethers.providers.TransactionReceipt,
   ) {
-    // Event from interfaces/cctp/IMessageTransmitter.sol
-    const abi = ['event MessageSent(bytes message)'];
-    const iface = new ethers.utils.Interface(abi);
+    const iface = IMessageTransmitter__factory.createInterface();
+    const event = iface.events['MessageSent(bytes)'];
+
     for (const log of receipt.logs) {
       try {
         const parsedLog = iface.parseLog(log);
-
-        if (parsedLog.name === 'MessageSent') {
+        if (parsedLog.name === event.name) {
           return parsedLog.args.message;
         }
       } catch {

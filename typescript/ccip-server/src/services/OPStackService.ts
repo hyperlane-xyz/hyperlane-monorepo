@@ -7,8 +7,8 @@ import {
 } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
 
-import { HyperlaneService } from './HyperlaneService';
-import { RPCService } from './RPCService';
+import { HyperlaneService } from './HyperlaneService.js';
+import { RPCService } from './RPCService.js';
 
 type RPCConfig = {
   readonly url: string;
