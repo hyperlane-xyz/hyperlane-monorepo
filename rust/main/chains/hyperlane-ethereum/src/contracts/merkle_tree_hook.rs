@@ -334,13 +334,11 @@ where
 {
     fn block_height<D>(call: &ContractCall<M, D>) -> u64 {
         // We expect that block height is always set, otherwise we default to 0
-        let block_height = call
-            .block
+        call.block
             .map(|id| match id {
                 BlockId::Hash(_) => 0u64,
                 BlockId::Number(n) => n.as_number().map(|n| n.as_u64()).unwrap_or(0u64),
             })
-            .unwrap_or(0u64);
-        block_height
+            .unwrap_or(0u64)
     }
 }
