@@ -17,6 +17,10 @@ const BaseChainConfigSchema = z.object({
     .number()
     .positive()
     .describe('Expected time in milliseconds for bridge to process a transfer'),
+  bridgeIsWarp: z
+    .boolean()
+    .optional()
+    .describe('True if the bridge is another Warp Route'),
 });
 
 // Weighted strategy config schema
