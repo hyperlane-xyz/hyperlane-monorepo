@@ -18,6 +18,7 @@ import {
 import {
   Address,
   CallData,
+  assert,
   bytes32ToAddress,
   eqAddress,
   objMap,
@@ -28,7 +29,11 @@ import {
 import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
 import { regularIcas } from '../../config/environments/mainnet3/governance/ica/regular.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 
 import {
   ManualMultiSend,
@@ -367,22 +372,28 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    let accountConfig = this.interchainAccount.knownAccounts[account.address];
-    if (
-      account.address === regularIcas[chain as keyof typeof regularIcas] ||
-      account.address === awIcas[chain as keyof typeof awIcas]
-    ) {
-      const origin = 'ethereum';
-      accountConfig = {
-        origin,
-        owner: regularIcas[origin] || awIcas[origin],
-      };
-    }
+    const { ownerType, governanceType: icaGovernanceType } =
+      await determineGovernanceType(chain, account.address);
+    // verify that we expect it to be an ICA
+    assert(ownerType === Owner.ICA, 'ownerType should be ICA');
+    // get the set of safes for this governance type
+    const safes = getGovernanceSafes(icaGovernanceType);
+    const origin = 'ethereum';
+    const remoteOwner = safes[origin];
+    const accountConfig = {
+      origin,
+      owner: remoteOwner,
+    };
 
-    if (!accountConfig) {
+    // Check that it derives to the ICA
+    const derivedIca = await this.interchainAccount.getAccount(
+      accountConfig.origin,
+      accountConfig,
+    );
+    if (eqAddress(derivedIca, account.address)) {
       console.info(
         chalk.gray(
-          `Account ${account.address} is not a known ICA. Defaulting to manual submission.`,
+          `Account ${account.address} is not the expected ICA. Defaulting to manual submission.`,
         ),
       );
       return {
@@ -391,9 +402,6 @@ export abstract class HyperlaneAppGovernor<
         call,
       };
     }
-
-    // WARNING: origin is a reserved word in TypeScript
-    const origin = accountConfig.origin;
 
     rootLogger.info(
       chalk.gray(
