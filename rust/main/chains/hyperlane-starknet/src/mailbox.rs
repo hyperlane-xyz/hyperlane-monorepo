@@ -45,7 +45,7 @@ impl StarknetMailbox {
         locator: &ContractLocator<'_>,
         signer: Signer,
     ) -> ChainResult<Self> {
-        let is_legacy = signer.version == 3;
+        let is_legacy = signer.version == 2;
         let account = build_single_owner_account(
             &conn.url,
             signer.local_wallet(),
