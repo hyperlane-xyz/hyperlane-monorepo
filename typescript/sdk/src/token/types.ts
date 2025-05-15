@@ -30,6 +30,17 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
+export const OpL2toL1TokenConfigSchema = NativeTokenConfigSchema.merge(
+  z.object({
+    type: z.literal(TokenType.nativeOpL2ToL1),
+  }),
+).extend({
+  l1Domain: z.number(),
+  l2Bridge: z.string(),
+});
+export type OpL2toL1TokenConfig = z.infer<typeof OpL2toL1TokenConfigSchema>;
+export const isOpL2toL1TokenConfig = isCompliant(OpL2toL1TokenConfigSchema);
+
 export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
   {
     type: z.enum([
@@ -153,6 +164,7 @@ export type HypTokenRouterVirtualConfig = z.infer<
  */
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
+  OpL2toL1TokenConfigSchema,
   CollateralTokenConfigSchema,
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
