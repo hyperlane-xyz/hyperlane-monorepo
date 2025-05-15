@@ -1,8 +1,10 @@
 import { Server } from '@chainlink/ccip-read-server';
 
+import { CCTPServiceAbi } from './abis/CCTPServiceAbi';
 import { OPStackServiceAbi } from './abis/OPStackServiceAbi';
 import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
 import * as config from './config';
+import { CCTPService } from './services/CCTPService';
 import { OPStackService } from './services/OPStackService';
 import { ProofsService } from './services/ProofsService';
 
@@ -36,6 +38,12 @@ const opStackService = new OPStackService(
   },
 );
 
+const cctpService = new CCTPService(
+  { url: config.HYPERLANE_EXPLORER_API },
+  { url: config.CCTP_ATTESTATION_API },
+  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
+);
+
 // Initialize Server and add Service handlers
 const server = new Server();
 
@@ -54,6 +62,13 @@ server.add(OPStackServiceAbi, [
   {
     type: 'getFinalizeWithdrawalTx',
     func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
+  },
+]);
+
+server.add(CCTPServiceAbi, [
+  {
+    type: 'getCCTPAttestation',
+    func: cctpService.getCCTPAttestation.bind(cctpService),
   },
 ]);
 
