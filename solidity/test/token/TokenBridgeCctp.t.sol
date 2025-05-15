@@ -12,7 +12,6 @@ import {TokenBridgeCctpV2} from "../../contracts/token/extensions/TokenBridgeCct
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {MockCircleMessageTransmitter} from "../../contracts/mock/MockCircleMessageTransmitter.sol";
 import {MockCircleTokenMessenger, MockCircleTokenMessengerV2} from "../../contracts/mock/MockCircleTokenMessenger.sol";
-import {MockCircleTokenMessenger} from "../../contracts/mock/MockCircleTokenMessenger.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
