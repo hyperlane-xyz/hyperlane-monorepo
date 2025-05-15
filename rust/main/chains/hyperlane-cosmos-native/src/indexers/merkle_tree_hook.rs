@@ -79,7 +79,7 @@ impl CosmosNativeMerkleTreeHook {
 
         Ok(CheckpointAtBlockHeight {
             checkpoint,
-            block_height: height as u64,
+            block_height: Some(height as u64),
         })
     }
 }
@@ -134,7 +134,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
         };
         Ok(IncrementalMerkleAtBlockHeight {
             tree,
-            block_height: height as u64,
+            block_height: Some(height as u64),
         })
     }
 

@@ -72,7 +72,7 @@ impl CosmosMerkleTreeHook {
         };
         Ok(CheckpointAtBlockHeight {
             checkpoint,
-            block_height,
+            block_height: Some(block_height),
         })
     }
 }
@@ -133,7 +133,10 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         })?;
 
         let tree = IncrementalMerkle::new(branch_res, response.count as usize);
-        Ok(IncrementalMerkleAtBlockHeight { tree, block_height })
+        Ok(IncrementalMerkleAtBlockHeight {
+            tree,
+            block_height: Some(block_height),
+        })
     }
 
     /// Gets the current leaf count of the merkle tree

@@ -76,7 +76,7 @@ impl SealevelMailbox {
 
         let incremental = IncrementalMerkleAtBlockHeight {
             tree: outbox.tree,
-            block_height: 0,
+            block_height: None,
         };
 
         Ok(incremental)
@@ -104,7 +104,7 @@ impl SealevelMailbox {
 
         Ok(CheckpointAtBlockHeight {
             checkpoint,
-            block_height: 0, // Defaulting to zero since there is no easy way to get the block slot for Sealevel
+            block_height: None,
         })
     }
 }

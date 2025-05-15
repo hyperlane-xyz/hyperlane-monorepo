@@ -5,7 +5,7 @@ use std::vec;
 use futures::future::join_all;
 use prometheus::IntGauge;
 use tokio::time::sleep;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
@@ -257,9 +257,11 @@ impl ValidatorSubmitter {
                 "Incorrect tree root, something went wrong"
             );
 
-            self.reorg_reporter
-                .report(correctness_checkpoint.block_height)
-                .await;
+            if let Some(height) = correctness_checkpoint.block_height {
+                self.reorg_reporter.report(height).await;
+            } else {
+                warn!("Blockchain does not support block height, skipping reorg report");
+            }
 
             let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
             if let Err(e) = self
@@ -819,7 +821,7 @@ mod test {
         };
         let mock_onchain_checkpoint = CheckpointAtBlockHeight {
             checkpoint: mock_onchain_checkpoint,
-            block_height: 42,
+            block_height: Some(42),
         };
 
         // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.

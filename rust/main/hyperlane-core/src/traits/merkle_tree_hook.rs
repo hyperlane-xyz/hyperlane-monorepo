@@ -13,7 +13,7 @@ pub struct IncrementalMerkleAtBlockHeight {
     #[deref]
     pub tree: crate::accumulator::incremental::IncrementalMerkle,
     /// The block height at which the tree was requested
-    pub block_height: u64,
+    pub block_height: Option<u64>,
 }
 
 /// A wrapper around the Checkpoint and the block height at which it was requested.
@@ -23,7 +23,7 @@ pub struct CheckpointAtBlockHeight {
     #[deref]
     pub checkpoint: Checkpoint,
     /// The block height at which the checkpoint was requested
-    pub block_height: u64,
+    pub block_height: Option<u64>,
 }
 /// Interface for the MerkleTreeHook chain contract. Allows abstraction over different
 /// chains

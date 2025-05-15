@@ -298,7 +298,7 @@ where
         };
         Ok(CheckpointAtBlockHeight {
             checkpoint,
-            block_height: height,
+            block_height: Some(height),
         })
     }
 
@@ -332,13 +332,10 @@ impl<M> EthereumMerkleTreeHook<M>
 where
     M: 'static + Middleware,
 {
-    fn block_height<D>(call: &ContractCall<M, D>) -> u64 {
-        // We expect that block height is always set, otherwise we default to 0
-        call.block
-            .map(|id| match id {
-                BlockId::Hash(_) => 0u64,
-                BlockId::Number(n) => n.as_number().map(|n| n.as_u64()).unwrap_or(0u64),
-            })
-            .unwrap_or(0u64)
+    fn block_height<D>(call: &ContractCall<M, D>) -> Option<u64> {
+        call.block.and_then(|id| match id {
+            BlockId::Hash(_) => None,
+            BlockId::Number(n) => n.as_number().map(|n| n.as_u64()),
+        })
     }
 }
