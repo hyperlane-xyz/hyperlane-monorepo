@@ -31,37 +31,25 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
         _setDestinationGas(_l1Domain, FINALIZE_WITHDRAWAL_GAS_LIMIT);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 /* _recipient */,
-        uint256 /* _amount */
-    ) external view override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), quoteGasPayment(_destination));
-    }
-
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) external payable override(ITokenBridge, HypNative) returns (bytes32) {
-        return
-            TokenRouter._transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value - _amount
-            );
-    }
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
+        messageId = super._transferRemote(
+            _destination,
+            _recipient,
+            _amount,
+            _value,
+            _hookMetadata,
+            _hook
+        );
 
-    function _transferFromSender(
-        uint256 _amountOrId
-    ) internal override returns (bytes memory metadata) {
-        address remoteRouter = _mustHaveRemoteRouter(l1Domain)
-            .bytes32ToAddress();
-
-        l2Bridge.bridgeETHTo{value: _amountOrId}(
-            remoteRouter,
+        l2Bridge.bridgeETHTo{value: _amount}(
+            _recipient.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
             bytes("") // extraData
         );

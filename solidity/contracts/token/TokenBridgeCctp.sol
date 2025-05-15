@@ -70,36 +70,24 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
 
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    )
-        external
-        payable
-        override(ITokenBridge, TokenRouter)
-        returns (bytes32 messageId)
-    {
-        messageId = TokenRouter._transferRemote(
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
+        messageId = super._transferRemote(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            _value,
+            _hookMetadata,
+            _hook
         );
 
-        // Has to be called after _transferRemote
-        // in order for _transferFromSender to be
-        // executed first
-        _cctpDepositForBurn(_destination, _amount);
-    }
-
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 /* _recipient */,
-        uint256 /* _amount */
-    ) external view override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), quoteGasPayment(_destination));
+        _cctpDepositForBurn(_destination, _recipient, _amount);
     }
 
     function _offchainLookupCalldata(
