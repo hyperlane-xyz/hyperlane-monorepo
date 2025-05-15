@@ -16,7 +16,10 @@ contract MockValueTransferBridge is ValueTransferBridge {
         bytes32, //_recipient,
         uint256 //_amountOut
     ) public view virtual override returns (Quote[] memory) {
-        return new Quote[](0);
+        Quote[] memory quotes = new Quote[](1);
+        quotes[0] = Quote(address(0), 1);
+
+        return quotes;
     }
 
     function transferRemote(
