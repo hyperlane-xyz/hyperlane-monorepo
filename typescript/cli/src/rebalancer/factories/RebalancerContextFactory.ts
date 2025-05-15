@@ -96,7 +96,8 @@ export class RebalancerContextFactory {
     const executor = new Executor(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
-        minAcceptedAmount: v.bridgeMinAcceptedAmount,
+        minAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0n,
+        isWarp: v.bridgeIsWarp ?? false,
       })),
       this.config.rebalancerKey,
       this.warpCore,

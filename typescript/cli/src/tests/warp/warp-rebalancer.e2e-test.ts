@@ -522,7 +522,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  it('should throw if the bridge does not have a valid transferRemote function', async () => {
+  it('should throw if rebalance quotes cannot be obtained', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
@@ -566,14 +566,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       chain2Metadata.domainId,
     );
 
-    await startRebalancerAndExpectLog(`❌ Could not estimate gas for route {
-  fromChain: 'anvil3',
-  toChain: 'anvil2',
-  amount: 5000000000000000000n
-}`);
-
     await startRebalancerAndExpectLog(
-      '❌ Could not estimate gas for some routes',
+      'Could not get rebalance quotes: All providers failed on chain unknown for method call and params',
     );
   });
 
@@ -1055,13 +1049,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '25',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-        bridgeTolerance: 1,
+        bridgeTolerance: 60000,
+        bridgeIsWarp: true,
       },
       [CHAIN_NAME_3]: {
         weight: '75',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-        bridgeTolerance: 1,
+        bridgeTolerance: 60000,
+        bridgeIsWarp: true,
       },
     });
 
@@ -1086,7 +1082,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           'Found 0 rebalancing route(s) using WeightedStrategy.',
           'No routes to execute',
         ],
-        { timeout: 30000, checkFrequency: 10000 },
+        { timeout: 30000, checkFrequency: 1000 },
       );
     } finally {
       await relayer.kill();

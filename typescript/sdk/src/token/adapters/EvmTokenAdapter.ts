@@ -1,8 +1,13 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import {
+  BigNumber,
+  PopulatedTransaction,
+  constants as ethersConstants,
+} from 'ethers';
 
 import {
   ERC20,
   ERC20__factory,
+  GasRouter__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -15,6 +20,7 @@ import {
   IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
+  ValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -326,18 +332,85 @@ export class EvmHypCollateralAdapter
     return this.collateralContract.allowedBridges(domain, bridge);
   }
 
-  async populateRebalanceTx(params: {
-    domain: Domain;
-    amount: Numberish;
-    bridge: Address;
-  }): Promise<PopulatedTransaction> {
-    const interchainGas = await this.quoteTransferRemoteGas(params.domain);
+  async getRebalanceQuotes(
+    bridge: Address,
+    domain: Domain,
+    recipient: Address,
+    amount: Numberish,
+    isWarp: boolean,
+  ): Promise<InterchainGasQuote[]> {
+    // TODO: In the future, all bridges should get quotes from the quoteTransferRemote function.
+    // Given that currently warp routes used as bridges do not, quotes need to be obtained differently.
+    // This can probably be removed in the future.
+    if (isWarp) {
+      const gasRouter = GasRouter__factory.connect(bridge, this.getProvider());
+      const gasPayment = await gasRouter.quoteGasPayment(domain);
+
+      return [
+        {
+          amount: BigInt(gasPayment.toString()),
+        },
+      ];
+    }
+
+    const bridgeContract = ValueTransferBridge__factory.connect(
+      bridge,
+      this.getProvider(),
+    );
+
+    const quotes = await bridgeContract.quoteTransferRemote(
+      domain,
+      addressToBytes32(recipient),
+      amount,
+    );
+
+    return quotes.map((quote) => ({
+      addressOrDenom:
+        quote.token === ethersConstants.AddressZero ? undefined : quote.token,
+      amount: BigInt(quote.amount.toString()),
+    }));
+  }
+
+  /**
+   * @param quotes - The quotes returned by getRebalanceQuotes
+   */
+  populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    return this.basePopulateRebalanceTx(
+      domain,
+      amount,
+      bridge,
+      quotes,
+      () => quotes[0].amount,
+    );
+  }
+
+  protected async basePopulateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+    getTrxValue: () => bigint,
+  ): Promise<PopulatedTransaction> {
+    if (quotes.length !== 1) {
+      throw new Error('Only 1 quote is currently supported');
+    }
+
+    const quote = quotes[0];
+
+    if (quote.addressOrDenom) {
+      throw new Error('Only native tokens are currently supported');
+    }
 
     return this.collateralContract.populateTransaction.rebalance(
-      params.domain,
-      params.amount,
-      params.bridge,
-      { value: interchainGas.amount.toString() },
+      domain,
+      amount,
+      bridge,
+      { value: getTrxValue() },
     );
   }
 }
@@ -629,6 +702,24 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
+  }
+
+  /**
+   * @param quotes - The quotes returned by getRebalanceQuotes
+   */
+  override populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    return this.basePopulateRebalanceTx(
+      domain,
+      amount,
+      bridge,
+      quotes,
+      () => quotes[0].amount + BigInt(amount),
+    );
   }
 }
 
