@@ -24,11 +24,13 @@ describe('Config', () => {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
       },
       chain2: {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
       },
     };
 
@@ -61,11 +63,13 @@ describe('Config', () => {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
         chain2: {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
       },
     });
@@ -153,11 +157,13 @@ describe('Config', () => {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
         chain2: {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
         },
       },
     });
