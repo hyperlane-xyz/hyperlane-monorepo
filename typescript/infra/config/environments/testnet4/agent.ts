@@ -453,7 +453,7 @@ const neutron: RootAgentConfig = {
       repo,
       tag: 'd1a1ac8-20250502-153149',
     },
-    whitelist: relayBlacklist,
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
