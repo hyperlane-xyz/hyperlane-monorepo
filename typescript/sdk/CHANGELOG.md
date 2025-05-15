@@ -12,7 +12,7 @@
 - d182d7d: Adds the sortArraysInObject function to properly sort arrays in an object recursively given an optional sort function
 - 248d2e1: Enables the CLI to warp check routes that include non EVM routes
 - e2a4727: Deploy to new chains: ontology, miraclechain, kyve.
-- b360802: Add the isCosmosIbcDenomAddress function and improve the config expasion logic to correctly format the destination gas
+- b360802: Add the isCosmosIbcDenomAddress function and improve the config expansion logic to correctly format the destination gas
 - 31ee1c6: Adds fiatCollateral token on chain config derivation logic as it was incorrectly inferred as collateral
 - a36d5c1: add cosmos native hook module & reader
 
