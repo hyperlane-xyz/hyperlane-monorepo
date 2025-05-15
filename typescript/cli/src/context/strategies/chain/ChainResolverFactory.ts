@@ -12,7 +12,7 @@ export class ChainResolverFactory {
     [CommandType.WARP_DEPLOY, () => MultiChainResolver.forWarpRouteConfig()],
     // Using the forRelayer resolver because warp send allows the user to self relay the tx
     [CommandType.WARP_SEND, () => MultiChainResolver.forRelayer()],
-    [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpRouteConfig()],
+    [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpApply()],
     // Using the forRelayer resolver because send allows the user to self relay the tx
     [CommandType.SEND_MESSAGE, () => MultiChainResolver.forRelayer()],
     [CommandType.AGENT_KURTOSIS, () => MultiChainResolver.forAgentKurtosis()],

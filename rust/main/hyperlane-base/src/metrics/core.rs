@@ -16,8 +16,10 @@ use ethers_prometheus::middleware::MiddlewareMetrics;
 use hyperlane_core::{HyperlaneDomain, H160};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
+use crate::cache::MeteredCacheMetrics;
 use crate::metrics::{
-    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+    cache::create_cache_metrics, json_rpc_client::create_json_rpc_client_metrics,
+    provider::create_provider_metrics,
 };
 
 /// Macro to prefix a string with the namespace.
@@ -53,9 +55,18 @@ pub struct CoreMetrics {
 
     latest_checkpoint: IntGaugeVec,
 
+    announced: IntGaugeVec,
+    backfill_complete: IntGaugeVec,
+    reached_initial_consistency: IntGaugeVec,
+
+    // metadata building metrics
+    metadata_build_count: IntCounterVec,
+    metadata_build_duration: CounterVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
+    cache_metrics: OnceLock<MeteredCacheMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
@@ -205,6 +216,36 @@ impl CoreMetrics {
             registry
         )?;
 
+        let announced = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("announced"),
+                "Whether the validator has been announced",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let backfill_complete = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("backfill_complete"),
+                "Whether backfilling checkpoints is complete",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let reached_initial_consistency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("reached_initial_consistency"),
+                "Whether the tree has reached an initial point of consistency",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
         let operations_processed_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("operations_processed_count"),
@@ -222,6 +263,26 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["origin", "remote"],
+            registry
+        )?;
+
+        let metadata_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_count"),
+                "Total number of times metadata was build",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let metadata_build_duration = register_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_duration"),
+                "Duration of metadata build times",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
             registry
         )?;
 
@@ -249,13 +310,26 @@ impl CoreMetrics {
 
             latest_checkpoint,
 
+            announced,
+            backfill_complete,
+            reached_initial_consistency,
+
+            metadata_build_count,
+            metadata_build_duration,
+
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
+            cache_metrics: OnceLock::new(),
 
             validator_metrics: ValidatorObservabilityMetricManager::new(
                 observed_validator_latest_index.clone(),
             ),
         })
+    }
+
+    /// Get the prometheus registry for this core metrics instance.
+    pub fn registry(&self) -> Registry {
+        self.registry.clone()
     }
 
     /// Create the provider metrics attached to this core metrics instance.
@@ -274,6 +348,13 @@ impl CoreMetrics {
             .get_or_init(|| {
                 create_json_rpc_client_metrics(self).expect("Failed to create rpc client metrics!")
             })
+            .clone()
+    }
+
+    /// Create the cache metrics attached to this core metrics instance.
+    pub fn cache_metrics(&self) -> MeteredCacheMetrics {
+        self.cache_metrics
+            .get_or_init(|| create_cache_metrics(self).expect("Failed to create cache metrics!"))
             .clone()
     }
 
@@ -427,6 +508,41 @@ impl CoreMetrics {
         self.latest_checkpoint.clone()
     }
 
+    /// Set the validator to be announced
+    ///
+    /// Labels:
+    /// - `chain`: Chain the validator was announced on.
+    pub fn set_announced(&self, origin_chain: HyperlaneDomain) {
+        self.announced
+            .clone()
+            .with_label_values(&[origin_chain.name()])
+            .set(1);
+    }
+
+    /// Whether the validator has been announced.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn announced(&self) -> IntGaugeVec {
+        self.announced.clone()
+    }
+
+    /// Whether the validator has completed backfilling.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn backfill_complete(&self) -> IntGaugeVec {
+        self.backfill_complete.clone()
+    }
+
+    /// Whether the validator has ever synced to the tip of the chain.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn reached_initial_consistency(&self) -> IntGaugeVec {
+        self.reached_initial_consistency.clone()
+    }
+
     /// Measure of the queue lengths in Submitter instances
     ///
     /// Labels:
@@ -498,6 +614,30 @@ impl CoreMetrics {
     ///   span or event occurred. e.g. module path.
     pub fn span_count(&self) -> IntCounterVec {
         self.span_counts.clone()
+    }
+
+    /// The number of metadata built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_count(&self) -> IntCounterVec {
+        self.metadata_build_count.clone()
+    }
+
+    /// The durations of metadata build by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_duration(&self) -> CounterVec {
+        self.metadata_build_duration.clone()
     }
 
     /// Counts of tracing (logging framework) span events.

@@ -25,8 +25,8 @@ use hyperlane_sealevel::{
 
 use crate::chain_tx_adapter::chains::sealevel::transaction::{TransactionFactory, Update};
 use crate::chain_tx_adapter::chains::sealevel::SealevelTxAdapter;
-use crate::chain_tx_adapter::{SealevelPayload, SealevelTxPrecursor};
-use crate::payload::{FullPayload, VmSpecificPayloadData};
+use crate::chain_tx_adapter::SealevelTxPrecursor;
+use crate::payload::FullPayload;
 use crate::transaction::{Transaction, VmSpecificTxData};
 
 pub const GAS_LIMIT: u32 = 42;
@@ -37,8 +37,28 @@ mock! {
     #[async_trait]
     impl SubmitSealevelRpc for Client {
         async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
-        async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
-        async fn simulate_transaction(&self, transaction: &SealevelTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+
+        async fn get_block_with_commitment(
+            &self,
+            slot: u64,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<UiConfirmedBlock>;
+
+        async fn get_transaction(
+            &self,
+            signature: Signature,
+        ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+        async fn get_transaction_with_commitment(
+            &self,
+            signature: Signature,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+        async fn simulate_transaction(
+            &self,
+            transaction: &SealevelTransaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
 
@@ -89,11 +109,11 @@ impl SealevelProviderForSubmitter for MockProvider {
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Option<SealevelTxCostEstimate>> {
-        Ok(Some(SealevelTxCostEstimate {
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        Ok(SealevelTxCostEstimate {
             compute_units: GAS_LIMIT,
             compute_unit_price_micro_lamports: 0,
-        }))
+        })
     }
 
     async fn wait_for_transaction_confirmation(
@@ -177,10 +197,12 @@ fn mock_client() -> MockClient {
     };
 
     let mut client = MockClient::new();
-    client.expect_get_block().returning(move |_| Ok(block()));
     client
-        .expect_get_transaction()
-        .returning(move |_| Ok(encoded_transaction()));
+        .expect_get_block_with_commitment()
+        .returning(move |_, _| Ok(block()));
+    client
+        .expect_get_transaction_with_commitment()
+        .returning(move |_, _| Ok(encoded_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));
@@ -217,9 +239,7 @@ pub fn instruction() -> SealevelInstruction {
 }
 
 pub fn payload() -> FullPayload {
-    let data = VmSpecificPayloadData::Svm(SealevelPayload {
-        instruction: instruction(),
-    });
+    let data = serde_json::to_vec(&instruction()).unwrap();
     let payload = FullPayload {
         data,
         ..Default::default()

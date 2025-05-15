@@ -19,7 +19,8 @@ describe('TokenPriceGetter', () => {
 
   beforeEach(() => {
     tokenPriceGetter = new CoinGeckoTokenPriceGetter({
-      chainMetadata: { ...testChainMetadata },
+      // @ts-ignore TODO: remove once merged with main
+      chainMetadata: { ethereum, solanamainnet, ...testChainMetadata },
       apiKey: 'test',
       expirySeconds: 10,
       sleepMsBetweenRequests: 10,

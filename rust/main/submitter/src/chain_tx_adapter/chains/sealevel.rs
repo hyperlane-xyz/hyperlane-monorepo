@@ -1,5 +1,4 @@
 pub use adapter::SealevelTxAdapter;
-pub use payload::SealevelPayload;
 pub use precursor::SealevelTxPrecursor;
 
 mod adapter;

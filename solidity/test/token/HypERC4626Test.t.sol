@@ -542,6 +542,33 @@ contract HypERC4626CollateralTest is HypTokenTest {
         ); // asserting that the exchange rate is set finally by the collateral variant
     }
 
+    function test_rebasingERC20() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION, bytes(""), address(0)); // yield is added
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 balance = remoteToken.balanceOf(BOB);
+        assertApproxEqRelDecimal(
+            balance,
+            transferAmount + _discountedYield(),
+            1e14,
+            0
+        );
+
+        vm.prank(BOB);
+        remoteToken.approve(ALICE, balance);
+
+        vm.prank(ALICE);
+        remoteToken.transferFrom(BOB, CAROL, balance);
+
+        assertEq(remoteToken.allowance(BOB, ALICE), 0);
+        assertEq(remoteToken.balanceOf(BOB), 0);
+        assertEq(remoteToken.balanceOf(CAROL), balance);
+    }
+
     function test_cyclicTransfers() public {
         // ALICE: local -> remote(BOB)
         _performRemoteTransferWithoutExpectation(0, transferAmount);

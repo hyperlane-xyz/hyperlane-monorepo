@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 import {
   Address,
   HexString,
+  Numberish,
   ProtocolType,
   assert,
   convertDecimalsToIntegerString,
@@ -332,16 +333,42 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
-    if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
-      this.logger.info(`Approval required for transfer of ${token.symbol}`);
+    const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+      this.isApproveRequired({
+        originTokenAmount,
+        owner: sender,
+      }),
+      hypAdapter.isRevokeApprovalRequired(
+        sender,
+        originTokenAmount.token.addressOrDenom,
+      ),
+    ]);
+
+    const preTransferRemoteTxs: [Numberish, WarpTxCategory][] = [];
+    // if the approval is required and the current allowance is not 0 we reset
+    // the allowance before setting the right approval as some tokens don't allow
+    // to override an already existing allowance. USDT is one of these tokens
+    // see: https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7#code#L205
+    if (isApproveRequired && isRevokeApprovalRequired) {
+      preTransferRemoteTxs.push([0, WarpTxCategory.Revoke]);
+    }
+
+    if (isApproveRequired) {
+      preTransferRemoteTxs.push([amount.toString(), WarpTxCategory.Approval]);
+    }
+
+    for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
+      this.logger.info(
+        `${txCategory} required for transfer of ${token.symbol}`,
+      );
       const approveTxReq = await hypAdapter.populateApproveTx({
-        weiAmountOrId: amount.toString(),
+        weiAmountOrId: approveAmount,
         recipient: token.addressOrDenom,
       });
-      this.logger.debug(`Approval tx for ${token.symbol} populated`);
+      this.logger.debug(`${txCategory} tx for ${token.symbol} populated`);
 
       const approveTx = {
-        category: WarpTxCategory.Approval,
+        category: txCategory,
         type: providerType,
         transaction: approveTxReq,
       } as WarpTypedTransaction;
@@ -587,9 +614,8 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError = await this.validateOriginCollateral(
-      originTokenAmount,
-    );
+    const originCollateralError =
+      await this.validateOriginCollateral(originTokenAmount);
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -645,7 +671,10 @@ export class WarpCore {
       return { recipient: 'Invalid recipient' };
 
     // Also ensure the address denom is correct if the dest protocol is Cosmos
-    if (protocol === ProtocolType.Cosmos) {
+    if (
+      protocol === ProtocolType.Cosmos ||
+      protocol === ProtocolType.CosmosNative
+    ) {
       if (!bech32Prefix) {
         this.logger.error(`No bech32 prefix found for chain ${destination}`);
         return { destination: 'Invalid chain data' };

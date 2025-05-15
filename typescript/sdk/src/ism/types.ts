@@ -77,6 +77,18 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.OFFCHAIN_LOOKUP,
 ];
 
+/**
+ * @notice Statically deployed ISM types
+ * @dev ISM types with immutable config embedded in contract bytecode via MetaProxy
+ */
+export const STATIC_ISM_TYPES = [
+  IsmType.AGGREGATION,
+  IsmType.MERKLE_ROOT_MULTISIG,
+  IsmType.MESSAGE_ID_MULTISIG,
+  IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+  IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+];
+
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {

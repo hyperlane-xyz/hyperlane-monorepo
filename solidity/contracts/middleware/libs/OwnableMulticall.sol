@@ -27,17 +27,18 @@ contract OwnableMulticall {
         return CallLib.multicall(calls);
     }
 
-    /// @notice The next commitment to execute.
-    bytes32 public commitment;
+    /// @notice A mapping of commitment hashes to status
+    mapping(bytes32 commitmentHash => bool isPendingExecution)
+        public commitments;
 
     /// @notice Sets the commitment value that will be executed next
     /// @param _commitment The new commitment value to be set
     function setCommitment(bytes32 _commitment) external onlyOwner {
         require(
-            commitment == bytes32(0),
+            !commitments[_commitment],
             "ICA: Previous commitment pending execution"
         );
-        commitment = _commitment;
+        commitments[_commitment] = true;
     }
 
     /// @dev The calls represented by the commitment can only be executed once per commitment,
@@ -50,11 +51,11 @@ contract OwnableMulticall {
         bytes32 revealedHash = keccak256(
             abi.encodePacked(salt, abi.encode(calls))
         );
-        require(commitment == revealedHash, "ICA: Invalid Reveal");
+        require(commitments[revealedHash], "ICA: Invalid Reveal");
 
         // Delete the commitment (effects)
-        executedCommitment = commitment;
-        commitment = bytes32(0);
+        executedCommitment = revealedHash;
+        delete commitments[revealedHash];
 
         // Execute the calls (interactions)
         CallLib.multicall(calls);

@@ -1,0 +1,62 @@
+name: Build and Push Cosmos Simapp Image to GCR
+on:
+  workflow_dispatch:
+    inputs:
+      hyperlane_cosmos_branch:
+        description: 'Branch, ref, or tag to build'
+        default: 'v1.0.0-beta0'
+
+concurrency:
+  group: build-push-cosmos-simapp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-env:
+    runs-on: ubuntu-latest
+    # assign output from step to job output
+    outputs:
+      gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
+    steps:
+      - id: gcloud-service-key
+        # assign GCLOUD_SERVICE_KEY to env for access in conditional
+        env:
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+        if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
+        # runs if GCLOUD_SERVICE_KEY is defined, so we set the output to true
+        run: echo "defined=true" >> $GITHUB_OUTPUT
+
+  build-and-push-to-gcr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
+    needs: [check-env]
+    if: needs.check-env.outputs.gcloud-service-key == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
+      - name: Login to GCR
+        uses: docker/login-action@v3
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+      - name: Build and push
+        uses: depot/build-push-action@v1
+        with:
+          project: 3cpjhx94qv
+          context: ./typescript/cosmos-sdk
+          file: ./typescript/cosmos-sdk/Dockerfile
+          push: true
+          tags: |
+            gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
+          build-args: |
+            BRANCH_NAME=${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
+          platforms: linux/amd64,linux/arm64

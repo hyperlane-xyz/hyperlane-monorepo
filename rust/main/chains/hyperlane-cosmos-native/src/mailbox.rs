@@ -41,7 +41,7 @@ impl CosmosNativeMailbox {
         let mailbox_id: String = self.address.encode_hex();
         let message = hex::encode(RawHyperlaneMessage::from(message));
         let metadata = hex::encode(metadata);
-        let signer = self.provider.rpc().get_signer()?.address.clone();
+        let signer = self.provider.rpc().get_signer()?.address_string.clone();
         let process = MsgProcessMessage {
             mailbox_id: "0x".to_string() + &mailbox_id,
             metadata,
@@ -175,7 +175,15 @@ impl Mailbox for CosmosNativeMailbox {
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         todo!() // we dont need this for now
+    }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
     }
 }

@@ -47,7 +47,8 @@ export async function getGasPrice(
         decimals: 9,
       };
     }
-    case ProtocolType.Cosmos: {
+    case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative: {
       const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
         amount,
@@ -74,7 +75,10 @@ export async function getCosmosChainGasPrice(
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }
-  if (metadata.protocol !== ProtocolType.Cosmos) {
+  if (
+    metadata.protocol !== ProtocolType.Cosmos &&
+    metadata.protocol !== ProtocolType.CosmosNative
+  ) {
     throw new Error(`Chain ${chain} is not a Cosmos chain`);
   }
 
@@ -226,6 +230,7 @@ export function getLocalStorageGasOracleConfig({
       gasPrice,
       exchangeRate,
       remoteDecimals,
+      remote,
     );
 
     // Apply the modifier if provided.
@@ -235,6 +240,7 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+        remote,
       );
     }
 
@@ -249,6 +255,7 @@ function adjustForPrecisionLoss(
   gasPrice: BigNumberJs.Value,
   exchangeRate: BigNumber,
   remoteDecimals: number,
+  remote?: ChainName,
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
@@ -267,7 +274,9 @@ function adjustForPrecisionLoss(
       gasPriceScalingFactor,
     );
     if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
-      throw new Error('Too much underflow when downscaling exchange rate');
+      throw new Error(
+        `Too much underflow when downscaling exchange rate for remote chain ${remote}`,
+      );
     }
 
     newGasPrice = newGasPrice.times(gasPriceScalingFactor);

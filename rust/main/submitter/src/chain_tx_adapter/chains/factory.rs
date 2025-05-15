@@ -1,12 +1,14 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use eyre::Result;
+
 use hyperlane_base::{
-    settings::{ChainConf, RawChainConf},
+    settings::{ChainConf, ChainConnectionConf, RawChainConf},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
 use crate::chain_tx_adapter::{
     chains::{cosmos::CosmosTxAdapter, ethereum::EthereumTxAdapter, sealevel::SealevelTxAdapter},
@@ -16,23 +18,26 @@ use crate::chain_tx_adapter::{
 pub struct ChainTxAdapterFactory {}
 
 impl ChainTxAdapterFactory {
-    pub fn build(
+    pub async fn build(
         conf: &ChainConf,
         raw_conf: &RawChainConf,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn AdaptsChain>> {
-        use HyperlaneDomainProtocol::*;
-
-        let adapter: Box<dyn AdaptsChain> = match conf.domain.domain_protocol() {
-            Ethereum => Box::new(EthereumTxAdapter::new(conf.clone(), raw_conf.clone())),
-            Fuel => todo!(),
-            Sealevel => Box::new(SealevelTxAdapter::new(
+    ) -> Result<Arc<dyn AdaptsChain>> {
+        let adapter: Arc<dyn AdaptsChain> = match conf.connection.clone() {
+            ChainConnectionConf::Ethereum(connection_conf) => Arc::new(
+                EthereumTxAdapter::new(conf.clone(), connection_conf, raw_conf.clone(), metrics)
+                    .await?,
+            ),
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => Arc::new(SealevelTxAdapter::new(
                 conf.clone(),
                 raw_conf.clone(),
                 metrics,
             )?),
-            Cosmos => Box::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
-            CosmosNative => todo!(),
+            ChainConnectionConf::Cosmos(_) => {
+                Arc::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone()))
+            }
+            ChainConnectionConf::CosmosNative(_) => todo!(),
         };
 
         Ok(adapter)
