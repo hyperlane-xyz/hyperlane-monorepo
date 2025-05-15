@@ -269,8 +269,6 @@ impl BaseAgent for Validator {
 
         // Note that this only returns an error if one of the tasks panics
         if let Err(err) = try_join_all(tasks).await {
-            // TODO check if error is a panic
-            // TODO Query RPCs individually for information
             error!(?err, "One of the validator tasks returned an error");
         }
     }
