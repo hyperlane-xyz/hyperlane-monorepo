@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-struct Quotes {
+struct Quote {
     address token;
     uint256 amount;
 }
@@ -21,7 +21,7 @@ abstract contract FeeTokenRouter is TokenRouter {
         bytes32 recipient,
         uint256 amountIn
     ) external payable override returns (bytes32 messageId) {
-        Quotes[] memory quotes = quoteTransferRemote(
+        Quote[] memory quotes = quoteTransferRemote(
             destination,
             recipient,
             amountIn
@@ -40,17 +40,17 @@ abstract contract FeeTokenRouter is TokenRouter {
     }
 
     /**
-     * @notice Combines two Quotes arrays into a single array
-     * @param quotes1 First array of quotes
-     * @param quotes2 Second array of quotes
-     * @return Combined array of quotes
+     * @notice Combines two Quote arrays into a single array
+     * @param quotes1 First array of Quote
+     * @param quotes2 Second array of Quote
+     * @return Combined array of Quote
      */
-    function _combineQuotes(
-        Quotes[] memory quotes1,
-        Quotes[] memory quotes2
-    ) internal pure returns (Quotes[] memory) {
+    function _combineQuote(
+        Quote[] memory quotes1,
+        Quote[] memory quotes2
+    ) internal pure returns (Quote[] memory) {
         uint256 totalLength = quotes1.length + quotes2.length;
-        Quotes[] memory combined = new Quotes[](totalLength);
+        Quote[] memory combined = new Quote[](totalLength);
 
         // Copy first array
         for (uint256 i = 0; i < quotes1.length; i++) {
@@ -69,24 +69,24 @@ abstract contract FeeTokenRouter is TokenRouter {
         uint32 destination,
         bytes32 recipient,
         uint256 amountOut
-    ) public view virtual returns (Quotes[] memory) {
-        Quotes[] memory igpFees = new Quotes[](1);
-        igpFees[0] = Quotes({
+    ) public view virtual returns (Quote[] memory) {
+        Quote[] memory igpFees = new Quote[](1);
+        igpFees[0] = Quote({
             token: address(0),
             amount: quoteGasPayment(destination)
         });
-        Quotes[] memory externalFees = quoteExternalFees(
+        Quote[] memory externalFees = quoteExternalFees(
             destination,
             recipient,
             amountOut
         );
 
-        return _combineQuotes(igpFees, externalFees);
+        return _combineQuote(igpFees, externalFees);
     }
 
     function quoteExternalFees(
         uint32 destination,
         bytes32 recipient,
         uint256 amountOut
-    ) public view virtual returns (Quotes[] memory);
+    ) public view virtual returns (Quote[] memory);
 }

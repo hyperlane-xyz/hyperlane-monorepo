@@ -31,7 +31,7 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {FeeTokenRouter, Quotes} from "contracts/token/libs/FeeTokenRouter.sol";
+import {FeeTokenRouter, Quote} from "contracts/token/libs/FeeTokenRouter.sol";
 
 contract MockFeeTokenRouter is FeeTokenRouter {
     ERC20Test immutable primaryToken;
@@ -47,9 +47,9 @@ contract MockFeeTokenRouter is FeeTokenRouter {
         uint32 destination,
         bytes32 recipient,
         uint256 amountOut
-    ) public view override returns (Quotes[] memory quotes) {
-        Quotes[] memory quotes = new Quotes[](1);
-        quotes[0] = Quotes({token: address(primaryToken), amount: 1e18});
+    ) public view override returns (Quote[] memory) {
+        Quote[] memory quotes = new Quote[](1);
+        quotes[0] = Quote({token: address(primaryToken), amount: 1e18});
         return quotes;
     }
 
