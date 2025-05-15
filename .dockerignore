@@ -21,3 +21,5 @@ typescript/**/tsconfig.tsbuildinfo
 yarn-error.log
 
 .idea
+
+**/target
