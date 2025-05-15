@@ -1,0 +1,10 @@
+services:
+  contracts-gen:
+    build: .
+    volumes:
+      - ./src/contracts:/app/contracts
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8GB
