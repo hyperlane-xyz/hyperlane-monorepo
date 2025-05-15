@@ -77,6 +77,7 @@ export class MultiProtocolSignerManager {
    */
   async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.compatibleChains) {
+      console.log('initSigner', chain);
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }

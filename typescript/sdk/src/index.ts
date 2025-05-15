@@ -444,6 +444,8 @@ export {
 } from './providers/transactions/transformer/ethersV5/types.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
+export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
+export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export {
   isProxy,
   proxyAdmin,

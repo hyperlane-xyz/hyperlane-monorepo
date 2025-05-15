@@ -309,7 +309,7 @@ async function getIgpTokenPrices(
       chainMetadata: filteredMetadata,
     });
     const results = await tokenPriceGetter.getAllTokenPrices();
-    fetchedPrices = objMap(results, (v) => v.toString());
+    fetchedPrices = objMap(results, (v) => results[v].toString());
   }
 
   logBlue(

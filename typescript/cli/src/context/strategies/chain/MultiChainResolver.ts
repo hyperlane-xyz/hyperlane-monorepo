@@ -131,12 +131,13 @@ export class MultiChainResolver implements ChainResolver {
     const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
-    if (argv.origin) {
-      chains.add(argv.origin);
-    }
-
     if (argv.chain) {
       chains.add(argv.chain);
+      return Array.from(chains);
+    }
+
+    if (argv.origin) {
+      chains.add(argv.origin);
     }
 
     if (argv.chains) {
@@ -147,8 +148,11 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     // If no destination is specified, return all EVM chains
-    if (!argv.destination) {
-      return Array.from(this.getEvmChains(multiProvider));
+    if (argv.origin && !argv.destination) {
+      return [
+        ...this.getEvmChains(multiProvider),
+        ...this.getCosmosNativeChains(multiProvider),
+      ];
     }
 
     chains.add(argv.destination);
@@ -195,6 +199,14 @@ export class MultiChainResolver implements ChainResolver {
 
     return chains.filter(
       (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+  }
+
+  private getCosmosNativeChains(multiProvider: MultiProvider): ChainName[] {
+    const chains = multiProvider.getKnownChainNames();
+
+    return chains.filter(
+      (chain) => multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
     );
   }
 
