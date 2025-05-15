@@ -21,14 +21,14 @@ pub trait ReorgReporter: Send + Sync + Debug {
 
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
-    hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
+    merkle_tree_hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
     reorg_period: hyperlane_core::ReorgPeriod,
 }
 
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
     async fn report(&self) {
-        for (url, merkle_tree_hook) in &self.hooks {
+        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = merkle_tree_hook.clone();
                 let reorg_period = self.reorg_period.clone();
@@ -51,17 +51,17 @@ impl LatestCheckpointReorgReporter {
     ) -> eyre::Result<Self> {
         let origin = &settings.origin_chain;
 
-        let mut hooks = HashMap::new();
+        let mut merkle_tree_hooks = HashMap::new();
         for (url, settings) in Self::settings_with_single_rpc(settings, origin) {
             let merkle_tree_hook = settings
                 .build_merkle_tree_hook(&settings.origin_chain, metrics)
                 .await?;
 
-            hooks.insert(url, merkle_tree_hook.into());
+            merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
 
         let reporter = LatestCheckpointReorgReporter {
-            hooks,
+            merkle_tree_hooks,
             reorg_period: settings.reorg_period.clone(),
         };
 
