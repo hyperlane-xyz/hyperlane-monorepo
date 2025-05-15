@@ -458,6 +458,7 @@ export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
+  IcaRouterConfig as InterchainAccountConfig,
   IcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
