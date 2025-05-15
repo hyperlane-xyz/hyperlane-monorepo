@@ -112,7 +112,7 @@ abstract contract TokenBridgeCctp is
         uint256 /* _amount */
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), _quoteGasPayment(_destination));
+        quotes[0] = Quote(address(0), quoteGasPayment(_destination));
     }
 
     function getOffchainVerifyInfo(
