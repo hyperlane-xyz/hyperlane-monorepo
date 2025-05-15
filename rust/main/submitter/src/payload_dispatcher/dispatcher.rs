@@ -111,7 +111,7 @@ impl PayloadDispatcher {
             .expect("spawning tokio task from Builder is infallible");
         tasks.push(inclusion_task);
 
-        let finality_state = FinalityStage::new(
+        let finality_stage = FinalityStage::new(
             finality_stage_receiver,
             building_stage_queue.clone(),
             self.inner.clone(),
@@ -121,7 +121,7 @@ impl PayloadDispatcher {
             .name("finality_stage")
             .spawn(
                 async move {
-                    finality_state.run().await;
+                    finality_stage.run().await;
                 }
                 .instrument(tracing::info_span!("finality_stage")),
             )

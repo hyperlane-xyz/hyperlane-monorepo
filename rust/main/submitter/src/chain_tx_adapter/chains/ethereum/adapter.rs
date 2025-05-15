@@ -6,6 +6,7 @@ use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
+use tokio::sync::Mutex;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -16,15 +17,18 @@ use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter, SubmitterProviderBuilder};
 
 use crate::{
-    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, EthereumTxPrecursor, GasLimit},
-    error::SubmitterError,
+    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
+    SubmitterError,
 };
 
+use super::nonce::NonceManager;
 use super::transaction::Precursor;
+use super::EthereumTxPrecursor;
 
 mod gas_limit_estimator;
+mod gas_price_estimator;
 mod tx_status_checker;
 
 pub struct EthereumTxAdapter {
@@ -33,6 +37,7 @@ pub struct EthereumTxAdapter {
     _raw_conf: RawChainConf,
     provider: Box<dyn EvmProviderForSubmitter>,
     reorg_period: EthereumReorgPeriod,
+    nonce_manager: Arc<Mutex<NonceManager>>,
 }
 
 impl EthereumTxAdapter {
@@ -55,6 +60,7 @@ impl EthereumTxAdapter {
             )
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
+        let nonce_manager = Arc::new(Mutex::new(NonceManager::new()));
 
         Ok(Self {
             conf,
@@ -62,6 +68,7 @@ impl EthereumTxAdapter {
             _raw_conf: raw_conf,
             provider,
             reorg_period,
+            nonce_manager,
         })
     }
 }
@@ -103,7 +110,7 @@ impl AdaptsChain for EthereumTxAdapter {
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let precursor = tx.precursor_mut();
-        gas_limit_estimator::estimate_tx(
+        gas_limit_estimator::estimate_gas_limit(
             &self.provider,
             precursor,
             &self.connection_conf.transaction_overrides,
@@ -117,6 +124,12 @@ impl AdaptsChain for EthereumTxAdapter {
         use super::transaction::Precursor;
 
         info!(?tx, "submitting transaction");
+
+        self.nonce_manager
+            .lock()
+            .await
+            .set_nonce(tx, &self.provider)
+            .await?;
 
         let precursor = tx.precursor();
         let hash = self
@@ -169,5 +182,9 @@ impl AdaptsChain for EthereumTxAdapter {
 
     fn max_batch_size(&self) -> u32 {
         todo!()
+    }
+
+    async fn set_unfinalized_tx_count(&self, count: usize) {
+        self.nonce_manager.lock().await.tx_in_finality_count = count;
     }
 }
