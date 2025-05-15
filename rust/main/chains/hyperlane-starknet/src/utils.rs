@@ -19,17 +19,15 @@ use starknet::{
 };
 use url::Url;
 
+use crate::contracts::{
+    aggregation_ism, interchain_security_module, mailbox, multisig_ism, routing_ism,
+    validator_announce,
+};
 use crate::types::{tx_receipt_to_outcome, HyH256};
 use crate::{
-    contracts::{
-        interchain_security_module::ModuleType as StarknetModuleType,
-        mailbox::Bytes as MailboxBytes, mailbox::Message,
-        validator_announce::Bytes as ValidatorAnnounceBytes,
-    },
+    contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
 };
-
-use crate::contracts::interchain_security_module::Bytes as IsmBytes;
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
@@ -156,33 +154,77 @@ fn u128_vec_to_u8_vec(input: Vec<u128>, size: u32) -> Vec<u8> {
     }
     output
 }
-
-impl From<&[u8]> for ValidatorAnnounceBytes {
-    fn from(bytes: &[u8]) -> Self {
-        ValidatorAnnounceBytes {
-            size: bytes.len() as u32,
-            data: to_packed_bytes(bytes),
+/// Macro to generate From<&[u8]> implementations for Starknet byte types
+///
+/// # Example
+///
+/// ```rust
+/// generate_converter!(
+///     bytes = crate::contracts::mailbox::Bytes
+/// );
+/// ```
+#[macro_export]
+macro_rules! bytes_converter {
+    (
+        $bytes:path
+    ) => {
+        impl From<&[u8]> for $bytes {
+            fn from(bytes: &[u8]) -> Self {
+                Self {
+                    size: bytes.len() as u32,
+                    data: $crate::utils::to_packed_bytes(bytes),
+                }
+            }
         }
-    }
+    };
 }
 
-impl From<&[u8]> for MailboxBytes {
-    fn from(bytes: &[u8]) -> Self {
-        MailboxBytes {
-            size: bytes.len() as u32,
-            data: to_packed_bytes(bytes),
+/// Macro to generate From<&HyperlaneMessage> implementations for Starknet message types
+///
+/// # Example
+///
+/// ```rust
+/// generate_converter!(
+///     bytes = crate::contracts::mailbox::Bytes
+/// );
+/// ```
+#[macro_export]
+macro_rules! message_converter {
+    (
+        $msg:path
+    ) => {
+        impl From<&hyperlane_core::HyperlaneMessage> for $msg {
+            fn from(message: &hyperlane_core::HyperlaneMessage) -> Self {
+                Self {
+                    version: message.version,
+                    nonce: message.nonce,
+                    origin: message.origin,
+                    sender: cainome::cairo_serde::U256::from_bytes_be(
+                        &message.sender.to_fixed_bytes(),
+                    ),
+                    destination: message.destination,
+                    recipient: cainome::cairo_serde::U256::from_bytes_be(
+                        &message.recipient.to_fixed_bytes(),
+                    ),
+                    body: message.body.as_slice().into(),
+                }
+            }
         }
-    }
+    };
 }
+// Use the macro for each message/bytes pair
+bytes_converter!(validator_announce::Bytes);
+bytes_converter!(mailbox::Bytes);
+bytes_converter!(interchain_security_module::Bytes);
+bytes_converter!(aggregation_ism::Bytes);
+bytes_converter!(multisig_ism::Bytes);
+bytes_converter!(routing_ism::Bytes);
 
-impl From<&[u8]> for IsmBytes {
-    fn from(bytes: &[u8]) -> Self {
-        IsmBytes {
-            size: bytes.len() as u32,
-            data: to_packed_bytes(bytes),
-        }
-    }
-}
+message_converter!(mailbox::Message);
+message_converter!(interchain_security_module::Message);
+message_converter!(aggregation_ism::Message);
+message_converter!(multisig_ism::Message);
+message_converter!(routing_ism::Message);
 
 /// Convert a byte slice to a starknet bytes by padding the bytes to 16 bytes chunks
 pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {

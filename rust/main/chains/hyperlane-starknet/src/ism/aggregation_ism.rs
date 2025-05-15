@@ -2,7 +2,6 @@
 #![allow(missing_docs)]
 
 use async_trait::async_trait;
-use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
     AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
@@ -14,8 +13,7 @@ use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use crate::contracts::aggregation_ism::{
-    AggregationIsm as StarknetAggregationIsmInternal, Bytes as StarknetBytes,
-    Message as StarknetMessage,
+    AggregationIsm as StarknetAggregationIsmInternal, Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
@@ -76,23 +74,6 @@ impl HyperlaneChain for StarknetAggregationIsm {
 impl HyperlaneContract for StarknetAggregationIsm {
     fn address(&self) -> H256 {
         HyH256::from(self.contract.address).0
-    }
-}
-
-impl From<&HyperlaneMessage> for StarknetMessage {
-    fn from(message: &HyperlaneMessage) -> Self {
-        StarknetMessage {
-            version: message.version,
-            nonce: message.nonce,
-            origin: message.origin,
-            sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
-            destination: message.destination,
-            recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-            body: StarknetBytes {
-                size: message.body.len() as u32,
-                data: message.body.iter().map(|b| *b as u128).collect(),
-            },
-        }
     }
 }
 

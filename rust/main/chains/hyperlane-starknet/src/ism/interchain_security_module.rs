@@ -2,7 +2,6 @@
 #![allow(missing_docs)]
 
 use async_trait::async_trait;
-use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
@@ -13,10 +12,7 @@ use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::interchain_security_module::{
-    Bytes as StarknetBytes, InterchainSecurityModule as StarknetInterchainSecurityModuleInternal,
-    Message as StarknetMessage,
-};
+use crate::contracts::interchain_security_module::InterchainSecurityModule as StarknetInterchainSecurityModuleInternal;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
@@ -83,23 +79,6 @@ impl HyperlaneContract for StarknetInterchainSecurityModule {
     }
 }
 
-impl From<&HyperlaneMessage> for StarknetMessage {
-    fn from(message: &HyperlaneMessage) -> Self {
-        StarknetMessage {
-            version: message.version,
-            nonce: message.nonce,
-            origin: message.origin,
-            sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
-            destination: message.destination,
-            recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-            body: StarknetBytes {
-                size: message.body.len() as u32,
-                data: message.body.iter().map(|b| *b as u128).collect(),
-            },
-        }
-    }
-}
-
 #[async_trait]
 impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     #[instrument(skip(self))]
@@ -125,8 +104,16 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         // it's not marked as an entrypoint. So we just use the query interface
         // and hardcode a gas value - this can be inefficient if one ISM is
         // vastly cheaper than another one.
+        let verified = self
+            .contract
+            .verify(&metadata.into(), message)
+            .call()
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
 
-        let _verified = self.contract.verify(&metadata.into(), message).call_raw;
+        if !verified {
+            return Ok(None);
+        }
 
         let dummy_gas_value = U256::one();
         Ok(Some(dummy_gas_value))

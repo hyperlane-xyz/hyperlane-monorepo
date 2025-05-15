@@ -6,6 +6,7 @@ use std::sync::Arc;
 use byteorder::{BigEndian, ByteOrder};
 
 use async_trait::async_trait;
+use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256,
@@ -19,28 +20,13 @@ use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as StarknetMessage};
+use crate::contracts::mailbox::Mailbox as StarknetMailboxInternal;
 use crate::error::HyperlaneStarknetError;
 use crate::types::{HyH256, HyU256};
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
     ConnectionConf, Signer, StarknetProvider,
 };
-use cainome::cairo_serde::U256 as StarknetU256;
-
-impl From<&HyperlaneMessage> for StarknetMessage {
-    fn from(message: &HyperlaneMessage) -> Self {
-        StarknetMessage {
-            version: message.version,
-            nonce: message.nonce,
-            origin: message.origin,
-            sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
-            destination: message.destination,
-            recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-            body: message.body.as_slice().into(),
-        }
-    }
-}
 
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
