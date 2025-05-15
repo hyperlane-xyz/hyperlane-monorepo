@@ -1,4 +1,4 @@
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
+use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, NativeToken};
 use serde::Serialize;
 use url::Url;
 
@@ -13,7 +13,7 @@ pub struct ConnectionConf {
     /// A list of urls to connect to
     pub urls: Vec<Url>,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
     /// Native token and its denomination
     pub native_token: NativeToken,
     /// Priority fee oracle configuration

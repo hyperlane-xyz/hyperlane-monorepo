@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import { ChildProcess } from 'child_process';
+import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -30,6 +31,7 @@ import {
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
+import { withDryRun } from '../agent-utils.js';
 
 interface AlertUpdateInfo {
   alertType: AlertType;
@@ -44,6 +46,18 @@ interface RegressionError {
 }
 
 async function main() {
+  const { dryRun } = await withDryRun(yargs(process.argv.slice(2))).argv;
+
+  const confirmed = await confirm({
+    message:
+      'Before proceeding, please ensure that any threshold changes have been committed and reviewed in a PR, have all changes been reviewed?',
+  });
+
+  if (!confirmed) {
+    rootLogger.info('Exiting without updating any alerts');
+    process.exit(0);
+  }
+
   // runs a validation check to ensure the threshold configs are valid relative to each other
   await validateBalanceThresholdConfigs();
 
@@ -52,25 +66,29 @@ async function main() {
     PROMETHEUS_LOCAL_PORT,
   );
 
-  const alertsToUpdate = Object.values(AlertType);
-  const alertUpdateInfo: AlertUpdateInfo[] = [];
-  const missingChainErrors: RegressionError[] = [];
+  process.on('SIGINT', () => {
+    cleanUp(portForwardProcess);
+    process.exit(1);
+  });
+
+  process.on('beforeExit', () => {
+    cleanUp(portForwardProcess);
+  });
 
   try {
+    const alertsToUpdate = Object.values(AlertType);
+    const alertUpdateInfo: AlertUpdateInfo[] = [];
+    const missingChainErrors: RegressionError[] = [];
+
     for (const alert of alertsToUpdate) {
       // fetch alertRule config from Grafana via the Grafana API
       const alertRule = await fetchGrafanaAlert(alert, saToken);
 
       // read the proposed thresholds from the config file
       let proposedThresholds: ChainMap<number> = {};
-      try {
-        proposedThresholds = readJSONAtPath(
-          `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
-        );
-      } catch (e) {
-        rootLogger.error(`Error reading ${alert} config: ${e}`);
-        process.exit(1);
-      }
+      proposedThresholds = readJSONAtPath(
+        `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
+      );
 
       // parse the current thresholds from the existing query
       const existingQuery = alertRule.queries[0];
@@ -89,12 +107,6 @@ async function main() {
           alertType: alert,
           missingChains,
         });
-        rootLogger.error(
-          `Missing thresholds for chains: ${missingChains.join(
-            ', ',
-          )} for ${alert} config, skipping updating this alert`,
-        );
-        continue;
       }
 
       // generate a table of the differences in the thresholds, prompt the user to confirm the changes
@@ -114,6 +126,7 @@ async function main() {
           rootLogger.info(
             `Exiting without updating any alerts, this is to avoid thresholds from being out of sync`,
           );
+          cleanUp(portForwardProcess);
           process.exit(0);
         }
       } else {
@@ -130,6 +143,7 @@ async function main() {
         query,
         currentThresholds,
         proposedThresholds,
+        portForwardProcess,
       );
 
       alertUpdateInfo.push({
@@ -141,12 +155,16 @@ async function main() {
     }
 
     // abort if there are any missing thresholds in the config to avoid introducing a regression
-    handleMissingChainErrors(missingChainErrors);
+    await handleMissingChainErrors(missingChainErrors);
 
-    // update the alerts with the new thresholds via the Grafana API
-    await updateAlerts(alertUpdateInfo, saToken, portForwardProcess);
+    if (!dryRun) {
+      // update the alerts with the new thresholds via the Grafana API
+      await updateAlerts(alertUpdateInfo, saToken, portForwardProcess);
+    } else {
+      rootLogger.info('Dry run, not updating alerts');
+    }
   } finally {
-    portForwardProcess.kill();
+    cleanUp(portForwardProcess);
   }
 }
 
@@ -218,7 +236,7 @@ async function updateAlerts(
         `Error updating ${alertInfo.alertType} alert, aborting updating the rest of the alerts: ${e}`,
       );
       // exiting here so we don't continue updating alerts with lower writePriority
-      portForwardProcess.kill();
+      cleanUp(portForwardProcess);
       process.exit(1);
     }
   }
@@ -228,49 +246,63 @@ function generateDiffTable(
   currentThresholds: ChainMap<number>,
   proposedThresholds: ChainMap<number>,
 ) {
-  const diffTable = Object.entries(proposedThresholds).reduce(
-    (acc, [chain, newThreshold]) => {
-      const currentThreshold = currentThresholds[chain];
-      if (currentThreshold !== proposedThresholds[chain]) {
-        acc.push({
-          chain,
-          current: currentThreshold,
-          new: newThreshold,
-          change:
-            currentThreshold === undefined
-              ? 'new'
-              : currentThreshold < newThreshold
+  const diffTable = [];
+
+  // Check for changes and additions
+  for (const [chain, newThreshold] of Object.entries(proposedThresholds)) {
+    const currentThreshold = currentThresholds[chain];
+    if (currentThreshold !== newThreshold) {
+      diffTable.push({
+        chain,
+        current: currentThreshold,
+        new: newThreshold,
+        change:
+          currentThreshold === undefined
+            ? 'new'
+            : currentThreshold < newThreshold
               ? 'increase'
               : 'decrease',
-        });
-      }
-      return acc;
-    },
-    [] as {
-      chain: string;
-      current: number;
-      new: number;
-      change: 'increase' | 'decrease' | 'new';
-    }[],
-  );
+      });
+    }
+  }
+
+  // Check for removals
+  for (const chain of Object.keys(currentThresholds)) {
+    if (!(chain in proposedThresholds)) {
+      diffTable.push({
+        chain,
+        current: currentThresholds[chain],
+        new: undefined,
+        change: 'removed',
+      });
+    }
+  }
 
   return diffTable;
 }
 
-function handleMissingChainErrors(missingChainErrors: RegressionError[]) {
+async function handleMissingChainErrors(missingChainErrors: RegressionError[]) {
   if (missingChainErrors.length === 0) return;
 
   for (const error of missingChainErrors) {
-    rootLogger.error(
-      `Missing thresholds for chains: ${error.missingChains.join(', ')} for ${
-        error.alertType
-      } config`,
-    );
+    for (const chain of error.missingChains) {
+      const confirmed = await confirm({
+        message: `Is the missing chain "${chain}" for ${error.alertType} expected?`,
+        default: false,
+      });
+
+      if (!confirmed) {
+        rootLogger.error(
+          `Aborting updating alerts due to unexpected missing chain: ${chain} for ${error.alertType}`,
+        );
+        process.exit(1);
+      }
+    }
   }
-  rootLogger.error(
-    `Aborting updating alerts due to missing thresholds in config`,
+
+  rootLogger.info(
+    'Proceeding with alert updates - all missing chains confirmed as expected',
   );
-  process.exit(1);
 }
 
 async function confirmFiringAlerts(
@@ -278,6 +310,7 @@ async function confirmFiringAlerts(
   query: string,
   currentThresholds: ChainMap<number>,
   proposedThresholds: ChainMap<number>,
+  portForwardProcess: ChildProcess,
 ) {
   const alertingChains = await fetchFiringThresholdAlert(query);
   if (alertingChains.length === 0) return;
@@ -300,7 +333,15 @@ async function confirmFiringAlerts(
     rootLogger.info(
       `Exiting without updating any alerts, this is to avoid thresholds from being out of sync as we do not want to update the ${alert} alert`,
     );
+    cleanUp(portForwardProcess);
     process.exit(0);
+  }
+}
+
+function cleanUp(portForwardProcess: ChildProcess) {
+  if (!portForwardProcess.killed) {
+    rootLogger.info('Cleaning up port forward process');
+    portForwardProcess.kill();
   }
 }
 

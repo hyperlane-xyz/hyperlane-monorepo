@@ -1,14 +1,13 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::ops::Deref;
+use std::fmt::Debug;
 
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
-use crate::chain_tx_adapter::SealevelPayload;
+use crate::transaction::TransactionStatus;
 
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
@@ -24,16 +23,30 @@ pub struct PayloadDetails {
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    pub success_criteria: Option<(Vec<u8>, Address)>,
+    pub success_criteria: Option<Vec<u8>>,
+}
+
+impl PayloadDetails {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        success_criteria: Option<Vec<u8>>,
+    ) -> Self {
+        Self {
+            id,
+            metadata: metadata.into(),
+            success_criteria,
+        }
+    }
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
-    /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
-    pub data: VmSpecificPayloadData,
+    /// serialized `ContractCall` on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
+    pub data: Vec<u8>,
     /// defaults to the hyperlane mailbox
     pub to: Address,
     /// defaults to `ReadyToSubmit`
@@ -46,9 +59,57 @@ pub struct FullPayload {
     pub inclusion_soft_deadline: Option<DateTime<Utc>>,
 }
 
+impl Debug for FullPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FullPayload")
+            .field("id", &self.details.id)
+            .field("metadata", &self.details.metadata)
+            .field("to", &self.to)
+            .field("status", &self.status)
+            .field("value", &self.value)
+            .field("inclusion_soft_deadline", &self.inclusion_soft_deadline)
+            .finish()
+    }
+}
+
 impl FullPayload {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        data: Vec<u8>,
+        success_criteria: Option<Vec<u8>>,
+        to: Address,
+    ) -> Self {
+        Self {
+            details: PayloadDetails::new(id, metadata, success_criteria),
+            data,
+            to,
+            status: Default::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
+    }
+
     pub fn id(&self) -> &PayloadId {
         &self.details.id
+    }
+
+    #[cfg(test)]
+    pub fn random() -> Self {
+        let id = PayloadId::random();
+        let details = PayloadDetails {
+            id: id.clone(),
+            metadata: format!("payload-{}", id.to_string()),
+            success_criteria: None,
+        };
+        FullPayload {
+            details,
+            data: vec![],
+            to: Address::zero(),
+            status: PayloadStatus::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
     }
 }
 
@@ -56,16 +117,23 @@ impl FullPayload {
 pub enum PayloadStatus {
     #[default]
     ReadyToSubmit,
-    PendingInclusion,
-    Included,
-    Finalized,
-    NotFound,
+    InTransaction(TransactionStatus),
     Dropped(DropReason),
     Retry(RetryReason),
 }
 
+impl PayloadStatus {
+    pub fn is_finalized(&self) -> bool {
+        matches!(
+            self,
+            PayloadStatus::InTransaction(TransactionStatus::Finalized)
+        )
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum DropReason {
+    FailedToBuildAsTransaction,
     FailedSimulation,
     Reverted,
     UnhandledError,
@@ -74,13 +142,4 @@ pub enum DropReason {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum RetryReason {
     Reorged,
-}
-
-// add nested enum entries as we add VMs
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
-pub enum VmSpecificPayloadData {
-    #[default]
-    Evm,
-    Svm(SealevelPayload),
-    CosmWasm,
 }

@@ -5,23 +5,49 @@ inputs:
   ref:
     description: 'The Git ref to checkout'
     required: true
+  cache-provider:
+    description: 'Choose cache provider: buildjet or github'
+    required: false
+    default: 'buildjet'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
+    # Depot transparently redirect anything bound for GitHub's Actions cache to their own for extra speed.
+    # But this is not available to access for non-depot runners.
+    # So we default to buildjet, and expect the workflow to set cache-provider=github if it's a depot runner.
+    # https://depot.dev/docs/github-actions/overview#faster-caching
+    - name: Determine Cache Provider
+      id: determine-cache
+      shell: bash
+      run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+
     - name: Cache
+      if: env.cache-provider == 'buildjet'
       uses: buildjet/cache@v4
-      id: cache
+      id: buildjet-cache
       with:
         path: |
           **/node_modules
           .yarn
         key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
 
+    - name: Cache
+      if: env.cache-provider == 'github'
+      uses: actions/cache@v4
+      id: github-cache
+      with:
+        path: |
+          **/node_modules
+          .yarn
+        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-4.5.1-cache-
+
     # Typically, the cache will be hit, but if there's a network error when
     # restoring the cache, let's run the install step ourselves.
     - name: Install dependencies
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: steps.buildjet-cache.outputs.cache-hit != 'true' && steps.github-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         yarn install

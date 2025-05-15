@@ -1,5 +1,142 @@
 # @hyperlane-xyz/infra
 
+## 12.6.0
+
+### Minor Changes
+
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [2ae0f72]
+- Updated dependencies [672d6d1]
+- Updated dependencies [1770318]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [6a70b8d]
+- Updated dependencies [d182d7d]
+- Updated dependencies [248d2e1]
+- Updated dependencies [e2a4727]
+- Updated dependencies [b360802]
+- Updated dependencies [e381a8d]
+- Updated dependencies [f6ed6ad]
+- Updated dependencies [31ee1c6]
+- Updated dependencies [a36d5c1]
+  - @hyperlane-xyz/sdk@12.6.0
+  - @hyperlane-xyz/helloworld@12.6.0
+  - @hyperlane-xyz/utils@12.6.0
+
+## 12.5.0
+
+### Patch Changes
+
+- Updated dependencies [c8ace88]
+  - @hyperlane-xyz/sdk@12.5.0
+  - @hyperlane-xyz/helloworld@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+
+## 12.4.0
+
+### Patch Changes
+
+- Updated dependencies [d2babb7]
+  - @hyperlane-xyz/sdk@12.4.0
+  - @hyperlane-xyz/helloworld@12.4.0
+  - @hyperlane-xyz/utils@12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 6101959f7: Enhanced the router enrollment check to support non-fully connected warp routes using the `remoteRouters` property from the deployment config.
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/helloworld@12.3.0
+
+## 12.2.0
+
+### Patch Changes
+
+- Updated dependencies [c7934f711]
+- Updated dependencies [ecbacbdf2]
+  - @hyperlane-xyz/sdk@12.2.0
+  - @hyperlane-xyz/helloworld@12.2.0
+  - @hyperlane-xyz/utils@12.2.0
+
+## 12.1.0
+
+### Minor Changes
+
+- acbf5936a: New check: HyperlaneRouterChecker now compares the list of domains
+  the Router is enrolled with against the warp route expectations.
+  It will raise a violation for missing remote domains.
+  `check-deploy` and `check-warp-deploy` scripts use this new check.
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/helloworld@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- d478ffd08: updated warp ids and added new soon routes
+
+### Patch Changes
+
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/helloworld@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Minor Changes
+
+- 888d180b6: Fixes a small bug when initializing a token adapter that caused the wrong adapter to be chosen when interacting with svm chains + add new warp ids for new soon wr deployments
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+  - @hyperlane-xyz/helloworld@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- 4fd5623b8: Fixes a bug where `SealevelHypCollateralAdapter` initialization logic erroneously set the `isSpl2022` property to false.
+
+  It updates the `Token.getHypAdapter` and `Token.getAdapter` methods to be async so that before creating an instance of the `SealevelHypCollateralAdapter` class, the collateral account info can be retrieved on chain to set the correct spl standard.
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+  - @hyperlane-xyz/helloworld@10.0.0
+
 ## 9.2.1
 
 ### Patch Changes

@@ -6,7 +6,7 @@ dist/
 coverage/
 coverage.json
 storage/
-.env
+*.env
 *lcov.info
 # Foundry
 out
@@ -15,3 +15,10 @@ docs
 flattened/
 buildArtifact.json
 fixtures/
+# ZKSync
+artifacts-zk
+cache-zk
+core-utils/zksync/artifacts/output
+.zksolc-libraries-cache/
+typechain-types/
+typechain/

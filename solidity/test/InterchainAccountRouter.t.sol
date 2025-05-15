@@ -11,10 +11,10 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
-import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
+import {Message} from "../contracts/libs/Message.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -46,10 +46,12 @@ contract InterchainAccountRouterTestBase is Test {
     using TypeCasts for address;
 
     event InterchainAccountCreated(
-        uint32 indexed origin,
-        bytes32 indexed owner,
+        address indexed account,
+        uint32 origin,
+        bytes32 router,
+        bytes32 owner,
         address ism,
-        address account
+        bytes32 salt
     );
 
     MockHyperlaneEnvironment internal environment;
@@ -58,7 +60,6 @@ contract InterchainAccountRouterTestBase is Test {
     uint32 internal destination = 2;
 
     TestInterchainGasPaymaster internal igp;
-    InterchainAccountIsm internal icaIsm;
     InterchainAccountRouter internal originIcaRouter;
     InterchainAccountRouter internal destinationIcaRouter;
     bytes32 internal ismOverride;
@@ -70,28 +71,18 @@ contract InterchainAccountRouterTestBase is Test {
 
     Callable internal target;
 
-    function deployProxiedIcaRouter(
+    function deployIcaRouter(
         MockMailbox _mailbox,
         IPostDispatchHook _customHook,
-        IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
-        InterchainAccountRouter implementation = new InterchainAccountRouter(
-            address(_mailbox)
-        );
-
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(1), // no proxy owner necessary for testing
-            abi.encodeWithSelector(
-                InterchainAccountRouter.initialize.selector,
+        return
+            new InterchainAccountRouter(
+                address(_mailbox),
                 address(_customHook),
-                address(_ism),
-                _owner
-            )
-        );
-
-        return InterchainAccountRouter(address(proxy));
+                _owner,
+                20_000
+            );
     }
 
     function setUp() public virtual {
@@ -103,22 +94,16 @@ contract InterchainAccountRouterTestBase is Test {
             igp.getDefaultGasUsage()
         );
 
-        icaIsm = new InterchainAccountIsm(
-            address(environment.mailboxes(destination))
-        );
-
         address owner = address(this);
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             environment.igps(origin),
-            icaIsm,
             owner
         );
 
-        destinationIcaRouter = deployProxiedIcaRouter(
+        destinationIcaRouter = deployIcaRouter(
             environment.mailboxes(destination),
             environment.igps(destination),
-            icaIsm,
             owner
         );
 
@@ -145,6 +130,7 @@ contract InterchainAccountRouterTestBase is Test {
 
 contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     using TypeCasts for address;
+    using Message for bytes;
 
     function testFuzz_constructor(address _localOwner) public {
         OwnableMulticall _account = destinationIcaRouter
@@ -324,11 +310,14 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         vm.expectEmit(true, true, false, true, address(destinationIcaRouter));
         emit InterchainAccountCreated(
+            address(ica),
             origin,
+            address(originIcaRouter).addressToBytes32(),
             address(this).addressToBytes32(),
             TypeCasts.bytes32ToAddress(ismOverride),
-            address(ica)
+            bytes32(0)
         );
+
         vm.deal(address(this), value);
         environment.processNextPendingMessage{value: value}();
 
@@ -344,24 +333,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 expectedGasPayment = gasLimit * igp.gasPrice();
         assertEq(balanceBefore - balanceAfter, expectedGasPayment);
         assertEq(address(igp).balance, expectedGasPayment);
-    }
-
-    function testFuzz_getDeployedInterchainAccount_checkAccountOwners(
-        address owner
-    ) public {
-        // act
-        ica = destinationIcaRouter.getDeployedInterchainAccount(
-            origin,
-            owner,
-            address(originIcaRouter),
-            address(environment.isms(destination))
-        );
-
-        (uint32 domain, bytes32 ownerBytes) = destinationIcaRouter
-            .accountOwners(address(ica));
-        // assert
-        assertEq(domain, origin);
-        assertEq(ownerBytes, owner.addressToBytes32());
     }
 
     function test_quoteGasPayment() public {
@@ -398,10 +369,9 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     function test_quoteDispatch_differentHook() public {
         // arrange
         TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -438,7 +408,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // assert
         uint256 balanceAfter = address(this).balance;
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
-
         assertRemoteCallReceived(data, value);
     }
 
@@ -472,10 +441,9 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // arrange
         TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -649,10 +617,9 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         TestPostDispatchHook testHook = new TestPostDispatchHook();
 
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -691,7 +658,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             failingIsm,
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // assert
@@ -714,7 +681,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             bytes32(0),
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // assert
@@ -753,7 +720,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             ismOverride,
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // recheck
@@ -802,9 +769,339 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             ismOverride,
             calls,
-            ""
+            bytes("")
         );
         vm.expectCall(address(this), value, data);
         environment.processNextPendingMessage();
+    }
+
+    function testDifferentSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("i am a salt")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("i am a different salt")
+            );
+        assertNotEq(address(ica), address(ica2));
+    }
+
+    function testEqualSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("salt1")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("salt1")
+            );
+        assertEq(address(ica), address(ica2));
+    }
+
+    function testFuzz_callRemoteWithCustomHook(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+
+        originIcaRouter = deployIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        vm.expectCall(
+            address(customHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+
+        // act
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            new bytes(0),
+            bytes32(0),
+            customHook
+        );
+    }
+
+    function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
+        // act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // assert
+        // ICA router should have the commitment
+        assertEq(ica.commitments(commitment), true);
+    }
+
+    function _get_metadata(
+        OwnableMulticall _ica,
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes memory) {
+        return abi.encodePacked(_ica, salt, abi.encode(calls));
+    }
+
+    function _get_commitment(
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes32) {
+        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
+    }
+
+    function testFuzz_revealAndExecute(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // ICA router should have the commitment after commit message
+        assertEq(ica.commitments(commitment), true);
+
+        // Manually process the reveal
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
+
+        // Commitment should be cleared
+        assertEq(executedCommitment, commitment);
+        assertEq(ica.commitments(commitment), false);
+
+        // Cannot reveal twice
+        vm.expectRevert("ICA: Invalid Reveal");
+        ica.revealAndExecute(calls, salt);
+    }
+
+    function testFuzz_readIsm_verify(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // ICA router should have the commitment after commit message
+        assertEq(ica.commitments(commitment), true);
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
+        _mailbox.addInboundMetadata(1, metadata); // Metadata can fetched by other callers
+        environment.processNextPendingMessage();
+
+        // Commitment should be cleared
+        assertEq(ica.commitments(commitment), false);
+    }
+
+    function testFuzz_readIsm_verify_reverts_two_reveals(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        testFuzz_readIsm_verify(data, value, salt);
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+
+        // If you reveal once, you can't reveal again
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _mailbox.inboundMetadata(1);
+
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("ICA: Invalid Reveal");
+        _ism.verify(metadata, message);
+    }
+
+    function testFuzz_readIsm_verify_reverts_commit_not_delivered(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(salt, calls);
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("ICA: Invalid Reveal");
+        _ism.process(metadata, message);
+    }
+
+    function testFuzz_callRemoteCommitReveal_simpleOverload(
+        bytes32 commitment
+    ) public {
+        // Arrange
+        gasPaymentQuote = igp.quoteGasPayment(
+            destination,
+            100_000 + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+        deal(address(this), gasPaymentQuote);
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal{value: gasPaymentQuote}(
+            destination,
+            commitment,
+            100_000
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // Assert
+        // ICA router should have the commitment
+        assertEq(ica.commitments(commitment), true);
+    }
+
+    function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
+        // Arrange
+        // We use _Router_quoteDispatch so we actually need a remote router enrolled before quoting
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint gasLimitForExecutingCalls = 100_000;
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimitForExecutingCalls
+        );
+
+        uint directIGPQuote = igp.quoteGasPayment(
+            origin,
+            gasLimitForExecutingCalls + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+
+        // Assert
+        // The ICA Router gets it quote by passing fixed gas plus variable gas to the IGP
+        assertEq(quote, directIGPQuote);
+    }
+
+    function test_ReadIsmOwnership() public {
+        assertEq(
+            originIcaRouter.CCIP_READ_ISM().owner(),
+            originIcaRouter.owner()
+        );
+    }
+
+    function testFuzz_revert_commitTwice(bytes32 commitment) public {
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        vm.startPrank(address(destinationIcaRouter));
+        ica.setCommitment(commitment);
+
+        vm.expectRevert("ICA: Previous commitment pending execution");
+        ica.setCommitment(commitment);
     }
 }

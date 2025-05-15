@@ -20,6 +20,7 @@ export {
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
+  isCosmosIbcDenomAddress,
   isAddressEvm,
   isAddressSealevel,
   isValidAddress,
@@ -80,7 +81,7 @@ export {
   isS3CheckpointWithId,
 } from './checkpoints.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar } from './env.js';
+export { safelyAccessEnvVar, inCIMode } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -113,6 +114,7 @@ export {
   deepEquals,
   deepFind,
   diffObjMerge,
+  keepOnlyDiffObjects,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
@@ -130,6 +132,7 @@ export {
   stringifyObject,
   transformObj,
   TransformObjectTransformer,
+  sortArraysInObject,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {

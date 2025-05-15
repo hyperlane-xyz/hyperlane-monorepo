@@ -48,6 +48,10 @@ export function isAddressCosmos(address: Address) {
   );
 }
 
+export function isCosmosIbcDenomAddress(address: Address): boolean {
+  return IBC_DENOM_REGEX.test(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
@@ -118,6 +122,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: isValidAddressEvm,
       [ProtocolType.Sealevel]: isValidAddressSealevel,
       [ProtocolType.Cosmos]: isValidAddressCosmos,
+      [ProtocolType.CosmosNative]: isValidAddressCosmos,
     },
     address,
     false,
@@ -158,6 +163,7 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: normalizeAddressEvm,
       [ProtocolType.Sealevel]: normalizeAddressSealevel,
       [ProtocolType.Cosmos]: normalizeAddressCosmos,
+      [ProtocolType.CosmosNative]: normalizeAddressCosmos,
     },
     address,
     address,
@@ -186,6 +192,7 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.Ethereum]: (_a1) => eqAddressEvm(_a1, a2),
       [ProtocolType.Sealevel]: (_a1) => eqAddressSol(_a1, a2),
       [ProtocolType.Cosmos]: (_a1) => eqAddressCosmos(_a1, a2),
+      [ProtocolType.CosmosNative]: (_a1) => eqAddressCosmos(_a1, a2),
     },
     a1,
     false,
@@ -211,6 +218,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   } else if (protocol === ProtocolType.Sealevel) {
     return isValidTransactionHashSealevel(input);
   } else if (protocol === ProtocolType.Cosmos) {
+    return isValidTransactionHashCosmos(input);
+  } else if (protocol === ProtocolType.CosmosNative) {
     return isValidTransactionHashCosmos(input);
   } else {
     return false;
@@ -275,6 +284,7 @@ export function addressToBytes(
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
       [ProtocolType.Cosmos]: addressToBytesCosmos,
+      [ProtocolType.CosmosNative]: addressToBytesCosmos,
     },
     address,
     new Uint8Array(),
@@ -357,6 +367,8 @@ export function bytesToProtocolAddress(
   } else if (toProtocol === ProtocolType.Sealevel) {
     return bytesToAddressSol(bytes);
   } else if (toProtocol === ProtocolType.Cosmos) {
+    return bytesToAddressCosmos(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.CosmosNative) {
     return bytesToAddressCosmos(bytes, prefix!);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);

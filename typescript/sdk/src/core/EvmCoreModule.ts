@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   Mailbox,
   Mailbox__factory,
@@ -38,9 +36,8 @@ import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -82,12 +79,7 @@ export class EvmCoreModule extends HyperlaneModule<
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
         addresses: {
-          interchainAccountIsm: args.addresses.interchainAccountIsm,
           interchainAccountRouter: args.addresses.interchainAccountRouter,
-          // TODO: fix this even though is not used at the moment internally
-          proxyAdmin: ethers.constants.AddressZero,
-          timelockController:
-            args.addresses.timelockController ?? ethers.constants.AddressZero,
         },
         config: args.config.interchainAccountRouter,
       });
@@ -320,7 +312,7 @@ export class EvmCoreModule extends HyperlaneModule<
     });
 
     // Deploy ICA ISM and Router
-    const { interchainAccountRouter, interchainAccountIsm } = (
+    const { interchainAccountRouter } = (
       await EvmIcaModule.create({
         chain: chainName,
         multiProvider: multiProvider,
@@ -386,7 +378,6 @@ export class EvmCoreModule extends HyperlaneModule<
       proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
-      interchainAccountIsm,
       validatorAnnounce,
       timelockController,
       testRecipient,

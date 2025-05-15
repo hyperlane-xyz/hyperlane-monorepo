@@ -18,10 +18,6 @@ export const RemoteIcaRouterConfigSchema = z.record(
 export const IcaRouterConfigSchema = z.object({
   owner: ZHash,
   mailbox: ZHash,
-  proxyAdmin: z.object({
-    address: ZHash.optional(),
-    owner: ZHash,
-  }),
   remoteIcaRouters: RemoteIcaRouterConfigSchema.optional(),
 });
 
@@ -32,7 +28,6 @@ export const DerivedIcaRouterConfigSchema = DerivedOwnableSchema.merge(
     .object({
       owner: ZHash,
       mailbox: ZHash,
-      proxyAdmin: DerivedOwnableSchema,
       remoteIcaRouters: RemoteIcaRouterConfigSchema,
     })
     .strict(),

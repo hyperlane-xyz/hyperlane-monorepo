@@ -1,5 +1,40 @@
 # @hyperlane-xyz/utils
 
+## 12.6.0
+
+### Minor Changes
+
+- d182d7d: Adds the sortArraysInObject function to properly sort arrays in an object recursively given an optional sort function
+- b360802: Add the isCosmosIbcDenomAddress function and improve the config expasion logic to correctly format the destination gas
+
+## 12.5.0
+
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+## 12.2.0
+
+## 12.1.0
+
+## 12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
 ## 9.2.1
 
 ## 9.2.0

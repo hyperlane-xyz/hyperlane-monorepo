@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_new::new;
 
 use crate::{
-    traits::TxOutcome, utils::domain_hash, BatchItem, ChainCommunicationError, ChainResult,
-    HyperlaneContract, HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, ChainCommunicationError, ChainResult, HyperlaneContract,
+    HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -40,21 +40,16 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
 
-    /// Process a message with a proof against the provided signed checkpoint
-    async fn process_batch(
-        &self,
-        _messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<BatchResult> {
-        // Batching is not supported by default
-        Err(ChainCommunicationError::BatchingFailed)
+    /// True if the destination chain supports batching
+    /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
+    fn supports_batching(&self) -> bool {
+        // Default to false
+        false
     }
 
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.
-    async fn try_process_batch<'a>(
-        &self,
-        _ops: Vec<&'a QueueOperation>,
-    ) -> ChainResult<BatchResult> {
+    async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }
@@ -71,7 +66,14 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8>;
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>>;
+
+    /// Get the calldata for a call which allows to check if a particular messages was delivered
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
 }
 
 /// The result of processing a batch of messages

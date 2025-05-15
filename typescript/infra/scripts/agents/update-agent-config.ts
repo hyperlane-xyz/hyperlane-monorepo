@@ -25,6 +25,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
+import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
@@ -66,13 +68,28 @@ export async function writeAgentConfig(
   const additionalConfig = Object.fromEntries(
     await Promise.all(
       environmentChains
-        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
-        .map(async (chain) => [
-          chain,
-          {
-            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
-          },
-        ]),
+        .filter(
+          (chain) =>
+            chainIsProtocol(chain, ProtocolType.Cosmos) ||
+            chainIsProtocol(chain, ProtocolType.CosmosNative),
+        )
+        .map(async (chain) => {
+          try {
+            const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
+            return [chain, { gasPrice }];
+          } catch (error) {
+            rootLogger.error(`Error getting gas price for ${chain}:`, error);
+            const { denom } = await multiProvider.getNativeToken(chain);
+            assert(denom, `No nativeToken.denom found for chain ${chain}`);
+            const amount =
+              environment === 'mainnet3'
+                ? mainnet3GasPrices[chain as keyof typeof mainnet3GasPrices]
+                    .amount
+                : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
+                    .amount;
+            return [chain, { gasPrice: { denom, amount } }];
+          }
+        }),
     ),
   );
 

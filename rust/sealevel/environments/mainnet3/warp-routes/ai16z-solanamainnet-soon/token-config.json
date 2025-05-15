@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
+    "owner": "E2vjMXigtkS9xxaTt87MgddnesCoiW87akkg3U5BXvTY"
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "ai16z",
+    "symbol": "ai16z",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/ai16z/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": "CvD8JycSHKTXV5ibc3xeq8CojMMJBtL2ZMNDqjk5fLF3"
+  }
+}
