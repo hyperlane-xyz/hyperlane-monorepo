@@ -42,7 +42,7 @@ class HyperlaneService {
       query: `query ($search: bytea) {
         message_view(
             where: { msg_id: {_eq: $search} }
-            limit: 50
+            limit: 1
         ) {
             id
             msg_id
