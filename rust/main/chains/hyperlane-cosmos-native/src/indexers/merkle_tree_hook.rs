@@ -66,11 +66,7 @@ impl CosmosNativeMerkleTreeHook {
         Ok((hook, tree, height))
     }
 
-    fn checkpoint(
-        &self,
-        tree: &TreeResponse,
-        height: u32,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
+    fn checkpoint(&self, tree: &TreeResponse, height: u32) -> ChainResult<Checkpoint> {
         let root = H256::from_slice(&tree.root);
         let index = if tree.count == 0 { 0 } else { tree.count - 1 };
 
