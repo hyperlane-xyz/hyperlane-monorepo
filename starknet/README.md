@@ -81,7 +81,15 @@ You can also run the individual build steps separately:
 yarn fetch-contracts
 ```
 
-This downloads the contract artifacts from the [Hyperlane Starknet repository](https://github.com/hyperlane-xyz/hyperlane_starknet).
+#### Building Contracts from Source
+
+```
+docker compose up
+```
+
+This builds the contracts from source and puts them under the `release` folder. You can specify
+the commit or version from which the contracts should be build from. Note that this command
+will overwrite the contents of the `release` folder if it already exists.
 
 #### Generating TypeScript Artifacts
 
