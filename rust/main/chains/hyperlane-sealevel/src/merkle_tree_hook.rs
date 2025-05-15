@@ -2,13 +2,14 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use derive_new::new;
+use tracing::instrument;
+
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
+    ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneMessage,
+    IncrementalMerkleAtBlockHeight, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
-use tracing::instrument;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
 
@@ -16,22 +17,16 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<IncrementalMerkleAtBlockHeight> {
         assert!(
             reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
-        let outbox_account = self
-            .get_provider()
-            .rpc_client()
-            .get_account_with_finalized_commitment(self.outbox.0)
-            .await?;
-        let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
-        Ok(outbox.tree)
+        self.get_tree().await
     }
 
     #[instrument(err, ret, skip(self))]
@@ -42,7 +37,47 @@ impl MerkleTreeHook for SealevelMailbox {
             "Sealevel does not support querying point-in-time"
         );
 
+        self.get_latest_checkpoint().await
+    }
+
+    #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint_at_height(&self, _height: u64) -> ChainResult<Checkpoint> {
+        self.get_latest_checkpoint().await
+    }
+
+    #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let tree = self.tree(reorg_period).await?;
+
+        tree.count()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)
+    }
+}
+
+impl SealevelMailbox {
+    async fn get_tree(&self) -> ChainResult<IncrementalMerkleAtBlockHeight> {
+        let outbox_account = self
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment(self.outbox.0)
+            .await?;
+        let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+
+        let incremental = IncrementalMerkleAtBlockHeight {
+            tree: outbox.tree,
+            block_height: 0,
+        };
+
+        Ok(incremental)
+    }
+
+    async fn get_latest_checkpoint(&self) -> ChainResult<Checkpoint> {
+        let tree = self.get_tree().await?;
 
         let root = tree.root();
         let count: u32 = tree
@@ -59,18 +94,10 @@ impl MerkleTreeHook for SealevelMailbox {
             mailbox_domain: self.domain().id(),
             root,
             index,
+            block_height: 0, // Defaulting to zero since there is no easy way to get the block slot for Sealevel
         };
+
         Ok(checkpoint)
-    }
-
-    #[instrument(err, ret, skip(self))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let tree = self.tree(reorg_period).await?;
-
-        tree.count()
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)
     }
 }
 

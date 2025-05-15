@@ -323,7 +323,7 @@ impl Validator {
         // merkle tree hook has count > 0, but we assert to be extra sure this is
         // the case.
         assert!(tip_tree.count() > 0, "merkle tree is empty");
-        let backfill_target = submitter.checkpoint(&tip_tree);
+        let backfill_target = submitter.checkpoint_at_height(&tip_tree);
 
         let backfill_submitter = submitter.clone();
 
@@ -338,7 +338,7 @@ impl Validator {
         ));
 
         tasks.push(tokio::spawn(
-            async move { submitter.checkpoint_submitter(tip_tree).await }
+            async move { submitter.checkpoint_submitter(tip_tree.tree).await }
                 .instrument(info_span!("TipCheckpointSubmitter")),
         ));
 

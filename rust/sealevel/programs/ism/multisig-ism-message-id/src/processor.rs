@@ -250,6 +250,7 @@ fn verify(
                 mailbox_domain: message.origin,
                 root: metadata.merkle_root,
                 index: metadata.merkle_index,
+                block_height: 0, // We can put 0 here since this field is not signed
             },
             message_id: message.id(),
         },

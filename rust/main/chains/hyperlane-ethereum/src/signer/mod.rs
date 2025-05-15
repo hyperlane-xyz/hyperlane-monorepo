@@ -139,6 +139,7 @@ mod test {
                     mailbox_domain: 5,
                     root: H256::repeat_byte(1),
                     index: 123,
+                    block_height: 42,
                 },
                 message_id: H256::repeat_byte(3),
             };

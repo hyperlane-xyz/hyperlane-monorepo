@@ -13,6 +13,7 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
+    IncrementalMerkleAtBlockHeight,
 };
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
@@ -64,10 +65,21 @@ impl ValidatorSubmitter {
 
     pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
         Checkpoint {
-            root: tree.root(),
-            index: tree.index(),
             merkle_tree_hook_address: self.merkle_tree_hook.address(),
             mailbox_domain: self.merkle_tree_hook.domain().id(),
+            root: tree.root(),
+            index: tree.index(),
+            block_height: 0,
+        }
+    }
+
+    pub(crate) fn checkpoint_at_height(&self, tree: &IncrementalMerkleAtBlockHeight) -> Checkpoint {
+        Checkpoint {
+            merkle_tree_hook_address: self.merkle_tree_hook.address(),
+            mailbox_domain: self.merkle_tree_hook.domain().id(),
+            root: tree.root(),
+            index: tree.index(),
+            block_height: tree.block_height,
         }
     }
 
@@ -241,7 +253,9 @@ impl ValidatorSubmitter {
                 "Incorrect tree root, something went wrong"
             );
 
-            self.reorg_reporter.report().await;
+            self.reorg_reporter
+                .report(correctness_checkpoint.block_height)
+                .await;
 
             let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
             if let Err(e) = self
@@ -619,9 +633,10 @@ mod test {
 
         #[async_trait]
         impl MerkleTreeHook for MerkleTreeHook {
-            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
+            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlockHeight>;
             async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
             async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint>;
+            async fn latest_checkpoint_at_height(&self, height: u64) -> ChainResult<Checkpoint>;
         }
     }
 
@@ -659,7 +674,7 @@ mod test {
 
         #[async_trait]
         impl ReorgReporter for ReorgReporter {
-            async fn report(&self);
+            async fn report(&self, block_height: u64);
         }
     }
 
@@ -775,7 +790,7 @@ mod test {
         mock_reorg_reporter
             .expect_report()
             .once()
-            .return_once(|| return ());
+            .return_once(|_| return ());
 
         // instantiate the validator submitter
         let validator_submitter = ValidatorSubmitter::new(
@@ -797,6 +812,7 @@ mod test {
             index: mock_onchain_merkle_tree.index(),
             merkle_tree_hook_address: H256::from_low_u64_be(0),
             mailbox_domain: dummy_domain.id(),
+            block_height: 0,
         };
 
         // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.

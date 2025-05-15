@@ -16,23 +16,21 @@ use crate::settings::ValidatorSettings;
 
 #[async_trait]
 pub trait ReorgReporter: Send + Sync + Debug {
-    async fn report(&self);
+    async fn report(&self, height: u64);
 }
 
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
     merkle_tree_hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
-    reorg_period: hyperlane_core::ReorgPeriod,
 }
 
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
-    async fn report(&self) {
+    async fn report(&self, height: u64) {
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = merkle_tree_hook.clone();
-                let reorg_period = self.reorg_period.clone();
-                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint_at_height(height).await })
             })
             .await;
 
@@ -60,10 +58,7 @@ impl LatestCheckpointReorgReporter {
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
 
-        let reporter = LatestCheckpointReorgReporter {
-            merkle_tree_hooks,
-            reorg_period: settings.reorg_period.clone(),
-        };
+        let reporter = LatestCheckpointReorgReporter { merkle_tree_hooks };
 
         Ok(reporter)
     }
