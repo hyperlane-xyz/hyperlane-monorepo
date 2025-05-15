@@ -4,10 +4,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
-import {
-  DerivedMailboxClientFields,
-  GasRouterConfigSchema,
-} from '../router/types.js';
+import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -32,6 +29,17 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
+
+export const OpL2toL1TokenConfigSchema = NativeTokenConfigSchema.merge(
+  z.object({
+    type: z.literal(TokenType.nativeOpL2ToL1),
+  }),
+).extend({
+  l1Domain: z.number(),
+  l2Bridge: z.string(),
+});
+export type OpL2toL1TokenConfig = z.infer<typeof OpL2toL1TokenConfigSchema>;
+export const isOpL2toL1TokenConfig = isCompliant(OpL2toL1TokenConfigSchema);
 
 export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
   {
@@ -85,6 +93,22 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
+
+export const CctpTokenConfigSchema = CollateralTokenConfigSchema.merge(
+  z.object({
+    type: z.literal(TokenType.collateralCctp),
+  }),
+).extend({
+  messageTransmitter: z
+    .string()
+    .describe('CCTP Message Transmitter contract address'),
+  circleDomainMappings: z
+    .record(z.number())
+    .describe('Mapping from Hyperlane Domain ID to Circle CCTP Domain ID'),
+});
+
+export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
+export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
@@ -140,10 +164,12 @@ export type HypTokenRouterVirtualConfig = z.infer<
  */
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
+  OpL2toL1TokenConfigSchema,
   CollateralTokenConfigSchema,
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
+  CctpTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
@@ -154,11 +180,8 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  Omit<
-    z.infer<typeof GasRouterConfigSchema>,
-    keyof DerivedMailboxClientFields
-  > &
-  DerivedMailboxClientFields;
+  z.infer<typeof GasRouterConfigSchema> &
+  DerivedRouterConfig;
 
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
 

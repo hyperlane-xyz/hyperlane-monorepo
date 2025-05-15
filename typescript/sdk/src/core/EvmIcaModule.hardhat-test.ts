@@ -6,6 +6,7 @@ import hre from 'hardhat';
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
+import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmIcaModule } from './EvmIcaModule.js';
@@ -37,6 +38,29 @@ describe('EvmIcaModule', async () => {
       expect(interchainAccountRouter).to.not.equal(
         ethers.constants.AddressZero,
       );
+    });
+
+    it('should configure commitment ISM', async () => {
+      const urls = ['https://example.com'];
+
+      const config = {
+        mailbox: mailbox.address,
+        owner: signer.address,
+        commitmentIsm: {
+          owner: signer.address,
+          type: IsmType.OFFCHAIN_LOOKUP,
+          urls,
+        },
+      } as const;
+
+      const evmIcaModule = await EvmIcaModule.create({
+        chain: TestChainName.test1,
+        config,
+        multiProvider,
+      });
+
+      const actual = await evmIcaModule.read();
+      expect(actual.commitmentIsm).to.deep.contain(config.commitmentIsm);
     });
   });
 });

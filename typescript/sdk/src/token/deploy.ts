@@ -18,6 +18,7 @@ import {
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { isOffchainLookupIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
@@ -38,8 +39,10 @@ import {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
+  isOpL2toL1TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
@@ -76,6 +79,8 @@ abstract class TokenDeployer<
       return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
       return [scale, config.mailbox];
+    } else if (isOpL2toL1TokenConfig(config)) {
+      return [scale, config.mailbox, config.l1Domain, config.l2Bridge];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];
@@ -84,6 +89,19 @@ abstract class TokenDeployer<
         config.collateralChainName,
       );
       return [config.decimals, scale, config.mailbox, collateralDomain];
+    } else if (isCctpTokenConfig(config)) {
+      assert(
+        isOffchainLookupIsmConfig(config.interchainSecurityModule),
+        'CCTP token must have an offchain lookup ISM',
+      );
+
+      return [
+        config.token,
+        scale,
+        config.mailbox,
+        config.messageTransmitter,
+        config.interchainSecurityModule.urls,
+      ];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }

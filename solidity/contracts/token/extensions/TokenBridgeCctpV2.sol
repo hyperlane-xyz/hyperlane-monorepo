@@ -25,8 +25,9 @@ contract TokenBridgeCctpV2 is TokenBridgeCctp {
         uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
-        ITokenMessengerV2 _tokenMessenger
-    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter) {
+        ITokenMessengerV2 _tokenMessenger,
+        string[] memory __urls
+    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter, __urls) {
         uint32 version = _tokenMessenger.messageBodyVersion();
         require(
             version == CCTP_VERSION_2,
@@ -45,15 +46,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctp {
 
     function _cctpDepositForBurn(
         uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
     ) internal override {
         uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
-        bytes32 router = routers(_destination);
 
         tokenMessenger.depositForBurn(
             _amount,
             circleDomain,
-            router,
+            _recipient,
             address(wrappedToken),
             bytes32(0),
             CCTP_V2_DEFAULT_MAX_FEE,

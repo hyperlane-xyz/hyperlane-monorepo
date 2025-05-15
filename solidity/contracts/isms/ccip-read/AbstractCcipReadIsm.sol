@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
-import {PackageVersioned} from "../../PackageVersioned.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
 
 /**
  * @title AbstractCcipReadIsm
@@ -21,10 +21,50 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  *    message. This functions selector should be provided as the `callbackFunction` payload
  *    for the OffchainLookup error
  */
-abstract contract AbstractCcipReadIsm is ICcipReadIsm, PackageVersioned {
+abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.CCIP_READ);
+
+    string[] internal _urls;
+
+    /**
+     * @notice Emitted when new CCIP-read urls are being set
+     */
+    event UrlsChanged(string[] newUrls);
+
+    function setUrls(string[] memory __urls) public onlyOwner {
+        _urls = __urls;
+        emit UrlsChanged(__urls);
+    }
+
+    /// @dev called by the relayer when the off-chain data is ready
+    function process(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external {
+        mailbox.process(_metadata, _message);
+    }
+
+    function getOffchainVerifyInfo(
+        bytes calldata _message
+    ) external view override {
+        revert OffchainLookup({
+            sender: address(this),
+            urls: _urls,
+            callData: _offchainLookupCalldata(_message),
+            callbackFunction: this.process.selector,
+            extraData: _message
+        });
+    }
+
+    function urls() external view returns (string[] memory) {
+        return _urls;
+    }
+
+    function _offchainLookupCalldata(
+        bytes calldata _message
+    ) internal view virtual returns (bytes memory);
 }

@@ -34,7 +34,8 @@ describe(EvmIcaRouterReader.name, async () => {
     signerAddress = signer.address;
     interchainAccountRouterAddress = addresses.interchainAccountRouter;
     interchainAccountRouterReader = new EvmIcaRouterReader(
-      multiProvider.getProvider(CHAIN),
+      multiProvider,
+      CHAIN,
     );
   });
 
@@ -47,7 +48,7 @@ describe(EvmIcaRouterReader.name, async () => {
       expect(res.address).to.equal(interchainAccountRouterAddress);
       expect(res.owner).to.equal(signerAddress);
       // Remote ICA Routers
-      expect(res.remoteIcaRouters).to.exist;
+      expect(res.remoteRouters).to.exist;
     });
   });
 });

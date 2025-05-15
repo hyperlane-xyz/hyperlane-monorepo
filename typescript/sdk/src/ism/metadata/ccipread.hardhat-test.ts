@@ -2,8 +2,10 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import {
+  AbstractCcipReadIsm,
+  TestCcipReadIsm__factory,
+} from '@hyperlane-xyz/core';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -12,16 +14,14 @@ import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactor
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
-import { CCIPReadIsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder } from './builder.js';
-import type { MetadataContext } from './types.js';
 
-describe('CCIP-Read ISM Integration', () => {
+describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
   let testRecipient: any;
-  let ccipReadIsm: any;
+  let ccipReadIsm: AbstractCcipReadIsm;
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
@@ -47,12 +47,12 @@ describe('CCIP-Read ISM Integration', () => {
 
     // Deploy the TestCcipReadIsm on test1 domain
     const domain = multiProvider.getDomainId('test1');
-    ccipReadIsm = await multiProvider.handleDeploy(
+    ccipReadIsm = (await multiProvider.handleDeploy(
       domain,
       new TestCcipReadIsm__factory(),
       // Pass in desired offchain URLs for the ISM constructor:
       [['http://example.com/{data}']],
-    );
+    )) as unknown as AbstractCcipReadIsm;
 
     // Configure the TestRecipient to use the CCIP-Read ISM
     await testRecipient.setInterchainSecurityModule(ccipReadIsm.address);
@@ -78,13 +78,13 @@ describe('CCIP-Read ISM Integration', () => {
     );
 
     // Derive the on-chain ISM config for CCIP-Read
-    const derivedIsm = (await new EvmIsmReader(
+    const derivedIsm = await new EvmIsmReader(
       multiProvider,
       'test2',
-    ).deriveIsmConfig(ccipReadIsm.address)) as WithAddress<CCIPReadIsmConfig>;
+    ).deriveOffchainLookupConfig(ccipReadIsm.address);
 
     // Build the metadata using the CCIP-Read builder
-    const context: MetadataContext<WithAddress<CCIPReadIsmConfig>> = {
+    const context = {
       ism: derivedIsm,
       message,
       dispatchTx,

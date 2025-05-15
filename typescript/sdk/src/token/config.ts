@@ -9,7 +9,9 @@ export enum TokenType {
   XERC20Lockbox = 'xERC20Lockbox',
   collateralFiat = 'collateralFiat',
   collateralUri = 'collateralUri',
+  collateralCctp = 'collateralCctp',
   native = 'native',
+  nativeOpL2ToL1 = 'nativeOpL2ToL1',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
 }

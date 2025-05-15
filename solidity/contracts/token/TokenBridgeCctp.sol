@@ -8,19 +8,21 @@ import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../isms/ccip-read/AbstractCcipReadIsm.sol";
 
-abstract contract TokenBridgeCctp is
-    ITokenBridge,
-    HypERC20Collateral,
-    AbstractCcipReadIsm
-{
+interface CctpService {
+    function getCCTPAttestation(
+        bytes calldata _message
+    )
+        external
+        view
+        returns (bytes memory cctpMessage, bytes memory attestation);
+}
+
+abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
     uint32 internal constant CCTP_VERSION_1 = 0;
     uint32 internal constant CCTP_VERSION_2 = 1;
 
     // @notice CCTP message transmitter contract
     IMessageTransmitter public immutable messageTransmitter;
-
-    // @notice CCIP-read URLs
-    string[] public urls;
 
     /// @notice Hyperlane domain => Circle domain.
     /// ATM, known Circle domains are Ethereum = 0, Avalanche = 1, Optimism = 2, Arbitrum = 3.
@@ -37,11 +39,6 @@ abstract contract TokenBridgeCctp is
     event DomainAdded(uint32 indexed hyperlaneDomain, uint32 circleDomain);
 
     /**
-     * @notice Emitted when new CCIP-read urls are being set
-     */
-    event UrlsChanged(string[] newUrls);
-
-    /**
      * @notice Raised when the version in use by the TokenMessenger
      * is not recognized
      */
@@ -51,20 +48,12 @@ abstract contract TokenBridgeCctp is
         address _erc20,
         uint256 _scale,
         address _mailbox,
-        IMessageTransmitter _messageTransmitter
+        IMessageTransmitter _messageTransmitter,
+        string[] memory __urls
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         interchainSecurityModule = IInterchainSecurityModule(address(this));
+        setUrls(__urls);
         messageTransmitter = _messageTransmitter;
-    }
-
-    /**
-     * @notice Set the CCIP-read URLs
-     * @param _urls URLs to be added
-     */
-    function setUrls(string[] memory _urls) external onlyOwner {
-        urls = _urls;
-
-        emit UrlsChanged(_urls);
     }
 
     /**
@@ -81,56 +70,30 @@ abstract contract TokenBridgeCctp is
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
 
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    )
-        external
-        payable
-        override(ITokenBridge, TokenRouter)
-        returns (bytes32 messageId)
-    {
-        messageId = TokenRouter._transferRemote(
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
+        messageId = super._transferRemote(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            _value,
+            _hookMetadata,
+            _hook
         );
 
-        // Has to be called after _transferRemote
-        // in order for _transferFromSender to be
-        // executed first
-        _cctpDepositForBurn(_destination, _amount);
+        _cctpDepositForBurn(_destination, _recipient, _amount);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 /* _recipient */,
-        uint256 /* _amount */
-    ) external view override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), quoteGasPayment(_destination));
-    }
-
-    function getOffchainVerifyInfo(
+    function _offchainLookupCalldata(
         bytes calldata _message
-    ) external view override {
-        revert OffchainLookup(
-            address(this),
-            urls,
-            abi.encodeWithSignature("getCCTPAttestation(bytes)", _message),
-            this.process.selector,
-            _message
-        );
-    }
-
-    /// @dev called by the relayer when the off-chain data is ready
-    function process(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) external {
-        mailbox.process(_metadata, _message);
+    ) internal pure override returns (bytes memory) {
+        return abi.encodeCall(CctpService.getCCTPAttestation, (_message));
     }
 
     function verify(
@@ -152,7 +115,7 @@ abstract contract TokenBridgeCctp is
 
     function _isMessageReceived(
         bytes memory cctpMessage
-    ) internal view virtual returns (bool) {}
+    ) internal view virtual returns (bool);
 
     /**
      * @notice Specify which CCTP version to use by
@@ -160,6 +123,7 @@ abstract contract TokenBridgeCctp is
      */
     function _cctpDepositForBurn(
         uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
-    ) internal virtual {}
+    ) internal virtual;
 }
