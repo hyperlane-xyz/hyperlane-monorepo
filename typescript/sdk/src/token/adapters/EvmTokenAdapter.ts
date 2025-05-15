@@ -326,15 +326,18 @@ export class EvmHypCollateralAdapter
     return this.collateralContract.allowedBridges(domain, bridge);
   }
 
-  populateRebalanceTx(params: {
+  async populateRebalanceTx(params: {
     domain: Domain;
     amount: Numberish;
     bridge: Address;
   }): Promise<PopulatedTransaction> {
+    const interchainGas = await this.quoteTransferRemoteGas(params.domain);
+
     return this.collateralContract.populateTransaction.rebalance(
       params.domain,
       params.amount,
       params.bridge,
+      { value: interchainGas.amount.toString() },
     );
   }
 }
