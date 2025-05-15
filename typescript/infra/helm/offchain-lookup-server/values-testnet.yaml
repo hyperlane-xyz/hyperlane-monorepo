@@ -1,5 +1,13 @@
 environment: testnet
 
+# General deployment configuration
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  # Modify this tag to deploy a new revision.
+  # Images can be found here:
+  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
+  tag: fd5c798-20250515-105813
+
 ingress:
   host: testnet-offchain-lookup.services.hyperlane.xyz
   # This needs to be created/looked up in Google Cloud Console
