@@ -3,90 +3,79 @@ import { assert } from '@hyperlane-xyz/utils';
 import { TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
-  private readonly tokenMetadataMap: Record<string, TokenMetadata>;
-  private readonly orderedChains: string[];
+  private readonly tokenMetadataMap: Map<string, TokenMetadata>;
 
-  constructor(map: Record<string, TokenMetadata>, orderedChains: string[]) {
-    this.tokenMetadataMap = map;
-    this.orderedChains = orderedChains;
+  constructor(map: Record<string, TokenMetadata>) {
+    this.tokenMetadataMap = new Map(Object.entries(map));
 
     assert(
-      Object.values(this.tokenMetadataMap).every((config) => !!config.decimals),
+      [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
       'All decimals must be defined',
     );
 
     if (!this.areDecimalsUniform()) {
       const maxDecimals = Math.max(
-        ...Object.values(this.tokenMetadataMap).map(
+        ...[...this.tokenMetadataMap.values()].map(
           (config) => config.decimals!,
         ),
       );
 
-      Object.entries(this.tokenMetadataMap).forEach(([chain, config]) => {
+      for (const [chain, config] of this.tokenMetadataMap.entries()) {
         if (config.decimals) {
           const scale = 10 ** (maxDecimals - config.decimals);
-
           assert(
-            this.tokenMetadataMap[chain].scale &&
-              scale !== this.tokenMetadataMap[chain].scale,
+            config.scale && scale !== config.scale,
             `Scale is not correct for ${chain}`,
           );
-          this.tokenMetadataMap[chain].scale = scale;
+          config.scale = scale;
         }
-      });
+      }
     }
   }
 
   getDecimals(chain: string): number | undefined {
-    if (this.tokenMetadataMap[chain]) {
-      return this.tokenMetadataMap[chain].decimals!;
-    }
-    return Object.values(this.tokenMetadataMap).find(
+    const config = this.tokenMetadataMap.get(chain);
+    if (config) return config.decimals!;
+    return [...this.tokenMetadataMap.values()].find(
       (config) => config?.decimals,
     )?.decimals;
   }
 
   getMetadataForChain(chain: string): TokenMetadata | undefined {
-    return this.tokenMetadataMap[chain];
+    return this.tokenMetadataMap.get(chain);
   }
 
   getName(chain: string): string | undefined {
-    if (this.tokenMetadataMap[chain]) {
-      return this.tokenMetadataMap[chain]?.name;
-    }
+    const config = this.tokenMetadataMap.get(chain);
+    if (config?.name) return config.name;
 
-    for (const c of this.orderedChains) {
-      if (this.tokenMetadataMap[c]?.name) return this.tokenMetadataMap[c]?.name;
+    for (const [, meta] of this.tokenMetadataMap) {
+      if (meta.name) return meta.name;
     }
     return undefined;
   }
 
   getScale(chain: string): number | undefined {
-    if (this.tokenMetadataMap[chain]) {
-      return this.tokenMetadataMap[chain]?.scale;
-    }
-    return undefined;
+    return this.tokenMetadataMap.get(chain)?.scale;
   }
 
   getSymbol(chain: string): string {
-    if (this.tokenMetadataMap[chain]) {
-      return this.tokenMetadataMap[chain]?.symbol;
-    }
+    const symbol = this.tokenMetadataMap.get(chain)?.symbol;
+    if (symbol) return symbol;
+
     return this.getDefaultSymbol();
   }
 
   getDefaultSymbol(): string {
-    for (const chain of this.orderedChains) {
-      const symbol = this.tokenMetadataMap[chain]?.symbol;
-      if (symbol) return symbol;
+    for (const [, metadata] of this.tokenMetadataMap) {
+      if (metadata.symbol) return metadata.symbol;
     }
-    throw new Error(
-      'No symbol found in token metadata map for any ordered chain.',
-    );
+    throw new Error('No symbol found in token metadata map.');
   }
 
   areDecimalsUniform(): boolean {
-    const [first, ...rest] = Object.values(this.tokenMetadataMap);
+    const values = [...this.tokenMetadataMap.values()];
+    const [first, ...rest] = values;
     for (const d of rest) {
       if (d.decimals !== first.decimals) {
         return false;
