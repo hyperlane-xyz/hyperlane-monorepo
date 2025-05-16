@@ -98,6 +98,7 @@ export class RebalancerContextFactory {
         bridge: v.bridge,
         bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0n,
         bridgeIsWarp: v.bridgeIsWarp ?? false,
+        override: v.override,
       })),
       this.config.rebalancerKey,
       this.warpCore,
