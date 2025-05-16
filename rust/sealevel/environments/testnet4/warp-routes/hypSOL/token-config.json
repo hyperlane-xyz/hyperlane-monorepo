@@ -1,0 +1,16 @@
+{
+  "solanatestnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB",
+    "owner": "A4JYBMixNo3JReSFTfUa4cepyrBsmkbYKzqK7DAcQ54x"
+  },
+  "starknetsepolia": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "hypSOL",
+    "symbol": "hypSOL",
+    "token": "0x05a5b7d2a9be4c41cdc522b42cd787ea4d142bf1dc8619a47be2196c0b3ad1a0",
+    "foreignDeployment": "0x05a5b7d2a9be4c41cdc522b42cd787ea4d142bf1dc8619a47be2196c0b3ad1a0"
+  }
+}
