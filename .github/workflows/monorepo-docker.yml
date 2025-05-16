@@ -11,6 +11,7 @@ on:
       - '.registryrc'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'docker-entrypoint.sh'
       - '.github/workflows/monorepo-docker.yml'
 
 concurrency:
@@ -89,7 +90,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
