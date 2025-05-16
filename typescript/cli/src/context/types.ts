@@ -28,23 +28,31 @@ export interface CommandContext {
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
+  multiProtocolProvider: MultiProtocolProvider;
   skipConfirmation: boolean;
   key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
   strategyPath?: string;
-  multiProtocolProvider?: MultiProtocolProvider;
   multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {
   key: string;
   signer: ethers.Signer;
+  multiProtocolSigner?: MultiProtocolSignerManager;
   isDryRun?: boolean;
   dryRunChain?: string;
   warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig?: WarpCoreConfig;
-  multiProtocolSigner?: MultiProtocolSignerManager;
+}
+
+export interface WarpDeployCommandContext extends WriteCommandContext {
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}
+export interface WarpApplyCommandContext extends WriteCommandContext {
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpCoreConfig: WarpCoreConfig;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
@@ -57,4 +65,14 @@ export type CommandModuleWithWriteContext<Args> = CommandModule<
   Args & { context: WriteCommandContext } & {
     multiProtocolSigner?: MultiProtocolSignerManager;
   }
+>;
+
+export type CommandModuleWithWarpApplyContext<Args> = CommandModule<
+  {},
+  Args & { context: WarpApplyCommandContext }
+>;
+
+export type CommandModuleWithWarpDeployContext<Args> = CommandModule<
+  {},
+  Args & { context: WarpDeployCommandContext }
 >;

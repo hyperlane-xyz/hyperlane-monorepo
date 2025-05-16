@@ -17,6 +17,9 @@ export const getMantapacificNeutronTiaWarpConfig = async (
   // @ts-ignore - foreignDeployment configs don't conform to the HypTokenRouterConfig
   const neutron: HypTokenRouterConfig = {
     foreignDeployment: neutronRouter,
+    owner: abacusWorksEnvOwnerConfig.neutron.owner,
+    type: TokenType.native,
+    gas: 0,
   };
 
   const mantapacific: HypTokenRouterConfig = {

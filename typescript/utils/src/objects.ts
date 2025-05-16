@@ -330,6 +330,43 @@ export function diffObjMerge(
   };
 }
 
+// Recursively visit all the fields in an object and keep
+// only those that describe mismatches
+export function keepOnlyDiffObjects(obj: any): any {
+  const result: ObjectDiff = {};
+
+  if (Array.isArray(obj)) {
+    return obj
+      .map((item) => (isObject(item) ? keepOnlyDiffObjects(item) : {}))
+      .filter((item) => !isObjEmpty(item));
+  } else if (isObject(obj)) {
+    const casted = obj as ObjectDiffOutput;
+
+    if (!isNullish(casted.expected) && !isNullish(casted.actual)) {
+      return obj;
+    } else {
+      const filtered = Object.fromEntries(
+        Object.entries(obj)
+          .map(([key, value]): [string, any] => [
+            key,
+            keepOnlyDiffObjects(value),
+          ])
+          .filter(([_key, value]) => !isObjEmpty(value)),
+      );
+
+      // if this object has a type field we include to easily
+      // identify the type of the hook or ism
+      if (!isObjEmpty(filtered) && obj.type) {
+        filtered.type = obj.type;
+      }
+
+      return filtered;
+    }
+  }
+
+  return result;
+}
+
 export function mustGet<T>(obj: Record<string, T>, key: string): T {
   const value = obj[key];
   if (!value) {
@@ -393,4 +430,27 @@ function internalTransformObj(
   }
 
   return transformer(obj, propPath);
+}
+
+export function sortArraysInObject(
+  obj: any,
+  sortFunction?: (a: any, b: any) => number,
+): any {
+  // Check if the current object is an array
+  if (Array.isArray(obj)) {
+    return obj
+      .sort(sortFunction)
+      .map((item) => sortArraysInObject(item, sortFunction));
+  }
+  // Check if it's an object and not null or undefined
+  else if (isObject(obj)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        key,
+        sortArraysInObject(value, sortFunction),
+      ]),
+    );
+  }
+
+  return obj;
 }

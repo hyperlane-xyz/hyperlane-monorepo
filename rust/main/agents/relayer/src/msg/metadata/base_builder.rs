@@ -6,6 +6,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 use derive_new::new;
 use eyre::Context;
 use futures::{stream, StreamExt};
+use hyperlane_ethereum::Signers;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -42,6 +43,7 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
+    signer: Option<Signers>,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -61,6 +63,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
+    fn get_signer(&self) -> Option<&Signers>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -268,6 +271,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             checkpoint_syncers,
             app_context.map(|ctx| (self.metrics.clone(), ctx)),
         ))
+    }
+
+    fn get_signer(&self) -> Option<&Signers> {
+        self.signer.as_ref()
     }
 }
 

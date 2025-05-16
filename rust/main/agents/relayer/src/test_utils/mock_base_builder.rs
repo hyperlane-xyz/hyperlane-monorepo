@@ -12,6 +12,7 @@ use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
 };
+use hyperlane_ethereum::Signers;
 
 use crate::msg::metadata::{
     BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
@@ -105,6 +106,9 @@ impl MockBaseMetadataBuilder {
 
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for MockBaseMetadataBuilder {
+    fn get_signer(&self) -> Option<&Signers> {
+        None // Mock implementation returning None
+    }
     fn origin_domain(&self) -> &HyperlaneDomain {
         self.responses
             .origin_domain

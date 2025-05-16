@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
 
-use crate::server::{MessageRetryQueueResponse, MessageRetryRequest};
+use crate::server::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 

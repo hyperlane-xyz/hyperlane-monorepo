@@ -393,6 +393,7 @@ export async function getWarpRouteDeployConfig({
       warpRouteId: providedWarpRouteId,
       context,
       symbol,
+      promptByDeploymentConfigs: true,
     });
 
     warpDeployConfig = await readWarpRouteDeployConfig({

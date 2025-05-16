@@ -61,8 +61,8 @@ export const getTRUMPWarpConfig = async (
       symbol,
       token: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
       owner: DEPLOYER,
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       foreignDeployment: '21tAY4poz2VXvghqdSQpn9j7gYravQmGpuQi8pHPx9DS',
+      gas: 64000,
     },
     base: {
       ...routerConfig.base,

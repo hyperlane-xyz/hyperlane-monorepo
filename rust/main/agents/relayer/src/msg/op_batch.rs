@@ -386,6 +386,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

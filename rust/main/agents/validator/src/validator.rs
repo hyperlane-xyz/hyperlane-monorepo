@@ -192,8 +192,7 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let custom_routes =
-            validator_server::routes(self.origin_chain.clone(), self.core.metrics.clone());
+        let router = validator_server::router(self.origin_chain.clone(), self.core.metrics.clone());
         let server = self
             .core
             .settings
@@ -201,7 +200,7 @@ impl BaseAgent for Validator {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(router);
             }
             .instrument(info_span!("Validator server")),
         );

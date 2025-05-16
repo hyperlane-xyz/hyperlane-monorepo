@@ -1,8 +1,9 @@
-use crate::CoreMetrics;
 use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
 use derive_new::new;
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 use tokio::task::JoinHandle;
+
+use crate::CoreMetrics;
 
 /// A server that serves agent-specific routes
 #[derive(new, Debug)]
@@ -14,7 +15,7 @@ pub struct Server {
 impl Server {
     /// Run an HTTP server
     pub fn run(self: Arc<Self>) -> JoinHandle<()> {
-        self.run_with_custom_routes(vec![])
+        self.run_with_custom_router(Router::new())
     }
 
     /// Run an HTTP server serving agent-specific different routes
@@ -23,30 +24,27 @@ impl Server {
     ///  - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
     ///  - custom_routes - additional routes to be served by the server as per the specific agent
-    pub fn run_with_custom_routes(
-        self: Arc<Self>,
-        custom_routes: Vec<(&str, Router)>,
-    ) -> JoinHandle<()> {
+    pub fn run_with_custom_router(self: Arc<Self>, router: Router) -> JoinHandle<()> {
         let port = self.listen_port;
         tracing::info!(port, "starting server on 0.0.0.0");
 
         let core_metrics_clone = self.core_metrics.clone();
 
-        let mut app = Router::new().route(
-            "/metrics",
-            get(move || Self::gather_metrics(core_metrics_clone)),
-        );
-
-        for (route, router) in custom_routes {
-            app = app.nest(route, router);
-        }
+        let app = Router::new()
+            .route(
+                "/metrics",
+                get(move || Self::gather_metrics(core_metrics_clone)),
+            )
+            .merge(router);
 
         tokio::task::Builder::new()
             .name("agent::server")
             .spawn(async move {
-                let addr = SocketAddr::from(([0, 0, 0, 0], port));
-                axum::Server::bind(&addr)
-                    .serve(app.into_make_service())
+                let url = format!("0.0.0.0:{}", port);
+                let listener = tokio::net::TcpListener::bind(url)
+                    .await
+                    .expect("Failed to bind to TCP port");
+                axum::serve(listener, app)
                     .await
                     .expect("Failed to start server");
             })

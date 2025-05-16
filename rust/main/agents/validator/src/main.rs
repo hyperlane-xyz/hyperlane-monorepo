@@ -14,6 +14,9 @@ mod settings;
 mod submit;
 mod validator;
 
+#[cfg(test)]
+mod test_utils;
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`

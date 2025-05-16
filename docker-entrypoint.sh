@@ -13,7 +13,7 @@ if [ -n "$REGISTRY_COMMIT" ]; then
   echo "Updating Hyperlane registry to: $REGISTRY_COMMIT"
   OLDPWD=$(pwd)
   cd "$REGISTRY_URI"
-  git fetch origin
+  git fetch origin "$REGISTRY_COMMIT"
   git checkout "$REGISTRY_COMMIT"
 
   # Only reset if it's a branch

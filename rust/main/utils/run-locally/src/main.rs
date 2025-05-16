@@ -371,7 +371,16 @@ fn main() -> ExitCode {
         log!("Success: Post startup invariants are met");
     }
 
-    let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+    let starting_relayer_balance = loop {
+        let result = agent_balance_sum(9092);
+        log!("Relayer balance result: {:?}", result);
+        if let Ok(starting_relayer_balance) = result {
+            break starting_relayer_balance;
+        } else {
+            log!("Relayer balance not yet available");
+            sleep(Duration::from_secs(5));
+        }
+    };
 
     // wait for CI invariants to pass
     let mut test_passed = wait_for_condition(

@@ -16,7 +16,7 @@ pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
-pub async fn estimate_tx(
+pub async fn estimate_gas_limit(
     provider: &Box<dyn EvmProviderForSubmitter>,
     tx_precursor: &mut EthereumTxPrecursor,
     transaction_overrides: &TransactionOverrides,

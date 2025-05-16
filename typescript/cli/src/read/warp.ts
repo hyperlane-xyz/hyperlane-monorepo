@@ -8,20 +8,15 @@ import {
 import {
   ChainMap,
   ChainName,
+  DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
-  StarknetERC20WarpRouteReader,
   TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
@@ -83,7 +78,7 @@ export async function getWarpRouteConfigsByCore({
 }: {
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
-}): Promise<ChainMap<HypTokenRouterConfig>> {
+}): Promise<DerivedWarpRouteDeployConfig> {
   const addresses = Object.fromEntries(
     warpCoreConfig.tokens.map((t) => [
       t.chainName,
@@ -104,8 +99,8 @@ async function deriveWarpRouteConfigs(
     standard: TokenStandard;
   }>,
   warpCoreConfig?: WarpCoreConfig,
-): Promise<ChainMap<HypTokenRouterConfig>> {
-  const { multiProvider, multiProtocolProvider } = context;
+): Promise<DerivedWarpRouteDeployConfig> {
+  const { multiProvider } = context;
 
   validateCompatibility(addresses);
 
@@ -116,26 +111,11 @@ async function deriveWarpRouteConfigs(
 
   // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, { address, standard }) => {
-      switch (TOKEN_STANDARD_TO_PROTOCOL[standard]) {
-        case ProtocolType.Ethereum: {
-          return new EvmERC20WarpRouteReader(
-            multiProvider,
-            chain,
-          ).deriveWarpRouteConfig(address);
-        }
-        case ProtocolType.Starknet: {
-          assert(multiProtocolProvider, 'Multi Protocol Provider not defined');
-          return new StarknetERC20WarpRouteReader(
-            multiProtocolProvider,
-            chain,
-          ).deriveWarpRouteConfig(address);
-        }
-        default:
-          logRed(`token standard ${standard} not supported`);
-          process.exit(1);
-      }
-    }),
+    objMap(addresses, async (chain, { address }) =>
+      new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
+        address,
+      ),
+    ),
   );
 }
 
