@@ -11,7 +11,7 @@ use hyperlane_core::{
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// gRPC urls to connect to
-    grpc_urls: Vec<Url>,
+    pub grpc_urls: Vec<Url>,
     /// The RPC url to connect to
     rpc_urls: Vec<Url>,
     /// The chain ID

@@ -24,14 +24,14 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Settings for RPCs
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
     pub url: String,
     pub public: bool,
 }
 
 /// Settings for `Validator`
-#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut, Clone)]
 pub struct ValidatorSettings {
     #[as_ref]
     #[as_mut]
