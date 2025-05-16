@@ -9,14 +9,15 @@ use url::Url;
 use hyperlane_base::settings::ChainConnectionConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{HyperlaneDomain, MerkleTreeHook};
+use hyperlane_core::{HyperlaneDomain, MerkleTreeHook, ReorgPeriod};
 use hyperlane_ethereum::RpcConnectionConf;
 
 use crate::settings::ValidatorSettings;
 
 #[async_trait]
 pub trait ReorgReporter: Send + Sync + Debug {
-    async fn report(&self, height: u64);
+    async fn report_at_block(&self, height: u64);
+    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod);
 }
 
 #[derive(Debug)]
@@ -26,11 +27,27 @@ pub struct LatestCheckpointReorgReporter {
 
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
-    async fn report(&self, height: u64) {
+    async fn report_at_block(&self, height: u64) {
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = merkle_tree_hook.clone();
                 Box::pin(async move { merkle_tree_hook.latest_checkpoint_at_block(height).await })
+            })
+            .await;
+
+            info!(
+                "Latest checkpoint on reorg for {}: {:?}",
+                url, latest_checkpoint
+            );
+        }
+    }
+
+    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
+            let latest_checkpoint = call_and_retry_indefinitely(|| {
+                let merkle_tree_hook = merkle_tree_hook.clone();
+                let period = reorg_period.clone();
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&period).await })
             })
             .await;
 

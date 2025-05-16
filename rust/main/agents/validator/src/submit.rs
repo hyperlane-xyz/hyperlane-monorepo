@@ -5,7 +5,7 @@ use std::vec;
 use futures::future::join_all;
 use prometheus::IntGauge;
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
@@ -252,9 +252,12 @@ impl ValidatorSubmitter {
             );
 
             if let Some(height) = correctness_checkpoint.block_height {
-                self.reorg_reporter.report(height).await;
+                self.reorg_reporter.report_at_block(height).await;
             } else {
-                warn!("Blockchain does not support block height, skipping reorg report");
+                info!("Blockchain does not support block height, reporting with reorg period");
+                self.reorg_reporter
+                    .report_with_reorg_period(&self.reorg_period)
+                    .await;
             }
 
             let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
@@ -674,7 +677,8 @@ mod test {
 
         #[async_trait]
         impl ReorgReporter for ReorgReporter {
-            async fn report(&self, block_height: u64);
+            async fn report_at_block(&self, block_height: u64);
+            async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod);
         }
     }
 
@@ -788,7 +792,7 @@ mod test {
 
         let mut mock_reorg_reporter = MockReorgReporter::new();
         mock_reorg_reporter
-            .expect_report()
+            .expect_report_at_block()
             .once()
             .return_once(|_| return ());
 
