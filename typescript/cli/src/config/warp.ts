@@ -36,6 +36,8 @@ import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
+  [TokenType.collateralCctp]: 'A CCTP token',
+  [TokenType.nativeOpL2ToL1]: 'An OP L2 token',
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
