@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures_util::future::join_all;
 use tracing::info;
 use url::Url;
 
@@ -28,34 +29,52 @@ pub struct LatestCheckpointReorgReporter {
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
     async fn report_at_block(&self, height: u64) {
+        let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let latest_checkpoint = call_and_retry_indefinitely(|| {
-                let merkle_tree_hook = merkle_tree_hook.clone();
-                Box::pin(async move { merkle_tree_hook.latest_checkpoint_at_block(height).await })
-            })
-            .await;
+            let future = async {
+                let latest_checkpoint = call_and_retry_indefinitely(|| {
+                    let merkle_tree_hook = merkle_tree_hook.clone();
+                    Box::pin(
+                        async move { merkle_tree_hook.latest_checkpoint_at_block(height).await },
+                    )
+                })
+                .await;
 
-            info!(
-                "Latest checkpoint on reorg for {}: {:?}",
-                url, latest_checkpoint
-            );
+                info!(
+                    "Latest checkpoint on reorg for {}: {:?}",
+                    url.clone(),
+                    latest_checkpoint
+                );
+            };
+
+            futures.push(future);
         }
+
+        join_all(futures).await;
     }
 
     async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+        let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let latest_checkpoint = call_and_retry_indefinitely(|| {
-                let merkle_tree_hook = merkle_tree_hook.clone();
-                let period = reorg_period.clone();
-                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&period).await })
-            })
-            .await;
+            let future = async {
+                let latest_checkpoint = call_and_retry_indefinitely(|| {
+                    let merkle_tree_hook = merkle_tree_hook.clone();
+                    let period = reorg_period.clone();
+                    Box::pin(async move { merkle_tree_hook.latest_checkpoint(&period).await })
+                })
+                .await;
 
-            info!(
-                "Latest checkpoint on reorg for {}: {:?}",
-                url, latest_checkpoint
-            );
+                info!(
+                    "Latest checkpoint on reorg for {}: {:?}",
+                    url.clone(),
+                    latest_checkpoint
+                );
+            };
+
+            futures.push(future);
         }
+
+        join_all(futures).await;
     }
 }
 
