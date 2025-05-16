@@ -49,15 +49,6 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       'interchainAccountRouter',
       [config.mailbox, ethers.constants.AddressZero, owner, 50_000],
     );
-    // TODO: remove this
-    const ismAddress = await interchainAccountRouter.CCIP_READ_ISM();
-    const ism = CommitmentReadIsm__factory.connect(
-      ismAddress,
-      this.multiProvider.getSigner(chain),
-    );
-    ism.setUrls([
-      'http://localhost:3000/callCommitments/getCallsFromCommitment',
-    ]);
 
     return {
       interchainAccountRouter,
