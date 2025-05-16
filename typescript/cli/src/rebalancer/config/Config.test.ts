@@ -211,6 +211,37 @@ describe('Config', () => {
       );
     });
 
+    it('should throw when an override references a non-existent chain', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        checkFrequency: 1000,
+        coingeckoApiKey: COINGECKO_API_KEY,
+        rebalanceStrategy: 'minAmount',
+        chain1: {
+          minAmount: 1000,
+          bridge: ethers.constants.AddressZero,
+          override: {
+            chain2: {
+              bridge: '0x1234567890123456789012345678901234567890',
+            },
+            chain3: {
+              bridgeMinAcceptedAmount: 1000,
+            },
+          },
+        },
+        chain2: {
+          minAmount: 2000,
+          bridge: ethers.constants.AddressZero,
+        },
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+      expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
+        "Chain 'chain1' has an override for 'chain3', but 'chain3' is not defined in the config",
+      );
+    });
+
     it('should allow multiple chain overrides', () => {
       data.chain1 = {
         bridge: ethers.constants.AddressZero,
@@ -225,6 +256,20 @@ describe('Config', () => {
             bridge: '0x1234567890123456789012345678901234567890',
           },
         },
+      };
+
+      data.chain2 = {
+        bridge: ethers.constants.AddressZero,
+        bridgeMinAcceptedAmount: 5000,
+        weight: 100,
+        tolerance: 0,
+      };
+
+      data.chain3 = {
+        bridge: ethers.constants.AddressZero,
+        bridgeMinAcceptedAmount: 6000,
+        weight: 100,
+        tolerance: 0,
       };
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);

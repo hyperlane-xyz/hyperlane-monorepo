@@ -76,7 +76,31 @@ const BaseConfigSchema = z.object({
   rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
 });
 
-const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
+const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
+  (config, ctx) => {
+    // Get all chain names from the config
+    const chainNames = Object.keys(config).filter(
+      (key) => !Object.keys(BaseConfigSchema.shape).includes(key),
+    );
+
+    // Check each chain's overrides
+    for (const chainName of chainNames) {
+      const chain = config[chainName] as ChainConfig;
+      if (chain.override) {
+        for (const overrideChainName of Object.keys(chain.override)) {
+          // Each override key must reference a valid chain
+          if (!chainNames.includes(overrideChainName)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+              path: [chainName, 'override', overrideChainName],
+            });
+          }
+        }
+      }
+    }
+  },
+);
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
