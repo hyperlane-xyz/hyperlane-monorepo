@@ -78,7 +78,6 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -111,13 +110,12 @@ interface WarpApplyParams extends DeployParams {
 export async function runWarpRouteDeploy({
   context,
   warpRouteDeploymentConfigPath,
-  multiProtocolSigner,
 }: {
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
-  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
+  const multiProtocolSigner = context.multiProtocolSigner;
   const multiProvider = await multiProtocolSigner?.getMultiProvider();
   assert(multiProvider, 'No MultiProvider found!');
 
@@ -683,27 +681,76 @@ async function deployWarpExtensionContracts(
   existingConfigs: WarpRouteDeployConfigMailboxRequired,
   initialExtendedConfigs: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
+  extendedChains: ChainName[],
 ) {
+  const { context } = params;
+  const { multiProvider, multiProtocolSigner } = context;
   // Deploy new contracts with derived metadata
   const extendedConfigs = await deriveMetadataFromExisting(
-    params.context.multiProvider,
+    multiProvider,
     existingConfigs,
     initialExtendedConfigs,
   );
 
-  const newDeployedContracts = await executeDeploy(
-    {
-      context: params.context,
-      warpDeployConfig: extendedConfigs,
-    },
-    apiKeys,
-  );
+  const chainsByProtocol = groupChainsByProtocol(extendedChains, multiProvider);
+  let newDeployedContracts: ChainMap<Address> = {};
+  let starknetSigners: ChainMap<StarknetAccount> = {};
 
+  // Execute deployments for each protocol
+  for (const protocol of Object.keys(chainsByProtocol) as ProtocolType[]) {
+    const protocolChains = chainsByProtocol[protocol];
+
+    switch (protocol) {
+      case ProtocolType.Ethereum:
+        {
+          const deployedEvmContracts = (await executeDeploy(
+            { context, warpDeployConfig: extendedConfigs },
+            apiKeys,
+          )) as any;
+
+          newDeployedContracts = {
+            ...newDeployedContracts,
+            ...deployedEvmContracts,
+          };
+        }
+        break;
+
+      case ProtocolType.Starknet: {
+        assert(
+          multiProtocolSigner,
+          'multi protocol signer is required for starknet chain deployment',
+        );
+        starknetSigners = protocolChains.reduce<ChainMap<StarknetAccount>>(
+          (acc, chain) => ({
+            ...acc,
+            [chain]: multiProtocolSigner.getStarknetSigner(chain),
+          }),
+          {},
+        );
+
+        const starknetDeployedContracts = await executeStarknetDeployments({
+          starknetSigners,
+          warpRouteConfig: extendedConfigs, // Only pass protocol-specific config
+          multiProvider,
+        });
+        newDeployedContracts = {
+          ...newDeployedContracts,
+          ...starknetDeployedContracts,
+        };
+
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported protocol type: ${protocol}`);
+    }
+  }
+  // Moved router merging and config generation outside the loop
   // Merge existing and new routers
   const mergedRouters = mergeAllRouters(
     params.context.multiProvider,
     existingConfigs,
-    newDeployedContracts,
+    newDeployedContracts as any,
     warpCoreConfigByChain,
   );
 
@@ -712,6 +759,7 @@ async function deployWarpExtensionContracts(
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
+  // Moved return statement outside the loop
   return {
     newDeployedContracts,
     updatedWarpCoreConfig,
@@ -758,6 +806,7 @@ export async function extendWarpRoute(
       existingConfigs,
       initialExtendedConfigs,
       warpCoreConfigByChain,
+      extendedChains,
     );
 
   // Write the updated artifacts
