@@ -28,6 +28,7 @@ import {
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenMetadataMap,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -44,7 +45,6 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -193,27 +193,22 @@ async function getWarpCoreConfig(
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
-  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    params.context.multiProvider,
-    params.warpDeployConfig,
-  );
-  assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
-    'Missing required token metadata',
-  );
-  const { decimals, symbol, name } = tokenMetadata;
-  assert(decimals, 'Missing decimals on token metadata');
+  const tokenMetadataMap: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(
+      params.context.multiProvider,
+      params.warpDeployConfig,
+    );
 
   generateTokenConfigs(
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
-    symbol,
-    name,
-    decimals,
+    tokenMetadataMap,
   );
 
   fullyConnectTokens(warpCoreConfig);
+
+  const symbol = tokenMetadataMap.getDefaultSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -225,9 +220,7 @@ function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  symbol: string,
-  name: string,
-  decimals: number,
+  tokenMetadataMap: TokenMetadataMap,
 ): void {
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -235,6 +228,13 @@ function generateTokenConfigs(
       isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
+
+    const decimals: number | undefined =
+      tokenMetadataMap.getDecimals(chainName);
+    const name: any = tokenMetadataMap.getName(chainName);
+    const symbol: any = tokenMetadataMap.getSymbol(chainName);
+
+    assert(decimals, `Decimals for ${chainName} doesn't exist`);
 
     warpCoreConfig.tokens.push({
       chainName,
@@ -513,7 +513,7 @@ async function deriveMetadataFromExisting(
 
   return objMap(extendedConfigs, (_chain, extendedConfig) => {
     return {
-      ...existingTokenMetadata,
+      ...existingTokenMetadata.getMetadataForChain(_chain),
       ...extendedConfig,
     };
   });
