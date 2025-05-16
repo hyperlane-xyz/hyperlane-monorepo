@@ -1,8 +1,10 @@
+import { Interface } from '@ethersproject/abi';
 import { ethers, utils } from 'ethers';
 
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
+  ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -70,6 +72,47 @@ export function getContractVerificationInput({
     isProxy,
     expectedimplementation,
   );
+}
+
+export async function getContractVerificationInputForZKSync({
+  name,
+  contract,
+  constructorArgs,
+  artifact,
+  isProxy,
+  expectedimplementation,
+}: {
+  name: string;
+  contract: ethers.Contract;
+  constructorArgs: any[];
+  artifact: ZKSyncArtifact;
+  isProxy?: boolean;
+  expectedimplementation?: Address;
+}): Promise<ContractVerificationInput> {
+  const args = await encodeArguments(artifact.abi, constructorArgs);
+  return buildVerificationInput(
+    name,
+    contract.address,
+    args,
+    isProxy,
+    expectedimplementation,
+  );
+}
+
+export async function encodeArguments(
+  abi: any,
+  constructorArgs: any[],
+): Promise<string> {
+  const contractInterface = new Interface(abi);
+  let deployArgumentsEncoded;
+  try {
+    deployArgumentsEncoded = contractInterface
+      .encodeDeploy(constructorArgs)
+      .replace('0x', '');
+  } catch {
+    throw new Error('Cant encode constructor args');
+  }
+  return deployArgumentsEncoded;
 }
 
 /**
