@@ -1,3 +1,5 @@
+import { RefineResult } from 'arcadia-sdk-wip/types/Refine.js';
+
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from '../types.js';
@@ -53,6 +55,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(
     destination: Domain,
     sender?: Address,
+    amount?: string,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
@@ -92,4 +95,22 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     rateLimitPerSecond: bigint,
     bridge: Address,
   ): Promise<Tx>;
+}
+
+export interface IEvmKhalaniIntentTokenAdapter<Tx> extends ITokenAdapter<Tx> {
+  createRefine(
+    sender: string,
+    toChainId: number,
+    amount: string,
+  ): Promise<string>;
+  queryRefine(refineId: string): Promise<RefineResult>;
+  waitForMTokenMinting(expectedBalance: bigint, account: string): void;
+  buildIntentSigningPayload(refineResult: RefineResult, account: string): any;
+  proposeIntent(
+    refineResult: RefineResult,
+    signature: string,
+  ): Promise<{
+    transactionHash: string;
+    intentId: string;
+  }>;
 }
