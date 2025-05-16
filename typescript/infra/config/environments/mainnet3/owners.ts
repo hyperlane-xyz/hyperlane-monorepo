@@ -87,6 +87,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   milkyway: {
     owner: 'TODO: configure milkyway owner',
   },
+  kyve: {
+    owner: 'TODO: configure kyve owner',
+  },
   soon: {
     // Squads vault
     owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',

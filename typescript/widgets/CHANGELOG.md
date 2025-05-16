@@ -1,5 +1,31 @@
 # @hyperlane-xyz/widgets
 
+## 12.6.0
+
+### Minor Changes
+
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [2ae0f72]
+- Updated dependencies [672d6d1]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [6a70b8d]
+- Updated dependencies [d182d7d]
+- Updated dependencies [248d2e1]
+- Updated dependencies [e2a4727]
+- Updated dependencies [b360802]
+- Updated dependencies [f6ed6ad]
+- Updated dependencies [31ee1c6]
+- Updated dependencies [a36d5c1]
+  - @hyperlane-xyz/cosmos-sdk@12.6.0
+  - @hyperlane-xyz/sdk@12.6.0
+  - @hyperlane-xyz/utils@12.6.0
+
 ## 12.5.0
 
 ### Patch Changes

@@ -60,6 +60,7 @@ export {
 export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
+export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
 export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
@@ -120,6 +121,7 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { executeWarpDeploy } from './deploy/warp.js';
 export {
   SealevelOverheadIgpAdapter,
   SealevelIgpAdapter,
@@ -365,6 +367,10 @@ export {
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   SolanaWeb3TransactionReceipt,
+  StarknetJsContract,
+  StarknetJsProvider,
+  StarknetJsTransaction,
+  StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
@@ -461,6 +467,8 @@ export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
+export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
+export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
@@ -711,3 +719,12 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+
+export {
+  StarknetContractName,
+  getStarknetContract,
+  getStarknetHypERC20Contract,
+  getStarknetHypERC20CollateralContract,
+  getStarknetMailboxContract,
+  getStarknetEtherContract,
+} from './utils/starknet.js';

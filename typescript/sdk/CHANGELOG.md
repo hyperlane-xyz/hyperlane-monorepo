@@ -1,5 +1,32 @@
 # @hyperlane-xyz/sdk
 
+## 12.6.0
+
+### Minor Changes
+
+- 76f0eba: Add Cosmos Native ISM Reader & Module
+- 2ae0f72: Add contract verification to CLI Warp Checker
+- 672d6d1: adds logic to expand an ism or hook config if it is partially defined in the input file for the warp checker
+- 1f370e6: Add HookModule.resolveHookAddresses() to resolve all HookConfig addresses
+- 6a70b8d: Move executeDeploy logic from CLI to SDK
+- d182d7d: Adds the sortArraysInObject function to properly sort arrays in an object recursively given an optional sort function
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+- e2a4727: Deploy to new chains: ontology, miraclechain, kyve.
+- b360802: Add the isCosmosIbcDenomAddress function and improve the config expansion logic to correctly format the destination gas
+- 31ee1c6: Adds fiatCollateral token on chain config derivation logic as it was incorrectly inferred as collateral
+- a36d5c1: add cosmos native hook module & reader
+
+### Patch Changes
+
+- 7d56f2c: Pass remote chain to adjustForPrecisionLoss for better error logging
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+- Updated dependencies [76f0eba]
+- Updated dependencies [d182d7d]
+- Updated dependencies [b360802]
+  - @hyperlane-xyz/cosmos-sdk@12.6.0
+  - @hyperlane-xyz/utils@12.6.0
+  - @hyperlane-xyz/core@7.1.5
+
 ## 12.5.0
 
 ### Patch Changes
