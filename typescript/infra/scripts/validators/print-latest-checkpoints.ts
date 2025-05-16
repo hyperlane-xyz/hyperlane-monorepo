@@ -101,18 +101,15 @@ async function main() {
         return validator?.alias || '';
       };
 
-      // Check if the chain is a core chain
-      // If it's not a core chain, then we'll want to check all announced validators
-      const isCoreChain = defaultMultisigConfigs[chain] !== undefined;
-
       // For each validator on this chain
       for (let i = 0; i < announcedValidators.length; i++) {
         const validator = announcedValidators[i];
         const location = storageLocations[i][storageLocations[i].length - 1];
 
         // Skip validators not in default ISM unless --all flag is set
+        // If it's not a core chain, then we'll want to check all announced validators
         const isDefaultIsmValidator = findDefaultValidatorAlias(validator);
-        if (isCoreChain && !isDefaultIsmValidator && !all) {
+        if (defaultIsmValidators.length > 0 && !isDefaultIsmValidator && !all) {
           continue;
         }
 
