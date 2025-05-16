@@ -8023,6 +8023,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^3.5.3"
     sinon: "npm:^13.0.2"
+    starknet: "npm:^6.24.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
   languageName: unknown
