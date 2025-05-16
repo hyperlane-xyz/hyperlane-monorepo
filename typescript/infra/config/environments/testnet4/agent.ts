@@ -78,6 +78,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -87,6 +88,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -126,6 +128,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -135,6 +138,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -174,6 +178,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -183,6 +188,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: false,
@@ -248,7 +254,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
   // Default policy is OnChainFeeQuoting
   {
-    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    type: GasPaymentEnforcementPolicyType.None,
   },
 ];
 
@@ -404,7 +410,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1363c76-20250507-120738',
+      tag: '7411c6f-20250428-161515',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -413,7 +419,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1363c76-20250507-120738',
+      tag: '2b57db0-20250514-154616',
     },
     resources: scraperResources,
   },
@@ -428,7 +434,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd9e0b4b-20250425-145730',
+      tag: 'd1a1ac8-20250502-153149',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -460,33 +466,31 @@ export const kesselRunnerNetworks = [
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '8c17063-20250515-163832',
     },
-    whitelist: kesselMatchingList,
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {
       enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
     },
-    resources: {
-      requests: {
-        cpu: '20000m',
-        memory: '32Gi',
-      },
+    resources: relayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
     },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
