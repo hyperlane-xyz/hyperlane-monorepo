@@ -9,17 +9,12 @@ import {
   Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, stringifyObject } from '@hyperlane-xyz/utils';
+import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
-import { IExecutor } from '../interfaces/IExecutor.js';
-import { RebalancingRoute } from '../interfaces/IStrategy.js';
-
-type BridgeConfig = {
-  bridge: Address;
-  minAcceptedAmount: bigint;
-  isWarp: boolean;
-};
+import type { IExecutor } from '../interfaces/IExecutor.js';
+import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 
 export class Executor implements IExecutor {
   private readonly tokensByChainName: Map<ChainName, Token>;
@@ -77,8 +72,12 @@ export class Executor implements IExecutor {
       const signer = new ethers.Wallet(this.rebalancerKey, provider);
       const signerAddress = await signer.getAddress();
       const domain = chainMetadata[toChain].domainId;
-      const { bridge, minAcceptedAmount, isWarp } = this.bridges[fromChain];
       const recipient = destinationToken.addressOrDenom;
+      const { bridge, bridgeMinAcceptedAmount, bridgeIsWarp } = getBridgeConfig(
+        this.bridges,
+        fromChain,
+        toChain,
+      );
 
       if (!(await originHypAdapter.isRebalancer(signerAddress))) {
         throw new Error(`Signer ${signerAddress} is not a rebalancer`);
@@ -98,9 +97,9 @@ export class Executor implements IExecutor {
 
       // Skip this rebalance route if the amount is below the configured minimum threshold.
       // This prevents dust amounts or economically unviable transfers
-      if (minAcceptedAmount > amount) {
+      if (bridgeMinAcceptedAmount > amount) {
         log(
-          `Route ${fromChain} → ${toChain} skipped: amount ${amount} below minimum threshold ${minAcceptedAmount}`,
+          `Route ${fromChain} → ${toChain} skipped: amount ${amount} below minimum threshold ${bridgeMinAcceptedAmount}`,
         );
 
         continue;
@@ -118,7 +117,7 @@ export class Executor implements IExecutor {
           domain,
           recipient,
           amount,
-          isWarp,
+          bridgeIsWarp,
         );
       } catch (error) {
         throw new Error(
