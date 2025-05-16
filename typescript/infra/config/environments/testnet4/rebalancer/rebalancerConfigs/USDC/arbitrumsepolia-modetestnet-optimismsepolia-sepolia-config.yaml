@@ -1,15 +1,15 @@
 arbitrumsepolia:
   weight: '100'
   tolerance: '2'
-  bridgeTolerance: 1
+  bridgeTolerance: 80000
   bridge: '0xCF5d6011A8adE3f8d36751Bd79a204067ff1Ca6c'
 optimismsepolia:
   weight: '100'
   tolerance: '2'
-  bridgeTolerance: 1
+  bridgeTolerance: 80000
   bridge: '0x01AeBc855096105e18662b16982C7aE99b30C0dd'
 sepolia:
   weight: '100'
   tolerance: '2'
-  bridgeTolerance: 1
+  bridgeTolerance: 80000
   bridge: '0xdFDcf9E7897d24E084410E8B54e751a1EF698c3e'
