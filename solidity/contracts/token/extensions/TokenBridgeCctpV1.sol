@@ -18,9 +18,8 @@ contract TokenBridgeCctpV1 is TokenBridgeCctp {
         uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
-        ITokenMessenger _tokenMessenger,
-        string[] memory __urls
-    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter, __urls) {
+        ITokenMessenger _tokenMessenger
+    ) TokenBridgeCctp(_erc20, _scale, _mailbox, _messageTransmitter) {
         uint32 version = _tokenMessenger.messageBodyVersion();
         require(
             version == CCTP_VERSION_1,
@@ -34,6 +33,18 @@ contract TokenBridgeCctpV1 is TokenBridgeCctp {
         );
 
         tokenMessenger = _tokenMessenger;
+        wrappedToken.approve(address(tokenMessenger), type(uint256).max);
+    }
+
+    function initialize(
+        address _hook,
+        address _owner,
+        string[] memory __urls
+    ) public virtual initializer {
+        __Ownable_init();
+        setUrls(__urls);
+        // ISM should not be set
+        _MailboxClient_initialize(_hook, address(0), _owner);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 

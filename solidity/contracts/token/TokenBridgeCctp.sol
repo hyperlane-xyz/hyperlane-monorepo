@@ -48,11 +48,9 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         address _erc20,
         uint256 _scale,
         address _mailbox,
-        IMessageTransmitter _messageTransmitter,
-        string[] memory __urls
+        IMessageTransmitter _messageTransmitter
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         messageTransmitter = _messageTransmitter;
-        setUrls(__urls);
     }
 
     function interchainSecurityModule()
@@ -72,10 +70,21 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
     function addDomain(
         uint32 _hyperlaneDomain,
         uint32 _circleDomain
-    ) external onlyOwner {
+    ) public onlyOwner {
         hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
+    }
+
+    struct Domain {
+        uint32 hyperlane;
+        uint32 circle;
+    }
+
+    function addDomains(Domain[] memory domains) external onlyOwner {
+        for (uint32 i = 0; i < domains.length; i++) {
+            addDomain(domains[i].hyperlane, domains[i].circle);
+        }
     }
 
     function _transferRemote(
@@ -96,10 +105,6 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         );
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
-        if (_destination != 1) {
-            require(circleDomain != 0, "Circle domain not set");
-        }
-
         _cctpDepositForBurn(circleDomain, _recipient, _amount);
     }
 
@@ -130,10 +135,6 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes memory cctpMessage
     ) internal view virtual returns (bool);
 
-    /**
-     * @notice Specify which CCTP version to use by
-     * implementing this method
-     */
     function _cctpDepositForBurn(
         uint32 _destination,
         bytes32 _recipient,

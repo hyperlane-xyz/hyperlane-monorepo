@@ -100,8 +100,7 @@ contract TokenBridgeCctpV1Test is Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessenger(address(tokenMessengerOrigin)),
-            urls
+            ITokenMessenger(address(tokenMessengerOrigin))
         );
 
         tbDestination = new TokenBridgeCctpV1(
@@ -109,8 +108,7 @@ contract TokenBridgeCctpV1Test is Test {
             scale,
             address(mailboxDestination),
             IMessageTransmitter(address(messageTransmitterDestination)),
-            ITokenMessenger(address(tokenMessengerDestination)),
-            urls
+            ITokenMessenger(address(tokenMessengerDestination))
         );
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
@@ -201,8 +199,7 @@ contract TokenBridgeCctpV1Test is Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessenger(address(tokenMessengerV2)),
-            urls
+            ITokenMessenger(address(tokenMessengerV2))
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
@@ -213,8 +210,7 @@ contract TokenBridgeCctpV1Test is Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessenger(address(tokenMessengerOrigin)),
-            urls
+            ITokenMessenger(address(tokenMessengerOrigin))
         );
     }
 
@@ -277,8 +273,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessengerV2(address(tokenMessengerOriginV2)),
-            urls
+            ITokenMessengerV2(address(tokenMessengerOriginV2))
         );
 
         tbDestination = new TokenBridgeCctpV2(
@@ -286,8 +281,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             scale,
             address(mailboxDestination),
             IMessageTransmitter(address(messageTransmitterDestination)),
-            ITokenMessengerV2(address(tokenMessengerDestinationV2)),
-            urls
+            ITokenMessengerV2(address(tokenMessengerDestinationV2))
         );
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
@@ -302,8 +296,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessengerV2(address(tokenMessengerOrigin)),
-            urls
+            ITokenMessengerV2(address(tokenMessengerOrigin))
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
@@ -314,8 +307,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             scale,
             address(mailboxOrigin),
             IMessageTransmitter(address(messageTransmitterOrigin)),
-            ITokenMessengerV2(address(tokenMessengerOriginV2)),
-            urls
+            ITokenMessengerV2(address(tokenMessengerOriginV2))
         );
     }
 }
