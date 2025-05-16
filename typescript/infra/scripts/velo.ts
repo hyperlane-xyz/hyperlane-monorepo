@@ -47,10 +47,10 @@ async function main() {
   //   deploy trusted relayer ism to avoid having to run a relayer locally
   //   const ism = await (new TrustedRelayerIsm__factory(multiProvider.getSigner('test2'))).deploy(core.getAddresses('test2').mailbox, '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266')
   //   await core.contractsMap.test2.mailbox.setDefaultIsm(ism.address)
-    const testReipientContract = TestRecipient__factory.connect(
-      testRecipient,
-      multiProvider.getSigner(destination),
-    );
+  const testReipientContract = TestRecipient__factory.connect(
+    testRecipient,
+    multiProvider.getSigner(destination),
+  );
 
   console.log('Start preparing the call');
 
@@ -78,7 +78,7 @@ async function main() {
   const ica = await interchainAccountRouter[
     'getRemoteInterchainAccount(uint32,address)'
   ](destinationDomainId, await multiProvider.getSigner(origin).getAddress());
-  const commitment = commitmentFromIcaCalls(calls, salt, ica);
+  const commitment = commitmentFromIcaCalls(calls, salt);
   const originTx = await interchainAccountRouter[
     'callRemoteCommitReveal(uint32,bytes32,uint256)'
   ](destinationDomainId, commitment, 100000, { value: quote });
@@ -87,7 +87,6 @@ async function main() {
 
   // Post the committed calls to the CCIP-read server using fetch
 
-  console.log('Dispatched on chain');
   const messageId = core.getDispatchedMessages(receipt)[0].id;
   const relayerAddress = await multiProvider
     .getSigner(destination)
@@ -113,7 +112,7 @@ async function main() {
   );
 
   //   first is just the commitment
-    await relayer.relayMessage(receipt, 0);
+  await relayer.relayMessage(receipt, 0);
 
   // the result shouldn't yet change after the commitment
   //   const result = await testReipientContract.lastCallMessage();
@@ -121,11 +120,11 @@ async function main() {
 
   //   Now we relay the reveal (reanble once the ISM blocks on the commitment being relayed)
   await relayer.relayMessage(receipt, 1);
-  const result = await testReipientContract.lastCallMessage()
-    assert(
-  testmessage === (await testReipientContract.lastCallMessage()),
-  'Result should change after the reveal ' + result,
-    );
+  const result = await testReipientContract.lastCallMessage();
+  assert(
+    testmessage === (await testReipientContract.lastCallMessage()),
+    'Result should change after the reveal ' + result,
+  );
 }
 
 main().then(console.log).catch(console.error);

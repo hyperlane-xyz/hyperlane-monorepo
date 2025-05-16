@@ -1,5 +1,4 @@
-import { JsonFragment } from '@ethersproject/abi';
-import { utils } from 'ethers';
+import { Fragment, Interface } from '@ethersproject/abi';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
@@ -15,14 +14,14 @@ import type { NextFunction, Request, Response } from 'express';
  * @param serviceMethod A method that takes the decoded arguments and returns a Promise of the result
  */
 export function createAbiHandler<F extends string>(
-  abi: JsonFragment | JsonFragment[],
+  abi: string | Fragment | Array<string | Fragment>,
   functionName: F,
   serviceMethod: (...args: any[]) => Promise<any>,
   skipResultEncoding: boolean = false,
 ) {
   // Normalize ABI to an array of fragments
-  const fragments: JsonFragment[] = Array.isArray(abi) ? abi : [abi];
-  const iface = new utils.Interface(fragments);
+  const fragments: Array<string | Fragment> = Array.isArray(abi) ? abi : [abi];
+  const iface = new Interface(fragments);
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Support POST body or GET URL param/query

@@ -27,7 +27,7 @@ export class CallCommitmentsService {
 
   public handleCommitment(req: Request, res: Response) {
     const { calls, relayers, salt, ica } = req.body;
-    const key = commitmentFromIcaCalls(calls, salt, ica);
+    const key = commitmentFromIcaCalls(calls, salt);
     this.callCommitments.set(key, { calls, relayers, salt, ica });
     console.log('Stored commitment', key);
     res.sendStatus(200);
@@ -39,11 +39,9 @@ export class CallCommitmentsService {
       console.log('Commitment not found', commitment);
       throw new Error('Commitment not found');
     }
-    const encoded = encodeIcaCalls(
-      normalizeCalls(entry.calls),
-      entry.salt,
-      entry.ica,
-    );
+    const encoded =
+      entry.ica +
+      encodeIcaCalls(normalizeCalls(entry.calls), entry.salt).slice(2);
     console.log('Serving calls for commitment', commitment);
     return Promise.resolve(encoded);
   }

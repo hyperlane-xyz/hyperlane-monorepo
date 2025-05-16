@@ -255,18 +255,21 @@ export async function deployInterchainAccount(
   return interchainAccountApp.deployAccount(chain, config);
 }
 
-export function encodeIcaCalls(calls: CallData[], salt: string, ica: string) {
-  return utils.defaultAbiCoder.encode(
-    ['tuple(bytes32 to,uint256 value,bytes data)[]', 'bytes32', 'address'],
-    [
-      calls.map((c) => ({
-        to: addressToBytes32(c.to),
-        value: c.value || 0,
-        data: c.data,
-      })),
-      salt,
-      ica,
-    ],
+export function encodeIcaCalls(calls: CallData[], salt: string) {
+  return (
+    salt +
+    utils.defaultAbiCoder
+      .encode(
+        ['tuple(bytes32 to,uint256 value,bytes data)[]'],
+        [
+          calls.map((c) => ({
+            to: addressToBytes32(c.to),
+            value: c.value || 0,
+            data: c.data,
+          })),
+        ],
+      )
+      .slice(2)
   );
 }
 
@@ -288,9 +291,8 @@ export function normalizeCalls(calls: RawCallData[]): CallData[] {
 export function commitmentFromIcaCalls(
   calls: CallData[],
   salt: string,
-  ica: string,
 ): string {
-  return utils.keccak256(encodeIcaCalls(calls, salt, ica));
+  return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
 export function shareCallsWithPrivateRelayer(
