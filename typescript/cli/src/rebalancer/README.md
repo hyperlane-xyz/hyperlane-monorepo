@@ -47,6 +47,15 @@ sepolia:
   # This is because bridges composed of other warp routes are interacted with differently
   bridgeIsWarp: false
 
+  # Optional: Specify override configurations for specific chains
+  # This allows you to customize how this chain interacts with other particular chains
+  override:
+    arbitrumsepolia: # Chain name to override settings for
+      bridge: '0x4321...' # Use a different bridge when sending to this chain
+      bridgeTolerance: 300000 # 5 minutes in ms
+      bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
+      bridgeIsWarp: yes
+
   # Strategy-specific parameters (depending on rebalanceStrategy)
   # Use one set of values for the strategy you are using
 
