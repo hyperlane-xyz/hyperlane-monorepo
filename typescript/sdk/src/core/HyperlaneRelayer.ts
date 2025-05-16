@@ -265,7 +265,6 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
-    // TODO decide whether to simulate or not
     this.logger.debug({ message }, `Simulating recipient message handling`);
     await this.core.estimateHandle(message);
 
