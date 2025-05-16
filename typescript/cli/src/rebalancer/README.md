@@ -40,7 +40,7 @@ sepolia:
   bridgeTolerance: 300000 # 5 minutes in ms
 
   # Optional: Minimum amount to bridge (in wei)
-  # Used to prevent transfering small amounts that are not worth the gas cost
+  # Used to prevent transferring small amounts that are not worth the gas cost
   bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
 
   # Optional: Set to true if the bridge is another Warp Route
