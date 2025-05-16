@@ -61,7 +61,7 @@ class CCTPService {
         if (parsedLog.name === 'MessageSent') {
           return parsedLog.args.message;
         }
-      } catch (err) {
+      } catch (_err) {
         // This log is not from the events in our ABI
         continue;
       }

@@ -1,5 +1,5 @@
 import { Fragment, Interface } from '@ethersproject/abi';
-import type { NextFunction, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 /**
  * Creates an Express handler that:
@@ -22,7 +22,7 @@ export function createAbiHandler<F extends string>(
   // Normalize ABI to an array of fragments
   const fragments: Array<string | Fragment> = Array.isArray(abi) ? abi : [abi];
   const iface = new Interface(fragments);
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response) => {
     try {
       // Support POST body or GET URL param/query
       const data: string =
