@@ -12,7 +12,7 @@ import {
   IXERC20__factory,
   OPL2ToL1TokenBridgeNative__factory,
   ProxyAdmin__factory,
-  TokenBridgeCctp__factory,
+  TokenBridgeCctpV1__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -393,21 +393,21 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctp__factory.connect(
+    const tokenBridge = TokenBridgeCctpV1__factory.connect(
       hypToken,
       this.provider,
     );
 
     const messageTransmitter = await tokenBridge.messageTransmitter();
-
-    // TODO: implement
-    const circleDomainMappings = {};
+    const tokenMessenger = await tokenBridge.tokenMessenger();
+    const urls = await tokenBridge.urls();
 
     return {
       ...collateralConfig,
       type: TokenType.collateralCctp,
       messageTransmitter,
-      circleDomainMappings,
+      tokenMessenger,
+      urls,
     };
   }
 

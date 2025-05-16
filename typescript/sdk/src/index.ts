@@ -634,6 +634,8 @@ export {
   SyntheticRebaseTokenConfigSchema,
   SyntheticTokenConfig,
   SyntheticTokenConfigSchema,
+  CctpTokenConfig,
+  CctpTokenConfigSchema,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
