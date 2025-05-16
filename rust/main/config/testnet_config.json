@@ -2707,10 +2707,10 @@
     "plumetestnet2": {
       "blockExplorers": [
         {
-          "apiUrl": "https://testnet-explorer.plumenetwork.xyz/api",
+          "apiUrl": "https://testnet-explorer.plume.org/api",
           "family": "blockscout",
           "name": "Plume Explorer",
-          "url": "https://testnet-explorer.plumenetwork.xyz"
+          "url": "https://testnet-explorer.plume.org"
         }
       ],
       "blocks": {
@@ -2739,7 +2739,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://testnet-rpc.plumenetwork.xyz"
+          "http": "https://testnet-rpc.plume.org"
         }
       ],
       "technicalStack": "arbitrumnitro",
