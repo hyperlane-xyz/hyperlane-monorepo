@@ -797,7 +797,8 @@ export class WarpCore {
     });
 
     if (!valid) {
-      return { amount: 'Insufficient collateral on destination' };
+      console.log('Insufficient collateral on destination');
+      // return { amount: 'Insufficient collateral on destination' };
     }
     return null;
   }
