@@ -60,6 +60,7 @@ export {
 export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
+export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
 export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
@@ -366,6 +367,10 @@ export {
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   SolanaWeb3TransactionReceipt,
+  StarknetJsContract,
+  StarknetJsProvider,
+  StarknetJsTransaction,
+  StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
@@ -712,3 +717,12 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+
+export {
+  StarknetContractName,
+  getStarknetContract,
+  getStarknetHypERC20Contract,
+  getStarknetHypERC20CollateralContract,
+  getStarknetMailboxContract,
+  getStarknetEtherContract,
+} from './utils/starknet.js';
