@@ -79,8 +79,10 @@ const BaseConfigSchema = z.object({
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
   (config, ctx) => {
     // Get all chain names from the config
-    const chainNames = Object.keys(config).filter(
-      (key) => !Object.keys(BaseConfigSchema.shape).includes(key),
+    const chainNames = new Set(
+      Object.keys(config).filter(
+        (key) => !Object.keys(BaseConfigSchema.shape).includes(key),
+      ),
     );
 
     // Check each chain's overrides
@@ -90,7 +92,7 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
       if (chain.override) {
         for (const overrideChainName of Object.keys(chain.override)) {
           // Each override key must reference a valid chain
-          if (!chainNames.includes(overrideChainName)) {
+          if (!chainNames.has(overrideChainName)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
