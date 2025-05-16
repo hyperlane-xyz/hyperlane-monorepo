@@ -184,7 +184,7 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       });
     }
 
-    if (config.owner && this.signer.account.address !== config.owner) {
+    if (this.signer.account.address !== config.owner) {
       await this.signer.setIgpOwner({
         igp_id: igp.id,
         new_owner: config.owner,
