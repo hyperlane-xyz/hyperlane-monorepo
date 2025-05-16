@@ -212,11 +212,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     if (typeof config.requiredHook !== 'string') {
       switch (config.requiredHook.type) {
         case HookType.INTERCHAIN_GAS_PAYMASTER: {
-          addresses.interchainGasPaymaster = defaultHook;
+          addresses.interchainGasPaymaster = requiredHook;
           break;
         }
         case HookType.MERKLE_TREE: {
-          addresses.merkleTreeHook = defaultHook;
+          addresses.merkleTreeHook = requiredHook;
           break;
         }
       }
