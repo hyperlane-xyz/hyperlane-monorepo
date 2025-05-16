@@ -152,9 +152,9 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), amount);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
 
-        tbOrigin.transferRemote{value: quote[0].amount + amount}(
+        tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
@@ -175,11 +175,7 @@ contract TokenBridgeCctpV1Test is Test {
             tokenMessengerDestination.nextNonce()
         );
 
-        messageTransmitterDestination.process(
-            nonceId,
-            address(tbDestination),
-            amount
-        );
+        messageTransmitterDestination.process(nonceId, user, amount);
 
         vm.expectEmit(address(tbDestination));
         emit TokenRouter.ReceivedTransferRemote(

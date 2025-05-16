@@ -121,8 +121,16 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _owner,
             _commitment_urls
         );
-        interchainSecurityModule = IInterchainSecurityModule(address(this));
         COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
+    }
+
+    function interchainSecurityModule()
+        external
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        return IInterchainSecurityModule(address(this));
     }
 
     /**

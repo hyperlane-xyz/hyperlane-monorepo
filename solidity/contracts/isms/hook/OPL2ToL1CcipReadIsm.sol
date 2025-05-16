@@ -70,7 +70,7 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         );
         opPortalVersion = _opPortalVersion;
         opPortal = IOptimismPortal(_opPortal);
-        interchainSecurityModule = IInterchainSecurityModule(address(this));
+        _interchainSecurityModule = IInterchainSecurityModule(address(this));
         setUrls(_urls);
     }
 

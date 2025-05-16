@@ -49,11 +49,9 @@ contract TokenBridgeCctpV2 is TokenBridgeCctp {
         bytes32 _recipient,
         uint256 _amount
     ) internal override {
-        uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
-
         tokenMessenger.depositForBurn(
             _amount,
-            circleDomain,
+            _destination,
             _recipient,
             address(wrappedToken),
             bytes32(0),

@@ -51,9 +51,17 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         IMessageTransmitter _messageTransmitter,
         string[] memory __urls
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
-        interchainSecurityModule = IInterchainSecurityModule(address(this));
-        setUrls(__urls);
         messageTransmitter = _messageTransmitter;
+        setUrls(__urls);
+    }
+
+    function interchainSecurityModule()
+        external
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        return IInterchainSecurityModule(address(this));
     }
 
     /**
@@ -87,7 +95,12 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             _hook
         );
 
-        _cctpDepositForBurn(_destination, _recipient, _amount);
+        uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
+        if (_destination != 1) {
+            require(circleDomain != 0, "Circle domain not set");
+        }
+
+        _cctpDepositForBurn(circleDomain, _recipient, _amount);
     }
 
     function _offchainLookupCalldata(
@@ -126,4 +139,12 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes32 _recipient,
         uint256 _amount
     ) internal virtual;
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount,
+        bytes calldata metadata
+    ) internal override {
+        // do not transfer to recipient as the CCTP transfer will do it
+    }
 }
