@@ -242,6 +242,34 @@ describe('Config', () => {
       );
     });
 
+    it('should throw when an override references itself', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        checkFrequency: 1000,
+        coingeckoApiKey: COINGECKO_API_KEY,
+        rebalanceStrategy: 'minAmount',
+        chain1: {
+          minAmount: 1000,
+          bridge: ethers.constants.AddressZero,
+          override: {
+            chain1: {
+              bridgeMinAcceptedAmount: 1000,
+            },
+          },
+        },
+        chain2: {
+          minAmount: 2000,
+          bridge: ethers.constants.AddressZero,
+        },
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+      expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
+        "Chain 'chain1' has an override for 'chain1', but 'chain1' is self-referencing",
+      );
+    });
+
     it('should allow multiple chain overrides', () => {
       data.chain1 = {
         bridge: ethers.constants.AddressZero,

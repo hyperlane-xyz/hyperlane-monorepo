@@ -86,6 +86,7 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
     // Check each chain's overrides
     for (const chainName of chainNames) {
       const chain = config[chainName] as ChainConfig;
+
       if (chain.override) {
         for (const overrideChainName of Object.keys(chain.override)) {
           // Each override key must reference a valid chain
@@ -93,6 +94,15 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+              path: [chainName, 'override', overrideChainName],
+            });
+          }
+
+          // Override shouldn't be self-referencing
+          if (chainName === overrideChainName) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
               path: [chainName, 'override', overrideChainName],
             });
           }
