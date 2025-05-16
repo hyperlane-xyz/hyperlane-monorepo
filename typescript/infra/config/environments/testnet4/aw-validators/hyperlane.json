@@ -139,9 +139,6 @@
   "sonicsvmtestnet": {
     "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
   },
-  "suavetoliman": {
-    "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
-  },
   "subtensortestnet": {
     "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
   },
