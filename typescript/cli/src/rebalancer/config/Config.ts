@@ -49,10 +49,22 @@ const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
     .optional(),
 });
 
-// Union of possible chain configs
-const ChainConfigSchema = z.union([
-  WeightedChainConfigSchema,
-  MinAmountChainConfigSchema,
+const OverrideValueSchema = BaseChainConfigSchema.partial().passthrough();
+
+const BaseChainConfigSchemaWithOverride = BaseChainConfigSchema.extend({
+  override: z.record(z.string(), OverrideValueSchema).optional(),
+});
+
+const WeightedChainConfigSchemaWithOverride =
+  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema);
+
+const MinAmountChainConfigSchemaWithOverride =
+  BaseChainConfigSchemaWithOverride.merge(MinAmountChainConfigSchema);
+
+// Union of possible chain configs with override
+export const ChainConfigSchema = z.union([
+  WeightedChainConfigSchemaWithOverride,
+  MinAmountChainConfigSchemaWithOverride,
 ]);
 
 const BaseConfigSchema = z.object({
@@ -64,7 +76,43 @@ const BaseConfigSchema = z.object({
   rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
 });
 
-const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
+const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
+  (config, ctx) => {
+    // Get all chain names from the config
+    const chainNames = new Set(
+      Object.keys(config).filter(
+        (key) => !Object.keys(BaseConfigSchema.shape).includes(key),
+      ),
+    );
+
+    // Check each chain's overrides
+    for (const chainName of chainNames) {
+      const chain = config[chainName] as ChainConfig;
+
+      if (chain.override) {
+        for (const overrideChainName of Object.keys(chain.override)) {
+          // Each override key must reference a valid chain
+          if (!chainNames.has(overrideChainName)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+              path: [chainName, 'override', overrideChainName],
+            });
+          }
+
+          // Override shouldn't be self-referencing
+          if (chainName === overrideChainName) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
+              path: [chainName, 'override', overrideChainName],
+            });
+          }
+        }
+      }
+    }
+  },
+);
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
