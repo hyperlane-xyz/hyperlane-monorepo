@@ -54,7 +54,7 @@ sepolia:
       bridge: '0x4321...' # Use a different bridge when sending to this chain
       bridgeTolerance: 300000 # 5 minutes in ms
       bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
-      bridgeIsWarp: yes
+      bridgeIsWarp: true
 
   # Strategy-specific parameters (depending on rebalanceStrategy)
   # Use one set of values for the strategy you are using
