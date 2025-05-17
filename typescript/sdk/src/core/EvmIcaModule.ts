@@ -241,4 +241,14 @@ export class EvmIcaModule extends HyperlaneModule<
       config,
     });
   }
+
+  public async deployOrUpdateIsm(
+    actualDefaultIsmConfig: DerivedIsmConfig,
+    expectedDefaultIsmConfig: IsmConfig,
+  ): Promise<{
+    deployedIsm: Address;
+    ismUpdateTxs: AnnotatedEV5Transaction[];
+  }> {
+    // Implementation of the method
+  }
 }
