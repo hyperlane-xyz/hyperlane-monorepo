@@ -1,13 +1,13 @@
 import { constants } from 'ethers';
 
 import {
+  CctpTokenBridge__factory,
   ERC20__factory,
   ERC721Enumerable__factory,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
-  TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
   ProtocolType,
@@ -111,7 +111,7 @@ abstract class TokenDeployer<
   }
 
   initializeFnSignature(name: string): string {
-    return name === 'TokenBridgeCctp'
+    return name === hypERC20contracts.collateralCctp
       ? 'initialize(address,address,string[])'
       : 'initialize';
   }
@@ -260,7 +260,7 @@ abstract class TokenDeployer<
     await promiseObjAll(
       objMap(cctpConfigs, async (chain, _config) => {
         const router = this.router(deployedContractsMap[chain]).address;
-        const tokenBridge = TokenBridgeCctp__factory.connect(
+        const tokenBridge = CctpTokenBridge__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );

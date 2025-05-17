@@ -255,6 +255,9 @@ export async function createWarpRouteDeployConfig({
           isNft: true,
         };
         break;
+      case TokenType.collateralCctp:
+      case TokenType.nativeOpL2ToL1:
+        throw new Error('CCTP and OP L2 to L1 tokens are not supported yet');
       default:
         result[chain] = {
           type,

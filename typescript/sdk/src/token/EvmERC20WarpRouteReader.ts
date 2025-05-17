@@ -1,6 +1,7 @@
 import { BigNumber, Contract } from 'ethers';
 
 import {
+  CctpTokenBridgeV1__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -12,7 +13,6 @@ import {
   IXERC20__factory,
   OPL2ToL1TokenBridgeNative__factory,
   ProxyAdmin__factory,
-  TokenBridgeCctpV1__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -393,7 +393,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctpV1__factory.connect(
+    const tokenBridge = CctpTokenBridgeV1__factory.connect(
       hypToken,
       this.provider,
     );

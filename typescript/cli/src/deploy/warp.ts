@@ -43,6 +43,7 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getTokenConnectionId,
   hypERC20factories,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isTokenMetadata,
   isXERC20TokenConfig,
@@ -232,7 +233,9 @@ function generateTokenConfigs(
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
-      isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isCctpTokenConfig(config)
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
