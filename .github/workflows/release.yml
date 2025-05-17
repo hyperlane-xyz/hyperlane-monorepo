@@ -9,6 +9,14 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: PRETTY
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
 jobs:
   # This job prepares the release by creating or updating a release PR.
   # Notice the omission of the `publish` flag in the changesets action.
@@ -19,7 +27,7 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -84,7 +92,7 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
