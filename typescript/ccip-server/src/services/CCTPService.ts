@@ -29,7 +29,7 @@ class CCTPService {
 
     // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
     this.router.get(
-      '/getCCTPAttestation/:sender/:callData.json',
+      '/getProofs/:sender/:callData.json',
       createAbiHandler(
         CCTPServiceAbi,
         'getCCTPAttestation',
@@ -39,7 +39,7 @@ class CCTPService {
 
     // CCIP-read spec: POST /getCCTPAttestation
     this.router.post(
-      '/getCCTPAttestation',
+      '/getProofs',
       createAbiHandler(
         CCTPServiceAbi,
         'getCCTPAttestation',
