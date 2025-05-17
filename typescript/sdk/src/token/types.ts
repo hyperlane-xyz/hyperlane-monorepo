@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import {
+  IsmConfig,
+  IsmType,
+  OffchainLookupIsmConfigSchema,
+} from '../ism/types.js';
 import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
@@ -98,14 +102,16 @@ export const CctpTokenConfigSchema = CollateralTokenConfigSchema.merge(
   z.object({
     type: z.literal(TokenType.collateralCctp),
   }),
-).extend({
-  messageTransmitter: z
-    .string()
-    .describe('CCTP Message Transmitter contract address'),
-  circleDomainMappings: z
-    .record(z.number())
-    .describe('Mapping from Hyperlane Domain ID to Circle CCTP Domain ID'),
-});
+)
+  .extend({
+    messageTransmitter: z
+      .string()
+      .describe('CCTP Message Transmitter contract address'),
+    tokenMessenger: z
+      .string()
+      .describe('CCTP Token Messenger contract address'),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
@@ -215,6 +221,7 @@ export const WarpRouteDeployConfigSchema = z
         ([_, config]) =>
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
+          isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))

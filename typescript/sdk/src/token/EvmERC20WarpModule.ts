@@ -47,7 +47,6 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
-  isCctpTokenConfig,
 } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
@@ -592,11 +591,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ccipContractCache,
       contractVerifier,
     );
-
-    // skip router table for CCTP
-    if (isCctpTokenConfig(config)) {
-      return warpModule;
-    }
 
     if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
       const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
