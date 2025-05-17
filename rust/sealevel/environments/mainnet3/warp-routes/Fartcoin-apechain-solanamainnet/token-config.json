@@ -1,0 +1,17 @@
+{
+  "apechain": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Fartcoin",
+    "symbol": "Fartcoin",
+    "owner": "0x82235f97A18Cdc6b55B5BA8d9C88FEd1048C01c2",
+    "foreignDeployment": "0x5FC9b323013DAcF2d56046F9ff0f61c95c6A466B"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+    "owner": ""
+  }
+}
