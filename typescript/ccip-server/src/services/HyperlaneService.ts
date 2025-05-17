@@ -1,4 +1,4 @@
-import { Message, MessageTx } from './explorerTypes';
+import { Message, MessageTx } from './explorerTypes.js';
 
 // These types are copied from hyperlane-explorer. TODO: export them so this file can use them directly.
 interface ApiResult<R> {

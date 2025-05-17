@@ -455,22 +455,24 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  // The AMOUNT_ROUTING ISMs are immutable routing ISMs.
-  if (config.type === IsmType.AMOUNT_ROUTING) {
-    return {
-      domainsToEnroll: [],
-      domainsToUnenroll: [],
-    };
+  if (
+    config.type === IsmType.FALLBACK_ROUTING ||
+    config.type === IsmType.ROUTING
+  ) {
+    return domainRoutingModuleDelta(
+      destination,
+      moduleAddress,
+      config,
+      multiProvider,
+      contracts,
+      mailbox,
+    );
   }
 
-  return domainRoutingModuleDelta(
-    destination,
-    moduleAddress,
-    config,
-    multiProvider,
-    contracts,
-    mailbox,
-  );
+  return {
+    domainsToEnroll: [],
+    domainsToUnenroll: [],
+  };
 }
 
 async function domainRoutingModuleDelta(
