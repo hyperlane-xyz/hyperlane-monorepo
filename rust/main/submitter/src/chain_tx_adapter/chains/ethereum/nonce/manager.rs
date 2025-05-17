@@ -3,6 +3,7 @@
 #![allow(clippy::borrowed_box)]
 
 use hyperlane_ethereum::EvmProviderForSubmitter;
+use tracing::info;
 
 use crate::transaction::Transaction;
 use crate::SubmitterError;
@@ -25,6 +26,7 @@ impl NonceManager {
         tx: &mut Transaction,
         provider: &Box<dyn EvmProviderForSubmitter>,
     ) -> Result<(), SubmitterError> {
+        let tx_id = tx.id.to_string();
         let precursor = tx.precursor_mut();
 
         if precursor.tx.nonce().is_some() {
@@ -36,11 +38,20 @@ impl NonceManager {
             .from()
             .ok_or(SubmitterError::TxSubmissionError(
                 "Transaction missing address".to_string(),
-            ))?;
-        let nonce = provider.get_next_nonce_on_finalized_block(address).await?;
+            ))?
+            .clone();
+        let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
+
         let next_nonce = nonce + self.tx_in_finality_count;
 
         precursor.tx.set_nonce(next_nonce);
+        info!(
+            nonce = next_nonce.to_string(),
+            address = ?address,
+            ?tx_id,
+            precursor = ?precursor,
+            "Set nonce for transaction"
+        );
 
         Ok(())
     }
