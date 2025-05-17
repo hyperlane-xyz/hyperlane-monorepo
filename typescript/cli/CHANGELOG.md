@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cli
 
+## 13.0.0
+
 ## 12.6.0
 
 ### Minor Changes
