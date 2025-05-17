@@ -118,7 +118,9 @@ export async function runCoreApply(params: ApplyParams) {
   const { multiProvider } = context;
   const evmCoreModule = new EvmCoreModule(multiProvider, {
     chain,
-    config,
+    options: {
+      hasInterchainAccountRouter: !!config.interchainAccountRouter,
+    },
     addresses: deployedCoreAddresses,
   });
 

@@ -85,6 +85,10 @@ type HookModuleAddresses = {
   proxyAdmin: Address;
 };
 
+type EvmHookModuleOptions = {
+  isAddressHookConfig: boolean;
+};
+
 class HookDeployer extends HyperlaneDeployer<{}, HookFactories> {
   protected cachingEnabled = false;
 
@@ -96,7 +100,8 @@ class HookDeployer extends HyperlaneDeployer<{}, HookFactories> {
 export class EvmHookModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HookConfig,
-  HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
+  HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses,
+  EvmHookModuleOptions
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmHookModule' });
   protected readonly reader: EvmHookReader;
@@ -115,13 +120,13 @@ export class EvmHookModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
-      HookConfig,
-      HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
+      HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses,
+      EvmHookModuleOptions
     >,
     ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
-    params.config = HookConfigSchema.parse(params.config);
+    // params.config = HookConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmHookReader(multiProvider, this.args.chain);
@@ -140,7 +145,7 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return typeof this.args.config === 'string'
+    return this.args.options?.isAddressHookConfig
       ? this.args.addresses.deployedHook
       : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
@@ -155,9 +160,6 @@ export class EvmHookModule extends HyperlaneModule<
 
     targetConfig = HookConfigSchema.parse(targetConfig);
     targetConfig = await this.reader.deriveHookConfig(targetConfig);
-
-    // Update the config
-    this.args.config = targetConfig;
 
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
@@ -272,7 +274,9 @@ export class EvmHookModule extends HyperlaneModule<
           deployedHook: ethers.constants.AddressZero,
         },
         chain,
-        config,
+        options: {
+          isAddressHookConfig: typeof config === 'string',
+        },
       },
       ccipContractCache,
       contractVerifier,

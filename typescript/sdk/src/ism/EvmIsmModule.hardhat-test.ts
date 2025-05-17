@@ -445,11 +445,13 @@ describe('EvmIsmModule', async () => {
         // create a new IsmModule using it's constructor. Set it's deployedIsm address to the initialIsmAddr
         const ism = new EvmIsmModule(multiProvider, {
           chain,
-          config: exampleRoutingConfig,
           addresses: {
             ...factoryAddresses,
             mailbox: mailboxAddress,
             deployedIsm: initialIsmAddress,
+          },
+          options: {
+            isAddressIsmConfig: !!exampleRoutingConfig,
           },
         });
 
