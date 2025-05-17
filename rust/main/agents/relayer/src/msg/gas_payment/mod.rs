@@ -541,7 +541,7 @@ mod test {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
             let hyperlane_db = HyperlaneRocksDB::new(
-                &HyperlaneDomain::new_test_domain("test_zero_payment_found_miniumn_policy"),
+                &HyperlaneDomain::new_test_domain("test_zero_payment_found_minimum_policy"),
                 db,
             );
 
