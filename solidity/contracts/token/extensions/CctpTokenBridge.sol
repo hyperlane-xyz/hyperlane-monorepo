@@ -33,8 +33,7 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
 
     /// @notice Hyperlane domain => Circle domain.
     /// We use a struct to avoid ambiguity with domain 0 being unknown.
-    mapping(uint32 hypDomain => Domain circleDomain)
-        internal domainMap;
+    mapping(uint32 hypDomain => Domain circleDomain) internal _domainMap;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
@@ -50,10 +49,17 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
         IMessageTransmitter _messageTransmitter,
         address _tokenMessenger
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
-        require(_messageTransmitter.version() == _cctpVersion(), "Invalid messageTransmitter CCTP version");
+        require(
+            _messageTransmitter.version() == _cctpVersion(),
+            "Invalid messageTransmitter CCTP version"
+        );
         messageTransmitter = _messageTransmitter;
 
-        require(ITokenMessenger(_tokenMessenger).messageBodyVersion() == _cctpVersion(), "Invalid TokenMessenger CCTP version");
+        require(
+            ITokenMessenger(_tokenMessenger).messageBodyVersion() ==
+                _cctpVersion(),
+            "Invalid TokenMessenger CCTP version"
+        );
         tokenMessenger = _tokenMessenger;
 
         _disableInitializers();
@@ -89,7 +95,7 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
         uint32 _hyperlaneDomain,
         uint32 _circleDomain
     ) public onlyOwner {
-        domainMap[_hyperlaneDomain] = Domain(_hyperlaneDomain, _circleDomain);
+        _domainMap[_hyperlaneDomain] = Domain(_hyperlaneDomain, _circleDomain);
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
@@ -100,9 +106,14 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
         }
     }
 
-    function hyperlaneDomainToCircleDomain(uint32 _hyperlaneDomain) public view returns (uint32) {
-        Domain memory domain = domainMap[_hyperlaneDomain];
-        require(domain.hyperlane == _hyperlaneDomain, "Circle domain not configured");
+    function hyperlaneDomainToCircleDomain(
+        uint32 _hyperlaneDomain
+    ) public view returns (uint32) {
+        Domain memory domain = _domainMap[_hyperlaneDomain];
+        require(
+            domain.hyperlane == _hyperlaneDomain,
+            "Circle domain not configured"
+        );
         return domain.circle;
     }
 
@@ -169,7 +180,6 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
     ) internal virtual;
 
     function _cctpVersion() internal pure virtual returns (uint32);
-
 }
 
 import {CctpMessage} from "../../libs/CctpMessage.sol";
@@ -183,13 +193,15 @@ contract CctpTokenBridgeV1 is CctpTokenBridge {
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) CctpTokenBridge(
-        _erc20,
-        _scale,
-        _mailbox,
-        _messageTransmitter,
-        address(_tokenMessenger)
-    ) {}
+    )
+        CctpTokenBridge(
+            _erc20,
+            _scale,
+            _mailbox,
+            _messageTransmitter,
+            address(_tokenMessenger)
+        )
+    {}
 
     function _cctpVersion() internal pure override returns (uint32) {
         return 0;
@@ -231,13 +243,15 @@ contract CctpTokenBridgeV2 is CctpTokenBridge {
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger
-    ) CctpTokenBridge(
-        _erc20,
-        _scale,
-        _mailbox,
-        _messageTransmitter,
-        address(_tokenMessenger)
-    ) {}
+    )
+        CctpTokenBridge(
+            _erc20,
+            _scale,
+            _mailbox,
+            _messageTransmitter,
+            address(_tokenMessenger)
+        )
+    {}
 
     // @dev the minimum to consider it a Standard CCTP transfer (it applies to every network)
     // see https://github.com/circlefin/evm-cctp-contracts/blob/release-2025-03-11T143015/src/v2/MessageTransmitterV2.sol#L224-L244

@@ -106,15 +106,15 @@ contract CctpTokenBridgeV1Test is Test {
         );
 
         TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
-            address(originImplementation),
-            proxyAdmin,
-            abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
-                address(0),
-                address(this),
-                urls
-            )
-        );
+                address(originImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    CctpTokenBridge.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
 
         tbOrigin = CctpTokenBridgeV1(address(proxyOrigin));
 
@@ -127,15 +127,15 @@ contract CctpTokenBridgeV1Test is Test {
         );
 
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
-            address(destinationImplementation),
-            proxyAdmin,
-            abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
-                address(0),
-                address(this),
-                urls
-            )
-        );
+                address(destinationImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    CctpTokenBridge.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
 
         tbDestination = CctpTokenBridgeV1(address(proxyDestination));
 
@@ -279,6 +279,26 @@ contract CctpTokenBridgeV1Test is Test {
         );
         _tbDestination.setDestinationGas(origin, gasLimit);
     }
+
+    function test_hyperlaneDomainToCircleDomain(
+        uint32 unconfiguredHyperlaneDomain,
+        uint32 circleDomain
+    ) public {
+        // Assumptions for fuzzing: ensure the domain is truly unconfigured and not zero.
+        vm.assume(unconfiguredHyperlaneDomain != 0);
+        vm.assume(unconfiguredHyperlaneDomain != origin);
+        vm.assume(unconfiguredHyperlaneDomain != destination);
+
+        vm.expectRevert(bytes("Circle domain not configured"));
+        tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain);
+
+        // covers the case where circleDomain is 0
+        tbOrigin.addDomain(unconfiguredHyperlaneDomain, circleDomain);
+        assertEq(
+            tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain),
+            circleDomain
+        );
+    }
 }
 
 contract CctpTokenBridgeV2Test is CctpTokenBridgeV1Test {
@@ -305,15 +325,15 @@ contract CctpTokenBridgeV2Test is CctpTokenBridgeV1Test {
         );
 
         TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
-            address(originImplementation),
-            proxyAdmin,
-            abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
-                address(0),
-                address(this),
-                urls
-            )
-        );
+                address(originImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    CctpTokenBridge.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
 
         tbOrigin = CctpTokenBridgeV2(address(proxyOrigin));
 
@@ -326,15 +346,15 @@ contract CctpTokenBridgeV2Test is CctpTokenBridgeV1Test {
         );
 
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
-            address(destinationImplementation),
-            proxyAdmin,
-            abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
-                address(0),
-                address(this),
-                urls
-            )
-        );
+                address(destinationImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    CctpTokenBridge.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
 
         tbDestination = CctpTokenBridgeV2(address(proxyDestination));
 
