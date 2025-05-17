@@ -48,6 +48,7 @@ contract HypERC20Collateral is FungibleTokenRouter, MovableCollateralRouter {
     ) FungibleTokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
+        _disableInitializers();
     }
 
     function initialize(
