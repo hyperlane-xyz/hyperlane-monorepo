@@ -129,8 +129,14 @@ pub fn build_cosmos_connection_conf(
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+    let grpcs = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        None,
+        &mut local_err,
+    );
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -211,8 +217,14 @@ pub fn build_cosmos_native_connection_conf(
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+    let grpcs = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        None,
+        &mut local_err,
+    );
 
     let chain_id = chain
         .chain(&mut local_err)
