@@ -2,9 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
-
-RUN yarn set version 4.5.1
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
+    yarn set version 4.5.1
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
