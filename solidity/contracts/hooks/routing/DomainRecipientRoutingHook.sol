@@ -21,6 +21,7 @@ import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @title DomainRecipientRoutingHook
@@ -30,6 +31,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract DomainRecipientRoutingHook is AbstractPostDispatchHook, MailboxClient {
     using Strings for uint32;
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     struct HookConfig {
         uint32 destination;
@@ -111,7 +113,7 @@ contract DomainRecipientRoutingHook is AbstractPostDispatchHook, MailboxClient {
         bytes calldata message
     ) internal view virtual returns (IPostDispatchHook hook) {
         uint32 destination = message.destination();
-        address recipient = message.recipient();
+        address recipient = message.recipient().bytes32ToAddress();
 
         hook = hooks[destination][recipient];
         if (address(hook) == address(0)) {

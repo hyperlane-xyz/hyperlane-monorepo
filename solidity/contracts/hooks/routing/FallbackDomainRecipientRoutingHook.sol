@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {DomainRecipientRoutingHook} from "./DomainRecipientRoutingHook.sol";
 import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @title FallbackDomainRecipientRoutingHook
@@ -24,6 +25,7 @@ import {Message} from "../../libs/Message.sol";
  */
 contract FallbackDomainRecipientRoutingHook is DomainRecipientRoutingHook {
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     IPostDispatchHook public immutable fallbackHook;
 
@@ -47,9 +49,10 @@ contract FallbackDomainRecipientRoutingHook is DomainRecipientRoutingHook {
     function _getConfiguredHook(
         bytes calldata message
     ) internal view override returns (IPostDispatchHook) {
-        IPostDispatchHook _hook = hooks[message.destination()][
-            message.recipient()
-        ];
+        uint32 destination = message.destination();
+        address recipient = message.recipient().bytes32ToAddress();
+
+        IPostDispatchHook _hook = hooks[destination][recipient];
         if (address(_hook) == address(0)) {
             _hook = fallbackHook;
         }
