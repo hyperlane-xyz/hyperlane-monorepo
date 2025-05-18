@@ -5,6 +5,7 @@ import { ProofsServiceAbi } from '../abis/ProofsServiceAbi.js';
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
+import { BaseService } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { LightClientService, SuccinctConfig } from './LightClientService.js';
 import { ProofResult, RPCService } from './RPCService.js';
@@ -20,7 +21,7 @@ type HyperlaneConfig = {
 };
 
 // Service that requests proofs from Succinct and RPC Provider
-class ProofsService {
+class ProofsService extends BaseService {
   // Maps from pendingProofKey to pendingProofId
   pendingProof = new Map<string, string>();
 
@@ -31,7 +32,12 @@ class ProofsService {
 
   public readonly router: Router;
 
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new ProofsService());
+  }
+
   constructor() {
+    super();
     // Load module config from ENV
     const lightClientAddress = process.env.SUCCINCT_LIGHT_CLIENT_ADDRESS;
     const succinctTrustRoot = process.env.SUCCINCT_TRUST_ROOT;
