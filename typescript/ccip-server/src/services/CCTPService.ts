@@ -20,7 +20,7 @@ class CCTPService {
       process.env.HYPERLANE_EXPLORER_URL!,
     );
     this.cctpAttestationService = new CCTPAttestationService(
-      process.env.CCTP_ATTESTATION_API!,
+      process.env.CCTP_ATTESTATION_URL!,
     );
     // TODO: fetch this from a configured MultiProvider from IRegistry
     this.rpcService = new RPCService(process.env.RPC_URL!);
@@ -29,7 +29,7 @@ class CCTPService {
 
     // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
     this.router.get(
-      '/getProofs/:sender/:callData.json',
+      '/getCctpAttestation/:sender/:callData.json',
       createAbiHandler(
         CCTPServiceAbi,
         'getCCTPAttestation',
@@ -39,7 +39,7 @@ class CCTPService {
 
     // CCIP-read spec: POST /getCCTPAttestation
     this.router.post(
-      '/getProofs',
+      '/getCctpAttestation',
       createAbiHandler(
         CCTPServiceAbi,
         'getCCTPAttestation',
