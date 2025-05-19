@@ -39,7 +39,7 @@ contract MockFeeTokenRouter is FeeTokenRouter {
     constructor(
         address _mailbox,
         ERC20Test _primaryToken
-    ) FeeTokenRouter(_mailbox) {
+    ) FeeTokenRouter(1, _mailbox) {
         primaryToken = _primaryToken;
     }
 
@@ -90,9 +90,6 @@ contract FeeTokenRouterTest is Test {
     string internal constant NAME = "HyperlaneInu";
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
-    address internal constant BOB = address(0x2);
-    address internal constant CAROL = address(0x3);
-    address internal constant DANIEL = address(0x4);
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
@@ -103,20 +100,6 @@ contract FeeTokenRouterTest is Test {
     TestInterchainGasPaymaster internal igp;
 
     FeeTokenRouter myRouter;
-
-    event SentTransferRemote(
-        uint32 indexed destination,
-        bytes32 indexed recipient,
-        uint256 amount
-    );
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    event ReceivedTransferRemote(
-        uint32 indexed origin,
-        bytes32 indexed recipient,
-        uint256 amount
-    );
 
     function setUp() public virtual {
         localMailbox = new MockMailbox(ORIGIN);
