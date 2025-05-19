@@ -19,6 +19,8 @@ use crate::{
     HyperlaneStarknetError,
 };
 
+const CHUCNK_SIZE: u64 = 50;
+
 #[derive(Debug)]
 /// Starknet Mailbox Indexer
 pub struct StarknetMailboxIndexer {
@@ -261,15 +263,25 @@ where
         keys: Some(vec![vec![key]]),
     };
 
-    // TODO: this is a placeholder for the chunk size
-    // we should use the pagination token
-    let chunk_size = 100u32;
+    // fetch all events in the range
+    // chunk_size is quite limted, so we need to fetch multiple pages
+    let mut token = None;
+    let mut events = vec![];
 
-    let events: ChainResult<Vec<(_, LogMeta)>> = provider
-        .get_events(filter, None, chunk_size.into())
-        .await
-        .map_err(Into::<HyperlaneStarknetError>::into)?
-        .events
+    loop {
+        let page = provider
+            .get_events(filter.clone(), token.clone(), CHUCNK_SIZE)
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+        events.extend(page.events);
+        match page.continuation_token {
+            Some(next_token) => token = Some(next_token),
+            None => break,
+        }
+    }
+
+    events
         .into_iter()
         .enumerate()
         .map(|(index, event)| {
@@ -285,7 +297,5 @@ where
             };
             Ok((parsed_event, meta))
         })
-        .collect();
-
-    events
+        .collect()
 }
