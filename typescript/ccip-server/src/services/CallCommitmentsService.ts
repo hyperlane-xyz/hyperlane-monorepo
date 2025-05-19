@@ -42,7 +42,6 @@ interface StoredCommitment {
 }
 
 // TODO: Authenticate relayer
-// TODO: Check commitment was dispatched
 export class CallCommitmentsService extends BaseService {
   private callCommitments: Map<string, StoredCommitment>;
   constructor(
@@ -55,12 +54,12 @@ export class CallCommitmentsService extends BaseService {
   }
 
   static async initialize() {
-    const registryUris = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
-    if (!registryUris) {
-      throw new Error('REGISTRY_URI env var not set');
-    }
+    const registryUris = process.env.REGISTRY_URI?.split(',') || [
+      DEFAULT_GITHUB_REGISTRY,
+    ];
+    console.log('Using registry URIs', registryUris);
     const registry = getRegistry({
-      registryUris: registryUris.split(','),
+      registryUris: registryUris,
       enableProxy: true,
     });
     const metadata = await registry.getMetadata();
