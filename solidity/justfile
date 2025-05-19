@@ -211,7 +211,7 @@ deploy-simple-app-base:
         -vvvv
 
 deploy-simple-app-everclear-staging:
-    export MAILBOX_ADDRESS="{{ domain_routing_mailbox_addr_everclear_staging }}" && \
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
