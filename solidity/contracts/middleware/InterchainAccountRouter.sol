@@ -1031,36 +1031,35 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The domain of the destination router.
+     * @param _gasLimit The gas limit that the calls will use.
      * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
      */
     function quoteGasPayment(
-        uint32 _destination
-    ) external view returns (uint256 _gasPayment) {
+        uint32 _destination,
+        uint256 _gasLimit
+    ) public view returns (uint256 _gasPayment) {
         return
             _Router_quoteDispatch(
                 _destination,
                 new bytes(0),
-                new bytes(0),
+                StandardHookMetadata.overrideGasLimit(_gasLimit),
                 address(hook)
             );
     }
 
     /**
-     * @notice Returns the gas payment required to dispatch a given messageBody to the given domain's router with gas limit override.
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The domain of the destination router.
-     * @param _messageBody The message body to be dispatched.
-     * @param gasLimit The gas limit to override with.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
      */
     function quoteGasPayment(
-        uint32 _destination,
-        bytes calldata _messageBody,
-        uint256 gasLimit
-    ) external view returns (uint256 _gasPayment) {
+        uint32 _destination
+    ) public view returns (uint256 _gasPayment) {
         return
             _Router_quoteDispatch(
                 _destination,
-                _messageBody,
-                StandardHookMetadata.overrideGasLimit(gasLimit),
+                new bytes(0),
+                bytes(""),
                 address(hook)
             );
     }
@@ -1075,11 +1074,9 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         return
             _Router_quoteDispatch(
                 _destination,
-                bytes(""),
-                StandardHookMetadata.overrideGasLimit(
-                    gasLimit + COMMIT_TX_GAS_USAGE
-                ),
+                new bytes(0),
+                StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
                 address(hook)
-            );
+            ) + quoteGasPayment(_destination, gasLimit);
     }
 }

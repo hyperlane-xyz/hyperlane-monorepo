@@ -367,11 +367,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         assertEq(
-            originIcaRouter.quoteGasPayment(
-                destination,
-                "",
-                GAS_LIMIT_OVERRIDE
-            ),
+            originIcaRouter.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE),
             igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
         );
     }
