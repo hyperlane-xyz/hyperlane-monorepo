@@ -210,7 +210,6 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         continue;
       }
       chainSigners[chainName] = defaultChainSignerKeyConfig(chainName);
-      console.log('non-aws keys keyConfig', chainName, chainSigners[chainName]);
     }
 
     return chainSigners;

@@ -242,13 +242,14 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    // For Ethereum, Sealevel, and Starknet, use a hex key
+    // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       if (chainName === 'paradexsepolia') {
         return { type: AgentSignerKeyType.Starknet, version: 2 };
       }
       return { type: AgentSignerKeyType.Starknet, version: 3 };
     }
+    // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

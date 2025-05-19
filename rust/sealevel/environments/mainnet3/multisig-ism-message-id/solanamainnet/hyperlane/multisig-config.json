@@ -786,7 +786,9 @@
   "osmosis": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
-    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+    "validators": [
+      "0xea483af11c19fa41b16c31d1534c2a486a92bcac"
+    ]
   },
   "polygon": {
     "type": "messageIdMultisigIsm",

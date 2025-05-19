@@ -37,8 +37,6 @@ export const DEFAULT_REGISTRY_URI = join(
   'hyperlane-registry',
 );
 
-const REGISTRY_PROXY = 'https://proxy.hyperlane.xyz';
-
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
 let registry: FileSystemRegistry;

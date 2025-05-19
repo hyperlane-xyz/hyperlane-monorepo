@@ -395,7 +395,6 @@ export async function rotateKey(
   chainName: ChainName,
 ) {
   debugLog(`Rotating key for ${role} on ${chainName}`);
-
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   await persistAddressesLocally(agentConfig, [key]);
@@ -491,7 +490,6 @@ async function persistAddressesLocally(
       kathyAddresses,
     );
   }
-
   await persistRoleAddressesToLocalArtifacts(
     Role.Relayer,
     agentConfig.runEnv,
