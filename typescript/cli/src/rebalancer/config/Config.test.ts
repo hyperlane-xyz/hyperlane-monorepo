@@ -24,13 +24,13 @@ describe('Config', () => {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       chain2: {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     };
 
@@ -63,13 +63,13 @@ describe('Config', () => {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
         chain2: {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     });
@@ -157,13 +157,13 @@ describe('Config', () => {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
         chain2: {
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     });
@@ -179,7 +179,7 @@ describe('Config', () => {
         chain1: {
           minAmount: 1000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
           override: {
             chain2: {
               bridge: '0x1234567890123456789012345678901234567890',
@@ -189,12 +189,12 @@ describe('Config', () => {
         chain2: {
           minAmount: 2000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
         chain3: {
           minAmount: 3000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       };
 
@@ -223,7 +223,7 @@ describe('Config', () => {
         chain1: {
           minAmount: 1000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
           override: {
             chain2: {
               bridge: '0x1234567890123456789012345678901234567890',
@@ -236,7 +236,7 @@ describe('Config', () => {
         chain2: {
           minAmount: 2000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       };
 
@@ -256,7 +256,7 @@ describe('Config', () => {
         chain1: {
           minAmount: 1000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
           override: {
             chain1: {
               bridgeMinAcceptedAmount: 1000,
@@ -266,7 +266,7 @@ describe('Config', () => {
         chain2: {
           minAmount: 2000,
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       };
 
@@ -281,7 +281,7 @@ describe('Config', () => {
       data.chain1 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
         weight: 100,
         tolerance: 0,
         override: {
@@ -297,7 +297,7 @@ describe('Config', () => {
       data.chain2 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
         weight: 100,
         tolerance: 0,
       };
@@ -305,7 +305,7 @@ describe('Config', () => {
       data.chain3 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
         weight: 100,
         tolerance: 0,
       };
