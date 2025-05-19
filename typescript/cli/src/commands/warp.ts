@@ -445,6 +445,9 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   configFile: string;
+  fromChain?: string;
+  toChain?: string;
+  amount?: string;
   warpRouteId?: string;
   checkFrequency?: number;
   withMetrics?: boolean;
@@ -461,6 +464,25 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: ['rebalancerConfigFile'],
+    },
+    fromChain: {
+      type: 'string',
+      description: 'The origin chain',
+      demandOption: false,
+      alias: ['from'],
+      implies: ['toChain', 'amount'],
+    },
+    toChain: {
+      type: 'string',
+      description: 'The destination chain',
+      demandOption: false,
+      alias: ['to'],
+      implies: ['fromChain', 'amount'],
+    },
+    amount: {
+      type: 'string',
+      description: 'The amount to rebalance from `--fromChain` to `--toChain`',
+      implies: ['fromChain', 'toChain'],
     },
     warpRouteId: {
       type: 'string',
@@ -498,6 +520,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
   },
   handler: async ({
     context,
+    fromChain,
+    toChain,
+    amount,
     configFile,
     warpRouteId,
     checkFrequency,
@@ -525,6 +550,18 @@ export const rebalancer: CommandModuleWithWriteContext<{
         registry,
         config,
       );
+
+      const immediateExec = fromChain && toChain && amount;
+
+      if (immediateExec) {
+        const executor = contextFactory.createExecutor();
+
+        await executor.rebalance([
+          { fromChain, toChain, amount: BigInt(amount) },
+        ]);
+
+        process.exit(0);
+      }
 
       // Instantiates the monitor that will observe the warp route
       const monitor = contextFactory.createMonitor();
