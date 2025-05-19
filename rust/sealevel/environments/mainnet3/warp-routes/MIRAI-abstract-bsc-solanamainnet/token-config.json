@@ -4,7 +4,7 @@
     "decimals": 6,
     "name": "Project Mirai",
     "symbol": "MIRAI",
-    "owner": "0x3F5f4308F27003e330Ea176D9B0807E4080E4424",
+    "owner": "",
     "foreignDeployment": "0xbCdA9Ae6A148Bc4fb411979fFA883c9D1DF08F43"
   },
   "bsc": {
@@ -12,7 +12,7 @@
     "decimals": 6,
     "name": "Project Mirai",
     "symbol": "MIRAI",
-    "owner": "0x4392a8Ca4863418A9A583fC71D6F56Ff05027554",
+    "owner": "",
     "foreignDeployment": "0xcb508877ffe5a085B2474641dD3B28F8Bc22A57c"
   },
   "solanamainnet": {
