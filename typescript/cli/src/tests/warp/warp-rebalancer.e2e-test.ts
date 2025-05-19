@@ -936,7 +936,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const process = startRebalancer({ withMetrics: true });
 
     // Give the server some time to start
-    await sleep(3000);
+    // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
+    await sleep(3500);
 
     // Check if the metrics endpoint is responding
     const response = await fetch(DEFAULT_METRICS_SERVER);
@@ -958,7 +959,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const process = startRebalancer({ withMetrics: false });
 
     // Give the server some time to start
-    await sleep(3000);
+    // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
+    await sleep(3500);
 
     // Check that metrics endpoint is not responding
     await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
