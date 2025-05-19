@@ -21,7 +21,7 @@ describe('WithSemaphore', () => {
     const config = {
       chains: {
         chain1: {
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     } as any as Config;
@@ -45,7 +45,7 @@ describe('WithSemaphore', () => {
     const config = {
       chains: {
         chain1: {
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     } as any as Config;
@@ -62,7 +62,7 @@ describe('WithSemaphore', () => {
     const config = {
       chains: {
         chain1: {
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     } as any as Config;
@@ -102,7 +102,7 @@ describe('WithSemaphore', () => {
     const withSemaphore = new WithSemaphore(config, executor);
 
     await expect(withSemaphore.rebalance(routes)).to.be.rejectedWith(
-      "Cannot read properties of undefined (reading 'bridgeTolerance')",
+      "Cannot read properties of undefined (reading 'bridgeLockTime')",
     );
   });
 
@@ -110,7 +110,7 @@ describe('WithSemaphore', () => {
     const config = {
       chains: {
         chain1: {
-          bridgeTolerance: 1,
+          bridgeLockTime: 1,
         },
       },
     } as any as Config;
