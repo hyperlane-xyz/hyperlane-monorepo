@@ -65,12 +65,20 @@ sepolia:
   # Required: Determines how much deviation from the target amount is allowed before a rebalance is triggered (in percentage 0-100)
   tolerance: 5 # 5% allows a 5% deviation from the target amount before a rebalance is needed
 
-  # For minAmount strategy:
+  # For minAmount strategy (absolute):
+  # Absolute requires exact token amounts
   # Required: Minimum amount to maintain on this chain (in wei)
   minAmount: 100000000 # 100 USDC (6 decimals)
-  # Optional: Determines an extra amount of tokens over the minimum amount to maintain on this chain (in basis points)
-  # This allows the chain to be rebalanced over the minimum amount to prevent constant rebalancing
-  buffer: 1000 # 10% buffer (0-10_000 basis points)
+  # Required: The objective value to rebalance to.
+  target: 110000000 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+
+  # For minAmount strategy (relative):
+  # Relative requires percentage values. 0 = 0%, 0.5 = 50%, 1 = 100%.
+  # 100% represent a the sum of collaterals of rebalanceable amounts.
+  # Required: Minimum percentage to maintain on this chain.
+  minAmount: 0.3 # 30%
+  # Required: The objective value to rebalance to.
+  target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
 ```
 
 ## Basic Usage
