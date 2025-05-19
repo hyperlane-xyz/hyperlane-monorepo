@@ -116,11 +116,6 @@ impl Program {
         self.raw_arg(cmd)
     }
 
-    /// Assumes a list of commands that should not start with a hyphen
-    pub fn cmds(self, cmds: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        cmds.into_iter().fold(self, |p, c| p.cmd(c))
-    }
-
     pub fn flag(self, arg: impl AsRef<str>) -> Self {
         debug_assert!(
             !arg.as_ref().starts_with('-'),

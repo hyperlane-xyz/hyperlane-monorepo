@@ -311,7 +311,7 @@ fn run_locally() {
     let _relayer = "hpl-relayer";
 
     // give things a chance to fully start.
-    sleep(Duration::from_secs(10));
+    sleep(Duration::from_secs(20));
 
     let nodes = nodes
         .into_iter()

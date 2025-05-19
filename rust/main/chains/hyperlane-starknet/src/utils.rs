@@ -158,9 +158,11 @@ fn u128_vec_to_u8_vec(input: Vec<u128>, size: u32) -> Vec<u8> {
 ///
 /// # Example
 ///
-/// ```rust
-/// generate_converter!(
-///     bytes = crate::contracts::mailbox::Bytes
+/// ```rust,ignore
+/// use hyperlane_starknet::bytes_converter;
+///
+/// bytes_converter!(
+///     crate::contracts::mailbox::Bytes
 /// );
 /// ```
 #[macro_export]
@@ -183,9 +185,11 @@ macro_rules! bytes_converter {
 ///
 /// # Example
 ///
-/// ```rust
-/// generate_converter!(
-///     bytes = crate::contracts::mailbox::Bytes
+/// ```rust,ignore
+/// use hyperlane_starknet::message_converter;
+///
+/// message_converter!(
+///     crate::contracts::mailbox::Message
 /// );
 /// ```
 #[macro_export]

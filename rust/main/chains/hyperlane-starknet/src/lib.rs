@@ -17,6 +17,7 @@ pub use utils::*;
 pub use validator_announce::*;
 
 #[allow(clippy::all)]
+#[rustfmt::skip]
 pub mod contracts;
 
 /// Application specific functionality
