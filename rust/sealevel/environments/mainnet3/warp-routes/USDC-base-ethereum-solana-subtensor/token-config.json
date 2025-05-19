@@ -23,6 +23,6 @@
   "subtensor": {
     "type": "synthetic",
     "decimals": 6,
-    "foreignDeployment": "0xB833E8137FEDf80de7E908dc6fea43a029142F20",
+    "foreignDeployment": "0xB833E8137FEDf80de7E908dc6fea43a029142F20"
   }
 }
