@@ -417,37 +417,19 @@ export class EvmHypCollateralAdapter
     bridge: Address,
     quotes: InterchainGasQuote[],
   ): Promise<PopulatedTransaction> {
-    return this.basePopulateRebalanceTx(
-      domain,
-      amount,
-      bridge,
-      quotes,
-      () => quotes[0].amount,
+    // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
+    const value = quotes.reduce(
+      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      0n,
     );
-  }
-
-  protected async basePopulateRebalanceTx(
-    domain: Domain,
-    amount: Numberish,
-    bridge: Address,
-    quotes: InterchainGasQuote[],
-    getTrxValue: () => bigint,
-  ): Promise<PopulatedTransaction> {
-    if (quotes.length !== 1) {
-      throw new Error('Only 1 quote is currently supported');
-    }
-
-    const quote = quotes[0];
-
-    if (quote.addressOrDenom) {
-      throw new Error('Only native tokens are currently supported');
-    }
 
     return this.collateralContract.populateTransaction.rebalance(
       domain,
       amount,
       bridge,
-      { value: getTrxValue() },
+      {
+        value,
+      },
     );
   }
 }
@@ -805,12 +787,20 @@ export class EvmHypNativeAdapter
     bridge: Address,
     quotes: InterchainGasQuote[],
   ): Promise<PopulatedTransaction> {
-    return this.basePopulateRebalanceTx(
+    // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
+    const value = quotes.reduce(
+      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      // Uses the amount to transfer as base value given that the amount is defined in native tokens for this adapter
+      BigInt(amount),
+    );
+
+    return this.collateralContract.populateTransaction.rebalance(
       domain,
       amount,
       bridge,
-      quotes,
-      () => quotes[0].amount + BigInt(amount),
+      {
+        value,
+      },
     );
   }
 }
