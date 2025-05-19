@@ -41,7 +41,7 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
     ) internal virtual override returns (bytes32 messageId) {
         bytes32 remoteRouter = _mustHaveRemoteRouter(l1Domain);
 
-        messageId = super._transferRemote(
+        messageId = TokenRouter._transferRemote(
             _destination,
             _recipient,
             _amount,
