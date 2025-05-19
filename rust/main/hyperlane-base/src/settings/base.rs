@@ -210,49 +210,6 @@ impl Settings {
         )))
     }
 
-    /// Build multiple contract syncs.
-    /// All contracts have to implement both sequenced and
-    /// watermark trait bounds
-    pub async fn contract_syncs<T, S>(
-        &self,
-        domains: impl Iterator<Item = &HyperlaneDomain>,
-        metrics: &CoreMetrics,
-        sync_metrics: &ContractSyncMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<S>>,
-        advanced_log_meta: bool,
-        broadcast_sender_enabled: bool,
-    ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
-    where
-        T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
-        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        S: HyperlaneLogStore<T>
-            + HyperlaneSequenceAwareIndexerStoreReader<T>
-            + HyperlaneWatermarkedLogStore<T>
-            + 'static,
-    {
-        // TODO: parallelize these calls again
-        let mut syncs = vec![];
-        for domain in domains {
-            let store = stores.get(domain).unwrap().clone();
-            let sync = self
-                .contract_sync(
-                    domain,
-                    metrics,
-                    sync_metrics,
-                    store,
-                    advanced_log_meta,
-                    broadcast_sender_enabled,
-                )
-                .await?;
-            syncs.push(sync);
-        }
-
-        syncs
-            .into_iter()
-            .map(|i| Ok((i.domain().clone(), i)))
-            .collect()
-    }
-
     /// Build single contract sync.
     /// All contracts have to implement both sequenced and
     /// watermark trait bounds
