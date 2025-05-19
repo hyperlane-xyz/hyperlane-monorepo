@@ -106,7 +106,7 @@ impl Indexer<H256> for StarknetMailboxIndexer {
             &self.contract.provider,
             range,
             self.contract.address,
-            "DispatchId",
+            "ProcessId",
             |event| {
                 let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()

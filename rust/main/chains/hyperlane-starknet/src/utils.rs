@@ -35,9 +35,9 @@ pub async fn get_transaction_receipt(
     transaction_hash: FieldElement,
 ) -> ChainResult<TransactionReceipt> {
     // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 200ms
+    // and the sealing of the block, hence sleeping for 2s
     // transactions are first pending and then sealed
-    // we retry 8 times with a 200ms delay between each retry
+    // we retry 8 times with a 2s delay between each retry
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
