@@ -115,6 +115,20 @@ hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key -
 hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --withMetrics --coingeckoApiKey your_coingecko_api_key
 ```
 
+### Manual Rebalance
+
+A manual rebalance allows you to execute one rebalance by specifying the execution route.
+
+> [!NOTE]
+> It won't rely on strategies, but will use the configuration file properly execute the rebalance, i.e.: bridge address.
+
+For instance, if you need to move `1000` USDC from `sepolia` to `arbitrumsepolia`:
+
+```bash
+# --amount must be expressed in token units
+hyperlane warp rebalance --configFile ./rebalancer-config.yaml --fromChain sepolia --toChain arbitrumsepolia --amount '1000000000'
+```
+
 ### Environment Variables
 
 Instead of CLI parameters, you can use these environment variables:

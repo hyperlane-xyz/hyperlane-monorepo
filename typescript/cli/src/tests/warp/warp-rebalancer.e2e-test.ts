@@ -223,12 +223,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency?: number;
       withMetrics?: boolean;
       rebalanceStrategy?: string;
+      monitorOnly?: boolean;
+      fromChain?: string;
+      toChain?: string;
+      amount?: string;
     } = {},
   ) {
     const {
       checkFrequency = CHECK_FREQUENCY,
       withMetrics = false,
       rebalanceStrategy,
+      monitorOnly = false,
+      fromChain,
+      toChain,
+      amount,
     } = options;
 
     return hyperlaneWarpRebalancer(
@@ -237,6 +245,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       REBALANCER_CONFIG_PATH,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
+      fromChain,
+      toChain,
+      amount,
     );
   }
 
@@ -247,6 +259,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency?: number;
       withMetrics?: boolean;
       rebalanceStrategy?: string;
+      monitorOnly?: boolean;
+      fromChain?: string;
+      toChain?: string;
+      amount?: string;
     } = {},
   ) {
     const {
@@ -254,12 +270,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
+      fromChain,
+      toChain,
+      amount,
     } = options;
 
     const process = startRebalancer({
       checkFrequency,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
+      fromChain,
+      toChain,
+      amount,
     });
 
     let timeoutId: NodeJS.Timeout;
@@ -1087,5 +1111,451 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     } finally {
       await relayer.kill();
     }
+  });
+
+  it('should successfully rebalance tokens when explicitly called', async () => {
+    const wccTokens = warpCoreConfig.tokens;
+
+    // Contract addresses
+    // For this test, rebalance will consist of sending tokens from chain 3 to chain 2
+    const originContractAddress = wccTokens[1].addressOrDenom!;
+    const destContractAddress = wccTokens[0].addressOrDenom!;
+
+    // Addresses of the wrapped collateral tokens
+    const originTknAddress = wccTokens[1].collateralAddressOrDenom!;
+    const destTknAddress = wccTokens[0].collateralAddressOrDenom!;
+
+    // Domain IDs
+    const originDomain = chain3Metadata.domainId;
+    const destDomain = chain2Metadata.domainId;
+
+    // Chain names
+    const originName = CHAIN_NAME_3;
+    const destName = CHAIN_NAME_2;
+
+    // RPC URLs
+    const originRpc = chain3Metadata.rpcUrls[0].http;
+    const destRpc = chain2Metadata.rpcUrls[0].http;
+
+    // Assign rebalancer role
+    // We need to assign to the contract who is able to send the rebalance transaction
+    const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
+    const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
+    const originSigner = new Wallet(ANVIL_KEY, originProvider);
+    const originContract = HypERC20Collateral__factory.connect(
+      originContractAddress,
+      originSigner,
+    );
+    const rebalancerRole = await originContract.REBALANCER_ROLE();
+    await originContract.grantRole(rebalancerRole, originSigner.address);
+
+    // Allow destination
+    // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
+    await originContract.addRecipient(
+      destDomain,
+      addressToBytes32(originContractAddress),
+    );
+
+    // Deploy the bridge
+    // This mock contract will be used to allow the rebalance transaction to be sent
+    // It will also allow us to mock some token movement
+    const bridgeContract = await new MockValueTransferBridge__factory(
+      originSigner,
+    ).deploy();
+
+    // Allow bridge
+    // This allow the bridge to be used to send the rebalance transaction
+    await originContract.addBridge(bridgeContract.address, destDomain);
+
+    // Configure rebalancer
+    // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
+    // we need to add the address of the allowed bridge to chain 3
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: 'weighted',
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: bridgeContract.address,
+        bridgeTolerance: 1,
+      },
+    });
+
+    // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
+    const listenForSentTransferRemote = new Promise<{
+      origin: Domain;
+      destination: Domain;
+      recipient: Address;
+      amount: bigint;
+    }>((resolve) => {
+      bridgeContract.on(
+        bridgeContract.filters.SentTransferRemote(),
+        (origin, destination, recipient, amount) => {
+          resolve({
+            origin,
+            destination,
+            recipient: bytes32ToAddress(recipient),
+            amount: amount.toBigInt(),
+          });
+
+          bridgeContract.removeAllListeners();
+        },
+      );
+    });
+
+    // Start the rebalancer
+    const rebalancer = startRebalancer({
+      fromChain: originName,
+      toChain: destName,
+      amount: toWei(5),
+    });
+
+    // Await for the event that is emitted when the rebalance is triggered
+    const sentTransferRemote = await listenForSentTransferRemote;
+
+    // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
+    expect(sentTransferRemote.origin).to.equal(originDomain);
+    expect(sentTransferRemote.destination).to.equal(destDomain);
+    expect(sentTransferRemote.recipient).to.equal(destContractAddress);
+    expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
+
+    const originTkn = ERC20__factory.connect(originTknAddress, originProvider);
+    const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
+
+    let originBalance = await originTkn.balanceOf(originContractAddress);
+    let destBalance = await destTkn.balanceOf(destContractAddress);
+
+    // Verify that the tokens are in the right place before the transfer
+    expect(originBalance.toString()).to.equal(toWei(10));
+    expect(destBalance.toString()).to.equal(toWei(10));
+
+    // Simulate rebalancing by transferring tokens from destination to origin chain.
+    // This process locks tokens on the destination chain and unlocks them on the origin,
+    // effectively increasing collateral on the destination while decreasing it on the origin,
+    // which achieves the desired rebalancing effect.
+    await hyperlaneWarpSendRelay(
+      destName,
+      originName,
+      warpDeploymentPath,
+      true,
+      sentTransferRemote.amount.toString(),
+    );
+
+    originBalance = await originTkn.balanceOf(originContractAddress);
+    destBalance = await destTkn.balanceOf(destContractAddress);
+
+    // Verify that the tokens have been rebalanced according their weights defined by the config
+    expect(originBalance.toString()).to.equal(toWei(5));
+    expect(destBalance.toString()).to.equal(toWei(15));
+
+    // Kill the process to finish the test
+    await rebalancer.kill();
+
+    // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
+    await startRebalancerAndExpectLog(
+      `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+    );
+  });
+
+  describe('manual rebalance', () => {
+    it('should successfully rebalance tokens between chains using a mock bridge', async () => {
+      const wccTokens = warpCoreConfig.tokens;
+
+      // Contract addresses
+      // For this test, rebalance will consist of sending tokens from chain 3 to chain 2
+      const originContractAddress = wccTokens[1].addressOrDenom!;
+      const destContractAddress = wccTokens[0].addressOrDenom!;
+
+      // Addresses of the wrapped collateral tokens
+      const originTknAddress = wccTokens[1].collateralAddressOrDenom!;
+      const destTknAddress = wccTokens[0].collateralAddressOrDenom!;
+
+      // Domain IDs
+      const originDomain = chain3Metadata.domainId;
+      const destDomain = chain2Metadata.domainId;
+
+      // Chain names
+      const originName = CHAIN_NAME_3;
+      const destName = CHAIN_NAME_2;
+
+      // RPC URLs
+      const originRpc = chain3Metadata.rpcUrls[0].http;
+      const destRpc = chain2Metadata.rpcUrls[0].http;
+
+      // Assign rebalancer role
+      // We need to assign to the contract who is able to send the rebalance transaction
+      const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
+      const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
+      const originSigner = new Wallet(ANVIL_KEY, originProvider);
+      const originContract = HypERC20Collateral__factory.connect(
+        originContractAddress,
+        originSigner,
+      );
+      const rebalancerRole = await originContract.REBALANCER_ROLE();
+      await originContract.grantRole(rebalancerRole, originSigner.address);
+
+      // Allow destination
+      // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
+      await originContract.addRecipient(
+        destDomain,
+        addressToBytes32(originContractAddress),
+      );
+
+      // Deploy the bridge
+      // This mock contract will be used to allow the rebalance transaction to be sent
+      // It will also allow us to mock some token movement
+      const bridgeContract = await new MockValueTransferBridge__factory(
+        originSigner,
+      ).deploy();
+
+      // Allow bridge
+      // This allow the bridge to be used to send the rebalance transaction
+      await originContract.addBridge(bridgeContract.address, destDomain);
+
+      // Configure rebalancer
+      // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
+      // we need to add the address of the allowed bridge to chain 3
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        rebalanceStrategy: 'weighted',
+        [CHAIN_NAME_2]: {
+          weight: '75',
+          tolerance: '0',
+          bridge: ethers.constants.AddressZero,
+          bridgeTolerance: 1,
+        },
+        [CHAIN_NAME_3]: {
+          weight: '25',
+          tolerance: '0',
+          bridge: bridgeContract.address,
+          bridgeTolerance: 1,
+        },
+      });
+
+      // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
+      const listenForSentTransferRemote = new Promise<{
+        origin: Domain;
+        destination: Domain;
+        recipient: Address;
+        amount: bigint;
+      }>((resolve) => {
+        bridgeContract.on(
+          bridgeContract.filters.SentTransferRemote(),
+          (origin, destination, recipient, amount) => {
+            resolve({
+              origin,
+              destination,
+              recipient: bytes32ToAddress(recipient),
+              amount: amount.toBigInt(),
+            });
+
+            bridgeContract.removeAllListeners();
+          },
+        );
+      });
+
+      // Start the rebalancer
+      const rebalancer = startRebalancer({
+        fromChain: originName,
+        toChain: destName,
+        amount: toWei(5),
+      });
+
+      // Await for the event that is emitted when the rebalance is triggered
+      const sentTransferRemote = await listenForSentTransferRemote;
+
+      // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
+      expect(sentTransferRemote.origin).to.equal(originDomain);
+      expect(sentTransferRemote.destination).to.equal(destDomain);
+      expect(sentTransferRemote.recipient).to.equal(destContractAddress);
+      expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
+
+      const originTkn = ERC20__factory.connect(
+        originTknAddress,
+        originProvider,
+      );
+      const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
+
+      let originBalance = await originTkn.balanceOf(originContractAddress);
+      let destBalance = await destTkn.balanceOf(destContractAddress);
+
+      // Verify that the tokens are in the right place before the transfer
+      expect(originBalance.toString()).to.equal(toWei(10));
+      expect(destBalance.toString()).to.equal(toWei(10));
+
+      // Simulate rebalancing by transferring tokens from destination to origin chain.
+      // This process locks tokens on the destination chain and unlocks them on the origin,
+      // effectively increasing collateral on the destination while decreasing it on the origin,
+      // which achieves the desired rebalancing effect.
+      await hyperlaneWarpSendRelay(
+        destName,
+        originName,
+        warpDeploymentPath,
+        true,
+        sentTransferRemote.amount.toString(),
+      );
+
+      originBalance = await originTkn.balanceOf(originContractAddress);
+      destBalance = await destTkn.balanceOf(destContractAddress);
+
+      // Verify that the tokens have been rebalanced according their weights defined by the config
+      expect(originBalance.toString()).to.equal(toWei(5));
+      expect(destBalance.toString()).to.equal(toWei(15));
+
+      // Kill the process to finish the test
+      await rebalancer.kill();
+
+      // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
+      await startRebalancerAndExpectLog(
+        `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+      );
+    });
+
+    it('should use another warp route as bridge', async () => {
+      // --- Deploy the other warp route ---
+
+      const otherWarpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+      ]);
+      const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ANVIL_ADDRESS,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.collateral,
+          token: tokenChain3.address,
+          mailbox: chain3Addresses.mailbox,
+          owner: ANVIL_ADDRESS,
+        },
+      };
+      writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
+      await hyperlaneWarpDeploy(otherWarpDeploymentPath);
+
+      const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
+        otherWarpDeploymentPath,
+      );
+
+      const chain2Signer = new Wallet(
+        ANVIL_KEY,
+        new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
+      );
+
+      const chain3Signer = new Wallet(
+        ANVIL_KEY,
+        new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
+      );
+
+      const chain2Contract = HypERC20Collateral__factory.connect(
+        warpCoreConfig.tokens[0].addressOrDenom!,
+        chain2Signer,
+      );
+
+      // --- Grant rebalancer role ---
+
+      await chain2Contract.grantRole(
+        await chain2Contract.REBALANCER_ROLE(),
+        chain2Signer.address,
+      );
+
+      // --- Allow destination ---
+
+      await chain2Contract.addRecipient(
+        chain3Metadata.domainId,
+        addressToBytes32(warpCoreConfig.tokens[1].addressOrDenom!),
+      );
+
+      // --- Allow bridge ---
+
+      await chain2Contract.addBridge(
+        otherWarpCoreConfig.tokens[0].addressOrDenom!,
+        chain3Metadata.domainId,
+      );
+
+      // --- Fund warp route bridge collaterals ---
+
+      await (
+        await tokenChain2
+          .connect(chain2Signer)
+          .transfer(otherWarpCoreConfig.tokens[0].addressOrDenom!, toWei(10))
+      ).wait();
+
+      await (
+        await tokenChain3
+          .connect(chain3Signer)
+          .transfer(otherWarpCoreConfig.tokens[1].addressOrDenom!, toWei(10))
+      ).wait();
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        rebalanceStrategy: 'weighted',
+        [CHAIN_NAME_2]: {
+          weight: '25',
+          tolerance: '0',
+          bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
+          bridgeTolerance: 60000,
+          bridgeIsWarp: true,
+        },
+        [CHAIN_NAME_3]: {
+          weight: '75',
+          tolerance: '0',
+          bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
+          bridgeTolerance: 60000,
+          bridgeIsWarp: true,
+        },
+      });
+
+      // --- Start relayer ---
+
+      const relayer = hyperlaneRelayer(
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+        otherWarpDeploymentPath,
+      );
+
+      await sleep(2000);
+
+      // --- Start rebalancer ---
+
+      try {
+        await startRebalancerAndExpectLog(
+          [
+            'Calculating rebalancing routes using WeightedStrategy...',
+            'Found 1 rebalancing route(s) using WeightedStrategy.',
+          ],
+          { monitorOnly: true },
+        );
+
+        await startRebalancerAndExpectLog(
+          [
+            'Rebalance initiated with 1 route(s)',
+            'Populating rebalance transaction: domain=31347, amount=5000000000000000000, bridge=0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
+            'Route result - Origin: anvil2, Destination: anvil3, Amount: 5000000000000000000',
+            '✅ Rebalance successful',
+          ],
+          {
+            timeout: 30000,
+            fromChain: CHAIN_NAME_2,
+            toChain: CHAIN_NAME_3,
+            amount: toWei(5),
+          },
+        );
+
+        await startRebalancerAndExpectLog(
+          [
+            'Calculating rebalancing routes using WeightedStrategy...',
+            'Found 0 rebalancing route(s) using WeightedStrategy.',
+          ],
+          { timeout: 90000, monitorOnly: true },
+        );
+      } finally {
+        await relayer.kill();
+      }
+    });
   });
 });
