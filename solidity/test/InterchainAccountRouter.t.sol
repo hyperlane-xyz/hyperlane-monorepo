@@ -54,6 +54,16 @@ contract InterchainAccountRouterTestBase is Test {
         bytes32 salt
     );
 
+    event RemoteCallDispatched(
+        uint32 indexed destination,
+        address indexed owner,
+        bytes32 router,
+        bytes32 ism,
+        bytes32 salt
+    );
+
+    event CommitRevealDispatched(bytes32 indexed commitment);
+
     MockHyperlaneEnvironment internal environment;
 
     uint32 internal origin = 1;
@@ -875,6 +885,36 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // assert
         // ICA router should have the commitment
         assertEq(ica.commitments(commitment), true);
+    }
+
+    function testFuzz_callRemoteCommitReveal_events(bytes32 commitment) public {
+        // arrange
+        bytes32 salt = bytes32(0);
+        bytes memory hookMetadata = bytes("");
+
+        // expect both events to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit RemoteCallDispatched(
+            destination,
+            address(this),
+            routerOverride,
+            ismOverride,
+            salt
+        );
+
+        vm.expectEmit(true, false, false, false);
+        emit CommitRevealDispatched(commitment);
+
+        // act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            salt,
+            commitment
+        );
     }
 
     function _get_metadata(

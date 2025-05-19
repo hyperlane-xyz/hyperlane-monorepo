@@ -75,13 +75,21 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @param owner The local owner of the remote ICA
      * @param router The address of the remote router
      * @param ism The address of the remote ISM
+     * @param salt The salt used to derive the interchain account
      */
     event RemoteCallDispatched(
         uint32 indexed destination,
         address indexed owner,
         bytes32 router,
-        bytes32 ism
+        bytes32 ism,
+        bytes32 salt
     );
+
+    /**
+     * @notice Emitted when a commit-reveal interchain call is dispatched to a remote domain
+     * @param commitment The commitment that was dispatched
+     */
+    event CommitRevealDispatched(bytes32 indexed commitment);
 
     /**
      * @notice Emitted when an interchain account contract is deployed
@@ -175,16 +183,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint256 _value,
         bytes memory _data
     ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _to,
-            _value,
-            _data
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
+        return callRemote(_destination, _to, _value, _data, bytes(""));
     }
 
     /**
@@ -205,24 +204,10 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint256 _value,
         bytes memory _data,
         bytes memory _hookMetadata
-    ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _to,
-            _value,
-            _data
-        );
-        return
-            _dispatchMessageWithMetadata(
-                _destination,
-                _router,
-                _ism,
-                _body,
-                _hookMetadata
-            );
+    ) public payable returns (bytes32) {
+        CallLib.Call[] memory _calls = new CallLib.Call[](1);
+        _calls[0] = CallLib.build(_to, _value, _data);
+        return callRemote(_destination, _calls, _hookMetadata);
     }
 
     /**
@@ -238,16 +223,8 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     function callRemote(
         uint32 _destination,
         CallLib.Call[] calldata _calls
-    ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
-
-        return _dispatchMessage(_destination, _router, _ism, _body);
+    ) public payable returns (bytes32) {
+        return callRemote(_destination, _calls, bytes(""));
     }
 
     /**
@@ -263,9 +240,9 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      */
     function callRemote(
         uint32 _destination,
-        CallLib.Call[] calldata _calls,
-        bytes calldata _hookMetadata
-    ) external payable returns (bytes32) {
+        CallLib.Call[] memory _calls,
+        bytes memory _hookMetadata
+    ) public payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
         return
@@ -628,7 +605,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls
+        CallLib.Call[] memory _calls
     ) public payable returns (bytes32) {
         return
             callRemoteWithOverrides(
@@ -655,7 +632,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
         return
@@ -684,7 +661,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata
     ) public payable returns (bytes32) {
         return
@@ -714,7 +691,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
@@ -747,11 +724,18 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata,
         bytes32 _salt,
         IPostDispatchHook _hook
     ) public payable returns (bytes32) {
+        emit RemoteCallDispatched(
+            _destination,
+            msg.sender,
+            _router,
+            _ism,
+            _salt
+        );
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
@@ -762,7 +746,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _dispatchMessageWithHook(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 _hookMetadata,
                 _hook
@@ -803,27 +786,35 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _commitment: _commitment,
                 _userSalt: _salt
             });
-        bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
-            _ism: _ccipReadIsm,
-            _commitment: _commitment
-        });
 
         uint commitMsgValue = (msg.value * COMMIT_TX_GAS_USAGE) /
             (_hookMetadata.gasLimit() + COMMIT_TX_GAS_USAGE);
 
+        emit RemoteCallDispatched(
+            _destination,
+            msg.sender,
+            _router,
+            _ism,
+            _salt
+        );
+        emit CommitRevealDispatched(_commitment);
+
         _commitmentMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
-            _ism,
             _commitmentMsg,
             StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
             _hook,
             commitMsgValue
         );
+
+        bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
+            _ism: _ccipReadIsm,
+            _commitment: _commitment
+        });
         _revealMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
-            _ism,
             _revealMsg,
             _hookMetadata,
             _hook,
@@ -956,20 +947,17 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @notice Dispatches an InterchainAccountMessage to the remote router
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      */
     function _dispatchMessage(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body
     ) private returns (bytes32) {
         return
             _dispatchMessageWithMetadata(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 bytes("")
             );
@@ -979,14 +967,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      */
     function _dispatchMessageWithMetadata(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body,
         bytes memory _hookMetadata
     ) private returns (bytes32) {
@@ -994,7 +980,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _dispatchMessageWithHook(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 _hookMetadata,
                 hook
@@ -1005,7 +990,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @param _hook The hook to use after sending our message to the mailbox
@@ -1013,7 +997,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     function _dispatchMessageWithHook(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body,
         bytes memory _hookMetadata,
         IPostDispatchHook _hook
@@ -1022,7 +1005,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _dispatchMessageWithValue(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 _hookMetadata,
                 _hook,
@@ -1037,17 +1019,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     function _dispatchMessageWithValue(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body,
         bytes memory _hookMetadata,
         IPostDispatchHook _hook,
         uint _value
     ) private returns (bytes32) {
-        require(
-            _router != InterchainAccountMessage.EMPTY_SALT,
-            "no router specified for destination"
-        );
-        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
+        require(_router != bytes32(0), "no router specified for destination");
         return
             mailbox.dispatch{value: _value}(
                 _destination,
