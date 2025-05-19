@@ -173,6 +173,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function balanceOf(address account) external virtual returns (uint256);
 
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @dev This should be overriden for warp routes that require additional fees/approvals.
+     * @return quotes Indicate how much of each token to approve and/or send.
+     */
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -183,6 +189,20 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
+    }
+
+    /**
+     * @deprecated Use `quoteTransferRemote` instead.
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @dev Assumes bytes32(0) recipient and max amount of tokens for quoting.
+     * @return payment How much native value to send in transferRemote call.
+     */
+    function quoteGasPayment(
+        uint32 _destinationDomain
+    ) public view virtual override returns (uint256) {
+        return
+            _quoteGasPayment(_destinationDomain, bytes32(0), type(uint256).max);
     }
 
     function _quoteGasPayment(
