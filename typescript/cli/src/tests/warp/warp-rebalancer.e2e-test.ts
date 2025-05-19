@@ -178,13 +178,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '100',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '100',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -334,13 +334,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: 'weight',
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -354,13 +354,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: 100,
         tolerance: 'tolerance',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -374,13 +374,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: 100,
         tolerance: 0,
         bridge: 'bridge',
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -403,13 +403,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -425,13 +425,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -447,13 +447,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -486,13 +486,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -529,13 +529,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -610,13 +610,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -662,13 +662,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
         bridgeMinAcceptedAmount: '5000000000000000001',
       },
     });
@@ -741,13 +741,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -865,13 +865,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 10000,
+        bridgeLockTime: 10000,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
-        bridgeTolerance: 10000,
+        bridgeLockTime: 10000,
       },
     });
 
@@ -892,13 +892,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -948,13 +948,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         minAmount: '-100',
         buffer: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         minAmount: '100',
         buffer: '0',
         bridge: ethers.constants.AddressZero,
-        bridgeTolerance: 1,
+        bridgeLockTime: 1,
       },
     });
 
@@ -1049,14 +1049,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '25',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-        bridgeTolerance: 60000,
+        bridgeLockTime: 60000,
         bridgeIsWarp: true,
       },
       [CHAIN_NAME_3]: {
         weight: '75',
         tolerance: '0',
         bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-        bridgeTolerance: 60000,
+        bridgeLockTime: 60000,
         bridgeIsWarp: true,
       },
     });

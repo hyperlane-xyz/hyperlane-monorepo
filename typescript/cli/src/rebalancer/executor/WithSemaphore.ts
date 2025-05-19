@@ -1,7 +1,7 @@
 import { log } from '../../logger.js';
 import { Config } from '../config/Config.js';
-import { IExecutor } from '../interfaces/IExecutor.js';
-import { RebalancingRoute } from '../interfaces/IStrategy.js';
+import type { IExecutor } from '../interfaces/IExecutor.js';
+import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
@@ -28,7 +28,7 @@ export class WithSemaphore implements IExecutor {
       return;
     }
 
-    // No routes means the system is balanced so we reset the timer to allow new rebalancing
+    // No routes mean the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
       log(
         `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
@@ -66,10 +66,11 @@ export class WithSemaphore implements IExecutor {
 
   private getHighestTolerance(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
-      const bridgeTolerance =
-        this.config.chains[route.fromChain].bridgeTolerance;
+      // TODO: consider overrides to calculate this value;
+      //  Currently it's assuming that the root `bridgeLockTime` value is the highest in the chain config.
+      const bridgeLockTime = this.config.chains[route.fromChain].bridgeLockTime;
 
-      return Math.max(highest, bridgeTolerance);
+      return Math.max(highest, bridgeLockTime);
     }, 0);
   }
 }

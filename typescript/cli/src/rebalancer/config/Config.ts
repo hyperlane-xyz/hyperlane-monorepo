@@ -13,7 +13,7 @@ const BaseChainConfigSchema = z.object({
     .or(z.number())
     .transform((val) => BigInt(val))
     .optional(),
-  bridgeTolerance: z
+  bridgeLockTime: z
     .number()
     .positive()
     .describe('Expected time in milliseconds for bridge to process a transfer'),
