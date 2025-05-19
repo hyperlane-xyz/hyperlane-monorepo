@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -184,7 +185,7 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       });
     }
 
-    if (this.signer.account.address !== config.owner) {
+    if (eqAddress(this.signer.account.address, config.owner)) {
       await this.signer.setIgpOwner({
         igp_id: igp.id,
         new_owner: config.owner,
