@@ -2,22 +2,48 @@
 pragma solidity >=0.8.0;
 
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TokenRouter} from "./TokenRouter.sol";
+import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 
-struct Quote {
-    address token;
-    uint256 amount;
-}
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Warp Route that charges non-native (ERC20) fees in addition to the native IGP fee.
  * @author Abacus Works
  */
-abstract contract FeeTokenRouter is FungibleTokenRouter {
+abstract contract FeeTokenRouter is FungibleTokenRouter, ITokenBridge {
     constructor(
         uint256 _scale,
         address _mailbox
     ) FungibleTokenRouter(_scale, _mailbox) {}
+
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external payable override(TokenRouter, ITokenBridge) returns (bytes32) {
+        Quote[] memory quotes = quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == address(0)) continue;
+            IERC20(quotes[i].token).transferFrom(
+                msg.sender,
+                address(this),
+                quotes[i].amount
+            );
+        }
+        return
+            TokenRouter._transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                msg.value
+            );
+    }
 
     /**
      * @notice Combines two Quote arrays into a single array
@@ -68,5 +94,8 @@ abstract contract FeeTokenRouter is FungibleTokenRouter {
         uint32 destination,
         bytes32 recipient,
         uint256 amountOut
-    ) public view virtual returns (Quote[] memory);
+    ) public view virtual returns (Quote[] memory) {
+        Quote[] memory fees;
+        return fees;
+    }
 }
