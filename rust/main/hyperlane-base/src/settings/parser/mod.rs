@@ -389,15 +389,15 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_opt_key("address")
                 .parse_address_hash()
                 .unwrap_or_default();
-            let version = signer
+            let is_legacy = signer
                 .chain(&mut err)
-                .get_opt_key("version")
-                .parse_u32()
-                .unwrap_or(3);
+                .get_opt_key("legacy")
+                .parse_bool()
+                .unwrap_or(false);
             err.into_result(SignerConf::StarkKey {
                 key,
                 address,
-                version,
+                is_legacy,
             })
         }};
     }
