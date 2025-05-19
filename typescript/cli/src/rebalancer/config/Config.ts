@@ -35,18 +35,9 @@ const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
     .transform((val) => BigInt(val)),
 });
 
-// Min amount strategy config schema
-const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
-  minAmount: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val)),
-  buffer: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val))
-    .default('0')
-    .optional(),
+const MinAmountConfigSchema = BaseChainConfigSchema.extend({
+  minAmount: z.string().or(z.number()),
+  target: z.string().or(z.number()),
 });
 
 const OverrideValueSchema = BaseChainConfigSchema.partial().passthrough();
@@ -55,16 +46,10 @@ const BaseChainConfigSchemaWithOverride = BaseChainConfigSchema.extend({
   override: z.record(z.string(), OverrideValueSchema).optional(),
 });
 
-const WeightedChainConfigSchemaWithOverride =
-  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema);
-
-const MinAmountChainConfigSchemaWithOverride =
-  BaseChainConfigSchemaWithOverride.merge(MinAmountChainConfigSchema);
-
 // Union of possible chain configs with override
 export const ChainConfigSchema = z.union([
-  WeightedChainConfigSchemaWithOverride,
-  MinAmountChainConfigSchemaWithOverride,
+  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema),
+  BaseChainConfigSchemaWithOverride.merge(MinAmountConfigSchema),
 ]);
 
 const BaseConfigSchema = z.object({
@@ -116,7 +101,8 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
-export type MinAmountChainConfig = z.infer<typeof MinAmountChainConfigSchema>;
+
+export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 
 // Union type for all chain configs
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
