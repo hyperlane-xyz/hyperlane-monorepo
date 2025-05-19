@@ -38,11 +38,13 @@ describe('StrategyFactory', () => {
       const config: ChainMap<MinAmountChainConfig> = {
         chain1: {
           minAmount: ethers.utils.parseEther('100').toBigInt(),
+          target: ethers.utils.parseEther('120').toBigInt(),
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
           minAmount: ethers.utils.parseEther('100').toBigInt(),
+          target: ethers.utils.parseEther('120').toBigInt(),
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
