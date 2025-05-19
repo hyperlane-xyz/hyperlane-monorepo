@@ -65,12 +65,7 @@ pub async fn handler(
         nonce_end,
     } = query_params;
 
-    tracing::debug!(
-        domain_id,
-        nonce_start,
-        nonce_end,
-        "Fetching merkle tree insertion"
-    );
+    tracing::debug!(domain_id, nonce_start, nonce_end, "Fetching messages");
 
     if nonce_end <= nonce_start {
         let error_msg = "nonce_end less than nonce_start";
