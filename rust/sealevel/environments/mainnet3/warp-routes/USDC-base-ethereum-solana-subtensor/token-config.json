@@ -7,5 +7,22 @@
     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/USDC/metadata.json"
+  },
+  "base": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x26af973A5b256F9B9bc0B1A3c566de1566568a87",
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x3C43C421f08e2a48889eA3F75a747b7a7a366A0b",
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  },
+  "subtensor": {
+    "type": "synthetic",
+    "decimals": 6,
+    "foreignDeployment": "0xB833E8137FEDf80de7E908dc6fea43a029142F20",
   }
 }
