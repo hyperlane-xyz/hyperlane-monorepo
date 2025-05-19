@@ -24,37 +24,6 @@ library InterchainAccountMessage {
 
     /**
      * @notice Returns formatted (packed) InterchainAccountMessage
-     * @dev `Calls` are usually passed in calldata, but here we construct the `Call` array in memory.
-     * We can't reuse the `encode` function below because it expects a type of `CallLib.Call[] memory`.
-     * @param _owner The owner of the interchain account
-     * @param _ism The address of the remote ISM
-     * @param _to The address of the contract to call
-     * @param _value The value to include in the call
-     * @param _data The calldata
-     * @return Formatted message body
-     */
-    function encode(
-        address _owner,
-        bytes32 _ism,
-        address _to,
-        uint256 _value,
-        bytes memory _data
-    ) internal pure returns (bytes memory) {
-        CallLib.Call[] memory _calls = new CallLib.Call[](1);
-        _calls[0] = CallLib.build(_to, _value, _data);
-
-        bytes memory prefix = abi.encodePacked(
-            MessageType.CALLS,
-            _owner.addressToBytes32(),
-            _ism,
-            EMPTY_SALT
-        );
-        bytes memory suffix = abi.encode(_calls);
-        return bytes.concat(prefix, suffix);
-    }
-
-    /**
-     * @notice Returns formatted (packed) InterchainAccountMessage
      * @dev This function should only be used in memory message construction.
      * @param _owner The owner of the interchain account
      * @param _ism The address of the remote ISM
@@ -64,7 +33,7 @@ library InterchainAccountMessage {
     function encode(
         address _owner,
         bytes32 _ism,
-        CallLib.Call[] memory _calls
+        CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
         return encode(TypeCasts.addressToBytes32(_owner), _ism, _calls);
     }
@@ -80,7 +49,7 @@ library InterchainAccountMessage {
     function encode(
         bytes32 _owner,
         bytes32 _ism,
-        CallLib.Call[] memory _calls
+        CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
         return encode(_owner, _ism, _calls, EMPTY_SALT);
     }
@@ -96,7 +65,7 @@ library InterchainAccountMessage {
     function encode(
         address _owner,
         bytes32 _ism,
-        CallLib.Call[] memory _calls,
+        CallLib.Call[] calldata _calls,
         bytes32 _userSalt
     ) internal pure returns (bytes memory) {
         return
@@ -114,7 +83,7 @@ library InterchainAccountMessage {
     function encode(
         bytes32 _owner,
         bytes32 _ism,
-        CallLib.Call[] memory _calls,
+        CallLib.Call[] calldata _calls,
         bytes32 _userSalt
     ) internal pure returns (bytes memory) {
         bytes memory prefix = abi.encodePacked(

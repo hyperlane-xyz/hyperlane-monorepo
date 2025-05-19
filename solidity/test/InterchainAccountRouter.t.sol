@@ -408,12 +408,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // act
         CallLib.Call[] memory calls = getCalls(data, value);
-        originIcaRouter.callRemote{value: gasPaymentQuote}(
-            destination,
-            TypeCasts.bytes32ToAddress(calls[0].to),
-            calls[0].value,
-            calls[0].data
-        );
+        originIcaRouter.callRemote{value: gasPaymentQuote}(destination, calls);
 
         // assert
         uint256 balanceAfter = address(this).balance;
