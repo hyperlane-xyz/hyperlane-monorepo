@@ -14,7 +14,7 @@ pub struct Signer {
     /// account address
     pub address: FieldElement,
     /// version of the signer
-    pub version: u32,
+    pub is_legacy: bool,
     /// H256 address of the signer
     pub address_h256: H256,
 }
@@ -23,7 +23,7 @@ impl std::fmt::Debug for Signer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Signer")
             .field("address", &self.address)
-            .field("version", &self.version)
+            .field("is_legacy", &self.is_legacy)
             .field("address_h256", &self.address_h256)
             .finish()
     }
@@ -35,8 +35,8 @@ impl Signer {
     /// # Arguments
     /// * `private_key` - private key for signer
     /// * `address` - address for signer
-    /// * `version` - version of the signer
-    pub fn new(private_key: &H256, address: &H256, version: u32) -> ChainResult<Self> {
+    /// * `is_legacy` - whether the signer is legacy
+    pub fn new(private_key: &H256, address: &H256, is_legacy: bool) -> ChainResult<Self> {
         let contract_address = FieldElement::from_bytes_be(address.as_fixed_bytes())
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signing_key = Self::build_signing_key(private_key)?;
@@ -45,7 +45,7 @@ impl Signer {
             signing_key,
             address: contract_address,
             address_h256: *address,
-            version,
+            is_legacy,
         })
     }
 

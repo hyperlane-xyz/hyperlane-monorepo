@@ -124,7 +124,7 @@ export type CosmosKeyConfig = {
 };
 export type StarknetKeyConfig = {
   type: AgentSignerKeyType.Starknet;
-  version: number;
+  legacy: boolean;
 };
 export type KeyConfig =
   | AwsKeyConfig
@@ -245,9 +245,9 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       if (chainName === 'paradexsepolia') {
-        return { type: AgentSignerKeyType.Starknet, version: 2 };
+        return { type: AgentSignerKeyType.Starknet, legacy: false };
       }
-      return { type: AgentSignerKeyType.Starknet, version: 3 };
+      return { type: AgentSignerKeyType.Starknet, legacy: true };
     }
     // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:

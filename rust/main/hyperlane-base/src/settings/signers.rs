@@ -42,8 +42,8 @@ pub enum SignerConf {
         key: H256,
         /// Starknet address
         address: H256,
-        /// Version of the Starknet signer
-        version: u32,
+        /// Whether the Starknet signer is legacy
+        is_legacy: bool,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -194,10 +194,10 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
         if let SignerConf::StarkKey {
             key,
             address,
-            version,
+            is_legacy,
         } = conf
         {
-            Ok(hyperlane_starknet::Signer::new(key, address, *version)?)
+            Ok(hyperlane_starknet::Signer::new(key, address, *is_legacy)?)
         } else {
             bail!(format!("{conf:?} key is not supported by starknet"));
         }

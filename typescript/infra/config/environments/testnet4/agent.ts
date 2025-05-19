@@ -252,9 +252,21 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('infinityvmmonza') },
     ],
   },
-  // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
+    ],
+  },
+  // Default policy is OnChainFeeQuoting
+  {
+    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },
 ];
 
@@ -472,7 +484,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8c17063-20250515-163832',
+      tag: '4f4f8f2-20250519-135209',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,

@@ -264,7 +264,7 @@ where
     };
 
     // fetch all events in the range
-    // chunk_size is quite limted, so we need to fetch multiple pages
+    // chunk_size is quite limited, so we need to fetch multiple pages
     let mut token = None;
     let mut events = vec![];
 
