@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   HyperlaneCore,
@@ -54,7 +55,7 @@ export class CallCommitmentsService extends BaseService {
   }
 
   static async initialize() {
-    const registryUris = process.env.REGISTRY_URI;
+    const registryUris = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
     if (!registryUris) {
       throw new Error('REGISTRY_URI env var not set');
     }
