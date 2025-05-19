@@ -5,6 +5,7 @@ import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
+import {Quote} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -45,39 +46,34 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         _MovableCollateralRouter_initialize(_owner);
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as hook payment and `msg.sender` as refund address.
-     */
-    function transferRemote(
+    function _quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
-        return _transferRemote(_destination, _recipient, _amount, _hookPayment);
+    ) internal view override returns (Quote[] memory quotes) {
+        quotes = super._quoteTransferRemote(_destination, _recipient, _amount);
+        assert(quotes[0].token == address(0));
+        // add the amount to the quote
+        quotes[0].amount += _amount;
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as hook payment.
-     */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        bytes calldata _hookMetadata,
+        uint256 _value,
+        bytes memory _hookMetadata,
         address _hook
-    ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
+    ) internal virtual override returns (bytes32 messageId) {
+        // include for legible error instead of underflow
+        _transferFromSender(_amount);
+
         return
-            _transferRemote(
+            super._transferRemote(
                 _destination,
                 _recipient,
                 _amount,
-                _hookPayment,
+                msg.value - _amount,
                 _hookMetadata,
                 _hook
             );
@@ -91,12 +87,11 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev No-op because native amount is transferred in `msg.value`
-     * @dev Compiler will not include this in the bytecode.
      */
     function _transferFromSender(
-        uint256
+        uint256 _amount
     ) internal virtual override returns (bytes memory) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         return bytes(""); // no metadata
     }
 

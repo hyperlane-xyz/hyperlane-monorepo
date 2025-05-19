@@ -211,7 +211,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     function test_transferRemote_fundsReceived() public {
         Quote[] memory quotes = _getQuote();
         vm.prank(user);
-        vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
+        vtbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             userB32,
             transferAmount
@@ -226,6 +226,6 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         environment.processNextPendingMessage();
 
         // Recipient was the user account
-        assertEq(user.balance, userBalance - quotes[0].amount);
+        assertEq(user.balance, userBalance - quotes[0].amount + transferAmount);
     }
 }
