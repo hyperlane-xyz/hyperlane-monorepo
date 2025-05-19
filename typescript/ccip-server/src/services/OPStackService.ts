@@ -1,38 +1,47 @@
 import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
-import {
-  CoreCrossChainMessage,
-  CrossChainMessenger,
-  DeepPartial,
-  OEContractsLike,
-} from '@eth-optimism/sdk';
+import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
+import { Router } from 'express';
 
-import { HyperlaneService } from './HyperlaneService';
-import { RPCService } from './RPCService';
+import { OPStackServiceAbi } from '../abis/OPStackServiceAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
-type RPCConfig = {
-  readonly url: string;
-  readonly chainId: string;
-};
-
-type HyperlaneConfig = {
-  readonly url: string;
-};
+import { HyperlaneService } from './HyperlaneService.js';
+import { RPCService } from './RPCService.js';
 
 // Service that requests proofs from Succinct and RPC Provider
-class OPStackService {
+export class OPStackService {
   // External Services
   crossChainMessenger: CrossChainMessenger;
   l1RpcService: RPCService;
   l2RpcService: RPCService;
   hyperlaneService: HyperlaneService;
+  public readonly router: Router;
 
-  constructor(
-    hyperlaneConfig: Required<HyperlaneConfig>,
-    l1RpcConfig: Required<RPCConfig>,
-    l2RpcConfig: Required<RPCConfig>,
-    opContracts?: DeepPartial<OEContractsLike>,
-  ) {
+  constructor() {
+    // Read configs from environment
+    const hyperlaneConfig = { url: process.env.HYPERLANE_EXPLORER_API! };
+    const l1RpcConfig = {
+      url: process.env.RPC_ADDRESS!,
+      chainId: process.env.CHAIN_ID!,
+    };
+    const l2RpcConfig = {
+      url: process.env.L2_RPC_ADDRESS!,
+      chainId: process.env.L2_CHAIN_ID!,
+    };
+    const opContracts = {
+      l1: {
+        AddressManager: process.env.L1_ADDRESS_MANAGER!,
+        L1CrossDomainMessenger: process.env.L1_CROSS_DOMAIN_MESSENGER!,
+        L1StandardBridge: process.env.L1_STANDARD_BRIDGE!,
+        StateCommitmentChain: process.env.L1_STATE_COMMITMENT_CHAIN!,
+        CanonicalTransactionChain: process.env.L1_CANONICAL_TRANSACTION_CHAIN!,
+        BondManager: process.env.L1_BOND_MANAGER!,
+        OptimismPortal: process.env.L1_OPTIMISM_PORTAL!,
+        L2OutputOracle: process.env.L2_OUTPUT_ORACLE!,
+      },
+    };
+
     this.crossChainMessenger = new CrossChainMessenger({
       bedrock: true,
       l1ChainId: l1RpcConfig.chainId,
@@ -46,6 +55,46 @@ class OPStackService {
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
     this.l1RpcService = new RPCService(l1RpcConfig.url);
     this.l2RpcService = new RPCService(l2RpcConfig.url);
+    this.router = Router();
+    // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
+    this.router.get(
+      '/getWithdrawalProof/:sender/:callData.json',
+      createAbiHandler(
+        OPStackServiceAbi,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getWithdrawalProof
+    this.router.post(
+      '/getWithdrawalProof',
+      createAbiHandler(
+        OPStackServiceAbi,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
+    this.router.get(
+      '/getFinalizeWithdrawalTx/:sender/:callData.json',
+      createAbiHandler(
+        OPStackServiceAbi,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getFinalizeWithdrawalTx
+    this.router.post(
+      '/getFinalizeWithdrawalTx',
+      createAbiHandler(
+        OPStackServiceAbi,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
   }
 
   async getWithdrawalTransactionFromReceipt(
@@ -142,5 +191,3 @@ class OPStackService {
     throw new Error('Proof is not ready');
   }
 }
-
-export { OPStackService };

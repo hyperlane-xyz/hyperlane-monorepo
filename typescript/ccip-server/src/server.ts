@@ -5,6 +5,7 @@ import express from 'express';
 import { getEnabledModules } from './config.js';
 import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { OPStackService } from './services/OPStackService.js';
 import { ProofsService } from './services/ProofsService.js';
 
 type ModuleFactory = new (opts?: any) => { router: Router };
@@ -13,6 +14,7 @@ export const moduleRegistry: Record<string, ModuleFactory> = {
   callCommitments: CallCommitmentsService,
   proofs: ProofsService,
   cctp: CCTPService,
+  opstack: OPStackService,
 };
 
 const app = express();
