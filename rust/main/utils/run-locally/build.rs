@@ -32,7 +32,7 @@ fn download_fuel_artifacts() -> Result<()> {
         return Ok(());
     };
 
-    let response = get("https://github.com/fuel-infrastructure/fuel-hyperlane-integration/releases/download/v0.0.1/fuel-contracts.zip")?;
+    let response = get("https://github.com/FuelLabs/fuel-hyperlane-integration/releases/download/v0.0.1/fuel-contracts.zip")?;
     let bytes = match response.status().is_success() {
         true => response.bytes()?,
         false => panic!("Download failed: HTTP {}", response.status()),
