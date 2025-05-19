@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::fs::File;
 
-use crate::config::Config;
-use crate::metrics::agent_balance_sum;
-use crate::utils::get_matching_lines;
-use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
+use hyperlane_core::SubmitterType;
+
+use crate::config::Config;
 use crate::logging::log;
+use crate::metrics::agent_balance_sum;
+use crate::utils::get_matching_lines;
 use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
 
 #[derive(Clone)]
@@ -54,7 +55,10 @@ pub fn relayer_termination_invariants_met(
         "hyperlane_submitter_queue_length",
         &hashmap! {},
     )?;
-    assert!(!lengths.is_empty(), "Could not find queue length metric");
+    if lengths.is_empty() {
+        log!("No submitter queues found");
+        return Ok(false);
+    }
     if lengths.iter().sum::<u32>() != submitter_queue_length_expected {
         log!(
             "Relayer queues contain more messages than expected. Lengths: {:?}, expected {}",
