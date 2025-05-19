@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TokenRouter} from "../contracts/token/libs/TokenRouter.sol";
 import {Quote} from "../contracts/interfaces/ITokenBridge.sol";
-import {CctpTokenBridge, CctpTokenBridgeV1, CctpTokenBridgeV2} from "../contracts/token/extensions/CctpTokenBridge.sol";
+import {TokenBridgeCctp, TokenBridgeCctpV1, TokenBridgeCctpV2} from "../contracts/token/TokenBridgeCctp.sol";
 import {ITokenMessenger} from "../contracts/interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -17,7 +17,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 
 import {console} from "forge-std/console.sol";
 
-contract CctpTokenBridgeScript is Script {
+contract TokenBridgeCctpScript is Script {
     using TypeCasts for address;
 
     uint32 constant CCTP_VERSION_1 = 0;
@@ -74,7 +74,7 @@ contract CctpTokenBridgeScript is Script {
         uint256 amount
     ) public {
         vm.startBroadcast();
-        CctpTokenBridge vtb = CctpTokenBridge(_vtb);
+        TokenBridgeCctp vtb = TokenBridgeCctp(_vtb);
         Quote[] memory quote = vtb.quoteTransferRemote(
             domain,
             recipient.addressToBytes32(),
@@ -99,7 +99,7 @@ contract CctpTokenBridgeScript is Script {
         uint32 cctpDomain
     ) public {
         vm.startBroadcast();
-        CctpTokenBridge tokenBridge = CctpTokenBridge(_tokenBridge);
+        TokenBridgeCctp tokenBridge = TokenBridgeCctp(_tokenBridge);
         tokenBridge.addDomain(hypDomain, cctpDomain);
     }
 
@@ -109,9 +109,9 @@ contract CctpTokenBridgeScript is Script {
         uint32 version = ITokenMessenger(tokenMessengerOrigin)
             .messageBodyVersion();
 
-        CctpTokenBridge implementation;
+        TokenBridgeCctp implementation;
         if (version == CCTP_VERSION_1) {
-            implementation = new CctpTokenBridgeV1(
+            implementation = new TokenBridgeCctpV1(
                 tokenOrigin,
                 scale,
                 mailboxOrigin,
@@ -119,7 +119,7 @@ contract CctpTokenBridgeScript is Script {
                 ITokenMessenger(tokenMessengerOrigin)
             );
         } else if (version == CCTP_VERSION_2) {
-            implementation = new CctpTokenBridgeV2(
+            implementation = new TokenBridgeCctpV2(
                 tokenOrigin,
                 scale,
                 mailboxOrigin,
@@ -134,14 +134,14 @@ contract CctpTokenBridgeScript is Script {
             address(implementation),
             proxyAdmin,
             abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
+                TokenBridgeCctp.initialize.selector,
                 address(0),
                 address(this),
                 urls
             )
         );
 
-        CctpTokenBridge vtb = CctpTokenBridge(address(proxy));
+        TokenBridgeCctp vtb = TokenBridgeCctp(address(proxy));
         vtb.addDomain(destination, cctpDestination);
         vtb.setDestinationGas(destination, REMOTE_GAS_LIMIT);
         vtb.enrollRemoteRouter(destination, vtbRemote.addressToBytes32());
@@ -155,9 +155,9 @@ contract CctpTokenBridgeScript is Script {
         uint32 version = ITokenMessenger(tokenMessengerOrigin)
             .messageBodyVersion();
 
-        CctpTokenBridge implementation;
+        TokenBridgeCctp implementation;
         if (version == CCTP_VERSION_1) {
-            implementation = new CctpTokenBridgeV1(
+            implementation = new TokenBridgeCctpV1(
                 tokenDestination,
                 scale,
                 mailboxDestination,
@@ -165,7 +165,7 @@ contract CctpTokenBridgeScript is Script {
                 ITokenMessenger(tokenMessengerDestination)
             );
         } else if (version == CCTP_VERSION_2) {
-            implementation = new CctpTokenBridgeV2(
+            implementation = new TokenBridgeCctpV2(
                 tokenDestination,
                 scale,
                 mailboxDestination,
@@ -180,14 +180,14 @@ contract CctpTokenBridgeScript is Script {
             address(implementation),
             proxyAdmin,
             abi.encodeWithSelector(
-                CctpTokenBridge.initialize.selector,
+                TokenBridgeCctp.initialize.selector,
                 address(0),
                 address(this),
                 urls
             )
         );
 
-        CctpTokenBridge vtb = CctpTokenBridge(address(proxy));
+        TokenBridgeCctp vtb = TokenBridgeCctp(address(proxy));
         vtb.addDomain(origin, cctpOrigin);
         vtb.setDestinationGas(origin, REMOTE_GAS_LIMIT);
 

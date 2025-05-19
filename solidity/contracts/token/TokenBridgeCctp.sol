@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "../libs/TokenRouter.sol";
-import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
-import {IMessageTransmitter} from "../../interfaces/cctp/IMessageTransmitter.sol";
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {AbstractCcipReadIsm} from "../../isms/ccip-read/AbstractCcipReadIsm.sol";
-import {TypedMemView} from "../../libs/TypedMemView.sol";
-import {ITokenMessenger} from "../../interfaces/cctp/ITokenMessenger.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
+import {HypERC20Collateral} from "./HypERC20Collateral.sol";
+import {IMessageTransmitter} from "./../interfaces/cctp/IMessageTransmitter.sol";
+import {IInterchainSecurityModule} from "./../interfaces/IInterchainSecurityModule.sol";
+import {AbstractCcipReadIsm} from "./../isms/ccip-read/AbstractCcipReadIsm.sol";
+import {TypedMemView} from "./../libs/TypedMemView.sol";
+import {ITokenMessenger} from "./../interfaces/cctp/ITokenMessenger.sol";
 
 interface CctpService {
     function getCCTPAttestation(
@@ -19,7 +18,7 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
+abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
     // @notice CCTP message transmitter contract
     IMessageTransmitter public immutable messageTransmitter;
 
@@ -182,9 +181,9 @@ abstract contract CctpTokenBridge is HypERC20Collateral, AbstractCcipReadIsm {
     function _cctpVersion() internal pure virtual returns (uint32);
 }
 
-import {CctpMessage} from "../../libs/CctpMessage.sol";
+import {CctpMessage} from "../libs/CctpMessage.sol";
 
-contract CctpTokenBridgeV1 is CctpTokenBridge {
+contract TokenBridgeCctpV1 is TokenBridgeCctp {
     using CctpMessage for bytes29;
 
     constructor(
@@ -194,7 +193,7 @@ contract CctpTokenBridgeV1 is CctpTokenBridge {
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
     )
-        CctpTokenBridge(
+        TokenBridgeCctp(
             _erc20,
             _scale,
             _mailbox,
@@ -231,10 +230,10 @@ contract CctpTokenBridgeV1 is CctpTokenBridge {
     }
 }
 
-import {CctpMessageV2} from "../../libs/CctpMessageV2.sol";
-import {ITokenMessengerV2} from "../../interfaces/cctp/ITokenMessengerV2.sol";
+import {CctpMessageV2} from "../libs/CctpMessageV2.sol";
+import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 
-contract CctpTokenBridgeV2 is CctpTokenBridge {
+contract TokenBridgeCctpV2 is TokenBridgeCctp {
     using CctpMessageV2 for bytes29;
 
     constructor(
@@ -244,7 +243,7 @@ contract CctpTokenBridgeV2 is CctpTokenBridge {
         IMessageTransmitter _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger
     )
-        CctpTokenBridge(
+        TokenBridgeCctp(
             _erc20,
             _scale,
             _mailbox,
