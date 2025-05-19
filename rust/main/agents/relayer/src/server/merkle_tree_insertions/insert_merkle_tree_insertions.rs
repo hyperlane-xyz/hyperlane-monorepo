@@ -6,9 +6,7 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{MerkleTreeInsertion, H256};
 use serde::{Deserialize, Serialize};
 
-use crate::server::utils::ServerErrorResponse;
-
-use super::utils::{ServerResult, ServerSuccessResponse};
+use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {

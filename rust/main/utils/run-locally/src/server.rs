@@ -4,7 +4,8 @@ use hyperlane_core::H256;
 use maplit::hashmap;
 use reqwest::Url;
 
-use relayer::server::{insert_messages, message_retry::MessageRetryResponse};
+use relayer::server::messages::insert_messages;
+use relayer::server::operations::message_retry::MessageRetryResponse;
 
 use crate::{fetch_metric, RELAYER_METRICS_PORT};
 
