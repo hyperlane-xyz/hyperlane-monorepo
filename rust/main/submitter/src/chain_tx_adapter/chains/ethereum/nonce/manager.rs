@@ -33,13 +33,12 @@ impl NonceManager {
             return Ok(());
         }
 
-        let address = precursor
+        let address = *precursor
             .tx
             .from()
             .ok_or(SubmitterError::TxSubmissionError(
                 "Transaction missing address".to_string(),
-            ))?
-            .clone();
+            ))?;
         let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
 
         let next_nonce = nonce + self.tx_in_finality_count;
