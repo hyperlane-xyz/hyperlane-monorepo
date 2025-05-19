@@ -2,6 +2,7 @@
   "solanamainnet": {
     "type": "collateral",
     "decimals": 6,
+    "owner": "BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ",
     "name": "USD Coin",
     "symbol": "USDC",
     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
