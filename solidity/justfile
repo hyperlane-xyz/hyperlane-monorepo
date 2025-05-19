@@ -25,6 +25,7 @@ default_mailbox_contract_addr_base := "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1
 domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 domain_routing_hook_addr_everclear_staging := "0x25e08Cab980ecA621dEc42aC781705DA107458B5"
+fallback_domain_receipt_routing_hook_addr_everclear_staging := "0xF1C252dE5c21A19A1660C8a4B58A69f5F9c0c6f0"
 protocol_fee_hook_addr_everclear_staging := "0xC49aF4965264FA7BB6424CE37aA06773ad177224"
 mock_hook_addr_everclear_staging := "0x840E5AaDa7A7aaB5F06C5D3152512A246792183F"
 fallback_domain_routing_hook_addr_everclear_staging := "0x2198bF096FC8C3C05C4B5a53ACe8D9dA3E94ef95"
@@ -280,4 +281,10 @@ deploy-mock-hook-everclear-staging:
         --broadcast \
         -vvvv
 
-    
+deploy-fallback-domain-recipient-hook-everclear-staging:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export FALLBACK_HOOK_ADDRESS="{{ protocol_fee_hook_addr_everclear_staging }}" && \
+    forge script script/DeployFallbackDomainRecipientRoutingHook.s.sol:DeployFallbackDomainRecipientRoutingHook \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
