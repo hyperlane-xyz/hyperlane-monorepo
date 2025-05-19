@@ -169,7 +169,7 @@ describe('Config', () => {
     });
   });
 
-  it('should load if minAmount and target if strategy is relative', () => {
+  it('should load relative params without modifications', () => {
     data.rebalanceStrategy = 'minAmount';
     delete data.chain1.weight;
     delete data.chain1.tolerance;
@@ -187,7 +187,7 @@ describe('Config', () => {
     });
   });
 
-  it('should load if minAmount and target if strategy is absolute', () => {
+  it('should load absolute params without modifications', () => {
     data.rebalanceStrategy = 'minAmount';
     delete data.chain1.weight;
     delete data.chain1.tolerance;
