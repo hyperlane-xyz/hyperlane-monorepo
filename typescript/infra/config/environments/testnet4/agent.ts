@@ -252,9 +252,21 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('infinityvmmonza') },
     ],
   },
-  // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
+    ],
+  },
+  // Default policy is OnChainFeeQuoting
+  {
+    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },
 ];
 
