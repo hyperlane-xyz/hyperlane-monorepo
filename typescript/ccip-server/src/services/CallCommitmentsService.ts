@@ -12,6 +12,7 @@ import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
+import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService } from './BaseService.js';
@@ -33,23 +34,13 @@ const postCallsSchema = z.object({
   originDomain: z.number(),
 });
 
-interface StoredCommitment {
-  calls: { to: string; data: string; value?: string }[];
-  salt: string;
-  relayers: string[];
-  ica: string;
-  commitmentDispatchTx?: string;
-}
-
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
-  private callCommitments: Map<string, StoredCommitment>;
   constructor(
     private multiProvider: MultiProvider,
     private core: HyperlaneCore,
   ) {
     super();
-    this.callCommitments = new Map();
     this.registerRoutes(this.router);
   }
 
@@ -70,49 +61,109 @@ export class CallCommitmentsService extends BaseService {
   }
 
   public async handleCommitment(req: Request, res: Response) {
-    const parseResult = postCallsSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      console.log('Invalid request', parseResult.error.flatten().fieldErrors);
-      return res
-        .status(400)
-        .json({ errors: parseResult.error.flatten().fieldErrors });
+    const data = this.parseCommitmentBody(req.body, res);
+    if (!data) return;
+
+    const commitment = commitmentFromIcaCalls(
+      normalizeCalls(data.calls),
+      data.salt,
+    );
+    try {
+      await this.validateCommitmentDispatched(data, commitment);
+    } catch (error: any) {
+      console.error('Commitment dispatch validation failed', commitment, error);
+      return res.status(400).json({ error: error.message });
     }
+
+    await this.insertCommitmentToDB(commitment, data);
+    res.sendStatus(200);
+    return;
+  }
+
+  public async handleFetchCommitment(commitment: string) {
+    try {
+      const record = await this.fetchCommitmentRecord(commitment);
+      const encoded =
+        record.ica +
+        encodeIcaCalls(normalizeCalls(record.calls as any), record.salt).slice(
+          2,
+        );
+      console.log('Serving calls for commitment', commitment);
+      return encoded;
+    } catch (error: any) {
+      console.error('Error fetching commitment', commitment, error);
+      return JSON.stringify({ error: error.message });
+    }
+  }
+
+  /**
+   * Validate and parse the request body against the Zod schema.
+   * Returns parsed data or sends a 400 response and returns null.
+   */
+  private parseCommitmentBody(body: any, res: Response) {
+    const result = postCallsSchema.safeParse(body);
+    if (!result.success) {
+      console.log('Invalid request', result.error.flatten().fieldErrors);
+      res.status(400).json({ errors: result.error.flatten().fieldErrors });
+      return null;
+    }
+    return result.data;
+  }
+
+  /**
+   * Insert a new commitment record into the database.
+   */
+  private async insertCommitmentToDB(
+    commitment: string,
+    data: z.infer<typeof postCallsSchema>,
+  ) {
     const { calls, relayers, salt, ica, commitmentDispatchTx, originDomain } =
-      parseResult.data;
+      data;
+    await prisma.commitment.create({
+      data: {
+        id: commitment,
+        calls,
+        relayers,
+        salt,
+        ica,
+        commitmentDispatchTx,
+        originDomain,
+      },
+    });
+    console.log('Stored commitment', commitment);
+  }
 
-    // Validate commitment was dispatched
-    const provider = this.multiProvider.getProvider(originDomain);
-    const tx = await provider.getTransactionReceipt(commitmentDispatchTx);
+  /**
+   * Fetch a commitment record from the database by ID.
+   * Throws if not found.
+   */
+  private async fetchCommitmentRecord(id: string) {
+    const record = await prisma.commitment.findUnique({ where: { id } });
+    if (!record) {
+      console.log('Commitment not found in DB', id);
+      throw new Error('Commitment not found');
+    }
+    return record;
+  }
+
+  /**
+   * Ensure the commitment was dispatched on-chain; throws if not.
+   */
+  private async validateCommitmentDispatched(
+    data: z.infer<typeof postCallsSchema>,
+    commitment: string,
+  ): Promise<void> {
+    const provider = this.multiProvider.getProvider(data.originDomain);
+    const tx = await provider.getTransactionReceipt(data.commitmentDispatchTx);
     const dispatchedMessages = this.core.getDispatchedMessages(tx);
-    const commitment = commitmentFromIcaCalls(normalizeCalls(calls), salt);
-
     const wasCommitmentDispatched = dispatchedMessages.some((message) =>
       message.parsed.body
         .toLowerCase()
         .includes(commitment.slice(2).toLowerCase()),
     );
     if (!wasCommitmentDispatched) {
-      console.log('Commitment not dispatched', commitment);
-      return res.status(400).json({ error: 'Commitment not dispatched' });
+      throw new Error('Commitment not dispatched');
     }
-
-    this.callCommitments.set(commitment, { calls, relayers, salt, ica });
-    console.log('Stored commitment', commitment);
-    res.sendStatus(200);
-    return;
-  }
-
-  public async handleFetchCommitment(commitment: string) {
-    const entry = this.callCommitments.get(commitment);
-    if (!entry) {
-      console.log('Commitment not found', commitment);
-      throw new Error('Commitment not found');
-    }
-    const encoded =
-      entry.ica +
-      encodeIcaCalls(normalizeCalls(entry.calls), entry.salt).slice(2);
-    console.log('Serving calls for commitment', commitment);
-    return Promise.resolve(encoded);
   }
 
   /**

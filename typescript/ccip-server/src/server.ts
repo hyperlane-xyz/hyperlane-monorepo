@@ -37,7 +37,8 @@ async function startServer() {
     res.status(404).json({ error: 'Endpoint not found' });
   });
 
-  app.listen(3000, () => console.log(`Listening on port ${3000}`));
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => console.log(`Listening on port ${port}`));
 }
 
 startServer().then(console.log).catch(console.error);
