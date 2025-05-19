@@ -98,7 +98,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     }
 
     function deployIsm() public {
-        ism = new TestCcipReadIsm(address(environment.mailboxes(destination)));
+        ism = new TestCcipReadIsm();
     }
 
     function deployAll() public {

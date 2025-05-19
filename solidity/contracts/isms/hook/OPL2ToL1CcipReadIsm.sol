@@ -11,7 +11,6 @@ import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {MailboxClient} from "../../client/MailboxClient.sol";
 
 interface OpL2toL1Service {
     function getWithdrawalProof(
@@ -36,7 +35,11 @@ interface OpL2toL1Service {
  * ISM because OP Stack expects the prover and the finalizer to
  * be the same caller
  */
-contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
+contract OPL2ToL1CcipReadIsm is
+    AbstractCcipReadIsm,
+    IMessageRecipient,
+    ISpecifiesInterchainSecurityModule
+{
     using Message for bytes;
     using TypeCasts for address;
 
@@ -59,10 +62,8 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
     constructor(
         string[] memory _urls,
         address _opPortal,
-        uint32 _opPortalVersion,
-        address _mailbox
-    ) MailboxClient(_mailbox) {
-        require(_urls.length > 0, "URLs array is empty");
+        uint32 _opPortalVersion
+    ) {
         require(
             _opPortalVersion == OP_PORTAL_VERSION_1 ||
                 _opPortalVersion == OP_PORTAL_VERSION_2,
@@ -70,6 +71,7 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         );
         opPortalVersion = _opPortalVersion;
         opPortal = IOptimismPortal(_opPortal);
+        _transferOwnership(msg.sender);
         setUrls(_urls);
     }
 

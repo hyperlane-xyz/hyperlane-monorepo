@@ -1025,7 +1025,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes memory metadata = _get_metadata(ica, salt, calls);
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
         vm.expectRevert("ICA: Invalid Reveal");
-        _ism.process(metadata, message);
+        _ism.verify(metadata, message);
     }
 
     function testFuzz_callRemoteCommitReveal_simpleOverload(

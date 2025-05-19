@@ -116,11 +116,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
 
-        CCIP_READ_ISM = new CommitmentReadIsm(
-            _mailbox,
-            _owner,
-            _commitment_urls
-        );
+        CCIP_READ_ISM = new CommitmentReadIsm(_owner, _commitment_urls);
         COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
     }
 
