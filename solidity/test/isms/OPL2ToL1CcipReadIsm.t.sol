@@ -5,14 +5,15 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
-import {OPL2ToL1CcipReadIsm} from "../../contracts/isms/hook/OPL2ToL1CcipReadIsm.sol";
+import {OpL1V1NativeTokenBridge} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 import {IOptimismPortal} from "../../contracts/interfaces/optimism/IOptimismPortal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {LightTestRecipient} from "../../contracts/test/LightTestRecipient.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 import {console} from "forge-std/console.sol";
 
-contract OPL2ToL1CcipReadIsmTest is Test {
+contract OpL1V1NativeTokenBridgeTest is Test {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
@@ -27,7 +28,7 @@ contract OPL2ToL1CcipReadIsmTest is Test {
     address tokenBridgeOrigin;
     address tokenBridgeDestination;
 
-    OPL2ToL1CcipReadIsm internal ism;
+    OpL1V1NativeTokenBridge internal ism;
 
     string[] urls;
     IOptimismPortal portal;
@@ -50,13 +51,11 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         // We just need two contracts
         tokenBridgeOrigin = address(new LightTestRecipient());
         tokenBridgeDestination = address(new LightTestRecipient());
-        uint32 portalVersion = 1;
 
-        ism = new OPL2ToL1CcipReadIsm(
-            urls,
+        ism = new OpL1V1NativeTokenBridge(
+            address(mailboxDestination),
             address(portal),
-            portalVersion,
-            address(mailboxDestination)
+            urls
         );
 
         mailboxDestination.setDefaultIsm(address(ism));
@@ -104,7 +103,9 @@ contract OPL2ToL1CcipReadIsmTest is Test {
             );
     }
 
-    function test_verify_proveWithdrawalSuccessfully() public {
+    function test_verify_proveWithdrawalSuccessfully(
+        bytes32 _recipient
+    ) public {
         uint256 amount = 0.001 ether;
 
         IOptimismPortal.WithdrawalTransaction
@@ -117,13 +118,16 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         );
 
         uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
+        // amount 0 indicates prove message
+        bytes memory message = TokenMessage.format(_recipient, 0);
         bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
 
         ism.verify(metadata, message);
     }
 
-    function test_verify_finalizeWithdrawalSuccessfully() public {
+    function test_verify_finalizeWithdrawalSuccessfully(
+        bytes32 _recipient
+    ) public {
         uint256 amount = 0.001 ether;
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
@@ -137,7 +141,7 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         vm.deal(address(portal), amount);
 
         uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
+        bytes memory message = TokenMessage.format(_recipient, amount);
         bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
 
         ism.verify(metadata, message);
@@ -145,47 +149,5 @@ contract OPL2ToL1CcipReadIsmTest is Test {
 
     function test_interchainSecurityModule_givenIsmIsCorrect() public {
         assertEq(address(ism.interchainSecurityModule()), address(ism));
-    }
-
-    function test_handle_emitReceivedMessageEvent() public {
-        uint256 amount = 0.001 ether;
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
-
-        mailboxOrigin.dispatch(
-            destination,
-            address(ism).addressToBytes32(),
-            bytes("")
-        );
-
-        vm.deal(address(portal), amount);
-
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
-        bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
-
-        vm.expectEmit(address(ism));
-        emit OPL2ToL1CcipReadIsm.ReceivedMessage(
-            origin,
-            address(this).addressToBytes32(),
-            0,
-            bytes("")
-        );
-        ism.process(metadata, message);
-    }
-
-    function testFuzz_constructor_revertWhen_creatingWithWrongPortalVersion(
-        uint32 portalVersion
-    ) public {
-        vm.assume(portalVersion != 1);
-        vm.assume(portalVersion != 2);
-
-        vm.expectRevert(bytes("Unsupported OP portal version"));
-        ism = new OPL2ToL1CcipReadIsm(
-            urls,
-            address(portal),
-            portalVersion,
-            address(mailboxDestination)
-        );
     }
 }

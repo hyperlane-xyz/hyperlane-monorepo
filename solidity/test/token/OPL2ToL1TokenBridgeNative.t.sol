@@ -11,9 +11,8 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
-import {OPL2ToL1TokenBridgeNative} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
+import {OpL2NativeTokenBridge, OpL1V1NativeTokenBridge} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 
-import {OPL2ToL1CcipReadHook} from "../../contracts/hooks/OPL2ToL1CcipReadHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
@@ -45,9 +44,8 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     TestCcipReadIsm internal ism;
     TestInterchainGasPaymaster internal igp;
     StaticAggregationHook internal hook;
-    OPL2ToL1TokenBridgeNative internal vtbOrigin;
-    OPL2ToL1TokenBridgeNative internal vtbDestination;
-    OPL2ToL1CcipReadHook internal ccipReadHook;
+    OpL2NativeTokenBridge internal vtbOrigin;
+    OpL1V1NativeTokenBridge internal vtbDestination;
 
     MockHyperlaneEnvironment internal environment;
     MockOptimismStandardBridge internal bridge;
@@ -76,47 +74,19 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
         vm.etch(L2_MESSAGE_PASSER, address(new MockL2ToL1MessagePasser()).code);
 
-        deployAll();
+        deployTokenBridges();
 
         vm.deal(user, userBalance);
     }
 
-    function deployHooks() public {
-        ccipReadHook = new OPL2ToL1CcipReadHook(
-            environment.mailboxes(origin),
-            address(ism),
-            IPostDispatchHook(address(0))
+    function deployTokenBridges() public {
+        OpL2NativeTokenBridge l2implementation = new OpL2NativeTokenBridge(
+            address(environment.mailboxes(origin)),
+            L2_BRIDGE_ADDRESS
         );
 
-        StaticAggregationHookFactory factory = new StaticAggregationHookFactory();
-        address[] memory hooks = new address[](2);
-        // We need the IGP in order to pay relay fees for the first message
-        hooks[0] = address(ccipReadHook);
-        hooks[1] = address(igp);
-
-        hook = StaticAggregationHook(factory.deploy(hooks));
-    }
-
-    function deployIsm() public {
-        ism = new TestCcipReadIsm(address(environment.mailboxes(destination)));
-    }
-
-    function deployAll() public {
-        deployIsm();
-        deployHooks();
-        deployTokenBridges();
-    }
-
-    function deployTokenBridges() public {
-        OPL2ToL1TokenBridgeNative implementation = new OPL2ToL1TokenBridgeNative(
-                SCALE,
-                address(environment.mailboxes(origin)),
-                destination,
-                L2_BRIDGE_ADDRESS
-            );
-
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
+            address(l2implementation),
             ADMIN,
             abi.encodeWithSelector(
                 HypNative.initialize.selector,
@@ -126,17 +96,16 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbOrigin = OPL2ToL1TokenBridgeNative(payable(proxy));
+        vtbOrigin = OpL2NativeTokenBridge(payable(proxy));
 
-        implementation = new OPL2ToL1TokenBridgeNative(
-            SCALE,
+        OpL1V1NativeTokenBridge l1implementation = new OpL1V1NativeTokenBridge(
             address(environment.mailboxes(destination)),
-            destination,
-            address(0)
+            address(0),
+            new string[](0)
         );
 
         proxy = new TransparentUpgradeableProxy(
-            address(implementation),
+            address(l1implementation),
             ADMIN,
             abi.encodeWithSelector(
                 HypNative.initialize.selector,
@@ -146,7 +115,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbDestination = OPL2ToL1TokenBridgeNative(payable(proxy));
+        vtbDestination = OpL1V1NativeTokenBridge(payable(proxy));
 
         vtbOrigin.enrollRemoteRouter(
             destination,
@@ -185,27 +154,6 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
     function test_constructor() public {
         assertEq(address(vtbOrigin.hook()), address(hook));
-    }
-
-    function test_transferRemote_expectReceivedMessageEvent() public {
-        Quote[] memory quotes = _getQuote();
-
-        vm.prank(user);
-        vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
-            destination,
-            userB32,
-            transferAmount
-        );
-
-        vm.expectEmit(true, true, false, false, address(ism));
-        emit TestCcipReadIsm.ReceivedMessage(
-            origin,
-            address(ccipReadHook).addressToBytes32(),
-            0,
-            bytes("")
-        );
-
-        environment.processNextPendingMessage();
     }
 
     function test_transferRemote_fundsReceived() public {
