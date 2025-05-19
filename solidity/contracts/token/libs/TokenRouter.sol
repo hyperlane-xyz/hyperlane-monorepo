@@ -173,31 +173,29 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function balanceOf(address account) external virtual returns (uint256);
 
-    /**
-     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
-     * @param _destinationDomain The domain of the router.
-     * @return quotes Payment computed by the registered InterchainGasPaymaster.
-     */
     function quoteTransferRemote(
-        uint32 _destinationDomain,
+        uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) external view virtual override returns (Quote[] memory quotes) {
-        return _quoteTransferRemote(_destinationDomain, _recipient, _amount);
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        });
     }
 
-    function _quoteTransferRemote(
+    function _quoteGasPayment(
         uint32 _destinationDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view virtual returns (Quote[] memory quotes) {
-        uint256 nativeFee = _GasRouter_quoteDispatch(
-            _destinationDomain,
-            TokenMessage.format(_recipient, _amount),
-            address(hook)
-        );
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), nativeFee);
+    ) internal view returns (uint256) {
+        return
+            _GasRouter_quoteDispatch(
+                _destinationDomain,
+                TokenMessage.format(_recipient, _amount),
+                address(hook)
+            );
     }
 
     /**
