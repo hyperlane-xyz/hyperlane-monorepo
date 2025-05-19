@@ -288,3 +288,13 @@ deploy-fallback-domain-recipient-hook-everclear-staging:
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
+
+configure-fallback-domain-recipient-hook-everclear-staging:
+    export HOOK_ADDRESS="{{ fallback_domain_receipt_routing_hook_addr_everclear_staging }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_base }}" && \
+    export RECIPIENT_ADDRESS="{{ simple_sender_receiver_addr_base }}" && \
+    export TARGET_HOOK_ADDRESS="{{ mock_hook_addr_everclear_staging }}" && \
+    forge script script/ConfigureFallbackDomainRecipientRoutingHook.s.sol:ConfigureFallbackDomainRecipientRoutingHook \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
