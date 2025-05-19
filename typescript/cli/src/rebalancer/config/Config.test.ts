@@ -178,6 +178,7 @@ describe('Config', () => {
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,
+          target: 1100,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -188,11 +189,13 @@ describe('Config', () => {
         },
         chain2: {
           minAmount: 2000,
+          target: 2200,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain3: {
           minAmount: 3000,
+          target: 3300,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -222,6 +225,7 @@ describe('Config', () => {
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,
+          target: 1100,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -235,6 +239,7 @@ describe('Config', () => {
         },
         chain2: {
           minAmount: 2000,
+          target: 2200,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -255,6 +260,7 @@ describe('Config', () => {
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,
+          target: 1100,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -265,6 +271,7 @@ describe('Config', () => {
         },
         chain2: {
           minAmount: 2000,
+          target: 2200,
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },

@@ -970,13 +970,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         minAmount: '-100',
-        buffer: '0',
+        target: '0',
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
       },
       [CHAIN_NAME_3]: {
         minAmount: '100',
-        buffer: '0',
+        target: '0',
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
       },
