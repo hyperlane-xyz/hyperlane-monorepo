@@ -3,7 +3,7 @@ use std::{io, time::Duration};
 use maplit::hashmap;
 use reqwest::Url;
 
-use relayer::server::MessageRetryResponse;
+use relayer::server::message_retry::MessageRetryResponse;
 
 use crate::{fetch_metric, RELAYER_METRICS_PORT};
 

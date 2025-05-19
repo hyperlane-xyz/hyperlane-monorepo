@@ -1,5 +1,6 @@
 import { getChecksumAddress, num, uint256 } from 'starknet';
 
+import { DerivedTokenRouterConfig } from '@hyperlane-xyz/sdk';
 import { Address, Domain, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
@@ -20,11 +21,7 @@ import {
 } from '../utils/starknet.js';
 
 import { TokenType } from './config.js';
-import {
-  HypTokenConfig,
-  HypTokenRouterConfig,
-  TokenMetadata,
-} from './types.js';
+import { HypTokenConfig, TokenMetadata } from './types.js';
 
 export class StarknetERC20WarpRouteReader {
   protected readonly logger = rootLogger.child({
@@ -56,7 +53,7 @@ export class StarknetERC20WarpRouteReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<HypTokenRouterConfig> {
+  ): Promise<DerivedTokenRouterConfig> {
     // Derive the token type
     const type = await this.deriveTokenType(warpRouteAddress);
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
@@ -70,7 +67,7 @@ export class StarknetERC20WarpRouteReader {
       remoteRouters,
       destinationGas,
       type,
-    } as HypTokenRouterConfig;
+    } as DerivedTokenRouterConfig;
   }
 
   /**

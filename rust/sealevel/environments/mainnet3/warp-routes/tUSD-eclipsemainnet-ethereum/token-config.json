@@ -1,0 +1,17 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "remoteDecimals": 6,
+    "name": "Turbo USD",
+    "symbol": "tUSD",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/71b97e47ffe47348b2ea9cb1bde344ca78daea50/deployments/warp_routes/tUSD/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x722a851B6798D65b80526562Fc3a36E19b1F883b",
+    "foreignDeployment": "0x69B1A59e98D94E1B9647C08Cb295Fc52597D20f0"
+  }
+}

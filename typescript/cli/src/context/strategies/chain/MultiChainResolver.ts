@@ -8,26 +8,22 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { log } from '../../../logger.js';
+import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
   extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import {
-  isFile,
-  readYamlOrJson,
-  runFileSelectionStep,
-} from '../../../utils/files.js';
+import { getWarpConfigs } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
+  WARP_APPLY,
   STRATEGY,
   CORE_APPLY,
   DEFAULT,
@@ -46,6 +42,8 @@ export class MultiChainResolver implements ChainResolver {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
+      case ChainSelectionMode.WARP_APPLY:
+        return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
@@ -61,10 +59,38 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveWarpRouteConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
-    argv.context.chains = await this.getWarpRouteConfigChains(
-      argv.config.trim(),
-      argv.context.skipConfirmation,
+    const warpDeployConfig = await getWarpRouteDeployConfig({
+      context: argv.context,
+      warpRouteDeployConfigPath: argv.config,
+      warpRouteId: argv.warpRouteId,
+      symbol: argv.symbol,
+    });
+    argv.context.warpDeployConfig = warpDeployConfig;
+    argv.context.chains = Object.keys(warpDeployConfig);
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
+    );
+    return argv.context.chains;
+  }
+
+  private async resolveWarpApplyChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      symbol: argv.symbol,
+      warpDeployConfigPath: argv.config,
+      warpCoreConfigPath: argv.warp,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    argv.context.warpDeployConfig = warpDeployConfig;
+    argv.context.chains = Object.keys(warpDeployConfig);
+
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
     );
     return argv.context.chains;
   }
@@ -130,36 +156,6 @@ export class MultiChainResolver implements ChainResolver {
     return Array.from(chains);
   }
 
-  private async getWarpRouteConfigChains(
-    configPath: string,
-    skipConfirmation: boolean,
-  ): Promise<ChainName[]> {
-    if (!configPath || !isFile(configPath)) {
-      assert(!skipConfirmation, 'Warp route deployment config is required');
-      configPath = await runFileSelectionStep(
-        './configs',
-        'Warp route deployment config',
-        'warp',
-      );
-    } else {
-      log(`Using warp route deployment config at ${configPath}`);
-    }
-
-    // Alternative to readWarpRouteDeployConfig that doesn't use context for signer and zod validation
-    const warpRouteConfig = (await readYamlOrJson(configPath)) as Record<
-      string,
-      any
-    >;
-
-    const chains = Object.keys(warpRouteConfig) as ChainName[];
-    assert(
-      chains.length !== 0,
-      'No chains found in warp route deployment config',
-    );
-
-    return chains;
-  }
-
   private async resolveCoreApplyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -217,6 +213,9 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
+  }
+  static forWarpApply(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
   }
 
   static forCoreApply(): MultiChainResolver {
