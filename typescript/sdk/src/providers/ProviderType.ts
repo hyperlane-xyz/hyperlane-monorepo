@@ -19,8 +19,7 @@ import {
   Contract as StarknetContract,
   Invocation as StarknetInvocation,
   Provider as StarknetProvider,
-  ReceiptTx as StarknetReceiptTx,
-  TransactionReceipt as StarknetTxReceipt,
+  GetTransactionReceiptResponse as StarknetTxReceipt,
 } from 'starknet';
 import type {
   GetContractReturnType,
@@ -259,6 +258,8 @@ export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
+export type AnnotatedStarknetTransaction = Annotated<StarknetInvocation>;
+
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
   transaction: VTransaction;
@@ -356,9 +357,9 @@ export interface CosmJsNativeTransactionReceipt
 }
 
 export interface StarknetJsTransactionReceipt
-  extends TypedTransactionReceiptBase<StarknetTxReceipt | StarknetReceiptTx> {
+  extends TypedTransactionReceiptBase<StarknetTxReceipt> {
   type: ProviderType.Starknet;
-  receipt: StarknetTxReceipt | StarknetReceiptTx;
+  receipt: StarknetTxReceipt;
 }
 
 export interface ZKSyncTransactionReceipt

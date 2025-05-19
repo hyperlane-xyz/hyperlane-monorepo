@@ -29,6 +29,8 @@ import {
   PausableSchema,
 } from '../types.js';
 
+import { SupportedIsmTypesOnStarknet } from './starknet-utils.js';
+
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
 export enum ModuleType {
@@ -228,6 +230,8 @@ export type RoutingIsmDelta = {
   mailbox?: Address; // is the mailbox different (only for fallback routing)
 };
 
+export type SupportedIsmTypesOnStarknetType =
+  (typeof SupportedIsmTypesOnStarknet)[number];
 const ValidatorInfoSchema = z.object({
   signingAddress: ZHash,
   weight: z.number(),

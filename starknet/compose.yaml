@@ -1,0 +1,10 @@
+services:
+  release-gen:
+    build: .
+    volumes:
+      - ./release:/app/release
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8GB

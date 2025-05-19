@@ -7,12 +7,14 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
-import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -54,13 +56,16 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath } = argv.context;
+  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+    argv.context;
 
+  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+  argv.context.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
-  const strategyConfig = strategyPath
-    ? await readChainSubmissionStrategyConfig(strategyPath)
-    : {};
+  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
+    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
+  );
 
   /**
    * Intercepts Hyperlane command to determine chains.
@@ -79,14 +84,19 @@ export async function signerMiddleware(argv: Record<string, any>) {
     strategyConfig,
     chains,
     multiProvider,
+    multiProtocolProvider,
     { key },
   );
+
+  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
   argv.multiProvider = await multiProtocolSigner.getMultiProvider();
+  argv.multiProtocolProvider = multiProtocolProvider;
   argv.multiProtocolSigner = multiProtocolSigner;
+  argv.context.multiProtocolSigner = multiProtocolSigner;
 
   return argv;
 }
@@ -120,12 +130,14 @@ export async function getContext({
   }
 
   const multiProvider = await getMultiProvider(registry);
+  const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   return {
     registry,
     requiresKey,
     chainMetadata: multiProvider.metadata,
     multiProvider,
+    multiProtocolProvider,
     key,
     skipConfirmation: !!skipConfirmation,
     signerAddress,
@@ -168,6 +180,7 @@ export async function getDryRunContext(
   await verifyAnvil();
 
   let multiProvider = await getMultiProvider(registry);
+  const multiProtocolProvider = await getMultiProtocolProvider(registry);
   multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
@@ -182,6 +195,7 @@ export async function getDryRunContext(
     key: impersonatedKey,
     signer: impersonatedSigner,
     multiProvider: multiProvider,
+    multiProtocolProvider: multiProtocolProvider,
     skipConfirmation: !!skipConfirmation,
     isDryRun: true,
     dryRunChain: chain,
@@ -198,6 +212,11 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
+}
+
+async function getMultiProtocolProvider(registry: IRegistry) {
+  const chainMetadata = await registry.getMetadata();
+  return new MultiProtocolProvider(chainMetadata);
 }
 
 /**

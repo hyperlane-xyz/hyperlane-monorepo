@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::async_trait;
+use async_trait::async_trait;
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;

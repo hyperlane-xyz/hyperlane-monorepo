@@ -13,6 +13,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   assert,
@@ -23,6 +24,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { ExplorerLicenseType } from '../deploy/verify/types.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -32,16 +36,17 @@ import {
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { isProxy, proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
+  HypTokenRouterVirtualConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -60,11 +65,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  contractVerifier: ContractVerifier;
+
+  private static tokenTypeCache: Map<Address, TokenType> = new Map();
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
@@ -89,6 +98,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
     };
+
+    this.contractVerifier =
+      contractVerifier ??
+      new ContractVerifier(
+        multiProvider,
+        {},
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
   }
 
   /**
@@ -123,6 +141,39 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     };
   }
 
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    };
+
+    const contractType = (await isProxy(this.provider, address))
+      ? VerifyContractTypes.Proxy
+      : VerifyContractTypes.Implementation;
+
+    virtualConfig.contractVerificationStatus[contractType] =
+      await this.contractVerifier.getContractVerificationStatus(chain, address);
+
+    if (contractType === VerifyContractTypes.Proxy) {
+      virtualConfig.contractVerificationStatus.Implementation =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyImplementation(this.provider, address),
+        );
+
+      // Derive ProxyAdmin status
+      virtualConfig.contractVerificationStatus.ProxyAdmin =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyAdmin(this.provider, address),
+        );
+    }
+
+    return virtualConfig;
+  }
+
   /**
    * Derives the token type for a given Warp Route address using specific methods
    *
@@ -130,103 +181,111 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const contractTypes: Partial<
-      Record<TokenType, { factory: any; method: string }>
-    > = {
-      [TokenType.collateralVaultRebase]: {
-        factory: HypERC4626Collateral__factory,
-        method: 'NULL_RECIPIENT',
-      },
-      [TokenType.collateralVault]: {
-        factory: HypERC4626OwnerCollateral__factory,
-        method: 'vault',
-      },
-      [TokenType.XERC20Lockbox]: {
-        factory: HypXERC20Lockbox__factory,
-        method: 'lockbox',
-      },
-      [TokenType.collateral]: {
-        factory: HypERC20Collateral__factory,
-        method: 'wrappedToken',
-      },
-      [TokenType.syntheticRebase]: {
-        factory: HypERC4626__factory,
-        method: 'collateralDomain',
-      },
-      [TokenType.synthetic]: {
-        factory: HypERC20__factory,
-        method: 'decimals',
-      },
-    };
+    const cacheKey = `${this.chain}-${warpRouteAddress}`;
+    const cached = EvmERC20WarpRouteReader.tokenTypeCache.get(cacheKey);
+    if (cached) return cached;
 
     // Temporarily turn off SmartProvider logging
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
     this.setSmartProviderLogLevel('silent');
 
-    // First, try checking token specific methods
-    for (const [tokenType, { factory, method }] of Object.entries(
-      contractTypes,
-    )) {
-      try {
-        const warpRoute = factory.connect(warpRouteAddress, this.provider);
-        await warpRoute[method]();
-        if (tokenType === TokenType.collateral) {
-          const wrappedToken = await warpRoute.wrappedToken();
-          try {
-            const xerc20 = IXERC20__factory.connect(
-              wrappedToken,
-              this.provider,
-            );
-            await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
-            return TokenType.XERC20;
-          } catch (error) {
-            this.logger.debug(
-              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
-              error,
-            );
-          }
-
-          try {
-            const fiatToken = IFiatToken__factory.connect(
-              wrappedToken,
-              this.provider,
-            );
-
-            // Simulate minting tokens from the warp route contract
-            await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
-              from: warpRouteAddress,
-            });
-
-            return TokenType.collateralFiat;
-          } catch (error) {
-            this.logger.debug(
-              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
-              error,
-            );
-          }
-        }
-        return tokenType as TokenType;
-      } catch {
-        continue;
-      } finally {
-        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
-      }
-    }
-
-    // Finally check native
-    // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
     try {
-      await this.multiProvider.estimateGas(
-        this.chain,
-        {
-          to: warpRouteAddress,
-          value: BigNumber.from(0),
-        },
-        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
-      );
-      return TokenType.native;
-    } catch (e) {
-      throw Error(`Error accessing token specific method ${e}`);
+      const contracts: Partial<Record<TokenType, any>> = {
+        [TokenType.collateralVaultRebase]:
+          HypERC4626Collateral__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ),
+        [TokenType.collateralVault]: HypERC4626OwnerCollateral__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+        [TokenType.XERC20Lockbox]: HypXERC20Lockbox__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+        [TokenType.collateral]: HypERC20Collateral__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+        [TokenType.syntheticRebase]: HypERC4626__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+        [TokenType.synthetic]: HypERC20__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+        [TokenType.collateralFiat]: IFiatToken__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ),
+      };
+
+      // Batch all method calls together
+      const results = await Promise.allSettled([
+        contracts[TokenType.collateralVaultRebase]
+          .NULL_RECIPIENT()
+          .then(() => TokenType.collateralVaultRebase),
+        contracts[TokenType.collateralVault]
+          .vault()
+          .then(() => TokenType.collateralVault),
+        contracts[TokenType.XERC20Lockbox]
+          .lockbox()
+          .then(() => TokenType.XERC20Lockbox),
+        contracts[TokenType.collateral]
+          .wrappedToken()
+          .then(async (wrappedToken: Address) => {
+            try {
+              const xerc20 = IXERC20__factory.connect(
+                wrappedToken,
+                this.provider,
+              );
+              await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
+              return TokenType.XERC20;
+            } catch {
+              return TokenType.collateral;
+            }
+          }),
+        contracts[TokenType.syntheticRebase]
+          .collateralDomain()
+          .then(() => TokenType.syntheticRebase),
+        contracts[TokenType.synthetic]
+          .decimals()
+          .then(() => TokenType.synthetic),
+        contracts[TokenType.collateralFiat].callStatic
+          .mint(NON_ZERO_SENDER_ADDRESS, 1, {
+            from: warpRouteAddress,
+          })
+          .then(() => TokenType.collateralFiat),
+      ]);
+
+      // Find the first successful result and cache it
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const tokenType = result.value;
+          EvmERC20WarpRouteReader.tokenTypeCache.set(cacheKey, tokenType);
+          return tokenType;
+        }
+      }
+
+      // Check native last (only if all others fail)
+      // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
+      try {
+        await this.multiProvider.estimateGas(
+          this.chain,
+          {
+            to: warpRouteAddress,
+            value: BigNumber.from(0),
+          },
+          NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
+        );
+        const type = TokenType.native;
+        EvmERC20WarpRouteReader.tokenTypeCache.set(cacheKey, type);
+        return type;
+      } catch (e) {
+        throw Error(`Unable to determine token type: ${e}`);
+      }
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
