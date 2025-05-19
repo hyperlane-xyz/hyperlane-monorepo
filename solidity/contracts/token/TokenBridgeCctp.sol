@@ -8,6 +8,15 @@ import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../isms/ccip-read/AbstractCcipReadIsm.sol";
 
+interface CctpService {
+    function getCCTPAttestation(
+        bytes calldata _message
+    )
+        external
+        view
+        returns (bytes memory cctpMessage, bytes memory attestation);
+}
+
 abstract contract TokenBridgeCctp is
     ITokenBridge,
     HypERC20Collateral,
@@ -97,7 +106,7 @@ abstract contract TokenBridgeCctp is
     function _offchainLookupCalldata(
         bytes calldata _message
     ) internal view virtual override returns (bytes memory) {
-        return abi.encodeWithSignature("getCCTPAttestation(bytes)", _message);
+        return abi.encodeCall(CctpService.getCCTPAttestation, (_message));
     }
 
     function verify(
