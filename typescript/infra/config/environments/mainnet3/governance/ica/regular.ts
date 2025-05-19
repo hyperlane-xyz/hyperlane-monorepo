@@ -118,4 +118,5 @@ export const regularIcas: ChainMap<Address> = {
   ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',
   miraclechain: '0x4733050AdC12BCaad14A239418aAdD06cce2fB7d',
   nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318',
+  blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
 };
