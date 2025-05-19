@@ -46,7 +46,7 @@ export class WithSemaphore implements IExecutor {
     }
 
     // The wait period will be determined by the bridge with the highest wait tolerance
-    const highestTolerance = this.getHighestTolerance(routes);
+    const highestTolerance = this.getHighestLockTime(routes);
 
     try {
       // Execute rebalance
@@ -64,7 +64,7 @@ export class WithSemaphore implements IExecutor {
     );
   }
 
-  private getHighestTolerance(routes: RebalancingRoute[]) {
+  private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
       // TODO: consider overrides to calculate this value;
       //  Currently it's assuming that the root `bridgeLockTime` value is the highest in the chain config.
