@@ -169,6 +169,42 @@ describe('Config', () => {
     });
   });
 
+  it('should load if minAmount and target if strategy is relative', () => {
+    data.rebalanceStrategy = 'minAmount';
+    delete data.chain1.weight;
+    delete data.chain1.tolerance;
+
+    data.chain1 = { ...data.chain1, minAmount: '0.2', target: 0.3 };
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+    expect(
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
+    ).to.deep.equal({
+      ...data.chain1,
+      minAmount: '0.2',
+      target: 0.3,
+    });
+  });
+
+  it('should load if minAmount and target if strategy is absolute', () => {
+    data.rebalanceStrategy = 'minAmount';
+    delete data.chain1.weight;
+    delete data.chain1.tolerance;
+
+    data.chain1 = { ...data.chain1, minAmount: '100000', target: 140000 };
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+    expect(
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
+    ).to.deep.equal({
+      ...data.chain1,
+      minAmount: '100000',
+      target: 140000,
+    });
+  });
+
   describe('override functionality', () => {
     it('should parse a config with overrides', () => {
       data = {

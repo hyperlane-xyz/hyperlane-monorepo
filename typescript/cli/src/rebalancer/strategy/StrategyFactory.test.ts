@@ -37,14 +37,14 @@ describe('StrategyFactory', () => {
     it('creates a MinAmountStrategy when given minAmount configuration', () => {
       const config: ChainMap<MinAmountChainConfig> = {
         chain1: {
-          minAmount: ethers.utils.parseEther('100').toBigInt(),
-          target: ethers.utils.parseEther('120').toBigInt(),
+          minAmount: ethers.utils.parseEther('100').toString(),
+          target: ethers.utils.parseEther('120').toString(),
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
-          minAmount: ethers.utils.parseEther('100').toBigInt(),
-          target: ethers.utils.parseEther('120').toBigInt(),
+          minAmount: ethers.utils.parseEther('100').toString(),
+          target: ethers.utils.parseEther('120').toString(),
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },

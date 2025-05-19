@@ -35,23 +35,9 @@ const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
     .transform((val) => BigInt(val)),
 });
 
-// Absolute values, represents in token units the min and the target
-const MinAmountAbsoluteConfigSchema = BaseChainConfigSchema.extend({
-  minAmount: z
-    .string()
-    .or(z.number().gt(1))
-    .transform((val) => BigInt(val)),
-  target: z
-    .string()
-    .or(z.number().gt(1))
-    .transform((val) => BigInt(val)),
-});
-
-// Relative values, with 0 = 0%, and 1 = 100%
-// It's relative to the total sum of collateral across al rebalanceable chains
-const MinAmountRelativeConfigSchema = BaseChainConfigSchema.extend({
-  minAmount: z.number().min(0).max(1),
-  target: z.number().min(0).max(1),
+const MinAmountConfigSchema = BaseChainConfigSchema.extend({
+  minAmount: z.string().or(z.number()),
+  target: z.string().or(z.number()),
 });
 
 const OverrideValueSchema = BaseChainConfigSchema.partial().passthrough();
@@ -60,19 +46,10 @@ const BaseChainConfigSchemaWithOverride = BaseChainConfigSchema.extend({
   override: z.record(z.string(), OverrideValueSchema).optional(),
 });
 
-const WeightedChainConfigSchemaWithOverride =
-  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema);
-
-// Union of MinAmount configs with override
-const MinAmountChainConfigWithOverride = z.union([
-  BaseChainConfigSchemaWithOverride.merge(MinAmountAbsoluteConfigSchema),
-  BaseChainConfigSchemaWithOverride.merge(MinAmountRelativeConfigSchema),
-]);
-
 // Union of possible chain configs with override
 export const ChainConfigSchema = z.union([
-  WeightedChainConfigSchemaWithOverride,
-  MinAmountChainConfigWithOverride,
+  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema),
+  BaseChainConfigSchemaWithOverride.merge(MinAmountConfigSchema),
 ]);
 
 const BaseConfigSchema = z.object({
@@ -124,15 +101,8 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
-export type MinAmountAbsoluteChainConfig = z.infer<
-  typeof MinAmountAbsoluteConfigSchema
->;
-export type MinAmountRelativeChainConfig = z.infer<
-  typeof MinAmountRelativeConfigSchema
->;
-export type MinAmountChainConfig =
-  | MinAmountAbsoluteChainConfig
-  | MinAmountRelativeChainConfig;
+
+export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 
 // Union type for all chain configs
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;

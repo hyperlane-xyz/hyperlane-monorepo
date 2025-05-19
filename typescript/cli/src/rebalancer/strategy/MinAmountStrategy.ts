@@ -1,22 +1,16 @@
+import { BigNumber } from 'bignumber.js';
+
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
+import type { MinAmountChainConfig } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
-/**
- * - Numbers between 0-1 are treated as relative values (percentages)
- * - Numbers > 1 or bigint values are treated as absolute token amounts
- */
-export type MinAmountStrategyConfig =
-  | {
-      minAmount: number;
-      target: number;
-    }
-  | {
-      minAmount: bigint;
-      target: bigint;
-    };
+export type MinAmountStrategyConfig = Pick<
+  MinAmountChainConfig,
+  'minAmount' | 'target'
+>;
 
 type InferredConfig =
   | {
@@ -42,30 +36,28 @@ export class MinAmountStrategy extends BaseStrategy {
     super(chains);
 
     for (const chain of chains) {
-      const { minAmount, target } = config[chain];
+      const minAmount = BigNumber(config[chain].minAmount);
+      const target = BigNumber(config[chain].target);
 
       // check range constraints
-      if (target < minAmount) {
+      if (target.lt(minAmount)) {
         throw new Error(
           `Target must be greater than or equal to minAmount for chain ${chain}`,
         );
       }
 
-      if (minAmount < 0n) {
+      if (minAmount.lt(0)) {
         throw new Error(`Minimum amount cannot be negative for chain ${chain}`);
       }
 
       const isRelative =
-        typeof minAmount === 'number' &&
-        typeof target === 'number' &&
-        minAmount >= 0 &&
-        minAmount <= 1 &&
-        target >= 0 &&
-        target <= 1;
+        minAmount.gte(0) && minAmount.lte(1) && target.gte(0) && target.lte(1);
 
       this.config[chain] = {
-        minAmount,
-        target,
+        minAmount: isRelative
+          ? minAmount.toNumber()
+          : BigInt(minAmount.toString()),
+        target: isRelative ? target.toNumber() : BigInt(target.toString()),
         isRelative,
       } as InferredConfig;
     }
@@ -81,10 +73,9 @@ export class MinAmountStrategy extends BaseStrategy {
     deficits: Delta[];
   } {
     // Get the total balance from all chains (needed for relative calculations)
-    const total = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
-      0n,
-    );
+    const total = this.chains
+      .reduce((sum, chain) => sum + rawBalances[chain], 0n)
+      .toString();
 
     return this.chains.reduce(
       (acc, chain) => {
@@ -97,8 +88,16 @@ export class MinAmountStrategy extends BaseStrategy {
           minAmount = config.minAmount;
           targetAmount = config.target;
         } else {
-          minAmount = BigInt(Math.floor(Number(total) * config.minAmount));
-          targetAmount = BigInt(Math.floor(Number(total) * config.target));
+          minAmount = BigInt(
+            BigNumber(total)
+              .times(config.minAmount)
+              .toFixed(0, BigNumber.ROUND_FLOOR),
+          );
+          targetAmount = BigInt(
+            BigNumber(total)
+              .times(config.target)
+              .toFixed(0, BigNumber.ROUND_FLOOR),
+          );
         }
 
         // If balance is less than minAmount, it has a deficit
