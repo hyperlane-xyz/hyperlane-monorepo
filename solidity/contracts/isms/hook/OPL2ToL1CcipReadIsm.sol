@@ -11,6 +11,24 @@ import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+
+interface OpL2toL1Service {
+    function getWithdrawalProof(
+        bytes calldata _message
+    )
+        external
+        view
+        returns (
+            IOptimismPortal.WithdrawalTransaction memory _tx,
+            uint256 _disputeGameIndex,
+            IOptimismPortal.OutputRootProof memory _outputRootProof,
+            bytes[] memory _withdrawalProof
+        );
+    function getFinalizeWithdrawalTx(
+        bytes calldata _message
+    ) external view returns (IOptimismPortal.WithdrawalTransaction memory _tx);
+}
 
 /**
  * @notice Prove and finalize a OP stack withdrawal on L1
@@ -18,11 +36,7 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../
  * ISM because OP Stack expects the prover and the finalizer to
  * be the same caller
  */
-contract OPL2ToL1CcipReadIsm is
-    AbstractCcipReadIsm,
-    IMessageRecipient,
-    ISpecifiesInterchainSecurityModule
-{
+contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
     using Message for bytes;
     using TypeCasts for address;
 
@@ -32,10 +46,6 @@ contract OPL2ToL1CcipReadIsm is
     // OP Portal version
     uint32 immutable opPortalVersion;
 
-    // CCIP-read gateways URLs
-    string[] public urls;
-    // mailbox on L1
-    IMailbox public immutable mailbox;
     // the OP Portal contract on L1
     IOptimismPortal public immutable opPortal;
 
@@ -51,7 +61,7 @@ contract OPL2ToL1CcipReadIsm is
         address _opPortal,
         uint32 _opPortalVersion,
         address _mailbox
-    ) {
+    ) MailboxClient(_mailbox) {
         require(_urls.length > 0, "URLs array is empty");
         require(
             _opPortalVersion == OP_PORTAL_VERSION_1 ||
@@ -59,36 +69,20 @@ contract OPL2ToL1CcipReadIsm is
             "Unsupported OP portal version"
         );
         opPortalVersion = _opPortalVersion;
-        urls = _urls;
-        mailbox = IMailbox(_mailbox);
         opPortal = IOptimismPortal(_opPortal);
+        setUrls(_urls);
     }
 
-    function getOffchainVerifyInfo(
+    function _offchainLookupCalldata(
         bytes calldata _message
-    ) external view override {
-        bytes memory ccipReadCallData = _areWeMessageRecipient(_message)
-            ? abi.encodeWithSignature("getWithdrawalProof(bytes)", _message)
-            : abi.encodeWithSignature(
-                "getFinalizeWithdrawalTx(bytes)",
-                _message
-            );
-
-        revert OffchainLookup(
-            address(this),
-            urls,
-            ccipReadCallData,
-            OPL2ToL1CcipReadIsm.process.selector,
-            _message
-        );
-    }
-
-    /// @dev called by the relayer when the off-chain data is ready
-    function process(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) external {
-        mailbox.process(_metadata, _message);
+    ) internal view override returns (bytes memory) {
+        return
+            _areWeMessageRecipient(_message)
+                ? abi.encodeCall(OpL2toL1Service.getWithdrawalProof, (_message))
+                : abi.encodeCall(
+                    OpL2toL1Service.getFinalizeWithdrawalTx,
+                    (_message)
+                );
     }
 
     function verify(
