@@ -269,6 +269,14 @@ test-mailbox-contract-deployment-ape:
 test-mailbox-contract-deployment-everclear-staging:
     cast call "{{ default_mailbox_contract_addr_everclear_staging }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
+configure-mailbox-required-hook-everclear-staging:
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export REQUIRED_HOOK_ADDRESS="{{ fallback_domain_receipt_routing_hook_addr_everclear_staging }}" && \
+    forge script script/ConfigureMailbox.s.sol:ConfigureMailbox \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
 display-origin-mailbox-polymer-ism-everclear-staging:
     cast call "{{ polymer_ism_addr_everclear_staging }}" "originMailbox()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
