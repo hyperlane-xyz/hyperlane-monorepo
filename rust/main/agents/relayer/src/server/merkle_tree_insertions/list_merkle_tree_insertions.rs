@@ -268,6 +268,7 @@ mod tests {
             },
         ];
 
+        assert_eq!(resp_body.merkle_tree_insertions.len(), expected_list.len());
         for (actual, expected) in resp_body
             .merkle_tree_insertions
             .iter()

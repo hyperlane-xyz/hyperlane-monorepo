@@ -95,7 +95,7 @@ pub async fn handler(
     })?;
 
     let mut messages = Vec::with_capacity((nonce_end - nonce_start) as usize);
-    for nonce in nonce_end..nonce_start {
+    for nonce in nonce_start..nonce_end {
         let retrieve_res = db.retrieve_message_by_nonce(nonce).map_err(|err| {
             let error_msg = "Failed to fetch message";
             tracing::debug!(domain_id, nonce, ?err, "{error_msg}");
@@ -286,6 +286,7 @@ mod tests {
             })
             .collect();
 
+        assert_eq!(resp_body.messages.len(), expected_list.len());
         for (actual, expected) in resp_body.messages.iter().zip(expected_list.iter()) {
             assert_eq!(actual, expected);
         }
