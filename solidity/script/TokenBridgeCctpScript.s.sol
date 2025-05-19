@@ -6,19 +6,18 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TokenRouter} from "../contracts/token/libs/TokenRouter.sol";
 import {Quote} from "../contracts/interfaces/ITokenBridge.sol";
-import {TokenBridgeCctp} from "../contracts/token/TokenBridgeCctp.sol";
-import {TokenBridgeCctpV1} from "../contracts/token/extensions/TokenBridgeCctpV1.sol";
-import {TokenBridgeCctpV2} from "../contracts/token/extensions/TokenBridgeCctpV2.sol";
+import {CctpTokenBridge, CctpTokenBridgeV1, CctpTokenBridgeV2} from "../contracts/token/extensions/CctpTokenBridge.sol";
 import {ITokenMessenger} from "../contracts/interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IMessageTransmitter} from "../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {CctpMessageV2} from "../contracts/libs/CctpMessageV2.sol";
 import {TypedMemView} from "../contracts/libs/TypedMemView.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {console} from "forge-std/console.sol";
 
-contract TokenBridgeCctpScript is Script {
+contract CctpTokenBridgeScript is Script {
     using TypeCasts for address;
 
     uint32 constant CCTP_VERSION_1 = 0;
@@ -53,6 +52,8 @@ contract TokenBridgeCctpScript is Script {
     address messageTransmitterDestination =
         vm.envAddress("MESSAGE_TRANSMITTER_DESTINATION");
 
+    address proxyAdmin = vm.envAddress("PROXY_ADMIN");
+
     string[] urls = vm.envString("CCIP_READ_URLS", ",");
 
     error UnsupportedVersion(uint32 version);
@@ -73,7 +74,7 @@ contract TokenBridgeCctpScript is Script {
         uint256 amount
     ) public {
         vm.startBroadcast();
-        TokenBridgeCctp vtb = TokenBridgeCctp(_vtb);
+        CctpTokenBridge vtb = CctpTokenBridge(_vtb);
         Quote[] memory quote = vtb.quoteTransferRemote(
             domain,
             recipient.addressToBytes32(),
@@ -98,7 +99,7 @@ contract TokenBridgeCctpScript is Script {
         uint32 cctpDomain
     ) public {
         vm.startBroadcast();
-        TokenBridgeCctp tokenBridge = TokenBridgeCctp(_tokenBridge);
+        CctpTokenBridge tokenBridge = CctpTokenBridge(_tokenBridge);
         tokenBridge.addDomain(hypDomain, cctpDomain);
     }
 
@@ -108,36 +109,39 @@ contract TokenBridgeCctpScript is Script {
         uint32 version = ITokenMessenger(tokenMessengerOrigin)
             .messageBodyVersion();
 
-        TokenBridgeCctp vtb;
+        CctpTokenBridge implementation;
         if (version == CCTP_VERSION_1) {
-            vtb = TokenBridgeCctp(
-                address(
-                    new TokenBridgeCctpV1(
-                        tokenOrigin,
-                        scale,
-                        mailboxOrigin,
-                        IMessageTransmitter(messageTransmitterOrigin),
-                        ITokenMessenger(tokenMessengerOrigin)
-                    )
-                )
+            implementation = new CctpTokenBridgeV1(
+                tokenOrigin,
+                scale,
+                mailboxOrigin,
+                IMessageTransmitter(messageTransmitterOrigin),
+                ITokenMessenger(tokenMessengerOrigin)
             );
         } else if (version == CCTP_VERSION_2) {
-            vtb = TokenBridgeCctp(
-                address(
-                    new TokenBridgeCctpV2(
-                        tokenOrigin,
-                        scale,
-                        mailboxOrigin,
-                        IMessageTransmitter(messageTransmitterOrigin),
-                        ITokenMessengerV2(tokenMessengerOrigin)
-                    )
-                )
+            implementation = new CctpTokenBridgeV2(
+                tokenOrigin,
+                scale,
+                mailboxOrigin,
+                IMessageTransmitter(messageTransmitterOrigin),
+                ITokenMessengerV2(tokenMessengerOrigin)
             );
         } else {
             revert UnsupportedVersion(version);
         }
 
-        vtb.setUrls(urls);
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            proxyAdmin,
+            abi.encodeWithSelector(
+                CctpTokenBridge.initialize.selector,
+                address(0),
+                address(this),
+                urls
+            )
+        );
+
+        CctpTokenBridge vtb = CctpTokenBridge(address(proxy));
         vtb.addDomain(destination, cctpDestination);
         vtb.setDestinationGas(destination, REMOTE_GAS_LIMIT);
         vtb.enrollRemoteRouter(destination, vtbRemote.addressToBytes32());
@@ -151,36 +155,39 @@ contract TokenBridgeCctpScript is Script {
         uint32 version = ITokenMessenger(tokenMessengerOrigin)
             .messageBodyVersion();
 
-        TokenBridgeCctp vtb;
+        CctpTokenBridge implementation;
         if (version == CCTP_VERSION_1) {
-            vtb = TokenBridgeCctp(
-                address(
-                    new TokenBridgeCctpV1(
-                        tokenDestination,
-                        scale,
-                        mailboxDestination,
-                        IMessageTransmitter(messageTransmitterDestination),
-                        ITokenMessenger(tokenMessengerDestination)
-                    )
-                )
+            implementation = new CctpTokenBridgeV1(
+                tokenDestination,
+                scale,
+                mailboxDestination,
+                IMessageTransmitter(messageTransmitterDestination),
+                ITokenMessenger(tokenMessengerDestination)
             );
         } else if (version == CCTP_VERSION_2) {
-            vtb = TokenBridgeCctp(
-                address(
-                    new TokenBridgeCctpV2(
-                        tokenDestination,
-                        scale,
-                        mailboxDestination,
-                        IMessageTransmitter(messageTransmitterDestination),
-                        ITokenMessengerV2(tokenMessengerDestination)
-                    )
-                )
+            implementation = new CctpTokenBridgeV2(
+                tokenDestination,
+                scale,
+                mailboxDestination,
+                IMessageTransmitter(messageTransmitterDestination),
+                ITokenMessengerV2(tokenMessengerDestination)
             );
         } else {
             revert UnsupportedVersion(version);
         }
 
-        vtb.setUrls(urls);
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            proxyAdmin,
+            abi.encodeWithSelector(
+                CctpTokenBridge.initialize.selector,
+                address(0),
+                address(this),
+                urls
+            )
+        );
+
+        CctpTokenBridge vtb = CctpTokenBridge(address(proxy));
         vtb.addDomain(origin, cctpOrigin);
         vtb.setDestinationGas(origin, REMOTE_GAS_LIMIT);
 
