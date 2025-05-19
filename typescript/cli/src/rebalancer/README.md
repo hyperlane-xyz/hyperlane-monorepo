@@ -65,8 +65,6 @@ sepolia:
   # Required: Determines how much deviation from the target amount is allowed before a rebalance is triggered (in percentage 0-100)
   tolerance: 5 # 5% allows a 5% deviation from the target amount before a rebalance is needed
 
-   * - For relative values: Uses percentages of total balance across all chains
-
   # For minAmount strategy (absolute):
   # Absolute requires exact token amounts
   # Required: Minimum amount to maintain on this chain (in wei)
