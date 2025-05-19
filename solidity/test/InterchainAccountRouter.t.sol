@@ -862,6 +862,38 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
     }
 
+    function test_callRemote_withZeroRouter(
+        bytes32 data,
+        uint256 value
+    ) public {
+        bytes32 router = bytes32(0);
+
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            router,
+            ismOverride,
+            getCalls(data, value)
+        );
+
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            router,
+            ismOverride,
+            StandardHookMetadata.formatMetadata(
+                0,
+                GAS_LIMIT_OVERRIDE,
+                address(this),
+                ""
+            ),
+            customHook,
+            bytes32(0),
+            bytes32(0)
+        );
+    }
+
     function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
         // act
         originIcaRouter.callRemoteCommitReveal(

@@ -708,6 +708,8 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    receive() external payable {}
+
     /**
      * @notice Dispatches a commitment and reveal message to the destination domain.
      *  Useful for when we want to keep calldata secret (e.g. when executing a swap
@@ -743,9 +745,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _userSalt: _salt
             });
 
-        uint commitMsgValue = (msg.value * COMMIT_TX_GAS_USAGE) /
-            (_hookMetadata.gasLimit() + COMMIT_TX_GAS_USAGE);
-
         emit RemoteCallDispatched(
             _destination,
             msg.sender,
@@ -759,9 +758,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _destination,
             _router,
             _commitmentMsg,
-            StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
+            StandardHookMetadata.formatMetadata(
+                0,
+                COMMIT_TX_GAS_USAGE,
+                address(this),
+                bytes("")
+            ),
             _hook,
-            commitMsgValue
+            msg.value
         );
 
         bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
@@ -774,7 +778,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _revealMsg,
             _hookMetadata,
             _hook,
-            msg.value - commitMsgValue
+            address(this).balance
         );
     }
 
