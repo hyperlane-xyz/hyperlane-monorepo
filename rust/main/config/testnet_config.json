@@ -1003,10 +1003,6 @@
           "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
         }
       ],
-      "signer": {
-        "address": "VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV",
-        "type": "starkKey"
-      },
       "defaultHook": "0x01b99baf9dffac163065478b345429bd2ed21fdbfc5e3eec7ceabcde3d55c214",
       "defaultIsm": "0x01ca167956f5efaeb5239295fb564d7e3eed29a7f25a78d7321659b5e74ccf01",
       "mailbox": "0x03c725cd6a4463e4a9258d29304bcca5e4f1bbccab078ffd69784f5193a6d792",
@@ -2218,10 +2214,6 @@
           "http": "https://pathfinder.api.testnet.paradex.trade/rpc/v0_7"
         }
       ],
-      "signer": {
-        "address": "QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd",
-        "type": "starkKey"
-      },
       "defaultHook": "0x02a0d232f4d55c2f8f0248296301848d3567134abaa14b261847b6633aa13861",
       "defaultIsm": "0x015255cdfcf7cc9414b5bd56d8ad104cd71243c35ff3450483f302d23ea0db17",
       "mailbox": "0x03dfd685b4e799f1a6a947285a4be355acbfc1715b1c7c11d249b8abd1a691d1",

@@ -245,9 +245,9 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       if (chainName === 'paradexsepolia') {
-        return { type: AgentSignerKeyType.Starknet, legacy: false };
+        return { type: AgentSignerKeyType.Starknet, legacy: true };
       }
-      return { type: AgentSignerKeyType.Starknet, legacy: true };
+      return { type: AgentSignerKeyType.Starknet, legacy: false };
     }
     // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
