@@ -131,16 +131,15 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function test_quoteTransferRemote_getCorrectQuote() public {
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
             amount
         );
 
-        uint256 expectedQuote = tbOrigin.quoteGasPayment(destination);
-
-        assertEq(quote.length, 1);
-        assertEq(quote[0].amount, expectedQuote);
+        assertEq(quotes.length, 2);
+        assertEq(quotes[0].token, address(0));
+        assertEq(quotes[1].token, address(tokenOrigin));
     }
 
     function test_transferRemoteCctp() public {
@@ -151,9 +150,9 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), amount);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
 
-        tbOrigin.transferRemote{value: quote[0].amount + amount}(
+        tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
             user.addressToBytes32(),
             amount

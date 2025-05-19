@@ -104,15 +104,6 @@ abstract contract TokenBridgeCctp is
         _cctpDepositForBurn(_destination, _amount);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 /* _recipient */,
-        uint256 /* _amount */
-    ) external view override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(0), quoteGasPayment(_destination));
-    }
-
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
