@@ -106,7 +106,8 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _mailbox,
         address _hook,
         address _owner,
-        uint _commit_tx_gas_usage
+        uint _commit_tx_gas_usage,
+        string[] memory _commitment_urls
     ) Router(_mailbox) {
         setHook(_hook);
         _transferOwnership(_owner);
@@ -115,9 +116,21 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
 
-        CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox), _owner);
-        interchainSecurityModule = IInterchainSecurityModule(address(this));
+        CCIP_READ_ISM = new CommitmentReadIsm(
+            _mailbox,
+            _owner,
+            _commitment_urls
+        );
         COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
+    }
+
+    function interchainSecurityModule()
+        external
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        return IInterchainSecurityModule(address(this));
     }
 
     /**
