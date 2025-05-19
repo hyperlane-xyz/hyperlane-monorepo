@@ -31,7 +31,7 @@ mock_hook_addr_everclear_staging := "0x840E5AaDa7A7aaB5F06C5D3152512A246792183F"
 fallback_domain_routing_hook_addr_everclear_staging := "0x2198bF096FC8C3C05C4B5a53ACe8D9dA3E94ef95"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
-simple_sender_receiver_addr_everclear_staging := "0x56088923b84121327b85802Dcca1A84478eB1ea2"
+simple_sender_receiver_addr_everclear_staging := "0x02b6ece368d5de946edb4710c7579f7fd9e6244e"
 simple_sender_receiver_addr_base := "0xc81686396C44dD0f39A76de2BeC5CCE2eE3d4548"
 
 deploy-mailbox-b3:
