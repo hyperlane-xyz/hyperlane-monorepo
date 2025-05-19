@@ -49,7 +49,7 @@ pub async fn get_transaction_receipt(
 
                 match receipt {
                     MaybePendingTransactionReceipt::PendingReceipt(_) => {
-                        return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into())
+                        Err(HyperlaneStarknetError::InvalidTransactionReceipt.into())
                     }
                     MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
                 }
