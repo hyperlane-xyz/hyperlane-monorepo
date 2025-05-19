@@ -812,8 +812,11 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
 
-        bytes memory hookMetadata = StandardHookMetadata.overrideGasLimit(
-            _gasLimit
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            _gasLimit,
+            msg.sender,
+            bytes("")
         );
 
         return

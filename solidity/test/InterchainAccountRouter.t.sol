@@ -1120,6 +1120,34 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(ica.commitments(commitment), true);
     }
 
+    function test_callRemoteCommitReveal_refundBehavior(
+        bytes32 commitment
+    ) public {
+        uint256 gasLimit = 100_000;
+
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimit
+        );
+
+        uint256 balanceBefore = address(this).balance;
+
+        originIcaRouter.callRemoteCommitReveal{value: 2 * quote}(
+            destination,
+            commitment,
+            gasLimit
+        );
+
+        uint256 balanceAfter = address(this).balance;
+        assertEq(balanceBefore - balanceAfter, quote);
+    }
+
     function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
         // Arrange
         // We use _Router_quoteDispatch so we actually need a remote router enrolled before quoting
