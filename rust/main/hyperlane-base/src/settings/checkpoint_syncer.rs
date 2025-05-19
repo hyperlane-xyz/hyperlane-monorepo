@@ -2,11 +2,11 @@ use crate::{
     CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
     GCS_USER_SECRET,
 };
+use aws_config::Region;
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
 use hyperlane_core::{ChainCommunicationError, ReorgEvent};
 use prometheus::IntGauge;
-use rusoto_core::Region;
 use std::{env, path::PathBuf};
 use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
@@ -46,7 +46,7 @@ pub enum CheckpointSyncerConf {
 #[derive(Debug, thiserror::Error)]
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
-    #[error("A reorg event has been detected: {0:?}")]
+    #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
     ReorgEvent(ReorgEvent),
     /// Error communicating with the chain
     #[error(transparent)]
@@ -76,9 +76,15 @@ impl FromStr for CheckpointSyncerConf {
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
                     folder,
-                    region: region
-                        .parse()
-                        .context("Invalid region when parsing storage location")?,
+                    // Wildly, aws_config doesn't provide any client-side way to validate a region string, so while
+                    // we still have Rusoto around we just use that to validate the region string :)
+                    region: aws_config::Region::new(
+                        region
+                            .parse::<rusoto_core::Region>()
+                            .context("Invalid region when parsing storage location")?
+                            .name()
+                            .to_owned(),
+                    ),
                 })
             }
             "file" => Ok(CheckpointSyncerConf::LocalStorage {

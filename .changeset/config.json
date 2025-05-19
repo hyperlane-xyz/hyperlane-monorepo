@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@2.3.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": true,
-  "fixed": [["@hyperlane-xyz/!(core|cosmos-types|cosmos-sdk)|*"]],
+  "fixed": [["@hyperlane-xyz/!(core)|*"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

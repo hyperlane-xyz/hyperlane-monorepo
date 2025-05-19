@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    env,
     fmt::{Debug, Display},
     io::Write,
     sync::Arc,
@@ -10,6 +11,7 @@ use async_trait::async_trait;
 use num::CheckedDiv;
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
 use strum::Display;
 use tracing::warn;
 
@@ -156,7 +158,6 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn reset_attempts(&mut self);
 
     /// Set the number of times this operation has been retried.
-    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
 
     /// Get the number of times this operation has been retried.
@@ -166,6 +167,19 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         None
     }
+
+    /// Creates payload for the operation
+    async fn payload(&self) -> ChainResult<Vec<u8>>;
+
+    /// Creates success criteria for the operation
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>>;
+
+    /// Public version of on_reprepare method
+    fn on_reprepare(
+        &mut self,
+        err_msg: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -262,6 +276,21 @@ pub enum ReprepareReason {
     #[strum(to_string = "ApplicationReport({0})")]
     /// Application report
     ApplicationReport(ApplicationReport),
+    #[strum(to_string = "Failed to create payload for message and metadata")]
+    /// Failed to create payload for message and metadata
+    ErrorCreatingPayload,
+    #[strum(to_string = "Failed to store payload id by message id")]
+    /// Failed to store payload id by message id
+    ErrorStoringPayloadIdsByMessageId,
+    #[strum(to_string = "Failed to retrieve payload ids by message id")]
+    /// Failed to retrieve payload ids by message id
+    ErrorRetrievingPayloadIds,
+    #[strum(to_string = "Failed to retrieve payload id status by message id")]
+    /// Failed to retrieve payload id status by message id
+    ErrorRetrievingPayloadStatus,
+    #[strum(to_string = "Failed to create payload success criteria")]
+    /// Failed to create payload success criteria
+    ErrorCreatingPayloadSuccessCriteria,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -341,18 +370,34 @@ impl Eq for QueueOperation {}
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
+
+        fn salted_hash(id: &H256, salt: &[u8]) -> H256 {
+            H256::from_slice(Keccak256::new().chain(id).chain(salt).finalize().as_slice())
+        }
+
         match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,
             (Some(_), None) => Greater,
             (None, None) => {
-                if self.origin_domain_id() == other.origin_domain_id() {
-                    // Should execute in order of nonce for the same origin
-                    self.priority().cmp(&other.priority())
+                let mixing =
+                    env::var("HYPERLANE_RELAYER_MIXING_ENABLED").map_or(false, |v| v == "true");
+                if !mixing {
+                    if self.origin_domain_id() == other.origin_domain_id() {
+                        // Should execute in order of nonce for the same origin
+                        self.priority().cmp(&other.priority())
+                    } else {
+                        // There is no priority between these messages, so arbitrarily use the id
+                        self.id().cmp(&other.id())
+                    }
                 } else {
-                    // There is no priority between these messages, so arbitrarily use the id
-                    self.id().cmp(&other.id())
+                    let salt = env::var("HYPERLANE_RELAYER_MIXING_SALT")
+                        .map_or(0, |v| v.parse::<u32>().unwrap_or(0))
+                        .to_vec();
+                    let self_hash = salted_hash(&self.id(), &salt);
+                    let other_hash = salted_hash(&other.id(), &salt);
+                    self_hash.cmp(&other_hash)
                 }
             }
         }
@@ -375,14 +420,4 @@ pub enum PendingOperationResult {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_encoding_pending_operation_status() {
-        let status = PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata);
-        let encoded = status.to_vec();
-        let decoded = PendingOperationStatus::read_from(&mut &encoded[..]).unwrap();
-        assert_eq!(status, decoded);
-    }
-}
+mod tests;

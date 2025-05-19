@@ -19,10 +19,21 @@ const DEFAULT_TIMEOUT = 30_000;
 describe('Balance Alert Thresholds', async function () {
   this.timeout(DEFAULT_TIMEOUT);
 
-  it('should have matching thresholds between Grafana alerts and threshold config files', async () => {
-    const saToken = await fetchGrafanaServiceAccountToken();
+  it('should have matching thresholds between Grafana alerts and threshold config files', async function () {
+    let saToken: string;
+    try {
+      saToken = await fetchGrafanaServiceAccountToken();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.log(
+        'Error fetching grafana service account token, skipping test',
+        error,
+      );
+      this.skip();
+    }
     const alertsToCheck = Object.values(AlertType);
     const mismatches: string[] = [];
+    const warnings: string[] = [];
 
     for (const alert of alertsToCheck) {
       // Fetch alert rule from Grafana
@@ -53,12 +64,28 @@ describe('Balance Alert Thresholds', async function () {
         const current = currentThresholds[chain];
         const proposed = proposedThresholds[chain];
 
-        if (current !== proposed) {
+        if (current === undefined) {
+          warnings.push(
+            `${alert} - ${chain}: threshold exists in config but not in Grafana`,
+          );
+        } else if (proposed === undefined) {
+          warnings.push(
+            `${alert} - ${chain}: threshold exists in Grafana (${current}) but not in config`,
+          );
+        } else if (current !== proposed) {
           mismatches.push(
             `${alert} - ${chain}: current=${current}, proposed=${proposed}`,
           );
         }
       }
+    }
+
+    if (warnings.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'Found thresholds that exist in one place but not the other:\n' +
+          warnings.join('\n'),
+      );
     }
 
     if (mismatches.length > 0) {

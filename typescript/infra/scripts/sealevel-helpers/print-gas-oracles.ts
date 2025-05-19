@@ -101,8 +101,20 @@ function getChainConnections(
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvm'],
+      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
+      ['solanamainnet', 'abstract'],
+      ['solanamainnet', 'apechain'],
+      // for svmBNB routes solana<>bsc<>svmbnb<>soon
+      ['solanamainnet', 'bsc'],
+      ['svmbnb', 'solanamainnet'],
+      ['svmbnb', 'bsc'],
+      ['svmbnb', 'soon'],
+      ['soon', 'solanamainnet'],
+      ['soon', 'bsc'],
+      // for eclipse routes
+      ['eclipsemainnet', 'sonicsvm'],
+      ['eclipsemainnet', 'soon'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -119,21 +131,24 @@ function getChainConnections(
     throw new Error(`Unknown environment: ${environment}`);
   }
 
-  return connectedChains.reduce((agg, chains) => {
-    // Make sure each chain is connected to every other chain
-    chains.forEach((chainA) => {
-      chains.forEach((chainB) => {
-        if (chainA === chainB) {
-          return;
-        }
-        if (agg[chainA] === undefined) {
-          agg[chainA] = new Set();
-        }
-        agg[chainA].add(chainB as ChainName);
+  return connectedChains.reduce(
+    (agg, chains) => {
+      // Make sure each chain is connected to every other chain
+      chains.forEach((chainA) => {
+        chains.forEach((chainB) => {
+          if (chainA === chainB) {
+            return;
+          }
+          if (agg[chainA] === undefined) {
+            agg[chainA] = new Set();
+          }
+          agg[chainA].add(chainB as ChainName);
+        });
       });
-    });
-    return agg;
-  }, {} as ChainMap<Set<ChainName>>);
+      return agg;
+    },
+    {} as ChainMap<Set<ChainName>>,
+  );
 }
 
 main().catch((err) => {
