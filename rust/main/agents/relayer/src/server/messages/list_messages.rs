@@ -192,9 +192,9 @@ mod tests {
         let domains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let TestServerSetup { app, .. } = setup_test_server(domains);
 
-        let leaf_start_index = 100;
-        let leaf_end_index = 103;
-        let response = send_request(app.clone(), 1000, leaf_start_index, leaf_end_index).await;
+        let nonce_start = 100;
+        let nonce_end = 103;
+        let response = send_request(app.clone(), 1000, nonce_start, nonce_end).await;
         let resp_status = response.status();
 
         assert_eq!(resp_status, StatusCode::NOT_FOUND);
