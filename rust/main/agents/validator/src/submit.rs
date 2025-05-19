@@ -260,7 +260,7 @@ impl ValidatorSubmitter {
                     .await;
             }
 
-            let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
+            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
                 .write_reorg_status(&reorg_event)
@@ -719,7 +719,9 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Incorrect tree root, something went wrong.")]
+    #[should_panic(
+        expected = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support."
+    )]
     async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         let unix_timestamp = chrono::Utc::now().timestamp() as u64;
         let expected_reorg_period = 12;
