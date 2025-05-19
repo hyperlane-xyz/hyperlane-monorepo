@@ -2,7 +2,6 @@
   "solanamainnet": {
     "type": "collateral",
     "decimals": 6,
-    "remoteDecimals": 6,
     "name": "USD Coin",
     "symbol": "USDC",
     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
