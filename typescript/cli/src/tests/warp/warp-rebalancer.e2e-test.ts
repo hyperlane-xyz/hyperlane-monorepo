@@ -223,6 +223,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency?: number;
       withMetrics?: boolean;
       rebalanceStrategy?: string;
+      monitorOnly?: boolean;
       fromChain?: string;
       toChain?: string;
       amount?: string;
@@ -232,6 +233,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency = CHECK_FREQUENCY,
       withMetrics = false,
       rebalanceStrategy,
+      monitorOnly = false,
       fromChain,
       toChain,
       amount,
@@ -243,6 +245,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       REBALANCER_CONFIG_PATH,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
       fromChain,
       toChain,
       amount,
@@ -256,6 +259,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency?: number;
       withMetrics?: boolean;
       rebalanceStrategy?: string;
+      monitorOnly?: boolean;
       fromChain?: string;
       toChain?: string;
       amount?: string;
@@ -266,6 +270,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
       fromChain,
       toChain,
       amount,
@@ -275,6 +280,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency,
       withMetrics,
       rebalanceStrategy,
+      monitorOnly,
       fromChain,
       toChain,
       amount,
@@ -1519,6 +1525,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       try {
         await startRebalancerAndExpectLog(
           [
+            'Calculating rebalancing routes using WeightedStrategy...',
+            'Found 1 rebalancing route(s) using WeightedStrategy.',
+          ],
+          { monitorOnly: true },
+        );
+
+        await startRebalancerAndExpectLog(
+          [
             'Rebalance initiated with 1 route(s)',
             'Populating rebalance transaction: domain=31347, amount=5000000000000000000, bridge=0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
             'Route result - Origin: anvil2, Destination: anvil3, Amount: 5000000000000000000',
@@ -1530,6 +1544,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             toChain: CHAIN_NAME_3,
             amount: toWei(5),
           },
+        );
+
+        await startRebalancerAndExpectLog(
+          [
+            'Calculating rebalancing routes using WeightedStrategy...',
+            'Found 0 rebalancing route(s) using WeightedStrategy.',
+          ],
+          { timeout: 90000, monitorOnly: true },
         );
       } finally {
         await relayer.kill();

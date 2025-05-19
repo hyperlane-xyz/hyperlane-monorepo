@@ -162,6 +162,7 @@ export function hyperlaneWarpRebalancer(
   configFile: string,
   withMetrics: boolean,
   rebalanceStrategy?: string,
+  monitorOnly?: boolean,
   fromChain?: string,
   toChain?: string,
   amount?: string,
@@ -172,6 +173,7 @@ export function hyperlaneWarpRebalancer(
         --checkFrequency ${checkFrequency} \
         --configFile ${configFile} \
         --key ${ANVIL_KEY} \
+        ${monitorOnly ? ['--monitorOnly'] : ['']} \
         ${fromChain ? ['--fromChain', fromChain] : ['']} \
         ${toChain ? ['--toChain', toChain] : ['']} \
         ${amount ? ['--amount', amount] : ['']} \
