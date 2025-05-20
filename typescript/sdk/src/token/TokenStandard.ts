@@ -194,7 +194,34 @@ export const TOKEN_COSMWASM_STANDARDS = [
   TokenStandard.CwHypSynthetic,
 ];
 
-export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
+export const tokenTypeToStandard = (
+  protocolType: ProtocolType,
+  tokenType: TokenType,
+) => {
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      return TOKEN_TYPE_TO_EVM_STANDARD[tokenType];
+    }
+    case ProtocolType.CosmosNative: {
+      if (tokenType === TokenType.collateral) {
+        return TokenStandard.CosmNativeHypCollateral;
+      } else if (tokenType === TokenType.synthetic) {
+        return TokenStandard.CosmNativeHypSynthetic;
+      } else {
+        throw new Error(
+          `no token standard available for token type ${tokenType}`,
+        );
+      }
+    }
+    default: {
+      throw new Error(
+        `no token standard available for protocol type ${protocolType}`,
+      );
+    }
+  }
+};
+
+export const TOKEN_TYPE_TO_EVM_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,

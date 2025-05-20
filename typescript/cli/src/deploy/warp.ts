@@ -10,10 +10,12 @@ import {
   AnnotatedEV5Transaction,
   CCIPContractCache,
   ChainMap,
+  ChainMetadata,
   ChainName,
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  CosmosNativeDeployer,
   CosmosNativeIsmModule,
   EvmERC20WarpModule,
   EvmHookModule,
@@ -35,7 +37,6 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
-  TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
@@ -55,6 +56,7 @@ import {
   isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
+  tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -170,7 +172,7 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, isDryRun, dryRunChain },
+    context: { multiProvider, isDryRun, dryRunChain, multiProtocolSigner },
   } = params;
 
   const config: WarpRouteDeployConfigMailboxRequired =
@@ -222,9 +224,14 @@ async function executeDeploy(
   }
 
   if (!isObjEmpty(cosmosNativeConfig)) {
-    // TODO: implement
+    const signersMap = objMap(
+      cosmosNativeConfig,
+      (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
+    );
 
-    const cosmosNativeContracts = {};
+    const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
+    const cosmosNativeContracts = await deployer.deploy(cosmosNativeConfig);
+
     deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
   }
 
@@ -345,7 +352,7 @@ async function createWarpIsm({
       const { deployedIsm } = evmIsmModule.serialize();
       return deployedIsm;
     }
-    case ProtocolType.Cosmos: {
+    case ProtocolType.CosmosNative: {
       const signer = context.multiProtocolSigner!.getCosmosNativeSigner(chain);
 
       const cosmosIsmModule = await CosmosNativeIsmModule.create({
@@ -462,6 +469,7 @@ async function getWarpCoreConfig(
   assert(decimals, 'Missing decimals on token metadata');
 
   generateTokenConfigs(
+    params.context.chainMetadata,
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
@@ -479,6 +487,7 @@ async function getWarpCoreConfig(
  * Creates token configs.
  */
 function generateTokenConfigs(
+  chainMetadata: ChainMap<ChainMetadata>,
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
@@ -495,7 +504,10 @@ function generateTokenConfigs(
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      standard: tokenTypeToStandard(
+        chainMetadata[chainName].protocol,
+        config.type,
+      ),
       decimals,
       symbol: config.symbol || symbol,
       name,

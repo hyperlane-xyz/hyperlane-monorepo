@@ -465,6 +465,7 @@ export {
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
+export { CosmosNativeDeployer } from './token/cosmosNativeDeploy.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
 export {
   DerivedIcaRouterConfig,
@@ -606,7 +607,8 @@ export {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
-  TOKEN_TYPE_TO_STANDARD,
+  TOKEN_TYPE_TO_EVM_STANDARD,
+  tokenTypeToStandard,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';

@@ -1,7 +1,6 @@
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
-import { AddressesMap } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
@@ -11,41 +10,50 @@ import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 export class CosmosNativeDeployer {
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly signer: SigningHyperlaneModuleClient,
+    protected readonly signersMap: ChainMap<SigningHyperlaneModuleClient>,
   ) {}
 
   async deploy(
     configMap: WarpRouteDeployConfigMailboxRequired,
-  ): Promise<ChainMap<AddressesMap>> {
+  ): Promise<ChainMap<{ [x: string]: { address: string } }>> {
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       gas: gasOverhead(config.type),
       ...config,
     }));
 
-    let result: ChainMap<AddressesMap> = {};
+    let result: ChainMap<{ [x: string]: { address: string } }> = {};
+    let token_id = '';
 
     for (const chain of Object.keys(resolvedConfigMap)) {
       const config = resolvedConfigMap[chain];
 
       switch (config.type) {
         case TokenType.collateral: {
-          const { response: collateralToken } =
-            await this.signer.createCollateralToken({
-              origin_mailbox: config.mailbox,
-              origin_denom: config.token,
-            });
+          const { response: collateralToken } = await this.signersMap[
+            chain
+          ].createCollateralToken({
+            origin_mailbox: config.mailbox,
+            origin_denom: config.token,
+          });
+          token_id = collateralToken.id;
           result[chain] = {
-            token_id: collateralToken.id,
+            [TokenType.collateral]: {
+              address: collateralToken.id,
+            },
           };
           break;
         }
         case TokenType.synthetic: {
-          const { response: syntheticToken } =
-            await this.signer.createSyntheticToken({
-              origin_mailbox: config.mailbox,
-            });
+          const { response: syntheticToken } = await this.signersMap[
+            chain
+          ].createSyntheticToken({
+            origin_mailbox: config.mailbox,
+          });
+          token_id = syntheticToken.id;
           result[chain] = {
-            token_id: syntheticToken.id,
+            [TokenType.synthetic]: {
+              address: syntheticToken.id,
+            },
           };
           break;
         }
@@ -57,8 +65,8 @@ export class CosmosNativeDeployer {
       for (const domainId of Object.keys(config.remoteRouters || {})) {
         assert(config.remoteRouters, ``);
 
-        await this.signer.enrollRemoteRouter({
-          token_id: result[chain].token_id,
+        await this.signersMap[chain].enrollRemoteRouter({
+          token_id,
           remote_router: {
             receiver_domain: parseInt(domainId),
             receiver_contract: (config.remoteRouters || {})[domainId].address,
@@ -68,6 +76,6 @@ export class CosmosNativeDeployer {
       }
     }
 
-    return {};
+    return result;
   }
 }
