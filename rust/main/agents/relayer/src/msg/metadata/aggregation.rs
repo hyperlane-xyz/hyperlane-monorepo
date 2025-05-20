@@ -99,17 +99,31 @@ impl AggregationIsmMetadataBuilder {
         threshold: usize,
         err_isms: Vec<(H256, Option<ModuleType>)>,
     ) -> Result<Vec<SubModuleMetadata>, MetadataBuildError> {
+        debug!("Processing message from {} to {}, id: {:?}", message.origin, message.destination, message.id());
         let gas_cost_results: Vec<_> = join_all(
             sub_modules
                 .iter()
                 .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
         )
         .await;
+        debug!("Full gas cost results: {:#?}", gas_cost_results);
+        debug!("Message being processed: id={:?}, origin={}, destination={}", message.id(), message.origin, message.destination);
         // Filter out the ISMs with a gas cost estimate
         let metas_and_gas: Vec<_> = sub_modules
             .into_iter()
             .zip(gas_cost_results.into_iter())
-            .filter_map(|(module, gas_cost)| gas_cost.ok().flatten().map(|gc| (module.meta, gc)))
+            .filter_map(|(module, gas_cost)| {
+                let index = module.meta.index;
+                let result = gas_cost.ok().map(|gc| {
+                    let gas = gc.unwrap_or_default();
+                    debug!("Validator at index {} gas cost: {}", index, gas);
+                    (module.meta, gas)
+                });
+                if result.is_none() {
+                    debug!("Validator at index {} failed or returned None", index);
+                }
+                result
+            })
             .collect();
 
         let metas_and_gas_count = metas_and_gas.len();
@@ -233,6 +247,7 @@ impl AggregationIsmMetadataBuilder {
         &self,
         ism_addresses: Vec<H256>,
     ) -> Option<(usize, Box<dyn InterchainSecurityModule>, H256)> {
+        debug!("Searching for message ID multisig ISM among {} addresses", ism_addresses.len());
         let sub_isms = join_all(ism_addresses.iter().map(|sub_ism_address| async {
             let ism_and_module_type =
                 message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address).await;
@@ -240,8 +255,14 @@ impl AggregationIsmMetadataBuilder {
         }))
         .await;
         sub_isms.into_iter().enumerate().find_map(|(index, ism)| {
-            if let (Ok((ism, ModuleType::MessageIdMultisig)), address) = ism {
-                Some((index, ism, address))
+            if let (Ok((ism, module_type)), address) = ism {
+                debug!("Found ISM at index {} with type {:?}", index, module_type);
+                if module_type == ModuleType::MessageIdMultisig {
+                    debug!("Found message ID multisig ISM at index {}", index);
+                    Some((index, ism, address))
+                } else {
+                    None
+                }
             } else {
                 None
             }
