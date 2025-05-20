@@ -65,6 +65,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -217,8 +218,6 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
 
-        let advanced_log_meta = false;
-
         let stores: HashMap<_, _> = dbs
             .iter()
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
@@ -230,7 +229,7 @@ impl BaseAgent for Relayer {
             &contract_sync_metrics,
             &chain_metrics,
             stores.clone(),
-            advanced_log_meta,
+            ADVANCED_LOG_META,
         )
         .await;
 
@@ -244,7 +243,7 @@ impl BaseAgent for Relayer {
                 &contract_sync_metrics,
                 &chain_metrics,
                 stores.clone(),
-                advanced_log_meta,
+                ADVANCED_LOG_META,
             )
             .await;
             Some(igp_syncs)
@@ -260,7 +259,7 @@ impl BaseAgent for Relayer {
             &contract_sync_metrics,
             &chain_metrics,
             stores.clone(),
-            advanced_log_meta,
+            ADVANCED_LOG_META,
         )
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized merkle tree hook syncs", "Relayer startup duration measurement");
@@ -1064,8 +1063,8 @@ impl Relayer {
             let contract_sync = match settings
                 .contract_sync(
                     domain,
-                    &core_metrics,
-                    &contract_sync_metrics,
+                    core_metrics,
+                    contract_sync_metrics,
                     store,
                     advanced_log_meta,
                     settings.tx_id_indexing_enabled,
@@ -1074,9 +1073,9 @@ impl Relayer {
             {
                 Ok(sync) => sync,
                 Err(err) => {
-                    let error_msg = "contract_sync() failed";
+                    let error_msg = "contract_sync() failed for message contract";
                     tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, &error_msg, chain_metrics.clone());
+                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
                     continue;
                 }
             };
@@ -1109,8 +1108,8 @@ impl Relayer {
             let contract_sync = match settings
                 .contract_sync(
                     domain,
-                    &core_metrics,
-                    &contract_sync_metrics,
+                    core_metrics,
+                    contract_sync_metrics,
                     store,
                     advanced_log_meta,
                     settings.tx_id_indexing_enabled,
@@ -1119,9 +1118,9 @@ impl Relayer {
             {
                 Ok(sync) => sync,
                 Err(err) => {
-                    let error_msg = "contract_sync() failed";
+                    let error_msg = "contract_sync() failed for interchain gas payment contract";
                     tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, &error_msg, chain_metrics.clone());
+                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
                     continue;
                 }
             };
@@ -1154,8 +1153,8 @@ impl Relayer {
             let contract_sync = match settings
                 .contract_sync(
                     domain,
-                    &core_metrics,
-                    &contract_sync_metrics,
+                    core_metrics,
+                    contract_sync_metrics,
                     store,
                     advanced_log_meta,
                     settings.tx_id_indexing_enabled,
@@ -1164,9 +1163,9 @@ impl Relayer {
             {
                 Ok(sync) => sync,
                 Err(err) => {
-                    let error_msg = "contract_sync() failed";
+                    let error_msg = "contract_sync() failed for merkle tree hook contract";
                     tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, &error_msg, chain_metrics.clone());
+                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
                     continue;
                 }
             };
