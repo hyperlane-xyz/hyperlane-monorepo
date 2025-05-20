@@ -281,7 +281,7 @@ export class CallCommitmentsService extends BaseService {
    */
   private registerRoutes(router: Router): void {
     // TODO REMOVE
-    const calls_mock = async (req, res) => {
+    const calls_mock = async (req: any, res: any) => {
       const data = this.parseCommitmentBody(req.body, res);
       if (!data) return;
 
