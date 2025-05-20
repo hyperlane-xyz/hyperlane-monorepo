@@ -1,5 +1,18 @@
 # @hyperlane-xyz/widgets
 
+## 13.0.0
+
+### Patch Changes
+
+- 1a7222b: Compress Starknet logo
+- Updated dependencies [72b90f8]
+- Updated dependencies [bc58283]
+- Updated dependencies [0de63e0]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/sdk@13.0.0
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+
 ## 12.6.0
 
 ### Minor Changes

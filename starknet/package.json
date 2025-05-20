@@ -1,10 +1,11 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
   "description": "Core cairo contracts for Hyperlane",
-  "version": "1.0.0",
+  "version": "13.0.0",
   "type": "module",
   "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "fetch-contracts": "./scripts/fetch-contracts-release.sh",
     "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
