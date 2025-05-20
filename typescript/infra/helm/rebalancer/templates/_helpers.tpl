@@ -74,6 +74,8 @@ The rebalancer container
     value: pretty
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
+  - name: HYP_KEY
+    value: $(REBALANCER_KEY)
   args:
   - "yarn"
   - "workspace"
@@ -87,8 +89,6 @@ The rebalancer container
   - "60000"
   - "--configFile"
   - "{{ .Values.hyperlane.rebalancerConfigFile }}"
-  - "--key"
-  -  "$(REBALANCER_KEY)"
   - "--coingeckoApiKey"
   -  "$(COINGECKO_API_KEY)"
   - "--withMetrics"
