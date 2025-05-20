@@ -8,6 +8,13 @@ image:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
   tag: 0b57705-20250514-150736
 
+secrets:
+  name: "offchain-lookup-server"
+  # List all secrets which are fetched from the Google Secret Store
+  secret_envs:
+    - DATABASE_URL
+    - EXAMPLE
+
 # Ingress / Loadbalancer
 # Needs external coordination with Google Cloud External IP and DNS provider
 # TODO move over to testnet values (and shutdown old service)
@@ -19,12 +26,8 @@ port: 3000
 
 # TODO split between prod and testnet
 env:
-  - name: RPC_URL
-    value: "https://eth-sepolia.public.blastapi.io"
-  - name: CHAIN_ID
-    value: "84532"
   - name: ENABLED_MODULES
-    value: "cctp"
+    value: "cctp,callCommitments"
   - name: HYPERLANE_EXPLORER_API
     value: "https://api.hyperlane.xyz/v1/graphql"
   - name: CCTP_ATTESTATION_API
@@ -33,5 +36,3 @@ env:
     value: "/"
   - name: SERVER_PORT
     value: "3000"
-  - name: RPC_LIST
-    value: '{"11155111":"https://eth-sepolia.public.blastapi.io", "11155420": "https://optimism-sepolia.api.onfinality.io/public", "421614": "https://sepolia-rollup.arbitrum.io/rpc", "84532": "https://sepolia.base.org"}'
