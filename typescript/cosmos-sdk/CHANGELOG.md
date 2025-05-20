@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 13.0.0
+
+### Minor Changes
+
+- 2724559: add cosmos native routing ism cosmos-sdk and types
+
+### Patch Changes
+
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/cosmos-types@13.0.0
+
 ## 12.6.0
 
 ### Minor Changes

@@ -8,17 +8,17 @@ import _m0 from 'protobufjs/minimal.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
 
-/** InsertedIntoTree ... */
+/** EventCreateMerkleTreeHook ... */
 export interface EventCreateMerkleTreeHook {
   /** id ... */
-  id: string;
+  merkle_tree_hook_id: string;
   /** mailbox_id ... */
   mailbox_id: string;
   owner: string;
 }
 
-/** InsertedIntoTree ... */
-export interface InsertedIntoTree {
+/** EventInsertedIntoTree ... */
+export interface EventInsertedIntoTree {
   /** message_id ... */
   message_id: string;
   /** index ... */
@@ -27,8 +27,8 @@ export interface InsertedIntoTree {
   merkle_tree_hook_id: string;
 }
 
-/** GasPayment ... */
-export interface GasPayment {
+/** EventGasPayment ... */
+export interface EventGasPayment {
   /** message_id ... */
   message_id: string;
   /** destination ... */
@@ -41,16 +41,48 @@ export interface GasPayment {
   igp_id: string;
 }
 
-/** InsertedIntoTree ... */
+/** EventCreateNoopHook ... */
 export interface EventCreateNoopHook {
   /** id ... */
-  id: string;
+  noop_hook_id: string;
   /** owner ... */
   owner: string;
 }
 
+/** EventCreateIgp ... */
+export interface EventCreateIgp {
+  igp_id: string;
+  owner: string;
+  denom: string;
+}
+
+/** EventSetIgp ... */
+export interface EventSetIgp {
+  igp_id: string;
+  owner: string;
+  new_owner: string;
+  renounce_ownership: boolean;
+}
+
+/** EventSetDestinationGasConfig ... */
+export interface EventSetDestinationGasConfig {
+  igp_id: string;
+  owner: string;
+  remote_domain: number;
+  gas_overhead: string;
+  gas_price: string;
+  token_exchange_rate: string;
+}
+
+/** EventClaimIgp ... */
+export interface EventClaimIgp {
+  igp_id: string;
+  owner: string;
+  amount: string;
+}
+
 function createBaseEventCreateMerkleTreeHook(): EventCreateMerkleTreeHook {
-  return { id: '', mailbox_id: '', owner: '' };
+  return { merkle_tree_hook_id: '', mailbox_id: '', owner: '' };
 }
 
 export const EventCreateMerkleTreeHook = {
@@ -58,8 +90,8 @@ export const EventCreateMerkleTreeHook = {
     message: EventCreateMerkleTreeHook,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.id !== '') {
-      writer.uint32(10).string(message.id);
+    if (message.merkle_tree_hook_id !== '') {
+      writer.uint32(10).string(message.merkle_tree_hook_id);
     }
     if (message.mailbox_id !== '') {
       writer.uint32(18).string(message.mailbox_id);
@@ -86,7 +118,7 @@ export const EventCreateMerkleTreeHook = {
             break;
           }
 
-          message.id = reader.string();
+          message.merkle_tree_hook_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -113,7 +145,9 @@ export const EventCreateMerkleTreeHook = {
 
   fromJSON(object: any): EventCreateMerkleTreeHook {
     return {
-      id: isSet(object.id) ? globalThis.String(object.id) : '',
+      merkle_tree_hook_id: isSet(object.merkle_tree_hook_id)
+        ? globalThis.String(object.merkle_tree_hook_id)
+        : '',
       mailbox_id: isSet(object.mailbox_id)
         ? globalThis.String(object.mailbox_id)
         : '',
@@ -123,8 +157,8 @@ export const EventCreateMerkleTreeHook = {
 
   toJSON(message: EventCreateMerkleTreeHook): unknown {
     const obj: any = {};
-    if (message.id !== '') {
-      obj.id = message.id;
+    if (message.merkle_tree_hook_id !== '') {
+      obj.merkle_tree_hook_id = message.merkle_tree_hook_id;
     }
     if (message.mailbox_id !== '') {
       obj.mailbox_id = message.mailbox_id;
@@ -144,20 +178,20 @@ export const EventCreateMerkleTreeHook = {
     object: I,
   ): EventCreateMerkleTreeHook {
     const message = createBaseEventCreateMerkleTreeHook();
-    message.id = object.id ?? '';
+    message.merkle_tree_hook_id = object.merkle_tree_hook_id ?? '';
     message.mailbox_id = object.mailbox_id ?? '';
     message.owner = object.owner ?? '';
     return message;
   },
 };
 
-function createBaseInsertedIntoTree(): InsertedIntoTree {
+function createBaseEventInsertedIntoTree(): EventInsertedIntoTree {
   return { message_id: '', index: 0, merkle_tree_hook_id: '' };
 }
 
-export const InsertedIntoTree = {
+export const EventInsertedIntoTree = {
   encode(
-    message: InsertedIntoTree,
+    message: EventInsertedIntoTree,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.message_id !== '') {
@@ -172,11 +206,14 @@ export const InsertedIntoTree = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): InsertedIntoTree {
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventInsertedIntoTree {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseInsertedIntoTree();
+    const message = createBaseEventInsertedIntoTree();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -210,7 +247,7 @@ export const InsertedIntoTree = {
     return message;
   },
 
-  fromJSON(object: any): InsertedIntoTree {
+  fromJSON(object: any): EventInsertedIntoTree {
     return {
       message_id: isSet(object.message_id)
         ? globalThis.String(object.message_id)
@@ -222,7 +259,7 @@ export const InsertedIntoTree = {
     };
   },
 
-  toJSON(message: InsertedIntoTree): unknown {
+  toJSON(message: EventInsertedIntoTree): unknown {
     const obj: any = {};
     if (message.message_id !== '') {
       obj.message_id = message.message_id;
@@ -236,15 +273,15 @@ export const InsertedIntoTree = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<InsertedIntoTree>, I>>(
+  create<I extends Exact<DeepPartial<EventInsertedIntoTree>, I>>(
     base?: I,
-  ): InsertedIntoTree {
-    return InsertedIntoTree.fromPartial(base ?? ({} as any));
+  ): EventInsertedIntoTree {
+    return EventInsertedIntoTree.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<InsertedIntoTree>, I>>(
+  fromPartial<I extends Exact<DeepPartial<EventInsertedIntoTree>, I>>(
     object: I,
-  ): InsertedIntoTree {
-    const message = createBaseInsertedIntoTree();
+  ): EventInsertedIntoTree {
+    const message = createBaseEventInsertedIntoTree();
     message.message_id = object.message_id ?? '';
     message.index = object.index ?? 0;
     message.merkle_tree_hook_id = object.merkle_tree_hook_id ?? '';
@@ -252,7 +289,7 @@ export const InsertedIntoTree = {
   },
 };
 
-function createBaseGasPayment(): GasPayment {
+function createBaseEventGasPayment(): EventGasPayment {
   return {
     message_id: '',
     destination: 0,
@@ -262,9 +299,9 @@ function createBaseGasPayment(): GasPayment {
   };
 }
 
-export const GasPayment = {
+export const EventGasPayment = {
   encode(
-    message: GasPayment,
+    message: EventGasPayment,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.message_id !== '') {
@@ -285,11 +322,11 @@ export const GasPayment = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): GasPayment {
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventGasPayment {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseGasPayment();
+    const message = createBaseEventGasPayment();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -337,7 +374,7 @@ export const GasPayment = {
     return message;
   },
 
-  fromJSON(object: any): GasPayment {
+  fromJSON(object: any): EventGasPayment {
     return {
       message_id: isSet(object.message_id)
         ? globalThis.String(object.message_id)
@@ -353,7 +390,7 @@ export const GasPayment = {
     };
   },
 
-  toJSON(message: GasPayment): unknown {
+  toJSON(message: EventGasPayment): unknown {
     const obj: any = {};
     if (message.message_id !== '') {
       obj.message_id = message.message_id;
@@ -373,13 +410,15 @@ export const GasPayment = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GasPayment>, I>>(base?: I): GasPayment {
-    return GasPayment.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<EventGasPayment>, I>>(
+    base?: I,
+  ): EventGasPayment {
+    return EventGasPayment.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<GasPayment>, I>>(
+  fromPartial<I extends Exact<DeepPartial<EventGasPayment>, I>>(
     object: I,
-  ): GasPayment {
-    const message = createBaseGasPayment();
+  ): EventGasPayment {
+    const message = createBaseEventGasPayment();
     message.message_id = object.message_id ?? '';
     message.destination = object.destination ?? 0;
     message.gas_amount = object.gas_amount ?? '';
@@ -390,7 +429,7 @@ export const GasPayment = {
 };
 
 function createBaseEventCreateNoopHook(): EventCreateNoopHook {
-  return { id: '', owner: '' };
+  return { noop_hook_id: '', owner: '' };
 }
 
 export const EventCreateNoopHook = {
@@ -398,8 +437,8 @@ export const EventCreateNoopHook = {
     message: EventCreateNoopHook,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.id !== '') {
-      writer.uint32(10).string(message.id);
+    if (message.noop_hook_id !== '') {
+      writer.uint32(10).string(message.noop_hook_id);
     }
     if (message.owner !== '') {
       writer.uint32(18).string(message.owner);
@@ -420,7 +459,7 @@ export const EventCreateNoopHook = {
             break;
           }
 
-          message.id = reader.string();
+          message.noop_hook_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -440,15 +479,17 @@ export const EventCreateNoopHook = {
 
   fromJSON(object: any): EventCreateNoopHook {
     return {
-      id: isSet(object.id) ? globalThis.String(object.id) : '',
+      noop_hook_id: isSet(object.noop_hook_id)
+        ? globalThis.String(object.noop_hook_id)
+        : '',
       owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
     };
   },
 
   toJSON(message: EventCreateNoopHook): unknown {
     const obj: any = {};
-    if (message.id !== '') {
-      obj.id = message.id;
+    if (message.noop_hook_id !== '') {
+      obj.noop_hook_id = message.noop_hook_id;
     }
     if (message.owner !== '') {
       obj.owner = message.owner;
@@ -465,8 +506,476 @@ export const EventCreateNoopHook = {
     object: I,
   ): EventCreateNoopHook {
     const message = createBaseEventCreateNoopHook();
-    message.id = object.id ?? '';
+    message.noop_hook_id = object.noop_hook_id ?? '';
     message.owner = object.owner ?? '';
+    return message;
+  },
+};
+
+function createBaseEventCreateIgp(): EventCreateIgp {
+  return { igp_id: '', owner: '', denom: '' };
+}
+
+export const EventCreateIgp = {
+  encode(
+    message: EventCreateIgp,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.igp_id !== '') {
+      writer.uint32(10).string(message.igp_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.denom !== '') {
+      writer.uint32(26).string(message.denom);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventCreateIgp {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventCreateIgp();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.igp_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.denom = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventCreateIgp {
+    return {
+      igp_id: isSet(object.igp_id) ? globalThis.String(object.igp_id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      denom: isSet(object.denom) ? globalThis.String(object.denom) : '',
+    };
+  },
+
+  toJSON(message: EventCreateIgp): unknown {
+    const obj: any = {};
+    if (message.igp_id !== '') {
+      obj.igp_id = message.igp_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.denom !== '') {
+      obj.denom = message.denom;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventCreateIgp>, I>>(
+    base?: I,
+  ): EventCreateIgp {
+    return EventCreateIgp.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventCreateIgp>, I>>(
+    object: I,
+  ): EventCreateIgp {
+    const message = createBaseEventCreateIgp();
+    message.igp_id = object.igp_id ?? '';
+    message.owner = object.owner ?? '';
+    message.denom = object.denom ?? '';
+    return message;
+  },
+};
+
+function createBaseEventSetIgp(): EventSetIgp {
+  return { igp_id: '', owner: '', new_owner: '', renounce_ownership: false };
+}
+
+export const EventSetIgp = {
+  encode(
+    message: EventSetIgp,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.igp_id !== '') {
+      writer.uint32(10).string(message.igp_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.new_owner !== '') {
+      writer.uint32(26).string(message.new_owner);
+    }
+    if (message.renounce_ownership !== false) {
+      writer.uint32(32).bool(message.renounce_ownership);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventSetIgp {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventSetIgp();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.igp_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.new_owner = reader.string();
+          continue;
+        case 4:
+          if (tag !== 32) {
+            break;
+          }
+
+          message.renounce_ownership = reader.bool();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventSetIgp {
+    return {
+      igp_id: isSet(object.igp_id) ? globalThis.String(object.igp_id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      new_owner: isSet(object.new_owner)
+        ? globalThis.String(object.new_owner)
+        : '',
+      renounce_ownership: isSet(object.renounce_ownership)
+        ? globalThis.Boolean(object.renounce_ownership)
+        : false,
+    };
+  },
+
+  toJSON(message: EventSetIgp): unknown {
+    const obj: any = {};
+    if (message.igp_id !== '') {
+      obj.igp_id = message.igp_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.new_owner !== '') {
+      obj.new_owner = message.new_owner;
+    }
+    if (message.renounce_ownership !== false) {
+      obj.renounce_ownership = message.renounce_ownership;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventSetIgp>, I>>(base?: I): EventSetIgp {
+    return EventSetIgp.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventSetIgp>, I>>(
+    object: I,
+  ): EventSetIgp {
+    const message = createBaseEventSetIgp();
+    message.igp_id = object.igp_id ?? '';
+    message.owner = object.owner ?? '';
+    message.new_owner = object.new_owner ?? '';
+    message.renounce_ownership = object.renounce_ownership ?? false;
+    return message;
+  },
+};
+
+function createBaseEventSetDestinationGasConfig(): EventSetDestinationGasConfig {
+  return {
+    igp_id: '',
+    owner: '',
+    remote_domain: 0,
+    gas_overhead: '',
+    gas_price: '',
+    token_exchange_rate: '',
+  };
+}
+
+export const EventSetDestinationGasConfig = {
+  encode(
+    message: EventSetDestinationGasConfig,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.igp_id !== '') {
+      writer.uint32(10).string(message.igp_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.remote_domain !== 0) {
+      writer.uint32(32).uint32(message.remote_domain);
+    }
+    if (message.gas_overhead !== '') {
+      writer.uint32(42).string(message.gas_overhead);
+    }
+    if (message.gas_price !== '') {
+      writer.uint32(50).string(message.gas_price);
+    }
+    if (message.token_exchange_rate !== '') {
+      writer.uint32(58).string(message.token_exchange_rate);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventSetDestinationGasConfig {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventSetDestinationGasConfig();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.igp_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 4:
+          if (tag !== 32) {
+            break;
+          }
+
+          message.remote_domain = reader.uint32();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.gas_overhead = reader.string();
+          continue;
+        case 6:
+          if (tag !== 50) {
+            break;
+          }
+
+          message.gas_price = reader.string();
+          continue;
+        case 7:
+          if (tag !== 58) {
+            break;
+          }
+
+          message.token_exchange_rate = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventSetDestinationGasConfig {
+    return {
+      igp_id: isSet(object.igp_id) ? globalThis.String(object.igp_id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      remote_domain: isSet(object.remote_domain)
+        ? globalThis.Number(object.remote_domain)
+        : 0,
+      gas_overhead: isSet(object.gas_overhead)
+        ? globalThis.String(object.gas_overhead)
+        : '',
+      gas_price: isSet(object.gas_price)
+        ? globalThis.String(object.gas_price)
+        : '',
+      token_exchange_rate: isSet(object.token_exchange_rate)
+        ? globalThis.String(object.token_exchange_rate)
+        : '',
+    };
+  },
+
+  toJSON(message: EventSetDestinationGasConfig): unknown {
+    const obj: any = {};
+    if (message.igp_id !== '') {
+      obj.igp_id = message.igp_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.remote_domain !== 0) {
+      obj.remote_domain = Math.round(message.remote_domain);
+    }
+    if (message.gas_overhead !== '') {
+      obj.gas_overhead = message.gas_overhead;
+    }
+    if (message.gas_price !== '') {
+      obj.gas_price = message.gas_price;
+    }
+    if (message.token_exchange_rate !== '') {
+      obj.token_exchange_rate = message.token_exchange_rate;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventSetDestinationGasConfig>, I>>(
+    base?: I,
+  ): EventSetDestinationGasConfig {
+    return EventSetDestinationGasConfig.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventSetDestinationGasConfig>, I>>(
+    object: I,
+  ): EventSetDestinationGasConfig {
+    const message = createBaseEventSetDestinationGasConfig();
+    message.igp_id = object.igp_id ?? '';
+    message.owner = object.owner ?? '';
+    message.remote_domain = object.remote_domain ?? 0;
+    message.gas_overhead = object.gas_overhead ?? '';
+    message.gas_price = object.gas_price ?? '';
+    message.token_exchange_rate = object.token_exchange_rate ?? '';
+    return message;
+  },
+};
+
+function createBaseEventClaimIgp(): EventClaimIgp {
+  return { igp_id: '', owner: '', amount: '' };
+}
+
+export const EventClaimIgp = {
+  encode(
+    message: EventClaimIgp,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.igp_id !== '') {
+      writer.uint32(10).string(message.igp_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.amount !== '') {
+      writer.uint32(26).string(message.amount);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventClaimIgp {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventClaimIgp();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.igp_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventClaimIgp {
+    return {
+      igp_id: isSet(object.igp_id) ? globalThis.String(object.igp_id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : '',
+    };
+  },
+
+  toJSON(message: EventClaimIgp): unknown {
+    const obj: any = {};
+    if (message.igp_id !== '') {
+      obj.igp_id = message.igp_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.amount !== '') {
+      obj.amount = message.amount;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventClaimIgp>, I>>(
+    base?: I,
+  ): EventClaimIgp {
+    return EventClaimIgp.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventClaimIgp>, I>>(
+    object: I,
+  ): EventClaimIgp {
+    const message = createBaseEventClaimIgp();
+    message.igp_id = object.igp_id ?? '';
+    message.owner = object.owner ?? '';
+    message.amount = object.amount ?? '';
     return message;
   },
 };
