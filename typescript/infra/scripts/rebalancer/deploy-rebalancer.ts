@@ -31,6 +31,8 @@ async function main() {
     withWarpRouteId(getArgs()),
   ).parse();
 
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
   let warpRouteIds;
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
@@ -43,8 +45,6 @@ async function main() {
       'Enter the registry version to use (can be a commit, branch or tag):',
   });
   await validateRegistryCommit(registryCommit);
-
-  await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
   rootLogger.info(
     `Deploying Rebalancer for Route ID: ${warpRouteIds.join(', ')}`,
