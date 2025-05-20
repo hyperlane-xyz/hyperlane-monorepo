@@ -70,6 +70,8 @@ The rebalancer container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
+  - name: LOG_LEVEL
+    value: pretty
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
   args:
@@ -82,10 +84,13 @@ The rebalancer container
   - "--warpRouteId"
   - {{ .Values.warpRouteId }}
   - "--checkFrequency"
-  - "6000"
+  - "60000"
   - "--configFile"
   - "{{ .Values.hyperlane.rebalancerConfigFile }}"
-  - "--key=$(REBALANCER_KEY)"
+  - "--key"
+  -  "$(REBALANCER_KEY)"
+  - "--coingeckoApiKey"
+  -  "$(COINGECKO_API_KEY)"
   - "--withMetrics"
   - "true"
   - "--rebalanceStrategy"

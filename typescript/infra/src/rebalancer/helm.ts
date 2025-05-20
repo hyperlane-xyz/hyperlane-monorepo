@@ -49,13 +49,13 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '9ce6d42-20250514-112050',
+        tag: '689408d-20250519-205045',
       },
       warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
-      environment: this.environment,
       hyperlane: {
+        runEnv: this.environment,
         registryCommit: this.registryCommit,
         rebalancerConfigFile: this.rebalancerConfigFile,
         withMetrics: this.withMetrics,
