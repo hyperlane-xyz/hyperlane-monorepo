@@ -23,6 +23,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
   const envConfig = getEnvironmentConfig(environment);
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
 
