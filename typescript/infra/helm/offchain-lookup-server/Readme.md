@@ -20,11 +20,27 @@ For server documentation look at: `/typescript/ccip-server`
 - `ingress.yaml`: Google Ingress for loadbalancing and https
 - `managed-cert.yaml`: Configuring SSL certificate
 - `service.yaml`: Forwarding from the Ingress to the deployment
+- `env-var-external-secret.yaml`: Fetches all required secrets from Google Cloud Secrets.
+
+### Secret Management
+
+All secret variables are stored in a Google Cloud Secret. The format of this
+Secret is JSON. Inside the `values.yaml` one can list the keys from there.
+The JSON format must be of the form key:string and must not contain nested objects.
+
+Secrets for testnet must be prefixed `hyperlane-testnet4`. Otherwise the
+Cluster Secret Store does not have the necessary permissions to access the secret.
 
 ## Testnet
 
 The testnet deployment can be found at: \
 https://testnet-offchain-lookup.services.hyperlane.xyz
+
+**Deploy**
+
+```shell
+helm upgrade --install offchain-lookup-server . -f values.yaml -f values-testnet.yaml --namespace testnet4
+```
 
 ## Mainnet
 
