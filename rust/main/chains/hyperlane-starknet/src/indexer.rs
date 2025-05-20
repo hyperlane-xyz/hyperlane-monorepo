@@ -108,6 +108,13 @@ impl Indexer<H256> for StarknetMailboxIndexer {
             self.contract.address,
             "ProcessId",
             |event| {
+                if event.data.len() < 2 {
+                    return Err(HyperlaneStarknetError::InvalidEventData(format!(
+                        "{}",
+                        event.transaction_hash
+                    ))
+                    .into());
+                }
                 let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)
@@ -123,8 +130,6 @@ impl Indexer<H256> for StarknetMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for StarknetMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // A blanket implementation for this trait is fine for the EVM.
-        // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
@@ -172,6 +177,13 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
             self.contract.address,
             "InsertedIntoTree",
             |event| {
+                if event.data.len() < 3 {
+                    return Err(HyperlaneStarknetError::InvalidEventData(format!(
+                        "{}",
+                        event.transaction_hash
+                    ))
+                    .into());
+                }
                 let leaf_index: u32 = event.data[2]
                     .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -196,9 +208,6 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
-    // TODO: if `SequenceAwareIndexer` turns out to not depend on `Indexer` at all, then the supertrait
-    // dependency could be removed, even if the builder would still need to return a type that is both
-    // `SequenceAwareIndexer` and `Indexer`.
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
         let sequence = self
@@ -293,7 +302,7 @@ where
                 transaction_id: H256::from_slice(event.transaction_hash.to_bytes_be().as_slice())
                     .into(),
                 transaction_index: index as u64,
-                log_index: U256::one(), // TODO: what to put here?
+                log_index: U256::one(),
             };
             Ok((parsed_event, meta))
         })

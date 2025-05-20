@@ -48,8 +48,8 @@ pub async fn get_transaction_receipt(
                     .map_err(HyperlaneStarknetError::from)?;
 
                 match receipt {
-                    MaybePendingTransactionReceipt::PendingReceipt(_) => {
-                        Err(HyperlaneStarknetError::InvalidTransactionReceipt.into())
+                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
+                        Err(HyperlaneStarknetError::PendingTransaction(pending).into())
                     }
                     MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
                 }
@@ -116,6 +116,14 @@ pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
 pub fn try_parse_hyperlane_message_from_event(
     event: &EmittedEvent,
 ) -> ChainResult<Indexed<HyperlaneMessage>> {
+    if event.data.len() < 6 {
+        return Err(HyperlaneStarknetError::InvalidEventData(format!(
+            "{}",
+            event.transaction_hash
+        ))
+        .into());
+    }
+
     let sender: HyH256 = (event.data[0], event.data[1])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;

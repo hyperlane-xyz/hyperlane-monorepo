@@ -2,7 +2,10 @@ use hyperlane_core::ChainCommunicationError;
 use starknet::{
     accounts::AccountError,
     core::{
-        types::{FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError},
+        types::{
+            FromByteArrayError, FromByteSliceError, FromStrError, PendingTransactionReceipt,
+            ValueOutOfRangeError,
+        },
         utils::{CairoShortStringToFeltError, ParseCairoShortStringError},
     },
 };
@@ -38,9 +41,15 @@ pub enum HyperlaneStarknetError {
     /// Transaction receipt is invalid
     #[error("Invalid transaction receipt")]
     InvalidTransactionReceipt,
+    /// Pending Transaction receipt
+    #[error("Pending transaction receipt")]
+    PendingTransaction(PendingTransactionReceipt),
     /// Block is invalid
     #[error("Invalid block")]
     InvalidBlock,
+    /// Invalid Event Data
+    #[error("Invalid event data: {0}")]
+    InvalidEventData(String),
     /// Error during contract call
     #[error(transparent)]
     ContractCallError(#[from] cainome::cairo_serde::Error),
