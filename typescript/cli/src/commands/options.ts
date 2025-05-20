@@ -113,7 +113,7 @@ export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+  demandOption: false,
   alias: 'wd',
 };
 
@@ -264,4 +264,10 @@ export const avsChainCommandOption: Options = {
   description: 'Chain to interact with the AVS on',
   demandOption: true,
   choices: ['holesky', 'ethereum'],
+};
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
 };

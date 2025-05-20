@@ -235,6 +235,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         break;
 
       case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative:
         if (![AgentSignerKeyType.Cosmos].includes(signerType)) {
           return false;
         }
@@ -251,7 +252,10 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     }
 
     // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
-    if (metadata.protocol === ProtocolType.Cosmos) {
+    if (
+      metadata.protocol === ProtocolType.Cosmos ||
+      metadata.protocol === ProtocolType.CosmosNative
+    ) {
       if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
         return false;
       }
@@ -548,11 +552,18 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
+    // Cosmos Native chains have the correct gRPC URL format in the registry. So only delete the gRPC URL for legacy Cosmos chains.
     if (metadata?.protocol === ProtocolType.Cosmos) {
       // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
       // which is expected by the agents. For now, we intentionally skip this.
       delete metadata.grpcUrls;
+    }
 
+    // Delete transaction overrides for all Cosmos chains.
+    if (
+      metadata?.protocol === ProtocolType.Cosmos ||
+      metadata?.protocol === ProtocolType.CosmosNative
+    ) {
       // The agents expect gasPrice.amount and gasPrice.denom and ignore the transaction overrides.
       // To reduce confusion when looking at the config, we remove the transaction overrides.
       delete metadata.transactionOverrides;

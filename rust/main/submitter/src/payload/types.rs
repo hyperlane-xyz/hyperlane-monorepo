@@ -1,10 +1,9 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::ops::Deref;
+use std::fmt::Debug;
 
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
@@ -14,7 +13,7 @@ pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
     pub id: PayloadId,
@@ -24,25 +23,38 @@ pub struct PayloadDetails {
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    pub success_criteria: Option<(Vec<u8>, Address)>,
+    pub success_criteria: Option<Vec<u8>>,
+}
+
+impl Debug for PayloadDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PayloadDetails")
+            .field("id", &self.id)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl PayloadDetails {
-    pub fn new(id: PayloadId, metadata: impl Into<String>) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        success_criteria: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             id,
             metadata: metadata.into(),
-            success_criteria: None,
+            success_criteria,
         }
     }
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
-    /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
+    /// serialized `ContractCall` on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
     pub data: Vec<u8>,
     /// defaults to the hyperlane mailbox
     pub to: Address,
@@ -56,10 +68,29 @@ pub struct FullPayload {
     pub inclusion_soft_deadline: Option<DateTime<Utc>>,
 }
 
+impl Debug for FullPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FullPayload")
+            .field("id", &self.details.id)
+            .field("metadata", &self.details.metadata)
+            .field("to", &self.to)
+            .field("status", &self.status)
+            .field("value", &self.value)
+            .field("inclusion_soft_deadline", &self.inclusion_soft_deadline)
+            .finish()
+    }
+}
+
 impl FullPayload {
-    pub fn new(id: PayloadId, metadata: impl Into<String>, data: Vec<u8>, to: Address) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        data: Vec<u8>,
+        success_criteria: Option<Vec<u8>>,
+        to: Address,
+    ) -> Self {
         Self {
-            details: PayloadDetails::new(id, metadata),
+            details: PayloadDetails::new(id, metadata, success_criteria),
             data,
             to,
             status: Default::default(),

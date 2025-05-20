@@ -28,12 +28,12 @@ pub struct PayloadDispatcherEntrypoint {
 }
 
 impl PayloadDispatcherEntrypoint {
-    pub fn try_from_settings(
+    pub async fn try_from_settings(
         settings: PayloadDispatcherSettings,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
         Ok(Self {
-            inner: PayloadDispatcherState::try_from_settings(settings, metrics)?,
+            inner: PayloadDispatcherState::try_from_settings(settings, metrics).await?,
         })
     }
 
@@ -45,8 +45,8 @@ impl PayloadDispatcherEntrypoint {
 #[async_trait]
 impl Entrypoint for PayloadDispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), SubmitterError> {
-        info!(payload=?payload.details, "Sending payload to dispatcher");
         self.inner.payload_db.store_payload_by_id(payload).await?;
+        info!(payload=?payload.details, "Sent payload to dispatcher");
         Ok(())
     }
 

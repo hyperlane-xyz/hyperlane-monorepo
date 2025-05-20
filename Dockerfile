@@ -1,8 +1,8 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
 
 RUN yarn set version 4.5.1
 
@@ -22,6 +22,7 @@ COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY solidity/package.json ./solidity/
+COPY starknet/package.json ./starknet/
 
 RUN yarn install && yarn cache clean
 
@@ -29,6 +30,7 @@ RUN yarn install && yarn cache clean
 COPY tsconfig.json ./
 COPY typescript ./typescript
 COPY solidity ./solidity
+COPY starknet ./starknet
 
 RUN yarn build
 

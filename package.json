@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "devDependencies": {
     "@eslint/js": "^9.15.0",
-    "@trivago/prettier-plugin-sort-imports": "^4.2.1",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.15.0",
@@ -14,7 +14,8 @@
     "eslint-plugin-jest": "^28.2.0",
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^1.4.2",
     "syncpack": "^13.0.0",
     "tsx": "^4.19.1"
   },
@@ -39,7 +40,8 @@
   },
   "workspaces": [
     "solidity",
-    "typescript/*"
+    "typescript/*",
+    "starknet"
   ],
   "resolutions": {
     "async": "^2.6.4",

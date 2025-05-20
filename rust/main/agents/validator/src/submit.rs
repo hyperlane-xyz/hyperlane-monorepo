@@ -236,7 +236,7 @@ impl ValidatorSubmitter {
                 "Incorrect tree root, something went wrong"
             );
 
-            let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
+            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
                 .write_reorg_status(&reorg_event)
@@ -461,6 +461,7 @@ impl ValidatorSubmitterMetrics {
 #[cfg(test)]
 mod test {
     use super::*;
+
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{
@@ -588,8 +589,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 
@@ -679,7 +680,9 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Incorrect tree root, something went wrong.")]
+    #[should_panic(
+        expected = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support."
+    )]
     async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         let unix_timestamp = chrono::Utc::now().timestamp() as u64;
         let expected_reorg_period = 12;
