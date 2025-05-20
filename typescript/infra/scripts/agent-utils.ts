@@ -212,6 +212,13 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('metrics', 'metrics')
+    .boolean('metrics')
+    .default('metrics', true);
+}
+
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
   return withWarpRouteId(args).demandOption('warpRouteId');
 }
