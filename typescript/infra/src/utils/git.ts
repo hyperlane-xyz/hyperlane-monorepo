@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { getRegistry } from './config/registry.js';
+import { getRegistry } from '../../config/registry.js';
 
 export async function validateRegistryCommit(commit: string) {
   const registry = getRegistry();
