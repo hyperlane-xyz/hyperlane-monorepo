@@ -5,11 +5,12 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::Report;
+use futures_util::future::join_all;
 use tokio::sync::mpsc::error::SendError;
+use tracing::{info, instrument};
 use uuid::Uuid;
 
-use hyperlane_core::U256;
+use hyperlane_core::{H256, H512, U256};
 
 use crate::{
     error::SubmitterError,
@@ -44,11 +45,34 @@ pub trait AdaptsChain: Send + Sync {
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
 
+    /// Estimates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
+
     /// Sets / escalates gas price, sets nonce / blockhash and broadcasts the Transaction. Even if broadcasting fails, the Transaction struct remains mutated with the new estimates. Called in the Inclusion Stage (PayloadDispatcher)
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
 
+    async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, SubmitterError>;
+
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
-    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+    #[instrument(skip(self))]
+    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
+        info!(?tx, "checking status of transaction");
+
+        if tx.tx_hashes.is_empty() {
+            return Ok(TransactionStatus::PendingInclusion);
+        }
+
+        let hash_status_futures = tx
+            .tx_hashes
+            .iter()
+            .map(|tx_hash| self.get_tx_hash_status(*tx_hash))
+            .collect::<Vec<_>>();
+        // this may lead to rate limiting if too many hashes build up. Consider querying from most recent to oldest
+        let hash_status_results = join_all(hash_status_futures).await;
+        Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
+            hash_status_results,
+        ))
+    }
 
     /// Return true if the transaction can be resubmitted (such as by escalating the gas price). Called in the Inclusion Stage (PayloadDispatcher).
     /// Defaults to true, since most chains don't have special rules for tx resubmission.
@@ -56,11 +80,14 @@ pub trait AdaptsChain: Send + Sync {
         true
     }
 
-    /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
+    /// Uses BatchManager, returns any reverted Payload IDs sent in a Transaction.
+    /// Called in the Finality Stage (PayloadDispatcher).
     async fn reverted_payloads(
         &self,
-        tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError>;
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
+        Ok(Vec::new())
+    }
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
@@ -79,5 +106,9 @@ pub trait AdaptsChain: Send + Sync {
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError> {
         todo!()
+    }
+
+    async fn set_unfinalized_tx_count(&self, _count: usize) {
+        // nothing as default implementation
     }
 }
