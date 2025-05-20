@@ -2,19 +2,19 @@ arbitrumsepolia:
   weight: '100'
   tolerance: '2'
   bridgeTolerance: 80000
-  bridge: '0xa9D7949D30B8beCfe118D0b7379eCf7Fec9a5208'
+  bridge: '0x88e688DFdE6E7a6f3Df968B20B5B12c594348542'
 optimismsepolia:
   weight: '100'
   tolerance: '2'
   bridgeTolerance: 80000
-  bridge: '0x7c9039c5c170922aed07877adbd35c31be53fccd'
+  bridge: '0x986a5a5e4700E87b4b596Ab4a6ac5d6215e963dc'
 basesepolia:
   weight: '100'
   tolerance: '2'
   bridgeTolerance: 80000
-  bridge: '0x4d6b4fe86ca1b49ea9ccdfa92f97e4ea0c27cef2'
+  bridge: '0x540c8f61DE5b75e7a95d471813C0079A4a30B2eF'
 sepolia:
   weight: '100'
   tolerance: '2'
   bridgeTolerance: 80000
-  bridge: '0x8ab4714d9d96739a3c3d247de34c910a64a80d7f'
+  bridge: '0x635849EE15B8AAccb800f6F4981F00f63634edA3'
