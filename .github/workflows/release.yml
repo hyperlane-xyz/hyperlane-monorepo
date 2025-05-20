@@ -10,7 +10,6 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  LOG_LEVEL: DEBUG
   LOG_FORMAT: PRETTY
   TURBO_TELEMETRY_DISABLED: 1
   TURBO_API: https://cache.depot.dev
