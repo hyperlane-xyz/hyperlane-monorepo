@@ -1,10 +1,10 @@
 {
-  "solanamainnet": {
-    "hex": "0x9d3f1536ae37c038dfcc75e6eff43cb1880773a92e6d57a8c8a3013fe1cdd64b",
-    "base58": "BapoN2giUt9M21b6ewGhaRQXKsjEJo98AN4pCKWTjHSJ"
-  },
   "apechain": {
     "hex": "0x0000000000000000000000006678eaac8d8d44fd51e2d5fbca8c2f362cbe5347",
     "base58": "1111111111112RoVCFCDf5Mn2htfy4XHVnS7Diwg"
+  },
+  "solanamainnet": {
+    "hex": "0x9d3f1536ae37c038dfcc75e6eff43cb1880773a92e6d57a8c8a3013fe1cdd64b",
+    "base58": "BapoN2giUt9M21b6ewGhaRQXKsjEJo98AN4pCKWTjHSJ"
   }
 }
