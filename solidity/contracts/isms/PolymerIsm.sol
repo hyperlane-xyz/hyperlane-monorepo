@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {ICrossL2ProverV2} from "@polymerdao/prover-contracts/contracts/interfaces/ICrossL2ProverV2.sol";
 import {Message} from "../libs/Message.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PolymerISM
@@ -22,7 +23,7 @@ import {Message} from "../libs/Message.sol";
  * raw `polymerProofBytes` obtained from the Polymer proof service for the
  * corresponding `Dispatch` event on the origin chain.
  */
-contract PolymerISM is IInterchainSecurityModule {
+contract PolymerISM is IInterchainSecurityModule, Ownable {
     // --- Libraries ---
     using Message for bytes;
 
@@ -44,9 +45,7 @@ contract PolymerISM is IInterchainSecurityModule {
     /// TODO: Add support for multiple Mailbox contract addresses.
     /// @notice The Hyperlane Mailbox contract address on the origin chain.
     /// @dev This is the contract expected to emit the Dispatch event proven by Polymer.
-    /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains.
-    /// This approach does not scale to multiple Mailbox contract addresses.
-    address public immutable originMailbox;
+    address public originMailbox;
 
     // --- Events ---
 
@@ -55,6 +54,8 @@ contract PolymerISM is IInterchainSecurityModule {
         address indexed originMailbox
     );
 
+    event OriginMailboxUpdated(address indexed newOriginMailbox);
+
     // --- Constructor ---
 
     /**
@@ -62,7 +63,7 @@ contract PolymerISM is IInterchainSecurityModule {
      * @param _polymerProver Address of the ICrossL2ProverV2 contract on this chain.
      * @param _originMailbox Address of the Mailbox contract on the origin chain.
      */
-    constructor(address _polymerProver, address _originMailbox) {
+    constructor(address _polymerProver, address _originMailbox) Ownable() {
         require(
             _polymerProver != address(0),
             "PolymerISM: Invalid polymer prover address"
@@ -76,6 +77,20 @@ contract PolymerISM is IInterchainSecurityModule {
         originMailbox = _originMailbox;
 
         emit PolymerISMConfigured(_polymerProver, _originMailbox);
+    }
+
+    /**
+     * @notice Updates the origin mailbox address
+     * @dev Only callable by the owner
+     * @param _newOriginMailbox The new origin mailbox address
+     */
+    function updateOriginMailbox(address _newOriginMailbox) external onlyOwner {
+        require(
+            _newOriginMailbox != address(0),
+            "PolymerISM: Invalid origin mailbox address"
+        );
+        originMailbox = _newOriginMailbox;
+        emit OriginMailboxUpdated(_newOriginMailbox);
     }
 
     // --- IInterchainSecurityModule Implementation ---
