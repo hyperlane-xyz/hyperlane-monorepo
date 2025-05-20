@@ -147,14 +147,14 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         uint256,
         bytes memory,
         address
-    ) internal override returns (bytes32 messageId) {
+    ) internal override returns (bytes32) {
         revert("OP L1 token bridge should not send messages");
     }
 
     // see OpL2NativeTokenBridge._transferRemote prove message amount := 0
     function _isProve(
         bytes calldata _message
-    ) internal view override returns (bool) {
+    ) internal pure override returns (bool) {
         return _message.body().amount() == 0;
     }
 
@@ -164,6 +164,15 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         bytes calldata metadata
     ) internal override {
         // do not transfer to recipient as the OP L1 bridge will do it
+    }
+
+    function interchainSecurityModule()
+        external
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        return IInterchainSecurityModule(address(this));
     }
 }
 
@@ -176,15 +185,6 @@ contract OpL1V1NativeTokenBridge is
         address _opPortal,
         string[] memory _urls
     ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
-
-    function interchainSecurityModule()
-        external
-        view
-        override
-        returns (IInterchainSecurityModule)
-    {
-        return IInterchainSecurityModule(address(this));
-    }
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -196,13 +196,4 @@ contract OpL1V2NativeTokenBridge is
         address _opPortal,
         string[] memory _urls
     ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
-
-    function interchainSecurityModule()
-        external
-        view
-        override
-        returns (IInterchainSecurityModule)
-    {
-        return IInterchainSecurityModule(address(this));
-    }
 }

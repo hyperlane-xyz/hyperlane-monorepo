@@ -196,7 +196,7 @@ library StandardHookMetadata {
     function getRefundAddress(
         bytes memory _metadata,
         address _default
-    ) internal view returns (address) {
+    ) internal pure returns (address) {
         if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
         address result;
         assembly {
