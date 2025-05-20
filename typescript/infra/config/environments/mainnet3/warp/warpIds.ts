@@ -47,6 +47,7 @@ export enum WarpRouteIds {
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum',
+  BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum',
   ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork',
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
