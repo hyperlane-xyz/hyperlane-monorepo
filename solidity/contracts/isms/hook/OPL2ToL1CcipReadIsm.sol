@@ -65,9 +65,9 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external override returns (bool) {
         if (_isProve(_message)) {
-            _proveWithdrawal(_metadata, _message);
+            _proveWithdrawal(_metadata);
         } else {
-            _finalizeWithdrawal(_metadata, _message);
+            _finalizeWithdrawal(_metadata);
         }
 
         return true;
@@ -77,10 +77,7 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) internal view virtual returns (bool);
 
-    function _proveWithdrawal(
-        bytes calldata _metadata,
-        bytes calldata /* _message */
-    ) internal {
+    function _proveWithdrawal(bytes calldata _metadata) internal {
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -114,10 +111,7 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes32 _withdrawalHash
     ) internal view virtual returns (bool);
 
-    function _finalizeWithdrawal(
-        bytes calldata _metadata,
-        bytes calldata /* _message */
-    ) internal {
+    function _finalizeWithdrawal(bytes calldata _metadata) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
             _metadata,
             (IOptimismPortal.WithdrawalTransaction)

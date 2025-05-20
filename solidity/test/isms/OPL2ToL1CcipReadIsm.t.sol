@@ -10,12 +10,14 @@ import {IOptimismPortal} from "../../contracts/interfaces/optimism/IOptimismPort
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {LightTestRecipient} from "../../contracts/test/LightTestRecipient.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 
 import {console} from "forge-std/console.sol";
 
 contract OpL1V1NativeTokenBridgeTest is Test {
     using TypeCasts for address;
     using TokenMessage for bytes;
+    using OPL2ToL1Withdrawal for IOptimismPortal.WithdrawalTransaction;
 
     address payable internal constant L2_BRIDGE_ADDRESS =
         payable(0x4200000000000000000000000000000000000010);
@@ -104,47 +106,56 @@ contract OpL1V1NativeTokenBridgeTest is Test {
     }
 
     function test_verify_proveWithdrawalSuccessfully(
-        bytes32 _recipient
+        bytes32 _recipient,
+        uint256 amount
     ) public {
-        uint256 amount = 0.001 ether;
-
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
 
+        // amount 0 indicates prove message
+        bytes memory messageBody = TokenMessage.format(_recipient, 0);
         mailboxOrigin.dispatch(
             destination,
             address(ism).addressToBytes32(),
-            bytes("")
+            messageBody
         );
 
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        // amount 0 indicates prove message
-        bytes memory message = TokenMessage.format(_recipient, 0);
+        bytes memory message = mailboxDestination.inboundMessages(0);
         bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
 
         ism.verify(metadata, message);
+
+        assert(
+            portal.provenWithdrawals(withdrawalTx.hashWithdrawal()).timestamp !=
+                0
+        );
     }
 
     function test_verify_finalizeWithdrawalSuccessfully(
-        bytes32 _recipient
+        bytes32 _recipient,
+        uint256 amount
     ) public {
-        uint256 amount = 0.001 ether;
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
 
+        bytes memory messageBody = TokenMessage.format(_recipient, amount);
         mailboxOrigin.dispatch(
             destination,
             address(tokenBridgeDestination).addressToBytes32(),
-            bytes("")
+            messageBody
         );
 
         vm.deal(address(portal), amount);
 
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = TokenMessage.format(_recipient, amount);
+        bytes memory message = mailboxDestination.inboundMessages(0);
         bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
 
         ism.verify(metadata, message);
+
+        assertEq(
+            portal.finalizedWithdrawals(withdrawalTx.hashWithdrawal()),
+            true
+        );
     }
 
     function test_interchainSecurityModule_givenIsmIsCorrect() public {

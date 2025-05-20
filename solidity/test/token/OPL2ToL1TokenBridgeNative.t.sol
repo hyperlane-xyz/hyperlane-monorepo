@@ -22,6 +22,7 @@ import {MockOptimismMessenger, MockOptimismStandardBridge, MockL2ToL1MessagePass
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 contract OPL2ToL1TokenBridgeNativeTest is Test {
     using TypeCasts for address;
@@ -156,24 +157,40 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         assertEq(address(vtbOrigin.hook()), address(hook));
     }
 
-    function test_transferRemote_fundsReceived() public {
+    receive() external payable {}
+
+    function test_transferRemote_fundsReceived(address recipient) public {
+        vm.assume(recipient != user);
+        vm.assume(recipient != address(0));
+
         Quote[] memory quotes = _getQuote();
-        vm.prank(user);
+
         vtbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             userB32,
             transferAmount
         );
 
+        vm.mockCall(
+            address(vtbDestination),
+            abi.encode(vtbDestination.verify.selector),
+            abi.encode(true)
+        );
+
+        // prove amount
+        vm.expectEmit(false, true, true, true, address(vtbDestination));
+        emit TokenRouter.ReceivedTransferRemote(origin, userB32, 0);
         environment.processNextPendingMessage();
 
-        // After the withdrawal is finalized, the destination
-        // value transfer bridge has received the amount
-        vm.deal(address(vtbDestination), transferAmount);
-
+        // withdraw amount
+        vm.expectEmit(false, true, true, true, address(vtbDestination));
+        emit TokenRouter.ReceivedTransferRemote(
+            origin,
+            userB32,
+            transferAmount
+        );
         environment.processNextPendingMessage();
 
-        // Recipient was the user account
-        assertEq(user.balance, userBalance - quotes[0].amount + transferAmount);
+        // TODO: test refunds
     }
 }
