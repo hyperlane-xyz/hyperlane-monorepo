@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@types/mocha": "^10.0.1",

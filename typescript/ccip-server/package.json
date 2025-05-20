@@ -22,6 +22,7 @@
   "author": "brolee",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@jest/globals": "^29.7.0",
     "@types/node": "^18.14.5",
     "eslint": "^9.15.0",
