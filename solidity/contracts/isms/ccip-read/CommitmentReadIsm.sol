@@ -14,8 +14,8 @@ import {OwnableMulticall} from "../../middleware/libs/OwnableMulticall.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 
 interface CommitmentReadIsmService {
-    function getCallsFromCommitment(
-        bytes32 _commitment
+    function getCallsFromRevealMessage(
+        bytes memory _message
     )
         external
         view
@@ -38,8 +38,8 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
     ) internal pure override returns (bytes memory) {
         return
             abi.encodeCall(
-                CommitmentReadIsmService.getCallsFromCommitment,
-                (_message.body().commitment())
+                CommitmentReadIsmService.getCallsFromRevealMessage,
+                (_message)
             );
     }
 
