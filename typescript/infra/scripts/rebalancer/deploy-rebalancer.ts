@@ -10,8 +10,8 @@ import {
 
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { RebalancerHelmManager } from '../../src/rebalancer/helm.js';
+import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
-import { validateRegistryCommit } from '../../utils.js';
 import {
   assertCorrectKubeContext,
   getArgs,
