@@ -47,3 +47,14 @@ async function startServer() {
 }
 
 startServer().then(console.log).catch(console.error);
+
+/*
+ * TODO: if PRISMA throws an error the entire express application crashes.
+ *  This is a temporary workaround to catch these kind of errors.
+ * */
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
