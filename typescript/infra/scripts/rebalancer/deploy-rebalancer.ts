@@ -11,12 +11,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
 import { RebalancerHelmManager } from '../../src/rebalancer/helm.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
   getWarpRouteIdsInteractive,
+  withMetrics,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -39,12 +41,15 @@ async function validateRegistryCommit(commit: string) {
   }
 }
 
-const REBALANCER_CONFIG_PATH_PREFIX =
-  'config/environments/mainnet3/rebalancer/rebalancerConfigs';
+function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
+  return `config/environments/${environment}/rebalancer/rebalancerConfigs`;
+}
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).parse();
+  const { environment, warpRouteId, metrics } = await withMetrics(
+    withWarpRouteId(getArgs()),
+  ).parse();
 
   let warpRouteIds;
   if (warpRouteId) {
@@ -69,7 +74,7 @@ async function main() {
     // Build path for config file - relative for local checks
     const configFileName = `${warpRouteId}-config.yaml`;
     const relativeConfigPath = path.join(
-      REBALANCER_CONFIG_PATH_PREFIX,
+      getRebalancerConfigPathPrefix(environment),
       configFileName,
     );
 
@@ -82,7 +87,7 @@ async function main() {
       registryCommit,
       containerConfigPath,
       'weighted',
-      true,
+      metrics,
     );
 
     await helmManager.runPreflightChecks(relativeConfigPath);
