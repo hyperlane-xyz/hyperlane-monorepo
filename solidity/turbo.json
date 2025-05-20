@@ -2,7 +2,13 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": ["artifacts/**", "cache/**", "dist/**", "types/**"]
+      "outputs": [
+        "artifacts/**",
+        "cache/**",
+        "dist/**",
+        "typechain/**",
+        "types/**"
+      ]
     }
   }
 }
