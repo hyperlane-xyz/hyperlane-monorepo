@@ -103,4 +103,7 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
+
+  // Testnet Routes
+  RebalancerTestnet = 'USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia',
 }
