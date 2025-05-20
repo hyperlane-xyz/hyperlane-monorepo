@@ -1,15 +1,13 @@
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
+import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import {
-  HyperlaneCore,
-  encodeIcaCalls,
-  normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+import { encodeIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
 import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { addressToBytes32, bytes32ToAddress } from '@hyperlane-xyz/utils';
 
 import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
 import { prisma } from '../db.js';
@@ -29,17 +27,13 @@ const postCallsSchema = z.object({
     .min(1),
   relayers: z.array(z.string()).min(0),
   salt: z.string(),
-  ica: z.string(),
   commitmentDispatchTx: z.string(),
   originDomain: z.number(),
 });
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
-  constructor(
-    private multiProvider: MultiProvider,
-    private core: HyperlaneCore,
-  ) {
+  constructor(private multiProvider: MultiProvider) {
     super();
     this.registerRoutes(this.router);
   }
@@ -55,9 +49,7 @@ export class CallCommitmentsService extends BaseService {
     });
     const metadata = await registry.getMetadata();
     const multiProvider = new MultiProvider({ ...metadata });
-    const chainAddresses = await registry.getAddresses();
-    const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-    return new CallCommitmentsService(multiProvider, core);
+    return new CallCommitmentsService(multiProvider);
   }
 
   public async handleCommitment(req: Request, res: Response) {
@@ -68,14 +60,15 @@ export class CallCommitmentsService extends BaseService {
       normalizeCalls(data.calls),
       data.salt,
     );
+    let ica: string;
     try {
-      await this.validateCommitmentDispatched(data, commitment);
+      ica = await this.validateCommitmentEvents(data, commitment);
     } catch (error: any) {
       console.error('Commitment dispatch validation failed', commitment, error);
       return res.status(400).json({ error: error.message });
     }
 
-    await this.insertCommitmentToDB(commitment, data);
+    await this.insertCommitmentToDB(commitment, { ...data, ica });
     res.sendStatus(200);
     return;
   }
@@ -115,7 +108,7 @@ export class CallCommitmentsService extends BaseService {
    */
   private async insertCommitmentToDB(
     commitment: string,
-    data: z.infer<typeof postCallsSchema>,
+    data: z.infer<typeof postCallsSchema> & { ica: string },
   ) {
     const { calls, relayers, salt, ica, commitmentDispatchTx, originDomain } =
       data;
@@ -146,24 +139,56 @@ export class CallCommitmentsService extends BaseService {
     return record;
   }
 
-  /**
-   * Ensure the commitment was dispatched on-chain; throws if not.
-   */
-  private async validateCommitmentDispatched(
+  // Validate the commitment events by checking the transaction receipt
+  // and parsing the events emitted by the InterchainAccountRouter.
+  // This ensures that the commitment was dispatched correctly and
+  // return the ICA address.
+  // Throws if validation fails.
+  private async validateCommitmentEvents(
     data: z.infer<typeof postCallsSchema>,
     commitment: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const provider = this.multiProvider.getProvider(data.originDomain);
-    const tx = await provider.getTransactionReceipt(data.commitmentDispatchTx);
-    const dispatchedMessages = this.core.getDispatchedMessages(tx);
-    const wasCommitmentDispatched = dispatchedMessages.some((message) =>
-      message.parsed.body
-        .toLowerCase()
-        .includes(commitment.slice(2).toLowerCase()),
+    const receipt = await provider.getTransactionReceipt(
+      data.commitmentDispatchTx,
     );
-    if (!wasCommitmentDispatched) {
-      throw new Error('Commitment not dispatched');
+    if (!receipt)
+      throw new Error(
+        `Transaction not found: ${data.commitmentDispatchTx} on domain ${data.originDomain}`,
+      );
+
+    // Parse events with the router interface
+    const iface = InterchainAccountRouter__factory.createInterface();
+
+    // Check for CommitRevealDispatched
+    const revealTopic = iface.getEventTopic('CommitRevealDispatched');
+    const revealLog = receipt.logs.find((l) => l.topics[0] === revealTopic);
+    if (!revealLog) throw new Error('CommitRevealDispatched event not found');
+    const parsedReveal = iface.parseLog(revealLog);
+    if (parsedReveal.args.commitment !== commitment) {
+      throw new Error('Commitment mismatch on reveal');
     }
+
+    // Find the RemoteCallDispatched event
+    const callTopic = iface.getEventTopic('RemoteCallDispatched');
+    const callLog = receipt.logs.find((l) => l.topics[0] === callTopic);
+    if (!callLog) throw new Error('RemoteCallDispatched event not found');
+    const parsedCall = iface.parseLog(callLog);
+    const owner = addressToBytes32(parsedCall.args.owner);
+    const destiantionRouterAddress = bytes32ToAddress(parsedCall.args.router);
+    const ism = bytes32ToAddress(parsedCall.args.ism);
+    const originRouter = addressToBytes32(callLog.address);
+    const destinationDomain = parsedCall.args.destination as number;
+    const salt = parsedCall.args.salt;
+
+    // Derive the ICA by calling the on-chain view
+    const destinationRouter = InterchainAccountRouter__factory.connect(
+      destiantionRouterAddress,
+      this.multiProvider.getProvider(destinationDomain),
+    );
+    return await destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](data.originDomain, owner, originRouter, ism, salt);
   }
 
   /**
