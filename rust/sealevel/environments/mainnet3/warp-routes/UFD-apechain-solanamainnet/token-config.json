@@ -4,7 +4,7 @@
     "decimals": 6,
     "name": "Unicorn Fart Dust",
     "symbol": "UFD",
-    "foreignDeployment": "0x6678EaAC8d8d44fd51e2D5fBcA8c2f362cBe5347"
+    "foreignDeployment": "0xC58eeC72352b04358b0b6979ba10462190f0d54C"
   },
   "solanamainnet": {
     "type": "collateral",
