@@ -374,8 +374,9 @@ function getWarpRouteIdsByEnvironment(deployEnvironment: DeployEnvironment) {
 export async function getWarpRouteIdInteractive(
   deployEnvironment: DeployEnvironment,
 ) {
-  const routeIds = getWarpRouteIdsByEnvironment(deployEnvironment);
-  const choices = Object.values(routeIds)
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
@@ -391,8 +392,9 @@ export async function getWarpRouteIdInteractive(
 export async function getWarpRouteIdsInteractive(
   deployEnvironment: DeployEnvironment,
 ) {
-  const routeIds = getWarpRouteIdsByEnvironment(deployEnvironment);
-  const choices = Object.values(routeIds)
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
