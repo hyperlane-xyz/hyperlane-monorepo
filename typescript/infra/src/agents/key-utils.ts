@@ -349,7 +349,7 @@ export async function createAgentKeysIfNotExists(
 
   // Filter out keys for Starknet chains - we don't want to create or update them
   const nonStarknetKeys = keys.filter(
-    (key) => !(key.chainName && isStarknetChain(key.chainName)),
+    (key) => key.chainName && !isStarknetChain(key.chainName),
   );
 
   // Process only non-Starknet keys for creation
@@ -377,7 +377,7 @@ export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
 
   // Filter out Starknet keys - we don't want to delete them
   const nonStarknetKeys = keys.filter(
-    (key) => !(key.chainName && isStarknetChain(key.chainName)),
+    (key) => key.chainName && !isStarknetChain(key.chainName),
   );
 
   await Promise.all(nonStarknetKeys.map((key) => key.delete()));
