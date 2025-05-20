@@ -17,5 +17,5 @@ do
 
     contract=$(basename "$file" .sol)
     echo "Generating storage layout of $contract"
-    forge inspect "$contract" storage -- --pretty > "$OUTPUT_PATH/$contract.md"
+    forge inspect "$contract" storage > "$OUTPUT_PATH/$contract.md"
 done
