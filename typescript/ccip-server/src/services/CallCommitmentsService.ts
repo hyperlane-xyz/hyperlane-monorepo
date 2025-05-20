@@ -183,7 +183,7 @@ export class CallCommitmentsService extends BaseService {
 
     // Derive the ICA by calling the on-chain view
     const destinationRouter = InterchainAccountRouter__factory.connect(
-      destiantionRouterAddress,
+      destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
     return await destinationRouter[
