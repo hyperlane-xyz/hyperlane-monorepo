@@ -22,7 +22,7 @@ import {
 import { getEnvironmentConfig } from '../core-utils.js';
 
 function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
-  return `config/environments/${environment}/rebalancer/rebalancerConfigs`;
+  return `config/environments/${environment}/rebalancer`;
 }
 
 async function main() {
