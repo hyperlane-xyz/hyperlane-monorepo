@@ -71,11 +71,10 @@ contract HypERC20Collateral is FungibleTokenRouter, MovableCollateralRouter {
         uint256 _amount
     ) external view virtual override returns (Quote[] memory quotes) {
         quotes = new Quote[](2);
-        quotes[0] = _quoteTransferRemote(
-            _destinationDomain,
-            _recipient,
-            _amount
-        )[0];
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destinationDomain, _recipient, _amount)
+        });
         quotes[1] = Quote({token: address(wrappedToken), amount: _amount});
     }
 

@@ -12,7 +12,7 @@ import "./AbstractCcipReadIsm.sol";
  * @notice A test CCIP-Read ISM that simply checks the passed metadata as a boolean.
  */
 contract TestCcipReadIsm is AbstractCcipReadIsm {
-    constructor(string[] memory _urls) MailboxClient(address(0)) {
+    constructor(string[] memory _urls) {
         setUrls(_urls);
     }
 

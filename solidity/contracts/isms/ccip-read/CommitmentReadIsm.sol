@@ -27,11 +27,8 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    constructor(
-        address _mailbox,
-        address _owner,
-        string[] memory _urls
-    ) MailboxClient(_mailbox) {
+    constructor(address _owner, string[] memory _urls) {
+        _transferOwnership(msg.sender);
         setUrls(_urls);
         _transferOwnership(_owner);
     }

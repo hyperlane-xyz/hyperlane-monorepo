@@ -46,15 +46,17 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         _MovableCollateralRouter_initialize(_owner);
     }
 
-    function _quoteTransferRemote(
+    function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view override returns (Quote[] memory quotes) {
-        quotes = super._quoteTransferRemote(_destination, _recipient, _amount);
-        assert(quotes[0].token == address(0));
-        // add the amount to the quote
-        quotes[0].amount += _amount;
+    ) external view override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount) +
+                _amount
+        });
     }
 
     function _transferRemote(

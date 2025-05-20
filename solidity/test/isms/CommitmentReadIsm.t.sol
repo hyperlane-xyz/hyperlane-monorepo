@@ -31,7 +31,7 @@ contract CommitmentReadIsmTest is Test {
         environment = new MockHyperlaneEnvironment(origin, destination);
         mailboxOrigin = environment.mailboxes(origin);
         mailboxDestination = environment.mailboxes(destination);
-        ism = new CommitmentReadIsm(address(mailboxDestination), alice, urls);
+        ism = new CommitmentReadIsm(alice, urls);
     }
 
     function testUrls() public {
