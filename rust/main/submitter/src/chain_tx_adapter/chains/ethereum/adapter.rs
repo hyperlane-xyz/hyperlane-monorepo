@@ -175,8 +175,6 @@ impl AdaptsChain for EthereumTxAdapter {
 
         info!(?tx, "submitting transaction");
 
-        self.nonce_manager.set_nonce(tx, &self.provider).await?;
-
         let precursor = tx.precursor();
         let hash = self
             .provider
