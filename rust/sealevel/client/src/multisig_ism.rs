@@ -54,11 +54,7 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);
             let key_dir = create_new_directory(&context_dir, "keys");
-            let local_domain = deploy
-                .chain
-                .parse::<KnownHyperlaneDomain>()
-                .map(|v| v as u32)
-                .expect("Invalid chain name");
+            let local_domain = deploy.chain.parse::<u32>().expect("Invalid chain name");
 
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
