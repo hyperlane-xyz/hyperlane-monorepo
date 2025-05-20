@@ -10,7 +10,7 @@ use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::H256;
+use hyperlane_core::HyperlaneMessage;
 
 use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
@@ -34,20 +34,9 @@ pub struct QueryParams {
     pub nonce_end: u32,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct Message {
-    pub version: u8,
-    pub nonce: u32,
-    pub origin: u32,
-    pub sender: H256,
-    pub destination: u32,
-    pub recipient: H256,
-    pub body: Vec<u8>,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
-    pub messages: Vec<Message>,
+    pub messages: Vec<HyperlaneMessage>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -103,16 +92,7 @@ pub async fn handler(
             )
         })?;
         if let Some(msg) = retrieve_res {
-            let message = Message {
-                version: msg.version,
-                nonce: msg.nonce,
-                origin: msg.origin,
-                sender: msg.sender,
-                destination: msg.destination,
-                recipient: msg.recipient,
-                body: msg.body,
-            };
-            messages.push(message);
+            messages.push(msg);
         }
     }
 
@@ -269,18 +249,7 @@ mod tests {
 
         assert_eq!(resp_status, StatusCode::OK);
 
-        let expected_list: Vec<_> = insertions
-            .iter()
-            .map(|(_, msg)| Message {
-                version: msg.version,
-                nonce: msg.nonce,
-                origin: msg.origin,
-                sender: msg.sender,
-                destination: msg.destination,
-                recipient: msg.recipient,
-                body: msg.body.clone(),
-            })
-            .collect();
+        let expected_list: Vec<_> = insertions.into_iter().map(|(_, msg)| msg).collect();
 
         assert_eq!(resp_body.messages.len(), expected_list.len());
         for (actual, expected) in resp_body.messages.iter().zip(expected_list.iter()) {
