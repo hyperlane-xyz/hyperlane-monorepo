@@ -5,6 +5,7 @@ import { getEnabledModules } from './config.js';
 import { BaseService } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { HealthService } from './services/HealthService.js';
 import { ProofsService } from './services/ProofsService.js';
 
 export const moduleRegistry: Record<string, typeof BaseService> = {
@@ -31,13 +32,17 @@ async function startServer() {
     console.log(`✅  Mounted '${name}' at '/${name}'`);
   }
 
+  // Register Health Service
+  const healthService = await HealthService.initialize(); // module reads its own ENV config
+  app.use(`/health`, healthService.router);
+
   // Log and handle undefined endpoints
   app.use((req, res) => {
     console.log(`Undefined request: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ error: 'Endpoint not found' });
   });
 
-  const port = process.env.PORT || 3000;
+  const port = parseInt(process.env.SERVER_PORT ?? '3000');
   app.listen(port, () => console.log(`Listening on port ${port}`));
 }
 
