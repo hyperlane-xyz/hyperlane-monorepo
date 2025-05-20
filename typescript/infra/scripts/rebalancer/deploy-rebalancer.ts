@@ -47,7 +47,7 @@ async function main() {
   await validateRegistryCommit(registryCommit);
 
   rootLogger.info(
-    `Deploying Rebalancer for Route ID: ${warpRouteIds.join(', ')}`,
+    `Deploying Rebalancer for the following Route IDs:\n${warpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
   );
 
   const deployRebalancer = async (warpRouteId: string) => {
