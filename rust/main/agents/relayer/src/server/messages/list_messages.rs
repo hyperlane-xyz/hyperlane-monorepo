@@ -79,8 +79,8 @@ pub async fn handler(
         )
     })?;
 
-    let mut messages = Vec::with_capacity((nonce_end - nonce_start) as usize);
-    for nonce in nonce_start..nonce_end {
+    let mut messages = Vec::with_capacity((nonce_end + 1 - nonce_start) as usize);
+    for nonce in nonce_start..(nonce_end + 1) {
         let retrieve_res = db.retrieve_message_by_nonce(nonce).map_err(|err| {
             let error_msg = "Failed to fetch message";
             tracing::debug!(domain_id, nonce, ?err, "{error_msg}");
@@ -234,6 +234,18 @@ mod tests {
                     body: Vec::new(),
                 },
             ),
+            (
+                1002,
+                HyperlaneMessage {
+                    version: 0,
+                    nonce: 102,
+                    origin: domains[0].id(),
+                    sender: H256::from_low_u64_be(101),
+                    destination: domains[1].id(),
+                    recipient: H256::from_low_u64_be(201),
+                    body: Vec::new(),
+                },
+            ),
         ];
 
         for (dispatched_block_number, message) in insertions.iter() {
@@ -241,7 +253,7 @@ mod tests {
         }
 
         let nonce_start = 100;
-        let nonce_end = 103;
+        let nonce_end = 101;
         let response = send_request(app.clone(), domains[0].id(), nonce_start, nonce_end).await;
 
         let resp_status = response.status();
@@ -249,7 +261,7 @@ mod tests {
 
         assert_eq!(resp_status, StatusCode::OK);
 
-        let expected_list: Vec<_> = insertions.into_iter().map(|(_, msg)| msg).collect();
+        let expected_list: Vec<_> = insertions.into_iter().take(2).map(|(_, msg)| msg).collect();
 
         assert_eq!(resp_body.messages.len(), expected_list.len());
         for (actual, expected) in resp_body.messages.iter().zip(expected_list.iter()) {

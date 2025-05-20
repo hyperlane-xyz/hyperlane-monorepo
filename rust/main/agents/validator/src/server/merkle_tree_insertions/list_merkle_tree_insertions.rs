@@ -74,8 +74,8 @@ pub async fn handler(
     }
 
     let mut merkle_tree_insertions =
-        Vec::with_capacity((leaf_index_end - leaf_index_start) as usize);
-    for leaf_index in leaf_index_start..leaf_index_end {
+        Vec::with_capacity((leaf_index_end + 1 - leaf_index_start) as usize);
+    for leaf_index in leaf_index_start..(leaf_index_end + 1) {
         let retrieve_res = state
             .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
@@ -186,6 +186,7 @@ mod tests {
             MerkleTreeInsertion::new(100, H256::from_low_u64_be(100)),
             MerkleTreeInsertion::new(101, H256::from_low_u64_be(101)),
             MerkleTreeInsertion::new(102, H256::from_low_u64_be(102)),
+            MerkleTreeInsertion::new(103, H256::from_low_u64_be(103)),
         ];
 
         for insertion in insertions.iter() {
@@ -193,7 +194,7 @@ mod tests {
         }
 
         let leaf_index_start = 100;
-        let leaf_index_end = 103;
+        let leaf_index_end = 102;
         let response = send_request(app.clone(), leaf_index_start, leaf_index_end).await;
 
         let resp_status = response.status();
