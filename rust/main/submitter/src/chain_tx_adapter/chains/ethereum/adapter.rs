@@ -89,11 +89,7 @@ impl EthereumTxAdapter {
     }
 
     async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        self.nonce_manager
-            .lock()
-            .await
-            .set_nonce(tx, &self.provider)
-            .await?;
+        self.nonce_manager.set_nonce(tx, &self.provider).await?;
         Ok(())
     }
 

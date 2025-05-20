@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use tracing::info;
 
 use hyperlane_ethereum::EvmProviderForSubmitter;
-use tracing::info;
 
 use crate::transaction::Transaction;
 use crate::SubmitterError;
@@ -15,7 +15,7 @@ use crate::SubmitterError;
 use super::super::transaction::Precursor;
 
 pub struct NonceManager {
-    pub tx_in_finality_count: Arc<Mutex<usize>>,
+    tx_in_finality_count: Arc<Mutex<usize>>,
 }
 
 impl NonceManager {
