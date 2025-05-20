@@ -6,9 +6,7 @@ import "forge-std/StdCheats.sol";
 
 import {MockToken} from "../../contracts/mock/MockToken.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {TokenBridgeCctp} from "../../contracts/token/TokenBridgeCctp.sol";
-import {TokenBridgeCctpV1} from "../../contracts/token/extensions/TokenBridgeCctpV1.sol";
-import {TokenBridgeCctpV2} from "../../contracts/token/extensions/TokenBridgeCctpV2.sol";
+import {TokenBridgeCctp, TokenBridgeCctpV1, TokenBridgeCctpV2} from "../../contracts/token/TokenBridgeCctp.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {MockCircleMessageTransmitter} from "../../contracts/mock/MockCircleMessageTransmitter.sol";
 import {MockCircleTokenMessenger, MockCircleTokenMessengerV2} from "../../contracts/mock/MockCircleTokenMessenger.sol";
@@ -20,6 +18,7 @@ import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTrans
 import {ITokenMessenger} from "../../contracts/interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -41,6 +40,7 @@ contract TokenBridgeCctpV1Test is Test {
     TokenBridgeCctp internal tbOrigin;
     TokenBridgeCctp internal tbDestination;
 
+    address internal proxyAdmin;
     address internal evil = makeAddr("evil");
     string[] internal urls;
 
@@ -67,6 +67,8 @@ contract TokenBridgeCctpV1Test is Test {
     function setUp() public virtual {
         urls = new string[](1);
         urls[0] = "https://ccip-read-gateway.io";
+
+        proxyAdmin = makeAddr("proxyAdmin");
 
         environment = new MockHyperlaneEnvironment(origin, destination);
         mailboxOrigin = environment.mailboxes(origin);
@@ -95,7 +97,7 @@ contract TokenBridgeCctpV1Test is Test {
             tokenDestination
         );
 
-        tbOrigin = new TokenBridgeCctpV1(
+        TokenBridgeCctpV1 originImplementation = new TokenBridgeCctpV1(
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
@@ -103,13 +105,39 @@ contract TokenBridgeCctpV1Test is Test {
             ITokenMessenger(address(tokenMessengerOrigin))
         );
 
-        tbDestination = new TokenBridgeCctpV1(
+        TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
+                address(originImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    TokenBridgeCctp.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
+
+        tbOrigin = TokenBridgeCctpV1(address(proxyOrigin));
+
+        TokenBridgeCctpV1 destinationImplementation = new TokenBridgeCctpV1(
             address(tokenDestination),
             scale,
             address(mailboxDestination),
             IMessageTransmitter(address(messageTransmitterDestination)),
             ITokenMessenger(address(tokenMessengerDestination))
         );
+
+        TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
+                address(destinationImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    TokenBridgeCctp.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
+
+        tbDestination = TokenBridgeCctpV1(address(proxyDestination));
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
 
@@ -173,18 +201,8 @@ contract TokenBridgeCctpV1Test is Test {
             tokenMessengerDestination.nextNonce()
         );
 
-        messageTransmitterDestination.process(
-            nonceId,
-            address(tbDestination),
-            amount
-        );
+        messageTransmitterDestination.process(nonceId, user, amount);
 
-        vm.expectEmit(address(tbDestination));
-        emit TokenRouter.ReceivedTransferRemote(
-            origin,
-            user.addressToBytes32(),
-            amount
-        );
         tbDestination.verify(ccipReadData, message);
 
         uint256 tokenBalance = tokenDestination.balanceOf(user);
@@ -255,6 +273,26 @@ contract TokenBridgeCctpV1Test is Test {
         );
         _tbDestination.setDestinationGas(origin, gasLimit);
     }
+
+    function test_hyperlaneDomainToCircleDomain(
+        uint32 unconfiguredHyperlaneDomain,
+        uint32 circleDomain
+    ) public {
+        // Assumptions for fuzzing: ensure the domain is truly unconfigured and not zero.
+        vm.assume(unconfiguredHyperlaneDomain != 0);
+        vm.assume(unconfiguredHyperlaneDomain != origin);
+        vm.assume(unconfiguredHyperlaneDomain != destination);
+
+        vm.expectRevert(bytes("Circle domain not configured"));
+        tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain);
+
+        // covers the case where circleDomain is 0
+        tbOrigin.addDomain(unconfiguredHyperlaneDomain, circleDomain);
+        assertEq(
+            tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain),
+            circleDomain
+        );
+    }
 }
 
 contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
@@ -272,7 +310,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         messageTransmitterOrigin.setVersion(1);
         messageTransmitterDestination.setVersion(1);
 
-        tbOrigin = new TokenBridgeCctpV2(
+        TokenBridgeCctpV2 originImplementation = new TokenBridgeCctpV2(
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
@@ -280,13 +318,39 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             ITokenMessengerV2(address(tokenMessengerOriginV2))
         );
 
-        tbDestination = new TokenBridgeCctpV2(
+        TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
+                address(originImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    TokenBridgeCctp.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
+
+        tbOrigin = TokenBridgeCctpV2(address(proxyOrigin));
+
+        TokenBridgeCctpV2 destinationImplementation = new TokenBridgeCctpV2(
             address(tokenDestination),
             scale,
             address(mailboxDestination),
             IMessageTransmitter(address(messageTransmitterDestination)),
             ITokenMessengerV2(address(tokenMessengerDestinationV2))
         );
+
+        TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
+                address(destinationImplementation),
+                proxyAdmin,
+                abi.encodeWithSelector(
+                    TokenBridgeCctp.initialize.selector,
+                    address(0),
+                    address(this),
+                    urls
+                )
+            );
+
+        tbDestination = TokenBridgeCctpV2(address(proxyDestination));
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
     }

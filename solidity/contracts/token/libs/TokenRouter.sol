@@ -175,7 +175,9 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
-     * @param _destinationDomain The domain of the router.
+     * @param _destination The domain of the router.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount of tokens to be sent to the remote recipient.
      * @dev This should be overriden for warp routes that require additional fees/approvals.
      * @return quotes Indicate how much of each token to approve and/or send.
      */
@@ -192,7 +194,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @deprecated Use `quoteTransferRemote` instead.
+     * DEPRECATED: Use `quoteTransferRemote` instead.
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destinationDomain The domain of the router.
      * @dev Assumes bytes32(0) recipient and max amount of tokens for quoting.

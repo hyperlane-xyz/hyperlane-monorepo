@@ -11,6 +11,7 @@ import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
 
 interface OpL2toL1Service {
     function getWithdrawalProof(
@@ -35,11 +36,7 @@ interface OpL2toL1Service {
  * ISM because OP Stack expects the prover and the finalizer to
  * be the same caller
  */
-contract OPL2ToL1CcipReadIsm is
-    AbstractCcipReadIsm,
-    IMessageRecipient,
-    ISpecifiesInterchainSecurityModule
-{
+contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
     using Message for bytes;
     using TypeCasts for address;
 
@@ -111,7 +108,6 @@ contract OPL2ToL1CcipReadIsm is
     function interchainSecurityModule()
         external
         view
-        override
         returns (IInterchainSecurityModule)
     {
         return IInterchainSecurityModule(address(this));

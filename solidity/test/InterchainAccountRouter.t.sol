@@ -136,7 +136,6 @@ contract InterchainAccountRouterTestBase is Test {
         target = new Callable();
     }
 
-    // refunds from the commit dispatch call used to fund reveal dispatch call
     receive() external payable {}
 }
 
