@@ -281,16 +281,22 @@ export class CallCommitmentsService extends BaseService {
    */
   private registerRoutes(router: Router): void {
     // TODO REMOVE
-    router.post('/calls_mock', async (req, res) => {
+    const calls_mock = async (req, res) => {
       const data = this.parseCommitmentBody(req.body, res);
       if (!data) return;
 
       const commitment = crypto.randomUUID().toString();
 
-      await this.insertCommitmentToDB(commitment, data);
+      try {
+        await this.insertCommitmentToDB(commitment, data);
+      } catch (_) {
+        res.sendStatus(400);
+      }
+
       res.status(200).send({ commitment: commitment });
       return;
-    });
+    };
+    router.post('/calls_mock', calls_mock);
 
     router.post('/calls', this.handleCommitment.bind(this));
     router.post(
