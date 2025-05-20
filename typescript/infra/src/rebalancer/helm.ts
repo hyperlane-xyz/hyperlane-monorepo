@@ -15,12 +15,12 @@ export class RebalancerHelmManager extends HelmManager {
   );
 
   constructor(
-    public warpRouteId: string,
-    public environment: DeployEnvironment,
-    public registryCommit: string,
-    public rebalancerConfigFile: string,
-    public rebalanceStrategy: string,
-    public withMetrics: boolean,
+    readonly warpRouteId: string,
+    readonly environment: DeployEnvironment,
+    readonly registryCommit: string,
+    readonly rebalancerConfigFile: string,
+    readonly rebalanceStrategy: string,
+    readonly withMetrics: boolean,
   ) {
     super();
   }
@@ -49,7 +49,7 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '689408d-20250519-205045',
+        tag: '0319ac2-20250520-144526',
       },
       warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
