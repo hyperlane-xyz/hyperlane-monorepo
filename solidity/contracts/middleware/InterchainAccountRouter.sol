@@ -717,6 +717,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    // refunds from the commit dispatch call used to fund reveal dispatch call
     receive() external payable {}
 
     /**
@@ -1070,15 +1071,18 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         return
             _Router_quoteDispatch(
                 _destination,
-                new bytes(0),
+                bytes(""),
                 bytes(""),
                 address(hook)
             );
     }
 
-    /// @dev It would be nice if we could reuse the above function which takes in the message body, but
-    /// that function uses `bytes calldata` so we can't pass empty (in-memory) bytes to it. We can't use `this.quote()` either because
-    /// Mailbox._buildMessage() uses msg.sender.
+    /**
+     * @notice Returns the payment required to commit reveal to the destination router.
+     * @param _destination The domain of the destination router.
+     * @param gasLimit The gas limit that the reveal calls will use.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
+     */
     function quoteGasForCommitReveal(
         uint32 _destination,
         uint256 gasLimit

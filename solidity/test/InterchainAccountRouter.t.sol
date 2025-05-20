@@ -136,6 +136,7 @@ contract InterchainAccountRouterTestBase is Test {
         target = new Callable();
     }
 
+    // refunds from the commit dispatch call used to fund reveal dispatch call
     receive() external payable {}
 }
 
@@ -914,7 +915,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     function testFuzz_callRemoteCommitReveal_events(bytes32 commitment) public {
         // arrange
         bytes32 salt = bytes32(0);
-        bytes memory hookMetadata = bytes("");
 
         // expect both events to be emitted
         vm.expectEmit(true, true, true, true);
