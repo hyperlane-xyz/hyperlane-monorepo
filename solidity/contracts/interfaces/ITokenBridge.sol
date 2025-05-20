@@ -25,7 +25,7 @@ interface ITokenBridge {
      * @param _destination The destination domain of the message
      * @param _recipient The message recipient address on `destination`
      * @param _amount The amount to send to the recipient
-     * @return quotes An array of quotes
+     * @return quotes Indicate how much of each token to approve and/or send.
      * @dev Good practice is to use the first entry of the quotes for the native currency (i.e. ETH)
      */
     function quoteTransferRemote(

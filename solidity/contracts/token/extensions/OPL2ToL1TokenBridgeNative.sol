@@ -39,7 +39,9 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32 messageId) {
-        messageId = super._transferRemote(
+        bytes32 remoteRouter = _mustHaveRemoteRouter(l1Domain);
+
+        messageId = TokenRouter._transferRemote(
             _destination,
             _recipient,
             _amount,
@@ -49,7 +51,7 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
         );
 
         l2Bridge.bridgeETHTo{value: _amount}(
-            _recipient.bytes32ToAddress(),
+            remoteRouter.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
             bytes("") // extraData
         );

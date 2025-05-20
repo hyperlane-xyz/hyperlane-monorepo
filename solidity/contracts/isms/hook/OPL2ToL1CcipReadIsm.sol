@@ -59,10 +59,8 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
     constructor(
         string[] memory _urls,
         address _opPortal,
-        uint32 _opPortalVersion,
-        address _mailbox
-    ) MailboxClient(_mailbox) {
-        require(_urls.length > 0, "URLs array is empty");
+        uint32 _opPortalVersion
+    ) {
         require(
             _opPortalVersion == OP_PORTAL_VERSION_1 ||
                 _opPortalVersion == OP_PORTAL_VERSION_2,
@@ -70,6 +68,7 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         );
         opPortalVersion = _opPortalVersion;
         opPortal = IOptimismPortal(_opPortal);
+        _transferOwnership(msg.sender);
         setUrls(_urls);
     }
 
@@ -109,7 +108,6 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
     function interchainSecurityModule()
         external
         view
-        override
         returns (IInterchainSecurityModule)
     {
         return IInterchainSecurityModule(address(this));

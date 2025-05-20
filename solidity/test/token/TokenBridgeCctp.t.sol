@@ -209,7 +209,7 @@ contract TokenBridgeCctpV1Test is Test {
             user.addressToBytes32(),
             amount
         );
-        tbDestination.process(ccipReadData, message);
+        tbDestination.verify(ccipReadData, message);
 
         uint256 tokenBalance = tokenDestination.balanceOf(user);
         assertEq(tokenBalance, amount);
@@ -249,7 +249,7 @@ contract TokenBridgeCctpV1Test is Test {
                 address(tbDestination),
                 urls,
                 abi.encodeWithSignature("getCCTPAttestation(bytes)", message),
-                tbDestination.process.selector,
+                tbDestination.verify.selector,
                 message
             )
         );
