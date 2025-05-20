@@ -121,7 +121,7 @@ async function getDailyRelayerBurnScraperDB(
       avg_tx_cost_native * ${MIN_NUMBER_OF_TXS} AS min_tx,
       avg_tx_cost_native * avg_daily_messages AS avg_tx_cost,
       GREATEST(
-        avg_tx_cost_native * ${MIN_NUMBER_OF_TXS}, 
+        avg_tx_cost_native * ${MIN_NUMBER_OF_TXS},
         avg_tx_cost_native * avg_daily_messages
       ) as daily_burn
     FROM
@@ -287,9 +287,8 @@ async function calculateDailyRelayerBurn(
 
   if (lowProposedDailyBurn.length > 0) {
     console.table(lowProposedDailyBurn);
-    const userAdjustments = await handleLowProposedDailyBurn(
-      lowProposedDailyBurn,
-    );
+    const userAdjustments =
+      await handleLowProposedDailyBurn(lowProposedDailyBurn);
     updatedBurnData = { ...updatedBurnData, ...userAdjustments };
   }
 

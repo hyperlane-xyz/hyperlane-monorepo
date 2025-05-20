@@ -4,6 +4,7 @@ import {
   ArbL2ToL1Ism,
   CCIPIsm,
   IAggregationIsm,
+  ICcipReadIsm,
   IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
@@ -13,7 +14,12 @@ import {
   TestIsm,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
-import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  Domain,
+  ValueOf,
+  WithAddress,
+} from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -61,6 +67,7 @@ export enum IsmType {
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
+  CCIP_READ = 'ccipReadIsm',
 }
 
 // ISM types that can be updated in-place
@@ -68,6 +75,19 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.ROUTING,
   IsmType.FALLBACK_ROUTING,
   IsmType.PAUSABLE,
+];
+
+/**
+ * @notice Statically deployed ISM types
+ * @dev ISM types with immutable config embedded in contract bytecode via MetaProxy
+ */
+export const STATIC_ISM_TYPES = [
+  IsmType.AGGREGATION,
+  IsmType.MERKLE_ROOT_MULTISIG,
+  IsmType.MESSAGE_ID_MULTISIG,
+  IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+  IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+  IsmType.ICA_ROUTING,
 ];
 
 // mapping between the two enums
@@ -100,6 +120,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MERKLE_ROOT_MULTISIG;
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
+    case IsmType.CCIP_READ:
+      return ModuleType.CCIP_READ;
   }
 }
 
@@ -125,6 +147,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 >;
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+export type CCIPReadIsmConfig = z.infer<typeof CCIPReadIsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -170,6 +193,8 @@ export type AggregationIsmConfig = {
 
 export type IsmConfig = z.infer<typeof IsmConfigSchema>;
 
+export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
+
 export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
@@ -190,6 +215,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.CCIP_READ]: ICcipReadIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -240,6 +266,10 @@ export const OpStackIsmConfigSchema = z.object({
 export const ArbL2ToL1IsmConfigSchema = z.object({
   type: z.literal(IsmType.ARB_L2_TO_L1),
   bridge: z.string(),
+});
+
+export const CCIPReadIsmConfigSchema = z.object({
+  type: z.literal(IsmType.CCIP_READ),
 });
 
 export const PausableIsmConfigSchema = PausableSchema.and(
@@ -315,4 +345,5 @@ export const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
+  CCIPReadIsmConfigSchema,
 ]);

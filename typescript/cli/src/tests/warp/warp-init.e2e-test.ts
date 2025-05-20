@@ -119,7 +119,7 @@ describe('hyperlane warp init e2e tests', async function () {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Select .+?'s token type/),
           // Scroll down through the token type list and select collateral
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(4)}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput: string) =>

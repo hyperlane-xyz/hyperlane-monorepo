@@ -25,6 +25,9 @@ pub enum DbError {
     /// Hyperlane Error
     #[error("{0}")]
     HyperlaneError(#[from] HyperlaneProtocolError),
+    /// Custom error
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<DbError> for ChainCommunicationError {

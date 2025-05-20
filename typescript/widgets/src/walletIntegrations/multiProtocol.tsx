@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -86,6 +87,7 @@ export function useAccounts(
         [ProtocolType.Ethereum]: evmAccountInfo,
         [ProtocolType.Sealevel]: solAccountInfo,
         [ProtocolType.Cosmos]: cosmAccountInfo,
+        [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
       },
       readyAccounts,
@@ -126,12 +128,49 @@ export function getAccountAddressForChain(
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
   const account = accounts[protocol];
-  if (protocol === ProtocolType.Cosmos) {
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  ) {
     return account?.addresses.find((a) => a.chainName === chainName)?.address;
   } else {
     // Use first because only cosmos has the notion of per-chain addresses
     return account?.addresses[0]?.address;
   }
+}
+
+export function getAddressFromAccountAndChain(
+  account?: AccountInfo,
+  chainName?: ChainName,
+) {
+  if (!account) {
+    return 'Unknown';
+  }
+
+  // only in cosmos there are multiple addresses per account, in this
+  // case we display the cosmos hub address by default. If the user
+  // selects a cosmos based origin chain in the swap form that cosmos
+  // address is displayed instead
+  if (account.protocol === ProtocolType.Cosmos) {
+    // chainName can be an EVM chain here, therefore if no
+    // cosmos address was found we search for the cosmos hub
+    // address below
+    const cosmosAddress = account?.addresses?.find(
+      (a) => a.chainName === chainName,
+    )?.address;
+
+    // if no cosmos address was found for the chain name we search
+    // for the cosmos hub address as fallback
+    return (
+      cosmosAddress ??
+      account?.addresses?.find((a) => a.chainName === cosmoshub.name)
+        ?.address ??
+      'Unknown'
+    );
+  }
+
+  // by default display the first address of the account
+  return account.addresses[0]?.address ?? 'Unknown';
 }
 
 export function getAccountAddressAndPubKey(
@@ -157,6 +196,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Ethereum]: evmWallet,
       [ProtocolType.Sealevel]: solWallet,
       [ProtocolType.Cosmos]: cosmosWallet,
+      [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet],
@@ -174,6 +214,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Ethereum]: onConnectEthereum,
       [ProtocolType.Sealevel]: onConnectSolana,
       [ProtocolType.Cosmos]: onConnectCosmos,
+      [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
     }),
     [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
@@ -211,6 +252,10 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Cosmos,
         disconnectCosmos,
       ),
+      [ProtocolType.CosmosNative]: onClickDisconnect(
+        ProtocolType.CosmosNative,
+        disconnectCosmos,
+      ),
       [ProtocolType.Starknet]: onClickDisconnect(
         ProtocolType.Starknet,
         disconnectStarknet,
@@ -243,6 +288,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Ethereum]: evmChain,
         [ProtocolType.Sealevel]: solChain,
         [ProtocolType.Cosmos]: cosmChain,
+        [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
       },
       readyChains,
@@ -276,6 +322,10 @@ export function useTransactionFns(
         switchNetwork: onSwitchSolNetwork,
       },
       [ProtocolType.Cosmos]: {
+        sendTransaction: onSendCosmTx,
+        switchNetwork: onSwitchCosmNetwork,
+      },
+      [ProtocolType.CosmosNative]: {
         sendTransaction: onSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },

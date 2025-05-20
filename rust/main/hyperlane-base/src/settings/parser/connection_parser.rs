@@ -6,7 +6,7 @@ use url::Url;
 
 use h_eth::TransactionOverrides;
 
-use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
+use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use crate::settings::envs::*;
@@ -20,7 +20,7 @@ pub fn build_ethereum_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
-    operation_batch: OperationBatchConfig,
+    operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let Some(first_url) = rpcs.to_owned().clone().into_iter().next() else {
         return None;
@@ -68,13 +68,57 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("maxPriorityFeePerGas")
                 .parse_u256()
                 .end(),
+
+            min_gas_price: value_parser
+                .chain(err)
+                .get_opt_key("minGasPrice")
+                .parse_u256()
+                .end(),
+            min_fee_per_gas: value_parser
+                .chain(err)
+                .get_opt_key("minFeePerGas")
+                .parse_u256()
+                .end(),
+            min_priority_fee_per_gas: value_parser
+                .chain(err)
+                .get_opt_key("minPriorityFeePerGas")
+                .parse_u256()
+                .end(),
+
+            gas_limit_multiplier_denominator: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitMultiplierDenominator")
+                .parse_u256()
+                .end(),
+            gas_limit_multiplier_numerator: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitMultiplierNumerator")
+                .parse_u256()
+                .end(),
+
+            gas_price_multiplier_denominator: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceMultiplierDenominator")
+                .parse_u256()
+                .end(),
+            gas_price_multiplier_numerator: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceMultiplierNumerator")
+                .parse_u256()
+                .end(),
+
+            gas_price_cap: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceCap")
+                .parse_u256()
+                .end(),
         })
         .unwrap_or_default();
 
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
-        operation_batch,
+        op_submission_config: operation_batch,
     }))
 }
 
@@ -82,7 +126,7 @@ pub fn build_cosmos_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-    operation_batch: OperationBatchConfig,
+    operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
     let grpcs =
@@ -160,11 +204,109 @@ pub fn build_cosmos_connection_conf(
     }
 }
 
+pub fn build_cosmos_native_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+
+    let chain_id = chain
+        .chain(&mut local_err)
+        .get_key("chainId")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
+            None
+        });
+
+    let prefix = chain
+        .chain(err)
+        .get_key("bech32Prefix")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "bech32Prefix",
+                eyre!("Missing bech32 prefix for chain"),
+            );
+            None
+        });
+
+    let canonical_asset = if let Some(asset) = chain
+        .chain(err)
+        .get_opt_key("canonicalAsset")
+        .parse_string()
+        .end()
+    {
+        Some(asset.to_string())
+    } else if let Some(hrp) = prefix {
+        Some(format!("u{}", hrp))
+    } else {
+        local_err.push(
+            &chain.cwp + "canonical_asset",
+            eyre!("Missing canonical asset for chain"),
+        );
+        None
+    };
+
+    let gas_price = chain
+        .chain(err)
+        .get_opt_key("gasPrice")
+        .and_then(parse_cosmos_gas_price)
+        .end();
+
+    let gas_multiplier = chain
+        .chain(err)
+        .get_opt_key("gasMultiplier")
+        .parse_f64()
+        .end()
+        .unwrap_or(1.8);
+
+    let contract_address_bytes = chain
+        .chain(err)
+        .get_opt_key("contractAddressBytes")
+        .parse_u64()
+        .end();
+
+    let native_token = parse_native_token(chain, err, 18);
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        let gas_price = gas_price.unwrap();
+        let gas_price = h_cosmos_native::RawCosmosAmount {
+            denom: gas_price.denom,
+            amount: gas_price.amount,
+        };
+
+        Some(ChainConnectionConf::CosmosNative(
+            h_cosmos_native::ConnectionConf::new(
+                rpcs.to_owned(),
+                grpcs,
+                chain_id.unwrap().to_string(),
+                prefix.unwrap().to_string(),
+                canonical_asset.unwrap(),
+                gas_price,
+                gas_multiplier,
+                contract_address_bytes.unwrap().try_into().unwrap(),
+                operation_batch,
+                native_token,
+            ),
+        ))
+    }
+}
+
 fn build_sealevel_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-    operation_batch: OperationBatchConfig,
+    operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
 
@@ -178,7 +320,7 @@ fn build_sealevel_connection_conf(
     } else {
         Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
             urls: urls.to_owned(),
-            operation_batch,
+            op_submission_config: operation_batch,
             native_token,
             priority_fee_oracle: priority_fee_oracle.unwrap(),
             transaction_submitter: transaction_submitter.unwrap(),
@@ -360,7 +502,7 @@ pub fn build_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
-    operation_batch: OperationBatchConfig,
+    operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     match domain_protocol {
         HyperlaneDomainProtocol::Ethereum => build_ethereum_connection_conf(
@@ -380,6 +522,9 @@ pub fn build_connection_conf(
         }
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::CosmosNative => {
+            build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use hyperlane_core::HyperlaneDomain;
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use url::Url;
 
-use crate::{
-    fallback::SealevelFallbackRpcClient, tx_submitter::TransactionSubmitter, ConnectionConf,
-    SealevelProvider,
-};
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
+
+use crate::fallback::SealevelFallbackRpcClient;
+use crate::tx_submitter::TransactionSubmitter;
+use crate::{ConnectionConf, SealevelProvider};
 
 use super::{JitoTransactionSubmitter, RpcTransactionSubmitter};
 
@@ -71,8 +71,11 @@ impl TransactionSubmitterConfig {
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
                 let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
-                let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
-                Box::new(JitoTransactionSubmitter::new(Arc::new(provider)))
+                let submit_provider = SealevelProvider::new(rpc_client, domain, &[], conf);
+                Box::new(JitoTransactionSubmitter::new(
+                    provider.clone(),
+                    Arc::new(submit_provider),
+                ))
             }
         }
     }

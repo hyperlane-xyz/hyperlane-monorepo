@@ -13,9 +13,12 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
+import { getChainAddresses } from '../../config/registry.js';
+import { Role } from '../../src/roles.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChainsRequired } from '../agent-utils.js';
-import { getHyperlaneCore } from '../core-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -53,19 +56,33 @@ async function main() {
     >
   > = {};
 
-  // Manually add validator announce for OG Lumia chain deployment
-  const { core, multiProvider } = await getHyperlaneCore(environment);
-  const lumiaValidatorAnnounce = ValidatorAnnounce__factory.connect(
-    '0x989B7307d266151BE763935C856493D968b2affF',
-    multiProvider.getProvider('lumia'),
+  // Filter to only include target networks
+  const chainAddresses = Object.fromEntries(
+    Object.entries(getChainAddresses()).filter(([chain, _]) =>
+      targetNetworks.includes(chain),
+    ),
+  );
+
+  // Get multiprovider for target networks
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProvider = await envConfig.getMultiProvider(
+    Contexts.Hyperlane,
+    Role.Deployer,
+    true,
+    targetNetworks,
   );
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
-      const validatorAnnounce =
-        chain === 'lumia'
-          ? lumiaValidatorAnnounce
-          : core.getContracts(chain).validatorAnnounce;
+      if (chain === 'lumia') {
+        rootLogger.info('Skipping deprecated chain: lumia');
+        return;
+      }
+
+      const validatorAnnounce = ValidatorAnnounce__factory.connect(
+        chainAddresses[chain]['validatorAnnounce'],
+        multiProvider.getProvider(chain),
+      );
 
       const announcedValidators =
         await validatorAnnounce.getAnnouncedValidators();
@@ -75,7 +92,7 @@ async function main() {
         );
 
       const defaultIsmValidators =
-        defaultMultisigConfigs[chain].validators || [];
+        defaultMultisigConfigs[chain]?.validators || [];
 
       const findDefaultValidatorAlias = (address: Address): string => {
         const validator = defaultIsmValidators.find((v) =>
@@ -90,16 +107,16 @@ async function main() {
         const location = storageLocations[i][storageLocations[i].length - 1];
 
         // Skip validators not in default ISM unless --all flag is set
+        // If it's not a core chain, then we'll want to check all announced validators
         const isDefaultIsmValidator = findDefaultValidatorAlias(validator);
-        if (!isDefaultIsmValidator && !all) {
+        if (defaultIsmValidators.length > 0 && !isDefaultIsmValidator && !all) {
           continue;
         }
 
         // Get metadata from each storage location
         try {
-          const validatorInstance = await getValidatorFromStorageLocation(
-            location,
-          );
+          const validatorInstance =
+            await getValidatorFromStorageLocation(location);
 
           const latestCheckpoint =
             await validatorInstance.getLatestCheckpointIndex();

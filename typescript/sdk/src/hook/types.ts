@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
+
 import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -44,6 +46,24 @@ export enum HookType {
   CCIP = 'ccipHook',
 }
 
+export const HookTypeToContractNameMap: Record<
+  Exclude<HookType, HookType.CUSTOM>,
+  string
+> = {
+  [HookType.MERKLE_TREE]: 'merkleTreeHook',
+  [HookType.INTERCHAIN_GAS_PAYMASTER]: 'interchainGasPaymaster',
+  [HookType.AGGREGATION]: 'staticAggregationHook',
+  [HookType.PROTOCOL_FEE]: 'protocolFee',
+  [HookType.OP_STACK]: 'opStackHook',
+  [HookType.ROUTING]: 'domainRoutingHook',
+  [HookType.FALLBACK_ROUTING]: 'fallbackDomainRoutingHook',
+  [HookType.AMOUNT_ROUTING]: 'amountRoutingHook',
+  [HookType.PAUSABLE]: 'pausableHook',
+  [HookType.ARB_L2_TO_L1]: 'arbL2ToL1Hook',
+  [HookType.MAILBOX_DEFAULT]: 'defaultHook',
+  [HookType.CCIP]: 'ccipHook',
+};
+
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
 export type IgpHookConfig = z.infer<typeof IgpSchema>;
 export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
@@ -76,6 +96,8 @@ export type AmountRoutingHookConfig = {
 };
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
+
+export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE = [

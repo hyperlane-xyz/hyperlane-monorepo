@@ -18,6 +18,7 @@ export const getInevmInjectiveINJWarpConfig = async (
     ...abacusWorksEnvOwnerConfig.injective,
     type: TokenType.native,
     foreignDeployment: injectiveRouter,
+    gas: 68000,
   };
 
   const inevm: HypTokenRouterConfig = {

@@ -34,9 +34,10 @@ use hyperlane_core::{
     Mailbox, MerkleTreeHook, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::{priority_fee::PriorityFeeOracle, SealevelProvider};
-use crate::{tx_submitter::TransactionSubmitter, utils::sanitize_dynamic_accounts};
-use crate::{ConnectionConf, SealevelKeypair};
+use crate::priority_fee::PriorityFeeOracle;
+use crate::tx_submitter::TransactionSubmitter;
+use crate::utils::sanitize_dynamic_accounts;
+use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForSubmitter};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -480,13 +481,10 @@ impl Mailbox for SealevelMailbox {
 
         let send_instant = std::time::Instant::now();
 
-        let provider = self
-            .tx_submitter
-            .get_provider()
-            .unwrap_or_else(|| &self.provider);
-
         // Wait for the transaction to be confirmed.
-        provider.wait_for_transaction_confirmation(&tx).await?;
+        self.tx_submitter
+            .wait_for_transaction_confirmation(&tx)
+            .await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
@@ -494,9 +492,9 @@ impl Mailbox for SealevelMailbox {
 
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
         // Confirm the transaction.
-        let executed = provider
-            .rpc_client()
-            .confirm_transaction_with_commitment(signature, commitment)
+        let executed = self
+            .tx_submitter
+            .confirm_transaction(signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .unwrap_or(false);
@@ -546,7 +544,16 @@ impl Mailbox for SealevelMailbox {
         })
     }
 
-    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
-        todo!()
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        serde_json::to_vec(&process_instruction).map_err(Into::into)
+    }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        Ok(None)
     }
 }

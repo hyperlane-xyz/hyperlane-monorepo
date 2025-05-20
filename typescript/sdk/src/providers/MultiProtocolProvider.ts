@@ -17,6 +17,7 @@ import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
@@ -24,6 +25,7 @@ import {
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -202,6 +204,24 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
       chainNameOrId,
       ProviderType.CosmJsWasm,
+    );
+  }
+
+  getCosmJsNativeProvider(
+    chainNameOrId: ChainNameOrId,
+  ): CosmJsNativeProvider['provider'] {
+    return this.getSpecificProvider<CosmJsNativeProvider['provider']>(
+      chainNameOrId,
+      ProviderType.CosmJsNative,
+    );
+  }
+
+  getStarknetProvider(
+    chainNameOrId: ChainNameOrId,
+  ): StarknetJsProvider['provider'] {
+    return this.getSpecificProvider<StarknetJsProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Starknet,
     );
   }
 

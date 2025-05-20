@@ -7,9 +7,8 @@ use solana_client::{nonblocking::rpc_client::RpcClient, rpc_client::RpcClientCon
 use solana_sdk::commitment_config::CommitmentConfig;
 use url::Url;
 
+use crate::client::SealevelRpcClient;
 use crate::metric::prometheus_sender::PrometheusSealevelRpcSender;
-
-use super::SealevelRpcClient;
 
 #[derive(Clone)]
 /// SealevelRpcClient builder

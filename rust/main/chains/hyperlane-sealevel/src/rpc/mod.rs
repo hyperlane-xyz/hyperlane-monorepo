@@ -1,5 +1,3 @@
-pub use client::SealevelRpcClient;
-
 /// rpc client
 pub mod client;
 /// SealevelRpcClientBuilder

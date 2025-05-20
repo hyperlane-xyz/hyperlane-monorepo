@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+
+use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -11,18 +13,108 @@ use solana_sdk::{account::Account, clock::Slot};
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
 };
-use std::fmt::Debug;
 use url::Url;
 
-use crate::client_builder::SealevelRpcClientBuilder;
-use crate::SealevelRpcClient;
-
 use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult, U256};
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+
+use crate::client::SealevelRpcClient;
+use crate::client_builder::SealevelRpcClientBuilder;
+
+/// Defines methods required to submit transactions to Sealevel chains
+#[async_trait]
+pub trait SubmitSealevelRpc: Send + Sync {
+    /// Requests block from node
+    async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.get_block_with_commitment(slot, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// Requests block from node, with a specific commitment
+    async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock>;
+
+    /// Requests transaction from node
+    async fn get_transaction(
+        &self,
+        signature: Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// Requests transaction from node, with a specific commitment
+    async fn get_transaction_with_commitment(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+    /// Simulates Sealevel transaction
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult>;
+}
 
 /// Fallback provider for sealevel
 #[derive(Clone, new)]
 pub struct SealevelFallbackRpcClient {
     fallback_provider: FallbackProvider<SealevelRpcClient, SealevelRpcClient>,
+}
+
+#[async_trait]
+impl SubmitSealevelRpc for SealevelFallbackRpcClient {
+    /// get block
+    async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock> {
+        self.fallback_provider
+            .call(move |client| {
+                let future =
+                    async move { client.get_block_with_commitment(slot, commitment).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// get transaction
+    async fn get_transaction_with_commitment(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.fallback_provider
+            .call(move |client| {
+                let signature = signature;
+                let future = async move {
+                    client
+                        .get_transaction_with_commitment(&signature, commitment)
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// simulate a transaction
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        self.fallback_provider
+            .call(move |client| {
+                let transaction = transaction.clone();
+                let future = async move { client.simulate_transaction(&transaction).await };
+                Box::pin(future)
+            })
+            .await
+    }
 }
 
 impl SealevelFallbackRpcClient {
@@ -104,16 +196,6 @@ impl SealevelFallbackRpcClient {
                 let pubkey = pubkey;
                 let future =
                     async move { client.get_account_with_finalized_commitment(&pubkey).await };
-                Box::pin(future)
-            })
-            .await
-    }
-
-    /// get block
-    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
-        self.fallback_provider
-            .call(move |client| {
-                let future = async move { client.get_block(slot).await };
                 Box::pin(future)
             })
             .await
@@ -206,20 +288,6 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
-    /// get transaction
-    pub async fn get_transaction(
-        &self,
-        signature: Signature,
-    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
-        self.fallback_provider
-            .call(move |client| {
-                let signature = signature;
-                let future = async move { client.get_transaction(&signature).await };
-                Box::pin(future)
-            })
-            .await
-    }
-
     /// check if block hash is valid
     pub async fn is_blockhash_valid(&self, hash: Hash) -> ChainResult<bool> {
         self.fallback_provider
@@ -256,20 +324,6 @@ impl SealevelFallbackRpcClient {
             .call(move |client| {
                 let signatures = signatures.to_vec();
                 let future = async move { client.get_signature_statuses(&signatures).await };
-                Box::pin(future)
-            })
-            .await
-    }
-
-    /// simulate a transaction
-    pub async fn simulate_transaction(
-        &self,
-        transaction: &Transaction,
-    ) -> ChainResult<RpcSimulateTransactionResult> {
-        self.fallback_provider
-            .call(move |client| {
-                let transaction = transaction.clone();
-                let future = async move { client.simulate_transaction(&transaction).await };
                 Box::pin(future)
             })
             .await

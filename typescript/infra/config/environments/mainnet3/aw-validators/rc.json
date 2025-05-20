@@ -12,9 +12,6 @@
   "astar": {
     "validators": ["0x50792eee9574f1bcd002e2c6dddf2aa73b04e254"]
   },
-  "astarzkevm": {
-    "validators": ["0x71e0a93f84548765cafc64d787eede19eea1ab06"]
-  },
   "avalanche": {
     "validators": [
       "0x2c7cf6d1796e37676ba95f056ff21bf536c6c2d3",

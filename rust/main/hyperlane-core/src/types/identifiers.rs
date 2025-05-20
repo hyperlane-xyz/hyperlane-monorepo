@@ -90,6 +90,11 @@ impl UniqueIdentifier {
     pub fn new(uuid: Uuid) -> Self {
         UniqueIdentifier(uuid)
     }
+
+    /// Create a new random unique identifier
+    pub fn random() -> Self {
+        UniqueIdentifier(Uuid::new_v4())
+    }
 }
 
 impl Deref for UniqueIdentifier {
