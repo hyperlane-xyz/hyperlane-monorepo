@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
@@ -170,6 +171,24 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router): void {
+    // TODO REMOVE
+    const calls_mock = async (req: any, res: any) => {
+      const data = this.parseCommitmentBody(req.body, res);
+      if (!data) return;
+
+      const commitment = crypto.randomUUID().toString();
+
+      try {
+        await this.insertCommitmentToDB(commitment, data);
+      } catch (_) {
+        res.sendStatus(400);
+      }
+
+      res.status(200).send({ commitment: commitment });
+      return;
+    };
+    router.post('/calls_mock', calls_mock);
+
     router.post('/calls', this.handleCommitment.bind(this));
     router.post(
       '/getCallsFromCommitment',

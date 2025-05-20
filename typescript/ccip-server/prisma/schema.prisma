@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model Commitment {
   relayers             Json
   salt                 String
   ica                  String
-  commitmentDispatchTx String? 
+  commitmentDispatchTx String?
   originDomain         Int
   createdAt            DateTime @default(now())
 }

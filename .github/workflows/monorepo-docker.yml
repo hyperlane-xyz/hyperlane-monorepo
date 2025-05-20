@@ -1,7 +1,7 @@
 name: Build and Push Monorepo Image to GCR
 on:
   push:
-    branches: [main]
+    branches: [main,mbreithecker/offchain-lookup-server-k8s-ica]
     tags:
       - '**'
   pull_request:
