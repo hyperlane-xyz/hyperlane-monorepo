@@ -209,4 +209,26 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
         assertEq(balanceBefore - balanceAfter, quotes[0].amount);
     }
+
+    function test_interchainSecurityModule_returnsConfiguredIsm() public {
+        assertEq(
+            address(vtbDestination.interchainSecurityModule()),
+            address(vtbDestination),
+            "vtbDestination should be the configured ISM"
+        );
+    }
+
+    function test_OpL1_transferRemote_revertsAsExpected() public {
+        vm.expectRevert(bytes("OP L1 token bridge should not send messages"));
+        // Call transferRemote with dummy values as it should revert before using them.
+        vtbDestination.transferRemote(origin, userB32, transferAmount);
+    }
+
+    function test_OpL2_handle_revertsAsExpected() public {
+        vm.expectRevert(
+            bytes("OP L2 token bridge should not receive messages")
+        );
+        // Call handle with dummy values as it should revert before using them.
+        vtbOrigin.handle(destination, userB32, bytes(""));
+    }
 }
