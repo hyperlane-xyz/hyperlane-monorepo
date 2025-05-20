@@ -37,8 +37,28 @@ mock! {
     #[async_trait]
     impl SubmitSealevelRpc for Client {
         async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
-        async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
-        async fn simulate_transaction(&self, transaction: &SealevelTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+
+        async fn get_block_with_commitment(
+            &self,
+            slot: u64,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<UiConfirmedBlock>;
+
+        async fn get_transaction(
+            &self,
+            signature: Signature,
+        ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+        async fn get_transaction_with_commitment(
+            &self,
+            signature: Signature,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
+
+        async fn simulate_transaction(
+            &self,
+            transaction: &SealevelTransaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
 
@@ -177,10 +197,12 @@ fn mock_client() -> MockClient {
     };
 
     let mut client = MockClient::new();
-    client.expect_get_block().returning(move |_| Ok(block()));
     client
-        .expect_get_transaction()
-        .returning(move |_| Ok(encoded_transaction()));
+        .expect_get_block_with_commitment()
+        .returning(move |_, _| Ok(block()));
+    client
+        .expect_get_transaction_with_commitment()
+        .returning(move |_, _| Ok(encoded_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));

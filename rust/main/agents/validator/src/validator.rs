@@ -192,8 +192,7 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let custom_routes =
-            validator_server::routes(self.origin_chain.clone(), self.core.metrics.clone());
+        let router = validator_server::router(self.origin_chain.clone(), self.core.metrics.clone());
         let server = self
             .core
             .settings
@@ -201,7 +200,7 @@ impl BaseAgent for Validator {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(router);
             }
             .instrument(info_span!("Validator server")),
         );
@@ -425,18 +424,21 @@ impl Validator {
                     .chain_signer()
                     .await?
                 {
-                    let chain_signer = chain_signer.address_string();
-                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
+                    let chain_signer_string = chain_signer.address_string();
+                    let chain_signer_h256 = chain_signer.address_h256();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+
                     let balance_delta = self
                         .validator_announce
-                        .announce_tokens_needed(signed_announcement.clone())
+                        .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
                         .await
                         .unwrap_or_default();
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            ?chain_signer,
+                            ?chain_signer_string,
+                            ?chain_signer_h256,
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
@@ -444,7 +446,7 @@ impl Validator {
                             .validator_announce
                             .announce(signed_announcement.clone())
                             .await;
-                        Self::log_on_announce_failure(result, &chain_signer);
+                        Self::log_on_announce_failure(result, &chain_signer_string);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");

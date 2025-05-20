@@ -86,3 +86,23 @@ keywords = [
     "grove.city"
 ]
 tags = ["key", "Grove City"]
+
+[[rules]]
+id = "ccvalidators-api-key"
+description = "CryptoCrew API Key"
+regex = '''https://(rpc|grpc|rest)\.[a-zA-Z0-9-]+\.ccvalidators\.com:?[0-9]*/?[a-zA-Z0-9-]*'''
+keywords = [
+    "ccvalidators",
+    "ccvalidators.com"
+]
+tags = ["key", "Crypto Crew"]
+
+[[rules]]
+id = "ccnodes-api-key"
+description = "CryptoCrew Nodes API Key"
+regex = '''https://[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.ccnodes\.com:?[0-9]*/?[a-zA-Z0-9-]*'''
+keywords = [
+    "ccnodes",
+    "ccnodes.com"
+]
+tags = ["key", "Crypto Crew Nodes"]

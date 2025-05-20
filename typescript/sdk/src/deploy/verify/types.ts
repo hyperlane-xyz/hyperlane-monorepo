@@ -76,6 +76,12 @@ export const EXPLORER_GET_ACTIONS = [
   ExplorerApiActions.GETSOURCECODE,
 ];
 
+export enum VerifyContractTypes {
+  Proxy = 'proxy',
+  ProxyAdmin = 'proxyAdmin',
+  Implementation = 'implementation',
+}
+
 export enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
   ALREADY_VERIFIED_ALT = 'Already Verified',
