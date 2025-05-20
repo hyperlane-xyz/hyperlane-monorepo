@@ -460,7 +460,9 @@ const fork: CommandModuleWithContext<{
   symbol?: string;
   'deploy-config': string;
   'fork-config'?: string;
+  warp?: string;
   kill: boolean;
+  warpRouteId?: string;
 }> = {
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
@@ -475,15 +477,19 @@ const fork: CommandModuleWithContext<{
       ...symbolCommandOption,
       demandOption: false,
     },
-    'deploy-config': outputFileCommandOption(
-      DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
-      false,
-      'The path for a warp route deploy config',
-    ),
+    'deploy-config': inputFileCommandOption({
+      description: 'The path to a warp route deployment configuration file',
+      demandOption: false,
+      alias: 'wd',
+    }),
     'fork-config': {
       type: 'string',
       description:
         'The path to a configuration file that specifies how to build the forked chains',
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
     },
     kill: {
       type: 'boolean',
@@ -491,24 +497,25 @@ const fork: CommandModuleWithContext<{
       description:
         'If set, it will stop the forked chains once the forked config has been applied',
     },
+    warpRouteId: warpRouteIdCommandOption,
   },
   handler: async ({
     context,
     symbol,
-    deployConfig,
+    warpRouteId,
     port,
     kill,
+    warp,
+    deployConfig,
     forkConfig: forkConfigPath,
   }) => {
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
-      warp: undefined,
+      warpRouteId,
       symbol,
+      warpDeployConfigPath: deployConfig,
+      warpCoreConfigPath: warp,
     });
-    const warpDeployConfig = await readWarpRouteDeployConfig(
-      deployConfig,
-      context,
-    );
 
     let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
