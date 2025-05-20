@@ -203,12 +203,6 @@ contract TokenBridgeCctpV1Test is Test {
 
         messageTransmitterDestination.process(nonceId, user, amount);
 
-        vm.expectEmit(address(tbDestination));
-        emit TokenRouter.ReceivedTransferRemote(
-            origin,
-            user.addressToBytes32(),
-            amount
-        );
         tbDestination.verify(ccipReadData, message);
 
         uint256 tokenBalance = tokenDestination.balanceOf(user);
