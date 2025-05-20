@@ -1,19 +1,23 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { parseMessage } from '@hyperlane-xyz/utils';
+
 import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
-import { RPCService } from './RPCService.js';
 
 class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
-  rpcService: RPCService;
+  multiProvider: MultiProvider | undefined;
   public readonly router: Router;
 
   static initialize(): Promise<BaseService> {
@@ -23,17 +27,29 @@ class CCTPService extends BaseService {
   constructor() {
     super();
     this.hyperlaneService = new HyperlaneService(
-      process.env.HYPERLANE_EXPLORER_URL!,
+      process.env.HYPERLANE_EXPLORER_API!,
     );
     this.cctpAttestationService = new CCTPAttestationService(
       process.env.CCTP_ATTESTATION_URL!,
     );
-    // TODO: fetch this from a configured MultiProvider from IRegistry
-    this.rpcService = new RPCService(process.env.RPC_URL!);
+    const registry = getRegistry({
+      registryUris: [DEFAULT_GITHUB_REGISTRY],
+      enableProxy: true,
+    });
+
+    const initializeMultiProvider = async () => {
+      const k = await registry.getMetadata();
+      this.multiProvider = new MultiProvider(k);
+    };
+    initializeMultiProvider()
+      .then(() => console.info('Initialized MultiProvider'))
+      .catch((err) => {
+        console.error('Initializing MultiProvider failed', err);
+      });
 
     this.router = Router();
 
-    // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
+    // CCIP-read spec: GET /getProofs/:sender/:callData.json
     this.router.get(
       '/getCctpAttestation/:sender/:callData.json',
       createAbiHandler(
@@ -43,7 +59,7 @@ class CCTPService extends BaseService {
       ),
     );
 
-    // CCIP-read spec: POST /getCCTPAttestation
+    // CCIP-read spec: POST /getProofs
     this.router.post(
       '/getCctpAttestation',
       createAbiHandler(
@@ -87,18 +103,23 @@ class CCTPService extends BaseService {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    console.info('Found tx @', txHash);
+    const parsedMessage = parseMessage(message);
 
-    const receipt =
-      await this.rpcService.provider.getTransactionReceipt(txHash);
+    if (this.multiProvider == undefined) {
+      throw new Error('MultiProvider not initialized yet');
+    }
 
+    const receipt = await this.multiProvider
+      .getProvider(parsedMessage.origin)
+      .getTransactionReceipt(txHash);
     const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
     const [relayedCctpMessage, attestation] =
       await this.cctpAttestationService.getAttestation(cctpMessage, txHash);
 
-    console.log('cctpMessage', relayedCctpMessage);
-    console.log('attestation', attestation);
+    console.info(
+      `Fetched attestation. messageId=${messageId}, attestation=${attestation}`,
+    );
     return [relayedCctpMessage, attestation];
   }
 }
