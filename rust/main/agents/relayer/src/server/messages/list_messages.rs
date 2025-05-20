@@ -7,9 +7,10 @@ use axum::{
     Router,
 };
 use derive_new::new;
+use serde::{Deserialize, Serialize};
+
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::H256;
-use serde::{Deserialize, Serialize};
 
 use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 

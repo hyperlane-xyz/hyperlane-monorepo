@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use derive_new::new;
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
-use hyperlane_core::{HyperlaneMessage, H256};
 use serde::{Deserialize, Serialize};
+
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_core::HyperlaneMessage;
 
 use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
@@ -23,14 +24,7 @@ impl ServerState {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Message {
-    pub version: u8,
-    pub nonce: u32,
-    pub origin: u32,
-    pub sender: H256,
-    pub destination: u32,
-    pub recipient: H256,
-    pub body: Vec<u8>,
-
+    pub message: HyperlaneMessage,
     pub dispatched_block_number: u64,
 }
 
@@ -44,6 +38,7 @@ pub struct RequestBody {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
     pub count: u64,
+    pub skipped: Vec<Message>,
 }
 
 /// Response Body on failure
@@ -60,33 +55,26 @@ pub async fn handler(
     let RequestBody { messages } = payload;
 
     let mut insertion_count: u64 = 0;
+    let mut skipped = Vec::new();
     for message in messages {
-        let hyperlane_message = HyperlaneMessage {
-            version: message.version,
-            nonce: message.nonce,
-            origin: message.origin,
-            sender: message.sender,
-            destination: message.destination,
-            recipient: message.recipient,
-            body: message.body,
-        };
-
-        tracing::debug!(?hyperlane_message, "Manually inserting message");
+        tracing::debug!(?message, "Manually inserting message");
 
         let dispatched_block_number = message.dispatched_block_number;
-        match state.dbs.get(&hyperlane_message.origin) {
+        match state.dbs.get(&message.message.origin) {
             Some(db) => {
-                store_message(db, &hyperlane_message, dispatched_block_number)?;
+                store_message(db, &message.message, dispatched_block_number)?;
                 insertion_count += 1;
             }
             None => {
-                tracing::debug!(?hyperlane_message, "No db found for origin");
+                tracing::debug!(?message, "No db found for origin");
+                skipped.push(message);
             }
         }
     }
 
     let resp = ResponseBody {
         count: insertion_count,
+        skipped,
     };
     Ok(ServerSuccessResponse::new(resp))
 }
@@ -144,7 +132,7 @@ mod tests {
     use tower::ServiceExt;
 
     use hyperlane_base::db::DB;
-    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 
     use crate::test_utils::request::parse_body_to_json;
 
@@ -210,23 +198,27 @@ mod tests {
         let body = RequestBody {
             messages: vec![
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[0].id(),
-                    sender: H256::from_low_u64_be(100),
-                    destination: domains[1].id(),
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[0].id(),
+                        sender: H256::from_low_u64_be(100),
+                        destination: domains[1].id(),
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[1].id(),
-                    sender: H256::from_low_u64_be(100),
-                    destination: domains[2].id(),
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[1].id(),
+                        sender: H256::from_low_u64_be(100),
+                        destination: domains[2].id(),
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
             ],
@@ -243,17 +235,7 @@ mod tests {
         ];
 
         for (actual, expected) in actual_messages.iter().zip(body.messages.iter()) {
-            let expected_message = HyperlaneMessage {
-                version: expected.version,
-                nonce: expected.nonce,
-                origin: expected.origin,
-                sender: expected.sender,
-                destination: expected.destination,
-                recipient: expected.recipient,
-                body: expected.body.clone(),
-            };
-
-            assert_eq!(*actual, expected_message);
+            assert_eq!(*actual, expected.message);
         }
     }
 
@@ -271,23 +253,27 @@ mod tests {
         let body = RequestBody {
             messages: vec![
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[0].id(),
-                    sender: H256::from_low_u64_be(100),
-                    destination: domains[1].id(),
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[0].id(),
+                        sender: H256::from_low_u64_be(100),
+                        destination: domains[1].id(),
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[1].id(),
-                    sender: H256::from_low_u64_be(100),
-                    destination: domains[2].id(),
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[1].id(),
+                        sender: H256::from_low_u64_be(100),
+                        destination: domains[2].id(),
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
             ],
@@ -302,23 +288,27 @@ mod tests {
         let body = RequestBody {
             messages: vec![
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[0].id(),
-                    sender: H256::from_low_u64_be(1000),
-                    destination: domains[1].id(),
-                    recipient: H256::from_low_u64_be(2000),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[0].id(),
+                        sender: H256::from_low_u64_be(1000),
+                        destination: domains[1].id(),
+                        recipient: H256::from_low_u64_be(2000),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 2000,
                 },
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[1].id(),
-                    sender: H256::from_low_u64_be(1000),
-                    destination: domains[2].id(),
-                    recipient: H256::from_low_u64_be(2000),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[1].id(),
+                        sender: H256::from_low_u64_be(1000),
+                        destination: domains[2].id(),
+                        recipient: H256::from_low_u64_be(2000),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 2000,
                 },
             ],
@@ -335,17 +325,7 @@ mod tests {
         ];
 
         for (actual, expected) in actual_messages.iter().zip(body.messages.iter()) {
-            let expected_message = HyperlaneMessage {
-                version: expected.version,
-                nonce: expected.nonce,
-                origin: expected.origin,
-                sender: expected.sender,
-                destination: expected.destination,
-                recipient: expected.recipient,
-                body: expected.body.clone(),
-            };
-
-            assert_eq!(*actual, expected_message);
+            assert_eq!(*actual, expected.message);
         }
     }
 
@@ -358,23 +338,27 @@ mod tests {
         let body = RequestBody {
             messages: vec![
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: domains[0].id(),
-                    sender: H256::from_low_u64_be(100),
-                    destination: 1000,
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: domains[0].id(),
+                        sender: H256::from_low_u64_be(100),
+                        destination: 1000,
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
                 Message {
-                    version: 0,
-                    nonce: 100,
-                    origin: 1000,
-                    sender: H256::from_low_u64_be(100),
-                    destination: 2000,
-                    recipient: H256::from_low_u64_be(200),
-                    body: Vec::new(),
+                    message: HyperlaneMessage {
+                        version: 0,
+                        nonce: 100,
+                        origin: 1000,
+                        sender: H256::from_low_u64_be(100),
+                        destination: 2000,
+                        recipient: H256::from_low_u64_be(200),
+                        body: Vec::new(),
+                    },
                     dispatched_block_number: 1000,
                 },
             ],
@@ -387,16 +371,7 @@ mod tests {
 
         let actual = get_message(&dbs, &domains[0], 100);
 
-        let expected = HyperlaneMessage {
-            version: body.messages[0].version,
-            nonce: body.messages[0].nonce,
-            origin: body.messages[0].origin,
-            sender: body.messages[0].sender,
-            destination: body.messages[0].destination,
-            recipient: body.messages[0].recipient,
-            body: body.messages[0].body.clone(),
-        };
-
-        assert_eq!(actual, expected);
+        let expected = &body.messages[0].message;
+        assert_eq!(actual, *expected);
     }
 }

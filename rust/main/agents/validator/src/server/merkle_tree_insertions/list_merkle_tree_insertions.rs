@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -15,7 +13,7 @@ use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessRespo
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
+    pub db: HyperlaneRocksDB,
 }
 
 impl ServerState {
@@ -28,7 +26,6 @@ impl ServerState {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
-    pub domain_id: u32,
     pub leaf_index_start: u32,
     pub leaf_index_end: u32,
 }
@@ -55,13 +52,11 @@ pub async fn handler(
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<ResponseBody>, ResponseErrorBody> {
     let QueryParams {
-        domain_id,
         leaf_index_start,
         leaf_index_end,
     } = query_params;
 
     tracing::debug!(
-        domain_id,
         leaf_index_start,
         leaf_index_end,
         "Fetching merkle tree insertion"
@@ -78,25 +73,15 @@ pub async fn handler(
         return Err(err);
     }
 
-    let db = state.dbs.get(&domain_id).ok_or_else(|| {
-        let error_msg = "No db found for chain";
-        tracing::debug!(domain_id, "{error_msg}");
-        ServerErrorResponse::new(
-            StatusCode::NOT_FOUND,
-            ResponseErrorBody {
-                message: error_msg.to_string(),
-            },
-        )
-    })?;
-
     let mut merkle_tree_insertions =
         Vec::with_capacity((leaf_index_end - leaf_index_start) as usize);
     for leaf_index in leaf_index_start..leaf_index_end {
-        let retrieve_res = db
+        let retrieve_res = state
+            .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
             .map_err(|err| {
                 let error_msg = "Failed to fetch merkle tree insertion";
-                tracing::debug!(domain_id, leaf_index, ?err, "{error_msg}");
+                tracing::debug!(leaf_index, ?err, "{error_msg}");
                 ServerErrorResponse::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ResponseErrorBody {
@@ -137,33 +122,26 @@ mod tests {
     #[derive(Debug)]
     struct TestServerSetup {
         pub app: Router,
-        pub dbs: HashMap<u32, HyperlaneRocksDB>,
+        pub db: HyperlaneRocksDB,
     }
 
-    fn setup_test_server(domains: &[HyperlaneDomain]) -> TestServerSetup {
-        let dbs: HashMap<_, _> = domains
-            .iter()
-            .map(|domain| {
-                let temp_dir = tempfile::tempdir().unwrap();
-                let db = DB::from_path(temp_dir.path()).unwrap();
-                let base_db = HyperlaneRocksDB::new(domain, db);
-                (domain.id(), base_db)
-            })
-            .collect();
+    fn setup_test_server(domain: &HyperlaneDomain) -> TestServerSetup {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(domain, db);
 
-        let server_state = ServerState::new(dbs.clone());
+        let server_state = ServerState::new(base_db.clone());
         let app = server_state.router();
 
-        TestServerSetup { app, dbs }
+        TestServerSetup { app, db: base_db }
     }
 
     async fn send_request(
         app: Router,
-        domain_id: u32,
         leaf_index_start: u32,
         leaf_index_end: u32,
     ) -> Response<Body> {
-        let api_url = format!("/merkle_tree_insertions?domain_id={domain_id}&leaf_index_start={leaf_index_start}&leaf_index_end={leaf_index_end}");
+        let api_url = format!("/merkle_tree_insertions?leaf_index_start={leaf_index_start}&leaf_index_end={leaf_index_end}");
         let request = Request::builder()
             .uri(api_url)
             .header(CONTENT_TYPE, "application/json")
@@ -174,44 +152,23 @@ mod tests {
     }
 
     fn insert_merkle_tree_insertion(
-        dbs: &HashMap<u32, HyperlaneRocksDB>,
-        domain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
         leaf_index: u32,
         insertion: &MerkleTreeInsertion,
     ) {
-        dbs.get(&domain.id())
-            .expect("DB not found")
-            .store_merkle_tree_insertion_by_leaf_index(&leaf_index, &insertion)
+        db.store_merkle_tree_insertion_by_leaf_index(&leaf_index, &insertion)
             .expect("DB Error")
     }
 
     #[tracing_test::traced_test]
     #[tokio::test]
-    async fn test_list_merkle_tree_insertions_db_not_found() {
-        let domains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let TestServerSetup { app, .. } = setup_test_server(domains);
-
-        let leaf_index_start = 100;
-        let leaf_index_end = 103;
-        let response = send_request(app.clone(), 1000, leaf_index_start, leaf_index_end).await;
-        let resp_status = response.status();
-
-        assert_eq!(resp_status, StatusCode::NOT_FOUND);
-    }
-
-    #[tracing_test::traced_test]
-    #[tokio::test]
     async fn test_list_merkle_tree_insertions_empty_db() {
-        let domains = &[
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-        ];
-        let TestServerSetup { app, .. } = setup_test_server(domains);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let TestServerSetup { app, .. } = setup_test_server(&domain);
 
         let leaf_index_start = 100;
         let leaf_index_end = 120;
-        let response = send_request(app, domains[0].id(), leaf_index_start, leaf_index_end).await;
+        let response = send_request(app, leaf_index_start, leaf_index_end).await;
         let resp_status = response.status();
         let resp_body: ResponseBody = parse_body_to_json(response.into_body()).await;
 
@@ -222,12 +179,8 @@ mod tests {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_list_merkle_tree_insertions_happy_path() {
-        let domains = &[
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-        ];
-        let TestServerSetup { app, dbs } = setup_test_server(domains);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let TestServerSetup { app, db } = setup_test_server(&domain);
 
         let insertions = [
             MerkleTreeInsertion::new(100, H256::from_low_u64_be(100)),
@@ -236,18 +189,12 @@ mod tests {
         ];
 
         for insertion in insertions.iter() {
-            insert_merkle_tree_insertion(&dbs, &domains[0], insertion.index(), insertion);
+            insert_merkle_tree_insertion(&db, insertion.index(), insertion);
         }
 
         let leaf_index_start = 100;
         let leaf_index_end = 103;
-        let response = send_request(
-            app.clone(),
-            domains[0].id(),
-            leaf_index_start,
-            leaf_index_end,
-        )
-        .await;
+        let response = send_request(app.clone(), leaf_index_start, leaf_index_end).await;
 
         let resp_status = response.status();
         let resp_body: ResponseBody = parse_body_to_json(response.into_body()).await;

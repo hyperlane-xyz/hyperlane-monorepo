@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use derive_new::new;
+use serde::{Deserialize, Serialize};
+
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{MerkleTreeInsertion, H256};
-use serde::{Deserialize, Serialize};
 
 use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
@@ -38,6 +39,7 @@ pub struct RequestBody {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
     pub count: u64,
+    pub skipped: Vec<TreeInsertion>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -55,6 +57,7 @@ pub async fn handler(
     } = payload;
 
     let mut insertion_count: u64 = 0;
+    let mut skipped = Vec::new();
     for insertion in merkle_tree_insertions {
         let merkle_tree_insertion =
             MerkleTreeInsertion::new(insertion.leaf_index, insertion.message_id);
@@ -78,12 +81,14 @@ pub async fn handler(
             }
             None => {
                 tracing::debug!(?insertion, "No db found for chain");
+                skipped.push(insertion);
             }
         }
     }
 
     let resp = ResponseBody {
         count: insertion_count,
+        skipped,
     };
     Ok(ServerSuccessResponse::new(resp))
 }

@@ -1,6 +1,6 @@
 use std::{io, time::Duration};
 
-use hyperlane_core::H256;
+use hyperlane_core::{HyperlaneMessage, H256};
 use maplit::hashmap;
 use reqwest::Url;
 
@@ -36,7 +36,7 @@ async fn send_retry_request_non_blocking() -> io::Result<MessageRetryResponse> {
     let body = vec![serde_json::json!({
         "message_id": "*"
     })];
-    let retry_response = client
+    let response = client
         .post(url)
         .json(&body)
         .timeout(Duration::from_secs(5))
@@ -47,7 +47,7 @@ async fn send_retry_request_non_blocking() -> io::Result<MessageRetryResponse> {
             io::Error::new(io::ErrorKind::InvalidData, err.to_string())
         })?;
 
-    let response_text = retry_response.text().await.map_err(|err| {
+    let response_text = response.text().await.map_err(|err| {
         println!("Failed to parse response body: {err}");
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;
@@ -103,29 +103,33 @@ async fn send_insert_message_request_non_blocking() -> io::Result<insert_message
     let body = insert_messages::RequestBody {
         messages: vec![
             insert_messages::Message {
-                version: 0,
-                nonce: 10000,
-                origin: 9913371,
-                destination: 9913372,
-                sender: H256::from_low_u64_be(1000),
-                recipient: H256::from_low_u64_be(2000),
-                body: Vec::new(),
+                message: HyperlaneMessage {
+                    version: 0,
+                    nonce: 10000,
+                    origin: 9913371,
+                    destination: 9913372,
+                    sender: H256::from_low_u64_be(1000),
+                    recipient: H256::from_low_u64_be(2000),
+                    body: Vec::new(),
+                },
                 dispatched_block_number: 10000,
             },
             insert_messages::Message {
-                version: 0,
-                nonce: 10001,
-                origin: 9913371,
-                destination: 9913372,
-                sender: H256::from_low_u64_be(1000),
-                recipient: H256::from_low_u64_be(2000),
-                body: Vec::new(),
+                message: HyperlaneMessage {
+                    version: 0,
+                    nonce: 10001,
+                    origin: 9913371,
+                    destination: 9913372,
+                    sender: H256::from_low_u64_be(1000),
+                    recipient: H256::from_low_u64_be(2000),
+                    body: Vec::new(),
+                },
                 dispatched_block_number: 10001,
             },
         ],
     };
 
-    let retry_response = client
+    let response = client
         .post(url)
         .json(&body)
         .timeout(Duration::from_secs(5))
@@ -136,7 +140,7 @@ async fn send_insert_message_request_non_blocking() -> io::Result<insert_message
             io::Error::new(io::ErrorKind::InvalidData, err.to_string())
         })?;
 
-    let response_text = retry_response.text().await.map_err(|err| {
+    let response_text = response.text().await.map_err(|err| {
         println!("Failed to parse response body: {err}");
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;

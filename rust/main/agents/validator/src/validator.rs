@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::server as validator_server;
 use async_trait::async_trait;
+use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
 use eyre::{eyre, Result};
@@ -28,6 +28,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
+use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
@@ -192,7 +193,18 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let router = validator_server::router(self.origin_chain.clone(), self.core.metrics.clone());
+        let router = Router::new()
+            .merge(validator_server::router(
+                self.origin_chain.clone(),
+                self.core.metrics.clone(),
+            ))
+            .merge(
+                merkle_tree_insertions::list_merkle_tree_insertions::ServerState::new(
+                    self.db.clone(),
+                )
+                .router(),
+            );
+
         let server = self
             .core
             .settings

@@ -1,15 +1,16 @@
-use axum::Router;
-use derive_new::new;
-use hyperlane_base::db::HyperlaneRocksDB;
 use std::collections::HashMap;
 use std::env;
+
+use axum::Router;
+use derive_new::new;
 use tokio::sync::broadcast::Sender;
 
+use hyperlane_base::db::HyperlaneRocksDB;
+
 use crate::msg::op_queue::OperationPriorityQueue;
+use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
-
-use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub mod environment_variable;
 pub mod merkle_tree_insertions;

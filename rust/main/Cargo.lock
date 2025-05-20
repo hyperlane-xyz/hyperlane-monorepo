@@ -11892,12 +11892,14 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
  "tower 0.4.13",
  "tracing",
  "tracing-futures",
+ "tracing-test",
 ]
 
 [[package]]
