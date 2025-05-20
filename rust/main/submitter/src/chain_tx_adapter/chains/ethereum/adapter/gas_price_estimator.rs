@@ -40,7 +40,6 @@ pub type Eip1559Fee = (
     EthersU256, // max priority fee
 );
 
-#[allow(unused)]
 pub async fn estimate_gas_price(
     provider: &Box<dyn EvmProviderForSubmitter>,
     tx_precursor: &mut EthereumTxPrecursor,
@@ -205,7 +204,7 @@ async fn zksync_estimate_fee(
     tx.set_from(
         // use the sender in the provider if one is set, otherwise default to the EVM relayer address
         provider
-            .default_sender()
+            .get_signer()
             .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
     );
 
