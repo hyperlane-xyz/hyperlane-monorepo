@@ -135,6 +135,8 @@ contract OpL1V1NativeTokenBridgeTest is Test {
         bytes32 _recipient,
         uint256 amount
     ) public {
+        vm.assume(amount > 0);
+
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
 

@@ -193,19 +193,11 @@ library StandardHookMetadata {
         return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
     }
 
-    function overrideRefundAddress(
-        bytes memory _metadata,
-        address _refundAddress
-    ) internal pure returns (bytes memory) {
-        assembly {
-            mstore(add(_metadata, REFUND_ADDRESS_OFFSET), _refundAddress)
-        }
-        return _metadata;
-    }
-
     function getRefundAddress(
-        bytes memory _metadata
-    ) internal pure returns (address) {
+        bytes memory _metadata,
+        address _default
+    ) internal view returns (address) {
+        if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
         assembly {
             return(add(_metadata, REFUND_ADDRESS_OFFSET), 20)
         }

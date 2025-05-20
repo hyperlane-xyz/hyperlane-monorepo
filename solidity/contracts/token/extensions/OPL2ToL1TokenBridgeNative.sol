@@ -90,6 +90,11 @@ contract OpL2NativeTokenBridge is HypNative {
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32) {
+        require(
+            _amount > 0,
+            "OP L2 token bridge: amount must be greater than 0"
+        );
+
         // refund first message fees to address(this) to cover second message
         bytes32 proveMessageId = super._transferRemote(
             _destination,
@@ -119,7 +124,8 @@ contract OpL2NativeTokenBridge is HypNative {
         );
 
         if (address(this).balance > 0) {
-            payable(msg.sender).sendValue(address(this).balance);
+            address refundAddress = _hookMetadata.getRefundAddress(msg.sender);
+            payable(refundAddress).sendValue(address(this).balance);
         }
 
         return withdrawMessageId;

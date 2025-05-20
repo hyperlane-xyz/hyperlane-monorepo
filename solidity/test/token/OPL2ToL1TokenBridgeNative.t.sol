@@ -159,6 +159,11 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
     receive() external payable {}
 
+    function test_transferRemote_amountMustBeGreaterThanZero() public {
+        vm.expectRevert("OP L2 token bridge: amount must be greater than 0");
+        vtbOrigin.transferRemote(destination, userB32, 0);
+    }
+
     function test_transferRemote_fundsReceived(address recipient) public {
         vm.assume(recipient != user);
         vm.assume(recipient != address(0));
