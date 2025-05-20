@@ -1,0 +1,15 @@
+{
+  "solanatestnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
+  },
+  "basesepolia": {
+    "type": "synthetic",
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "decimals": 6,
+    "foreignDeployment": "0x4B7657A56f51B42A8702957EecFF8CBE86fF48C8"
+  }
+}
