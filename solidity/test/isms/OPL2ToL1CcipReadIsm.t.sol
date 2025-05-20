@@ -52,12 +52,7 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         tokenBridgeDestination = address(new LightTestRecipient());
         uint32 portalVersion = 1;
 
-        ism = new OPL2ToL1CcipReadIsm(
-            urls,
-            address(portal),
-            portalVersion,
-            address(mailboxDestination)
-        );
+        ism = new OPL2ToL1CcipReadIsm(urls, address(portal), portalVersion);
 
         mailboxDestination.setDefaultIsm(address(ism));
         mailboxDestination.addRemoteMailbox(origin, mailboxOrigin);
@@ -171,7 +166,7 @@ contract OPL2ToL1CcipReadIsmTest is Test {
             0,
             bytes("")
         );
-        ism.process(metadata, message);
+        mailboxDestination.process(metadata, message);
     }
 
     function testFuzz_constructor_revertWhen_creatingWithWrongPortalVersion(
@@ -181,11 +176,6 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         vm.assume(portalVersion != 2);
 
         vm.expectRevert(bytes("Unsupported OP portal version"));
-        ism = new OPL2ToL1CcipReadIsm(
-            urls,
-            address(portal),
-            portalVersion,
-            address(mailboxDestination)
-        );
+        ism = new OPL2ToL1CcipReadIsm(urls, address(portal), portalVersion);
     }
 }

@@ -5,12 +5,13 @@ pragma solidity >=0.8.0;
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
+import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
  * @author Abacus Works
  */
-abstract contract TokenRouter is GasRouter {
+abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
@@ -175,15 +176,44 @@ abstract contract TokenRouter is GasRouter {
     /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destinationDomain The domain of the router.
-     * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
+     * @dev This should be overriden for warp routes that require additional fees/approvals.
+     * @return quotes Indicate how much of each token to approve and/or send.
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view virtual override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        });
+    }
+
+    /**
+     * @deprecated Use `quoteTransferRemote` instead.
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @dev Assumes bytes32(0) recipient and max amount of tokens for quoting.
+     * @return payment How much native value to send in transferRemote call.
      */
     function quoteGasPayment(
         uint32 _destinationDomain
-    ) public view override returns (uint256) {
+    ) public view virtual override returns (uint256) {
+        return
+            _quoteGasPayment(_destinationDomain, bytes32(0), type(uint256).max);
+    }
+
+    function _quoteGasPayment(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (uint256) {
         return
             _GasRouter_quoteDispatch(
                 _destinationDomain,
-                TokenMessage.format(bytes32(0), type(uint256).max, bytes("")),
+                TokenMessage.format(_recipient, _amount),
                 address(hook)
             );
     }
