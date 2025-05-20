@@ -1,10 +1,14 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use chrono::format;
 use derive_new::new;
 use eyre::Result;
-use std::{path::PathBuf, sync::Arc};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+use tracing::{error, info, instrument::Instrumented, warn};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -12,8 +16,6 @@ use hyperlane_base::{
     settings::{ChainConf, RawChainConf},
 };
 use hyperlane_core::HyperlaneDomain;
-use tokio::task::JoinHandle;
-use tracing::{error, info, instrument::Instrumented, warn};
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
@@ -53,7 +55,7 @@ impl PayloadDispatcherState {
         }
     }
 
-    pub fn try_from_settings(
+    pub async fn try_from_settings(
         settings: PayloadDispatcherSettings,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
@@ -61,7 +63,8 @@ impl PayloadDispatcherState {
             &settings.chain_conf,
             &settings.raw_chain_conf,
             &settings.metrics,
-        )?;
+        )
+        .await?;
         let db = match settings.db {
             DatabaseOrPath::Database(db) => db,
             DatabaseOrPath::Path(path) => DB::from_path(&path)?,

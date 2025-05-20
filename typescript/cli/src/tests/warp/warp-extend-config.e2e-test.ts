@@ -9,6 +9,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -168,7 +169,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       updatedConfig[CHAIN_NAME_2].remoteRouters![
         chain3Id
       ].address.toLowerCase(),
-    ).to.equal(newRouterAddress.toLowerCase());
+    ).to.equal(addressToBytes32(newRouterAddress));
   });
 
   it('should preserve deploy config when extending warp route', async () => {

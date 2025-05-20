@@ -230,6 +230,7 @@ export function getLocalStorageGasOracleConfig({
       gasPrice,
       exchangeRate,
       remoteDecimals,
+      remote,
     );
 
     // Apply the modifier if provided.
@@ -239,6 +240,7 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+        remote,
       );
     }
 
@@ -253,6 +255,7 @@ function adjustForPrecisionLoss(
   gasPrice: BigNumberJs.Value,
   exchangeRate: BigNumber,
   remoteDecimals: number,
+  remote?: ChainName,
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
@@ -271,7 +274,9 @@ function adjustForPrecisionLoss(
       gasPriceScalingFactor,
     );
     if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
-      throw new Error('Too much underflow when downscaling exchange rate');
+      throw new Error(
+        `Too much underflow when downscaling exchange rate for remote chain ${remote}`,
+      );
     }
 
     newGasPrice = newGasPrice.times(gasPriceScalingFactor);

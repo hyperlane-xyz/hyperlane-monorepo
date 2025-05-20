@@ -27,7 +27,7 @@ import {
   proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { randomInt } from '@hyperlane-xyz/utils';
+import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -629,7 +629,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       updatedConfig = await evmERC20WarpModule.read();
       expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(1);
       expect(updatedConfig.remoteRouters?.['3'].address.toLowerCase()).to.be.eq(
-        extendedRemoteRouter['3'].address.toLowerCase(),
+        addressToBytes32(extendedRemoteRouter['3'].address),
       );
     });
 

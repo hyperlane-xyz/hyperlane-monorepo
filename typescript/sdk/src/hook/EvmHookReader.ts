@@ -25,6 +25,8 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -55,7 +57,7 @@ import {
 } from './types.js';
 
 export interface HookReader {
-  deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
+  deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>>;
@@ -109,7 +111,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     super(multiProvider, chain);
   }
 
-  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
+  async deriveHookConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedHookConfig> {
     this.logger.debug('Deriving HookConfig:', { address });
 
     const cachedValue = this._cache.get(address);
@@ -195,6 +199,54 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  /**
+   *  Recursively resolves the HookConfigs as addresses, e.g.
+   *  hook:
+   *     type: aggregationHook
+   *     hooks:
+   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         maxProtocolFee: "100000000000000000000"
+   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         protocolFee: "50000000000000000"
+   *         type: protocolFee
+   *
+   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
+   */
+  public async deriveHookConfig(
+    config: HookConfig,
+  ): Promise<DerivedHookConfig> {
+    if (typeof config === 'string')
+      return this.deriveHookConfigFromAddress(config);
+
+    // Extend the inner hooks
+    switch (config.type) {
+      case HookType.FALLBACK_ROUTING:
+      case HookType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, hook) =>
+            this.deriveHookConfig(hook),
+          ),
+        );
+
+        if (config.type === HookType.FALLBACK_ROUTING)
+          config.fallback = await this.deriveHookConfig(config.fallback);
+        break;
+      case HookType.AGGREGATION:
+        config.hooks = await Promise.all(
+          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
+        );
+        break;
+      case HookType.AMOUNT_ROUTING:
+        [config.lowerHook, config.upperHook] = await Promise.all([
+          this.deriveHookConfig(config.lowerHook),
+          this.deriveHookConfig(config.upperHook),
+        ]);
+        break;
+    }
+    return config as DerivedHookConfig;
   }
 
   async deriveMailboxDefaultHookConfig(

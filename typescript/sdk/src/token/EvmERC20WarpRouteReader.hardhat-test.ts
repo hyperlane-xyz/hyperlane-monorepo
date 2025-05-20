@@ -8,6 +8,8 @@ import {
   ERC20Test__factory,
   ERC4626,
   ERC4626Test__factory,
+  FiatTokenTest,
+  FiatTokenTest__factory,
   Mailbox,
   Mailbox__factory,
   XERC20LockboxTest__factory,
@@ -20,7 +22,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -54,6 +56,7 @@ describe('ERC20WarpRouterReader', async () => {
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
+  let collateralFiatToken: FiatTokenTest;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -80,6 +83,14 @@ describe('ERC20WarpRouterReader', async () => {
 
     const vaultFactory = new ERC4626Test__factory(signer);
     vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+
+    const fiatCollateralFactory = new FiatTokenTest__factory(signer);
+    collateralFiatToken = await fiatCollateralFactory.deploy(
+      TOKEN_NAME,
+      TOKEN_NAME,
+      TOKEN_SUPPLY,
+      TOKEN_DECIMALS,
+    );
   });
 
   beforeEach(async () => {
@@ -412,6 +423,33 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.token).to.equal(token.address);
   });
 
+  // FiatTokenTest
+  it('should derive collateral fiat token type correctly', async () => {
+    // Create config
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateralFiat,
+        token: collateralFiatToken.address,
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateralFiat.address,
+    );
+
+    assert(
+      derivedConfig.type === TokenType.collateralFiat,
+      `Must be ${TokenType.collateralFiat}`,
+    );
+    expect(derivedConfig.type).to.equal(config[chain].type);
+    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+    expect(derivedConfig.owner).to.equal(config[chain].owner);
+    expect(derivedConfig.token).to.equal(collateralFiatToken.address);
+  });
+
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
@@ -461,6 +499,6 @@ describe('ERC20WarpRouterReader', async () => {
     expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
     expect(
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
-    ).to.be.equal(warpRoute[otherChain].collateral.address);
+    ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
   });
 });

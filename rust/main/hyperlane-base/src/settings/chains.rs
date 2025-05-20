@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::async_trait;
+use async_trait::async_trait;
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;
@@ -1080,7 +1080,8 @@ impl ChainConf {
         }
     }
 
-    async fn build_ethereum<B>(
+    /// Try to convert the chain settings into a provider
+    pub async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
         locator: &ContractLocator<'_>,

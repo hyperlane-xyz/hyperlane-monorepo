@@ -220,6 +220,10 @@ impl Mailbox for FuelMailbox {
         // Seems like this is not needed for Fuel, as it's only used in mocks
         todo!()
     }
+
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
+    }
 }
 
 /// Struct that retrieves event data for a Fuel Mailbox contract

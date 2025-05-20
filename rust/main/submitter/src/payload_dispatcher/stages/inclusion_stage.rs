@@ -213,6 +213,23 @@ impl InclusionStage {
         // }
         // info!(?tx, "Transaction simulation succeeded");
 
+        // Estimating transaction just before we submit it
+        // TODO we will need to re-classify `ChainCommunicationError` into `SubmitterError::EstimateError` in the future.
+        // At the moment, both errors are non-retryable, so we can keep them as is.
+        tx = call_until_success_or_nonretryable_error(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
+                }
+            },
+            "Simulating and estimating transaction",
+            state,
+        )
+        .await?;
+
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
@@ -320,6 +337,8 @@ mod tests {
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
 
+        mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+
         mock_adapter.expect_submit().returning(|_| Ok(()));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
@@ -337,7 +356,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_failed_simulation() {
         const TXS_TO_PROCESS: usize = 3;
 
@@ -351,6 +369,10 @@ mod tests {
             .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
+
+        mock_adapter
+            .expect_estimate_tx()
+            .returning(|_| Err(SubmitterError::SimulationFailed));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
