@@ -5,9 +5,8 @@
       "outputs": [
         "artifacts/**",
         "cache/**",
-        "core-utils/**",
-        "dist/**",
-        "types/**"
+        "core-utils/typechain/**",
+        "dist/**"
       ]
     }
   }
