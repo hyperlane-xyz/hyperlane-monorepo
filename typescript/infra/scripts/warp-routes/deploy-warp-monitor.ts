@@ -8,9 +8,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp/helm.js';
-import { validateRegistryCommit } from '../../utils.js';
 import {
   assertCorrectKubeContext,
   getAgentConfig,
