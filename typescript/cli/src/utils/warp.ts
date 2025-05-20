@@ -57,16 +57,20 @@ export async function useProvidedWarpRouteIdOrPrompt({
   context,
   warpRouteId,
   symbol,
+  promptByDeploymentConfigs,
 }: {
   context: CommandContext;
   warpRouteId?: string;
   symbol?: string;
+  promptByDeploymentConfigs?: boolean;
 }): Promise<string> {
   if (warpRouteId) return warpRouteId;
   assert(!context.skipConfirmation, 'Warp route ID is required');
 
   const { ids: routeIds } = filterWarpRoutesIds(
-    (await context.registry.listRegistryContent()).deployments.warpRoutes,
+    (await context.registry.listRegistryContent()).deployments[
+      promptByDeploymentConfigs ? 'warpDeployConfig' : 'warpRoutes'
+    ],
     symbol ? { symbol } : undefined,
   );
 

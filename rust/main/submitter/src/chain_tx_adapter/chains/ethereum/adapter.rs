@@ -41,7 +41,7 @@ pub struct EthereumTxAdapter {
     _raw_conf: RawChainConf,
     provider: Box<dyn EvmProviderForSubmitter>,
     reorg_period: EthereumReorgPeriod,
-    nonce_manager: Arc<Mutex<NonceManager>>,
+    nonce_manager: NonceManager,
 }
 
 impl EthereumTxAdapter {
@@ -64,7 +64,7 @@ impl EthereumTxAdapter {
             )
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = Arc::new(Mutex::new(NonceManager::new()));
+        let nonce_manager = NonceManager::new();
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
 
@@ -179,6 +179,8 @@ impl AdaptsChain for EthereumTxAdapter {
 
         info!(?tx, "submitting transaction");
 
+        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+
         let precursor = tx.precursor();
         let hash = self
             .provider
@@ -233,6 +235,6 @@ impl AdaptsChain for EthereumTxAdapter {
     }
 
     async fn set_unfinalized_tx_count(&self, count: usize) {
-        self.nonce_manager.lock().await.tx_in_finality_count = count;
+        self.nonce_manager.set_tx_in_finality_count(count).await;
     }
 }

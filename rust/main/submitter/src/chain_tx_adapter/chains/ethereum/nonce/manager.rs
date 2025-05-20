@@ -2,6 +2,10 @@
 // implementing the trait for the boxed type would require a lot of boilerplate code.
 #![allow(clippy::borrowed_box)]
 
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
 use hyperlane_ethereum::EvmProviderForSubmitter;
 use tracing::info;
 
@@ -11,13 +15,13 @@ use crate::SubmitterError;
 use super::super::transaction::Precursor;
 
 pub struct NonceManager {
-    pub tx_in_finality_count: usize,
+    pub tx_in_finality_count: Arc<Mutex<usize>>,
 }
 
 impl NonceManager {
     pub fn new() -> Self {
         Self {
-            tx_in_finality_count: 0,
+            tx_in_finality_count: Arc::new(Mutex::new(0usize)),
         }
     }
 
@@ -41,7 +45,7 @@ impl NonceManager {
             ))?;
         let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
 
-        let next_nonce = nonce + self.tx_in_finality_count;
+        let next_nonce = nonce + self.get_tx_in_finality_count().await as u64;
 
         precursor.tx.set_nonce(next_nonce);
         info!(
@@ -53,5 +57,13 @@ impl NonceManager {
         );
 
         Ok(())
+    }
+
+    pub async fn set_tx_in_finality_count(&self, count: usize) {
+        *self.tx_in_finality_count.lock().await = count;
+    }
+
+    async fn get_tx_in_finality_count(&self) -> usize {
+        *self.tx_in_finality_count.lock().await
     }
 }
