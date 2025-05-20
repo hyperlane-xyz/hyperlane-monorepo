@@ -136,8 +136,6 @@ contract OpL2NativeTokenBridge is HypNative {
     }
 }
 
-import {console2} from "forge-std/console2.sol";
-
 abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
     using Message for bytes;
     using TokenMessage for bytes;

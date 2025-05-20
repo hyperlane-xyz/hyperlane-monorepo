@@ -198,8 +198,12 @@ library StandardHookMetadata {
         address _default
     ) internal view returns (address) {
         if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
+        address result;
         assembly {
-            return(add(_metadata, REFUND_ADDRESS_OFFSET), 20)
+            let data_start_ptr := add(_metadata, 32) // Skip length prefix of _metadata
+            let mload_ptr := add(data_start_ptr, sub(REFUND_ADDRESS_OFFSET, 12))
+            result := mload(mload_ptr) // Loads 32 bytes; address takes lower 20 bytes.
         }
+        return result;
     }
 }

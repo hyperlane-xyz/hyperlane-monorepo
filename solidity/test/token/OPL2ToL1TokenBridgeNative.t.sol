@@ -157,17 +157,12 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         assertEq(address(vtbOrigin.hook()), address(hook));
     }
 
-    receive() external payable {}
-
     function test_transferRemote_amountMustBeGreaterThanZero() public {
         vm.expectRevert("OP L2 token bridge: amount must be greater than 0");
         vtbOrigin.transferRemote(destination, userB32, 0);
     }
 
-    function test_transferRemote_fundsReceived(address recipient) public {
-        vm.assume(recipient != user);
-        vm.assume(recipient != address(0));
-
+    function test_transferRemote_fundsReceived() public {
         Quote[] memory quotes = _getQuote();
 
         vtbOrigin.transferRemote{value: quotes[0].amount}(
@@ -195,7 +190,23 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             transferAmount
         );
         environment.processNextPendingMessage();
+    }
 
-        // TODO: test refunds
+    receive() external payable {}
+
+    function test_transferRemote_refunds() public {
+        Quote[] memory quotes = _getQuote();
+
+        uint256 balanceBefore = address(this).balance;
+
+        vtbOrigin.transferRemote{value: 2 * quotes[0].amount}(
+            destination,
+            userB32,
+            transferAmount
+        );
+
+        uint256 balanceAfter = address(this).balance;
+
+        assertEq(balanceBefore - balanceAfter, quotes[0].amount);
     }
 }
