@@ -196,7 +196,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
-      warpRouteId = await getWarpRouteIdInteractive();
+      warpRouteId = await getWarpRouteIdInteractive(environment);
     }
     const config = await getWarpConfig(
       multiProvider,

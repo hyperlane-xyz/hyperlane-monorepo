@@ -30,7 +30,7 @@ async function main() {
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
   } else {
-    warpRouteIds = await getWarpRouteIdsInteractive();
+    warpRouteIds = await getWarpRouteIdsInteractive(environment);
   }
 
   const registryCommit = await input({
