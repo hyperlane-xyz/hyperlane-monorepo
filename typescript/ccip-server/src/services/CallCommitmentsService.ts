@@ -171,6 +171,7 @@ export class CallCommitmentsService extends BaseService {
    * Register routes onto an Express Router or app.
    */
   private registerRoutes(router: Router): void {
+    // TODO REMOVE
     router.post('/calls_mock', async (req, res) => {
       const data = this.parseCommitmentBody(req.body, res);
       if (!data) return;
