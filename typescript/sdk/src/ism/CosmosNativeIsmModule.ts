@@ -193,6 +193,10 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   protected async deployMerkleRootMultisigIsm(
     config: MultisigIsmConfig,
   ): Promise<Address> {
+    assert(
+      config.threshold <= config.validators.length,
+      `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
+    );
     const { response } = await this.signer.createMerkleRootMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
@@ -203,6 +207,10 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   protected async deployMessageIdMultisigIsm(
     config: MultisigIsmConfig,
   ): Promise<Address> {
+    assert(
+      config.threshold <= config.validators.length,
+      `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
+    );
     const { response } = await this.signer.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
