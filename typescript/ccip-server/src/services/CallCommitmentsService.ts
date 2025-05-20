@@ -175,7 +175,7 @@ export class CallCommitmentsService extends BaseService {
     if (!callLog) throw new Error('RemoteCallDispatched event not found');
     const parsedCall = iface.parseLog(callLog);
     const owner = addressToBytes32(parsedCall.args.owner);
-    const destiantionRouterAddress = bytes32ToAddress(parsedCall.args.router);
+    const destinationRouterAddress = bytes32ToAddress(parsedCall.args.router);
     const ism = bytes32ToAddress(parsedCall.args.ism);
     const originRouter = addressToBytes32(callLog.address);
     const destinationDomain = parsedCall.args.destination as number;
