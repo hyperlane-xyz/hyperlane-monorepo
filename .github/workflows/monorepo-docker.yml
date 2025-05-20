@@ -12,7 +12,6 @@ on:
       - 'Dockerfile'
       - 'docker-entrypoint.sh'
       - '.dockerignore'
-      - 'docker-entrypoint.sh'
       - '.github/workflows/monorepo-docker.yml'
 
 concurrency:
