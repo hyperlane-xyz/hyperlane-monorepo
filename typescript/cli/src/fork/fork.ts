@@ -1,7 +1,7 @@
 import { JsonRpcProvider, Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
+import { execa } from 'execa';
 import { z } from 'zod';
-import { $ } from 'zx';
 
 import { ChainName, MultiProvider, ZHash } from '@hyperlane-xyz/sdk';
 import {
@@ -256,7 +256,7 @@ async function forkChain(
 
     const endpoint = `${LOCAL_HOST}:${forkPort}`;
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
-    const anvilProcess = $`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http}`;
+    const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http}`;
 
     const provider = new JsonRpcProvider(endpoint);
     await retryAsync(() => provider.getNetwork(), 10, 500);
@@ -265,8 +265,9 @@ async function forkChain(
       `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
     );
 
-    killAnvilProcess = (isPanicking: boolean) =>
+    killAnvilProcess = async (isPanicking: boolean) => {
       anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
+    };
     process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
 
     if (!forkConfig) {
