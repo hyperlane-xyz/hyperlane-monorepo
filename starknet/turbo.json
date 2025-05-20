@@ -2,10 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": [
-        "dist/**",
-        "release/**"
-      ]
+      "outputs": ["dist/**", "release/**"]
     }
   }
 }
