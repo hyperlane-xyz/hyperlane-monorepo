@@ -6,8 +6,8 @@
         "artifacts/**",
         "cache/**",
         "dist/**",
-        "typechain/**",
-        "types/**"
+        "src/types/**",
+        "typechain/**"
       ]
     }
   }
