@@ -12,12 +12,15 @@ datasource db {
 }
 
 model Commitment {
-  id                   String   @id
+  commitment           String
+  revealMessageId      String
   calls                Json
   relayers             Json
   salt                 String
   ica                  String
-  commitmentDispatchTx String? 
+  commitmentDispatchTx String
   originDomain         Int
   createdAt            DateTime @default(now())
+
+  @@id([commitment, revealMessageId])
 }
