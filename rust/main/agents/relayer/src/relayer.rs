@@ -341,24 +341,26 @@ impl BaseAgent for Relayer {
 
             let application_operation_verifier = application_operation_verifiers.get(destination);
 
+            // Extract optional Ethereum signer for CCIP-read authentication
+            let eth_signer: Option<hyperlane_ethereum::Signers> = if let Some(builder) =
+                &destination_chain_setup.signer
+            {
+                match builder.build().await {
+                    Ok(s) => Some(s),
+                    Err(err) => {
+                        warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
                 // Extract optional Ethereum signer for CCIP-read authentication
-                let eth_signer: Option<hyperlane_ethereum::Signers> = if let Some(builder) =
-                    &destination_chain_setup.signer
-                {
-                    match builder.build().await {
-                        Ok(s) => Some(s),
-                        Err(err) => {
-                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -376,7 +378,7 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    eth_signer,
+                    eth_signer.clone(),
                 );
 
                 msg_ctxs.insert(
