@@ -61,7 +61,7 @@ jobs:
       - name: Retrieve package versions
         id: pkg
         run: |
-          versions=$(find . -name 'package.json' -exec jq -r '.name + "@" + .version' {} \;)
+          versions=$(find . -name 'package.json' -exec jq -r 'select(.private != true) | .name + "@" + .version' {} \;)
           echo "$versions" | tee versions.txt
 
       - name: Compare package versions
@@ -83,7 +83,6 @@ jobs:
             fi
           done < versions.txt
           echo "all_latest=$all_latest" >> $GITHUB_OUTPUT
-
   # If we detect that not all packages are published, we run the
   # cli-install-cross-platform-release-test workflow to verify that the CLI installs correctly on all platforms.
   # In all other cases, we already have a barebones `cli-install` test on the default CI platform
