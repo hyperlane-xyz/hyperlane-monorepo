@@ -10,6 +10,13 @@ library TokenMessage {
         return abi.encodePacked(_recipient, _amount, _metadata);
     }
 
+    function format(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(_recipient, _amount);
+    }
+
     function recipient(bytes calldata message) internal pure returns (bytes32) {
         return bytes32(message[0:32]);
     }
