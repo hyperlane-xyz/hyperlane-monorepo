@@ -163,7 +163,8 @@ impl CosmosNativeProvider {
         })?;
         let result =
             MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
-        let recipient: H256 = result.recipient.parse()?;
+        // the recipient is the token id of the transfer, which is the address that the user interacts with
+        let recipient: H256 = result.token_id.parse()?;
         Ok(Some(recipient))
     }
 
