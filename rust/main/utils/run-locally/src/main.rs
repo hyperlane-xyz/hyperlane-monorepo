@@ -97,7 +97,7 @@ const FAILED_MESSAGE_COUNT: u32 = 1;
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
 
-pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Classic;
 
 type DynPath = Box<dyn AsRef<Path>>;
 
