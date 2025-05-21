@@ -44,10 +44,10 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
+    params: HyperlaneModuleParams<IsmModuleAddresses, {}>,
     protected readonly signer: SigningHyperlaneModuleClient,
   ) {
-    params.config = IsmConfigSchema.parse(params.config);
+    // params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
     this.mailbox = params.addresses.mailbox;
@@ -116,7 +116,6 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       {
         addresses,
         chain,
-        config,
       },
       signer,
     );

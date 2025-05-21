@@ -44,10 +44,15 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
+type EvmIsmModuleOptions = {
+  isAddressIsmConfig: boolean;
+};
+
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   IsmConfig,
-  HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
+  HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses,
+  EvmIsmModuleOptions
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected readonly reader: EvmIsmReader;
@@ -62,13 +67,13 @@ export class EvmIsmModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
-      IsmConfig,
-      HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
+      HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses,
+      EvmIsmModuleOptions
     >,
     ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
-    params.config = IsmConfigSchema.parse(params.config);
+    // params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
@@ -87,7 +92,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   public async read(): Promise<IsmConfig> {
-    return typeof this.args.config === 'string'
+    return this.args.options?.isAddressIsmConfig
       ? this.args.addresses.deployedIsm
       : this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
@@ -108,8 +113,6 @@ export class EvmIsmModule extends HyperlaneModule<
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
-    // Update the config
-    this.args.config = targetConfig;
     targetConfig = normalizeConfig(targetConfig);
 
     assert(
@@ -210,7 +213,9 @@ export class EvmIsmModule extends HyperlaneModule<
           deployedIsm: ethers.constants.AddressZero,
         },
         chain,
-        config,
+        options: {
+          isAddressIsmConfig: typeof config === 'string',
+        },
       },
       ccipContractCache,
       contractVerifier,

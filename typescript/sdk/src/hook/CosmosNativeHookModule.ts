@@ -37,7 +37,8 @@ type HookModuleAddresses = {
 export class CosmosNativeHookModule extends HyperlaneModule<
   ProtocolType.CosmosNative,
   HookConfig,
-  HookModuleAddresses
+  HookModuleAddresses,
+  {}
 > {
   protected readonly logger = rootLogger.child({
     module: 'CosmosNativeHookModule',
@@ -51,10 +52,9 @@ export class CosmosNativeHookModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
+    params: HyperlaneModuleParams<HookModuleAddresses, {}>,
     protected readonly signer: SigningHyperlaneModuleClient,
   ) {
-    params.config = HookConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new CosmosNativeHookReader(multiProvider, signer);
@@ -83,8 +83,6 @@ export class CosmosNativeHookModule extends HyperlaneModule<
         'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
       );
     }
-
-    this.args.config = targetConfig;
 
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
@@ -119,7 +117,6 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       {
         addresses,
         chain,
-        config,
       },
       signer,
     );

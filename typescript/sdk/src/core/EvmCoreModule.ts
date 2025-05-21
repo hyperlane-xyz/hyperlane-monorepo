@@ -54,10 +54,15 @@ import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
 
+type EvmCoreModuleOptions = {
+  hasInterchainAccountRouter: boolean;
+};
+
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
-  DeployedCoreAddresses
+  DeployedCoreAddresses,
+  EvmCoreModuleOptions
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
@@ -69,7 +74,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
+    args: HyperlaneModuleParams<DeployedCoreAddresses, EvmCoreModuleOptions>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, args.chain);
@@ -77,7 +82,7 @@ export class EvmCoreModule extends HyperlaneModule<
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
 
-    if (args.config.interchainAccountRouter) {
+    if (args.options?.hasInterchainAccountRouter) {
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
         addresses: {
@@ -88,7 +93,6 @@ export class EvmCoreModule extends HyperlaneModule<
           timelockController:
             args.addresses.timelockController ?? ethers.constants.AddressZero,
         },
-        config: args.config.interchainAccountRouter,
       });
     }
   }
@@ -203,7 +207,9 @@ export class EvmCoreModule extends HyperlaneModule<
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
-      config: expectDefaultIsmConfig,
+      options: {
+        isAddressIsmConfig: typeof expectDefaultIsmConfig === 'string',
+      },
       addresses: {
         mailbox,
         ...extractIsmAndHookFactoryAddresses(this.serialize()),
@@ -262,7 +268,9 @@ export class EvmCoreModule extends HyperlaneModule<
     const module = new EvmCoreModule(multiProvider, {
       addresses,
       chain,
-      config,
+      options: {
+        hasInterchainAccountRouter: !!config.interchainAccountRouter,
+      },
     });
 
     return module;

@@ -6,23 +6,24 @@ import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 export type HyperlaneModuleParams<
-  TConfig,
   TAddressMap extends Record<string, any>,
+  Options = {},
 > = {
   addresses: TAddressMap;
   chain: ChainNameOrId;
-  config: TConfig;
+  options?: Options;
 };
 
 export abstract class HyperlaneModule<
   TProtocol extends ProtocolType,
   TConfig,
   TAddressMap extends Record<string, any>,
+  Options = {},
 > {
   protected abstract readonly logger: Logger;
 
   protected constructor(
-    protected readonly args: HyperlaneModuleParams<TConfig, TAddressMap>,
+    protected readonly args: HyperlaneModuleParams<TAddressMap, Options>,
   ) {}
 
   public serialize(): TAddressMap {
