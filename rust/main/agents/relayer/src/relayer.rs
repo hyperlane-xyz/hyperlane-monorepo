@@ -223,29 +223,41 @@ impl BaseAgent for Relayer {
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
 
-        let message_syncs = Self::build_message_contract_syncs(
-            &settings,
-            &core_metrics,
-            &contract_sync_metrics,
-            &chain_metrics,
-            stores.clone(),
-            ADVANCED_LOG_META,
-        )
-        .await;
+        let (message_syncs, failed_syncs) = settings
+            .contract_syncs::<HyperlaneMessage, _>(
+                settings.origin_chains.iter(),
+                &core_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await;
+        failed_syncs.iter().for_each(|domain| {
+            let err = "Failed to create message sync";
+            let error_msg = "Failed to create message sync";
+            Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
+        });
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let interchain_gas_payment_syncs = if settings.igp_indexing_enabled {
-            let igp_syncs = Self::build_interchain_gas_payment_contract_syncs(
-                &settings,
-                &core_metrics,
-                &contract_sync_metrics,
-                &chain_metrics,
-                stores.clone(),
-                ADVANCED_LOG_META,
-            )
-            .await;
+            let (igp_syncs, failed_syncs) = settings
+                .contract_syncs::<InterchainGasPayment, _>(
+                    settings.origin_chains.iter(),
+                    &core_metrics,
+                    &contract_sync_metrics,
+                    stores.clone(),
+                    ADVANCED_LOG_META,
+                    settings.tx_id_indexing_enabled,
+                )
+                .await;
+            failed_syncs.iter().for_each(|domain| {
+                let err = "Failed to create interchain gas payment sync";
+                let error_msg = "Failed to create interchain gas payment sync";
+                Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
+            });
             Some(igp_syncs)
         } else {
             None
@@ -253,15 +265,22 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let merkle_tree_hook_syncs = Self::build_merkle_tree_hook_contract_syncs(
-            &settings,
-            &core_metrics,
-            &contract_sync_metrics,
-            &chain_metrics,
-            stores.clone(),
-            ADVANCED_LOG_META,
-        )
-        .await;
+        let (merkle_tree_hook_syncs, failed_syncs) = settings
+            .contract_syncs::<MerkleTreeInsertion, _>(
+                settings.origin_chains.iter(),
+                &core_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await;
+        failed_syncs.iter().for_each(|domain| {
+            let err = "Failed to create merkle tree hook sync";
+            let error_msg = "Failed to create merkle tree hook sync";
+            Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
+        });
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized merkle tree hook syncs", "Relayer startup duration measurement");
 
         let message_whitelist = Arc::new(settings.whitelist);
@@ -1037,141 +1056,6 @@ impl Relayer {
                 }
             })
             .collect()
-    }
-
-    /// Helper function to build and return a hashmap of message contract syncs.
-    /// Any chains that fail to build will not be included in the hashmap.
-    /// Errors will be logged and chain metrics will be updated for
-    /// chains that fail to build.
-    pub async fn build_message_contract_syncs(
-        settings: &RelayerSettings,
-        core_metrics: &Arc<CoreMetrics>,
-        contract_sync_metrics: &Arc<ContractSyncMetrics>,
-        chain_metrics: &ChainMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-        advanced_log_meta: bool,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>> {
-        let mut map: HashMap<_, _> = HashMap::new();
-        for domain in settings.origin_chains.iter() {
-            let store = match stores.get(domain) {
-                Some(store) => store.clone(),
-                None => {
-                    tracing::error!(?domain, "Store missing");
-                    continue;
-                }
-            };
-            let contract_sync = match settings
-                .contract_sync(
-                    domain,
-                    core_metrics,
-                    contract_sync_metrics,
-                    store,
-                    advanced_log_meta,
-                    settings.tx_id_indexing_enabled,
-                )
-                .await
-            {
-                Ok(sync) => sync,
-                Err(err) => {
-                    let error_msg = "contract_sync() failed for message contract";
-                    tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-                    continue;
-                }
-            };
-            map.insert(domain.clone(), contract_sync);
-        }
-        map
-    }
-
-    /// Helper function to build and return a hashmap of interchain gas payment contract syncs.
-    /// Any chains that fail to build will not be included in the hashmap.
-    /// Errors will be logged and chain metrics will be updated for
-    /// chains that fail to build.
-    pub async fn build_interchain_gas_payment_contract_syncs(
-        settings: &RelayerSettings,
-        core_metrics: &Arc<CoreMetrics>,
-        contract_sync_metrics: &Arc<ContractSyncMetrics>,
-        chain_metrics: &ChainMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-        advanced_log_meta: bool,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>> {
-        let mut map: HashMap<_, _> = HashMap::new();
-        for domain in settings.origin_chains.iter() {
-            let store = match stores.get(domain) {
-                Some(store) => store.clone(),
-                None => {
-                    tracing::error!(?domain, "Store missing");
-                    continue;
-                }
-            };
-            let contract_sync = match settings
-                .contract_sync(
-                    domain,
-                    core_metrics,
-                    contract_sync_metrics,
-                    store,
-                    advanced_log_meta,
-                    settings.tx_id_indexing_enabled,
-                )
-                .await
-            {
-                Ok(sync) => sync,
-                Err(err) => {
-                    let error_msg = "contract_sync() failed for interchain gas payment contract";
-                    tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-                    continue;
-                }
-            };
-            map.insert(domain.clone(), contract_sync);
-        }
-        map
-    }
-
-    /// Helper function to build and return a hashmap of merkle tree hook contract syncs.
-    /// Any chains that fail to build will not be included in the hashmap.
-    /// Errors will be logged and chain metrics will be updated for
-    /// chains that fail to build.
-    pub async fn build_merkle_tree_hook_contract_syncs(
-        settings: &RelayerSettings,
-        core_metrics: &Arc<CoreMetrics>,
-        contract_sync_metrics: &Arc<ContractSyncMetrics>,
-        chain_metrics: &ChainMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-        advanced_log_meta: bool,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>> {
-        let mut map: HashMap<_, _> = HashMap::new();
-        for domain in settings.origin_chains.iter() {
-            let store = match stores.get(domain) {
-                Some(store) => store.clone(),
-                None => {
-                    tracing::error!(?domain, "Store missing");
-                    continue;
-                }
-            };
-            let contract_sync = match settings
-                .contract_sync(
-                    domain,
-                    core_metrics,
-                    contract_sync_metrics,
-                    store,
-                    advanced_log_meta,
-                    settings.tx_id_indexing_enabled,
-                )
-                .await
-            {
-                Ok(sync) => sync,
-                Err(err) => {
-                    let error_msg = "contract_sync() failed for merkle tree hook contract";
-                    tracing::error!(?domain, ?err, "{error_msg}");
-                    Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-                    continue;
-                }
-            };
-            map.insert(domain.clone(), contract_sync);
-        }
-        map
     }
 
     /// Helper function to build and return a hashmap of application operation verifiers.
