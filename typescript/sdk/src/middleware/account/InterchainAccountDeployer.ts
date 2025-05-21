@@ -47,7 +47,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     const interchainAccountRouter = await this.deployContract(
       chain,
       'interchainAccountRouter',
-      [config.mailbox, ethers.constants.AddressZero, owner, 50_000],
+      [config.mailbox, ethers.constants.AddressZero, owner, 50_000, []],
     );
 
     return {

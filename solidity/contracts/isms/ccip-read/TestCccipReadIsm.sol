@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-error OffchainLookup(
-    address sender,
-    string[] urls,
-    bytes callData,
-    bytes4 callbackFunction,
-    bytes extraData
-);
-
 import "../../interfaces/isms/ICcipReadIsm.sol";
 import "../../interfaces/IInterchainSecurityModule.sol";
 import "../../interfaces/IMailbox.sol";
@@ -20,23 +12,20 @@ import "./AbstractCcipReadIsm.sol";
  * @notice A test CCIP-Read ISM that simply checks the passed metadata as a boolean.
  */
 contract TestCcipReadIsm is AbstractCcipReadIsm {
-    string[] public urls;
-
     constructor(string[] memory _urls) {
-        urls = _urls;
+        setUrls(_urls);
     }
 
-    function getOffchainVerifyInfo(
-        bytes calldata _message
-    ) external view override {
-        // Revert with OffchainLookup to instruct off-chain resolution
-        revert OffchainLookup(address(this), urls, _message, bytes4(0), "");
+    function _offchainLookupCalldata(
+        bytes calldata /*_message*/
+    ) internal pure override returns (bytes memory) {
+        return bytes("");
     }
 
     function verify(
         bytes calldata metadata,
         bytes calldata
-    ) external view override returns (bool) {
+    ) external pure override returns (bool) {
         bool ok = abi.decode(metadata, (bool));
         require(ok, "TestCcipReadIsm: invalid metadata");
         return true;

@@ -121,8 +121,7 @@ contract TokenBridgeScript is Script {
         OPL2ToL1CcipReadIsm ism = new OPL2ToL1CcipReadIsm(
             urls,
             opPortal,
-            portalVersion,
-            mailboxDestination
+            portalVersion
         );
         console.log("OPL2ToL1CcipReadIsm @", address(ism));
 
