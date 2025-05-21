@@ -1256,6 +1256,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  kyve: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8576ddc0cd96325f85528e53f333357afb8bf044',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   kyvetestnet: {
     threshold: 1,
     validators: [
@@ -1459,6 +1469,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_BLOCKPI_VALIDATOR,
       DEFAULT_ZKV_VALIDATOR,
       DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+    ],
+  },
+
+  miraclechain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8fc655174e99194399822ce2d3a0f71d9fc2de7b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
