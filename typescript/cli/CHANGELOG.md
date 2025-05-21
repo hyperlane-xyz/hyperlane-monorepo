@@ -1,5 +1,27 @@
 # @hyperlane-xyz/cli
 
+## 13.0.0
+
+## 12.6.0
+
+### Minor Changes
+
+- 2ae0f72: Add contract verification to CLI Warp Checker
+- 672d6d1: adds logic to expand an ism or hook config if it is partially defined in the input file for the warp checker
+- aec8961: Updates the `warp check` command output to only show fields that have diffs with the expected config
+- e25af4b: Fixed warp route ID lookup to use deployment configs instead of warp routes when prompting users for selection on warp deployment
+- ce0b173: Refactored warp route configuration functions to use object parameters instead of positional parameters for improved clarity and flexibility.
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- 6a70b8d: Move executeDeploy logic from CLI to SDK
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+- de7c6ae: Added registry based warp configs support
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- 166f849: Remove outputting isNft in warp init config
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+
 ## 12.5.0
 
 ### Minor Changes

@@ -275,12 +275,8 @@ export async function createWarpRouteDeployConfig({
         context.multiProvider,
         warpRouteDeployConfig,
       );
-      assert(
-        tokenMetadata?.symbol,
-        'Error deriving token metadata, please check the provided token addresses',
-      );
+      const symbol: string = tokenMetadata.getDefaultSymbol();
 
-      const symbol = tokenMetadata.symbol;
       let warpRouteId;
       if (!context.skipConfirmation) {
         warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
