@@ -142,7 +142,7 @@ impl CosmosNativeProvider {
     }
 
     /// parses the message recipient if the transaction contains a MsgRemoteTransfer
-    fn parse_msg_remote_trasnfer_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
+    fn parse_msg_remote_transfer_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
         // check for all remote transfers
         let remote_transfers: Vec<Any> = tx
             .body
@@ -177,7 +177,7 @@ impl CosmosNativeProvider {
             return Ok(recipient);
         }
         // if not found check for the remote transfer
-        if let Some(recipient) = Self::parse_msg_remote_trasnfer_recipient(tx)? {
+        if let Some(recipient) = Self::parse_msg_remote_transfer_recipient(tx)? {
             return Ok(recipient);
         }
         // if both are missing we return an error
