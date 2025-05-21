@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 13.0.0
+
+### Minor Changes
+
+- 72b90f8: add cosmos native core module & reader
+- bc58283: feat: Starknet SDK logic integration
+- 2724559: add cosmos native routing ism cosmos-sdk and types
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+- Updated dependencies [f8696c7]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/starknet-core@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+  - @hyperlane-xyz/core@7.1.6
+
 ## 12.6.0
 
 ### Minor Changes

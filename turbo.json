@@ -1,0 +1,25 @@
+{
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "cache/**", "types/**"]
+    },
+    "test:ci": {
+      "dependsOn": ["build", "^test:ci"]
+    },
+    "test": {
+      "dependsOn": ["build"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "prettier": {},
+    "lint": {},
+    "version:update": {},
+    "coverage": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**", "fixtures/**"]
+    }
+  }
+}
