@@ -203,7 +203,7 @@ impl Mailbox for CwMailbox {
         todo!() // not required
     }
 
-    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }
 }
