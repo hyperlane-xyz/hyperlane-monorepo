@@ -320,17 +320,12 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
-
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
