@@ -62,18 +62,7 @@ jobs:
         id: pkg
         run: |
           versions=$(find . -name 'package.json' -exec jq -r '.name + "@" + .version' {} \;)
-          echo "$versions" > versions.txt
-
-      - name: Fetch latest published versions from npm
-        id: npm
-        run: |
-          latest=""
-          while read -r pkg; do
-            name=$(echo "$pkg" | cut -d'@' -f1)
-            latest_version=$(npm view "$name" version 2>/dev/null || echo "N/A")
-            latest="$latest $name@$latest_version"
-          done < versions.txt
-          echo "$latest" > latest_versions.txt
+          echo "$versions" | tee versions.txt
 
       - name: Compare package versions
         id: check
@@ -82,10 +71,15 @@ jobs:
           while read -r pkg; do
             name=$(echo "$pkg" | cut -d'@' -f1)
             version=$(echo "$pkg" | cut -d'@' -f2)
-            latest=$(grep -o "$name@[^ ]*" latest_versions.txt | cut -d'@' -f2)
-            if [ "$version" != "$latest" ]; then
+            echo "Checking if $name@$version is published..."
+            exists=$(npm view "$name@$version" version 2>/dev/null || echo "N/A")
+            echo "npm returned: $exists"
+            if [ "$exists" = "N/A" ]; then
+              echo "$name@$version is NOT published."
               all_latest=false
               break
+            else
+              echo "$name@$version is published."
             fi
           done < versions.txt
           echo "all_latest=$all_latest" >> $GITHUB_OUTPUT
