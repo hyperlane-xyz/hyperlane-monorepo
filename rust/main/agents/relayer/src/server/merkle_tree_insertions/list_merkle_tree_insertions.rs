@@ -107,7 +107,7 @@ pub async fn handler(
         if let Some(insertion) = retrieve_res {
             let tree_insertion = TreeInsertion {
                 leaf_index: insertion.index(),
-                message_id: format!("{:x}", insertion.message_id()),
+                message_id: format!("{:?}", insertion.message_id()),
             };
             merkle_tree_insertions.push(tree_insertion);
         }
@@ -250,7 +250,9 @@ mod tests {
         .await;
 
         let resp_status = response.status();
-        let resp_body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        let body = response.into_body();
+        println!("Response body: {:?}", body);
+        let resp_body: ResponseBody = parse_body_to_json(body).await;
 
         assert_eq!(resp_status, StatusCode::OK);
 

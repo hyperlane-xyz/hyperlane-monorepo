@@ -193,6 +193,11 @@ impl ValidatorSubmitter {
                 );
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
+                debug!(
+                    index = insertion.index(),
+                    root = ?tree.root(),
+                    "Root is"
+                );
 
                 let checkpoint = self.checkpoint(tree);
 

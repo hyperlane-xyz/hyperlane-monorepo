@@ -218,14 +218,14 @@ impl BaseAgent for Validator {
         );
         tasks.push(server_task);
 
-        if let Some(signer_instance) = self.signer_instance.take() {
-            tasks.push(tokio::spawn(
-                async move {
-                    signer_instance.run().await;
-                }
-                .instrument(info_span!("SingletonSigner")),
-            ));
-        }
+        // if let Some(signer_instance) = self.signer_instance.take() {
+        //     tasks.push(tokio::spawn(
+        //         async move {
+        //             signer_instance.run().await;
+        //         }
+        //         .instrument(info_span!("SingletonSigner")),
+        //     ));
+        // }
 
         let metrics_updater = ChainSpecificMetricsUpdater::new(
             &self.origin_chain_conf,
@@ -243,13 +243,13 @@ impl BaseAgent for Validator {
             .instrument(info_span!("MetricsUpdater")),
         ));
 
-        // report agent metadata
-        self.metadata()
-            .await
-            .expect("Failed to report agent metadata");
+        // // report agent metadata
+        // self.metadata()
+        //     .await
+        //     .expect("Failed to report agent metadata");
 
-        // announce the validator after spawning the signer task
-        self.announce().await.expect("Failed to announce validator");
+        // // announce the validator after spawning the signer task
+        // self.announce().await.expect("Failed to announce validator");
 
         // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
@@ -260,7 +260,7 @@ impl BaseAgent for Validator {
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    tasks.push(self.run_merkle_tree_hook_sync().await);
+                    // tasks.push(self.run_merkle_tree_hook_sync().await);
                     for checkpoint_sync_task in self.run_checkpoint_submitters().await {
                         tasks.push(checkpoint_sync_task);
                     }
