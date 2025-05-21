@@ -910,7 +910,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  it.only('should successfully log metrics tracking', async () => {
+  it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
@@ -927,15 +927,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    $.verbose = true;
-    try {
-      await startRebalancerAndExpectLog(
-        `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"${warpCoreConfig.tokens[2].addressOrDenom}","token_name":"token","wallet_address":"${warpCoreConfig.tokens[2].addressOrDenom}","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"}`,
-        { withMetrics: true },
-      );
-    } finally {
-      $.verbose = false;
-    }
+    await startRebalancerAndExpectLog('Wallet balance updated for token', {
+      withMetrics: true,
+    });
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
