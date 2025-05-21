@@ -245,8 +245,6 @@ export async function runWarpRouteDeploy({
     starknetSigners,
   });
 
-  fullyConnectTokens(deployments);
-
   await writeDeploymentArtifacts(
     deployments,
     context,
@@ -255,7 +253,7 @@ export async function runWarpRouteDeploy({
 
   // can't be handled in getWarpCoreConfig
   // because its not compatible with starknet
-  fullyConnectTokens(deployments);
+  fullyConnectTokens(deployments, multiProvider);
 
   await writeDeploymentArtifacts(
     deployments,
@@ -351,7 +349,7 @@ async function getWarpCoreConfig(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -394,7 +392,10 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+function fullyConnectTokens(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -405,7 +406,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
       token1.connections ||= [];
       token1.connections.push({
         token: getTokenConnectionId(
-          ProtocolType.Ethereum,
+          multiProvider.getProtocol(token2.chainName),
           token2.chainName,
           token2.addressOrDenom!,
         ),
@@ -1131,7 +1132,7 @@ async function getWarpCoreConfigCore<T>(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, multiProvider);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
