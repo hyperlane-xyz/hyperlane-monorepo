@@ -33,6 +33,7 @@ import {
   STARKNET_SUPPORTED_TOKEN_TYPES,
   STARKNET_TOKEN_TYPE_TO_STANDARD,
   StarknetERC20WarpModule,
+  StarknetERC20WarpUpdateModule,
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
@@ -612,7 +613,12 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ) {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const {
+    multiProvider,
+    registry,
+    multiProtocolSigner,
+    multiProtocolProvider,
+  } = params.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -636,8 +642,12 @@ async function updateExistingWarpRoute(
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        logBlue(`Skipping non-EVM chain ${chain}`);
+      const protocol = multiProvider.getProtocol(chain);
+      if (
+        protocol !== ProtocolType.Ethereum &&
+        protocol !== ProtocolType.Starknet
+      ) {
+        logBlue(`Skipping non-EVM/Starknet chain ${chain}`);
         return;
       }
 
@@ -649,22 +659,40 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
-        const evmERC20WarpModule = new EvmERC20WarpModule(
-          multiProvider,
-          {
-            config: configWithMailbox,
-            chain,
-            addresses: {
-              deployedTokenRoute,
-              ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
+        if (protocol === ProtocolType.Ethereum) {
+          const evmERC20WarpModule = new EvmERC20WarpModule(
+            multiProvider,
+            {
+              config: configWithMailbox,
+              chain,
+              addresses: {
+                deployedTokenRoute,
+                ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
+              },
             },
-          },
-          ccipContractCache,
-          contractVerifier,
-        );
-        transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox)),
-        );
+            ccipContractCache,
+            contractVerifier,
+          );
+          transactions.push(
+            ...(await evmERC20WarpModule.update(configWithMailbox)),
+          );
+        } else if (protocol === ProtocolType.Starknet) {
+          assert(
+            multiProtocolSigner,
+            'multi protocol signer is required for starknet chain deployment',
+          );
+
+          const starknetSigner = multiProtocolSigner.getStarknetSigner(chain);
+          const starknetERC20WarpModule = new StarknetERC20WarpUpdateModule(
+            starknetSigner,
+            multiProtocolProvider,
+            expandedWarpDeployConfig,
+            chain,
+          );
+          transactions.push(
+            ...(await starknetERC20WarpModule.update(configWithMailbox)),
+          );
+        }
       });
     }),
   );

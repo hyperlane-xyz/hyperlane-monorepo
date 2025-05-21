@@ -1,23 +1,20 @@
-import { CairoCustomEnum, num } from 'starknet';
+import { num } from 'starknet';
 
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { StarknetJsProvider } from '../providers/ProviderType.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 import {
   StarknetContractName,
-  StarknetHookType,
   getStarknetContract,
 } from '../utils/starknet.js';
 
 import {
-  AggregationHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
+  DerivedHookConfig,
   HookConfig,
   HookType,
-  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
@@ -26,186 +23,133 @@ export class StarknetHookReader {
   protected readonly logger = rootLogger.child({
     module: 'StarknetHookReader',
   });
-  protected provider: StarknetJsProvider['provider'];
+  protected readonly provider: StarknetJsProvider['provider'];
 
   constructor(
     protected readonly multiProvider: MultiProtocolProvider,
     protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = this.multiProvider.getStarknetProvider(chain);
+    this.provider = multiProvider.getStarknetProvider(chain);
   }
 
-  async deriveHookConfig(address: Address): Promise<HookConfig> {
+  async deriveHookConfig(
+    addressOrConfig: HookConfig,
+  ): Promise<DerivedHookConfig> {
+    if (typeof addressOrConfig === 'string') {
+      return this.deriveHookConfigFromAddress(addressOrConfig);
+    }
+    const address = (addressOrConfig as WithAddress<any>).address;
+    assert(address, 'Address must be present in hook config object');
+    return addressOrConfig as DerivedHookConfig;
+  }
+
+  async deriveHookConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedHookConfig> {
+    this.logger.debug('Deriving StarkNet HookConfig:', { address });
+
     try {
-      const hook = getStarknetContract(
-        StarknetContractName.HOOK,
+      // Attempt to derive as ProtocolFeeHook
+      const protocolFeeConfig = await this.tryDeriveProtocolFeeConfig(address);
+      if (protocolFeeConfig) {
+        return protocolFeeConfig;
+      }
+    } catch (e) {
+      this.logger.debug(
+        `Not a ProtocolFeeHook or failed to derive: ${address}`,
+        e,
+      );
+    }
+
+    try {
+      const merkleTreeConfig = await this.tryDeriveMerkleTreeConfig(address);
+      if (merkleTreeConfig) {
+        return merkleTreeConfig;
+      }
+    } catch (e) {
+      this.logger.debug(
+        `Not a MerkleTreeHook or failed to derive: ${address}`,
+        e,
+      );
+    }
+
+    this.logger.warn(
+      `Failed to derive hook config for ${address} on ${this.chain}. It might be an unsupported hook type or an invalid address.`,
+    );
+
+    return address as HookConfig as DerivedHookConfig;
+  }
+
+  private async tryDeriveProtocolFeeConfig(
+    address: Address,
+  ): Promise<WithAddress<ProtocolFeeHookConfig> | null> {
+    try {
+      const contract = getStarknetContract(
+        StarknetContractName.PROTOCOL_FEE, // Assuming a contract name enum exists
         address,
         this.provider,
       );
-      const hookType: CairoCustomEnum = await hook.hook_type();
-      const variant = hookType.activeVariant();
-      switch (variant) {
-        case StarknetHookType.AGGREGATION:
-          return this.deriveAggregationHookConfig(address);
-        case StarknetHookType.FALLBACK_ROUTING:
-          return this.deriveFallbackRoutingHookConfig(address);
-        case StarknetHookType.MAILBOX_DEFAULT_HOOK:
-          return this.deriveMailboxDefaultHookConfig(address);
-        case StarknetHookType.MERKLE_TREE:
-          return this.deriveMerkleTreeConfig(address);
-        case StarknetHookType.PROTOCOL_FEE:
-          return this.deriveProtocolFeeConfig(address);
-        case StarknetHookType.ROUTING:
-          return this.deriveRoutingHookConfig(address);
-        default:
-          throw new Error(`Unsupported hook type: ${variant}`);
-      }
-    } catch (error) {
-      this.logger.error(`Failed to derive Hook config for ${address}`, error);
-      throw error;
+
+      const [owner, beneficiary, max_protocol_fee, protocol_fee_amount] =
+        await Promise.all([
+          contract.owner().then((r: any) => num.toHex(r)),
+          contract.get_beneficiary().then((r: any) => num.toHex(r)),
+          contract.get_max_protocol_fee().then((r: any) => r.toString()),
+          contract.get_protocol_fee().then((r: any) => r.toString()),
+        ]);
+
+      return {
+        address,
+        type: HookType.PROTOCOL_FEE,
+        owner,
+        beneficiary,
+        maxProtocolFee: max_protocol_fee,
+        protocolFee: protocol_fee_amount,
+      };
+    } catch (e) {
+      return null;
     }
   }
 
-  private async deriveMerkleTreeConfig(
+  private async tryDeriveMerkleTreeConfig(
     address: Address,
-  ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    return {
-      type: HookType.MERKLE_TREE,
-      address,
-    };
+  ): Promise<WithAddress<MerkleTreeHookConfig> | null> {
+    try {
+      // const contract = getStarknetContract(
+      //   StarknetContractName.MERKLE_TREE_HOOK,
+      //   address,
+      //   this.provider,
+      // );
+
+      return {
+        address,
+        type: HookType.MERKLE_TREE,
+      };
+    } catch (e) {
+      return null;
+    }
   }
 
-  private async deriveProtocolFeeConfig(
+  async deriveProtocolFeeConfig(
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
-    const hook = getStarknetContract(
-      StarknetContractName.PROTOCOL_FEE,
-      address,
-      this.provider,
-    );
-
-    const [owner, protocolFee, beneficiary] = await Promise.all([
-      hook.owner(),
-      hook.get_protocol_fee(),
-      hook.get_beneficiary(),
-    ]);
-
-    // no getter for max protocol fee
-    // pub const MAX_PROTOCOL_FEE: u256 = 1000000000;
-    return {
-      type: HookType.PROTOCOL_FEE,
-      address,
-      owner: num.toHex64(owner.toString()),
-      protocolFee: protocolFee.toString(),
-      beneficiary: num.toHex64(beneficiary.toString()),
-      maxProtocolFee: '1000000000',
-    };
+    const config = await this.tryDeriveProtocolFeeConfig(address);
+    if (!config)
+      throw new Error(
+        `Address ${address} is not a valid ProtocolFeeHook or failed to derive.`,
+      );
+    return config;
   }
 
-  private async deriveRoutingHookConfig(
+  async deriveMerkleTreeConfig(
     address: Address,
-  ): Promise<WithAddress<DomainRoutingHookConfig>> {
-    const hook = getStarknetContract(
-      StarknetContractName.DOMAIN_ROUTING_HOOK,
-      address,
-      this.provider,
-    );
-    const [domains, owner] = await Promise.all([hook.domains(), hook.owner()]);
-    const domainConfigs: Record<string, HookConfig> = {};
-    for (const domain of domains) {
-      try {
-        const moduleAddress = await hook.hook(domain);
-        const moduleConfig = await this.deriveHookConfig(
-          num.toHex64(moduleAddress.toString()),
-        );
-        domainConfigs[domain.toString()] = moduleConfig;
-      } catch (error) {
-        this.logger.error(
-          `Failed to derive config for domain ${domain}`,
-          error,
-        );
-      }
-    }
-
-    return {
-      type: HookType.ROUTING,
-      address,
-      domains: domainConfigs as ChainMap<HookConfig>,
-      owner: num.toHex64(owner.toString()),
-    };
-  }
-
-  private async deriveFallbackRoutingHookConfig(
-    address: Address,
-  ): Promise<WithAddress<FallbackRoutingHookConfig>> {
-    const hook = getStarknetContract(
-      StarknetContractName.FALLBACK_DOMAIN_ROUTING_HOOK,
-      address,
-      this.provider,
-    );
-    const [domains, owner, fallbackHookAddress] = await Promise.all([
-      hook.domains(),
-      hook.owner(),
-      hook.fallback_hook(),
-    ]);
-
-    const domainConfigs: Record<string, HookConfig> = {};
-    for (const domain of domains) {
-      try {
-        const moduleAddress = await hook.hook(domain);
-        const moduleConfig = await this.deriveHookConfig(
-          num.toHex64(moduleAddress.toString()),
-        );
-        domainConfigs[domain.toString()] = moduleConfig;
-      } catch (error) {
-        this.logger.error(
-          `Failed to derive config for domain ${domain}`,
-          error,
-        );
-      }
-    }
-
-    const fallbackHook = await this.deriveHookConfig(
-      num.toHex64(fallbackHookAddress.toString()),
-    );
-
-    return {
-      type: HookType.FALLBACK_ROUTING,
-      address,
-      domains: domainConfigs as ChainMap<HookConfig>,
-      owner: num.toHex64(owner.toString()),
-      fallback: fallbackHook,
-    };
-  }
-
-  private async deriveAggregationHookConfig(
-    address: Address,
-  ): Promise<WithAddress<AggregationHookConfig>> {
-    const hook = getStarknetContract(
-      StarknetContractName.STATIC_AGGREGATION_HOOK,
-      address,
-      this.provider,
-    );
-    const hooks = await hook.get_hooks();
-    const hookConfigs = await Promise.all(
-      hooks.map((hookAddress: any) => {
-        return this.deriveHookConfig(num.toHex64(hookAddress.toString()));
-      }),
-    );
-
-    return {
-      type: HookType.AGGREGATION,
-      address,
-      hooks: hookConfigs.filter(Boolean),
-    };
-  }
-
-  private async deriveMailboxDefaultHookConfig(
-    address: Address,
-  ): Promise<WithAddress<MailboxDefaultHookConfig>> {
-    return {
-      type: HookType.MAILBOX_DEFAULT,
-      address,
-    };
+  ): Promise<WithAddress<MerkleTreeHookConfig>> {
+    const config = await this.tryDeriveMerkleTreeConfig(address);
+    if (!config)
+      throw new Error(
+        `Address ${address} is not a valid MerkleTreeHook or failed to derive.`,
+      );
+    return config;
   }
 }

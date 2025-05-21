@@ -21,6 +21,7 @@ import { SupportedIsmTypesOnStarknetType } from '../ism/types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
+  MAILBOX_CLIENT = 'mailboxclient',
   HYP_ERC20 = 'HypErc20',
   HYP_ERC20_COLLATERAL = 'HypErc20Collateral',
   HYP_NATIVE = 'HypNative',
@@ -29,6 +30,7 @@ export enum StarknetContractName {
   NOOP_ISM = 'noop_ism',
   HOOK = 'hook',
   PROTOCOL_FEE = 'protocol_fee',
+  PAUSABLE_ISM = 'pausable_ism',
   VALIDATOR_ANNOUNCE = 'validator_announce',
   MESSAGE_RECIPIENT = 'message_recipient',
   DOMAIN_ROUTING_HOOK = 'domain_routing_hook',
@@ -91,6 +93,17 @@ export function getStarknetMailboxContract(
 ): Contract {
   return getStarknetContract(
     StarknetContractName.MAILBOX,
+    address,
+    providerOrAccount,
+  );
+}
+
+export function getStarknetMailboxClientContract(
+  address: string,
+  providerOrAccount?: ProviderInterface | AccountInterface,
+): Contract {
+  return getStarknetContract(
+    StarknetContractName.MAILBOX_CLIENT,
     address,
     providerOrAccount,
   );

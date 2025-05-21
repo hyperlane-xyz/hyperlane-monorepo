@@ -13,7 +13,7 @@ import {
   MailboxClientConfig,
   RemoteRouters,
 } from '../router/types.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 import {
   getStarknetHypERC20CollateralContract,
   getStarknetHypERC20Contract,
@@ -36,7 +36,7 @@ export class StarknetERC20WarpRouteReader {
 
   constructor(
     protected readonly multiProvider: MultiProtocolProvider,
-    protected readonly chain: ChainName,
+    protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = multiProvider.getStarknetProvider(chain);

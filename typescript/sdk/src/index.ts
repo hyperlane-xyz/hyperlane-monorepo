@@ -745,6 +745,7 @@ export {
   getStarknetEtherContract,
   getStarknetIsmContract,
 } from './utils/starknet.js';
+export { StarknetERC20WarpUpdateModule } from './token/StarknetERC20WarpUpdateModule.js';
 export { MessageBus } from './bus/MessageBus.js';
 export { EvmAdapter } from './bus/adapters/EvmAdapter.js';
 export {
