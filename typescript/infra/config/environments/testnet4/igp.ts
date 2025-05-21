@@ -1,5 +1,11 @@
-import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
-import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainName,
+  HookType,
+  IgpConfig,
+  StorageGasOracleConfig,
+} from '@hyperlane-xyz/sdk';
+import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -15,8 +21,26 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
+const romeTestnetConnectedChains = [
+  'sepolia',
+  'arbitrumsepolia',
+  'basesepolia',
+  'optimismsepolia',
+  'bsctestnet',
+];
+
 function getOracleConfigWithOverrides(origin: ChainName) {
-  const oracleConfig = storageGasOracleConfig[origin];
+  let oracleConfig = storageGasOracleConfig[origin];
+
+  // Special case for rometestnet due to non-standard gas metering.
+  if (origin === 'rometestnet') {
+    oracleConfig = objFilter(
+      storageGasOracleConfig[origin],
+      (remoteChain, _): _ is StorageGasOracleConfig =>
+        romeTestnetConnectedChains.includes(remoteChain),
+    );
+  }
+
   if (origin === 'infinityvmmonza') {
     // For InfinityVM Monza, override all remote chain gas configs to use 0 gas
     for (const remoteConfig of Object.values(oracleConfig)) {
@@ -49,10 +73,18 @@ export const igp: ChainMap<IgpConfig> = objMap(
       beneficiary: ownerConfig.owner as Address,
       oracleConfig: getOracleConfigWithOverrides(chain),
       overhead: Object.fromEntries(
-        exclude(chain, supportedChainNames).map((remote) => [
-          remote,
-          getOverhead(chain, remote, ethereumChainNames),
-        ]),
+        // no need to set overhead for chain to itself
+        exclude(chain, supportedChainNames)
+          // Special case for rometestnet due to non-standard gas metering.
+          .filter(
+            (remote) =>
+              chain !== 'rometestnet' ||
+              romeTestnetConnectedChains.includes(remote),
+          )
+          .map((remote) => [
+            remote,
+            getOverhead(chain, remote, ethereumChainNames),
+          ]),
       ),
     };
   },

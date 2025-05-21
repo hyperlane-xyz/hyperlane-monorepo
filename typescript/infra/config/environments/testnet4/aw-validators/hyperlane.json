@@ -147,5 +147,11 @@
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
+  },
+  "rometestnet": {
+    "validators": ["0x259eec09dd54c34043bc991f1aae014294235b8e"]
+  },
+  "neuratestnet": {
+    "validators": ["0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d"]
   }
 }

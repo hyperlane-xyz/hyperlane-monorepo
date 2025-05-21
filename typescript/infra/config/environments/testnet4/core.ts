@@ -31,10 +31,21 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
+    // Special case for rometestnet due to non-standard gas metering.
+    const connectedChains =
+      local === 'rometestnet'
+        ? [
+            'sepolia',
+            'arbitrumsepolia',
+            'basesepolia',
+            'optimismsepolia',
+            'bsctestnet',
+          ]
+        : supportedChainNames.filter((chain) => chain !== local);
+
+    // Create a map of connected chains to their default multisig configs
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
-      supportedChainNames
-        .filter((chain) => chain !== local)
-        .map((origin) => [origin, defaultMultisigConfigs[origin]]),
+      connectedChains.map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
     const isZksyncChain =
