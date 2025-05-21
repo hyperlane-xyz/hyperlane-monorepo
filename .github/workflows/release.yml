@@ -20,8 +20,6 @@ jobs:
   # This job prepares the release by creating or updating a release PR.
   # Notice the omission of the `publish` flag in the changesets action.
   prepare-release:
-    outputs:
-      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     permissions:
       id-token: write
       contents: write
@@ -53,15 +51,52 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # The release PR removes individual changesets to prepare for a release.
-  # This means that once the release PR is merged, there are no changesets left.
-  # When there are no changesets left, we can run the cli-install-cross-platform-release-test
-  # workflow to verify that the CLI installs correctly on all platforms.
+  check-latest-published:
+    runs-on: ubuntu-latest
+    outputs:
+      all_latest: ${{ steps.check.outputs.all_latest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve package versions
+        id: pkg
+        run: |
+          versions=$(find . -name 'package.json' -exec jq -r '.name + "@" + .version' {} \;)
+          echo "$versions" > versions.txt
+
+      - name: Fetch latest published versions from npm
+        id: npm
+        run: |
+          latest=""
+          while read -r pkg; do
+            name=$(echo "$pkg" | cut -d'@' -f1)
+            latest_version=$(npm view "$name" version 2>/dev/null || echo "N/A")
+            latest="$latest $name@$latest_version"
+          done < versions.txt
+          echo "$latest" > latest_versions.txt
+
+      - name: Compare package versions
+        id: check
+        run: |
+          all_latest=true
+          while read -r pkg; do
+            name=$(echo "$pkg" | cut -d'@' -f1)
+            version=$(echo "$pkg" | cut -d'@' -f2)
+            latest=$(grep -o "$name@[^ ]*" latest_versions.txt | cut -d'@' -f2)
+            if [ "$version" != "$latest" ]; then
+              all_latest=false
+              break
+            fi
+          done < versions.txt
+          echo "all_latest=$all_latest" >> $GITHUB_OUTPUT
+
+  # If we detect that not all packages are published, we run the
+  # cli-install-cross-platform-release-test workflow to verify that the CLI installs correctly on all platforms.
   # In all other cases, we already have a barebones `cli-install` test on the default CI platform
   # which will catch most issues before any offending PR is merged.
   cli-install-cross-platform-release-test:
-    needs: prepare-release
-    if: needs.prepare-release.outputs.hasChangesets == 'false'
+    needs: [check-latest-published]
+    if: needs.check-latest-published.outputs.all_latest == 'false'
     strategy:
       matrix:
         os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022]
