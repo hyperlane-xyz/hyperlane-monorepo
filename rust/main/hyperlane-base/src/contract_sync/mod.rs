@@ -3,7 +3,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;

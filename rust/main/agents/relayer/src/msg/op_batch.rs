@@ -169,13 +169,12 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{
-                dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
-            },
+            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
         },
+        test_utils::dummy_data::dummy_submission_metrics,
     };
     use ethers::utils::hex;
     use hyperlane_base::{
@@ -387,6 +386,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

@@ -40,7 +40,7 @@ use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 const TX_TIMEOUT_BLOCKS: u32 = 100;
 
 #[derive(Debug)]
-struct CosmosHttpClient {
+pub(crate) struct CosmosHttpClient {
     client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
@@ -103,7 +103,7 @@ impl CosmosHttpClient {
 
         let client = HttpClient::builder(url)
             // Consider supporting different compatibility modes.
-            .compat_mode(CompatMode::latest())
+            .compat_mode(CompatMode::V0_37)
             .build()
             .map_err(Box::new)
             .map_err(ChainCommunicationError::from_other)?;
@@ -161,6 +161,22 @@ impl RpcProvider {
             signer,
             gas_price,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_providers(
+        provider: Vec<CosmosHttpClient>,
+        conf: ConnectionConf,
+        signer: Option<Signer>,
+        gas_price: CosmosAmount,
+    ) -> Self {
+        let provider = FallbackProvider::new(provider);
+        RpcProvider {
+            provider,
+            conf,
+            signer,
+            gas_price,
+        }
     }
 
     async fn track_metric_call<F, Fut, T>(

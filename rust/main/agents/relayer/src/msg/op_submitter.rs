@@ -26,7 +26,7 @@ use submitter::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::MessageRetryRequest;
+use crate::server::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
@@ -171,20 +171,14 @@ impl SerialSubmitter {
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
-        let prepare_task = match &entrypoint {
-            None => self.create_classic_prepare_task(),
-            Some(entrypoint) => self.create_lander_prepare_task(entrypoint.clone()),
-        };
+        let prepare_task = self.create_classic_prepare_task();
 
         let submit_task = match &entrypoint {
             None => self.create_classic_submit_task(),
             Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = match &entrypoint {
-            None => self.create_classic_confirm_task(),
-            Some(entrypoint) => self.create_lander_confirm_task(entrypoint.clone()),
-        };
+        let confirm_task = self.create_classic_confirm_task();
 
         let tasks = [
             self.create_receive_task(rx_prepare),
@@ -270,6 +264,7 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    #[allow(unused)]
     fn create_lander_prepare_task(
         &self,
         entrypoint: Arc<PayloadDispatcherEntrypoint>,
@@ -317,6 +312,7 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    #[allow(unused)]
     fn create_lander_confirm_task(
         &self,
         entrypoint: Arc<PayloadDispatcherEntrypoint>,
@@ -661,6 +657,16 @@ async fn submit_via_lander(
         }
     };
 
+    let operation_success_criteria = match op.success_criteria() {
+        Ok(s) => s,
+        Err(e) => {
+            let reason = ReprepareReason::ErrorCreatingPayloadSuccessCriteria;
+            let msg = "Error creating payload success criteria";
+            prepare_op(op, prepare_queue, e, msg, reason).await;
+            return;
+        }
+    };
+
     let message_id = op.id();
     let metadata = format!("{message_id:?}");
     let mailbox = op
@@ -668,7 +674,13 @@ async fn submit_via_lander(
         .expect("Operation should contain Mailbox address")
         .address();
     let payload_id = PayloadId::random();
-    let payload = FullPayload::new(payload_id, metadata, operation_payload, mailbox);
+    let payload = FullPayload::new(
+        payload_id,
+        metadata,
+        operation_payload,
+        operation_success_criteria,
+        mailbox,
+    );
 
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;

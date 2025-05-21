@@ -70,7 +70,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
         Ok(match conf {
             SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
                 ethers::core::k256::ecdsa::SigningKey::from(
-                    ethers::core::k256::SecretKey::from_slice(key.as_bytes())
+                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
                         .context("Invalid ethereum signer key")?,
                 ),
             )),

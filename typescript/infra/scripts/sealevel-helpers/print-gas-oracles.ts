@@ -101,8 +101,20 @@ function getChainConnections(
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvm'],
+      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
+      ['solanamainnet', 'abstract'],
+      ['solanamainnet', 'apechain'],
+      // for svmBNB routes solana<>bsc<>svmbnb<>soon
+      ['solanamainnet', 'bsc'],
+      ['svmbnb', 'solanamainnet'],
+      ['svmbnb', 'bsc'],
+      ['svmbnb', 'soon'],
+      ['soon', 'solanamainnet'],
+      ['soon', 'bsc'],
+      // for eclipse routes
+      ['eclipsemainnet', 'sonicsvm'],
+      ['eclipsemainnet', 'soon'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];

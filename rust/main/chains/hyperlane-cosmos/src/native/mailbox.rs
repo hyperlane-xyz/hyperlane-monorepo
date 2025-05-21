@@ -176,4 +176,8 @@ impl Mailbox for CosmosNativeMailbox {
     ) -> ChainResult<Vec<u8>> {
         todo!() // we dont need this for now
     }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
+    }
 }

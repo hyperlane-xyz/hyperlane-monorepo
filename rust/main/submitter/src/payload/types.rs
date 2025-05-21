@@ -2,10 +2,8 @@
 #![allow(dead_code)]
 
 use std::fmt::Debug;
-use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
@@ -15,7 +13,7 @@ pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
     pub id: PayloadId,
@@ -25,15 +23,28 @@ pub struct PayloadDetails {
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    pub success_criteria: Option<(Vec<u8>, Address)>,
+    pub success_criteria: Option<Vec<u8>>,
+}
+
+impl Debug for PayloadDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PayloadDetails")
+            .field("id", &self.id)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl PayloadDetails {
-    pub fn new(id: PayloadId, metadata: impl Into<String>) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        success_criteria: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             id,
             metadata: metadata.into(),
-            success_criteria: None,
+            success_criteria,
         }
     }
 }
@@ -71,9 +82,15 @@ impl Debug for FullPayload {
 }
 
 impl FullPayload {
-    pub fn new(id: PayloadId, metadata: impl Into<String>, data: Vec<u8>, to: Address) -> Self {
+    pub fn new(
+        id: PayloadId,
+        metadata: impl Into<String>,
+        data: Vec<u8>,
+        success_criteria: Option<Vec<u8>>,
+        to: Address,
+    ) -> Self {
         Self {
-            details: PayloadDetails::new(id, metadata),
+            details: PayloadDetails::new(id, metadata, success_criteria),
             data,
             to,
             status: Default::default(),

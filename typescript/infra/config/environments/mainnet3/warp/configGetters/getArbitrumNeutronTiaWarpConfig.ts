@@ -21,6 +21,7 @@ export const getArbitrumNeutronTiaWarpConfig = async (
     token:
       'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
     foreignDeployment: neutronRouter,
+    gas: 600000,
   };
 
   const arbitrum: HypTokenRouterConfig = {
