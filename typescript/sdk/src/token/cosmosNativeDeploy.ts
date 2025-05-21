@@ -1,5 +1,5 @@
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { assert, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -15,6 +15,7 @@ export class CosmosNativeDeployer {
 
   async deploy(
     configMap: WarpRouteDeployConfigMailboxRequired,
+    nonCosmosNativeConfigMap: WarpRouteDeployConfigMailboxRequired,
   ): Promise<ChainMap<{ [x: string]: { address: string } }>> {
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       gas: gasOverhead(config.type),
@@ -24,8 +25,13 @@ export class CosmosNativeDeployer {
     let result: ChainMap<{ [x: string]: { address: string } }> = {};
     let token_id = '';
 
-    for (const chain of Object.keys(resolvedConfigMap)) {
-      const config = resolvedConfigMap[chain];
+    const configMapToDeploy = objFilter(
+      resolvedConfigMap,
+      (_, config: any): config is any => !config.foreignDeployment,
+    );
+
+    for (const chain of Object.keys(configMapToDeploy)) {
+      const config = configMapToDeploy[chain];
 
       switch (config.type) {
         case TokenType.collateral: {
@@ -74,6 +80,29 @@ export class CosmosNativeDeployer {
           },
         });
       }
+    }
+
+    const allChains = Object.keys(
+      objMerge(configMap, nonCosmosNativeConfigMap),
+    );
+
+    for (const chain of Object.keys(configMapToDeploy)) {
+      const allRemoteChains = this.multiProvider
+        .getRemoteChains(chain)
+        .filter((c) => allChains.includes(c));
+
+      const { remote_routers } = await this.signersMap[
+        chain
+      ].query.warp.RemoteRouters({ id: '' });
+
+      const enrollEntries = await Promise.all(
+        allRemoteChains.map(async (remote) => {
+          const remoteDomain = this.multiProvider.getDomainId(remote);
+          const current = await this.router(contracts).routers(remoteDomain);
+          const expected = addressToBytes32(allRouters[remote]);
+          return current !== expected ? [remoteDomain, expected] : undefined;
+        }),
+      );
     }
 
     return result;
