@@ -219,6 +219,7 @@ async function executeDeploy(
       ? new HypERC721Deployer(multiProvider)
       : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
+    // TODO: enroll non-evm routes
     const evmContracts = await deployer.deploy(modifiedConfig);
     deployedContracts = { ...deployedContracts, ...evmContracts };
   }
@@ -229,8 +230,17 @@ async function executeDeploy(
       (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
     );
 
+    const nonCosmosNativeConfig = objFilter(
+      modifiedConfig,
+      (chain, _): _ is any =>
+        multiProvider.getProtocol(chain) !== ProtocolType.CosmosNative,
+    );
+
     const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
-    const cosmosNativeContracts = await deployer.deploy(cosmosNativeConfig);
+    const cosmosNativeContracts = await deployer.deploy(
+      cosmosNativeConfig,
+      nonCosmosNativeConfig,
+    );
 
     deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
   }
@@ -478,7 +488,7 @@ async function getWarpCoreConfig(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -525,7 +535,10 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+function fullyConnectTokens(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -536,7 +549,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
       token1.connections ||= [];
       token1.connections.push({
         token: getTokenConnectionId(
-          ProtocolType.Ethereum,
+          multiProvider.getProtocol(token2.chainName),
           token2.chainName,
           token2.addressOrDenom!,
         ),

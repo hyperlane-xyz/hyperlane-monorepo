@@ -1,5 +1,7 @@
+import { Logger } from 'pino';
+
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { assert, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { objFilter, objMap, objMerge, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -8,10 +10,14 @@ import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
 export class CosmosNativeDeployer {
+  protected logger: Logger;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly signersMap: ChainMap<SigningHyperlaneModuleClient>,
-  ) {}
+  ) {
+    this.logger = rootLogger.child({ module: 'deployer' });
+  }
 
   async deploy(
     configMap: WarpRouteDeployConfigMailboxRequired,
@@ -30,8 +36,15 @@ export class CosmosNativeDeployer {
       (_, config: any): config is any => !config.foreignDeployment,
     );
 
+    const allChains = Object.keys(
+      objMerge(configMap, nonCosmosNativeConfigMap),
+    );
+
     for (const chain of Object.keys(configMapToDeploy)) {
       const config = configMapToDeploy[chain];
+      this.logger.info(
+        `Deploying ${config.type} token to Cosmos Native chain ${chain}`,
+      );
 
       switch (config.type) {
         case TokenType.collateral: {
@@ -68,41 +81,38 @@ export class CosmosNativeDeployer {
         }
       }
 
-      for (const domainId of Object.keys(config.remoteRouters || {})) {
-        assert(config.remoteRouters, ``);
-
-        await this.signersMap[chain].enrollRemoteRouter({
-          token_id,
-          remote_router: {
-            receiver_domain: parseInt(domainId),
-            receiver_contract: (config.remoteRouters || {})[domainId].address,
-            gas: (config.destinationGas || {})[domainId] ?? '0',
-          },
-        });
-      }
-    }
-
-    const allChains = Object.keys(
-      objMerge(configMap, nonCosmosNativeConfigMap),
-    );
-
-    for (const chain of Object.keys(configMapToDeploy)) {
       const allRemoteChains = this.multiProvider
         .getRemoteChains(chain)
         .filter((c) => allChains.includes(c));
 
       const { remote_routers } = await this.signersMap[
         chain
-      ].query.warp.RemoteRouters({ id: '' });
+      ].query.warp.RemoteRouters({ id: token_id });
 
-      const enrollEntries = await Promise.all(
-        allRemoteChains.map(async (remote) => {
-          const remoteDomain = this.multiProvider.getDomainId(remote);
-          const current = await this.router(contracts).routers(remoteDomain);
-          const expected = addressToBytes32(allRouters[remote]);
-          return current !== expected ? [remoteDomain, expected] : undefined;
-        }),
-      );
+      for (const remote of allRemoteChains) {
+        const remoteDomain = this.multiProvider.getDomainId(remote);
+        const isRouteAlreadyDeployed = remote_routers.some(
+          (r) => r.receiver_domain === remoteDomain,
+        );
+
+        // only enroll routes which are not enrolled yet
+        if (isRouteAlreadyDeployed) {
+          this.logger.info(
+            `Router for remote domain already enrolled ${remoteDomain}`,
+          );
+          continue;
+        }
+
+        this.logger.info(`Enrolling remote router for domain ${remoteDomain}`);
+        await this.signersMap[chain].enrollRemoteRouter({
+          token_id,
+          remote_router: {
+            receiver_domain: remoteDomain,
+            receiver_contract: token_id,
+            gas: '0',
+          },
+        });
+      }
     }
 
     return result;
