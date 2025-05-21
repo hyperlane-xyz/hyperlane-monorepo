@@ -11,6 +11,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -302,7 +303,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     }
 
     // Update ownership
-    if (actual.owner !== expected.owner) {
+    if (!eqAddress(actual.owner, expected.owner)) {
       updateTxs.push({
         annotation: `Transferring ownership of ISM from ${
           actual.owner
