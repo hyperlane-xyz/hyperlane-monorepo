@@ -29,6 +29,17 @@ const romeTestnetConnectedChains = [
   'bsctestnet',
 ];
 
+export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
+  let overhead = getOverhead(local, remote, ethereumChainNames);
+
+  // Special case for rometestnet due to non-standard gas metering.
+  if (remote === 'rometestnet') {
+    overhead *= 12;
+  }
+
+  return overhead;
+}
+
 function getOracleConfigWithOverrides(origin: ChainName) {
   let oracleConfig = storageGasOracleConfig[origin];
 
@@ -59,7 +70,7 @@ export const storageGasOracleConfig: AllStorageGasOracleConfigs =
     supportedChainNames,
     tokenPrices,
     gasPrices,
-    (local, remote) => getOverhead(local, remote, ethereumChainNames),
+    (local, remote) => getOverheadWithOverrides(local, remote),
     false,
   );
 
@@ -81,10 +92,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
               chain !== 'rometestnet' ||
               romeTestnetConnectedChains.includes(remote),
           )
-          .map((remote) => [
-            remote,
-            getOverhead(chain, remote, ethereumChainNames),
-          ]),
+          .map((remote) => [remote, getOverheadWithOverrides(chain, remote)]),
       ),
     };
   },
