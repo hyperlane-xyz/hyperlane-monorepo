@@ -149,7 +149,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         true,
         toWei(10),
       ),
-      sleep(1000).then(() =>
+      sleep(2000).then(() =>
         hyperlaneWarpSendRelay(
           CHAIN_NAME_3,
           CHAIN_NAME_4,
@@ -742,7 +742,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
     await originContract.addRecipient(
       destDomain,
-      addressToBytes32(originContractAddress),
+      addressToBytes32(destContractAddress),
     );
 
     // Deploy the bridge
@@ -850,6 +850,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw when the semaphore timer has not expired', async () => {
     const wccTokens = warpCoreConfig.tokens;
     const originContractAddress = wccTokens[1].addressOrDenom!;
+    const destContractAddress = wccTokens[0].addressOrDenom!;
     const destDomain = chain2Metadata.domainId;
     const originRpc = chain3Metadata.rpcUrls[0].http;
 
@@ -868,7 +869,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     await originContract.addRecipient(
       destDomain,
-      addressToBytes32(originContractAddress),
+      addressToBytes32(destContractAddress),
     );
 
     // --- Deploy the bridge ---
@@ -1103,7 +1104,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         [
           'Rebalancer started successfully 🚀',
           'Found 1 rebalancing route(s) using WeightedStrategy',
-          'Populating rebalance transaction: domain=31347, amount=5000000000000000000, bridge=0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
+          `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5000000000000000000, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
           '✅ Rebalance successful',
           'Found 0 rebalancing route(s) using WeightedStrategy.',
           'No routes to execute',
@@ -1156,7 +1157,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
       await originContract.addRecipient(
         destDomain,
-        addressToBytes32(originContractAddress),
+        addressToBytes32(destContractAddress),
       );
 
       // Deploy the bridge
@@ -1391,8 +1392,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         await startRebalancerAndExpectLog(
           [
             'Rebalance initiated with 1 route(s)',
-            'Populating rebalance transaction: domain=31347, amount=5000000000000000000, bridge=0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
-            'Route result - Origin: anvil2, Destination: anvil3, Amount: 5000000000000000000',
+            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5000000000000000000, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
+            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: 5000000000000000000`,
             '✅ Rebalance successful',
           ],
           {
