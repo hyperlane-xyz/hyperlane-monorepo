@@ -21,27 +21,22 @@ import "./AbstractCcipReadIsm.sol";
  */
 contract TestCcipReadIsm is AbstractCcipReadIsm {
     string[] public urls;
-    bytes public calldataToReturn = bytes("callDataToReturn");
 
     constructor(string[] memory _urls) {
         urls = _urls;
     }
 
-    function getOffchainVerifyInfo(bytes calldata) external view override {
+    function getOffchainVerifyInfo(
+        bytes calldata _message
+    ) external view override {
         // Revert with OffchainLookup to instruct off-chain resolution
-        revert OffchainLookup(
-            address(this),
-            urls,
-            calldataToReturn,
-            bytes4(0),
-            ""
-        );
+        revert OffchainLookup(address(this), urls, _message, bytes4(0), "");
     }
 
     function verify(
         bytes calldata metadata,
         bytes calldata
-    ) external pure override returns (bool) {
+    ) external view override returns (bool) {
         bool ok = abi.decode(metadata, (bool));
         require(ok, "TestCcipReadIsm: invalid metadata");
         return true;

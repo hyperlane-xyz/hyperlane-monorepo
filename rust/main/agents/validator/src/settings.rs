@@ -336,7 +336,7 @@ mod test {
 
     #[test]
     fn test_get_rpc_urls_explicit() {
-        let expected = [
+        let expected = vec![
             RpcConfig {
                 url: "http://my-rpc-url.com".to_string(),
                 public: true,
@@ -393,9 +393,9 @@ mod test {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url.com");
-        assert!(!parsed[0].public);
+        assert_eq!(parsed[0].public, false);
         assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
-        assert!(!parsed[1].public);
+        assert_eq!(parsed[1].public, false);
     }
 
     #[test]
@@ -421,8 +421,8 @@ mod test {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
-        assert!(!parsed[0].public);
+        assert_eq!(parsed[0].public, false);
         assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
-        assert!(!parsed[1].public);
+        assert_eq!(parsed[1].public, false);
     }
 }

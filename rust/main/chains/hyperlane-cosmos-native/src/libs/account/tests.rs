@@ -59,14 +59,14 @@ fn test_ethereum_style() {
 fn compressed_public_key() -> PublicKey {
     let hex = hex::decode(COMPRESSED_PUBLIC_KEY).unwrap();
     let tendermint = tendermint::PublicKey::from_raw_secp256k1(&hex).unwrap();
-
-    PublicKey::from(tendermint)
+    let pub_key = PublicKey::from(tendermint);
+    pub_key
 }
 
 fn decompressed_public_key() -> PublicKey {
     let hex = hex::decode(COMPRESSED_PUBLIC_KEY).unwrap();
     let decompressed = decompress_public_key(&hex).unwrap();
     let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed).unwrap();
-
-    PublicKey::from(tendermint)
+    let pub_key = PublicKey::from(tendermint);
+    pub_key
 }
