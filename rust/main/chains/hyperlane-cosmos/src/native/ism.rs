@@ -28,7 +28,7 @@ pub struct CosmosNativeIsm {
     /// The address of the ISM contract.
     address: H256,
     /// The provider for the ISM contract.
-    provider: Box<CosmosProvider<ModuleQueryClient>>,
+    provider: CosmosProvider<ModuleQueryClient>,
 }
 
 /// The Cosmos Interchain Security Module Implementation.
@@ -41,7 +41,7 @@ impl CosmosNativeIsm {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
-            provider: Box::new(provider),
+            provider,
         })
     }
 
@@ -71,7 +71,7 @@ impl HyperlaneChain for CosmosNativeIsm {
 
     /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.clone()
+        Box::new(self.provider.clone())
     }
 }
 

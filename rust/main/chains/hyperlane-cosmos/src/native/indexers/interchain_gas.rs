@@ -18,7 +18,7 @@ use crate::{
 
 use crate::indexer::{CosmosEventIndexer, ParsedEvent};
 
-/// delivery indexer to check if a message was delivered
+/// Interchain Gas Payment Indexer
 #[derive(Debug, Clone)]
 pub struct CosmosNativeInterchainGas {
     address: H256,

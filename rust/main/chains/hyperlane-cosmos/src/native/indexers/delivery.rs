@@ -17,7 +17,7 @@ use crate::{
 
 use crate::indexer::{CosmosEventIndexer, ParsedEvent};
 
-/// delivery indexer to check if a message was delivered
+/// Delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
 pub struct CosmosNativeDeliveryIndexer {
     provider: CosmosProvider<ModuleQueryClient>,

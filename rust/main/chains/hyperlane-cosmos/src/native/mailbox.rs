@@ -78,7 +78,7 @@ impl HyperlaneContract for CosmosNativeMailbox {
 
 #[async_trait]
 impl Mailbox for CosmosNativeMailbox {
-    /// Gets the current leaf count of the merkle tree
+    /// Gets the current mailbox dispatch count
     ///
     /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.

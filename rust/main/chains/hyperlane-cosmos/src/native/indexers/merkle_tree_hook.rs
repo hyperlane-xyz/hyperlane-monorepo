@@ -26,7 +26,7 @@ use crate::{
 
 use crate::indexer::{CosmosEventIndexer, ParsedEvent};
 
-/// delivery indexer to check if a message was delivered
+/// Merkle Tree Hook Indexer
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMerkleTreeHook {
     provider: CosmosProvider<ModuleQueryClient>,

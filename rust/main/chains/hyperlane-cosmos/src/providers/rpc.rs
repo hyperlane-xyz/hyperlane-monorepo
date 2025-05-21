@@ -37,7 +37,7 @@ use hyperlane_metric::prometheus_metric::{
 
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
-const TX_TIEMOUT_BLOCKS: u32 = 100;
+const TX_TIMEOUT_BLOCKS: u32 = 100;
 
 #[derive(Debug)]
 struct CosmosHttpClient {
@@ -341,7 +341,7 @@ impl RpcProvider {
 
         let current_height = self.get_block_number().await? as u32;
 
-        let tx_body = tx::Body::new(msgs, String::default(), current_height + TX_TIEMOUT_BLOCKS);
+        let tx_body = tx::Body::new(msgs, String::default(), current_height + TX_TIMEOUT_BLOCKS);
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
         let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
