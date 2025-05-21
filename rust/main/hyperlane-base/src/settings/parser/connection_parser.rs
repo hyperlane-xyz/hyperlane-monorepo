@@ -1,4 +1,5 @@
 use eyre::eyre;
+use hyperlane_ethereum::{RpcConnectionConf, RpcConsensusConf};
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
@@ -25,14 +26,21 @@ pub fn build_ethereum_connection_conf(
     let Some(first_url) = rpcs.to_owned().clone().into_iter().next() else {
         return None;
     };
-    let rpc_consensus_type = chain
+    let (rpc_consensus_type, default_rpc_consensus_used) = match chain
         .chain(err)
         .get_opt_key("rpcConsensusType")
         .parse_string()
-        .unwrap_or(default_rpc_consensus_type);
+        .end()
+    {
+        Some(consensus) => (consensus, false),
+        None => (default_rpc_consensus_type, true),
+    };
 
     let rpc_connection_conf = match rpc_consensus_type {
-        "single" => Some(h_eth::RpcConnectionConf::Http { url: first_url }),
+        "single" => Some(h_eth::RpcConnectionConf {
+            consensus_conf: RpcConsensusConf::Http { url: first_url },
+            used_default: default_rpc_consensus_used,
+        }),
         "fallback" => Some(h_eth::RpcConnectionConf::HttpFallback {
             urls: rpcs.to_owned().clone(),
         }),
@@ -116,7 +124,10 @@ pub fn build_ethereum_connection_conf(
         .unwrap_or_default();
 
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
-        rpc_connection: rpc_connection_conf?,
+        rpc_connection: RpcConnectionConf {
+            consensus_conf: rpc_connection_conf?,
+            used_default: default_rpc_consensus_used,
+        },
         transaction_overrides,
         op_submission_config: operation_batch,
     }))

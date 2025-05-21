@@ -3,11 +3,12 @@ use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
 };
+use tracing::info;
 use url::Url;
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
-pub enum RpcConnectionConf {
+pub enum RpcConsensusConf {
     /// An HTTP-only quorum.
     HttpQuorum {
         /// List of urls to connect to
@@ -30,6 +31,15 @@ pub enum RpcConnectionConf {
     },
 }
 
+#[derive(Debug, Clone)]
+/// Ethereum RPC connection configuration
+pub struct RpcConnectionConf {
+    /// RPC connection URLs and consensus configuration
+    pub consensus_conf: RpcConsensusConf,
+    /// Whether the default consensus was used
+    pub used_default: bool,
+}
+
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
@@ -39,6 +49,19 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
+}
+
+impl ConnectionConf {
+    /// switches the RPC connection to a quorum connection
+    pub fn switch_to_quorum_if_default_consensus_used(&mut self) {
+        if let RpcConsensusConf::HttpFallback { urls } = &self.rpc_connection.consensus_conf {
+            info!("Validator has Switching to HTTP quorum connection");
+            self.rpc_connection = RpcConnectionConf {
+                consensus_conf: RpcConsensusConf::HttpQuorum { urls: urls.clone() },
+                used_default: false,
+            };
+        }
+    }
 }
 
 /// Ethereum transaction overrides.

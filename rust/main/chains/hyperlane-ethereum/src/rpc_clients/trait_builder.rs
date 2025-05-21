@@ -34,7 +34,9 @@ use tracing::instrument;
 
 use crate::signer::Signers;
 use crate::tx::PENDING_TX_TIMEOUT_SECS;
-use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
+use crate::{
+    ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf, RpcConsensusConf,
+};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -83,8 +85,8 @@ pub trait BuildableWithProvider {
         client_metrics: Option<PrometheusClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
-        Ok(match &conn.rpc_connection {
-            RpcConnectionConf::HttpQuorum { urls } => {
+        Ok(match &conn.rpc_connection.consensus_conf {
+            RpcConsensusConf::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 for url in urls {
                     let http_provider = build_http_provider(url.clone())?;
@@ -111,7 +113,7 @@ pub trait BuildableWithProvider {
                 let quorum_provider = builder.build();
                 self.build(quorum_provider, conn, locator, signer).await?
             }
-            RpcConnectionConf::HttpFallback { urls } => {
+            RpcConsensusConf::HttpFallback { urls } => {
                 let mut builder = FallbackProvider::builder();
                 for url in urls {
                     let http_provider = build_http_provider(url.clone())?;
@@ -131,7 +133,7 @@ pub trait BuildableWithProvider {
                 self.build(ethereum_fallback_provider, conn, locator, signer)
                     .await?
             }
-            RpcConnectionConf::Http { url } => {
+            RpcConsensusConf::Http { url } => {
                 let http_provider = build_http_provider(url.clone())?;
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
@@ -143,7 +145,7 @@ pub trait BuildableWithProvider {
                 self.build(retrying_http_provider, conn, locator, signer)
                     .await?
             }
-            RpcConnectionConf::Ws { url } => {
+            RpcConsensusConf::Ws { url } => {
                 let ws = Ws::connect(url)
                     .await
                     .map_err(EthereumProviderConnectionError::from)?;

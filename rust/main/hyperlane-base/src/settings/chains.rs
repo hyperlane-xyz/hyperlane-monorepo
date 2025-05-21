@@ -192,6 +192,12 @@ impl ChainConnectionConf {
             _ => None,
         }
     }
+
+    pub fn switch_to_quorum_if_default_consensus_used(&mut self) {
+        if let Self::Ethereum(conf) = self {
+            conf.switch_to_quorum_if_default_consensus_used();
+        }
+    }
 }
 
 /// Addresses for mailbox chain contracts

@@ -163,6 +163,10 @@ impl BaseAgent for Validator {
             )
             .await?;
 
+        origin_chain_conf
+            .connection
+            .switch_to_quorum_if_default_consensus_used();
+
         Ok(Self {
             origin_chain: settings.origin_chain,
             origin_chain_conf,
