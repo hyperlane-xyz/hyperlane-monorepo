@@ -76,7 +76,7 @@ export class OPStackService {
       ),
     );
 
-    // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
+    // CCIP-read spec: GET /getFinalizeWithdrawalTx/:sender/:callData.json
     this.router.get(
       '/getFinalizeWithdrawalTx/:sender/:callData.json',
       createAbiHandler(
