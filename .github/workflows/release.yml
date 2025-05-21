@@ -61,28 +61,28 @@ jobs:
       - name: Retrieve package versions
         id: pkg
         run: |
-          versions=$(find . -name 'package.json' -exec jq -r 'select(.private != true) | .name + "@" + .version' {} \;)
-          echo "$versions" | tee versions.txt
+          find . -name 'package.json' -print0 | while IFS= read -r -d '' pkg; do
+            jq -r 'select(.private != true) | .name + "@" + .version' "$pkg"
+          done | tee versions.txt
 
       - name: Compare package versions
         id: check
         run: |
           all_latest=true
           while read -r pkg; do
-            name=$(echo "$pkg" | cut -d'@' -f1)
-            version=$(echo "$pkg" | cut -d'@' -f2)
-            echo "Checking if $name@$version is published..."
-            exists=$(npm view "$name@$version" version 2>/dev/null || echo "N/A")
+            echo "Checking if $pkg is published..."
+            exists=$(npm view "$pkg" version 2>/dev/null || echo "N/A")
             echo "npm returned: $exists"
             if [ "$exists" = "N/A" ]; then
-              echo "$name@$version is NOT published."
+              echo "$pkg is NOT published."
               all_latest=false
               break
             else
-              echo "$name@$version is published."
+              echo "$pkg is published."
             fi
           done < versions.txt
           echo "all_latest=$all_latest" >> $GITHUB_OUTPUT
+
   # If we detect that not all packages are published, we run the
   # cli-install-cross-platform-release-test workflow to verify that the CLI installs correctly on all platforms.
   # In all other cases, we already have a barebones `cli-install` test on the default CI platform
