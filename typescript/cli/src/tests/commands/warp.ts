@@ -48,13 +48,13 @@ export function hyperlaneWarpDeployRaw({
   privateKey?: string;
 }): ProcessPromise {
   return $`${
-    hypKey ? ['HYP_KEY=' + hypKey] : ''
+    hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--config', warpCorePath] : ''} \
-        ${privateKey ? ['--key', privateKey] : ''} \
+        ${warpCorePath ? ['--config', warpCorePath] : []} \
+        ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+        ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
 /**
@@ -99,11 +99,11 @@ export function hyperlaneWarpReadRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp read \
         --registry ${REGISTRY_PATH} \
-        ${warpAddress ? ['--address', warpAddress] : ''} \
-        ${chain ? ['--chain', chain] : ''} \
-        ${symbol ? ['--symbol', symbol] : ''} \
+        ${warpAddress ? ['--address', warpAddress] : []} \
+        ${chain ? ['--chain', chain] : []} \
+        ${symbol ? ['--symbol', symbol] : []} \
         --verbosity debug \
-        ${outputPath ? ['--config', outputPath] : ''}`;
+        ${outputPath ? ['--config', outputPath] : []}`;
 }
 
 export function hyperlaneWarpRead(
@@ -131,11 +131,11 @@ export function hyperlaneWarpCheckRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
-        ${symbol ? ['--symbol', symbol] : ''} \
+        ${symbol ? ['--symbol', symbol] : []} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
-        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : ''} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''}`;
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
 }
 
 export function hyperlaneWarpCheck(
@@ -158,7 +158,7 @@ export function hyperlaneWarpSendRelay(
   value = 1,
 ): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
-        ${relay ? '--relay' : ''} \
+        ${relay ? '--relay' : []} \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
