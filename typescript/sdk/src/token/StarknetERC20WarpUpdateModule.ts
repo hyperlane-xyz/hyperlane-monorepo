@@ -73,9 +73,9 @@ export class StarknetERC20WarpUpdateModule {
       this.chain,
     );
     this.chainName = this.multiProvider.getChainName(this.chain);
-    this.chainId = this.multiProvider.getEvmChainId(this.chain);
+    this.chainId = this.multiProvider.getChainId(this.chain);
     this.domainId = this.multiProvider.getDomainId(this.chain);
-    this.chainId = this.multiProvider.getEvmChainId(this.chain);
+    this.chainId = this.multiProvider.getChainId(this.chain);
     this.args = args ?? undefined;
   }
 

@@ -688,6 +688,14 @@ async function updateExistingWarpRoute(
             multiProtocolProvider,
             expandedWarpDeployConfig,
             chain,
+            {
+              config: configWithMailbox,
+              chain,
+              addresses: {
+                deployedTokenRoute,
+                ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]), // should be address zero
+              },
+            },
           );
           transactions.push(
             ...(await starknetERC20WarpModule.update(configWithMailbox)),
