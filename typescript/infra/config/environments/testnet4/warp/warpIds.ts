@@ -1,3 +1,3 @@
 export enum WarpRouteIds {
-  RebalancerTestnet = 'USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia',
+  RebalancerTestnet = 'USDC/arbitrumsepolia-basesepolia-modetestnet-optimismsepolia-sepolia',
 }
