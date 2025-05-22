@@ -50,11 +50,11 @@ export class MultiProtocolSignerManager {
     this.initializeStrategies();
   }
 
+  // TODO: re-add Cosmos Native
   protected get compatibleChains(): ChainName[] {
     return this.chains.filter(
       (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
     );
   }
 
@@ -76,7 +76,12 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    for (const chain of this.compatibleChains) {
+    const evmChains = this.chains.filter(
+      (chain) =>
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+
+    for (const chain of evmChains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }
