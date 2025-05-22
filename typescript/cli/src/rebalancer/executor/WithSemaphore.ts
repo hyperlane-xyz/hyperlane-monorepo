@@ -60,7 +60,9 @@ export class WithSemaphore implements IExecutor {
     this.waitUntil = Date.now() + highestTolerance;
 
     log(
-      `Rebalance semaphore locked for ${highestTolerance}ms. Releasing at timestamp ${this.waitUntil}.`,
+      `Rebalance semaphore locked for ${
+        highestTolerance
+      }ms. Releasing at timestamp ${new Date(this.waitUntil).toISOString()} (${this.waitUntil}).`,
     );
   }
 
