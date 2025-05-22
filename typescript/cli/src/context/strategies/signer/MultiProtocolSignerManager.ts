@@ -50,11 +50,11 @@ export class MultiProtocolSignerManager {
     this.initializeStrategies();
   }
 
+  // TODO: re-add Cosmos Native
   protected get compatibleChains(): ChainName[] {
     return this.chains.filter(
       (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
     );
   }
 
@@ -76,7 +76,12 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    for (const chain of this.compatibleChains) {
+    const evmChains = this.chains.filter(
+      (chain) =>
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+
+    for (const chain of evmChains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }
@@ -133,14 +138,14 @@ export class MultiProtocolSignerManager {
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
     if (this.options.key) {
-      this.logger.info(
+      this.logger.debug(
         `Using private key passed via CLI --key flag for chain ${chain}`,
       );
       return { privateKey: this.options.key };
     }
 
     if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
       return { privateKey: ENV.HYP_KEY };
     }
 
@@ -150,7 +155,7 @@ export class MultiProtocolSignerManager {
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    this.logger.info(
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
 

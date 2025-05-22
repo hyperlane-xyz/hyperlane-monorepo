@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "12.6.0",
+  "version": "13.0.0",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -22,6 +22,7 @@
   "author": "brolee",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@jest/globals": "^29.7.0",
     "@types/node": "^18.14.5",
     "eslint": "^9.15.0",
