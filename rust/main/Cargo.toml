@@ -226,27 +226,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-05-07"
+tag = "2025-05-21"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-05-07"
+tag = "2025-05-21"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-05-07"
+tag = "2025-05-21"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-05-07"
+tag = "2025-05-21"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-05-07"
+tag = "2025-05-21"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -265,42 +265,42 @@ version = "=0.5.2"
 
 [patch.crates-io.solana-account-decoder]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-clap-utils]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-cli-config]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-client]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-program]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-transaction-status]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.solana-zk-token-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2025-02-14"
+tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
 
 [patch.crates-io.spl-associated-token-account]
