@@ -66,16 +66,25 @@ export class MultiProtocolContextFunder {
           ]);
         } catch (error) {
           this.logger.error({ error, chain }, 'Error funding chain');
-          return Promise.reject(error);
+          return Promise.reject({ error, chain });
         } finally {
           cleanup();
         }
       }),
     );
 
-    if (results.some((result) => result.status === 'rejected')) {
-      this.logger.error('One or more chains failed to fund');
-      throw new Error('One or more chains failed to fund');
+    const failedChains = results.reduce((acc, result) => {
+      if (result.status === 'rejected') {
+        const chainName = result.reason.chain;
+        acc.push(chainName);
+      }
+      return acc;
+    }, [] as string[]);
+
+    if (failedChains.length > 0) {
+      const errorMessage = `One or more chains failed to fund: ${failedChains.join(', ')}`;
+      this.logger.error(errorMessage);
+      throw new Error(errorMessage);
     }
   }
 }
