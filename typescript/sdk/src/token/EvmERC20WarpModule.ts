@@ -1,10 +1,13 @@
+// import { expect } from 'chai';
 import { BigNumberish } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
+  HypERC20Collateral__factory,
   MailboxClient__factory,
   TokenRouter__factory,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
@@ -135,6 +138,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
+      ...(await this.createWarpRouteImplementationTx(
+        actualConfig,
+        expectedConfig,
+      )),
     );
 
     return transactions;
@@ -529,6 +536,61 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { deployedHook } = hookModule.serialize();
 
     return { deployedHook, updateTransactions };
+  }
+
+  /**
+   * Creates a transaction to upgrade the Warp Route implementation if the package version is below 7.1.5.
+   *
+   * @param actualConfig - The current on-chain configuration
+   * @param expectedConfig - The expected configuration
+   * @returns An array of transactions to upgrade the implementation if needed
+   */
+  async createWarpRouteImplementationTx(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    // Check if package version is below 7.1.5
+    if (actualConfig.packageVersion && actualConfig.packageVersion < '7.1.5') {
+      // Create transaction to upgrade implementation
+      // Deploy new implementation
+      const warpRoute = HypERC20Collateral__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      const factory = new HypERC20Collateral__factory(
+        this.multiProvider.getSigner(this.domainId),
+      );
+      const newWarpRouteImpl = await factory.deploy(
+        await warpRoute.wrappedToken(),
+        await warpRoute.scale(),
+        await warpRoute.mailbox(),
+      );
+
+      // Upgrade to new implementation using `upgradeToAndCall`
+      const owner = await warpRoute.owner();
+      const hook = await warpRoute.hook();
+      const ism = await warpRoute.interchainSecurityModule();
+
+      const initCallData = warpRoute.interface.encodeFunctionData(
+        'initialize(address,address,address)',
+        [hook, ism, owner],
+      );
+
+      updateTransactions.push({
+        chainId: this.chainId,
+        annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
+        to: warpRoute.address,
+        data: TransparentUpgradeableProxy__factory.createInterface().encodeFunctionData(
+          'upgradeToAndCall',
+          [newWarpRouteImpl.address, initCallData],
+        ),
+      });
+    }
+
+    return updateTransactions;
   }
 
   /**
