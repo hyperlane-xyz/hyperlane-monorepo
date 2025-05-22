@@ -18,7 +18,6 @@ describe('Config', () => {
     data = {
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
-      coingeckoApiKey: COINGECKO_API_KEY,
       rebalanceStrategy: 'weighted',
       chain1: {
         weight: 100,
@@ -56,7 +55,7 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       monitorOnly: false,
       withMetrics: false,
-      coingeckoApiKey: COINGECKO_API_KEY,
+      coingeckoApiKey: '',
       rebalanceStrategy: 'weighted',
       chains: {
         chain1: {
@@ -141,7 +140,7 @@ describe('Config', () => {
         checkFrequency: 1337,
         monitorOnly: false,
         withMetrics: false,
-        coingeckoApiKey: '',
+        coingeckoApiKey: COINGECKO_API_KEY,
         rebalanceStrategy: 'weighted',
       }),
     ).to.deep.equal({
@@ -150,7 +149,7 @@ describe('Config', () => {
       monitorOnly: false,
       rebalancerKey: ANVIL_KEY,
       withMetrics: false,
-      coingeckoApiKey: '',
+      coingeckoApiKey: COINGECKO_API_KEY,
       rebalanceStrategy: 'weighted',
       chains: {
         chain1: {
@@ -210,7 +209,6 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        coingeckoApiKey: COINGECKO_API_KEY,
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,
@@ -257,7 +255,6 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        coingeckoApiKey: COINGECKO_API_KEY,
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,
@@ -292,7 +289,6 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        coingeckoApiKey: COINGECKO_API_KEY,
         rebalanceStrategy: 'minAmount',
         chain1: {
           minAmount: 1000,

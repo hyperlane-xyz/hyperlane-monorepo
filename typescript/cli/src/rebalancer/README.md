@@ -24,9 +24,6 @@ monitorOnly: false
 # Optional: Enable metrics collection
 withMetrics: false
 
-# Optional: CoinGecko API key (required if withMetrics is true)
-coingeckoApiKey: your-coingecko-api-key
-
 # Chain configurations
 # All chains that contain collateral hyp contracts must be configured
 # In this example, the collateral chains are: sepolia, optimism-sepolia, and arbitrum-sepolia

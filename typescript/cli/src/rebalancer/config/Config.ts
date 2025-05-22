@@ -55,7 +55,6 @@ export const ChainConfigSchema = z.union([
 const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
   checkFrequency: z.number().optional(),
-  coingeckoApiKey: z.string().optional(),
   withMetrics: z.boolean().optional().default(false),
   monitorOnly: z.boolean().optional().default(false),
   rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
@@ -124,7 +123,7 @@ export class Config {
   static load(
     configFilePath: string,
     rebalancerKey: string,
-    overrides: BaseConfig,
+    overrides: Partial<BaseConfig & { coingeckoApiKey: string }>,
   ) {
     const config = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
@@ -138,7 +137,6 @@ export class Config {
       checkFrequency: fileCheckFrequency,
       monitorOnly: fileMonitorOnly,
       withMetrics: fileWithMetrics,
-      coingeckoApiKey: fileWithCoingeckoApiKey,
       rebalanceStrategy: fileRebalanceStrategy,
       ...chains
     } = validationResult.data;
@@ -149,10 +147,9 @@ export class Config {
 
     const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
     const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
-    const coingeckoApiKey =
-      overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
     const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly;
     const withMetrics = overrides.withMetrics ?? fileWithMetrics;
+    const coingeckoApiKey = overrides.coingeckoApiKey ?? '';
     const rebalanceStrategy =
       overrides.rebalanceStrategy ?? fileRebalanceStrategy;
 
