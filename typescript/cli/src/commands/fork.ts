@@ -6,6 +6,8 @@ import {
 } from '../fork/fork.js';
 import { readYamlOrJson } from '../utils/files.js';
 
+import { forkCommandOptions } from './options.js';
+
 export const forkCommand: CommandModuleWithContext<{
   port?: number;
   symbol?: string;
@@ -14,25 +16,7 @@ export const forkCommand: CommandModuleWithContext<{
 }> = {
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
-  builder: {
-    port: {
-      type: 'number',
-      description:
-        'Port to be used as initial port from which assign port numbers to all anvil instances',
-      default: 8545,
-    },
-    'fork-config': {
-      type: 'string',
-      description:
-        'The path to a configuration file that specifies how to build the forked chains',
-    },
-    kill: {
-      type: 'boolean',
-      default: false,
-      description:
-        'If set, it will stop the forked chains once the forked config has been applied',
-    },
-  },
+  builder: forkCommandOptions,
   handler: async ({ context, port, kill, forkConfig: forkConfigPath }) => {
     let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {

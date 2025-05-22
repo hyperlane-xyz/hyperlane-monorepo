@@ -48,6 +48,7 @@ import {
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
+  forkCommandOptions,
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
@@ -467,12 +468,7 @@ const fork: CommandModuleWithContext<{
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
   builder: {
-    port: {
-      type: 'number',
-      description:
-        'Port to be used as initial port from which assign port numbers to all anvil instances',
-      default: 8545,
-    },
+    ...forkCommandOptions,
     symbol: {
       ...symbolCommandOption,
       demandOption: false,
@@ -482,20 +478,9 @@ const fork: CommandModuleWithContext<{
       demandOption: false,
       alias: 'wd',
     }),
-    'fork-config': {
-      type: 'string',
-      description:
-        'The path to a configuration file that specifies how to build the forked chains',
-    },
     warp: {
       ...warpCoreConfigCommandOption,
       demandOption: false,
-    },
-    kill: {
-      type: 'boolean',
-      default: false,
-      description:
-        'If set, it will stop the forked chains once the forked config has been applied',
     },
     warpRouteId: warpRouteIdCommandOption,
   },
