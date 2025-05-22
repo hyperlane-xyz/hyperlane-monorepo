@@ -495,7 +495,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(
-        `Scale is required for ${CHAIN_NAME_2}`,
+        `Found invalid or missing scale for inconsistent decimals`,
       );
     });
 
@@ -529,7 +529,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(
-        `Scale is not correct for ${CHAIN_NAME_2}`,
+        `Found invalid or missing scale for inconsistent decimals`,
       );
     });
   });

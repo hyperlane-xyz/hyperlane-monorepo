@@ -6,6 +6,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
+  scaleIsCorrect,
   transformConfigToCheck,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -85,33 +86,8 @@ function verifyDecimalsAndScale(
     }
   });
 
-  if (!areDecimalsUniform(warpRouteConfig)) {
-    const maxDecimals = Math.max(
-      ...Object.values(warpRouteConfig).map((config) => config.decimals!),
-    );
-
-    for (const [chain, config] of Object.entries(warpRouteConfig)) {
-      if (config.decimals) {
-        const scale = 10 ** (maxDecimals - config.decimals);
-        if (!config.scale && scale !== 1) {
-          logRed(`Scale is required for ${chain}`);
-          process.exit(1);
-        } else if (config.scale && scale !== config.scale) {
-          logRed(`Scale is not correct for ${chain}`);
-          process.exit(1);
-        }
-      }
-    }
+  if (!scaleIsCorrect(warpRouteConfig)) {
+    logRed(`Found invalid or missing scale for inconsistent decimals`);
+    process.exit(1);
   }
-}
-
-function areDecimalsUniform(configMap: Record<string, any>): boolean {
-  const values = [...Object.values(configMap)];
-  const [first, ...rest] = values;
-  for (const d of rest) {
-    if (d.decimals !== first.decimals) {
-      return false;
-    }
-  }
-  return true;
 }
