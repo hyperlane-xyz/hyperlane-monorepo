@@ -194,6 +194,29 @@ describe('sortNestedArrays', () => {
     expect(result.otherItems[2].id).to.equal(2);
   });
 
+  it('should not match when path length is shorter than pattern length', () => {
+    const data = {
+      items: [
+        { name: 'c', value: 3 },
+        { name: 'a', value: 1 },
+        { name: 'b', value: 2 },
+      ],
+    };
+
+    // Pattern with longer path than exists in data
+    const config: ArraySortConfig = {
+      arrays: [{ path: 'items.subItems[].name', sortKey: 'value' }],
+    };
+
+    const result = sortNestedArrays(data, config);
+
+    expect(result).to.deep.equal(data);
+
+    expect(result.items[0].name).to.equal('c');
+    expect(result.items[1].name).to.equal('a');
+    expect(result.items[2].name).to.equal('b');
+  });
+
   it('should demonstrate difference between [] and * notations', () => {
     const dataWithArray = {
       root: {
