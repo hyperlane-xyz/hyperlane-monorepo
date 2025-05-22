@@ -7620,6 +7620,7 @@ __metadata:
   resolution: "@hyperlane-xyz/ccip-server@workspace:typescript/ccip-server"
   dependencies:
     "@chainlink/ccip-read-server": "npm:^0.2.1"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@jest/globals": "npm:^29.7.0"
     "@types/node": "npm:^18.14.5"
     dotenv-flow: "npm:^4.1.0"
@@ -7645,10 +7646,11 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.0.0"
+    "@hyperlane-xyz/cosmos-sdk": "workspace:^"
     "@hyperlane-xyz/registry": "npm:15.0.0"
-    "@hyperlane-xyz/sdk": "npm:13.0.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
+    "@hyperlane-xyz/sdk": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "workspace:^"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7689,14 +7691,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:7.1.6, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@workspace:^, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "workspace:^"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
@@ -7736,13 +7739,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:13.0.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+"@hyperlane-xyz/cosmos-sdk@workspace:^, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/cosmos-types": "npm:13.0.0"
+    "@hyperlane-xyz/cosmos-types": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -7758,11 +7762,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-types@npm:13.0.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
+"@hyperlane-xyz/cosmos-types@workspace:^, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
     eslint: "npm:^9.15.0"
@@ -7784,6 +7789,7 @@ __metadata:
     "@cloudflare/vitest-pool-workers": "npm:^0.4.5"
     "@cloudflare/workers-types": "npm:^4.20240821.1"
     "@faker-js/faker": "npm:^8.4.1"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     chai: "npm:^4.5.0"
     prettier: "npm:^3.5.3"
     typescript: "npm:5.3.3"
@@ -7792,14 +7798,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:13.0.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@workspace:^, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:7.1.6"
+    "@hyperlane-xyz/core": "workspace:^"
     "@hyperlane-xyz/registry": "npm:15.0.0"
-    "@hyperlane-xyz/sdk": "npm:13.0.0"
+    "@hyperlane-xyz/sdk": "workspace:^"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -7848,10 +7854,11 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:13.0.0"
+    "@hyperlane-xyz/helloworld": "workspace:^"
     "@hyperlane-xyz/registry": "npm:15.0.0"
-    "@hyperlane-xyz/sdk": "npm:13.0.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
+    "@hyperlane-xyz/sdk": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "workspace:^"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -7924,7 +7931,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:13.0.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@workspace:^, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -7934,10 +7941,11 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:7.1.6"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.0.0"
-    "@hyperlane-xyz/starknet-core": "npm:13.0.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
+    "@hyperlane-xyz/core": "workspace:^"
+    "@hyperlane-xyz/cosmos-sdk": "workspace:^"
+    "@hyperlane-xyz/starknet-core": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "workspace:^"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -7982,11 +7990,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:13.0.0, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@workspace:^, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
     eslint: "npm:^9.15.0"
@@ -8001,12 +8010,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:13.0.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/tsconfig@workspace:^, @hyperlane-xyz/tsconfig@workspace:typescript/tsconfig":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/tsconfig@workspace:typescript/tsconfig"
+  languageName: unknown
+  linkType: soft
+
+"@hyperlane-xyz/utils@workspace:^, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
     "@cosmjs/encoding": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@solana/web3.js": "npm:^1.95.4"
     "@types/lodash-es": "npm:^4.17.12"
     "@types/mocha": "npm:^10.0.1"
@@ -8044,10 +8060,11 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.0.0"
+    "@hyperlane-xyz/cosmos-sdk": "workspace:^"
     "@hyperlane-xyz/registry": "npm:15.0.0"
-    "@hyperlane-xyz/sdk": "npm:13.0.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
+    "@hyperlane-xyz/sdk": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "workspace:^"
     "@interchain-ui/react": "npm:^1.23.28"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
     "@solana/wallet-adapter-react": "npm:^0.15.32"

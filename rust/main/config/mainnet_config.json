@@ -5259,7 +5259,7 @@
     "immutablezkevmmainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.immutable.com/api/eth-rpc",
+          "apiUrl": "https://explorer.immutable.com/api",
           "family": "blockscout",
           "name": "Immutable Explorer",
           "url": "https://explorer.immutable.com"
@@ -9652,6 +9652,5 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9"
     }
-  },
-  "defaultRpcConsensusType": "fallback"
+  }
 }
