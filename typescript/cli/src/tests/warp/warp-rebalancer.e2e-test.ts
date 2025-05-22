@@ -29,7 +29,7 @@ import {
 import { StrategyOptions } from '../../rebalancer/index.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
-  ANVIL_ADDRESS,
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
@@ -118,18 +118,18 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_4]: {
         type: TokenType.synthetic,
         mailbox: chain4Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
     writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
@@ -461,7 +461,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Signer ${ANVIL_ADDRESS} is not a rebalancer`,
+      `Signer ${ANVIL_DEPLOYER_ADDRESS} is not a rebalancer`,
     );
   });
 
@@ -1012,13 +1012,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
     writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
@@ -1291,13 +1291,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           type: TokenType.collateral,
           token: tokenChain2.address,
           mailbox: chain2Addresses.mailbox,
-          owner: ANVIL_ADDRESS,
+          owner: ANVIL_DEPLOYER_ADDRESS,
         },
         [CHAIN_NAME_3]: {
           type: TokenType.collateral,
           token: tokenChain3.address,
           mailbox: chain3Addresses.mailbox,
-          owner: ANVIL_ADDRESS,
+          owner: ANVIL_DEPLOYER_ADDRESS,
         },
       };
       writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
