@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+
 ## 7.1.6
 
 ### Patch Changes

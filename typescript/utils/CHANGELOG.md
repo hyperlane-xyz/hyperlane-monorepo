@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 13.1.0
+
+### Minor Changes
+
+- f41f766: Add sort-yaml-arrays eslint rule
+
 ## 13.0.0
 
 ### Minor Changes

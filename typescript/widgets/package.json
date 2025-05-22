@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "13.0.0",
+  "version": "13.1.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"

@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 13.1.0
+
 ## 13.0.0
 
 ### Minor Changes
