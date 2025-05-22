@@ -242,12 +242,12 @@ people:
     {
       name: 'should sort arrays with boolean values',
       original: `features:
-  - name: search
-    enabled: false
   - name: auth
     enabled: true
   - name: notifications
-    enabled: true`,
+    enabled: true
+  - name: search
+    enabled: false`,
       expected: `features:
   - name: search
     enabled: false
