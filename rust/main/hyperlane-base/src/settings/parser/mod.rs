@@ -10,7 +10,9 @@ use std::{
     time::Duration,
 };
 
+use axum::async_trait;
 use convert_case::{Case, Casing};
+use ethers::providers::{Http, Middleware, Provider};
 use eyre::{eyre, Context};
 use itertools::Itertools;
 use serde::Deserialize;
@@ -20,7 +22,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType, U256,
 };
 
 use crate::settings::{
@@ -42,11 +44,12 @@ const DEFAULT_CHUNK_SIZE: u32 = 1999;
 #[serde(transparent)]
 pub struct RawAgentConf(Value);
 
-impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
-    fn from_config_filtered(
+#[async_trait]
+impl FromRawConf<RawAgentConf, Option<HashSet<String>>> for Settings {
+    async fn from_config_filtered(
         raw: RawAgentConf,
         cwp: &ConfigPath,
-        filter: Option<&HashSet<&str>>,
+        filter: Option<HashSet<String>>,
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 
@@ -97,10 +100,12 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .parse_string()
             .unwrap_or("fallback");
 
+        let rpc_urls = parse_chainid_rpc_urls(&p, "rpcUrls", &mut err).await;
+
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name, default_rpc_consensus_type)
+                parse_chain(chain, &name, default_rpc_consensus_type, &rpc_urls)
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
@@ -125,10 +130,12 @@ fn parse_chain(
     chain: ValueParser,
     name: &str,
     default_rpc_consensus_type: &str,
+    rpc_urls: &HashMap<U256, Vec<Url>>,
 ) -> ConfigResult<ChainConf> {
     let mut err = ConfigParsingError::default();
 
     let domain = parse_domain(chain.clone(), name).take_config_err(&mut err);
+    let chain_id = chain.chain(&mut err).get_key("chainId").parse_u256().end();
     let signer = chain
         .chain(&mut err)
         .get_opt_key("signer")
@@ -157,7 +164,15 @@ fn parse_chain(
         .parse_value("Invalid reorgPeriod")
         .unwrap_or(ReorgPeriod::from_blocks(1));
 
-    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
+    let chain_rpc_urls = rpc_urls.get(&chain_id.unwrap_or_default());
+    let rpcs = parse_base_and_override_urls(
+        &chain,
+        "rpcUrls",
+        "customRpcUrls",
+        "http",
+        chain_rpc_urls,
+        &mut err,
+    );
 
     let from = chain
         .chain(&mut err)
@@ -398,8 +413,9 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 #[serde(transparent)]
 pub struct RawAgentSignerConf(Value);
 
+#[async_trait]
 impl FromRawConf<RawAgentSignerConf> for SignerConf {
-    fn from_config_filtered(
+    async fn from_config_filtered(
         raw: RawAgentSignerConf,
         cwp: &ConfigPath,
         _filter: (),
@@ -448,6 +464,50 @@ fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmoun
     err.into_result(RawCosmosAmount::new(denom.to_owned(), amount.to_owned()))
 }
 
+async fn parse_chainid_rpc_urls(
+    chain: &ValueParser<'_>,
+    key: &str,
+    err: &mut ConfigParsingError,
+) -> HashMap<U256, Vec<Url>> {
+    let urls = parse_custom_urls(chain, key, err);
+
+    let mut result: HashMap<U256, Vec<Url>> = HashMap::new();
+
+    if let Some(urls) = urls {
+        for url in urls {
+            let provider = Provider::<Http>::try_from(url.to_string());
+
+            match provider {
+                Ok(provider) => {
+                    let chain_id = provider.get_chainid().await;
+
+                    match chain_id {
+                        Ok(chain_id) => {
+                            result
+                                .entry(chain_id.into())
+                                .or_insert_with(Vec::new)
+                                .push(url);
+                        }
+                        Err(e) => {
+                            err.push(
+                                &chain.cwp + key,
+                                eyre!("Failed to get chainId from URL: {}", e),
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    err.push(
+                        &chain.cwp + key,
+                        eyre!("Failed to create provider for URL: {}", e),
+                    );
+                }
+            }
+        }
+    }
+    result
+}
+
 fn parse_urls(
     chain: &ValueParser,
     key: &str,
@@ -492,11 +552,17 @@ fn parse_base_and_override_urls(
     base_key: &str,
     override_key: &str,
     protocol: &str,
+    rpc_urls: Option<&Vec<Url>>,
     err: &mut ConfigParsingError,
 ) -> Vec<Url> {
     let base = parse_urls(chain, base_key, protocol, err);
     let overrides = parse_custom_urls(chain, override_key, err);
-    let combined = overrides.unwrap_or(base);
+    let mut combined = overrides.unwrap_or(base);
+    if let Some(rpc_urls) = rpc_urls {
+        let mut new_combined = rpc_urls.clone();
+        new_combined.extend(combined.into_iter());
+        combined = new_combined;
+    }
 
     if combined.is_empty() {
         err.push(
