@@ -500,7 +500,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog(
       `Destination ${warpCoreConfig.tokens[0].addressOrDenom!} for domain ${
         chain2Metadata.domainId
-      } is not allowed`,
+      } (${chain2Metadata.name}) is not allowed. From ${
+        warpCoreConfig.tokens[1].addressOrDenom
+      } at ${chain3Metadata.name}`,
     );
   });
 
@@ -543,7 +545,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} is not allowed`,
+      `Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} (${
+        chain2Metadata.name
+      }) is not allowed. From ${warpCoreConfig.tokens[0].addressOrDenom} at ${
+        chain3Metadata.name
+      }. To ${warpCoreConfig.tokens[1].addressOrDenom} at ${chain2Metadata.name}.`,
     );
   });
 
@@ -592,7 +598,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      'Could not get rebalance quotes: All providers failed on chain unknown for method call and params',
+      `Could not get rebalance quotes from ${chain3Metadata.name} to ${
+        chain2Metadata.name
+      }: All providers failed on chain unknown for method call and param`,
     );
   });
 

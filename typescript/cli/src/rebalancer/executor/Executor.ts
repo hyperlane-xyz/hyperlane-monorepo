@@ -65,7 +65,9 @@ export class Executor implements IExecutor {
       );
 
       if (!(originHypAdapter instanceof EvmHypCollateralAdapter)) {
-        throw new Error('Adapter is not an EvmHypCollateralAdapter');
+        throw new Error(
+          `Adapter is not an EvmHypCollateralAdapter. Chain: ${fromChain}.`,
+        );
       }
 
       const provider = warpCore.multiProvider.getEthersV5Provider(fromChain);
@@ -80,19 +82,23 @@ export class Executor implements IExecutor {
       );
 
       if (!(await originHypAdapter.isRebalancer(signerAddress))) {
-        throw new Error(`Signer ${signerAddress} is not a rebalancer`);
+        throw new Error(
+          `Signer ${signerAddress} is not a rebalancer. Token: ${originToken.addressOrDenom}. Chain: ${fromChain}.`,
+        );
       }
 
       if (
         (await originHypAdapter.getAllowedDestination(domain)) !== recipient
       ) {
         throw new Error(
-          `Destination ${recipient} for domain ${domain} is not allowed`,
+          `Destination ${recipient} for domain ${domain} (${toChain}) is not allowed. From ${originToken.addressOrDenom} at ${fromChain}.`,
         );
       }
 
       if (!(await originHypAdapter.isBridgeAllowed(domain, bridge))) {
-        throw new Error(`Bridge ${bridge} for domain ${domain} is not allowed`);
+        throw new Error(
+          `Bridge ${bridge} for domain ${domain} (${toChain}) is not allowed. From ${originToken.addressOrDenom} at ${fromChain}. To ${recipient} at ${toChain}.`,
+        );
       }
 
       // Skip this rebalance route if the amount is below the configured minimum threshold.
@@ -121,7 +127,7 @@ export class Executor implements IExecutor {
         );
       } catch (error) {
         throw new Error(
-          `Could not get rebalance quotes: ${(error as Error).message}`,
+          `Could not get rebalance quotes from ${fromChain} to ${toChain}: ${(error as Error).message}`,
         );
       }
 
