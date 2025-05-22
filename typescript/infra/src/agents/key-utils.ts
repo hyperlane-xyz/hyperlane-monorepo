@@ -217,7 +217,9 @@ export function getCloudAgentKey(
   index?: number,
   protocol?: ProtocolType,
 ): CloudAgentKey {
-  debugLog(`Retrieving cloud agent key for ${role} on ${chainName}`);
+  debugLog(
+    `Retrieving cloud agent key for ${protocol} ${role} on ${chainName}`,
+  );
   switch (role) {
     case Role.Validator:
       if (chainName === undefined || index === undefined) {
@@ -285,7 +287,7 @@ export function getDeployerKey(
   agentConfig: AgentContextConfig,
   protocol?: ProtocolType,
 ): CloudAgentKey {
-  debugLog(`Retrieving deployer key ${protocol ? `for ${protocol}` : ''}`);
+  debugLog(`Retrieving deployer key${protocol ? ` for ${protocol}` : ''}`);
   return new AgentGCPKey(
     agentConfig.runEnv,
     Contexts.Hyperlane,
@@ -406,7 +408,7 @@ async function persistAddressesInGcp(
       );
       return;
     }
-  } catch (e) {
+  } catch (_) {
     // If the secret doesn't exist, we'll create it below.
     debugLog(
       `No existing secret found for ${context} context in ${environment} environment`,
@@ -535,9 +537,13 @@ export function fetchLocalKeyAddresses(
       `${CONFIG_DIRECTORY_PATH}/${protocol}`,
       `${role}.json`,
     );
+
+    debugLog(`Fetching addresses from GCP for ${protocol} ${role} role ...`);
     return addresses;
   } catch (e) {
-    throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
+    throw new Error(
+      `Error fetching addresses locally for ${protocol} ${role} role: ${e}`,
+    );
   }
 }
 
