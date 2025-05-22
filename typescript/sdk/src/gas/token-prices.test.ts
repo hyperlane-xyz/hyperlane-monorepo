@@ -46,8 +46,8 @@ describe('TokenPriceGetter', () => {
       // stubbed results
       expect(
         await tokenPriceGetter.getTokenPriceByIds([
-          ethereum.name || 'ethereum',
-          solanamainnet.name || 'solanamainnet',
+          'ethereum',
+          'solanamainnet',
         ]),
       ).to.eql([priceA, priceB]);
     });
@@ -60,9 +60,7 @@ describe('TokenPriceGetter', () => {
         await tokenPriceGetter.getTokenPrice(TestChainName.test1),
       ).to.equal(1);
       // stubbed result for non-testnet
-      expect(
-        await tokenPriceGetter.getTokenPrice(ethereum.name || 'ethereum'),
-      ).to.equal(priceA);
+      expect(await tokenPriceGetter.getTokenPrice('ethereum')).to.equal(priceA);
     });
   });
 
@@ -76,8 +74,8 @@ describe('TokenPriceGetter', () => {
       // stubbed result for non-testnet
       expect(
         await tokenPriceGetter.getTokenExchangeRate(
-          ethereum.name || 'ethereum',
-          solanamainnet.name || 'solanamainnet',
+          'ethereum',
+          'solanamainnet',
         ),
       ).to.equal(priceA / priceB);
     });
