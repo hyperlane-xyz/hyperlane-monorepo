@@ -1,100 +1,100 @@
 swell:
   transactions:
     - type: file
-      defaultSender: "0xC11e22A31787394950B31e2DEb1d2b5546689B65"
+      defaultSender: '0xC11e22A31787394950B31e2DEb1d2b5546689B65'
       path: ./generated/transactions/swell.json
       overrides:
-        "1":
-          to: "0xF4eae2f139D8032b8410Fef46f6873cD71A0FD76"
-          annotation: "Set remote gas for Soneium"
+        '1':
+          to: '0xF4eae2f139D8032b8410Fef46f6873cD71A0FD76'
+          annotation: 'Set remote gas for Soneium'
           eventAssertions:
             - type: topicSignature
-              annotation: "Check gas has been set for Soneium"
-              signature: "event GasSet(uint32 domain, uint256 gas)"
+              annotation: 'Check gas has been set for Soneium'
+              signature: 'event GasSet(uint32 domain, uint256 gas)'
               args:
-                - "1868"
-                - "64000"
-        "0":
-          annotation: "Enroll Soneium"
+                - '1868'
+                - '64000'
+        '0':
+          annotation: 'Enroll Soneium'
     - type: rawTransaction
       transactions:
         # Receive Txs
-        - annotation: "Receive tokens from Soneium"
-          from: "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+        - annotation: 'Receive tokens from Soneium'
+          from: '0x3a464f746D23Ab22155710f44dB16dcA53e0775E'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
-            signature: "function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable"
+            signature: 'function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable'
             args:
-              - "1868"
-              - "0x00000000000000000000000061F2993a644762A345b483ADF0d6351C5EdFB3b5"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000"
-        - annotation: "Receive tokens from Bsquared"
-          from: "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+              - '1868'
+              - '0x00000000000000000000000061F2993a644762A345b483ADF0d6351C5EdFB3b5'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000'
+        - annotation: 'Receive tokens from Bsquared'
+          from: '0x3a464f746D23Ab22155710f44dB16dcA53e0775E'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
-            signature: "function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable"
+            signature: 'function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable'
             args:
-              - "223"
-              - "0x0000000000000000000000000FC41a92F526A8CD22060A4052e156502D6B9db0"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000"
-        - annotation: "Receive tokens from Boba"
-          from: "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+              - '223'
+              - '0x0000000000000000000000000FC41a92F526A8CD22060A4052e156502D6B9db0'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000'
+        - annotation: 'Receive tokens from Boba'
+          from: '0x3a464f746D23Ab22155710f44dB16dcA53e0775E'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
-            signature: "function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable"
+            signature: 'function handle(uint32 _origin,bytes32 _sender,bytes calldata _message) external payable'
             args:
-              - "288"
-              - "0x000000000000000000000000FA3198ecF05303a6d96E57a45E6c815055D255b1"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000"
+              - '288'
+              - '0x000000000000000000000000FA3198ecF05303a6d96E57a45E6c815055D255b1'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000100000'
         # Send Txs
-        - annotation: "Send tokens to Boba"
-          from: "0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+        - annotation: 'Send tokens to Boba'
+          from: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
             signature: function transferRemote(uint32,bytes32,uint256)
             args:
-              - "288"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba"
-              - "1"
-          value: "250000000000000000"
+              - '288'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba'
+              - '1'
+          value: '250000000000000000'
           eventAssertions:
             - type: rawTopic
-              topic: "0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a"
+              topic: '0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a'
             - type: rawTopic
-              topic: "0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33"
-        - annotation: "Send tokens to Bsquared"
-          from: "0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+              topic: '0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33'
+        - annotation: 'Send tokens to Bsquared'
+          from: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
             signature: function transferRemote(uint32,bytes32,uint256)
             args:
-              - "223"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba"
-              - "1"
-          value: "250000000000000000"
+              - '223'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba'
+              - '1'
+          value: '250000000000000000'
           eventAssertions:
             - type: rawTopic
-              topic: "0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a"
+              topic: '0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a'
             - type: rawTopic
-              topic: "0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33"
-        - annotation: "Send tokens to Soneium"
-          from: "0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
-          to: "0xFA3198ecF05303a6d96E57a45E6c815055D255b1"
+              topic: '0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33'
+        - annotation: 'Send tokens to Soneium'
+          from: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba'
+          to: '0xFA3198ecF05303a6d96E57a45E6c815055D255b1'
           data:
             type: signature
             signature: function transferRemote(uint32,bytes32,uint256)
             args:
-              - "1868"
-              - "0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba"
-              - "1"
-          value: "250000000000000000"
+              - '1868'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba'
+              - '1'
+          value: '250000000000000000'
           eventAssertions:
             - type: rawTopic
-              topic: "0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a"
+              topic: '0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a'
             - type: rawTopic
-              topic: "0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33"
+              topic: '0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33'

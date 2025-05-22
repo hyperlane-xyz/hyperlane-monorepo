@@ -1,5 +1,5 @@
 swell:
   transactions:
     - type: file
-      defaultSender: "0xC11e22A31787394950B31e2DEb1d2b5546689B65"
+      defaultSender: '0xC11e22A31787394950B31e2DEb1d2b5546689B65'
       path: ./generated/transactions/swell.json
