@@ -7,8 +7,8 @@ use crate::{
     config::Config,
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
-        scraper_termination_invariants_met, submitter_metrics_invariants_met,
-        RelayerTerminationInvariantParams, ScraperTerminationInvariantParams,
+        scraper_termination_invariants_met, RelayerTerminationInvariantParams,
+        ScraperTerminationInvariantParams,
     },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
@@ -91,6 +91,7 @@ pub fn termination_invariants_met(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::invariants::submitter_metrics_invariants_met;
     use maplit::hashmap;
 
     #[test]
@@ -115,7 +116,7 @@ mod tests {
             submitter_type: SubmitterType::Lander,
         };
         assert_eq!(
-            super::submitter_metrics_invariants_met(
+            submitter_metrics_invariants_met(
                 params,
                 &relayer_metrics_port.to_string(),
                 &filter_hashmap
