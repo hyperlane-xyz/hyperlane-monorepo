@@ -70,6 +70,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -93,6 +94,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
+                agent_name,
             )
             .take_config_err(&mut err);
 
@@ -111,6 +113,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
+                agent_name,
             )
             .end();
 

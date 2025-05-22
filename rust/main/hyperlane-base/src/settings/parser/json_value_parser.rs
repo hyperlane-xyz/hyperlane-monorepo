@@ -357,13 +357,18 @@ impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
         )
     }
 
-    pub fn parse_from_raw_config<O, T, F>(self, filter: F, ctx: &'static str) -> ParseChain<'e, O>
+    pub fn parse_from_raw_config<O, T, F>(
+        self,
+        filter: F,
+        ctx: &'static str,
+        agent_name: &'static str,
+    ) -> ParseChain<'e, O>
     where
         O: FromRawConf<T, F>,
         T: Debug + DeserializeOwned,
         F: Default,
     {
-        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx))
+        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx, agent_name))
     }
 }
 

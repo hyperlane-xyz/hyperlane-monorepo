@@ -27,7 +27,7 @@ pub struct HyperlaneAgentCore {
 pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn load() -> ConfigResult<Self>;
+    fn load(agent_name: &str) -> ConfigResult<Self>;
 }
 
 /// Metadata of an agent defined from configuration

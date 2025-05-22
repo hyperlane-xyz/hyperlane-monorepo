@@ -23,9 +23,12 @@ use hyperlane_core::{
     HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
 };
 
-use crate::settings::{
-    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+use crate::{
+    agent,
+    settings::{
+        chains::IndexSettings, parser::connection_parser::build_connection_conf,
+        trace::TracingConfig, ChainConf, CoreContractAddresses, Settings, SignerConf,
+    },
 };
 
 pub use super::envs::*;
@@ -404,8 +407,9 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         raw: RawAgentSignerConf,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
-        parse_signer(ValueParser::new(cwp.clone(), &raw.0))
+        parse_signer(ValueParser::new(cwp.clone(), &raw.0, agent_name))
     }
 }
 
