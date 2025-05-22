@@ -7803,7 +7803,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "workspace:^"
-    "@hyperlane-xyz/registry": "npm:15.0.0"
+    "@hyperlane-xyz/registry": "npm:15.7.0"
     "@hyperlane-xyz/sdk": "workspace:^"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7854,7 +7854,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "workspace:^"
-    "@hyperlane-xyz/registry": "npm:15.0.0"
+    "@hyperlane-xyz/registry": "npm:15.7.0"
     "@hyperlane-xyz/sdk": "workspace:^"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "workspace:^"
@@ -7919,16 +7919,6 @@ __metadata:
     turbo: "npm:^2.5.3"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/registry@npm:15.0.0":
-  version: 15.0.0
-  resolution: "@hyperlane-xyz/registry@npm:15.0.0"
-  dependencies:
-    yaml: "npm:2.4.5"
-    zod: "npm:^3.21.2"
-  checksum: 10/41cc4635697447ae16a65fe2b5553054a205f37a17d81892d0767f049abbc8abce6ff5cd744a9ea2df32c816a22cab19ec469307c4b62550d91c5cba33f955e0
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/registry@npm:15.7.0":
   version: 15.7.0
@@ -8071,7 +8061,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/cosmos-sdk": "workspace:^"
-    "@hyperlane-xyz/registry": "npm:15.0.0"
+    "@hyperlane-xyz/registry": "npm:15.7.0"
     "@hyperlane-xyz/sdk": "workspace:^"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "workspace:^"
