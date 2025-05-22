@@ -156,7 +156,7 @@ describe('hyperlane warp init e2e tests', async function () {
       expect(chain3TokenConfig.type).equal(TokenType.synthetic);
     });
 
-    it('it should generate a warp route ID when skipConfirmation is false', async function () {
+    it('should generate a warp route ID when skipConfirmation is false', async function () {
       const warpRouteId = 'HYPER/abacus-works';
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
