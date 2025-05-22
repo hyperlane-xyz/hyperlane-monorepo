@@ -41,7 +41,10 @@ sepolia:
   bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
 
   # Optional: Set to true if the bridge is another Warp Route
-  # This is because bridges composed of other warp routes are interacted with differently
+  # This is because bridges composed of other Warp Routes are interacted with differently
+  #
+  # NOTE: This flag will be deprecated once all bridges consistently use the `quoteTransferRemote`
+  # function for quote retrieval.
   bridgeIsWarp: false
 
   # Optional: Specify override configurations for specific chains
