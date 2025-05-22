@@ -7,9 +7,9 @@ import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import type {
   Connection,
-  Signer as SWeb3Signer,
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
+  Signer as SolWeb3Signer,
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
@@ -388,9 +388,9 @@ export interface EthersV5Signer extends TypedSignerBase<EV5Signer> {
   signer: EV5Signer;
 }
 
-export interface SolanaWeb3Signer extends TypedSignerBase<SWeb3Signer> {
+export interface SolanaWeb3Signer extends TypedSignerBase<SolWeb3Signer> {
   type: ProviderType.SolanaWeb3;
-  signer: SWeb3Signer;
+  signer: SolWeb3Signer;
 }
 
 export type TypedSigner = EthersV5Signer | SolanaWeb3Signer;
