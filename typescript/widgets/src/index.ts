@@ -19,6 +19,7 @@ export { SegmentedControl } from './components/SegmentedControl.js';
 export { SelectField, type SelectOption } from './components/SelectField.js';
 export { TextInput } from './components/TextInput.js';
 export { Tooltip } from './components/Tooltip.js';
+export { WarpRouteVisualiser } from './components/WarpRouteVisualiser.js';
 export { HYPERLANE_EXPLORER_API_URL } from './consts.js';
 export { AirplaneIcon } from './icons/Airplane.js';
 export { ArrowIcon } from './icons/Arrow.js';
