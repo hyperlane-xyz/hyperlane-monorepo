@@ -445,8 +445,8 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  fromChain?: string;
-  toChain?: string;
+  origin?: string;
+  destination?: string;
   amount?: string;
   warpRouteId?: string;
   checkFrequency?: number;
@@ -465,24 +465,24 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
     },
-    fromChain: {
+    origin: {
       type: 'string',
       description: 'The origin chain',
       demandOption: false,
-      alias: ['from'],
-      implies: ['toChain', 'amount'],
+      alias: ['o', 'from', 'fromChain'],
+      implies: ['destination', 'amount'],
     },
-    toChain: {
+    destination: {
       type: 'string',
       description: 'The destination chain',
       demandOption: false,
-      alias: ['to'],
-      implies: ['fromChain', 'amount'],
+      alias: ['d', 'to', 'toChain'],
+      implies: ['origin', 'amount'],
     },
     amount: {
       type: 'string',
-      description: 'The amount to rebalance from `--fromChain` to `--toChain`',
-      implies: ['fromChain', 'toChain'],
+      description: 'The amount to rebalance from `--origin` to `--destination`',
+      implies: ['origin', 'destination'],
     },
     warpRouteId: {
       type: 'string',
@@ -520,8 +520,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
   },
   handler: async ({
     context,
-    fromChain,
-    toChain,
+    origin,
+    destination,
     amount,
     config,
     warpRouteId,
@@ -551,13 +551,13 @@ export const rebalancer: CommandModuleWithWriteContext<{
         rebalancerConfig,
       );
 
-      const immediateExec = fromChain && toChain && amount;
+      const immediateExec = origin && destination && amount;
 
       if (immediateExec) {
         const executor = contextFactory.createExecutor();
 
         await executor.rebalance([
-          { fromChain, toChain, amount: BigInt(amount) },
+          { fromChain: origin, toChain: destination, amount: BigInt(amount) },
         ]);
 
         process.exit(0);

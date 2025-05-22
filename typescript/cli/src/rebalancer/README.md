@@ -134,7 +134,7 @@ For instance, if you need to move `1000` USDC from `sepolia` to `arbitrumsepolia
 
 ```bash
 # --amount must be expressed in token units
-hyperlane warp rebalance --config ./rebalancer-config.yaml --fromChain sepolia --toChain arbitrumsepolia --amount '1000000000'
+hyperlane warp rebalance --config ./rebalancer-config.yaml --origin sepolia --destination arbitrumsepolia --amount '1000000000'
 ```
 
 ### Environment Variables
