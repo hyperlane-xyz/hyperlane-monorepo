@@ -125,6 +125,10 @@ contract OpL2NativeTokenBridge is HypNative {
 
         if (address(this).balance > 0) {
             address refundAddress = _hookMetadata.getRefundAddress(msg.sender);
+            require(
+                refundAddress != address(0),
+                "OP L2 token bridge: refund address is 0"
+            );
             payable(refundAddress).sendValue(address(this).balance);
         }
 

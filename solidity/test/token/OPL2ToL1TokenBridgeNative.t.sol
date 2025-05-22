@@ -231,4 +231,35 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         // Call handle with dummy values as it should revert before using them.
         vtbOrigin.handle(destination, userB32, bytes(""));
     }
+
+    function test_OpL2_transferRemote_revertsIfRefundAddressIsZero() public {
+        // 1. Craft metadata that specifies address(0) for refunds.
+        // The msgValue and gasLimit here are for the StandardHookMetadata format,
+        // but their specific values don't affect the refund address retrieval part we're testing.
+        bytes memory zeroRefundMetadata = StandardHookMetadata.format(
+            0, // msgValue for hook
+            0, // gasLimit for hook
+            address(0) // explicit zero refund address
+        );
+
+        // 2. Determine the value needed for the transfer operation itself.
+        // This quote includes the amount to bridge and the gas for two internal messages.
+        uint256 internalOpsValue = vtbOrigin
+        .quoteTransferRemote(destination, userB32, transferAmount)[0].amount;
+
+        // 3. Send a bit more than required, so there's something left to refund.
+        uint256 valueToSend = internalOpsValue + 1 wei; // 1 wei to be refunded
+
+        // 4. Expect a revert from the explicit check in OpL2NativeTokenBridge.
+        vm.expectRevert(bytes("OP L2 token bridge: refund address is 0"));
+
+        // 5. Call the transferRemote function that accepts custom metadata.
+        vtbOrigin.transferRemote{value: valueToSend}(
+            destination,
+            userB32,
+            transferAmount,
+            zeroRefundMetadata, // Our crafted metadata with address(0) as refund target
+            address(igp) // Use the standard IGP for gas payments
+        );
+    }
 }
