@@ -218,7 +218,7 @@ export function getCloudAgentKey(
   protocol?: ProtocolType,
 ): CloudAgentKey {
   debugLog(
-    `Retrieving cloud agent key for ${protocol} ${role} on ${chainName}`,
+    `Retrieving cloud agent key for${protocol ? ` ${protocol}` : ''} ${role} on ${chainName}`,
   );
   switch (role) {
     case Role.Validator:
