@@ -1622,6 +1622,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  neuratestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   neutron: {
     threshold: 4,
     validators: [
@@ -1951,6 +1961,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  rometestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x259eec09dd54c34043bc991f1aae014294235b8e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -2292,16 +2312,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Stakecito',
       },
       DEFAULT_STAKED_VALIDATOR,
-    ],
-  },
-
-  suavetoliman: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
