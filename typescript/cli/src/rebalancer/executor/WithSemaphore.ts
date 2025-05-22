@@ -68,11 +68,12 @@ export class WithSemaphore implements IExecutor {
 
   private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
-      // TODO: consider overrides to calculate this value;
-      //  Currently it's assuming that the root `bridgeLockTime` value is the highest in the chain config.
-      const bridgeLockTime = this.config.chains[route.fromChain].bridgeLockTime;
+      const origin = this.config.chains[route.fromChain];
+      const bridgeLockTime = origin.bridgeLockTime;
+      const overrideLockTime =
+        origin.override?.[route.toChain].bridgeLockTime ?? 0;
 
-      return Math.max(highest, bridgeLockTime);
+      return Math.max(highest, bridgeLockTime, overrideLockTime);
     }, 0);
   }
 }
