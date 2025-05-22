@@ -951,7 +951,8 @@
       "domainId": 1399811150,
       "index": {
         "from": 1,
-        "mode": "sequence"
+        "mode": "sequence",
+        "chunk": 20
       },
       "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
       "isTestnet": true,
