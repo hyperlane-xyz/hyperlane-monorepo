@@ -4,6 +4,8 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -20,11 +22,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import {
-  RawForkedChainConfigByChain,
-  RawForkedChainConfigByChainSchema,
-  runForkCommand,
-} from '../fork/fork.js';
+import { runForkCommand } from '../fork/fork.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';

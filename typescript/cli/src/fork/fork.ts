@@ -1,15 +1,22 @@
 import { JsonRpcProvider, Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
-import { z } from 'zod';
 
-import { ChainName, MultiProvider, ZHash } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  EventAssertion,
+  EventAssertionType,
+  ForkedChainConfig,
+  ForkedChainTransactionConfig,
+  MultiProvider,
+  RawForkedChainConfigByChain,
+  TransactionDataType,
+  forkedChainConfigByChainFromRaw,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   deepEquals,
-  objMap,
-  objMerge,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
@@ -18,191 +25,6 @@ import { logGray, logRed } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
-
-enum EventAssertionType {
-  RAW_TOPIC = 'rawTopic',
-  TOPIC_SIGNATURE = 'topicSignature',
-}
-
-export const EventAssertionSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal(EventAssertionType.RAW_TOPIC),
-    topic: ZHash,
-    annotation: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal(EventAssertionType.TOPIC_SIGNATURE),
-    signature: z.string(),
-    args: z.array(z.string()).optional(),
-    annotation: z.string().optional(),
-  }),
-]);
-
-export type EventAssertion = z.infer<typeof EventAssertionSchema>;
-
-enum TransactionDataType {
-  RAW_CALLDATA = 'rawCalldata',
-  SIGNATURE = 'signature',
-}
-
-const TransactionDataSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal(TransactionDataType.RAW_CALLDATA),
-    calldata: ZHash,
-  }),
-  z.object({
-    type: z.literal(TransactionDataType.SIGNATURE),
-    signature: z.string(),
-    args: z.array(z.string()).default([]),
-  }),
-]);
-
-const ForkedChainTransactionConfigSchema = z.object({
-  annotation: z.string().optional(),
-  from: ZHash,
-  // TODO: change the type here to just a hex string
-  data: TransactionDataSchema.optional(),
-  value: z.string().optional(),
-  to: ZHash.optional(),
-  timeSkip: z.number().optional(),
-  eventAssertions: z.array(EventAssertionSchema).default([]),
-});
-type ForkedChainTransactionConfig = z.infer<
-  typeof ForkedChainTransactionConfigSchema
->;
-
-export const ForkedChainConfigSchema = z.object({
-  impersonateAccounts: z.array(ZHash).default([]),
-  transactions: z.array(ForkedChainTransactionConfigSchema).default([]),
-});
-
-export type ForkedChainConfig = z.infer<typeof ForkedChainConfigSchema>;
-
-export const ForkedChainConfigByChainSchema = z.record(ForkedChainConfigSchema);
-export type ForkedChainConfigByChain = z.infer<
-  typeof ForkedChainConfigByChainSchema
->;
-
-enum TransactionConfigType {
-  RAW_TRANSACTION = 'rawTransaction',
-  FILE = 'file',
-}
-
-const RawForkedChainTransactionConfigSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal(TransactionConfigType.RAW_TRANSACTION),
-    transactions: z.array(ForkedChainTransactionConfigSchema),
-  }),
-  z.object({
-    type: z.literal(TransactionConfigType.FILE),
-    path: z.string(),
-    defaultSender: ZHash,
-    overrides: z
-      .record(ForkedChainTransactionConfigSchema.partial())
-      .default({}),
-  }),
-]);
-type RawForkedChainTransactionConfig = z.infer<
-  typeof RawForkedChainTransactionConfigSchema
->;
-
-export const RawForkedChainConfigSchema = z.object({
-  impersonateAccounts: z.array(ZHash).default([]),
-  transactions: z.array(RawForkedChainTransactionConfigSchema),
-});
-
-export type RawForkedChainConfig = z.infer<typeof RawForkedChainConfigSchema>;
-export const RawForkedChainConfigByChainSchema = z.record(
-  RawForkedChainConfigSchema,
-);
-export type RawForkedChainConfigByChain = z.infer<
-  typeof RawForkedChainConfigByChainSchema
->;
-
-// TODO: update this type
-type SafeTx = {
-  version: string;
-  chainId: string;
-  transactions: { to: string; value?: string; data?: string }[];
-};
-
-type TxFormatter = {
-  [Key in TransactionConfigType]: (
-    config: Extract<RawForkedChainTransactionConfig, { type: Key }>,
-  ) => ReadonlyArray<ForkedChainTransactionConfig>;
-};
-
-function forkedChainTransactionsFromRaw(
-  raw: RawForkedChainTransactionConfig,
-): ReadonlyArray<ForkedChainTransactionConfig> {
-  const formatters: TxFormatter = {
-    [TransactionConfigType.FILE]: (config) => {
-      const safeTxs: SafeTx = readYamlOrJson(config.path);
-
-      const transactions = safeTxs.transactions.map(
-        (safeTx, idx): ForkedChainTransactionConfig => {
-          const overrides = config.overrides[idx] ?? {};
-
-          const baseTx: ForkedChainTransactionConfig = {
-            from: config.defaultSender,
-            data: {
-              type: TransactionDataType.RAW_CALLDATA,
-              calldata: safeTx.data ?? '0x',
-            },
-            to: safeTx.to,
-            value: safeTx.value,
-            eventAssertions: [],
-          };
-
-          return objMerge(baseTx, overrides);
-        },
-      );
-
-      return transactions;
-    },
-    [TransactionConfigType.RAW_TRANSACTION]: (config) => config.transactions,
-  };
-
-  const formatter = formatters[raw.type];
-
-  // TODO: fix the error
-  if (!formatter) {
-    throw new Error('henlo');
-  }
-
-  // @ts-ignore
-  return formatter(raw);
-}
-
-function forkedChainConfigFromRaw(
-  raw: RawForkedChainConfig,
-): ForkedChainConfig {
-  const parsedRawConfig = RawForkedChainConfigSchema.parse(raw);
-
-  const transactions = raw.transactions.flatMap(forkedChainTransactionsFromRaw);
-  const transactionSenders = transactions.map((tx) => tx.from);
-
-  const impersonateAccounts = Array.from(
-    new Set([...transactionSenders, ...parsedRawConfig.impersonateAccounts]),
-  );
-
-  const forkedChainConfig: ForkedChainConfig = {
-    transactions,
-    impersonateAccounts,
-  };
-
-  return ForkedChainConfigSchema.parse(forkedChainConfig);
-}
-
-export function forkedChainConfigByChainFromRaw(
-  raw: RawForkedChainConfigByChain,
-): ForkedChainConfigByChain {
-  const forkConfigByChain = objMap(raw, (_chain, config) =>
-    forkedChainConfigFromRaw(config),
-  );
-
-  return ForkedChainConfigByChainSchema.parse(forkConfigByChain);
-}
 
 export async function runForkCommand({
   context,
@@ -223,7 +45,10 @@ export async function runForkCommand({
   );
 
   let port = basePort;
-  const parsedForkConfig = forkedChainConfigByChainFromRaw(forkConfig);
+  const parsedForkConfig = forkedChainConfigByChainFromRaw(
+    forkConfig,
+    readYamlOrJson,
+  );
   for (const chainName of filteredChainsToFork) {
     await forkChain(
       context.multiProvider,
@@ -256,7 +81,7 @@ async function forkChain(
 
     const endpoint = `${LOCAL_HOST}:${forkPort}`;
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
-    const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http}`;
+    const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
 
     const provider = new JsonRpcProvider(endpoint);
     await retryAsync(() => provider.getNetwork(), 10, 500);
