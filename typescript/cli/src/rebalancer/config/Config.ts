@@ -110,6 +110,17 @@ export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
 export class Config {
+  constructor(
+    public readonly rebalancerKey: string,
+    public readonly warpRouteId: string,
+    public readonly checkFrequency: number,
+    public readonly monitorOnly: boolean,
+    public readonly withMetrics: boolean,
+    public readonly coingeckoApiKey: string,
+    public readonly rebalanceStrategy: 'weighted' | 'minAmount',
+    public readonly chains: ChainMap<ChainConfig>,
+  ) {}
+
   static load(
     configFilePath: string,
     rebalancerKey: string,
@@ -168,15 +179,4 @@ export class Config {
       chains,
     );
   }
-
-  constructor(
-    public readonly rebalancerKey: string,
-    public readonly warpRouteId: string,
-    public readonly checkFrequency: number,
-    public readonly monitorOnly: boolean,
-    public readonly withMetrics: boolean,
-    public readonly coingeckoApiKey: string,
-    public readonly rebalanceStrategy: 'weighted' | 'minAmount',
-    public readonly chains: ChainMap<ChainConfig>,
-  ) {}
 }
