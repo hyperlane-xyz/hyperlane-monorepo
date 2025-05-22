@@ -302,7 +302,6 @@ export async function shareCallsWithPrivateRelayer(
   commitmentDispatchTx: string,
   serverUrl: string,
   originDomain: number,
-  ica: string,
 ): Promise<Response> {
   const resp = await fetch(serverUrl, {
     method: 'POST',
@@ -313,7 +312,6 @@ export async function shareCallsWithPrivateRelayer(
       calls,
       relayers,
       salt,
-      ica,
     }),
   });
 
