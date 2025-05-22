@@ -27,6 +27,7 @@
     "@cloudflare/vitest-pool-workers": "^0.4.5",
     "@cloudflare/workers-types": "^4.20240821.1",
     "@faker-js/faker": "^8.4.1",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "chai": "^4.5.0",
     "prettier": "^3.5.3",
     "typescript": "5.3.3",
