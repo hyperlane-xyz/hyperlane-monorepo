@@ -1,10 +1,10 @@
 import { BaseAgentKey } from '../agents/keys.js';
 
-export type FundingAddresses = {
+export type FunderAddresses = {
   interchainGasPaymaster: string;
 };
 
-export interface FundingConfig {
+export interface FunderConfig {
   skipIgpClaim: boolean;
   fundingThresholdFactor: number;
 }

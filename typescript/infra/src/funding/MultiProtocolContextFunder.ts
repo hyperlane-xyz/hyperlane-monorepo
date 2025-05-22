@@ -7,7 +7,7 @@ import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { MultiProtocolFundingApp } from './MultiProtocolFundingApp.js';
-import { ChainFundingPlan, FundingAddresses, FundingConfig } from './types.js';
+import { ChainFundingPlan, FunderAddresses, FunderConfig } from './types.js';
 
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
@@ -29,9 +29,9 @@ export class MultiProtocolContextFunder {
     public readonly context: Contexts,
     private readonly environment: DeployEnvironment,
     private readonly multiProtocolProvider: MultiProtocolProvider,
-    private readonly fundingConfig: FundingConfig,
+    private readonly fundingConfig: FunderConfig,
     private readonly walletBalanceGauge: Gauge<string>,
-    fundingAddresses: ChainMap<FundingAddresses>,
+    fundingAddresses: ChainMap<FunderAddresses>,
     fundingPlan: ChainMap<ChainFundingPlan>,
   ) {
     this.fundingApp = new MultiProtocolFundingApp(

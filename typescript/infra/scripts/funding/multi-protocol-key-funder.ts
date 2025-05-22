@@ -29,8 +29,8 @@ import {
 } from '../../src/funding/helpers.js';
 import {
   ChainFundingPlan,
-  FundingAddresses,
-  FundingConfig,
+  FunderAddresses,
+  FunderConfig,
   KeyFundingInfo,
 } from '../../src/funding/types.js';
 import {
@@ -165,7 +165,7 @@ async function main() {
   );
 
   // read address from chain metadata
-  const fundingAddresses: ChainMap<FundingAddresses> = chainsToFund.reduce(
+  const fundingAddresses: ChainMap<FunderAddresses> = chainsToFund.reduce(
     (acc, chain) => {
       acc[chain] = {
         interchainGasPaymaster:
@@ -175,7 +175,7 @@ async function main() {
       };
       return acc;
     },
-    {} as ChainMap<FundingAddresses>,
+    {} as ChainMap<FunderAddresses>,
   );
 
   if (needsL1) {
@@ -197,7 +197,7 @@ async function main() {
     ([context, roles]) => {
       const ctx = context as Contexts;
 
-      const fundingConfig: FundingConfig = {
+      const fundingConfig: FunderConfig = {
         skipIgpClaim: argv.skipIgpClaim,
         fundingThresholdFactor: DEFAULT_FUNDING_THRESHOLD_FACTOR,
       };

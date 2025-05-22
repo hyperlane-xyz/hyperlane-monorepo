@@ -22,7 +22,7 @@ import { BaseAgentKey } from '../../agents/keys.js';
 import { DeployEnvironment } from '../../config/environment.js';
 import { FundableRole } from '../../roles.js';
 import { L1_CHAIN, L2_CHAINS } from '../helpers.js';
-import { FundingAddresses } from '../types.js';
+import { FunderAddresses } from '../types.js';
 
 import { IFundingAdapter } from './IFundingAdapter.js';
 
@@ -48,7 +48,7 @@ export class EVMFundingAdapter
     private readonly multiProtocolProvider: MultiProtocolProvider,
     environment: DeployEnvironment,
     private readonly context: Contexts,
-    private readonly fundingAddresses: FundingAddresses,
+    private readonly fundingAddresses: FunderAddresses,
     public readonly logger: Logger,
     private readonly walletBalanceGauge: Gauge<string>,
   ) {

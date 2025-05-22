@@ -16,7 +16,7 @@ import { DeployEnvironment } from '../config/environment.js';
 import { EVMFundingAdapter } from './adapters/EVMFundingAdapter.js';
 import { IFundingAdapter } from './adapters/IFundingAdapter.js';
 import { SealevelFundingAdapter } from './adapters/SealevelFundingAdapter.js';
-import { ChainFundingPlan, FundingAddresses, FundingConfig } from './types.js';
+import { ChainFundingPlan, FunderAddresses, FunderConfig } from './types.js';
 
 /**
  * MultiProtocolFundingApp is a class that extends MultiProtocolApp and provides a funding interface for the app
@@ -25,16 +25,16 @@ import { ChainFundingPlan, FundingAddresses, FundingConfig } from './types.js';
  */
 export class MultiProtocolFundingApp extends MultiProtocolApp<
   IFundingAdapter,
-  FundingAddresses
+  FunderAddresses
 > {
   public readonly logger: Logger;
 
   constructor(
     private readonly multiProtocolProvider: MultiProtocolProvider,
-    public readonly addresses: ChainMap<FundingAddresses>,
+    public readonly addresses: ChainMap<FunderAddresses>,
     private readonly environment: DeployEnvironment,
     private readonly context: Contexts,
-    private readonly config: FundingConfig,
+    private readonly config: FunderConfig,
     private readonly walletBalanceGauge: Gauge<string>,
     logger: Logger = rootLogger.child({ module: 'multi-protocol-funding-app' }),
   ) {
