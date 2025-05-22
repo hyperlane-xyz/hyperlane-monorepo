@@ -43,6 +43,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
         raw: RawScraperSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -59,6 +60,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 chains_names_to_scrape.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 

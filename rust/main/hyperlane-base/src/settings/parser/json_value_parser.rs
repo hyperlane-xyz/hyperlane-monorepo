@@ -280,16 +280,21 @@ impl<'v> ValueParser<'v> {
         &self,
         filter: F,
         ctx: &'static str,
-        agent_name: &'static str,
+        agent_name: String,
     ) -> ConfigResult<O>
     where
         O: FromRawConf<T, F>,
         T: Debug + DeserializeOwned,
         F: Default,
     {
-        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter, agent_name)
-            .context(ctx)
-            .into_config_result(|| self.cwp.clone())
+        O::from_config_filtered(
+            self.parse_value::<T>(ctx)?,
+            &self.cwp,
+            filter,
+            agent_name.as_str(),
+        )
+        .context(ctx)
+        .into_config_result(|| self.cwp.clone())
     }
 }
 
@@ -361,7 +366,7 @@ impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
         self,
         filter: F,
         ctx: &'static str,
-        agent_name: &'static str,
+        agent_name: String,
     ) -> ParseChain<'e, O>
     where
         O: FromRawConf<T, F>,

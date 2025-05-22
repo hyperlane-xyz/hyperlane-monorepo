@@ -23,12 +23,9 @@ use hyperlane_core::{
     HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
 };
 
-use crate::{
-    agent,
-    settings::{
-        chains::IndexSettings, parser::connection_parser::build_connection_conf,
-        trace::TracingConfig, ChainConf, CoreContractAddresses, Settings, SignerConf,
-    },
+use crate::settings::{
+    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
+    ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -44,6 +41,15 @@ const DEFAULT_CHUNK_SIZE: u32 = 1999;
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
 pub struct RawAgentConf(Value);
+
+fn agent_name_to_default_rpc_consensus_type(agent_name: &str) -> String {
+    match agent_name {
+        "validator" => "quorum".to_string(),
+        "relayer" => "fallback".to_string(),
+        "scraper" => "fallback".to_string(),
+        _ => "fallback".to_string(),
+    }
+}
 
 impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
@@ -95,16 +101,12 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .and_then(parse_signer)
             .end();
 
-        let default_rpc_consensus_type = p
-            .chain(&mut err)
-            .get_opt_key("defaultRpcConsensusType")
-            .parse_string()
-            .unwrap_or("fallback");
+        let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name, default_rpc_consensus_type)
+                parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
@@ -407,9 +409,9 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         raw: RawAgentSignerConf,
         cwp: &ConfigPath,
         _filter: (),
-        agent_name: &str,
+        _agent_name: &str,
     ) -> ConfigResult<Self> {
-        parse_signer(ValueParser::new(cwp.clone(), &raw.0, agent_name))
+        parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
 }
 

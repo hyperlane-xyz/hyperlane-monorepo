@@ -137,7 +137,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
-                agent_name,
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 

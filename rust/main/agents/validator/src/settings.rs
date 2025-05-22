@@ -94,7 +94,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
-                agent_name,
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
@@ -113,7 +113,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
-                agent_name,
+                agent_name.to_string(),
             )
             .end();
 
