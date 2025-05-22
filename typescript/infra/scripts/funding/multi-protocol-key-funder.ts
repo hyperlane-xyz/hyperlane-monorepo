@@ -10,7 +10,7 @@ import {
   MultiProtocolProviderOptions,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChains } from '../../config/registry.js';
@@ -24,7 +24,6 @@ import { MultiProtocolContextFunder } from '../../src/funding/MultiProtocolConte
 import {
   L1_CHAIN,
   L2_CHAINS,
-  createTimeoutPromise,
   parseBalancePerChain,
   parseContextAndRolesMap,
 } from '../../src/funding/helpers.js';
@@ -236,20 +235,17 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of multiProtocolContextFunders) {
-    const { promise, cleanup } = createTimeoutPromise(
-      CONTEXT_FUNDING_TIMEOUT_MS,
-      `Funding timed out for context ${funder.context} after ${
-        CONTEXT_FUNDING_TIMEOUT_MS / 1000
-      }s`,
-    );
-
     try {
-      await Promise.race([funder.fund(), promise]);
-    } catch {
-      logger.error({ context: funder.context }, 'Error funding context');
+      await runWithTimeout(
+        CONTEXT_FUNDING_TIMEOUT_MS,
+        () => funder.fund(),
+        `Funding timed out for context ${funder.context} after ${
+          CONTEXT_FUNDING_TIMEOUT_MS / 1000
+        }s`,
+      );
+    } catch (error) {
+      logger.error({ context: funder.context, error }, 'Error funding context');
       failureOccurred = true;
-    } finally {
-      cleanup();
     }
   }
 

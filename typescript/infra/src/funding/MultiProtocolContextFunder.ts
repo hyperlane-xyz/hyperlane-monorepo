@@ -1,13 +1,12 @@
 import { Gauge } from 'prom-client';
 
 import { ChainMap, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { MultiProtocolFundingApp } from './MultiProtocolFundingApp.js';
-import { createTimeoutPromise } from './helpers.js';
 import { ChainFundingPlan, FundingAddresses, FundingConfig } from './types.js';
 
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
@@ -51,24 +50,18 @@ export class MultiProtocolContextFunder {
    */
   async fund(): Promise<void> {
     const results = await Promise.allSettled(
-      Object.entries(this.fundingPlan).map(([chain, plan]) => {
-        const { promise, cleanup } = createTimeoutPromise(
-          CHAIN_FUNDING_TIMEOUT_MS,
-          `Funding timed out for chain ${chain} after ${
-            CHAIN_FUNDING_TIMEOUT_MS / 1000
-          }s`,
-        );
-
+      Object.entries(this.fundingPlan).map(async ([chain, plan]) => {
         try {
-          return Promise.race([
-            this.fundingApp.fundChainKeys(chain, plan),
-            promise,
-          ]);
+          return await runWithTimeout(
+            CHAIN_FUNDING_TIMEOUT_MS,
+            () => this.fundingApp.fundChainKeys(chain, plan),
+            `Funding timed out for chain ${chain} after ${
+              CHAIN_FUNDING_TIMEOUT_MS / 1000
+            }s`,
+          );
         } catch (error) {
           this.logger.error({ error, chain }, 'Error funding chain');
           return Promise.reject({ error, chain });
-        } finally {
-          cleanup();
         }
       }),
     );
