@@ -17,7 +17,7 @@ mod case_adapter;
 mod environment;
 
 /// Deserialize a settings object from the configs.
-pub fn load_settings<T, R>() -> ConfigResult<R>
+pub fn load_settings<T, R>(agent: &str) -> ConfigResult<R>
 where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,

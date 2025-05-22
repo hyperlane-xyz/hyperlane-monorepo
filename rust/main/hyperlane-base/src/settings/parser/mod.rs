@@ -47,6 +47,7 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
         raw: RawAgentConf,
         cwp: &ConfigPath,
         filter: Option<&HashSet<&str>>,
+        agent_name: &str,
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 

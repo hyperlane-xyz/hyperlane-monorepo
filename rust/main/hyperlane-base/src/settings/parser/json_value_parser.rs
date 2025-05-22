@@ -276,13 +276,20 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Use FromRawConf to parse a value.
-    pub fn parse_from_raw_config<O, T, F>(&self, filter: F, ctx: &'static str) -> ConfigResult<O>
+    pub fn parse_from_raw_config<O, T, F>(
+        &self,
+        filter: F,
+        ctx: &'static str,
+        agent_name: &'static str,
+    ) -> ConfigResult<O>
     where
         O: FromRawConf<T, F>,
         T: Debug + DeserializeOwned,
         F: Default,
     {
-        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter)
+        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter, agent_name)
+            .context(ctx)
+            .into_config_result(|| self.cwp.clone())
     }
 }
 

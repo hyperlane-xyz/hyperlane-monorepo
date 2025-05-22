@@ -93,7 +93,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         git_sha()
     );
 
-    let settings = A::Settings::load()?;
+    let settings = A::Settings::load(A::AGENT_NAME)?;
     let agent_metadata = A::Metadata::build_metadata(&settings);
     let core_settings: &Settings = settings.as_ref();
 
