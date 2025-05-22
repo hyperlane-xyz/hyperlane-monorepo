@@ -90,6 +90,9 @@ pub enum ContractSyncMessage {
     QueryRange(RangeInclusive<u32>),
 }
 
+type QueryReceiver<T> =
+    mpsc::UnboundedReceiver<Option<(Vec<(Indexed<T>, LogMeta)>, RangeInclusive<u32>)>>;
+
 impl<T, S, I> ContractSync<T, S, I>
 where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -125,7 +128,7 @@ where
         let (message_tx, mut message_rx) = mpsc::unbounded_channel();
 
         let tx_clone = message_tx.clone();
-        let _ = tokio::spawn(async move {
+        tokio::spawn(async move {
             if let Some(tx_id_rx) = opts.tx_id_receiver {
                 Self::tx_id_receiver_task(tx_id_rx, tx_clone).await;
             }
@@ -134,9 +137,8 @@ where
         let (fetch_range_tx, fetch_range_rx) = mpsc::unbounded_channel();
 
         if let Some(cursor) = opts.cursor {
-            let cursor = cursor.into();
             let tx_clone = message_tx.clone();
-            let _ = tokio::spawn(async move {
+            tokio::spawn(async move {
                 Self::cursor_receiver_task(
                     cursor,
                     fetch_range_rx,
@@ -214,9 +216,7 @@ where
 
     async fn cursor_receiver_task(
         mut cursor: Box<dyn ContractSyncCursor<T>>,
-        mut query_complete_rx: mpsc::UnboundedReceiver<
-            Option<(Vec<(Indexed<T>, LogMeta)>, RangeInclusive<u32>)>,
-        >,
+        mut query_complete_rx: QueryReceiver<T>,
         sender: UnboundedSender<ContractSyncMessage>,
         indexed_height_metric: &GenericGauge<AtomicI64>,
     ) {
