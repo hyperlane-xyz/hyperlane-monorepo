@@ -8,7 +8,7 @@ CREATE TABLE "Commitment" (
     "ica" TEXT NOT NULL,
     "commitmentDispatchTx" TEXT NOT NULL,
     "originDomain" INTEGER NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY ("commitment", "revealMessageId")
+    CONSTRAINT "Commitment_pkey" PRIMARY KEY ("commitment","revealMessageId")
 );
