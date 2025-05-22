@@ -4,6 +4,7 @@ import { fromZodError } from 'zod-validation-error';
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
+import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
@@ -57,7 +58,7 @@ const BaseConfigSchema = z.object({
   checkFrequency: z.number().optional(),
   withMetrics: z.boolean().optional().default(false),
   monitorOnly: z.boolean().optional().default(false),
-  rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
+  rebalanceStrategy: z.nativeEnum(StrategyOptions).optional(),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
@@ -116,7 +117,7 @@ export class Config {
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
     public readonly coingeckoApiKey: string,
-    public readonly rebalanceStrategy: 'weighted' | 'minAmount',
+    public readonly rebalanceStrategy: StrategyOptions,
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 

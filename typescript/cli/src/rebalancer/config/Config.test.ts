@@ -8,6 +8,7 @@ import {
   REBALANCER_CONFIG_PATH,
 } from '../../tests/commands/helpers.js';
 import { writeYamlOrJson } from '../../utils/files.js';
+import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import { Config } from './Config.js';
 
@@ -18,7 +19,7 @@ describe('Config', () => {
     data = {
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       chain1: {
         weight: 100,
         tolerance: 0,
@@ -56,7 +57,7 @@ describe('Config', () => {
       monitorOnly: false,
       withMetrics: false,
       coingeckoApiKey: '',
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
           weight: 100n,
@@ -141,7 +142,7 @@ describe('Config', () => {
         monitorOnly: false,
         withMetrics: false,
         coingeckoApiKey: COINGECKO_API_KEY,
-        rebalanceStrategy: 'weighted',
+        rebalanceStrategy: StrategyOptions.Weighted,
       }),
     ).to.deep.equal({
       warpRouteId: 'warpRouteId by override',
@@ -150,7 +151,7 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       withMetrics: false,
       coingeckoApiKey: COINGECKO_API_KEY,
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
           weight: 100n,
@@ -169,7 +170,7 @@ describe('Config', () => {
   });
 
   it('should load relative params without modifications', () => {
-    data.rebalanceStrategy = 'minAmount';
+    data.rebalanceStrategy = StrategyOptions.MinAmount;
     delete data.chain1.weight;
     delete data.chain1.tolerance;
 
@@ -187,7 +188,7 @@ describe('Config', () => {
   });
 
   it('should load absolute params without modifications', () => {
-    data.rebalanceStrategy = 'minAmount';
+    data.rebalanceStrategy = StrategyOptions.MinAmount;
     delete data.chain1.weight;
     delete data.chain1.tolerance;
 
@@ -209,7 +210,7 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        rebalanceStrategy: 'minAmount',
+        rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: 1000,
           target: 1100,
@@ -255,7 +256,7 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        rebalanceStrategy: 'minAmount',
+        rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: 1000,
           target: 1100,
@@ -289,7 +290,7 @@ describe('Config', () => {
       data = {
         warpRouteId: 'warpRouteId',
         checkFrequency: 1000,
-        rebalanceStrategy: 'minAmount',
+        rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: 1000,
           target: 1100,

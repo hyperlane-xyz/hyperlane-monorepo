@@ -30,11 +30,11 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
-  BaseConfig,
   Config,
   MonitorEventType,
   MonitorPollingError,
   RebalancerContextFactory,
+  StrategyOptions,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -453,7 +453,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   withMetrics?: boolean;
   monitorOnly?: boolean;
   coingeckoApiKey?: string;
-  rebalanceStrategy?: string;
+  rebalanceStrategy?: StrategyOptions;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -541,7 +541,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         withMetrics,
         monitorOnly,
         coingeckoApiKey,
-        rebalanceStrategy: rebalanceStrategy as BaseConfig['rebalanceStrategy'],
+        rebalanceStrategy,
       });
       logGreen('✅ Loaded rebalancer config');
 
