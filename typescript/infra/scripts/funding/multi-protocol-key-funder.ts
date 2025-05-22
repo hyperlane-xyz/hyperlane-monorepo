@@ -47,7 +47,7 @@ import { Role } from './../../src/roles.js';
 const logger = rootLogger.child({ module: 'fund-keys' });
 
 const DEFAULT_FUNDING_THRESHOLD_FACTOR = 0.7;
-const RC_FUNDING_DISCOUNT_FACTOR = 0.2;
+const FUNDING_DISCOUNT_FACTOR = 0.2;
 
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -203,10 +203,10 @@ async function main() {
         fundingThresholdFactor: DEFAULT_FUNDING_THRESHOLD_FACTOR,
       };
 
-      // add funding discount factor for RC context
+      // add funding discount factor for all non-hyperlane context i.e RC, neutron
       let fundingDiscountFactor: number | undefined;
-      if (ctx === Contexts.ReleaseCandidate) {
-        fundingDiscountFactor = RC_FUNDING_DISCOUNT_FACTOR;
+      if (ctx !== Contexts.Hyperlane) {
+        fundingDiscountFactor = FUNDING_DISCOUNT_FACTOR;
       }
 
       const fundingPlan = buildFundingPlan(
@@ -303,7 +303,13 @@ function buildFundingPlan(
         balance = desiredKathyBalancePerChain?.[chain];
       }
 
-      if (!balance) continue;
+      if (!balance) {
+        logger.debug(
+          { chain, role },
+          'No balance found for role, skipping funding',
+        );
+        continue;
+      }
 
       let localKeysAddresses: LocalRoleAddresses | undefined;
       try {
