@@ -105,6 +105,7 @@ function getChainConnections(
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
+      ['solanamainnet', 'subtensor'],
       // for svmBNB routes solana<>bsc<>svmbnb<>soon
       ['solanamainnet', 'bsc'],
       ['svmbnb', 'solanamainnet'],
