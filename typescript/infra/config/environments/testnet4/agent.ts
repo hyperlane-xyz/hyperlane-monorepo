@@ -182,7 +182,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rometestnet: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: false,
+    solanatestnet: true,
     somniatestnet: true,
     soneiumtestnet: true,
     sonicblaze: true,
