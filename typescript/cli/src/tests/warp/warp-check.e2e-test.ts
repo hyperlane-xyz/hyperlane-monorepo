@@ -467,6 +467,71 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.text()).to.includes(expectedDiffText);
       expect(output.text()).to.includes(expectedActualText);
     });
+
+    it(`should find inconsistent decimals without scale`, async function () {
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      // currently warp deploy is not writing the deploy config to the registry
+      // should remove this once the deploy config is written to the registry
+      writeYamlOrJson(
+        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+        warpConfig,
+      );
+
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      deployConfig[CHAIN_NAME_2].decimals = 6;
+      deployConfig[CHAIN_NAME_3].decimals = 18;
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(
+        `Scale is required for ${CHAIN_NAME_2}`,
+      );
+    });
+
+    it(`should find invalid scale config`, async function () {
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      // currently warp deploy is not writing the deploy config to the registry
+      // should remove this once the deploy config is written to the registry
+      writeYamlOrJson(
+        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+        warpConfig,
+      );
+
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      deployConfig[CHAIN_NAME_2].decimals = 6;
+      deployConfig[CHAIN_NAME_2].scale = 1;
+
+      deployConfig[CHAIN_NAME_3].decimals = 34;
+      deployConfig[CHAIN_NAME_2].scale = 2;
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(
+        `Scale is not correct for ${CHAIN_NAME_2}`,
+      );
+    });
   });
 
   for (const hookType of MUTABLE_HOOK_TYPE) {

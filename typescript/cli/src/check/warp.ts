@@ -14,7 +14,7 @@ import {
   keepOnlyDiffObjects,
 } from '@hyperlane-xyz/utils';
 
-import { log, logGreen } from '../logger.js';
+import { log, logGreen, logRed } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 export async function runWarpRouteCheck({
@@ -26,6 +26,32 @@ export async function runWarpRouteCheck({
   onChainWarpConfig: DerivedWarpRouteDeployConfig &
     Record<string, Partial<HypTokenRouterVirtualConfig>>;
 }): Promise<void> {
+  Object.values(warpRouteConfig).forEach((config) => {
+    if (config.decimals === undefined && config.decimals !== 0) {
+      logRed('Decimals, if defined, must not be zero');
+      process.exit(1);
+    }
+  });
+
+  if (!areDecimalsUniform(warpRouteConfig)) {
+    const maxDecimals = Math.max(
+      ...Object.values(warpRouteConfig).map((config) => config.decimals!),
+    );
+
+    for (const [chain, config] of Object.entries(warpRouteConfig)) {
+      if (config.decimals) {
+        const scale = 10 ** (maxDecimals - config.decimals);
+        if (!config.scale && scale !== 1) {
+          logRed(`Scale is required for ${chain}`);
+          process.exit(1);
+        } else if (config.scale && scale !== config.scale) {
+          logRed(`Scale is not correct for ${chain}`);
+          process.exit(1);
+        }
+      }
+    }
+  }
+
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
@@ -69,4 +95,15 @@ export async function runWarpRouteCheck({
   }
 
   logGreen(`No violations found`);
+}
+
+function areDecimalsUniform(configMap: Record<string, any>): boolean {
+  const values = [...Object.values(configMap)];
+  const [first, ...rest] = values;
+  for (const d of rest) {
+    if (d.decimals !== first.decimals) {
+      return false;
+    }
+  }
+  return true;
 }
