@@ -74,7 +74,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: true,
+    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
