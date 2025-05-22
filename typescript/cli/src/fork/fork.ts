@@ -76,7 +76,7 @@ async function forkChain(
     const rpcUrl = chainMetadata.rpcUrls[0];
     if (!rpcUrl) {
       logRed(`No rpc found for chain ${chainName}`);
-      process.exit(0);
+      process.exit(1);
     }
 
     const endpoint = `${LOCAL_HOST}:${forkPort}`;
