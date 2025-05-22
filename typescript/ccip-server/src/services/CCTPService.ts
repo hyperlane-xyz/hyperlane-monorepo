@@ -1,36 +1,57 @@
 import { ethers } from 'ethers';
+import { Router } from 'express';
 
-import { CCTPAttestationService } from './CCTPAttestationService';
-import { HyperlaneService } from './HyperlaneService';
-import { RPCService } from './RPCService';
+import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
-type RPCConfig = {
-  readonly url: string;
-  readonly chainId: string;
-};
+import { BaseService } from './BaseService.js';
+import { CCTPAttestationService } from './CCTPAttestationService.js';
+import { HyperlaneService } from './HyperlaneService.js';
+import { RPCService } from './RPCService.js';
 
-type HyperlaneConfig = {
-  readonly url: string;
-};
-
-type CCTPConfig = {
-  readonly url: string;
-};
-
-class CCTPService {
+class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
   rpcService: RPCService;
+  public readonly router: Router;
 
-  constructor(
-    hyperlaneConfig: Required<HyperlaneConfig>,
-    cctpConfig: Required<CCTPConfig>,
-    rpcConfig: Required<RPCConfig>,
-  ) {
-    this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
-    this.cctpAttestationService = new CCTPAttestationService(cctpConfig.url);
-    this.rpcService = new RPCService(rpcConfig.url);
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new CCTPService());
+  }
+
+  constructor() {
+    super();
+    this.hyperlaneService = new HyperlaneService(
+      process.env.HYPERLANE_EXPLORER_URL!,
+    );
+    this.cctpAttestationService = new CCTPAttestationService(
+      process.env.CCTP_ATTESTATION_URL!,
+    );
+    // TODO: fetch this from a configured MultiProvider from IRegistry
+    this.rpcService = new RPCService(process.env.RPC_URL!);
+
+    this.router = Router();
+
+    // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
+    this.router.get(
+      '/getCctpAttestation/:sender/:callData.json',
+      createAbiHandler(
+        CCTPServiceAbi,
+        'getCCTPAttestation',
+        this.getCCTPAttestation.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getCCTPAttestation
+    this.router.post(
+      '/getCctpAttestation',
+      createAbiHandler(
+        CCTPServiceAbi,
+        'getCCTPAttestation',
+        this.getCCTPAttestation.bind(this),
+      ),
+    );
   }
 
   async getCCTPMessageFromReceipt(
@@ -46,7 +67,7 @@ class CCTPService {
         if (parsedLog.name === 'MessageSent') {
           return parsedLog.args.message;
         }
-      } catch {
+      } catch (_err) {
         // This log is not from the events in our ABI
         continue;
       }
@@ -55,7 +76,7 @@ class CCTPService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation([message]: ethers.utils.Result) {
+  async getCCTPAttestation(message: string) {
     const messageId: string = ethers.utils.keccak256(message);
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
@@ -68,9 +89,8 @@ class CCTPService {
 
     console.info('Found tx @', txHash);
 
-    const receipt = await this.rpcService.provider.getTransactionReceipt(
-      txHash,
-    );
+    const receipt =
+      await this.rpcService.provider.getTransactionReceipt(txHash);
 
     const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 

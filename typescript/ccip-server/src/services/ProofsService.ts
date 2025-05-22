@@ -1,11 +1,15 @@
 import { ethers } from 'ethers';
+import { Router } from 'express';
 
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { ProofsServiceAbi } from '../abis/ProofsServiceAbi.js';
+import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { HyperlaneService } from './HyperlaneService';
-import { LightClientService, SuccinctConfig } from './LightClientService';
-import { ProofResult, RPCService } from './RPCService';
-import { ProofStatus } from './common/ProofStatusEnum';
+import { BaseService } from './BaseService.js';
+import { HyperlaneService } from './HyperlaneService.js';
+import { LightClientService, SuccinctConfig } from './LightClientService.js';
+import { ProofResult, RPCService } from './RPCService.js';
+import { ProofStatus } from './common/ProofStatusEnum.js';
 
 type RPCConfig = {
   readonly url: string;
@@ -17,7 +21,7 @@ type HyperlaneConfig = {
 };
 
 // Service that requests proofs from Succinct and RPC Provider
-class ProofsService {
+class ProofsService extends BaseService {
   // Maps from pendingProofKey to pendingProofId
   pendingProof = new Map<string, string>();
 
@@ -26,11 +30,44 @@ class ProofsService {
   lightClientService: LightClientService;
   hyperlaneService: HyperlaneService;
 
-  constructor(
-    succinctConfig: Required<SuccinctConfig>,
-    rpcConfig: Required<RPCConfig>,
-    hyperlaneConfig: Required<HyperlaneConfig>,
-  ) {
+  public readonly router: Router;
+
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new ProofsService());
+  }
+
+  constructor() {
+    super();
+    // Load module config from ENV
+    const lightClientAddress = process.env.SUCCINCT_LIGHT_CLIENT_ADDRESS;
+    const succinctTrustRoot = process.env.SUCCINCT_TRUST_ROOT;
+    const rpcUrl = process.env.PROOFS_RPC_URL;
+    const rpcChainId = process.env.PROOFS_CHAIN_ID;
+    const stepFunctionId = process.env.STEP_FN_ID;
+    const platformUrl = process.env.SUCCINCT_PLATFORM_URL;
+    const apiKey = process.env.SUCCINCT_API_KEY;
+    const hyperlaneUrl = process.env.HYPERLANE_URL;
+    if (
+      !lightClientAddress ||
+      !succinctTrustRoot ||
+      !rpcUrl ||
+      !rpcChainId ||
+      !hyperlaneUrl
+    ) {
+      throw new Error('Missing required ProofsService environment variables');
+    }
+    const succinctConfig = {
+      lightClientAddress,
+      stepFunctionId,
+      platformUrl,
+      apiKey,
+    } as Required<SuccinctConfig>;
+    const rpcConfig = {
+      url: rpcUrl,
+      chainId: rpcChainId,
+    } as Required<RPCConfig>;
+    const hyperlaneConfig = { url: hyperlaneUrl } as Required<HyperlaneConfig>;
+
     this.rpcService = new RPCService(rpcConfig.url);
     const lightClientContract = new ethers.Contract(
       succinctConfig.lightClientAddress,
@@ -44,6 +81,27 @@ class ProofsService {
     );
 
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
+    this.router = Router();
+
+    // CCIP-read spec: GET /getProofs/:sender/:callData.json
+    this.router.get(
+      '/getProofs/:sender/:callData.json',
+      createAbiHandler(
+        ProofsServiceAbi,
+        'getProofs',
+        this.getProofs.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getProofs
+    this.router.post(
+      '/getProofs',
+      createAbiHandler(
+        ProofsServiceAbi,
+        'getProofs',
+        this.getProofs.bind(this),
+      ),
+    );
   }
 
   /**

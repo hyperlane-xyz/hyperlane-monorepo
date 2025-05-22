@@ -20,7 +20,9 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     context: MetadataContext<WithAddress<CCIPReadIsmConfig>>,
   ): Promise<string> {
     const { ism, message } = context;
-    const provider = this.core.multiProvider.getProvider(message.parsed.origin);
+    const provider = this.core.multiProvider.getProvider(
+      message.parsed.destination,
+    );
     const contract = ICcipReadIsm__factory.connect(ism.address, provider);
 
     let revertData: string;
@@ -42,6 +44,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
       string[],
       Uint8Array,
     ];
+
     const callDataHex = utils.hexlify(callData);
 
     for (const urlTemplate of urls) {
