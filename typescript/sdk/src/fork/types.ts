@@ -132,7 +132,7 @@ function forkedChainTransactionsFromRaw(
 ): ReadonlyArray<ForkedChainTransactionConfig> {
   const formatters: TxFormatter = {
     [TransactionConfigType.FILE]: (config) => {
-      const safeTxs: SafeTx = fileReader(config.path);
+      const safeTxs: SafeTx = SafeTxFileSchema.parse(fileReader(config.path));
 
       const transactions = safeTxs.transactions.map(
         (safeTx, idx): ForkedChainTransactionConfig => {
@@ -160,13 +160,13 @@ function forkedChainTransactionsFromRaw(
 
   const formatter = formatters[raw.type];
 
-  // TODO: fix the error
   if (!formatter) {
-    throw new Error('henlo');
+    throw new Error(
+      `Formatter not defined for parsing transaction of type "${raw.type}" for fork config`,
+    );
   }
 
-  // @ts-ignore
-  return formatter(raw);
+  return formatter(raw as any);
 }
 
 function forkedChainConfigFromRaw(
