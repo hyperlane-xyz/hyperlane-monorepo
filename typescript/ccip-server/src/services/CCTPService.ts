@@ -4,18 +4,24 @@ import { Router } from 'express';
 import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
+import { BaseService } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
-class CCTPService {
+class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
   rpcService: RPCService;
   public readonly router: Router;
 
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new CCTPService());
+  }
+
   constructor() {
+    super();
     this.hyperlaneService = new HyperlaneService(
       process.env.HYPERLANE_EXPLORER_URL!,
     );

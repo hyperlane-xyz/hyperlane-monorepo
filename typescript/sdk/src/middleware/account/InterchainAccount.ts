@@ -295,23 +295,33 @@ export function commitmentFromIcaCalls(
   return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
-export function shareCallsWithPrivateRelayer(
+export async function shareCallsWithPrivateRelayer(
   calls: CallData[],
   salt: string,
   relayers: string[],
-  commitmentMessageId: string,
+  commitmentDispatchTx: string,
   serverUrl: string,
-  ica: string,
+  originDomain: number,
 ): Promise<Response> {
-  return fetch(serverUrl, {
+  const resp = await fetch(serverUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      commitmentMessageId,
+      commitmentDispatchTx,
+      originDomain,
       calls,
       relayers,
       salt,
-      ica,
     }),
   });
+
+  if (!resp.ok) {
+    // Read body
+    const body = await resp.text();
+    throw new Error(
+      `Failed to share calls with relayer: ${resp.status} ${body}`,
+    );
+  }
+
+  return resp;
 }
