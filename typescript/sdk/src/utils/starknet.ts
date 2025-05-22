@@ -21,7 +21,7 @@ import { SupportedIsmTypesOnStarknetType } from '../ism/types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
-  MAILBOX_CLIENT = 'mailboxclient',
+  MAILBOX_CLIENT = 'mailboxClientProxy',
   HYP_ERC20 = 'HypErc20',
   HYP_ERC20_COLLATERAL = 'HypErc20Collateral',
   HYP_NATIVE = 'HypNative',

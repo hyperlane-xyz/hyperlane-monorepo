@@ -245,12 +245,6 @@ export async function runWarpRouteDeploy({
     starknetSigners,
   });
 
-  await writeDeploymentArtifacts(
-    deployments,
-    context,
-    deploymentAddWarpRouteOptions,
-  );
-
   // can't be handled in getWarpCoreConfig
   // because its not compatible with starknet
   fullyConnectTokens(deployments, multiProvider);
