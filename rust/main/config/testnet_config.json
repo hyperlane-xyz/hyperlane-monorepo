@@ -3209,6 +3209,5 @@
         }
       ]
     }
-  },
-  "defaultRpcConsensusType": "fallback"
+  }
 }
