@@ -172,7 +172,7 @@ export function hyperlaneWarpSendRelay(
 export function hyperlaneWarpRebalancer(
   warpRouteId: string,
   checkFrequency: number,
-  configFile: string,
+  config: string,
   withMetrics: boolean,
   rebalanceStrategy?: string,
   monitorOnly?: boolean,
@@ -184,7 +184,7 @@ export function hyperlaneWarpRebalancer(
         --registry ${REGISTRY_PATH} \
         --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
-        --configFile ${configFile} \
+        --config ${config} \
         --key ${ANVIL_KEY} \
         ${monitorOnly ? ['--monitorOnly'] : ['']} \
         ${fromChain ? ['--fromChain', fromChain] : ['']} \

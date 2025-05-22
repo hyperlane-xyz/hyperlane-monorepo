@@ -444,7 +444,7 @@ export const check: CommandModuleWithContext<{
 };
 
 export const rebalancer: CommandModuleWithWriteContext<{
-  configFile: string;
+  config: string;
   fromChain?: string;
   toChain?: string;
   amount?: string;
@@ -458,12 +458,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
   builder: {
-    configFile: {
+    config: {
       type: 'string',
       description:
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
-      alias: ['rebalancerConfigFile'],
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
     },
     fromChain: {
       type: 'string',
@@ -523,7 +523,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     fromChain,
     toChain,
     amount,
-    configFile,
+    config,
     warpRouteId,
     checkFrequency,
     withMetrics,
@@ -535,7 +535,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const { registry, key: rebalancerKey } = context;
 
       // Load rebalancer config from disk
-      const config = Config.load(configFile, rebalancerKey, {
+      const rebalancerConfig = Config.load(config, rebalancerKey, {
         warpRouteId,
         checkFrequency,
         withMetrics,
@@ -548,7 +548,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
         registry,
-        config,
+        rebalancerConfig,
       );
 
       const immediateExec = fromChain && toChain && amount;
@@ -570,11 +570,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const strategy = contextFactory.createStrategy();
 
       // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor = !config.monitorOnly
+      const executor = !rebalancerConfig.monitorOnly
         ? contextFactory.createExecutor()
         : undefined;
 
-      if (config.monitorOnly) {
+      if (rebalancerConfig.monitorOnly) {
         warnYellow(
           'Running in monitorOnly mode: no transactions will be executed.',
         );
