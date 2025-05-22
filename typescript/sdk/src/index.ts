@@ -720,7 +720,7 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-
+export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   StarknetContractName,
   getStarknetContract,
