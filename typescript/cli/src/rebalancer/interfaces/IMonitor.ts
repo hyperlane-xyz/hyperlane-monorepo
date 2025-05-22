@@ -1,5 +1,15 @@
 import { Token } from '@hyperlane-xyz/sdk';
 
+import { WrappedError } from '../../utils/errors.js';
+
+export class MonitorStartError extends WrappedError {
+  name = 'MonitorStartError';
+}
+
+export class MonitorPollingError extends WrappedError {
+  name = 'MonitorPollingError';
+}
+
 /**
  * Represents an event emitted by the monitor containing bridgedSupply and token information.
  */

@@ -4,16 +4,12 @@ import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
 import { log, logDebug, warnYellow } from '../../logger.js';
-import { WrappedError } from '../../utils/errors.js';
-import type { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
-
-export class MonitorStartError extends WrappedError {
-  name = 'MonitorStartError';
-}
-
-export class MonitorPollingError extends WrappedError {
-  name = 'MonitorPollingError';
-}
+import {
+  type IMonitor,
+  type MonitorEvent,
+  MonitorPollingError,
+  MonitorStartError,
+} from '../interfaces/IMonitor.js';
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
