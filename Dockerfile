@@ -16,6 +16,8 @@ COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/infra/package.json ./typescript/infra/
+# Copy Prisma schema for ccip-server before install so prisma generate works
+COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/

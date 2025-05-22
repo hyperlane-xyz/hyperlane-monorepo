@@ -2,7 +2,7 @@
 // CommitmentReadIsm.getOffChainVerify() function as per
 // CCIP-read standard
 const CallCommitmentsAbi = [
-  'function getCallsFromCommitment(bytes32) public view returns (bytes memory)',
+  'function getCallsFromRevealMessage(bytes) public view returns (bytes memory)',
 ];
 
 export { CallCommitmentsAbi };
