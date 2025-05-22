@@ -631,7 +631,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         // Finally, starts the monitor to begin polling balances.
         .start();
     } catch (e) {
-      errorRed('Error on the rebalancer:', (e as Error).message);
+      errorRed('Rebalancer error:', (e as Error).message);
       process.exit(1);
     }
   },
