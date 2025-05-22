@@ -1,0 +1,36 @@
+arbitrum:
+  transactions:
+    - type: rawTransaction
+      transactions:
+      - annotation: "Schedule tx on Timelock"
+        timeSkip: 604800
+        from: "0x03fD5BE9DF85F0017dC7F4DC3068dDF64fffF25e"
+        to: "0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01"
+        data:
+          type: signature
+          signature: "function schedule(address target,uint256 value,bytes calldata data,bytes32 predecessor,bytes32 salt,uint256 delay) public"
+          args:
+            - "0x80Cebd56A65e46c474a1A101e89E76C4c51D179c"
+            - "0"
+            - "0xf2fde38b0000000000000000000000007379d7bb2cca68982e467632b6554fd4e72e9431"
+            - "0x0000000000000000000000000000000000000000000000000000000000000000"
+            - "0x0000000000000000000000000000000000000000000000000000000000000000"
+            - "604800"
+      - annotation: "Execute scheduled tx on Timelock"
+        from: "0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
+        to: "0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01"
+        data:
+          type: signature
+          signature: "function execute(address target,uint256 value,bytes calldata payload,bytes32 predecessor,bytes32 salt) public"
+          args:
+            - "0x80Cebd56A65e46c474a1A101e89E76C4c51D179c"
+            - "0"
+            - "0xf2fde38b0000000000000000000000007379d7bb2cca68982e467632b6554fd4e72e9431"
+            - "0x0000000000000000000000000000000000000000000000000000000000000000"
+            - "0x0000000000000000000000000000000000000000000000000000000000000000"
+        eventAssertions:
+          - type: topicSignature
+            signature: "event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)"
+            args:
+              - "0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01"
+              - "0x7379D7bB2ccA68982E467632B6554fD4e72e9431"
