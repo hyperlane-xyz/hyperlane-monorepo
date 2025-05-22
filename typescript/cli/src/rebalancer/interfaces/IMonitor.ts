@@ -10,6 +10,12 @@ export class MonitorPollingError extends WrappedError {
   name = 'MonitorPollingError';
 }
 
+export enum MonitorEventType {
+  TokenInfo = 'tokeninfo',
+  Error = 'error',
+  Start = 'start',
+}
+
 /**
  * Represents an event emitted by the monitor containing bridgedSupply and token information.
  */
@@ -30,17 +36,20 @@ export interface IMonitor {
   /**
    * Allows subscribers to listen to hyperlane's tokens info.
    */
-  on(eventName: 'tokeninfo', fn: (event: MonitorEvent) => void): this;
+  on(
+    eventName: MonitorEventType.TokenInfo,
+    fn: (event: MonitorEvent) => void,
+  ): this;
 
   /**
    * Allows subscribers to listen to error events.
    */
-  on(eventName: 'error', fn: (event: Error) => void): this;
+  on(eventName: MonitorEventType.Error, fn: (event: Error) => void): this;
 
   /**
    * Allows subscribers to listen to start events.
    */
-  on(eventName: 'start', fn: () => void): this;
+  on(eventName: MonitorEventType.Start, fn: () => void): this;
 
   /**
    * Starts the monitoring long-running process.

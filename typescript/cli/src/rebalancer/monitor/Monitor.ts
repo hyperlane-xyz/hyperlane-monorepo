@@ -7,6 +7,7 @@ import { log, logDebug, warnYellow } from '../../logger.js';
 import {
   type IMonitor,
   type MonitorEvent,
+  MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
@@ -27,9 +28,12 @@ export class Monitor implements IMonitor {
   ) {}
 
   // overloads from IMonitor
-  on(eventName: 'tokeninfo', fn: (event: MonitorEvent) => void): this;
-  on(eventName: 'error', fn: (event: Error) => void): this;
-  on(eventName: 'start', fn: () => void): this;
+  on(
+    eventName: MonitorEventType.TokenInfo,
+    fn: (event: MonitorEvent) => void,
+  ): this;
+  on(eventName: MonitorEventType.Error, fn: (event: Error) => void): this;
+  on(eventName: MonitorEventType.Start, fn: () => void): this;
   on(eventName: string, fn: (...args: any[]) => void): this {
     this.emitter.on(eventName, fn);
     return this;
@@ -39,7 +43,7 @@ export class Monitor implements IMonitor {
     if (this.isMonitorRunning) {
       // Cannot start the same monitor multiple times
       this.emitter.emit(
-        'error',
+        MonitorEventType.Error,
         new MonitorStartError('Monitor already running'),
       );
       return;
@@ -48,7 +52,7 @@ export class Monitor implements IMonitor {
     try {
       this.isMonitorRunning = true;
       logDebug(`Monitor started, polling every ${this.checkFrequency} ms...`);
-      this.emitter.emit('start');
+      this.emitter.emit(MonitorEventType.Start);
 
       while (this.isMonitorRunning) {
         try {
@@ -68,11 +72,11 @@ export class Monitor implements IMonitor {
           }
 
           // Emit the event warp routes info
-          this.emitter.emit('tokeninfo', event);
+          this.emitter.emit(MonitorEventType.TokenInfo, event);
           logDebug('Polling cycle completed');
         } catch (e) {
           this.emitter.emit(
-            'error',
+            MonitorEventType.Error,
             new MonitorPollingError(
               `Error during monitor execution cycle: ${(e as Error).message}`,
               e as Error,
@@ -85,7 +89,7 @@ export class Monitor implements IMonitor {
       }
     } catch (e) {
       this.emitter.emit(
-        'error',
+        MonitorEventType.Error,
         new MonitorStartError(
           `Error starting monitor: ${(e as Error).message}`,
           e as Error,

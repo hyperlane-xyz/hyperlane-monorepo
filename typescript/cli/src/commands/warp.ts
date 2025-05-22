@@ -32,6 +32,7 @@ import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
   BaseConfig,
   Config,
+  MonitorEventType,
   MonitorPollingError,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
@@ -595,7 +596,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       await monitor
         // Observe balances events and process rebalancing routes
-        .on('tokeninfo', (event) => {
+        .on(MonitorEventType.TokenInfo, (event) => {
           if (metrics) {
             for (const tokenInfo of event.tokensInfo) {
               metrics.processToken(tokenInfo).catch((e) => {
@@ -615,7 +616,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
           });
         })
         // Observe monitor errors and exit
-        .on('error', (e) => {
+        .on(MonitorEventType.Error, (e) => {
           if (e instanceof MonitorPollingError) {
             errorRed(e);
           } else {
@@ -624,7 +625,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
           }
         })
         // Observe monitor start and log success
-        .on('start', () => {
+        .on(MonitorEventType.Start, () => {
           logGreen('Rebalancer started successfully 🚀');
         })
         // Finally, starts the monitor to begin polling balances.
