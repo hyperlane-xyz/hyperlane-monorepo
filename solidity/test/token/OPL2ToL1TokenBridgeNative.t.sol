@@ -11,9 +11,8 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
-import {OPL2ToL1TokenBridgeNative} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
+import {OpL2NativeTokenBridge, OpL1V1NativeTokenBridge} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 
-import {OPL2ToL1CcipReadHook} from "../../contracts/hooks/OPL2ToL1CcipReadHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
@@ -23,6 +22,7 @@ import {MockOptimismMessenger, MockOptimismStandardBridge, MockL2ToL1MessagePass
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 contract OPL2ToL1TokenBridgeNativeTest is Test {
     using TypeCasts for address;
@@ -45,9 +45,8 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     TestCcipReadIsm internal ism;
     TestInterchainGasPaymaster internal igp;
     StaticAggregationHook internal hook;
-    OPL2ToL1TokenBridgeNative internal vtbOrigin;
-    OPL2ToL1TokenBridgeNative internal vtbDestination;
-    OPL2ToL1CcipReadHook internal ccipReadHook;
+    OpL2NativeTokenBridge internal vtbOrigin;
+    OpL1V1NativeTokenBridge internal vtbDestination;
 
     MockHyperlaneEnvironment internal environment;
     MockOptimismStandardBridge internal bridge;
@@ -76,47 +75,19 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
         vm.etch(L2_MESSAGE_PASSER, address(new MockL2ToL1MessagePasser()).code);
 
-        deployAll();
+        deployTokenBridges();
 
         vm.deal(user, userBalance);
     }
 
-    function deployHooks() public {
-        ccipReadHook = new OPL2ToL1CcipReadHook(
-            environment.mailboxes(origin),
-            address(ism),
-            IPostDispatchHook(address(0))
+    function deployTokenBridges() public {
+        OpL2NativeTokenBridge l2implementation = new OpL2NativeTokenBridge(
+            address(environment.mailboxes(origin)),
+            L2_BRIDGE_ADDRESS
         );
 
-        StaticAggregationHookFactory factory = new StaticAggregationHookFactory();
-        address[] memory hooks = new address[](2);
-        // We need the IGP in order to pay relay fees for the first message
-        hooks[0] = address(ccipReadHook);
-        hooks[1] = address(igp);
-
-        hook = StaticAggregationHook(factory.deploy(hooks));
-    }
-
-    function deployIsm() public {
-        ism = new TestCcipReadIsm();
-    }
-
-    function deployAll() public {
-        deployIsm();
-        deployHooks();
-        deployTokenBridges();
-    }
-
-    function deployTokenBridges() public {
-        OPL2ToL1TokenBridgeNative implementation = new OPL2ToL1TokenBridgeNative(
-                SCALE,
-                address(environment.mailboxes(origin)),
-                destination,
-                L2_BRIDGE_ADDRESS
-            );
-
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
+            address(l2implementation),
             ADMIN,
             abi.encodeWithSelector(
                 HypNative.initialize.selector,
@@ -126,17 +97,16 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbOrigin = OPL2ToL1TokenBridgeNative(payable(proxy));
+        vtbOrigin = OpL2NativeTokenBridge(payable(proxy));
 
-        implementation = new OPL2ToL1TokenBridgeNative(
-            SCALE,
+        OpL1V1NativeTokenBridge l1implementation = new OpL1V1NativeTokenBridge(
             address(environment.mailboxes(destination)),
-            destination,
-            address(0)
+            address(0),
+            new string[](0)
         );
 
         proxy = new TransparentUpgradeableProxy(
-            address(implementation),
+            address(l1implementation),
             ADMIN,
             abi.encodeWithSelector(
                 HypNative.initialize.selector,
@@ -146,7 +116,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbDestination = OPL2ToL1TokenBridgeNative(payable(proxy));
+        vtbDestination = OpL1V1NativeTokenBridge(payable(proxy));
 
         vtbOrigin.enrollRemoteRouter(
             destination,
@@ -187,45 +157,109 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         assertEq(address(vtbOrigin.hook()), address(hook));
     }
 
-    function test_transferRemote_expectReceivedMessageEvent() public {
-        Quote[] memory quotes = _getQuote();
-
-        vm.prank(user);
-        vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
-            destination,
-            userB32,
-            transferAmount
-        );
-
-        vm.expectEmit(true, true, false, false, address(ism));
-        emit TestCcipReadIsm.ReceivedMessage(
-            origin,
-            address(ccipReadHook).addressToBytes32(),
-            0,
-            bytes("")
-        );
-
-        environment.processNextPendingMessage();
+    function test_transferRemote_amountMustBeGreaterThanZero() public {
+        vm.expectRevert("OP L2 token bridge: amount must be greater than 0");
+        vtbOrigin.transferRemote(destination, userB32, 0);
     }
 
     function test_transferRemote_fundsReceived() public {
         Quote[] memory quotes = _getQuote();
-        vm.prank(user);
+
         vtbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             userB32,
             transferAmount
         );
 
+        vm.mockCall(
+            address(vtbDestination),
+            abi.encode(vtbDestination.verify.selector),
+            abi.encode(true)
+        );
+
+        // prove amount
+        vm.expectEmit(false, true, true, true, address(vtbDestination));
+        emit TokenRouter.ReceivedTransferRemote(origin, userB32, 0);
         environment.processNextPendingMessage();
 
-        // After the withdrawal is finalized, the destination
-        // value transfer bridge has received the amount
-        vm.deal(address(vtbDestination), transferAmount);
-
+        // withdraw amount
+        vm.expectEmit(false, true, true, true, address(vtbDestination));
+        emit TokenRouter.ReceivedTransferRemote(
+            origin,
+            userB32,
+            transferAmount
+        );
         environment.processNextPendingMessage();
+    }
 
-        // Recipient was the user account
-        assertEq(user.balance, userBalance - quotes[0].amount + transferAmount);
+    receive() external payable {}
+
+    function test_transferRemote_refunds() public {
+        Quote[] memory quotes = _getQuote();
+
+        uint256 balanceBefore = address(this).balance;
+
+        vtbOrigin.transferRemote{value: 2 * quotes[0].amount}(
+            destination,
+            userB32,
+            transferAmount
+        );
+
+        uint256 balanceAfter = address(this).balance;
+
+        assertEq(balanceBefore - balanceAfter, quotes[0].amount);
+    }
+
+    function test_interchainSecurityModule_returnsConfiguredIsm() public {
+        assertEq(
+            address(vtbDestination.interchainSecurityModule()),
+            address(vtbDestination),
+            "vtbDestination should be the configured ISM"
+        );
+    }
+
+    function test_OpL1_transferRemote_revertsAsExpected() public {
+        vm.expectRevert(bytes("OP L1 token bridge should not send messages"));
+        // Call transferRemote with dummy values as it should revert before using them.
+        vtbDestination.transferRemote(origin, userB32, transferAmount);
+    }
+
+    function test_OpL2_handle_revertsAsExpected() public {
+        vm.expectRevert(
+            bytes("OP L2 token bridge should not receive messages")
+        );
+        // Call handle with dummy values as it should revert before using them.
+        vtbOrigin.handle(destination, userB32, bytes(""));
+    }
+
+    function test_OpL2_transferRemote_revertsIfRefundAddressIsZero() public {
+        // 1. Craft metadata that specifies address(0) for refunds.
+        // The msgValue and gasLimit here are for the StandardHookMetadata format,
+        // but their specific values don't affect the refund address retrieval part we're testing.
+        bytes memory zeroRefundMetadata = StandardHookMetadata.format(
+            0, // msgValue for hook
+            0, // gasLimit for hook
+            address(0) // explicit zero refund address
+        );
+
+        // 2. Determine the value needed for the transfer operation itself.
+        // This quote includes the amount to bridge and the gas for two internal messages.
+        uint256 internalOpsValue = vtbOrigin
+        .quoteTransferRemote(destination, userB32, transferAmount)[0].amount;
+
+        // 3. Send a bit more than required, so there's something left to refund.
+        uint256 valueToSend = internalOpsValue + 1 wei; // 1 wei to be refunded
+
+        // 4. Expect a revert from the explicit check in OpL2NativeTokenBridge.
+        vm.expectRevert(bytes("OP L2 token bridge: refund address is 0"));
+
+        // 5. Call the transferRemote function that accepts custom metadata.
+        vtbOrigin.transferRemote{value: valueToSend}(
+            destination,
+            userB32,
+            transferAmount,
+            zeroRefundMetadata, // Our crafted metadata with address(0) as refund target
+            address(igp) // Use the standard IGP for gas payments
+        );
     }
 }

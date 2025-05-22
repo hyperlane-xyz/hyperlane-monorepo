@@ -113,6 +113,7 @@ abstract contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             domain.hyperlane == _hyperlaneDomain,
             "Circle domain not configured"
         );
+
         return domain.circle;
     }
 

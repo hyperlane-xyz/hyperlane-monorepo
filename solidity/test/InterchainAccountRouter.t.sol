@@ -865,12 +865,14 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         bytes32 router = bytes32(0);
 
+        CallLib.Call[] memory calls = getCalls(data, value);
+
         vm.expectRevert("no router specified for destination");
         originIcaRouter.callRemoteWithOverrides(
             destination,
             router,
             ismOverride,
-            getCalls(data, value)
+            calls
         );
 
         TestPostDispatchHook customHook = new TestPostDispatchHook();
