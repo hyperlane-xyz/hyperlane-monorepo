@@ -6,8 +6,8 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
-  scaleIsCorrect,
   transformConfigToCheck,
+  verifyScale,
 } from '@hyperlane-xyz/sdk';
 import {
   ObjectDiff,
@@ -86,7 +86,7 @@ function verifyDecimalsAndScale(
     }
   });
 
-  if (!scaleIsCorrect(warpRouteConfig)) {
+  if (!verifyScale(warpRouteConfig)) {
     logRed(`Found invalid or missing scale for inconsistent decimals`);
     process.exit(1);
   }
