@@ -14,7 +14,7 @@
     "@ethersproject/providers": "*",
     "@google-cloud/secret-manager": "^5.5.0",
     "@hyperlane-xyz/helloworld": "workspace:^",
-    "@hyperlane-xyz/registry": "15.0.0",
+    "@hyperlane-xyz/registry": "15.7.0",
     "@hyperlane-xyz/sdk": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:^",
     "@inquirer/prompts": "3.3.2",
