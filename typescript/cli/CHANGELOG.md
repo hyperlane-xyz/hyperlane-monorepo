@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 13.1.0
+
+### Minor Changes
+
+- ac13dde: add cosmos native core cli commands
+
+### Patch Changes
+
+- 754f7ba: disable cosmos native signers and only allow evm signers for now again
+- 86a8502: Change info logs to debug logs in MultiProtocolSignerManager.extractPrivateKey().
+
 ## 13.0.0
 
 ## 12.6.0

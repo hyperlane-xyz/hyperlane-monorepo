@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "13.0.0",
+  "version": "13.1.0",
   "dependencies": {
     "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-iam": "^3.74.0",

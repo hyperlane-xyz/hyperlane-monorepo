@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "13.0.0",
+  "version": "13.1.0",
   "description": "A command-line utility for common Hyperlane operations",
   "devDependencies": {
     "@aws-sdk/client-kms": "^3.577.0",

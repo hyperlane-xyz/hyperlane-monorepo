@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "13.0.0",
+  "version": "13.1.0",
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:^",
     "@hyperlane-xyz/registry": "15.0.0",
