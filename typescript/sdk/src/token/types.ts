@@ -23,6 +23,7 @@ export const TokenMetadataSchema = z.object({
   decimals: z.number().optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
+  packageVersion: z.string().optional(),
 });
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
