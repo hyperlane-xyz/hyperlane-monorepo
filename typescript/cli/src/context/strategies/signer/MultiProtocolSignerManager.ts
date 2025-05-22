@@ -50,7 +50,7 @@ export class MultiProtocolSignerManager {
     this.initializeStrategies();
   }
 
-  // TODO: readd Cosmos Native
+  // TODO: re-add Cosmos Native
   protected get compatibleChains(): ChainName[] {
     return this.chains.filter(
       (chain) =>
