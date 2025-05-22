@@ -255,10 +255,15 @@ export function getRelayerKeyForChain(
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Relayer);
+    return new AgentAwsKey(agentConfig, Role.Relayer, chainName);
   }
 
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Relayer,
+    chainName,
+  );
 }
 
 // Gets the kathy key used for signing txs to the provided chain.
@@ -361,12 +366,12 @@ export async function createAgentKeysIfNotExists(
   );
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, nonStarknetKeys);
+  await persistAddressesLocally(agentConfig, keys);
   // Key funder expects the serialized addresses in GCP
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
+    nonStarknetKeys.map((key) => key.serializeAsAddress()),
   );
   return;
 }
