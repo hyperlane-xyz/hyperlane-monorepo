@@ -55,9 +55,9 @@ export const ChainConfigSchema = z.union([
 const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
   checkFrequency: z.number().optional(),
-  withMetrics: z.boolean().optional(),
-  monitorOnly: z.boolean().optional(),
   coingeckoApiKey: z.string().optional(),
+  withMetrics: z.boolean().optional().default(false),
+  monitorOnly: z.boolean().optional().default(false),
   rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
 });
 
@@ -149,10 +149,10 @@ export class Config {
 
     const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
     const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
-    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly ?? false;
-    const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
     const coingeckoApiKey =
       overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
+    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly;
+    const withMetrics = overrides.withMetrics ?? fileWithMetrics;
     const rebalanceStrategy =
       overrides.rebalanceStrategy ?? fileRebalanceStrategy;
 
