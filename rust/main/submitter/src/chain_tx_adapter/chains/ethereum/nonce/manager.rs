@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use tracing::info;
 
 use hyperlane_ethereum::EvmProviderForSubmitter;
 
@@ -14,7 +15,7 @@ use crate::SubmitterError;
 use super::super::transaction::Precursor;
 
 pub struct NonceManager {
-    pub tx_in_finality_count: Arc<Mutex<usize>>,
+    tx_in_finality_count: Arc<Mutex<usize>>,
 }
 
 impl NonceManager {
@@ -29,22 +30,31 @@ impl NonceManager {
         tx: &mut Transaction,
         provider: &Box<dyn EvmProviderForSubmitter>,
     ) -> Result<(), SubmitterError> {
+        let tx_id = tx.id.to_string();
         let precursor = tx.precursor_mut();
 
         if precursor.tx.nonce().is_some() {
             return Ok(());
         }
 
-        let address = precursor
+        let address = *precursor
             .tx
             .from()
             .ok_or(SubmitterError::TxSubmissionError(
                 "Transaction missing address".to_string(),
             ))?;
-        let nonce = provider.get_next_nonce_on_finalized_block(address).await?;
+        let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
+
         let next_nonce = nonce + self.get_tx_in_finality_count().await as u64;
 
         precursor.tx.set_nonce(next_nonce);
+        info!(
+            nonce = next_nonce.to_string(),
+            address = ?address,
+            ?tx_id,
+            precursor = ?precursor,
+            "Set nonce for transaction"
+        );
 
         Ok(())
     }

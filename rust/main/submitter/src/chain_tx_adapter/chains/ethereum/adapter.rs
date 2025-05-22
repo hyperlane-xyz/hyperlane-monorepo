@@ -1,13 +1,15 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
+use eyre::eyre;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
@@ -32,6 +34,8 @@ mod gas_price_estimator;
 mod tx_status_checker;
 
 pub struct EthereumTxAdapter {
+    estimated_block_time: Duration,
+    max_batch_size: u32,
     conf: ChainConf,
     connection_conf: ConnectionConf,
     _raw_conf: RawChainConf,
@@ -61,8 +65,12 @@ impl EthereumTxAdapter {
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
         let nonce_manager = NonceManager::new();
+        let estimated_block_time = conf.estimated_block_time;
+        let max_batch_size = Self::batch_size(&conf)?;
 
         Ok(Self {
+            estimated_block_time,
+            max_batch_size,
             conf,
             connection_conf,
             _raw_conf: raw_conf,
@@ -70,6 +78,40 @@ impl EthereumTxAdapter {
             reorg_period,
             nonce_manager,
         })
+    }
+
+    fn batch_size(conf: &ChainConf) -> eyre::Result<u32> {
+        Ok(conf
+            .connection
+            .operation_submission_config()
+            .ok_or_else(|| eyre!("no operation batch config"))?
+            .max_batch_size)
+    }
+
+    async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+        Ok(())
+    }
+
+    async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        if tx.precursor().tx.gas().is_none() {
+            self.estimate_tx(tx).await?;
+        }
+        Ok(())
+    }
+
+    async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        if tx.precursor().tx.gas_price().is_none() {
+            gas_price_estimator::estimate_gas_price(
+                &self.provider,
+                tx.precursor_mut(),
+                &self.connection_conf.transaction_overrides,
+                &self.conf.domain,
+            )
+            .await?;
+            info!(?tx, "estimated gas price for transaction");
+        }
+        Ok(())
     }
 }
 
@@ -86,9 +128,13 @@ impl AdaptsChain for EthereumTxAdapter {
         use super::transaction::TransactionFactory;
 
         info!(?payloads, "building transactions for payloads");
+        let Some(signer) = self.provider.get_signer() else {
+            error!("No signer found! Cannot build transactions");
+            return vec![];
+        };
         let payloads_and_precursors = payloads
             .iter()
-            .map(|payload| (EthereumTxPrecursor::from_payload(payload), payload))
+            .map(|payload| (EthereumTxPrecursor::from_payload(payload, signer), payload))
             .collect::<Vec<(EthereumTxPrecursor, &FullPayload)>>();
 
         let mut transactions = Vec::new();
@@ -123,9 +169,11 @@ impl AdaptsChain for EthereumTxAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         use super::transaction::Precursor;
 
-        info!(?tx, "submitting transaction");
+        self.set_nonce_if_needed(tx).await?;
+        self.set_gas_limit_if_needed(tx).await?;
+        self.set_gas_price(tx).await?;
 
-        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+        info!(?tx, "submitting transaction");
 
         let precursor = tx.precursor();
         let hash = self
@@ -173,11 +221,11 @@ impl AdaptsChain for EthereumTxAdapter {
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
-        todo!()
+        &self.estimated_block_time
     }
 
     fn max_batch_size(&self) -> u32 {
-        todo!()
+        self.max_batch_size
     }
 
     async fn set_unfinalized_tx_count(&self, count: usize) {

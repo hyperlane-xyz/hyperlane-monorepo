@@ -287,12 +287,11 @@ export async function createWarpRouteDeployConfig({
         context.multiProvider,
         warpRouteDeployConfig,
       );
-      assert(
-        tokenMetadata?.symbol,
-        'Error deriving token metadata, please check the provided token addresses',
-      );
+
+      const symbol: string = tokenMetadata.getDefaultSymbol();
+
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
-        symbol: tokenMetadata.symbol,
+        symbol: symbol,
       });
     }
     logGreen('✅ Successfully created new warp route deployment config.');
