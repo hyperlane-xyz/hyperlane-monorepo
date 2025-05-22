@@ -27,7 +27,6 @@ RUN yarn install && yarn cache clean
 
 # Copy everything else
 COPY turbo.json ./
-COPY tsconfig.json ./
 COPY typescript ./typescript
 COPY solidity ./solidity
 COPY starknet ./starknet
