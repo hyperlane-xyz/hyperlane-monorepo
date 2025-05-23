@@ -66,7 +66,11 @@ impl CosmosNativeMerkleTreeHook {
         Ok((hook, tree, height))
     }
 
-    fn checkpoint(&self, tree: &TreeResponse, height: u32) -> ChainResult<CheckpointAtBlock> {
+    fn parse_checkpoint_from_tree_response(
+        &self,
+        tree: &TreeResponse,
+        height: u32,
+    ) -> ChainResult<CheckpointAtBlock> {
         let root = H256::from_slice(&tree.root);
         let index = if tree.count == 0 { 0 } else { tree.count - 1 };
 
@@ -148,14 +152,14 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
         let (_, tree, height) = self.get_merkle_tree(reorg_period).await?;
-        self.checkpoint(&tree, height)
+        self.parse_checkpoint_from_tree_response(&tree, height)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let (_, tree, height) = self.get_merkle_tree_with_height(height as u32).await?;
-        self.checkpoint(&tree, height)
+        self.parse_checkpoint_from_tree_response(&tree, height)
     }
 }
 
