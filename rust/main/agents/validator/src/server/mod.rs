@@ -1,4 +1,6 @@
 pub mod eigen_node;
+pub mod merkle_tree_insertions;
+
 pub use eigen_node::EigenNodeApi;
 
 use std::sync::Arc;

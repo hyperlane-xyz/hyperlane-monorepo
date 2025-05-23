@@ -1,8 +1,9 @@
-use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
 use axum::{extract::State, routing, Json, Router};
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast::Sender, mpsc};
+
+use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 

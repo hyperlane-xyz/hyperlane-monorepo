@@ -1,11 +1,13 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::{Query, State},
     routing, Router,
 };
 use derive_new::new;
-use hyperlane_core::{QueueOperation, H256};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
+use hyperlane_core::{QueueOperation, H256};
 
 use crate::msg::op_queue::OperationPriorityQueue;
 
