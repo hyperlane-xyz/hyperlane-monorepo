@@ -17,13 +17,13 @@ export function hyperlaneCoreDeployRaw(
   hypKey?: string,
 ): ProcessPromise {
   return $`${
-    hypKey ? ['HYP_KEY=' + hypKey] : ''
+    hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
-        ${privateKey ? ['--key', privateKey] : ''} \
+        ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+        ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
 /**
@@ -66,7 +66,7 @@ export function hyperlaneCoreCheck(
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
-        ${mailbox ? ['--mailbox', mailbox] : ''} \
+        ${mailbox ? ['--mailbox', mailbox] : []} \
         --verbosity debug \
         --yes`;
 }
@@ -80,11 +80,11 @@ export function hyperlaneCoreInit(
   hyp_key?: string,
 ): ProcessPromise {
   return $`${
-    hyp_key ? ['HYP_KEY=' + hyp_key] : ''
+    hyp_key ? ['HYP_KEY=' + hyp_key] : []
   } ${localTestRunCmdPrefix()} hyperlane core init \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
-        ${privateKey ? ['--key', privateKey] : ''} \
+        ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
         --yes`;
 }
