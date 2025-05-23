@@ -1,9 +1,14 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import {
+  BigNumber,
+  PopulatedTransaction,
+  constants as ethersConstants,
+} from 'ethers';
 
 import {
   ERC20,
   ERC20__factory,
   ERC4626__factory,
+  GasRouter__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -20,6 +25,7 @@ import {
   IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
+  ValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -343,6 +349,87 @@ export class EvmHypCollateralAdapter
   ): Promise<PopulatedTransaction> {
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
+    );
+  }
+
+  async isRebalancer(account: Address): Promise<boolean> {
+    const role = await this.collateralContract.REBALANCER_ROLE();
+
+    return this.collateralContract.hasRole(role, account);
+  }
+
+  async getAllowedDestination(domain: Domain): Promise<Address> {
+    const allowedDestinationBytes32 =
+      await this.collateralContract.allowedDestinations(domain);
+
+    return bytes32ToAddress(allowedDestinationBytes32);
+  }
+
+  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
+    return this.collateralContract.allowedBridges(domain, bridge);
+  }
+
+  async getRebalanceQuotes(
+    bridge: Address,
+    domain: Domain,
+    recipient: Address,
+    amount: Numberish,
+    isWarp: boolean,
+  ): Promise<InterchainGasQuote[]> {
+    // TODO: In the future, all bridges should get quotes from the quoteTransferRemote function.
+    // Given that currently warp routes used as bridges do not, quotes need to be obtained differently.
+    // This can probably be removed in the future.
+    if (isWarp) {
+      const gasRouter = GasRouter__factory.connect(bridge, this.getProvider());
+      const gasPayment = await gasRouter.quoteGasPayment(domain);
+
+      return [
+        {
+          amount: BigInt(gasPayment.toString()),
+        },
+      ];
+    }
+
+    const bridgeContract = ValueTransferBridge__factory.connect(
+      bridge,
+      this.getProvider(),
+    );
+
+    const quotes = await bridgeContract.quoteTransferRemote(
+      domain,
+      addressToBytes32(recipient),
+      amount,
+    );
+
+    return quotes.map((quote) => ({
+      addressOrDenom:
+        quote.token === ethersConstants.AddressZero ? undefined : quote.token,
+      amount: BigInt(quote.amount.toString()),
+    }));
+  }
+
+  /**
+   * @param quotes - The quotes returned by getRebalanceQuotes
+   */
+  populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
+    const value = quotes.reduce(
+      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      0n,
+    );
+
+    return this.collateralContract.populateTransaction.rebalance(
+      domain,
+      amount,
+      bridge,
+      {
+        value,
+      },
     );
   }
 }
@@ -689,6 +776,32 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
+  }
+
+  /**
+   * @param quotes - The quotes returned by getRebalanceQuotes
+   */
+  override populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<PopulatedTransaction> {
+    // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
+    const value = quotes.reduce(
+      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      // Uses the amount to transfer as base value given that the amount is defined in native tokens for this adapter
+      BigInt(amount),
+    );
+
+    return this.collateralContract.populateTransaction.rebalance(
+      domain,
+      amount,
+      bridge,
+      {
+        value,
+      },
+    );
   }
 }
 

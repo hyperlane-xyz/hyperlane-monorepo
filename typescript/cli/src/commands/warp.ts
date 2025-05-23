@@ -20,10 +20,25 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+  warnYellow,
+} from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import {
+  Config,
+  MonitorEventType,
+  MonitorPollingError,
+  RebalancerContextFactory,
+  StrategyOptions,
+} from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { ENV } from '../utils/env.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -67,6 +82,7 @@ export const warpCommand: CommandModule = {
       .command(deploy)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -424,6 +440,200 @@ export const check: CommandModuleWithContext<{
     });
 
     process.exit(0);
+  },
+};
+
+export const rebalancer: CommandModuleWithWriteContext<{
+  config: string;
+  origin?: string;
+  destination?: string;
+  amount?: string;
+  warpRouteId?: string;
+  checkFrequency?: number;
+  withMetrics?: boolean;
+  monitorOnly?: boolean;
+  coingeckoApiKey?: string;
+  rebalanceStrategy?: StrategyOptions;
+}> = {
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
+  builder: {
+    config: {
+      type: 'string',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    origin: {
+      type: 'string',
+      description: 'The origin chain',
+      demandOption: false,
+      alias: ['o', 'from', 'fromChain'],
+      implies: ['destination', 'amount'],
+    },
+    destination: {
+      type: 'string',
+      description: 'The destination chain',
+      demandOption: false,
+      alias: ['d', 'to', 'toChain'],
+      implies: ['origin', 'amount'],
+    },
+    amount: {
+      type: 'string',
+      description: 'The amount to rebalance from `--origin` to `--destination`',
+      implies: ['origin', 'destination'],
+    },
+    warpRouteId: {
+      type: 'string',
+      description: 'The warp route ID to rebalance',
+      demandOption: false,
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms',
+      demandOption: false,
+    },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics',
+      demandOption: false,
+    },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode',
+      demandOption: false,
+    },
+    coingeckoApiKey: {
+      type: 'string',
+      description: 'CoinGecko API key',
+      demandOption: false,
+      alias: ['g', 'coingecko-api-key'],
+      implies: 'withMetrics',
+    },
+    rebalanceStrategy: {
+      type: 'string',
+      description: 'Rebalancer strategy (weighted or minAmount)',
+      demandOption: false,
+      alias: ['rs', 'rebalance-strategy'],
+    },
+  },
+  handler: async ({
+    context,
+    origin,
+    destination,
+    amount,
+    config,
+    warpRouteId,
+    checkFrequency,
+    withMetrics,
+    monitorOnly,
+    coingeckoApiKey = ENV.COINGECKO_API_KEY,
+    rebalanceStrategy,
+  }) => {
+    try {
+      const { registry, key: rebalancerKey } = context;
+
+      // Load rebalancer config from disk
+      const rebalancerConfig = Config.load(config, rebalancerKey, {
+        warpRouteId,
+        checkFrequency,
+        withMetrics,
+        monitorOnly,
+        coingeckoApiKey,
+        rebalanceStrategy,
+      });
+      logGreen('✅ Loaded rebalancer config');
+
+      // Instantiate the factory used to create the different rebalancer components
+      const contextFactory = await RebalancerContextFactory.create(
+        registry,
+        rebalancerConfig,
+      );
+
+      const immediateExec = origin && destination && amount;
+
+      if (immediateExec) {
+        const executor = contextFactory.createExecutor();
+
+        await executor.rebalance([
+          { origin, destination, amount: BigInt(amount) },
+        ]);
+
+        process.exit(0);
+      }
+
+      // Instantiates the monitor that will observe the warp route
+      const monitor = contextFactory.createMonitor();
+
+      // Instantiates the strategy that will compute how rebalance routes should be performed
+      const strategy = contextFactory.createStrategy();
+
+      // Instantiates the executor in charge of executing the rebalancing transactions
+      const executor = !rebalancerConfig.monitorOnly
+        ? contextFactory.createExecutor()
+        : undefined;
+
+      if (rebalancerConfig.monitorOnly) {
+        warnYellow(
+          'Running in monitorOnly mode: no transactions will be executed.',
+        );
+      }
+
+      // Instantiates the metrics that will publish stats from the monitored data
+      const metrics = withMetrics
+        ? await contextFactory.createMetrics()
+        : undefined;
+
+      if (withMetrics) {
+        warnYellow(
+          'Metrics collection has been enabled and will be gathered during execution',
+        );
+      }
+
+      const monitorToStrategy =
+        contextFactory.createMonitorToStrategyTransformer();
+
+      await monitor
+        // Observe balances events and process rebalancing routes
+        .on(MonitorEventType.TokenInfo, (event) => {
+          if (metrics) {
+            for (const tokenInfo of event.tokensInfo) {
+              metrics.processToken(tokenInfo).catch((e) => {
+                errorRed(
+                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
+                );
+              });
+            }
+          }
+
+          const rawBalances = monitorToStrategy.transform(event);
+
+          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
+
+          executor?.rebalance(rebalancingRoutes).catch((e) => {
+            errorRed('Error while rebalancing:', (e as Error).message);
+          });
+        })
+        // Observe monitor errors and exit
+        .on(MonitorEventType.Error, (e) => {
+          if (e instanceof MonitorPollingError) {
+            errorRed(e);
+          } else {
+            // This will catch `MonitorStartError` and generic errors
+            throw e;
+          }
+        })
+        // Observe monitor start and log success
+        .on(MonitorEventType.Start, () => {
+          logGreen('Rebalancer started successfully 🚀');
+        })
+        // Finally, starts the monitor to begin polling balances.
+        .start();
+    } catch (e) {
+      errorRed('Rebalancer error:', (e as Error).message);
+      process.exit(1);
+    }
   },
 };
 
