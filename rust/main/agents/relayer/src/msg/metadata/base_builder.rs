@@ -288,6 +288,8 @@ impl BaseMetadataBuilder {
                 if self.ignore_reorg_reports {
                     warn!(
                         ?reorg_event,
+                        ?config,
+                        ?validator,
                         "Ignoring reorg event for checkpoint syncer build"
                     );
                     return Ok(None);
