@@ -120,6 +120,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -136,6 +137,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
