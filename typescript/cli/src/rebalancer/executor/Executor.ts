@@ -7,6 +7,7 @@ import {
   EvmHypCollateralAdapter,
   InterchainGasQuote,
   Token,
+  TokenAmount,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
@@ -43,22 +44,34 @@ export class Executor implements IExecutor {
     const transactions: {
       signer: ethers.Signer;
       populatedTx: ethers.PopulatedTransaction;
+      route: RebalancingRoute;
+      originTokenAmount: TokenAmount;
     }[] = [];
 
-    for (const { origin, destination, amount } of routes) {
-      log(
-        `Preparing transaction: from ${origin} to ${destination}, amount: ${amount}`,
-      );
+    for (const route of routes) {
+      const { origin, destination, amount } = route;
+
       const originToken = tokensByChainName.get(origin);
       const destinationToken = tokensByChainName.get(destination);
 
       if (!originToken) {
-        throw new Error(`Token not found for chain ${origin}`);
+        throw new Error(
+          `Token not found for chain ${origin}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
+        );
       }
 
       if (!destinationToken) {
-        throw new Error(`Token not found for chain ${destination}`);
+        throw new Error(
+          `Token not found for chain ${destination}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
+        );
       }
+
+      const originTokenAmount = originToken.amount(amount);
+      const decimalFormatAmount = originTokenAmount.getDecimalFormattedAmount();
+
+      log(
+        `Preparing transaction: from ${origin} to ${destination}, amount: ${decimalFormatAmount} ${originToken.name}`,
+      );
 
       const originHypAdapter = originToken.getHypAdapter(
         warpCore.multiProvider,
@@ -105,14 +118,14 @@ export class Executor implements IExecutor {
       // This prevents dust amounts or economically unviable transfers
       if (bridgeMinAcceptedAmount > amount) {
         log(
-          `Route ${origin} → ${destination} skipped: amount ${amount} below minimum threshold ${bridgeMinAcceptedAmount}`,
+          `Route ${origin} → ${destination} skipped: amount ${decimalFormatAmount} ${originToken.name} below minimum threshold ${bridgeMinAcceptedAmount}`,
         );
 
         continue;
       }
 
       log(
-        `Getting rebalance quotes: domain=${domain}, amount=${amount}, bridge=${bridge}`,
+        `Getting rebalance quotes: domain=${domain}, amount=${decimalFormatAmount} ${originToken.name}, bridge=${bridge}`,
       );
 
       let quotes: InterchainGasQuote[];
@@ -127,12 +140,12 @@ export class Executor implements IExecutor {
         );
       } catch (error) {
         throw new Error(
-          `Could not get rebalance quotes from ${origin} to ${destination}: ${(error as Error).message}`,
+          `Could not get rebalance quotes from ${origin} to ${destination}, for ${decimalFormatAmount} ${originToken.name}: ${(error as Error).message}`,
         );
       }
 
       log(
-        `Populating rebalance transaction: domain=${domain}, amount=${amount}, bridge=${bridge}`,
+        `Populating rebalance transaction: domain=${domain}, amount=${decimalFormatAmount} ${originToken.name}, bridge=${bridge}`,
       );
 
       const populatedTx = await originHypAdapter.populateRebalanceTx(
@@ -142,7 +155,12 @@ export class Executor implements IExecutor {
         quotes,
       );
 
-      transactions.push({ signer, populatedTx });
+      transactions.push({
+        signer,
+        populatedTx,
+        route,
+        originTokenAmount: originToken.amount(amount),
+      });
     }
 
     // Early return if no valid routes were found to rebalance.
@@ -158,44 +176,85 @@ export class Executor implements IExecutor {
     // Estimate gas before sending transactions.
     // This is mainly to check that the transaction will not fail before sending them.
     const estimateGasResults = await Promise.allSettled(
-      transactions.map(async ({ signer, populatedTx }, i) => {
-        try {
-          await signer.estimateGas(populatedTx);
-          log(`Gas estimation succeeded for route ${i}`);
-        } catch (error) {
-          log(`❌ Could not estimate gas for route`, routes[i]);
-          throw error;
-        }
-      }),
+      transactions.map(
+        async ({ signer, populatedTx, route, originTokenAmount }) => {
+          try {
+            await signer.estimateGas(populatedTx);
+            log(
+              `Gas estimation succeeded for route from ${route.origin} to ${
+                route.destination
+              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+            );
+          } catch (error) {
+            log(
+              `❌ Could not estimate gas for route from ${route.origin} to ${
+                route.destination
+              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+            );
+            throw error;
+          }
+        },
+      ),
     );
 
     if (estimateGasResults.some((result) => result.status === 'rejected')) {
+      estimateGasResults.forEach((tx, index) => {
+        if (tx.status === 'rejected') {
+          const { route, originTokenAmount } = transactions[index];
+          errorRed(
+            `❌ Could not estimate gas for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+          );
+        }
+      });
+
       throw new Error('❌ Could not estimate gas for some routes');
     }
 
     log('Sending transactions');
     const results = await Promise.allSettled(
-      transactions.map(async ({ signer, populatedTx }, i) => {
-        log(`Sending transaction for route ${i}`);
-        try {
-          const tx = await signer.sendTransaction(populatedTx);
-          log(`Transaction sent: ${tx.hash}`);
-          const receipt = await tx.wait();
-          log(`Transaction confirmed: ${tx.hash}`);
-          return receipt;
-        } catch (error) {
-          errorRed(`Transaction failed for route ${i}: ${error}`);
-          throw error;
-        }
-      }),
+      transactions.map(
+        async ({ signer, populatedTx, route, originTokenAmount }) => {
+          log(
+            `Sending transaction for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+          );
+          try {
+            const tx = await signer.sendTransaction(populatedTx);
+            log(
+              `Transaction sent for route from ${route.origin} to ${
+                route.destination
+              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
+            );
+            const receipt = await tx.wait();
+            log(
+              `Transaction confirmed for route from ${route.origin} to ${
+                route.destination
+              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
+            );
+            return receipt;
+          } catch (error) {
+            errorRed(
+              `Transaction failed for route from ${route.origin} to ${
+                route.destination
+              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${error}`,
+            );
+            throw error;
+          }
+        },
+      ),
     );
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
-      const route = routes[i];
+      const { route, originTokenAmount } = transactions[i];
 
       log(
-        `Route result - Origin: ${route.origin}, Destination: ${route.destination}, Amount: ${route.amount}`,
+        `Route result - Origin: ${route.origin}, Destination: ${
+          route.destination
+        }, Amount: ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
       );
 
       if (result.status === 'fulfilled') {
