@@ -234,10 +234,17 @@ where
                 CursorAction::Query(range) => {
                     let _ = sender.send(ContractSyncMessage::QueryRange(range.clone()));
                     let resp_res = query_complete_rx.recv().await;
-                    if let Some(Some((logs, range))) = resp_res {
-                        if let Err(err) = cursor.update(logs, range).await {
-                            warn!(?err, "Error updating cursor");
-                        };
+                    match resp_res {
+                        Some(query_res) => {
+                            if let Some((logs, range)) = query_res {
+                                if let Err(err) = cursor.update(logs, range).await {
+                                    warn!(?err, "Error updating cursor");
+                                };
+                            }
+                        }
+                        None => {
+                            break;
+                        }
                     }
                 }
                 CursorAction::Sleep(duration) => {
@@ -249,12 +256,8 @@ where
                     sleep(duration).await
                 }
             }
-
-            // Added so that we confuse compiler that it is an infinite loop
-            if false {
-                break;
-            }
         }
+        tracing::error!("Watermark cursor task exited");
     }
 
     #[instrument(fields(domain=self.domain().name()), skip(self, stored_logs_metric))]
