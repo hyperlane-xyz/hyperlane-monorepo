@@ -210,7 +210,8 @@ pub struct CoreContractAddresses {
 /// Indexing settings
 #[derive(Debug, Default, Clone)]
 pub struct IndexSettings {
-    /// The height at which to start indexing contracts.
+    /// The height at which to start indexing contracts for watermark synchs.
+    /// The lowest sequence to index for sequence-aware synchs.
     pub from: u32,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
