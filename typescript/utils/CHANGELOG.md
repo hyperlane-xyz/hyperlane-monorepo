@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
 ## 13.1.0
 
 ### Minor Changes

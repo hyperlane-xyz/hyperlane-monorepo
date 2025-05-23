@@ -1,5 +1,14 @@
 # @hyperlane-xyz/helloworld
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+
 ## 13.1.0
 
 ### Patch Changes
