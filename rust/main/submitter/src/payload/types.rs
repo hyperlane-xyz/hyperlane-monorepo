@@ -13,7 +13,7 @@ pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
     pub id: PayloadId,
@@ -24,6 +24,15 @@ pub struct PayloadDetails {
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
     pub success_criteria: Option<Vec<u8>>,
+}
+
+impl Debug for PayloadDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PayloadDetails")
+            .field("id", &self.id)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl PayloadDetails {
