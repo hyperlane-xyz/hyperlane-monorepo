@@ -636,7 +636,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog(
       `Could not get rebalance quotes from ${chain3Metadata.name} to ${
         chain2Metadata.name
-      }: All providers failed on chain unknown for method call and params`,
+      }, for 5 token: All providers failed on chain unknown for method call and params`,
     );
   });
 
@@ -1176,7 +1176,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         [
           'Rebalancer started successfully 🚀',
           'Found 1 rebalancing route(s) using WeightedStrategy',
-          `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5000000000000000000, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
+          `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5 token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
           '✅ Rebalance successful',
           'Found 0 rebalancing route(s) using WeightedStrategy.',
           'No routes to execute',
@@ -1472,8 +1472,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         await startRebalancerAndExpectLog(
           [
             'Rebalance initiated with 1 route(s)',
-            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5000000000000000000, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
-            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: 5000000000000000000`,
+            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5 token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
+            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: 5 token`,
             '✅ Rebalance successful',
           ],
           {
