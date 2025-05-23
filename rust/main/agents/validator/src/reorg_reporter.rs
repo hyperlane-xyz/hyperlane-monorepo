@@ -40,11 +40,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(
-                    "Latest checkpoint on reorg for {}: {:?}",
-                    url.clone(),
-                    latest_checkpoint
-                );
+                info!(url = ?url.clone(), ?latest_checkpoint, "Latest checkpoint on reorg");
             };
 
             futures.push(future);
@@ -64,11 +60,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(
-                    "Latest checkpoint on reorg for {}: {:?}",
-                    url.clone(),
-                    latest_checkpoint
-                );
+                info!(url = ?url.clone(), ?latest_checkpoint, "Latest checkpoint on reorg");
             };
 
             futures.push(future);
