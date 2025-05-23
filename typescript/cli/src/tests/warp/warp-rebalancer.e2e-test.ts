@@ -600,7 +600,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog(
       `Could not get rebalance quotes from ${chain3Metadata.name} to ${
         chain2Metadata.name
-      }: All providers failed on chain unknown for method call and param`,
+      }: All providers failed on chain unknown for method call and params`,
     );
   });
 
