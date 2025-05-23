@@ -107,7 +107,7 @@ pub async fn handler(
         if let Some(insertion) = retrieve_res {
             let tree_insertion = TreeInsertion {
                 leaf_index: insertion.index(),
-                message_id: format!("{:x}", insertion.message_id()),
+                message_id: format!("{:?}", insertion.message_id()),
             };
             merkle_tree_insertions.push(tree_insertion);
         }
