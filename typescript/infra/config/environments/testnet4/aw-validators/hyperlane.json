@@ -80,9 +80,6 @@
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
-  "kyvetestnet": {
-    "validators": ["0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"]
-  },
   "megaethtestnet": {
     "validators": ["0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef"]
   },

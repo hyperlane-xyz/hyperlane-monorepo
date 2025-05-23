@@ -12,6 +12,7 @@
     "@hyperlane-xyz/cosmos-sdk": "13.1.1",
     "@hyperlane-xyz/registry": "15.7.0",
     "@hyperlane-xyz/sdk": "13.1.1",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "13.1.1",
     "@inquirer/core": "9.0.10",
     "@inquirer/figures": "1.0.5",
