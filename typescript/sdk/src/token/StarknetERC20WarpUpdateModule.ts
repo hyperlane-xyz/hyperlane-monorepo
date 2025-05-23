@@ -254,6 +254,7 @@ export class StarknetERC20WarpUpdateModule {
       annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
       to: routerContract.address,
       ...tx,
+      chainId: this.chainId,
     });
 
     return updateTransactions;
@@ -350,6 +351,7 @@ export class StarknetERC20WarpUpdateModule {
       updateTransactions.push({
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         ...tx,
+        chainId: this.chainId,
       });
     }
     return updateTransactions;
@@ -398,6 +400,7 @@ export class StarknetERC20WarpUpdateModule {
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         ...tx,
+        chainId: this.chainId,
       });
     }
 
@@ -436,6 +439,7 @@ export class StarknetERC20WarpUpdateModule {
       updateTransactions.push({
         annotation: `Setting Hook for Warp Route to ${expectedDeployedHook}`,
         ...tx,
+        chainId: this.chainId,
       });
     }
 

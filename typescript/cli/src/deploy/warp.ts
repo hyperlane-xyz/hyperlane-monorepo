@@ -9,6 +9,7 @@ import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
+  AnnotatedStarknetTransaction,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -413,7 +414,12 @@ export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
-  const { chainMetadata, skipConfirmation } = context;
+  const {
+    chainMetadata,
+    skipConfirmation,
+    multiProvider,
+    multiProtocolSigner,
+  } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
@@ -436,7 +442,10 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+  // make sure you pass chain ID to the starknet txs
+  const transactions:
+    | AnnotatedEV5Transaction[]
+    | AnnotatedStarknetTransaction[] = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
@@ -445,7 +454,42 @@ export async function runWarpRouteApply(
 
   if (transactions.length == 0)
     return logGreen(`Warp config is the same as target. No updates needed.`);
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+  // Notice: starknet annotated txs don't include chainId
+  // separate starknet and evm transactions
+
+  //for loop through transactions and submit them
+
+  const starknetTransactions = transactions.filter((tx) => {
+    // make sure you pass chain ID to the starknet txs
+    if (!tx.chainId) return false;
+    const protocol = multiProvider.getProtocol(tx.chainId);
+    return protocol === ProtocolType.Starknet;
+  });
+
+  for (const tx of starknetTransactions) {
+    if (!tx.chainId) continue;
+
+    assert(
+      multiProtocolSigner,
+      'multi protocol signer is required for starknet chain deployment',
+    );
+    const chainName = multiProvider.getChainName(tx.chainId);
+    const starknetSigner = multiProtocolSigner.getStarknetSigner(chainName);
+
+    const txResponse = await starknetSigner.execute([
+      {
+        contractAddress: (tx as any).contractAddress,
+        entrypoint: (tx as any).entrypoint,
+        calldata: (tx as any).calldata,
+      },
+    ]);
+    await starknetSigner.waitForTransaction(txResponse.transaction_hash);
+  }
+
+  await submitWarpApplyTransactions(
+    params,
+    groupBy(transactions as AnnotatedEV5Transaction[], 'chainId'),
+  );
 }
 
 /**
@@ -623,7 +667,9 @@ async function updateExistingWarpRoute(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
-  const transactions: AnnotatedEV5Transaction[] = [];
+  const transactions:
+    | AnnotatedEV5Transaction[]
+    | AnnotatedStarknetTransaction[] = [];
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -635,9 +681,11 @@ async function updateExistingWarpRoute(
     deployedRoutersAddresses,
   });
 
+  // here is logic for each key - chain branched by protocol
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       const protocol = multiProvider.getProtocol(chain);
+      // Only compatible with EVM and Starknet chains
       if (
         protocol !== ProtocolType.Ethereum &&
         protocol !== ProtocolType.Starknet
@@ -649,6 +697,8 @@ async function updateExistingWarpRoute(
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
+
+        // add the mailbox to the config
         const configWithMailbox = {
           ...config,
           mailbox: registryAddresses[chain].mailbox,
@@ -669,7 +719,7 @@ async function updateExistingWarpRoute(
             contractVerifier,
           );
           transactions.push(
-            ...(await evmERC20WarpModule.update(configWithMailbox)),
+            ...((await evmERC20WarpModule.update(configWithMailbox)) as any),
           );
         } else if (protocol === ProtocolType.Starknet) {
           assert(
@@ -678,6 +728,8 @@ async function updateExistingWarpRoute(
           );
 
           const starknetSigner = multiProtocolSigner.getStarknetSigner(chain);
+          // separate the starknetERC20WarpUpdateModule from the starknetERC721WarpUpdateModule
+          // due to different constructor arguments
           const starknetERC20WarpModule = new StarknetERC20WarpUpdateModule(
             starknetSigner,
             multiProtocolProvider,
@@ -688,12 +740,15 @@ async function updateExistingWarpRoute(
               chain,
               addresses: {
                 deployedTokenRoute,
-                ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]), // should be address zero
+                ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]), // factory addresses should be address zero for starknet
               },
             },
           );
+          // make sure you pass chain ID to the starknet txs
           transactions.push(
-            ...(await starknetERC20WarpModule.update(configWithMailbox)),
+            ...((await starknetERC20WarpModule.update(
+              configWithMailbox,
+            )) as any),
           );
         }
       });
