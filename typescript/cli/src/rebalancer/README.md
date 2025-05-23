@@ -60,25 +60,28 @@ sepolia:
   # Use one set of values for the strategy you are using
 
   # For weighted strategy:
-  # Required: Relative weight for this chain
-  weight: 100 # (e.g All chains have equal weight, rebalancing will balance all chains to have the same amounts of collateral)
-  # Required: Determines how much deviation from the target amount is allowed before a rebalance is triggered (in percentage 0-100)
-  tolerance: 5 # 5% allows a 5% deviation from the target amount before a rebalance is needed
+  weighted:
+    # Required: Relative weight for this chain
+    weight: 100 # (e.g All chains have equal weight, rebalancing will balance all chains to have the same amounts of collateral)
+    # Required: Determines how much deviation from the target amount is allowed before a rebalance is triggered (in percentage 0-100)
+    tolerance: 5 # 5% allows a 5% deviation from the target amount before a rebalance is needed
 
   # For minAmount strategy (absolute):
-  # Absolute requires exact token amounts
-  # Required: Minimum amount to maintain on this chain (in wei)
-  minAmount: 100000000 # 100 USDC (6 decimals)
-  # Required: The objective value to rebalance to.
-  target: 110000000 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+  minAmount:
+    # Absolute requires exact token amounts
+    # Required: Minimum amount to maintain on this chain (in wei)
+    min: 100000000 # 100 USDC (6 decimals)
+    # Required: The objective value to rebalance to.
+    target: 110000000 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
 
   # For minAmount strategy (relative):
-  # Relative requires percentage values. 0 = 0%, 0.5 = 50%, 1 = 100%.
-  # 100% represent a the sum of collaterals of rebalanceable amounts.
-  # Required: Minimum percentage to maintain on this chain.
-  minAmount: 0.3 # 30%
-  # Required: The objective value to rebalance to.
-  target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
+  minAmount:
+    # Relative requires percentage values. 0 = 0%, 0.5 = 50%, 1 = 100%.
+    # 100% represent a the sum of collaterals of rebalanceable amounts.
+    # Required: Minimum percentage to maintain on this chain.
+    min: 0.3 # 30%
+    # Required: The objective value to rebalance to.
+    target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
 ```
 
 ## Basic Usage

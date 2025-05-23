@@ -6,6 +6,23 @@ import type { ChainMap } from '@hyperlane-xyz/sdk';
 import { readYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
+// Weighted strategy config schema
+const WeightedChainConfigSchema = z.object({
+  weight: z
+    .string()
+    .or(z.number())
+    .transform((val) => BigInt(val)),
+  tolerance: z
+    .string()
+    .or(z.number())
+    .transform((val) => BigInt(val)),
+});
+
+const MinAmountConfigSchema = z.object({
+  min: z.string().or(z.number()),
+  target: z.string().or(z.number()),
+});
+
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
@@ -22,36 +39,23 @@ const BaseChainConfigSchema = z.object({
     .boolean()
     .optional()
     .describe('True if the bridge is another Warp Route'),
+  weighted: WeightedChainConfigSchema.optional(),
+  minAmount: MinAmountConfigSchema.optional(),
 });
 
-// Weighted strategy config schema
-const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
-  weight: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val)),
-  tolerance: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val)),
+const ChainConfigSchema = BaseChainConfigSchema.extend({
+  override: z
+    .record(
+      z.string(),
+      BaseChainConfigSchema.omit({
+        weighted: true,
+        minAmount: true,
+      })
+        .partial()
+        .passthrough(),
+    )
+    .optional(),
 });
-
-const MinAmountConfigSchema = BaseChainConfigSchema.extend({
-  minAmount: z.string().or(z.number()),
-  target: z.string().or(z.number()),
-});
-
-const OverrideValueSchema = BaseChainConfigSchema.partial().passthrough();
-
-const BaseChainConfigSchemaWithOverride = BaseChainConfigSchema.extend({
-  override: z.record(z.string(), OverrideValueSchema).optional(),
-});
-
-// Union of possible chain configs with override
-export const ChainConfigSchema = z.union([
-  BaseChainConfigSchemaWithOverride.merge(WeightedChainConfigSchema),
-  BaseChainConfigSchemaWithOverride.merge(MinAmountConfigSchema),
-]);
 
 const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
@@ -106,8 +110,17 @@ export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 
 // Union type for all chain configs
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
+export type ChainConfigInput = z.input<typeof ChainConfigSchema>;
 
 export type BaseConfig = z.infer<typeof BaseConfigSchema>;
+export type BaseConfigInput = z.input<typeof BaseConfigSchema>;
+
+export type ConfigFileInput = BaseConfigInput &
+  ChainMap<
+    | ChainConfigInput
+    // to allow "specific" and "index signature" mix
+    | any
+  >;
 
 export class Config {
   constructor(
@@ -126,7 +139,7 @@ export class Config {
     rebalancerKey: string,
     overrides: Partial<BaseConfig & { coingeckoApiKey: string }>,
   ) {
-    const config = readYamlOrJson(configFilePath);
+    const config: ConfigFileInput = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
 
     if (!validationResult.success) {

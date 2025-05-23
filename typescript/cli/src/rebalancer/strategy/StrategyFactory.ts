@@ -1,7 +1,7 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import type { ChainConfig } from '../config/Config.js';
-import { type IStrategy, StrategyOptions } from '../interfaces/IStrategy.js';
+import { IStrategy, StrategyOptions } from '../interfaces/IStrategy.js';
 
 import {
   MinAmountStrategy,

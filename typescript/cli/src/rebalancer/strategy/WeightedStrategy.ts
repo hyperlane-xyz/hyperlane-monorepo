@@ -1,5 +1,6 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
+import type { ChainConfig } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -7,10 +8,8 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
 /**
  * Configuration for weighted strategy
  */
-export type WeightedStrategyConfig = {
-  weight: bigint;
-  tolerance: bigint;
-};
+export type WeightedStrategyConfig = ChainConfig &
+  Required<Pick<ChainConfig, 'weighted'>>;
 
 /**
  * Strategy implementation that rebalance based on weights
@@ -27,7 +26,7 @@ export class WeightedStrategy extends BaseStrategy {
     let totalWeight = 0n;
 
     for (const chain of chains) {
-      const { weight, tolerance } = config[chain];
+      const { weight, tolerance } = config[chain].weighted;
 
       if (weight <= 0n) {
         throw new Error('Weight must be greater than 0');
@@ -59,7 +58,7 @@ export class WeightedStrategy extends BaseStrategy {
 
     return this.chains.reduce(
       (acc, chain) => {
-        const { weight, tolerance } = this.config[chain];
+        const { weight, tolerance } = this.config[chain].weighted;
         const target = (total * weight) / this.totalWeight;
         const toleranceAmount = (target * tolerance) / 100n;
         const balance = rawBalances[chain];

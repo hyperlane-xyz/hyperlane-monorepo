@@ -10,10 +10,10 @@ import {
 import { writeYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
-import { Config } from './Config.js';
+import { Config, type ConfigFileInput } from './Config.js';
 
 describe('Config', () => {
-  let data: any;
+  let data: ConfigFileInput;
 
   beforeEach(() => {
     data = {
@@ -21,14 +21,18 @@ describe('Config', () => {
       checkFrequency: 1000,
       rebalanceStrategy: StrategyOptions.Weighted,
       chain1: {
-        weight: 100,
-        tolerance: 0,
+        weighted: {
+          weight: 100,
+          tolerance: 0,
+        },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
       },
       chain2: {
-        weight: 100,
-        tolerance: 0,
+        weighted: {
+          weight: 100,
+          tolerance: 0,
+        },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
       },
@@ -60,14 +64,18 @@ describe('Config', () => {
       rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -154,14 +162,18 @@ describe('Config', () => {
       rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -171,10 +183,15 @@ describe('Config', () => {
 
   it('should load relative params without modifications', () => {
     data.rebalanceStrategy = StrategyOptions.MinAmount;
-    delete data.chain1.weight;
-    delete data.chain1.tolerance;
+    delete data.chain1.weighted;
 
-    data.chain1 = { ...data.chain1, minAmount: '0.2', target: 0.3 };
+    data.chain1 = {
+      ...data.chain1,
+      minAmount: {
+        min: '0.2',
+        target: 0.3,
+      },
+    };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
@@ -182,17 +199,24 @@ describe('Config', () => {
       Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
     ).to.deep.equal({
       ...data.chain1,
-      minAmount: '0.2',
-      target: 0.3,
+      minAmount: {
+        min: '0.2',
+        target: 0.3,
+      },
     });
   });
 
   it('should load absolute params without modifications', () => {
     data.rebalanceStrategy = StrategyOptions.MinAmount;
-    delete data.chain1.weight;
-    delete data.chain1.tolerance;
+    delete data.chain1.weighted;
 
-    data.chain1 = { ...data.chain1, minAmount: '100000', target: 140000 };
+    data.chain1 = {
+      ...data.chain1,
+      minAmount: {
+        min: '100000',
+        target: 140000,
+      },
+    };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
@@ -200,8 +224,10 @@ describe('Config', () => {
       Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
     ).to.deep.equal({
       ...data.chain1,
-      minAmount: '100000',
-      target: 140000,
+      minAmount: {
+        min: '100000',
+        target: 140000,
+      },
     });
   });
 
@@ -212,8 +238,10 @@ describe('Config', () => {
         checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
-          minAmount: 1000,
-          target: 1100,
+          minAmount: {
+            min: 1000,
+            target: 1100,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -223,14 +251,18 @@ describe('Config', () => {
           },
         },
         chain2: {
-          minAmount: 2000,
-          target: 2200,
+          minAmount: {
+            min: 2000,
+            target: 2200,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain3: {
-          minAmount: 3000,
-          target: 3300,
+          minAmount: {
+            min: 3000,
+            target: 3300,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -258,8 +290,10 @@ describe('Config', () => {
         checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
-          minAmount: 1000,
-          target: 1100,
+          minAmount: {
+            min: 1000,
+            target: 1100,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -272,8 +306,10 @@ describe('Config', () => {
           },
         },
         chain2: {
-          minAmount: 2000,
-          target: 2200,
+          minAmount: {
+            min: 2000,
+            target: 2200,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -292,8 +328,10 @@ describe('Config', () => {
         checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
-          minAmount: 1000,
-          target: 1100,
+          minAmount: {
+            min: 1000,
+            target: 1100,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
           override: {
@@ -303,8 +341,10 @@ describe('Config', () => {
           },
         },
         chain2: {
-          minAmount: 2000,
-          target: 2200,
+          minAmount: {
+            min: 2000,
+            target: 2200,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -322,8 +362,10 @@ describe('Config', () => {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
-        weight: 100,
-        tolerance: 0,
+        weighted: {
+          weight: 100,
+          tolerance: 0,
+        },
         override: {
           chain2: {
             bridgeMinAcceptedAmount: 4000,
@@ -338,16 +380,20 @@ describe('Config', () => {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
-        weight: 100,
-        tolerance: 0,
+        weighted: {
+          weight: 100,
+          tolerance: 0,
+        },
       };
 
       data.chain3 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
-        weight: 100,
-        tolerance: 0,
+        weighted: {
+          weight: 100,
+          tolerance: 0,
+        },
       };
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
