@@ -40,7 +40,6 @@ pub type Eip1559Fee = (
     EthersU256, // max priority fee
 );
 
-#[allow(unused)]
 pub async fn estimate_gas_price(
     provider: &Box<dyn EvmProviderForSubmitter>,
     tx_precursor: &mut EthereumTxPrecursor,
@@ -93,6 +92,15 @@ pub async fn estimate_gas_price(
     }
     if let Some(value) = tx.value() {
         request = request.value(*value);
+    }
+    if let Some(nonce) = tx.nonce() {
+        request = request.nonce(*nonce);
+    }
+    if let Some(gas_limit) = tx.gas() {
+        request = request.gas(*gas_limit);
+    }
+    if let Some(chain_id) = tx.chain_id() {
+        request = request.chain_id(chain_id);
     }
     request = request.max_fee_per_gas(max_fee);
     request = request.max_priority_fee_per_gas(max_priority_fee);
@@ -205,7 +213,7 @@ async fn zksync_estimate_fee(
     tx.set_from(
         // use the sender in the provider if one is set, otherwise default to the EVM relayer address
         provider
-            .default_sender()
+            .get_signer()
             .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
     );
 

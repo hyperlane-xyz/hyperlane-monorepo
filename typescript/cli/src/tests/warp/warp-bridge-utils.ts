@@ -206,6 +206,8 @@ export function getTokenSymbolFromDeployment(
   let symbol: string;
   if (warpConfig[CHAIN_NAME_2].type.match(/.*vault.*/i)) {
     symbol = tokenVaultChain2Symbol;
+  } else if (warpConfig[CHAIN_NAME_3].type.match(/.*native.*/i)) {
+    symbol = 'ETH';
   } else if (warpConfig[CHAIN_NAME_2].type.match(/.*collateral.*/i)) {
     symbol = tokenChain2Symbol;
   } else if (warpConfig[CHAIN_NAME_3].type.match(/.*vault.*/i)) {
