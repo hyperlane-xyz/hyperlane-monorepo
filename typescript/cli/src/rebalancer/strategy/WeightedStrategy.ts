@@ -27,11 +27,15 @@ export class WeightedStrategy extends BaseStrategy {
       const { weight, tolerance } = config[chain].weighted;
 
       if (weight <= 0n) {
-        throw new Error('Weight must be greater than 0');
+        throw new Error(
+          `Weight (${weight}) must be greater than 0 for ${chain}`,
+        );
       }
 
       if (tolerance < 0n || tolerance > 100n) {
-        throw new Error('Tolerance must be between 0 and 100');
+        throw new Error(
+          `Tolerance (${tolerance}) must be between 0 and 100 for ${chain}`,
+        );
       }
 
       totalWeight += weight;

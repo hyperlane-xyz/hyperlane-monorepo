@@ -69,10 +69,11 @@ sepolia:
   # For minAmount strategy (absolute):
   minAmount:
     # Absolute requires exact token amounts
-    # Required: Minimum amount to maintain on this chain (in wei)
-    min: 100000000 # 100 USDC (6 decimals)
+    # Required: Minimum amount to maintain on this chain (token units)
+    min: 100 # 100 USDC
     # Required: The objective value to rebalance to.
-    target: 110000000 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+    target: 110 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+    type: 'absolute'
 
   # For minAmount strategy (relative):
   minAmount:
@@ -82,6 +83,7 @@ sepolia:
     min: 0.3 # 30%
     # Required: The objective value to rebalance to.
     target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
+    type: 'relative'
 ```
 
 ## Basic Usage
