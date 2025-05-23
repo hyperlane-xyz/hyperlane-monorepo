@@ -10,7 +10,13 @@ import {
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objFilter,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
@@ -26,28 +32,30 @@ import {
 } from '../../src/agents/keys.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
-  ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
 } from '../../src/config/funding.js';
+import {
+  createTimeoutPromise,
+  parseBalancePerChain,
+  parseContextAndRolesMap,
+} from '../../src/funding/helpers.js';
 import { FundableRole, Role } from '../../src/roles.js';
 import {
   getWalletBalanceGauge,
   submitMetrics,
 } from '../../src/utils/metrics.js';
 import {
-  assertContext,
   assertFundableRole,
-  assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils.js';
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-import L1ETHGateway from './utils/L1ETHGateway.json';
-import L1MessageQueue from './utils/L1MessageQueue.json';
-import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json' with { type: 'json' };
+import L1MessageQueue from './utils/L1MessageQueue.json' with { type: 'json' };
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'json' };
 
 const logger = rootLogger.child({ module: 'fund-keys' });
 
@@ -426,7 +434,9 @@ class ContextFunder {
     const { supportedChainNames } = getEnvironmentConfig(environment);
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
-      const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
+      const roleAddress = fetchLocalKeyAddresses(role, ProtocolType.Ethereum)[
+        environment
+      ][context];
       if (!roleAddress) {
         throw Error(
           `Could not find address for ${role} in ${environment} ${context}`,
@@ -928,76 +938,6 @@ async function getKeyInfo(
     originChain: key.chainName,
     role: key.role,
   };
-}
-
-function parseContextAndRolesMap(strs: string[]): ContextAndRolesMap {
-  const contextsAndRoles = strs.map(parseContextAndRoles);
-  return contextsAndRoles.reduce(
-    (prev, curr) => ({
-      ...prev,
-      [curr.context]: curr.roles,
-    }),
-    {},
-  );
-}
-
-// Parses strings of the form <context>=<role>,<role>,<role>...
-// e.g.:
-//   hyperlane=relayer
-//   flowcarbon=relayer,kathy
-function parseContextAndRoles(str: string): ContextAndRoles {
-  const [contextStr, rolesStr] = str.split('=');
-  const context = assertContext(contextStr);
-
-  const roles = rolesStr.split(',').map(assertRole);
-  if (roles.length === 0) {
-    throw Error('Expected > 0 roles');
-  }
-
-  // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
-  for (const role of roles) {
-    if (!validRoles.has(role)) {
-      throw Error(
-        `Invalid fundable role ${role}, must be one of ${Array.from(
-          validRoles,
-        )}`,
-      );
-    }
-  }
-
-  return {
-    context,
-    roles,
-  };
-}
-
-function parseBalancePerChain(strs: string[]): ChainMap<string> {
-  const balanceMap: ChainMap<string> = {};
-  strs.forEach((str) => {
-    const [chain, balance] = str.split('=');
-    if (!chain || !balance) {
-      throw new Error(`Invalid format for balance entry: ${str}`);
-    }
-    balanceMap[chain] = balance;
-  });
-  return balanceMap;
-}
-
-// Utility function to create a timeout promise
-function createTimeoutPromise(
-  timeoutMs: number,
-  errorMessage: string,
-): { promise: Promise<void>; cleanup: () => void } {
-  let cleanup: () => void;
-  const promise = new Promise<void>((_, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error(errorMessage)),
-      timeoutMs,
-    );
-    cleanup = () => clearTimeout(timeout);
-  });
-  return { promise, cleanup: cleanup! };
 }
 
 main().catch((err) => {
