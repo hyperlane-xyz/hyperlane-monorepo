@@ -10,7 +10,7 @@ import {
 import { writeYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
-import { Config, type ConfigFileInput } from './Config.js';
+import { Config, type ConfigFileInput, MinAmountType } from './Config.js';
 
 describe('Config', () => {
   let data: ConfigFileInput;
@@ -190,6 +190,7 @@ describe('Config', () => {
       minAmount: {
         min: '0.2',
         target: 0.3,
+        type: MinAmountType.Relative,
       },
     };
 
@@ -202,6 +203,7 @@ describe('Config', () => {
       minAmount: {
         min: '0.2',
         target: 0.3,
+        type: MinAmountType.Relative,
       },
     });
   });
@@ -215,6 +217,7 @@ describe('Config', () => {
       minAmount: {
         min: '100000',
         target: 140000,
+        type: MinAmountType.Absolute,
       },
     };
 
@@ -227,6 +230,7 @@ describe('Config', () => {
       minAmount: {
         min: '100000',
         target: 140000,
+        type: MinAmountType.Absolute,
       },
     });
   });
@@ -241,6 +245,7 @@ describe('Config', () => {
           minAmount: {
             min: 1000,
             target: 1100,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -254,6 +259,7 @@ describe('Config', () => {
           minAmount: {
             min: 2000,
             target: 2200,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -262,6 +268,7 @@ describe('Config', () => {
           minAmount: {
             min: 3000,
             target: 3300,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -293,6 +300,7 @@ describe('Config', () => {
           minAmount: {
             min: 1000,
             target: 1100,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -309,6 +317,7 @@ describe('Config', () => {
           minAmount: {
             min: 2000,
             target: 2200,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -331,6 +340,7 @@ describe('Config', () => {
           minAmount: {
             min: 1000,
             target: 1100,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -344,6 +354,7 @@ describe('Config', () => {
           minAmount: {
             min: 2000,
             target: 2200,
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,

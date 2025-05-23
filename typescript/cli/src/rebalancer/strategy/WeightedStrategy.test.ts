@@ -47,7 +47,7 @@ describe('WeightedStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Weight must be greater than 0');
+      ).to.throw('Weight (0) must be greater than 0 for chain2');
 
       expect(
         () =>
@@ -63,7 +63,7 @@ describe('WeightedStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Weight must be greater than 0');
+      ).to.throw('Weight (-1) must be greater than 0 for chain2');
     });
 
     it('should throw an error when tolerance is less than 0 or greater than 100', () => {
@@ -81,7 +81,7 @@ describe('WeightedStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Tolerance must be between 0 and 100');
+      ).to.throw('Tolerance (-1) must be between 0 and 100 for chain2');
 
       expect(
         () =>
@@ -97,7 +97,7 @@ describe('WeightedStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Tolerance must be between 0 and 100');
+      ).to.throw('Tolerance (101) must be between 0 and 100 for chain2');
     });
   });
 

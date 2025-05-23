@@ -18,9 +18,15 @@ const WeightedChainConfigSchema = z.object({
     .transform((val) => BigInt(val)),
 });
 
+export enum MinAmountType {
+  Absolute = 'absolute',
+  Relative = 'relative',
+}
+
 const MinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
+  type: z.nativeEnum(MinAmountType),
 });
 
 // Base chain config with common properties
