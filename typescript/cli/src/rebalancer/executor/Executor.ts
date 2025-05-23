@@ -45,19 +45,19 @@ export class Executor implements IExecutor {
       populatedTx: ethers.PopulatedTransaction;
     }[] = [];
 
-    for (const { fromChain, toChain, amount } of routes) {
+    for (const { origin, destination, amount } of routes) {
       log(
-        `Preparing transaction: from ${fromChain} to ${toChain}, amount: ${amount}`,
+        `Preparing transaction: from ${origin} to ${destination}, amount: ${amount}`,
       );
-      const originToken = tokensByChainName.get(fromChain);
-      const destinationToken = tokensByChainName.get(toChain);
+      const originToken = tokensByChainName.get(origin);
+      const destinationToken = tokensByChainName.get(destination);
 
       if (!originToken) {
-        throw new Error(`Token not found for chain ${fromChain}`);
+        throw new Error(`Token not found for chain ${origin}`);
       }
 
       if (!destinationToken) {
-        throw new Error(`Token not found for chain ${toChain}`);
+        throw new Error(`Token not found for chain ${destination}`);
       }
 
       const originHypAdapter = originToken.getHypAdapter(
@@ -66,24 +66,24 @@ export class Executor implements IExecutor {
 
       if (!(originHypAdapter instanceof EvmHypCollateralAdapter)) {
         throw new Error(
-          `Adapter is not an EvmHypCollateralAdapter. Chain: ${fromChain}.`,
+          `Adapter is not an EvmHypCollateralAdapter. Chain: ${origin}.`,
         );
       }
 
-      const provider = warpCore.multiProvider.getEthersV5Provider(fromChain);
+      const provider = warpCore.multiProvider.getEthersV5Provider(origin);
       const signer = new ethers.Wallet(this.rebalancerKey, provider);
       const signerAddress = await signer.getAddress();
-      const domain = chainMetadata[toChain].domainId;
+      const domain = chainMetadata[destination].domainId;
       const recipient = destinationToken.addressOrDenom;
       const { bridge, bridgeMinAcceptedAmount, bridgeIsWarp } = getBridgeConfig(
         this.bridges,
-        fromChain,
-        toChain,
+        origin,
+        destination,
       );
 
       if (!(await originHypAdapter.isRebalancer(signerAddress))) {
         throw new Error(
-          `Signer ${signerAddress} is not a rebalancer. Token: ${originToken.addressOrDenom}. Chain: ${fromChain}.`,
+          `Signer ${signerAddress} is not a rebalancer. Token: ${originToken.addressOrDenom}. Chain: ${origin}.`,
         );
       }
 
@@ -91,13 +91,13 @@ export class Executor implements IExecutor {
         (await originHypAdapter.getAllowedDestination(domain)) !== recipient
       ) {
         throw new Error(
-          `Destination ${recipient} for domain ${domain} (${toChain}) is not allowed. From ${originToken.addressOrDenom} at ${fromChain}.`,
+          `Destination ${recipient} for domain ${domain} (${destination}) is not allowed. From ${originToken.addressOrDenom} at ${origin}.`,
         );
       }
 
       if (!(await originHypAdapter.isBridgeAllowed(domain, bridge))) {
         throw new Error(
-          `Bridge ${bridge} for domain ${domain} (${toChain}) is not allowed. From ${originToken.addressOrDenom} at ${fromChain}. To ${recipient} at ${toChain}.`,
+          `Bridge ${bridge} for domain ${domain} (${destination}) is not allowed. From ${originToken.addressOrDenom} at ${origin}. To ${recipient} at ${destination}.`,
         );
       }
 
@@ -105,7 +105,7 @@ export class Executor implements IExecutor {
       // This prevents dust amounts or economically unviable transfers
       if (bridgeMinAcceptedAmount > amount) {
         log(
-          `Route ${fromChain} → ${toChain} skipped: amount ${amount} below minimum threshold ${bridgeMinAcceptedAmount}`,
+          `Route ${origin} → ${destination} skipped: amount ${amount} below minimum threshold ${bridgeMinAcceptedAmount}`,
         );
 
         continue;
@@ -127,7 +127,7 @@ export class Executor implements IExecutor {
         );
       } catch (error) {
         throw new Error(
-          `Could not get rebalance quotes from ${fromChain} to ${toChain}: ${(error as Error).message}`,
+          `Could not get rebalance quotes from ${origin} to ${destination}: ${(error as Error).message}`,
         );
       }
 
@@ -195,7 +195,7 @@ export class Executor implements IExecutor {
       const route = routes[i];
 
       log(
-        `Route result - Origin: ${route.fromChain}, Destination: ${route.toChain}, Amount: ${route.amount}`,
+        `Route result - Origin: ${route.origin}, Destination: ${route.destination}, Amount: ${route.amount}`,
       );
 
       if (result.status === 'fulfilled') {

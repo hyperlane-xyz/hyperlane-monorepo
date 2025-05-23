@@ -134,8 +134,8 @@ describe('WeightedStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain2,
-          toChain: chain1,
+          origin: chain2,
+          destination: chain1,
           amount: ethers.utils.parseEther('50').toBigInt(),
         },
       ]);
@@ -174,8 +174,8 @@ describe('WeightedStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain3,
-          toChain: chain1,
+          origin: chain3,
+          destination: chain1,
           amount: ethers.utils.parseEther('100').toBigInt(),
         },
       ]);
@@ -197,13 +197,13 @@ describe('WeightedStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain3,
-          toChain: chain1,
+          origin: chain3,
+          destination: chain1,
           amount: 133333333333333333333n,
         },
         {
-          fromChain: chain3,
-          toChain: chain2,
+          origin: chain3,
+          destination: chain2,
           amount: 133333333333333333333n,
         },
       ]);
@@ -226,13 +226,13 @@ describe('WeightedStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain2,
-          toChain: chain1,
+          origin: chain2,
+          destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
         },
         {
-          fromChain: chain3,
-          toChain: chain1,
+          origin: chain3,
+          destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
         },
       ]);

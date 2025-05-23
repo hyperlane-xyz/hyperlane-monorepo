@@ -557,7 +557,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         const executor = contextFactory.createExecutor();
 
         await executor.rebalance([
-          { fromChain: origin, toChain: destination, amount: BigInt(amount) },
+          { origin, destination, amount: BigInt(amount) },
         ]);
 
         process.exit(0);

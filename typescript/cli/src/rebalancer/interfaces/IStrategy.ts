@@ -8,8 +8,8 @@ export enum StrategyOptions {
 export type RawBalances = ChainMap<bigint>;
 
 export type RebalancingRoute = {
-  fromChain: ChainName;
-  toChain: ChainName;
+  origin: ChainName;
+  destination: ChainName;
   amount: bigint;
 };
 
