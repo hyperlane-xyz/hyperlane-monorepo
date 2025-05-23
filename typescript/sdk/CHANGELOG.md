@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+  - @hyperlane-xyz/starknet-core@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
 ## 13.1.0
 
 ### Minor Changes
