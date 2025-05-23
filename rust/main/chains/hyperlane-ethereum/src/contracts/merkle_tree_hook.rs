@@ -326,9 +326,9 @@ where
     M: 'static + Middleware,
 {
     fn block_height<D>(call: &ContractCall<M, D>) -> Option<u64> {
-        call.block.and_then(|id| match id {
-            BlockId::Hash(_) => None,
-            BlockId::Number(n) => n.as_number().map(|n| n.as_u64()),
-        })
+        if let Some(BlockId::Number(BlockNumber::Number(n))) = call.block {
+            return Some(n.as_u64());
+        }
+        None
     }
 }
