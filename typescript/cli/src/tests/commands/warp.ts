@@ -22,15 +22,41 @@ import {
 $.verbose = true;
 
 /**
- * Deploys the Warp route to the specified chain using the provided config.
+ * Creates a warp route configuration with raw parameters.
+ */
+export function hyperlaneWarpInitRaw({
+  warpCorePath,
+  hypKey,
+  skipConfirmationPrompts,
+  privateKey,
+  advanced,
+}: {
+  warpCorePath?: string;
+  hypKey?: string;
+  skipConfirmationPrompts?: boolean;
+  privateKey?: string;
+  advanced?: boolean;
+}): ProcessPromise {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } ${localTestRunCmdPrefix()} hyperlane warp init \
+        --registry ${REGISTRY_PATH} \
+        ${warpCorePath ? ['--out', warpCorePath] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
+        ${advanced ? ['--advanced'] : ''} \
+        --verbosity debug \
+        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+}
+
+/**
+ * Creates a warp route configuration.
  */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp init \
-        --registry ${REGISTRY_PATH} \
-        --out ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
+  return hyperlaneWarpInitRaw({
+    privateKey: ANVIL_KEY,
+    warpCorePath: warpCorePath,
+    skipConfirmationPrompts: true,
+  });
 }
 
 /**

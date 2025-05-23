@@ -11,7 +11,7 @@ use crate::{
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
 
-use hyperlane_core::{KnownHyperlaneDomain, H160};
+use hyperlane_core::H160;
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
@@ -54,11 +54,13 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);
             let key_dir = create_new_directory(&context_dir, "keys");
-            let local_domain = deploy
-                .chain
-                .parse::<KnownHyperlaneDomain>()
-                .map(|v| v as u32)
-                .expect("Invalid chain name");
+
+            let chain_config_file = File::open(&deploy.chain_config_file).unwrap();
+            let chain_configs: HashMap<String, ChainMetadata> =
+                serde_json::from_reader(chain_config_file).unwrap();
+            let chain_config = chain_configs.get(&deploy.chain).unwrap();
+            let local_domain = chain_config.domain_id();
+            println!("Local domain: {}", local_domain);
 
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
