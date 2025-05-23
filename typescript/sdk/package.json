@@ -8,7 +8,7 @@
     "@chain-registry/types": "^0.50.122",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
-    "@hyperlane-xyz/core": "7.1.6",
+    "@hyperlane-xyz/core": "7.1.7",
     "@hyperlane-xyz/cosmos-sdk": "13.1.0",
     "@hyperlane-xyz/starknet-core": "13.1.0",
     "@hyperlane-xyz/utils": "13.1.0",

@@ -7689,29 +7689,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:7.1.6":
-  version: 7.1.6
-  resolution: "@hyperlane-xyz/core@npm:7.1.6"
-  dependencies:
-    "@arbitrum/nitro-contracts": "npm:^1.2.1"
-    "@chainlink/contracts-ccip": "npm:^1.5.0"
-    "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:13.0.0"
-    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
-    "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
-    "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
-    "@openzeppelin/contracts": "npm:^4.9.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
-    fx-portal: "npm:^1.0.3"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-    "@types/sinon-chai": "*"
-  checksum: 10/91c76df988e4e91385f16cecc9bd256d3eecc779771f4e39cd2d2f00634d12a6f926f6345ffb23cdd4c4846d9ab3ae8496b87e60c799018b6698bae2245be4c7
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:7.1.7, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -7823,7 +7801,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:7.1.6"
+    "@hyperlane-xyz/core": "npm:7.1.7"
     "@hyperlane-xyz/registry": "npm:15.7.0"
     "@hyperlane-xyz/sdk": "npm:13.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7962,7 +7940,7 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:7.1.6"
+    "@hyperlane-xyz/core": "npm:7.1.7"
     "@hyperlane-xyz/cosmos-sdk": "npm:13.1.0"
     "@hyperlane-xyz/starknet-core": "npm:13.1.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
@@ -8036,22 +8014,6 @@ __metadata:
   resolution: "@hyperlane-xyz/tsconfig@workspace:typescript/tsconfig"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/utils@npm:13.0.0":
-  version: 13.0.0
-  resolution: "@hyperlane-xyz/utils@npm:13.0.0"
-  dependencies:
-    "@cosmjs/encoding": "npm:^0.32.4"
-    "@solana/web3.js": "npm:^1.95.4"
-    bignumber.js: "npm:^9.1.1"
-    ethers: "npm:^5.7.2"
-    lodash-es: "npm:^4.17.21"
-    pino: "npm:^8.19.0"
-    starknet: "npm:^6.24.1"
-    yaml: "npm:2.4.5"
-  checksum: 10/d5fd706758891b7e8475b15886d9d9b2fe46eab6ad9df721a4927319b4a22fd8ae2ed3a475cdb040b84f361faf354d2bf1f6ebde3fc881d8e9832ba54d25113e
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/utils@npm:13.1.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
