@@ -101,7 +101,7 @@ describe('MinAmountStrategy', () => {
       ).to.throw('Minimum amount cannot be negative');
     });
 
-    it('should throw an error when target is less than minAmount', () => {
+    it('should throw an error when target is less than min', () => {
       expect(
         () =>
           new MinAmountStrategy({
@@ -122,10 +122,10 @@ describe('MinAmountStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Target must be greater than or equal to minAmount');
+      ).to.throw('Target must be greater than or equal to min');
     });
 
-    it('should throw an error when relative target is less than relative minAmount', () => {
+    it('should throw an error when relative target is less than relative min', () => {
       expect(
         () =>
           new MinAmountStrategy({
@@ -146,7 +146,7 @@ describe('MinAmountStrategy', () => {
               bridgeLockTime: 1,
             },
           }),
-      ).to.throw('Target must be greater than or equal to minAmount');
+      ).to.throw('Target must be greater than or equal to min');
     });
 
     it('should throw an error when raw balances chains length does not match configured chains length', () => {
@@ -390,7 +390,7 @@ describe('MinAmountStrategy', () => {
       );
     });
 
-    it('should have no surplus or deficit when all at minAmount', () => {
+    it('should have no surplus or deficit when all at min', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
           minAmount: {
@@ -456,7 +456,7 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
-    it('should consider the minAmount amount when calculating deficit', () => {
+    it('should consider the min amount when calculating deficit', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
           minAmount: {

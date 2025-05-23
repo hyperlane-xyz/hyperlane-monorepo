@@ -44,7 +44,7 @@ export class MinAmountStrategy extends BaseStrategy {
       // check range constraints
       if (target.lt(min)) {
         throw new Error(
-          `Target must be greater than or equal to minAmount for chain ${chain}`,
+          `Target must be greater than or equal to min for chain ${chain}`,
         );
       }
 
