@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "13.0.0",
+  "version": "13.1.1",
   "description": "A command-line utility for common Hyperlane operations",
   "devDependencies": {
     "@aws-sdk/client-kms": "^3.577.0",
@@ -9,11 +9,10 @@
     "@eslint/js": "^9.15.0",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
-    "@hyperlane-xyz/cosmos-sdk": "workspace:^",
-    "@hyperlane-xyz/registry": "15.0.0",
-    "@hyperlane-xyz/sdk": "workspace:^",
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@hyperlane-xyz/utils": "workspace:^",
+    "@hyperlane-xyz/cosmos-sdk": "13.1.1",
+    "@hyperlane-xyz/registry": "15.7.0",
+    "@hyperlane-xyz/sdk": "13.1.1",
+    "@hyperlane-xyz/utils": "13.1.1",
     "@inquirer/core": "9.0.10",
     "@inquirer/figures": "1.0.5",
     "@inquirer/prompts": "3.3.2",
