@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 13.2.0
+
+### Minor Changes
+
+- 6229159: Add ZKSync contract verification with custom compiler options and refactor verification classes
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@13.2.0
+- @hyperlane-xyz/cosmos-sdk@13.2.0
+- @hyperlane-xyz/utils@13.2.0
+- @hyperlane-xyz/core@7.1.9
+
 ## 13.1.1
 
 ### Patch Changes
