@@ -40,6 +40,9 @@ impl MerkleTreeHook for SealevelMailbox {
         self.get_latest_checkpoint().await
     }
 
+    /// Returns the latest checkpoint at the given block height.
+    /// Sealevel does not support querying point-in-time, so this will always return
+    /// the latest checkpoint regardless of the block height.
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
