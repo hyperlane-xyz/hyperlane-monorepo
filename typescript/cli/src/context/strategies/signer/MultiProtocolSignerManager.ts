@@ -50,11 +50,11 @@ export class MultiProtocolSignerManager {
     this.initializeStrategies();
   }
 
-  // TODO: re-add Cosmos Native
   protected get compatibleChains(): ChainName[] {
     return this.chains.filter(
       (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
     );
   }
 

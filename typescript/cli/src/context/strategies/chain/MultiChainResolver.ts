@@ -225,6 +225,7 @@ export class MultiChainResolver implements ChainResolver {
         );
       }
 
+      argv.chain = chain;
       return [chain];
     } catch (error) {
       throw new Error(`Failed to resolve core apply chains`, {

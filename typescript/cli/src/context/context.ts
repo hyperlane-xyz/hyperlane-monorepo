@@ -71,13 +71,10 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   const chainStrategy = ChainResolverFactory.getStrategy(argv);
 
-  console.log(chainStrategy);
-
   /**
    * Resolves chains based on the chain strategy.
    */
   const chains = await chainStrategy.resolveChains(argv);
-  console.log(chains);
 
   /**
    * Extracts signer config
@@ -93,8 +90,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.multiProtocolProvider = multiProtocolProvider;
+  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
   argv.context.multiProtocolSigner = multiProtocolSigner;
 
   return argv;
