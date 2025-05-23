@@ -112,13 +112,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
 
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
-        Ok(self
-            .current_indexing_snapshot
-            .as_ref()
-            .map(|current_indexing_snapshot| match &self.index_mode {
+        Ok(self.current_indexing_snapshot.as_ref().and_then(
+            |current_indexing_snapshot| match &self.index_mode {
                 IndexMode::Block => self.get_next_block_range(current_indexing_snapshot),
                 IndexMode::Sequence => self.get_next_sequence_range(current_indexing_snapshot),
-            }))
+            },
+        ))
     }
 
     /// Gets the next block range to index.
@@ -126,11 +125,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     fn get_next_block_range(
         &self,
         current_indexing_snapshot: &TargetSnapshot,
-    ) -> RangeInclusive<u32> {
+    ) -> Option<RangeInclusive<u32>> {
         // Query the block range ending at the current_indexing_snapshot's at_block.
-        current_indexing_snapshot
-            .at_block
-            .saturating_sub(self.chunk_size)..=current_indexing_snapshot.at_block
+        Some(
+            current_indexing_snapshot
+                .at_block
+                .saturating_sub(self.chunk_size)..=current_indexing_snapshot.at_block,
+        )
     }
 
     /// Gets the next sequence range to index.
@@ -138,11 +139,28 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     fn get_next_sequence_range(
         &self,
         current_indexing_snapshot: &TargetSnapshot,
-    ) -> RangeInclusive<u32> {
+    ) -> Option<RangeInclusive<u32>> {
         // Query the sequence range ending at the current_indexing_snapshot's sequence.
-        current_indexing_snapshot
+        // We assume that chunk size is at least 1 so that the sequence 0 is indexed
+        // together with sequence 1. That's why we can compare the current sequence
+        // with the lowest sequence with <=.
+        if current_indexing_snapshot.sequence <= self.lowest_sequence {
+            // If the current indexing snapshot's sequence is less than or equal to the lowest sequence,
+            // we don't want to index anything below the lowest sequence.
+            info!(
+                current_indexing_snapshot=?current_indexing_snapshot,
+                lowest_sequence=self.lowest_sequence,
+                "Current indexing snapshot's sequence is less than or equal to the lowest sequence, \
+                not indexing anything below the lowest sequence"
+            );
+            return None;
+        }
+        let low = current_indexing_snapshot
             .sequence
-            .saturating_sub(self.chunk_size)..=current_indexing_snapshot.sequence
+            .saturating_sub(self.chunk_size)
+            // Use the latest sequence as the upper bound of the range.
+            .max(self.lowest_sequence);
+        Some(low..=current_indexing_snapshot.sequence)
     }
 
     /// Reads the DB to check if the current indexing sequence has already been indexed,
@@ -313,27 +331,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             return Ok(());
         };
 
-        // replacing the lowest sequence with zero to stop backward indexing below configured lowest sequence
-        let lowest_log = if lowest_sequence_log.0.sequence <= self.lowest_sequence {
-            info!(
-                ?logs,
-                ?range,
-                current_indexing_snapshot=?self.current_indexing_snapshot,
-                last_indexed_snapshot=?self.last_indexed_snapshot,
-                ?lowest_sequence_log,
-                "Replacing lowest sequence with zero to stop backward indexing below configured lowest sequence",
-            );
-            let mut lowest_log = lowest_sequence_log.clone();
-            lowest_log.0.sequence = 0;
-            lowest_log
-        } else {
-            lowest_sequence_log.clone()
-        };
-
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(lowest_log.0.sequence),
-            at_block: lowest_log.1.block_number.try_into()?,
+            sequence: Some(lowest_sequence_log.0.sequence),
+            at_block: lowest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the previous sequence.
         self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
@@ -1122,9 +1123,9 @@ mod test {
             .await;
 
             // Expect the range to be:
-            // (current - chunk_size, current)
+            // (lowest_sequence, current)
             let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = (99 - chunk_size)..=99;
+            let expected_range = 42..=99;
             assert_eq!(range, expected_range);
 
             // Update the with all the missing logs.
@@ -1143,18 +1144,23 @@ mod test {
                 .await
                 .unwrap();
 
-            // Expect the cursor to indicate that it's fully synced even in the case when
-            // the lowest sequence is not 0 at the lowest logs
-            assert_eq!(cursor.current_indexing_snapshot, None);
+            // Expect the cursor to indicate that it stopped at the lowest sequence.
+            assert_eq!(
+                cursor.current_indexing_snapshot,
+                Some(TargetSnapshot {
+                    sequence: 41,
+                    at_block: 942
+                })
+            );
             assert_eq!(
                 cursor.last_indexed_snapshot,
                 LastIndexedSnapshot {
-                    sequence: Some(0),
-                    at_block: 939,
+                    sequence: Some(42),
+                    at_block: 942
                 }
             );
 
-            // Expect the range to be None
+            // Expect the range to be None since we don't want to go below the lowest sequence.
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
         }
@@ -1174,6 +1180,7 @@ mod test {
 
             // Expect the range to be:
             // (current - chunk_size, current)
+            // since cursor does not reach the lowest sequence at this round
             let range = cursor.get_next_range().await.unwrap().unwrap();
             let expected_range = (99 - chunk_size)..=99;
             assert_eq!(range, expected_range);
@@ -1194,8 +1201,7 @@ mod test {
                 .await
                 .unwrap();
 
-            // Expect the cursor to indicate that it's fully synced even in the case when
-            // the lowest sequence is not 0 at the lowest logs
+            // Expect the cursor to indicate that synced up to the latest sequence it could
             assert_eq!(
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
@@ -1211,9 +1217,10 @@ mod test {
                 }
             );
 
-            // Expect the range to be None
+            // Expect the range to stop at the lowest sequence even if the range
+            // is tighter than the chunk size
             let range = cursor.get_next_range().await.unwrap();
-            assert_eq!(range, Some(0..=48));
+            assert_eq!(range, Some(42..=48));
         }
     }
 }
