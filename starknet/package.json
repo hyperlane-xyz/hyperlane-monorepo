@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
   "description": "Core cairo contracts for Hyperlane",
-  "version": "13.0.0",
+  "version": "13.1.1",
   "type": "module",
   "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.15.0",
