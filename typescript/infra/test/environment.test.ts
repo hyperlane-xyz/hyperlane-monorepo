@@ -36,6 +36,12 @@ describe('Environment', () => {
         );
 
         for (const chain of Object.keys(ethereumCoreConfigs)) {
+          // Skip testing rometestnet because its non-standard gas metering
+          // requires custom configuration
+          if (chain === 'rometestnet') {
+            continue;
+          }
+
           const defaultIsm = core[chain].defaultIsm;
           const chainMetadata = multiProvider.getChainMetadata(chain);
 

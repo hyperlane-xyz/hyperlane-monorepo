@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { chunk, exclude, randomElement } from './arrays.js';
+import { chunk, exclude, randomElement, sortArrayByKey } from './arrays.js';
 
 describe('Arrays utilities', () => {
   describe('chunk', () => {
@@ -49,6 +49,41 @@ describe('Arrays utilities', () => {
     it('should handle an empty list gracefully', () => {
       const result = randomElement([]);
       expect(result).to.be.undefined;
+    });
+  });
+
+  describe('sortArrayByKey', () => {
+    it('should sort objects by string key in ascending order', () => {
+      const array = [
+        { name: 'Charlie', id: 3 },
+        { name: 'Alice', id: 1 },
+        { name: 'Bob', id: 2 },
+      ];
+      const result = sortArrayByKey(array, 'name');
+      expect(result).to.deep.equal([
+        { name: 'Alice', id: 1 },
+        { name: 'Bob', id: 2 },
+        { name: 'Charlie', id: 3 },
+      ]);
+    });
+
+    it('should sort objects by numeric key in ascending order', () => {
+      const array = [
+        { name: 'Charlie', value: 30 },
+        { name: 'Alice', value: 10 },
+        { name: 'Bob', value: 20 },
+      ];
+      const result = sortArrayByKey(array, 'value');
+      expect(result).to.deep.equal([
+        { name: 'Alice', value: 10 },
+        { name: 'Bob', value: 20 },
+        { name: 'Charlie', value: 30 },
+      ]);
+    });
+
+    it('should return an empty array when input is empty', () => {
+      const result = sortArrayByKey([], 'any');
+      expect(result).to.deep.equal([]);
     });
   });
 });

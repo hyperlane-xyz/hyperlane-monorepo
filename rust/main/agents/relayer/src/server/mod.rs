@@ -16,7 +16,6 @@ pub mod environment_variable;
 pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
-pub mod utils;
 
 #[derive(new)]
 pub struct Server {

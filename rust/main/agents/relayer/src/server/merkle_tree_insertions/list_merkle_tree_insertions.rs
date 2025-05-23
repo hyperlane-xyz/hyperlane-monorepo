@@ -9,9 +9,11 @@ use axum::{
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
-
-use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
+use hyperlane_base::{
+    db::HyperlaneRocksDB,
+    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+};
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
@@ -33,27 +35,17 @@ pub struct QueryParams {
     pub leaf_index_end: u32,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct TreeInsertion {
-    pub leaf_index: u32,
-    pub message_id: String,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
     pub merkle_tree_insertions: Vec<TreeInsertion>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseErrorBody {
-    pub message: String,
-}
-
+#[axum::debug_handler]
 /// Fetch merkle tree insertion into the database
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>, ResponseErrorBody> {
+) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
     let QueryParams {
         domain_id,
         leaf_index_start,
@@ -71,7 +63,7 @@ pub async fn handler(
         let error_msg = "leaf_index_end less than leaf_index_start";
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         );
@@ -83,35 +75,14 @@ pub async fn handler(
         tracing::debug!(domain_id, "{error_msg}");
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         )
     })?;
 
-    let mut merkle_tree_insertions =
-        Vec::with_capacity((leaf_index_end + 1 - leaf_index_start) as usize);
-    for leaf_index in leaf_index_start..(leaf_index_end + 1) {
-        let retrieve_res = db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
-            .map_err(|err| {
-                let error_msg = "Failed to fetch merkle tree insertion";
-                tracing::debug!(domain_id, leaf_index, ?err, "{error_msg}");
-                ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseErrorBody {
-                        message: error_msg.to_string(),
-                    },
-                )
-            })?;
-        if let Some(insertion) = retrieve_res {
-            let tree_insertion = TreeInsertion {
-                leaf_index: insertion.index(),
-                message_id: format!("{:x}", insertion.message_id()),
-            };
-            merkle_tree_insertions.push(tree_insertion);
-        }
-    }
+    let merkle_tree_insertions =
+        fetch_merkle_tree_insertions(db, leaf_index_start, leaf_index_end).await?;
 
     let resp = ResponseBody {
         merkle_tree_insertions,
@@ -258,15 +229,15 @@ mod tests {
         let expected_list = [
             TreeInsertion {
                 leaf_index: 100,
-                message_id: format!("{:x}", H256::from_low_u64_be(100)),
+                message_id: format!("{:?}", H256::from_low_u64_be(100)),
             },
             TreeInsertion {
                 leaf_index: 101,
-                message_id: format!("{:x}", H256::from_low_u64_be(101)),
+                message_id: format!("{:?}", H256::from_low_u64_be(101)),
             },
             TreeInsertion {
                 leaf_index: 102,
-                message_id: format!("{:x}", H256::from_low_u64_be(102)),
+                message_id: format!("{:?}", H256::from_low_u64_be(102)),
             },
         ];
 

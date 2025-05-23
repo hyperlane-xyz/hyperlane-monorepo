@@ -7,7 +7,10 @@ use axum::{
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    db::{HyperlaneDb, HyperlaneRocksDB},
+    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+};
 
 use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
@@ -28,12 +31,6 @@ impl ServerState {
 pub struct QueryParams {
     pub leaf_index_start: u32,
     pub leaf_index_end: u32,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct TreeInsertion {
-    pub leaf_index: u32,
-    pub message_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -73,30 +70,8 @@ pub async fn handler(
         return Err(err);
     }
 
-    let mut merkle_tree_insertions =
-        Vec::with_capacity((leaf_index_end + 1 - leaf_index_start) as usize);
-    for leaf_index in leaf_index_start..(leaf_index_end + 1) {
-        let retrieve_res = state
-            .db
-            .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
-            .map_err(|err| {
-                let error_msg = "Failed to fetch merkle tree insertion";
-                tracing::debug!(leaf_index, ?err, "{error_msg}");
-                ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ResponseErrorBody {
-                        message: error_msg.to_string(),
-                    },
-                )
-            })?;
-        if let Some(insertion) = retrieve_res {
-            let tree_insertion = TreeInsertion {
-                leaf_index: insertion.index(),
-                message_id: format!("{:x}", insertion.message_id()),
-            };
-            merkle_tree_insertions.push(tree_insertion);
-        }
-    }
+    let merkle_tree_insertions =
+        fetch_merkle_tree_insertions(&state.db, leaf_index_start, leaf_index_end).await?;
 
     let resp = ResponseBody {
         merkle_tree_insertions,

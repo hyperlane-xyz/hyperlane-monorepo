@@ -4,10 +4,11 @@ use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    db::{HyperlaneDb, HyperlaneRocksDB},
+    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+};
 use hyperlane_core::HyperlaneMessage;
-
-use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
@@ -41,17 +42,11 @@ pub struct ResponseBody {
     pub skipped: Vec<Message>,
 }
 
-/// Response Body on failure
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseErrorBody {
-    pub message: String,
-}
-
 /// Manually insert messages into the database
 pub async fn handler(
     State(state): State<ServerState>,
     Json(payload): Json<RequestBody>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>, ResponseErrorBody> {
+) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
     let RequestBody { messages } = payload;
 
     let mut insertion_count: u64 = 0;
@@ -83,7 +78,7 @@ fn store_message(
     db: &HyperlaneRocksDB,
     message: &HyperlaneMessage,
     dispatched_block_number: u64,
-) -> ServerResult<(), ResponseErrorBody> {
+) -> ServerResult<()> {
     let id = message.id();
     tracing::debug!(hyp_message=?message, "Storing new message in db");
 
@@ -92,7 +87,7 @@ fn store_message(
         tracing::debug!(message_id=?id, ?err, "{error_msg}");
         ServerErrorResponse::new(
             StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         )
@@ -103,7 +98,7 @@ fn store_message(
             tracing::debug!(message_id=?id, ?err, "{error_msg}");
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseErrorBody {
+                ServerErrorBody {
                     message: error_msg.to_string(),
                 },
             )
@@ -114,7 +109,7 @@ fn store_message(
             tracing::debug!(message_id=?id, ?err, "{error_msg}");
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseErrorBody {
+                ServerErrorBody {
                     message: error_msg.to_string(),
                 },
             )

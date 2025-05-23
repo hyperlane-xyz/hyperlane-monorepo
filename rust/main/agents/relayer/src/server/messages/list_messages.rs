@@ -9,10 +9,12 @@ use axum::{
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::{
+    db::HyperlaneRocksDB,
+    messages::fetch_messages,
+    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+};
 use hyperlane_core::HyperlaneMessage;
-
-use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
@@ -39,16 +41,11 @@ pub struct ResponseBody {
     pub messages: Vec<HyperlaneMessage>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseErrorBody {
-    pub message: String,
-}
-
 /// Fetch merkle tree insertion into the database
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>, ResponseErrorBody> {
+) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
     let QueryParams {
         domain_id,
         nonce_start,
@@ -61,7 +58,7 @@ pub async fn handler(
         let error_msg = "nonce_end less than nonce_start";
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         );
@@ -73,28 +70,13 @@ pub async fn handler(
         tracing::debug!(domain_id, "{error_msg}");
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         )
     })?;
 
-    let mut messages = Vec::with_capacity((nonce_end + 1 - nonce_start) as usize);
-    for nonce in nonce_start..(nonce_end + 1) {
-        let retrieve_res = db.retrieve_message_by_nonce(nonce).map_err(|err| {
-            let error_msg = "Failed to fetch message";
-            tracing::debug!(domain_id, nonce, ?err, "{error_msg}");
-            ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseErrorBody {
-                    message: error_msg.to_string(),
-                },
-            )
-        })?;
-        if let Some(msg) = retrieve_res {
-            messages.push(msg);
-        }
-    }
+    let messages = fetch_messages(db, nonce_start, nonce_end).await?;
 
     let resp = ResponseBody { messages };
     Ok(ServerSuccessResponse::new(resp))
