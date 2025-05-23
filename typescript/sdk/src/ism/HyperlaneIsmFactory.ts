@@ -68,7 +68,7 @@ import {
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
 } from './types.js';
-import { routingModuleDelta } from './utils.js';
+import { isIsmCompatible, routingModuleDelta } from './utils.js';
 
 const ismFactories = {
   [IsmType.PAUSABLE]: new PausableIsm__factory(),
@@ -147,6 +147,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       `Deploying ISM of type ${ismType} to ${destination} ${
         origin ? `(for verifying ${origin})` : ''
       }`,
+    );
+
+    const { technicalStack } = this.multiProvider.getChainMetadata(destination);
+
+    // For static ISM types it checks whether the technical stack supports static contract deployment
+    assert(
+      isIsmCompatible({ ismType, chainTechnicalStack: technicalStack }),
+      `Technical stack ${technicalStack} is not compatible with ${ismType}`,
     );
 
     let contract: DeployedIsmType[typeof ismType];

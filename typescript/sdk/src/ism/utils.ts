@@ -588,6 +588,16 @@ export function collectValidators(
 }
 
 /**
+ * Checks if the given ISM type requires static deployment
+ *
+ * @param {IsmType} ismType - The type of Interchain Security Module (ISM)
+ * @returns {boolean} True if the ISM type requires static deployment, false otherwise
+ */
+export function isStaticIsm(ismType: IsmType): boolean {
+  return STATIC_ISM_TYPES.includes(ismType);
+}
+
+/**
  * Determines if static ISM deployment is supported on a given chain's technical stack
  * @dev Currently, only ZkSync does not support static deployments
  * @param chainTechnicalStack - The technical stack of the target chain
@@ -602,9 +612,8 @@ export function isStaticDeploymentSupported(
 /**
  * Checks if the given ISM type is compatible with the chain's technical stack.
  *
- * @param {Object} params - The parameters object
- * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
  * @param {IsmType} params.ismType - The type of Interchain Security Module (ISM)
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
  * @returns {boolean} True if the ISM type is compatible with the chain, false otherwise
  */
 export function isIsmCompatible({
@@ -615,7 +624,6 @@ export function isIsmCompatible({
   ismType: IsmType;
 }): boolean {
   // Skip compatibility check for non-static ISMs as they're always supported
-  if (!STATIC_ISM_TYPES.includes(ismType)) return true;
-
+  if (!isStaticIsm(ismType)) return true;
   return isStaticDeploymentSupported(chainTechnicalStack);
 }
