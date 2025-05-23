@@ -23,7 +23,11 @@ describe('WeightedStrategy', () => {
       expect(
         () =>
           new WeightedStrategy({
-            [chain1]: { weight: 100n, tolerance: 0n },
+            [chain1]: {
+              weighted: { weight: 100n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
           }),
       ).to.throw('At least two chains must be configured');
     });
@@ -32,16 +36,32 @@ describe('WeightedStrategy', () => {
       expect(
         () =>
           new WeightedStrategy({
-            [chain1]: { weight: 100n, tolerance: 0n },
-            [chain2]: { weight: 0n, tolerance: 0n },
+            [chain1]: {
+              weighted: { weight: 100n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              weighted: { weight: 0n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
           }),
       ).to.throw('Weight must be greater than 0');
 
       expect(
         () =>
           new WeightedStrategy({
-            [chain1]: { weight: 100n, tolerance: 0n },
-            [chain2]: { weight: -1n, tolerance: 0n },
+            [chain1]: {
+              weighted: { weight: 100n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              weighted: { weight: -1n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
           }),
       ).to.throw('Weight must be greater than 0');
     });
@@ -50,16 +70,32 @@ describe('WeightedStrategy', () => {
       expect(
         () =>
           new WeightedStrategy({
-            [chain1]: { weight: 100n, tolerance: 0n },
-            [chain2]: { weight: 100n, tolerance: -1n },
+            [chain1]: {
+              weighted: { weight: 100n, tolerance: 0n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              weighted: { weight: 100n, tolerance: -1n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
           }),
       ).to.throw('Tolerance must be between 0 and 100');
 
       expect(
         () =>
           new WeightedStrategy({
-            [chain1]: { weight: 100n, tolerance: 100n },
-            [chain2]: { weight: 100n, tolerance: 101n },
+            [chain1]: {
+              weighted: { weight: 100n, tolerance: 100n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              weighted: { weight: 100n, tolerance: 101n },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
           }),
       ).to.throw('Tolerance must be between 0 and 100');
     });
@@ -69,8 +105,16 @@ describe('WeightedStrategy', () => {
     it('should throw an error when raw balances chains length does not match configured chains length', () => {
       expect(() =>
         new WeightedStrategy({
-          [chain1]: { weight: 100n, tolerance: 0n },
-          [chain2]: { weight: 100n, tolerance: 0n },
+          [chain1]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [chain2]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('200').toBigInt(),
@@ -82,8 +126,16 @@ describe('WeightedStrategy', () => {
     it('should throw an error when a raw balance is missing', () => {
       expect(() =>
         new WeightedStrategy({
-          [chain1]: { weight: 100n, tolerance: 0n },
-          [chain2]: { weight: 100n, tolerance: 0n },
+          [chain1]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [chain2]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
@@ -94,8 +146,16 @@ describe('WeightedStrategy', () => {
     it('should throw an error when a raw balance is negative', () => {
       expect(() =>
         new WeightedStrategy({
-          [chain1]: { weight: 100n, tolerance: 0n },
-          [chain2]: { weight: 100n, tolerance: 0n },
+          [chain1]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [chain2]: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('-200').toBigInt(),
@@ -105,8 +165,16 @@ describe('WeightedStrategy', () => {
 
     it('should return an empty array when all chains are balanced', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 0n },
-        [chain2]: { weight: 100n, tolerance: 0n },
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {
@@ -121,8 +189,16 @@ describe('WeightedStrategy', () => {
 
     it('should return a single route when a chain is unbalanced', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 0n },
-        [chain2]: { weight: 100n, tolerance: 0n },
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {
@@ -143,8 +219,16 @@ describe('WeightedStrategy', () => {
 
     it('should return an empty array when a chain is unbalanced but has tolerance', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 1n },
-        [chain2]: { weight: 100n, tolerance: 1n },
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 1n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 1n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {
@@ -159,9 +243,21 @@ describe('WeightedStrategy', () => {
 
     it('should return a single route when two chains are unbalanced and can be solved with a single transfer', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 0n },
-        [chain2]: { weight: 100n, tolerance: 0n },
-        [chain3]: { weight: 100n, tolerance: 0n },
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {
@@ -182,9 +278,21 @@ describe('WeightedStrategy', () => {
     });
     it('should return two routes when two chains are unbalanced and cannot be solved with a single transfer', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 0n },
-        [chain2]: { weight: 100n, tolerance: 0n },
-        [chain3]: { weight: 100n, tolerance: 0n },
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {
@@ -211,9 +319,21 @@ describe('WeightedStrategy', () => {
 
     it('should return routes to balance different weighted chains', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 50n, tolerance: 0n },
-        [chain2]: { weight: 25n, tolerance: 0n },
-        [chain3]: { weight: 25n, tolerance: 0n },
+        [chain1]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain2]: {
+          weighted: { weight: 25n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 25n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
       });
 
       const rawBalances = {

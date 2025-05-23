@@ -2,24 +2,22 @@ import { BigNumber } from 'bignumber.js';
 
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import type { MinAmountChainConfig } from '../config/Config.js';
+import type { ChainConfig } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
-export type MinAmountStrategyConfig = Pick<
-  MinAmountChainConfig,
-  'minAmount' | 'target'
->;
+export type MinAmountStrategyConfig = ChainConfig &
+  Required<Pick<ChainConfig, 'minAmount'>>;
 
 type InferredConfig =
   | {
-      minAmount: number;
+      min: number;
       target: number;
       isRelative: true;
     }
   | {
-      minAmount: bigint;
+      min: bigint;
       target: bigint;
       isRelative: false;
     };
@@ -36,27 +34,29 @@ export class MinAmountStrategy extends BaseStrategy {
     super(chains);
 
     for (const chain of chains) {
-      const minAmount = BigNumber(config[chain].minAmount);
-      const target = BigNumber(config[chain].target);
+      const { min, target } = Object.fromEntries(
+        Object.entries(config[chain].minAmount).map(([k, v]) => [
+          k,
+          BigNumber(v.toString()),
+        ]),
+      );
 
       // check range constraints
-      if (target.lt(minAmount)) {
+      if (target.lt(min)) {
         throw new Error(
           `Target must be greater than or equal to minAmount for chain ${chain}`,
         );
       }
 
-      if (minAmount.lt(0)) {
+      if (min.lt(0)) {
         throw new Error(`Minimum amount cannot be negative for chain ${chain}`);
       }
 
       const isRelative =
-        minAmount.gte(0) && minAmount.lte(1) && target.gte(0) && target.lte(1);
+        min.gte(0) && min.lte(1) && target.gte(0) && target.lte(1);
 
       this.config[chain] = {
-        minAmount: isRelative
-          ? minAmount.toNumber()
-          : BigInt(minAmount.toString()),
+        min: isRelative ? min.toNumber() : BigInt(min.toString()),
         target: isRelative ? target.toNumber() : BigInt(target.toString()),
         isRelative,
       } as InferredConfig;
@@ -85,12 +85,12 @@ export class MinAmountStrategy extends BaseStrategy {
         let targetAmount: bigint;
 
         if (!config.isRelative) {
-          minAmount = config.minAmount;
+          minAmount = config.min;
           targetAmount = config.target;
         } else {
           minAmount = BigInt(
             BigNumber(total)
-              .times(config.minAmount)
+              .times(config.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(

@@ -3,29 +3,35 @@ import { ethers } from 'ethers';
 
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import type {
-  MinAmountChainConfig,
-  WeightedChainConfig,
-} from '../config/Config.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
-import { MinAmountStrategy } from './MinAmountStrategy.js';
+import {
+  MinAmountStrategy,
+  MinAmountStrategyConfig,
+} from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
-import { WeightedStrategy } from './WeightedStrategy.js';
+import {
+  WeightedStrategy,
+  WeightedStrategyConfig,
+} from './WeightedStrategy.js';
 
 describe('StrategyFactory', () => {
   describe('createStrategy', () => {
     it('creates a WeightedStrategy when given weighted configuration', () => {
-      const config: ChainMap<WeightedChainConfig> = {
+      const config: ChainMap<WeightedStrategyConfig> = {
         chain1: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
-          weight: 100n,
-          tolerance: 0n,
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
@@ -39,16 +45,20 @@ describe('StrategyFactory', () => {
     });
 
     it('creates a MinAmountStrategy when given minAmount configuration', () => {
-      const config: ChainMap<MinAmountChainConfig> = {
+      const config: ChainMap<MinAmountStrategyConfig> = {
         chain1: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },
         chain2: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
         },

@@ -24,8 +24,12 @@ describe('MinAmountStrategy', () => {
         () =>
           new MinAmountStrategy({
             [chain1]: {
-              minAmount: ethers.utils.parseEther('100').toString(),
-              target: ethers.utils.parseEther('120').toString(),
+              minAmount: {
+                min: ethers.utils.parseEther('100').toString(),
+                target: ethers.utils.parseEther('120').toString(),
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           }),
       ).to.throw('At least two chains must be configured');
@@ -34,12 +38,20 @@ describe('MinAmountStrategy', () => {
     it('should create a strategy with minAmount and target using absolute values', () => {
       new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
     });
@@ -47,12 +59,20 @@ describe('MinAmountStrategy', () => {
     it('should create a strategy with minAmount and target using relative values', () => {
       new MinAmountStrategy({
         [chain1]: {
-          minAmount: 0.3,
-          target: 0.4,
+          minAmount: {
+            min: 0.3,
+            target: 0.4,
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: 0.4,
-          target: 0.5,
+          minAmount: {
+            min: 0.4,
+            target: 0.5,
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
     });
@@ -62,12 +82,20 @@ describe('MinAmountStrategy', () => {
         () =>
           new MinAmountStrategy({
             [chain1]: {
-              minAmount: ethers.utils.parseEther('100').toString(),
-              target: ethers.utils.parseEther('120').toString(),
+              minAmount: {
+                min: ethers.utils.parseEther('100').toString(),
+                target: ethers.utils.parseEther('120').toString(),
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
             [chain2]: {
-              minAmount: ethers.utils.parseEther('-10').toString(),
-              target: ethers.utils.parseEther('120').toString(),
+              minAmount: {
+                min: ethers.utils.parseEther('-10').toString(),
+                target: ethers.utils.parseEther('120').toString(),
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           }),
       ).to.throw('Minimum amount cannot be negative');
@@ -78,12 +106,20 @@ describe('MinAmountStrategy', () => {
         () =>
           new MinAmountStrategy({
             [chain1]: {
-              minAmount: ethers.utils.parseEther('100').toString(),
-              target: ethers.utils.parseEther('80').toString(),
+              minAmount: {
+                min: ethers.utils.parseEther('100').toString(),
+                target: ethers.utils.parseEther('80').toString(),
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
             [chain2]: {
-              minAmount: ethers.utils.parseEther('100').toString(),
-              target: ethers.utils.parseEther('120').toString(),
+              minAmount: {
+                min: ethers.utils.parseEther('100').toString(),
+                target: ethers.utils.parseEther('120').toString(),
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           }),
       ).to.throw('Target must be greater than or equal to minAmount');
@@ -94,12 +130,20 @@ describe('MinAmountStrategy', () => {
         () =>
           new MinAmountStrategy({
             [chain1]: {
-              minAmount: 0.5,
-              target: 0.4,
+              minAmount: {
+                min: 0.5,
+                target: 0.4,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
             [chain2]: {
-              minAmount: 0.3,
-              target: 0.5,
+              minAmount: {
+                min: 0.3,
+                target: 0.5,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           }),
       ).to.throw('Target must be greater than or equal to minAmount');
@@ -109,12 +153,20 @@ describe('MinAmountStrategy', () => {
       expect(() =>
         new MinAmountStrategy({
           [chain1]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
           [chain2]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -128,12 +180,20 @@ describe('MinAmountStrategy', () => {
       expect(() =>
         new MinAmountStrategy({
           [chain1]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
           [chain2]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -146,12 +206,20 @@ describe('MinAmountStrategy', () => {
       expect(() =>
         new MinAmountStrategy({
           [chain1]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
           [chain2]: {
-            minAmount: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            minAmount: {
+              min: ethers.utils.parseEther('100').toString(),
+              target: ethers.utils.parseEther('120').toString(),
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
           },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -165,12 +233,20 @@ describe('MinAmountStrategy', () => {
     it('should return an empty array when all chains have at least the minimum amount', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -187,12 +263,20 @@ describe('MinAmountStrategy', () => {
     it('should return a single route when a chain is below minimum amount', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -215,16 +299,28 @@ describe('MinAmountStrategy', () => {
     it('should return multiple routes for multiple chains below minimum amount', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain3]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -253,16 +349,28 @@ describe('MinAmountStrategy', () => {
     it('should handle case where there is not enough surplus to meet all minimum requirements', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('100').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('100').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('100').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('100').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain3]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('100').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('100').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -285,12 +393,20 @@ describe('MinAmountStrategy', () => {
     it('should have no surplus or deficit when all at minAmount', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('110').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('110').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('110').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('110').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -307,12 +423,20 @@ describe('MinAmountStrategy', () => {
     it('should consider the target amount with relative configuration', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: 0.25,
-          target: 0.3,
+          minAmount: {
+            min: 0.25,
+            target: 0.3,
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: 0.25,
-          target: 0.3,
+          minAmount: {
+            min: 0.25,
+            target: 0.3,
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
@@ -335,12 +459,20 @@ describe('MinAmountStrategy', () => {
     it('should consider the minAmount amount when calculating deficit', () => {
       const strategy = new MinAmountStrategy({
         [chain1]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
         [chain2]: {
-          minAmount: ethers.utils.parseEther('100').toString(),
-          target: ethers.utils.parseEther('120').toString(),
+          minAmount: {
+            min: ethers.utils.parseEther('100').toString(),
+            target: ethers.utils.parseEther('120').toString(),
+          },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
       });
 
