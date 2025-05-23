@@ -28,7 +28,7 @@ export async function runWarpRouteCheck({
     Record<string, Partial<HypTokenRouterVirtualConfig>>;
 }): Promise<void> {
   // Check whether the decimals are consistent. If not, ensure that the scale is correct.
-  verifyDecimalsAndScale(warpRouteConfig);
+  const decimalsAreValid = verifyDecimalsAndScale(warpRouteConfig);
 
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
@@ -72,22 +72,27 @@ export async function runWarpRouteCheck({
     process.exit(1);
   }
 
+  if (!decimalsAreValid) {
+    process.exit(1);
+  }
   logGreen(`No violations found`);
 }
 
 function verifyDecimalsAndScale(
   warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
     Record<string, Partial<HypTokenRouterVirtualConfig>>,
-) {
-  Object.values(warpRouteConfig).forEach((config) => {
-    if (config.decimals === undefined && config.decimals !== 0) {
-      logRed('Decimals, if defined, must not be zero');
-      process.exit(1);
+): boolean {
+  let valid = true;
+  Object.entries(warpRouteConfig).forEach(([chain, config]) => {
+    if (config.decimals !== undefined && config.decimals === 0) {
+      logRed(`Decimals, if defined, must not be zero for ${chain}`);
+      valid = false;
     }
   });
 
   if (!verifyScale(warpRouteConfig)) {
     logRed(`Found invalid or missing scale for inconsistent decimals`);
-    process.exit(1);
+    valid = false;
   }
+  return valid;
 }
