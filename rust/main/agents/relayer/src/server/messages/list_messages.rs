@@ -11,8 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use hyperlane_base::{
     db::HyperlaneRocksDB,
-    messages::fetch_messages,
-    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+    server::{
+        messages::fetch_messages,
+        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+    },
 };
 use hyperlane_core::HyperlaneMessage;
 

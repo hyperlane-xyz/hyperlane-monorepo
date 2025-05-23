@@ -1,6 +1,5 @@
 pub mod eigen_node;
 pub mod merkle_tree_insertions;
-pub mod utils;
 
 pub use eigen_node::EigenNodeApi;
 

@@ -11,8 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use hyperlane_base::{
     db::HyperlaneRocksDB,
-    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
-    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+    server::{
+        merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+    },
 };
 
 #[derive(Clone, Debug, new)]
@@ -40,7 +42,6 @@ pub struct ResponseBody {
     pub merkle_tree_insertions: Vec<TreeInsertion>,
 }
 
-#[axum::debug_handler]
 /// Fetch merkle tree insertion into the database
 pub async fn handler(
     State(state): State<ServerState>,

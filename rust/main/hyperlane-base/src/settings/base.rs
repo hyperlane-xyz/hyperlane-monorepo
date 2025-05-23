@@ -12,10 +12,10 @@ use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     cursors::{CursorType, Indexable},
+    server::Server,
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SequenceAwareLogStore, SequencedDataContractSync, Server, WatermarkContractSync,
-    WatermarkLogStore,
+    SequenceAwareLogStore, SequencedDataContractSync, WatermarkContractSync, WatermarkLogStore,
 };
 
 use super::TryFromWithMetrics;

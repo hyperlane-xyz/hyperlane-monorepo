@@ -8,11 +8,12 @@ use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 use hyperlane_base::{
-    db::{HyperlaneDb, HyperlaneRocksDB},
-    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+    db::HyperlaneRocksDB,
+    server::{
+        merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+    },
 };
-
-use crate::server::utils::{ServerErrorResponse, ServerResult, ServerSuccessResponse};
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
@@ -47,7 +48,7 @@ pub struct ResponseErrorBody {
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>, ResponseErrorBody> {
+) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
     let QueryParams {
         leaf_index_start,
         leaf_index_end,
@@ -63,7 +64,7 @@ pub async fn handler(
         let error_msg = "leaf_index_end less than leaf_index_start";
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
-            ResponseErrorBody {
+            ServerErrorBody {
                 message: error_msg.to_string(),
             },
         );
@@ -180,15 +181,15 @@ mod tests {
         let expected_list = [
             TreeInsertion {
                 leaf_index: 100,
-                message_id: format!("{:x}", H256::from_low_u64_be(100)),
+                message_id: format!("{:?}", H256::from_low_u64_be(100)),
             },
             TreeInsertion {
                 leaf_index: 101,
-                message_id: format!("{:x}", H256::from_low_u64_be(101)),
+                message_id: format!("{:?}", H256::from_low_u64_be(101)),
             },
             TreeInsertion {
                 leaf_index: 102,
-                message_id: format!("{:x}", H256::from_low_u64_be(102)),
+                message_id: format!("{:?}", H256::from_low_u64_be(102)),
             },
         ];
 
