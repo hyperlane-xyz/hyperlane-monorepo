@@ -176,8 +176,8 @@ export function hyperlaneWarpRebalancer(
   withMetrics: boolean,
   rebalanceStrategy?: string,
   monitorOnly?: boolean,
-  fromChain?: string,
-  toChain?: string,
+  origin?: string,
+  destination?: string,
   amount?: string,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
@@ -187,8 +187,8 @@ export function hyperlaneWarpRebalancer(
         --config ${config} \
         --key ${ANVIL_KEY} \
         ${monitorOnly ? ['--monitorOnly'] : ['']} \
-        ${fromChain ? ['--fromChain', fromChain] : ['']} \
-        ${toChain ? ['--toChain', toChain] : ['']} \
+        ${origin ? ['--origin', origin] : ['']} \
+        ${destination ? ['--destination', destination] : ['']} \
         ${amount ? ['--amount', amount] : ['']} \
         ${withMetrics ? ['--withMetrics'] : ['']} \
         ${rebalanceStrategy ? ['--rebalanceStrategy', rebalanceStrategy] : []}`;

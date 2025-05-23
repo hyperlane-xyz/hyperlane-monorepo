@@ -225,8 +225,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics?: boolean;
       rebalanceStrategy?: string;
       monitorOnly?: boolean;
-      fromChain?: string;
-      toChain?: string;
+      origin?: string;
+      destination?: string;
       amount?: string;
     } = {},
   ) {
@@ -235,8 +235,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics = false,
       rebalanceStrategy,
       monitorOnly = false,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     } = options;
 
@@ -247,8 +247,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     );
   }
@@ -261,8 +261,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics?: boolean;
       rebalanceStrategy?: string;
       monitorOnly?: boolean;
-      fromChain?: string;
-      toChain?: string;
+      origin?: string;
+      destination?: string;
       amount?: string;
     } = {},
   ) {
@@ -272,8 +272,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     } = options;
 
@@ -282,8 +282,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     });
 
@@ -1224,8 +1224,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Start the rebalancer
       const rebalancer = startRebalancer({
-        fromChain: originName,
-        toChain: destName,
+        origin: originName,
+        destination: destName,
         amount: toWei(5),
       });
 
@@ -1406,8 +1406,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           ],
           {
             timeout: 30000,
-            fromChain: CHAIN_NAME_2,
-            toChain: CHAIN_NAME_3,
+            origin: CHAIN_NAME_2,
+            destination: CHAIN_NAME_3,
             amount: toWei(5),
           },
         );
