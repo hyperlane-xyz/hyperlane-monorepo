@@ -55,8 +55,8 @@ export abstract class BaseStrategy implements IStrategy {
 
       // Creates the balancing route
       routes.push({
-        fromChain: surplus.chain,
-        toChain: deficit.chain,
+        origin: surplus.chain,
+        destination: deficit.chain,
         amount: transferAmount,
       });
 

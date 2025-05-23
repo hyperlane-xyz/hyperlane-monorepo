@@ -38,7 +38,6 @@ export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/anvil`;
 export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
-export const ANVIL_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 export const ANVIL_DEPLOYER_ADDRESS =

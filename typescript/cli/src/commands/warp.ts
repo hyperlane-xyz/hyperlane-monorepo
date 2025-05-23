@@ -30,12 +30,12 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
-  BaseConfig,
   Config,
+  MonitorEventType,
+  MonitorPollingError,
   RebalancerContextFactory,
+  StrategyOptions,
 } from '../rebalancer/index.js';
-// TODO: This import should come from the IMonitor interface
-import { MonitorPollingError } from '../rebalancer/monitor/Monitor.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { ENV } from '../utils/env.js';
@@ -444,45 +444,45 @@ export const check: CommandModuleWithContext<{
 };
 
 export const rebalancer: CommandModuleWithWriteContext<{
-  configFile: string;
-  fromChain?: string;
-  toChain?: string;
+  config: string;
+  origin?: string;
+  destination?: string;
   amount?: string;
   warpRouteId?: string;
   checkFrequency?: number;
   withMetrics?: boolean;
   monitorOnly?: boolean;
   coingeckoApiKey?: string;
-  rebalanceStrategy?: string;
+  rebalanceStrategy?: StrategyOptions;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
   builder: {
-    configFile: {
+    config: {
       type: 'string',
       description:
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
-      alias: ['rebalancerConfigFile'],
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
     },
-    fromChain: {
+    origin: {
       type: 'string',
       description: 'The origin chain',
       demandOption: false,
-      alias: ['from'],
-      implies: ['toChain', 'amount'],
+      alias: ['o', 'from', 'fromChain'],
+      implies: ['destination', 'amount'],
     },
-    toChain: {
+    destination: {
       type: 'string',
       description: 'The destination chain',
       demandOption: false,
-      alias: ['to'],
-      implies: ['fromChain', 'amount'],
+      alias: ['d', 'to', 'toChain'],
+      implies: ['origin', 'amount'],
     },
     amount: {
       type: 'string',
-      description: 'The amount to rebalance from `--fromChain` to `--toChain`',
-      implies: ['fromChain', 'toChain'],
+      description: 'The amount to rebalance from `--origin` to `--destination`',
+      implies: ['origin', 'destination'],
     },
     warpRouteId: {
       type: 'string',
@@ -520,10 +520,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
   },
   handler: async ({
     context,
-    fromChain,
-    toChain,
+    origin,
+    destination,
     amount,
-    configFile,
+    config,
     warpRouteId,
     checkFrequency,
     withMetrics,
@@ -535,29 +535,29 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const { registry, key: rebalancerKey } = context;
 
       // Load rebalancer config from disk
-      const config = Config.load(configFile, rebalancerKey, {
+      const rebalancerConfig = Config.load(config, rebalancerKey, {
         warpRouteId,
         checkFrequency,
         withMetrics,
         monitorOnly,
         coingeckoApiKey,
-        rebalanceStrategy: rebalanceStrategy as BaseConfig['rebalanceStrategy'],
+        rebalanceStrategy,
       });
       logGreen('✅ Loaded rebalancer config');
 
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
         registry,
-        config,
+        rebalancerConfig,
       );
 
-      const immediateExec = fromChain && toChain && amount;
+      const immediateExec = origin && destination && amount;
 
       if (immediateExec) {
         const executor = contextFactory.createExecutor();
 
         await executor.rebalance([
-          { fromChain, toChain, amount: BigInt(amount) },
+          { origin, destination, amount: BigInt(amount) },
         ]);
 
         process.exit(0);
@@ -570,11 +570,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const strategy = contextFactory.createStrategy();
 
       // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor = !config.monitorOnly
+      const executor = !rebalancerConfig.monitorOnly
         ? contextFactory.createExecutor()
         : undefined;
 
-      if (config.monitorOnly) {
+      if (rebalancerConfig.monitorOnly) {
         warnYellow(
           'Running in monitorOnly mode: no transactions will be executed.',
         );
@@ -596,7 +596,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       await monitor
         // Observe balances events and process rebalancing routes
-        .on('tokeninfo', (event) => {
+        .on(MonitorEventType.TokenInfo, (event) => {
           if (metrics) {
             for (const tokenInfo of event.tokensInfo) {
               metrics.processToken(tokenInfo).catch((e) => {
@@ -616,7 +616,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
           });
         })
         // Observe monitor errors and exit
-        .on('error', (e) => {
+        .on(MonitorEventType.Error, (e) => {
           if (e instanceof MonitorPollingError) {
             errorRed(e);
           } else {
@@ -625,13 +625,13 @@ export const rebalancer: CommandModuleWithWriteContext<{
           }
         })
         // Observe monitor start and log success
-        .on('start', () => {
+        .on(MonitorEventType.Start, () => {
           logGreen('Rebalancer started successfully 🚀');
         })
         // Finally, starts the monitor to begin polling balances.
         .start();
     } catch (e) {
-      errorRed('Error on the rebalancer:', (e as Error).message);
+      errorRed('Rebalancer error:', (e as Error).message);
       process.exit(1);
     }
   },

@@ -4,6 +4,7 @@ import { fromZodError } from 'zod-validation-error';
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
+import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
@@ -55,10 +56,9 @@ export const ChainConfigSchema = z.union([
 const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
   checkFrequency: z.number().optional(),
-  withMetrics: z.boolean().optional(),
-  monitorOnly: z.boolean().optional(),
-  coingeckoApiKey: z.string().optional(),
-  rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
+  withMetrics: z.boolean().optional().default(false),
+  monitorOnly: z.boolean().optional().default(false),
+  rebalanceStrategy: z.nativeEnum(StrategyOptions).optional(),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
@@ -110,10 +110,21 @@ export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
 export class Config {
+  constructor(
+    public readonly rebalancerKey: string,
+    public readonly warpRouteId: string,
+    public readonly checkFrequency: number,
+    public readonly monitorOnly: boolean,
+    public readonly withMetrics: boolean,
+    public readonly coingeckoApiKey: string,
+    public readonly rebalanceStrategy: StrategyOptions,
+    public readonly chains: ChainMap<ChainConfig>,
+  ) {}
+
   static load(
     configFilePath: string,
     rebalancerKey: string,
-    overrides: BaseConfig,
+    overrides: Partial<BaseConfig & { coingeckoApiKey: string }>,
   ) {
     const config = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
@@ -127,7 +138,6 @@ export class Config {
       checkFrequency: fileCheckFrequency,
       monitorOnly: fileMonitorOnly,
       withMetrics: fileWithMetrics,
-      coingeckoApiKey: fileWithCoingeckoApiKey,
       rebalanceStrategy: fileRebalanceStrategy,
       ...chains
     } = validationResult.data;
@@ -138,10 +148,9 @@ export class Config {
 
     const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
     const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
-    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly ?? false;
-    const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
-    const coingeckoApiKey =
-      overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
+    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly;
+    const withMetrics = overrides.withMetrics ?? fileWithMetrics;
+    const coingeckoApiKey = overrides.coingeckoApiKey ?? '';
     const rebalanceStrategy =
       overrides.rebalanceStrategy ?? fileRebalanceStrategy;
 
@@ -168,15 +177,4 @@ export class Config {
       chains,
     );
   }
-
-  constructor(
-    public readonly rebalancerKey: string,
-    public readonly warpRouteId: string,
-    public readonly checkFrequency: number,
-    public readonly monitorOnly: boolean,
-    public readonly withMetrics: boolean,
-    public readonly coingeckoApiKey: string,
-    public readonly rebalanceStrategy: 'weighted' | 'minAmount',
-    public readonly chains: ChainMap<ChainConfig>,
-  ) {}
 }

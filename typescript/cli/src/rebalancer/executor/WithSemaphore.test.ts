@@ -28,7 +28,7 @@ describe('WithSemaphore', () => {
 
     const routes = [
       {
-        fromChain: 'chain1',
+        origin: 'chain1',
       } as any as RebalancingRoute,
     ];
 
@@ -69,7 +69,7 @@ describe('WithSemaphore', () => {
 
     const routes = [
       {
-        fromChain: 'chain1',
+        origin: 'chain1',
       } as any as RebalancingRoute,
     ];
 
@@ -94,7 +94,7 @@ describe('WithSemaphore', () => {
 
     const routes = [
       {
-        fromChain: 'chain1',
+        origin: 'chain1',
       } as any as RebalancingRoute,
     ];
 
@@ -117,7 +117,7 @@ describe('WithSemaphore', () => {
 
     const routes = [
       {
-        fromChain: 'chain1',
+        origin: 'chain1',
       } as any as RebalancingRoute,
     ];
 

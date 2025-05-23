@@ -24,9 +24,6 @@ monitorOnly: false
 # Optional: Enable metrics collection
 withMetrics: false
 
-# Optional: CoinGecko API key (required if withMetrics is true)
-coingeckoApiKey: your-coingecko-api-key
-
 # Chain configurations
 # All chains that contain collateral hyp contracts must be configured
 # In this example, the collateral chains are: sepolia, optimism-sepolia, and arbitrum-sepolia
@@ -44,7 +41,10 @@ sepolia:
   bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
 
   # Optional: Set to true if the bridge is another Warp Route
-  # This is because bridges composed of other warp routes are interacted with differently
+  # This is because bridges composed of other Warp Routes are interacted with differently
+  #
+  # NOTE: This flag will be deprecated once all bridges consistently use the `quoteTransferRemote`
+  # function for quote retrieval.
   bridgeIsWarp: false
 
   # Optional: Specify override configurations for specific chains
@@ -90,10 +90,10 @@ To run the rebalancer, you need to provide:
 
 ```bash
 # Using environment variable for private key
-HYP_KEY=your_private_key hyperlane warp rebalancer --configFile ./rebalancer-config.yaml
+HYP_KEY=your_private_key hyperlane warp rebalancer --config ./rebalancer-config.yaml
 
 # Using CLI option for private key
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_private_key
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_private_key
 ```
 
 > **IMPORTANT**: A private key is REQUIRED for the rebalancer to function correctly. You can provide it either via the `--key` parameter or the `HYP_KEY` environment variable.
@@ -104,23 +104,23 @@ You can override specific configuration values from the command line:
 
 ```bash
 # Override the warp route ID
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --warpRouteId USDC/arbitrum-polygon
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --warpRouteId USDC/arbitrum-polygon
 
 # Override the check frequency (milliseconds)
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --checkFrequency 60000
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --checkFrequency 60000
 
 # Override the rebalance strategy
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --rebalanceStrategy minAmount
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --rebalanceStrategy minAmount
 ```
 
 ### Additional Options
 
 ```bash
 # Run in monitor-only mode (no transactions will be sent)
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --monitorOnly
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --monitorOnly
 
 # Enable metrics collection (requires CoinGecko API key)
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --key your_key --withMetrics --coingeckoApiKey your_coingecko_api_key
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --withMetrics --coingeckoApiKey your_coingecko_api_key
 ```
 
 ### Manual Rebalance
@@ -134,7 +134,7 @@ For instance, if you need to move `1000` USDC from `sepolia` to `arbitrumsepolia
 
 ```bash
 # --amount must be expressed in token units
-hyperlane warp rebalance --configFile ./rebalancer-config.yaml --fromChain sepolia --toChain arbitrumsepolia --amount '1000000000'
+hyperlane warp rebalance --config ./rebalancer-config.yaml --origin sepolia --destination arbitrumsepolia --amount '1000000000'
 ```
 
 ### Environment Variables
@@ -147,5 +147,5 @@ export HYP_KEY=your_private_key_here
 export COINGECKO_API_KEY=your_coingecko_api_key
 
 # Run with metrics enabled
-hyperlane warp rebalancer --configFile ./rebalancer-config.yaml --withMetrics
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --withMetrics
 ```

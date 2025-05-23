@@ -26,9 +26,10 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
+import { StrategyOptions } from '../../rebalancer/index.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
-  ANVIL_ADDRESS,
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
@@ -117,18 +118,18 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_4]: {
         type: TokenType.synthetic,
         mailbox: chain4Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
     writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
@@ -173,7 +174,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   beforeEach(async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '100',
         tolerance: '0',
@@ -224,8 +225,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics?: boolean;
       rebalanceStrategy?: string;
       monitorOnly?: boolean;
-      fromChain?: string;
-      toChain?: string;
+      origin?: string;
+      destination?: string;
       amount?: string;
     } = {},
   ) {
@@ -234,8 +235,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics = false,
       rebalanceStrategy,
       monitorOnly = false,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     } = options;
 
@@ -246,8 +247,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     );
   }
@@ -260,8 +261,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics?: boolean;
       rebalanceStrategy?: string;
       monitorOnly?: boolean;
-      fromChain?: string;
-      toChain?: string;
+      origin?: string;
+      destination?: string;
       amount?: string;
     } = {},
   ) {
@@ -271,8 +272,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     } = options;
 
@@ -281,8 +282,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       withMetrics,
       rebalanceStrategy,
       monitorOnly,
-      fromChain,
-      toChain,
+      origin,
+      destination,
       amount,
     });
 
@@ -353,7 +354,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: 'weight',
         tolerance: 0,
@@ -373,7 +374,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: 100,
         tolerance: 0,
@@ -393,7 +394,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a bridge value is not a valid address', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: 100,
         tolerance: 0,
@@ -421,7 +422,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should not rebalance if mode is monitorOnly', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       monitorOnly: true,
       [CHAIN_NAME_2]: {
         weight: '75',
@@ -444,7 +445,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -460,13 +461,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Signer ${ANVIL_ADDRESS} is not a rebalancer`,
+      `Signer ${ANVIL_DEPLOYER_ADDRESS} is not a rebalancer`,
     );
   });
 
   it('should throw if the destination is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -499,13 +500,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog(
       `Destination ${warpCoreConfig.tokens[0].addressOrDenom!} for domain ${
         chain2Metadata.domainId
-      } is not allowed`,
+      } (${chain2Metadata.name}) is not allowed. From ${
+        warpCoreConfig.tokens[1].addressOrDenom
+      } at ${chain3Metadata.name}`,
     );
   });
 
   it('should throw if the bridge is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -542,13 +545,17 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} is not allowed`,
+      `Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} (${
+        chain2Metadata.name
+      }) is not allowed. From ${warpCoreConfig.tokens[0].addressOrDenom} at ${
+        chain3Metadata.name
+      }. To ${warpCoreConfig.tokens[1].addressOrDenom} at ${chain2Metadata.name}.`,
     );
   });
 
   it('should throw if rebalance quotes cannot be obtained', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -591,7 +598,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      'Could not get rebalance quotes: All providers failed on chain unknown for method call and params',
+      `Could not get rebalance quotes from ${chain3Metadata.name} to ${
+        chain2Metadata.name
+      }: All providers failed on chain unknown for method call and params`,
     );
   });
 
@@ -629,7 +638,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -681,7 +690,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -760,7 +769,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
     // we need to add the address of the allowed bridge to chain 3
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -885,7 +894,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // --- Configure rebalancer ---
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -912,7 +921,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -987,7 +996,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog('Minimum amount cannot be negative', {
       timeout: 10000,
       withMetrics: false,
-      rebalanceStrategy: 'minAmount',
+      rebalanceStrategy: StrategyOptions.MinAmount,
     });
   });
 
@@ -1003,13 +1012,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
-        owner: ANVIL_ADDRESS,
+        owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
     writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
@@ -1070,7 +1079,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     ).wait();
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      rebalanceStrategy: 'weighted',
+      rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weight: '25',
         tolerance: '0',
@@ -1174,7 +1183,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
       // we need to add the address of the allowed bridge to chain 3
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-        rebalanceStrategy: 'weighted',
+        rebalanceStrategy: StrategyOptions.Weighted,
         [CHAIN_NAME_2]: {
           weight: '75',
           tolerance: '0',
@@ -1215,8 +1224,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Start the rebalancer
       const rebalancer = startRebalancer({
-        fromChain: originName,
-        toChain: destName,
+        origin: originName,
+        destination: destName,
         amount: toWei(5),
       });
 
@@ -1282,13 +1291,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           type: TokenType.collateral,
           token: tokenChain2.address,
           mailbox: chain2Addresses.mailbox,
-          owner: ANVIL_ADDRESS,
+          owner: ANVIL_DEPLOYER_ADDRESS,
         },
         [CHAIN_NAME_3]: {
           type: TokenType.collateral,
           token: tokenChain3.address,
           mailbox: chain3Addresses.mailbox,
-          owner: ANVIL_ADDRESS,
+          owner: ANVIL_DEPLOYER_ADDRESS,
         },
       };
       writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
@@ -1349,7 +1358,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       ).wait();
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-        rebalanceStrategy: 'weighted',
+        rebalanceStrategy: StrategyOptions.Weighted,
         [CHAIN_NAME_2]: {
           weight: '25',
           tolerance: '0',
@@ -1397,8 +1406,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           ],
           {
             timeout: 30000,
-            fromChain: CHAIN_NAME_2,
-            toChain: CHAIN_NAME_3,
+            origin: CHAIN_NAME_2,
+            destination: CHAIN_NAME_3,
             amount: toWei(5),
           },
         );

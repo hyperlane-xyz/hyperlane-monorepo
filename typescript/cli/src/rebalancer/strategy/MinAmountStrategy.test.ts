@@ -205,8 +205,8 @@ describe('MinAmountStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain2,
-          toChain: chain1,
+          origin: chain2,
+          destination: chain1,
           amount: ethers.utils.parseEther('70').toBigInt(),
         },
       ]);
@@ -238,13 +238,13 @@ describe('MinAmountStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain3,
-          toChain: chain1,
+          origin: chain3,
+          destination: chain1,
           amount: ethers.utils.parseEther('70').toBigInt(),
         },
         {
-          fromChain: chain3,
-          toChain: chain2,
+          origin: chain3,
+          destination: chain2,
           amount: ethers.utils.parseEther('45').toBigInt(),
         },
       ]);
@@ -276,7 +276,7 @@ describe('MinAmountStrategy', () => {
 
       // Should use all surplus but only partially address the deficits
       expect(routes.length).to.equal(1);
-      expect(routes[0].fromChain).to.equal(chain3);
+      expect(routes[0].origin).to.equal(chain3);
       expect(routes[0].amount).to.equal(
         ethers.utils.parseEther('50').toBigInt(),
       );
@@ -325,8 +325,8 @@ describe('MinAmountStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain2,
-          toChain: chain1,
+          origin: chain2,
+          destination: chain1,
           amount: ethers.utils.parseEther('100').toBigInt(),
         },
       ]);
@@ -353,8 +353,8 @@ describe('MinAmountStrategy', () => {
 
       expect(routes).to.deep.equal([
         {
-          fromChain: chain2,
-          toChain: chain1,
+          origin: chain2,
+          destination: chain1,
           amount: ethers.utils.parseEther('30').toBigInt(),
         },
       ]);

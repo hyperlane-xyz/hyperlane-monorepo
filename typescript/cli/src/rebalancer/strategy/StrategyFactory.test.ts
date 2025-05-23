@@ -7,6 +7,7 @@ import type {
   MinAmountChainConfig,
   WeightedChainConfig,
 } from '../config/Config.js';
+import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
@@ -30,7 +31,10 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = StrategyFactory.createStrategy('weighted', config);
+      const strategy = StrategyFactory.createStrategy(
+        StrategyOptions.Weighted,
+        config,
+      );
       expect(strategy).to.be.instanceOf(WeightedStrategy);
     });
 
@@ -50,7 +54,10 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = StrategyFactory.createStrategy('minAmount', config);
+      const strategy = StrategyFactory.createStrategy(
+        StrategyOptions.MinAmount,
+        config,
+      );
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
     });
   });
