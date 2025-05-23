@@ -28,13 +28,30 @@ import { igp } from './igp.js';
 import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
+// Rome Testnet is an EVM within an SVM, and so the gas metering is vastly different to vanilla EVM.
+// Owing to this, the gas usage numbers are 10-12x higher due to the different metering.
+// This means that we can only selectively connect Rome Testnet to other chains, and so the decision
+// was taken with the Rome Testnet team to only connect to 5 core testnets.
+// This is also the reason for the selective IGP/gas oracle configuration.
+
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
+    // Special case for rometestnet due to non-standard gas metering.
+    const connectedChains =
+      local === 'rometestnet'
+        ? [
+            'sepolia',
+            'arbitrumsepolia',
+            'basesepolia',
+            'optimismsepolia',
+            'bsctestnet',
+          ]
+        : supportedChainNames.filter((chain) => chain !== local);
+
+    // Create a map of connected chains to their default multisig configs
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
-      supportedChainNames
-        .filter((chain) => chain !== local)
-        .map((origin) => [origin, defaultMultisigConfigs[origin]]),
+      connectedChains.map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
     const isZksyncChain =

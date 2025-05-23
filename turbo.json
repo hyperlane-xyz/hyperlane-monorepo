@@ -16,7 +16,9 @@
     },
     "prettier": {},
     "lint": {},
-    "version:update": {},
+    "version:update": {
+      "cache": false
+    },
     "coverage": {
       "dependsOn": ["build"],
       "outputs": ["coverage/**", "fixtures/**"]
