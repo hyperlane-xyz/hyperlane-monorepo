@@ -141,12 +141,12 @@ export class StarknetERC20WarpRouteReader {
     const contract = getStarknetHypERC20Contract(routerAddress, this.provider);
 
     const [mailbox, owner, hook, ism] = await Promise.all([
-      contract.mailbox().then((res: any) => num.toHex(res.toString())),
-      contract.owner().then((res: any) => num.toHex(res.toString())),
-      contract.get_hook().then((res: any) => num.toHex(res.toString())),
+      contract.mailbox().then((res: any) => num.toHex64(res.toString())),
+      contract.owner().then((res: any) => num.toHex64(res.toString())),
+      contract.get_hook().then((res: any) => num.toHex64(res.toString())),
       contract
         .interchain_security_module()
-        .then((res: any) => num.toHex(res.toString())),
+        .then((res: any) => num.toHex64(res.toString())),
     ]);
 
     const derivedIsm =

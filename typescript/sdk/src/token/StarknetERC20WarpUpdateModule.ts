@@ -184,14 +184,14 @@ export class StarknetERC20WarpUpdateModule {
      * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
     transactions.push(
-      ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
-      ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
+      // ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
     );
 
