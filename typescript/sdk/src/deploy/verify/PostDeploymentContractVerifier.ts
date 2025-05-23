@@ -37,12 +37,11 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
       targets.map(async (chain) => {
         // can check explorer family here to avoid doing these checks for each input in verifier
         const { family } = this.multiProvider.getExplorerApi(chain);
+        let contractVerifier: BaseContractVerifier = this.contractVerifier;
 
         if (family === ExplorerFamily.ZkSync) {
           this.logger.debug('Using ZkSync verifier');
-          this.contractVerifier = new ZKSyncContractVerifier(
-            this.multiProvider,
-          );
+          contractVerifier = new ZKSyncContractVerifier(this.multiProvider);
         }
 
         if (family === ExplorerFamily.Other) {
@@ -55,11 +54,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
         this.logger.debug(`Verifying ${chain}...`);
         for (const input of this.get(chain)) {
           try {
-            await this.contractVerifier.verifyContract(
-              chain,
-              input,
-              this.logger,
-            );
+            await contractVerifier.verifyContract(chain, input, this.logger);
           } catch (error) {
             this.logger.error(
               { name: input.name, address: input.address },
