@@ -17,6 +17,7 @@ import {
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
 import { getWarpConfigs } from '../../../utils/warp.js';
+import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
 
@@ -26,6 +27,7 @@ enum ChainSelectionMode {
   WARP_APPLY,
   STRATEGY,
   CORE_APPLY,
+  CORE_DEPLOY,
   DEFAULT,
 }
 
@@ -50,6 +52,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
+      case ChainSelectionMode.CORE_DEPLOY:
+        return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
       default:
         return this.resolveRelayerChains(argv);
@@ -193,6 +197,42 @@ export class MultiChainResolver implements ChainResolver {
     }
   }
 
+  private async resolveCoreDeployChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const { chainMetadata, dryRunChain, registry, skipConfirmation } =
+        argv.context;
+
+      let chain: string;
+
+      if (argv.chain) {
+        chain = argv.chain;
+      } else if (dryRunChain) {
+        chain = dryRunChain;
+      } else {
+        if (skipConfirmation) throw new Error('No chain provided');
+        chain = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to connect:',
+        );
+      }
+      if (!skipConfirmation) {
+        argv.context.apiKeys = await requestAndSaveApiKeys(
+          [chain],
+          chainMetadata,
+          registry,
+        );
+      }
+
+      return [chain];
+    } catch (error) {
+      throw new Error(`Failed to resolve core apply chains`, {
+        cause: error,
+      });
+    }
+  }
+
   private getEvmChains(multiProvider: MultiProvider): ChainName[] {
     const chains = multiProvider.getKnownChainNames();
 
@@ -230,6 +270,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static forCoreDeploy(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
   }
 
   static default(): MultiChainResolver {

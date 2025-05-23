@@ -27,4 +27,5 @@ export enum CommandType {
   SUBMIT = 'submit:',
   RELAYER = 'relayer:',
   CORE_APPLY = 'core:apply',
+  CORE_DEPLOY = 'core:deploy',
 }

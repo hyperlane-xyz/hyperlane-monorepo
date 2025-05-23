@@ -71,10 +71,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   const chainStrategy = ChainResolverFactory.getStrategy(argv);
 
+  console.log(chainStrategy);
+
   /**
    * Resolves chains based on the chain strategy.
    */
   const chains = await chainStrategy.resolveChains(argv);
+  console.log(chains);
 
   /**
    * Extracts signer config
