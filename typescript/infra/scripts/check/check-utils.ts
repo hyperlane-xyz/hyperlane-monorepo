@@ -204,9 +204,9 @@ export async function getGovernor(
       envConfig,
       warpRouteId,
       registryUris,
-    ).catch(() => {
+    ).catch((error) => {
       console.log(
-        `Warp route deploy config not found for ${warpRouteId}. Exiting.`,
+        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,
       );
       process.exit(0);
     });
