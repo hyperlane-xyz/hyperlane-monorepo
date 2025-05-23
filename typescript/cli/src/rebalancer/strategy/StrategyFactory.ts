@@ -1,7 +1,7 @@
-import type { ChainMap } from '@hyperlane-xyz/sdk';
+import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
 
 import type { ChainConfig } from '../config/Config.js';
-import { IStrategy, StrategyOptions } from '../interfaces/IStrategy.js';
+import { type IStrategy, StrategyOptions } from '../interfaces/IStrategy.js';
 
 import {
   MinAmountStrategy,
@@ -16,16 +16,21 @@ export class StrategyFactory {
   /**
    * @param rebalanceStrategy The global strategy type
    * @param config Chain map of strategy configuration
+   * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @returns A concrete strategy implementation
    */
   static createStrategy(
     rebalanceStrategy: StrategyOptions,
     config: ChainMap<ChainConfig>,
+    tokensByChainName: Map<string, Token>,
   ): IStrategy {
     if (rebalanceStrategy === StrategyOptions.Weighted) {
       return new WeightedStrategy(config as WeightedStrategyConfig);
     } else if (rebalanceStrategy === StrategyOptions.MinAmount) {
-      return new MinAmountStrategy(config as MinAmountStrategyConfig);
+      return new MinAmountStrategy(
+        config as MinAmountStrategyConfig,
+        tokensByChainName,
+      );
     } else {
       throw new Error(`Unsupported strategy type: ${rebalanceStrategy}`);
     }

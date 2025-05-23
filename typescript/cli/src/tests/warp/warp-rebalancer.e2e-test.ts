@@ -1033,7 +1033,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await process.kill();
   });
 
-  it.only('should use the rebalanceStrategy flag to override the config file', async () => {
+  it('should use the rebalanceStrategy flag to override the config file', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         minAmount: {
@@ -1055,11 +1055,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog('Minimum amount cannot be negative', {
-      timeout: 10000,
-      withMetrics: false,
-      rebalanceStrategy: StrategyOptions.MinAmount,
-    });
+    await startRebalancerAndExpectLog(
+      'Minimum amount (-100) cannot be negative for chain anvil2',
+      {
+        timeout: 10000,
+        withMetrics: false,
+        rebalanceStrategy: StrategyOptions.MinAmount,
+      },
+    );
   });
 
   it('should use another warp route as bridge', async () => {

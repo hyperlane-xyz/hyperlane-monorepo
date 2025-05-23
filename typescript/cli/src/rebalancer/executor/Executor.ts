@@ -1,14 +1,13 @@
 import { ethers } from 'ethers';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
   EvmHypCollateralAdapter,
-  InterchainGasQuote,
-  Token,
-  TokenAmount,
-  WarpCore,
+  type InterchainGasQuote,
+  type Token,
+  type TokenAmount,
+  type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
@@ -18,18 +17,13 @@ import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 
 export class Executor implements IExecutor {
-  private readonly tokensByChainName: Map<ChainName, Token>;
-
   constructor(
     private readonly bridges: ChainMap<BridgeConfig>,
     private readonly rebalancerKey: string,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
-  ) {
-    this.tokensByChainName = new Map(
-      warpCore.tokens.map((t) => [t.chainName, t]),
-    );
-  }
+    private readonly tokensByChainName: Map<string, Token>,
+  ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
     log(`Rebalance initiated with ${routes.length} route(s)`);
