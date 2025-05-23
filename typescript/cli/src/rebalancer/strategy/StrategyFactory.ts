@@ -23,9 +23,9 @@ export class StrategyFactory {
     config: ChainMap<ChainConfig>,
   ): IStrategy {
     if (rebalanceStrategy === StrategyOptions.Weighted) {
-      return new WeightedStrategy(config as ChainMap<WeightedStrategyConfig>);
+      return new WeightedStrategy(config as WeightedStrategyConfig);
     } else if (rebalanceStrategy === StrategyOptions.MinAmount) {
-      return new MinAmountStrategy(config as ChainMap<MinAmountStrategyConfig>);
+      return new MinAmountStrategy(config as MinAmountStrategyConfig);
     } else {
       throw new Error(`Unsupported strategy type: ${rebalanceStrategy}`);
     }

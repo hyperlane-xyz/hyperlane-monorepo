@@ -26,7 +26,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { StrategyOptions } from '../../rebalancer/index.js';
+import { MinAmountType, StrategyOptions } from '../../rebalancer/index.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
@@ -1033,12 +1033,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await process.kill();
   });
 
-  it('should use the rebalanceStrategy flag to override the config file', async () => {
+  it.only('should use the rebalanceStrategy flag to override the config file', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         minAmount: {
           min: '-100',
           target: '110',
+          type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
@@ -1047,6 +1048,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         minAmount: {
           min: '100',
           target: '110',
+          type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,

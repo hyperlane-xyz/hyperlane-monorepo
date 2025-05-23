@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
+import { MinAmountType } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
@@ -27,6 +28,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: ethers.utils.parseEther('100').toString(),
                 target: ethers.utils.parseEther('120').toString(),
+                type: MinAmountType.Absolute,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -41,6 +43,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -49,6 +52,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -62,6 +66,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: 0.3,
             target: 0.4,
+            type: MinAmountType.Relative,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -70,6 +75,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: 0.4,
             target: 0.5,
+            type: MinAmountType.Relative,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -85,6 +91,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: ethers.utils.parseEther('100').toString(),
                 target: ethers.utils.parseEther('120').toString(),
+                type: MinAmountType.Absolute,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -93,6 +100,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: ethers.utils.parseEther('-10').toString(),
                 target: ethers.utils.parseEther('120').toString(),
+                type: MinAmountType.Absolute,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -109,6 +117,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: ethers.utils.parseEther('100').toString(),
                 target: ethers.utils.parseEther('80').toString(),
+                type: MinAmountType.Absolute,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -117,6 +126,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: ethers.utils.parseEther('100').toString(),
                 target: ethers.utils.parseEther('120').toString(),
+                type: MinAmountType.Absolute,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -133,6 +143,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: 0.5,
                 target: 0.4,
+                type: MinAmountType.Relative,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -141,6 +152,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: 0.3,
                 target: 0.5,
+                type: MinAmountType.Relative,
               },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -156,6 +168,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -164,6 +177,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -183,6 +197,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -191,6 +206,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -209,6 +225,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -217,6 +234,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: ethers.utils.parseEther('100').toString(),
               target: ethers.utils.parseEther('120').toString(),
+              type: MinAmountType.Absolute,
             },
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
@@ -236,6 +254,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -244,6 +263,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -266,6 +286,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -274,6 +295,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -302,6 +324,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -310,6 +333,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -318,6 +342,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -352,6 +377,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('100').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -360,6 +386,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('100').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -368,6 +395,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('100').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -396,6 +424,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('110').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -404,6 +433,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('110').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -426,6 +456,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: 0.25,
             target: 0.3,
+            type: MinAmountType.Relative,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -434,6 +465,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: 0.25,
             target: 0.3,
+            type: MinAmountType.Relative,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -462,6 +494,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -470,6 +503,7 @@ describe('MinAmountStrategy', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,

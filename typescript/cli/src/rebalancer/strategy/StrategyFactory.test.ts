@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import type { ChainMap } from '@hyperlane-xyz/sdk';
-
+import { MinAmountType } from '../config/Config.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import {
@@ -18,7 +17,7 @@ import {
 describe('StrategyFactory', () => {
   describe('createStrategy', () => {
     it('creates a WeightedStrategy when given weighted configuration', () => {
-      const config: ChainMap<WeightedStrategyConfig> = {
+      const config: WeightedStrategyConfig = {
         chain1: {
           weighted: {
             weight: 100n,
@@ -45,11 +44,12 @@ describe('StrategyFactory', () => {
     });
 
     it('creates a MinAmountStrategy when given minAmount configuration', () => {
-      const config: ChainMap<MinAmountStrategyConfig> = {
+      const config: MinAmountStrategyConfig = {
         chain1: {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -58,6 +58,7 @@ describe('StrategyFactory', () => {
           minAmount: {
             min: ethers.utils.parseEther('100').toString(),
             target: ethers.utils.parseEther('120').toString(),
+            type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
