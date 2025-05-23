@@ -285,7 +285,7 @@ export class AgentAwsKey extends CloudAgentKey {
   private requireFetched() {
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key has not been fetched yet');
-      throw new Error('Key not fetched');
+      throw new Error(`Key not fetched: ${this.identifier}`);
     }
     this.logger.debug('Key has been fetched');
   }

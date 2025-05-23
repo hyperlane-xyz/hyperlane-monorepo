@@ -79,6 +79,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -89,6 +90,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: true,
     unichaintestnet: true,
@@ -128,6 +130,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -138,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: true,
     unichaintestnet: true,
@@ -177,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -187,6 +192,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: false,
     unichaintestnet: true,
@@ -247,6 +253,18 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('infinityvmmonza') },
       // Temporary workaround due to InfinityVM Monza whitelisting.
       { destinationDomain: getDomainId('infinityvmmonza') },
+    ],
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
     ],
   },
   // Default policy is OnChainFeeQuoting
@@ -407,7 +425,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0817ec4-20250521-141638',
+      tag: '7411c6f-20250428-161515',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -463,33 +481,31 @@ export const kesselRunnerNetworks = [
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: 'ed41901-20250520-133224',
     },
-    whitelist: kesselMatchingList,
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {
       enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
     },
-    resources: {
-      requests: {
-        cpu: '20000m',
-        memory: '32Gi',
-      },
+    resources: relayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
     },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 

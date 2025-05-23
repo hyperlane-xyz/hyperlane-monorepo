@@ -199,13 +199,13 @@ pub fn relayer_termination_invariants_met(
     }
     assert_eq!(lhs, rhs);
 
-    let dropped_tasks = fetch_metric(
+    let dropped_tasks: Vec<u32> = fetch_metric(
         RELAYER_METRICS_PORT,
         "hyperlane_tokio_dropped_tasks",
         &hashmap! {"agent" => "relayer"},
     )?;
 
-    assert_eq!(dropped_tasks.first().unwrap(), 0);
+    assert_eq!(dropped_tasks.first().unwrap(), &0);
 
     if !relayer_balance_check(starting_relayer_balance)? {
         return Ok(false);
