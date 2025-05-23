@@ -493,9 +493,9 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Retrieves the ISM factory factories based on the provided protocol and parameters.
+   * Retrieves the ISM factory factories based on the provided technicalStack and parameters.
    *
-   * @param protocol - The protocol type to determine if static address set deployment should be skipped.
+   * @param technicalStack - The protocol type to determine if static address set deployment should be skipped.
    * @param params - An object containing the parameters needed for ISM factory deployment.
    * @param params.chainName - The name of the chain for which the ISM factories are being deployed.
    * @param params.config - The core configuration to be used during deployment.
