@@ -3,7 +3,10 @@ import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  AddWarpRouteConfigOptions,
+  ChainAddresses,
+} from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
@@ -87,9 +90,11 @@ interface WarpApplyParams extends DeployParams {
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
+  warpRouteId,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpRouteId?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
   const chains = Object.keys(warpDeployConfig);
@@ -125,7 +130,11 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  await writeDeploymentArtifacts(warpCoreConfig, context, addWarpRouteOptions);
+  await writeDeploymentArtifacts(
+    warpCoreConfig,
+    context,
+    warpRouteId ? { warpRouteId } : addWarpRouteOptions,
+  );
 
   await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }
@@ -174,7 +183,7 @@ async function executeDeploy(
 async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
-  addWarpRouteOptions?: AddWarpRouteOptions,
+  addWarpRouteOptions?: AddWarpRouteConfigOptions,
 ) {
   if (!context.isDryRun) {
     log('Writing deployment artifacts...');
@@ -188,7 +197,7 @@ async function getWarpCoreConfig(
   contracts: HyperlaneContractsMap<TokenFactories>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
-  addWarpRouteOptions?: AddWarpRouteOptions;
+  addWarpRouteOptions: AddWarpRouteConfigOptions;
 }> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
