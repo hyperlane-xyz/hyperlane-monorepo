@@ -29,6 +29,7 @@ import {
 } from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
+  getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
 import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
@@ -274,14 +275,25 @@ export async function createWarpRouteDeployConfig({
         context.multiProvider,
         warpRouteDeployConfig,
       );
-
       const symbol: string = tokenMetadata.getDefaultSymbol();
 
+      let warpRouteId;
+      if (!context.skipConfirmation) {
+        warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
+          context.registry,
+          warpRouteDeployConfig,
+          symbol,
+        );
+      }
+
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
-        symbol: symbol,
+        symbol,
+        warpRouteId, // Will default to SYMBOL/chain1 if `undefined`
       });
+      logGreen(
+        `✅ Successfully created new warp route deployment config with warp route id: ${warpRouteId}`,
+      );
     }
-    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,

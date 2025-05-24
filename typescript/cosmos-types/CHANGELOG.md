@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cosmos-types
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
 ## 13.0.0
 
 ### Minor Changes
