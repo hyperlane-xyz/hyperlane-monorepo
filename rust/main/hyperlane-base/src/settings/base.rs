@@ -221,7 +221,10 @@ impl Settings {
         stores: HashMap<HyperlaneDomain, Arc<S>>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
+    ) -> (
+        HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>,
+        Vec<HyperlaneDomain>,
+    )
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -231,7 +234,8 @@ impl Settings {
             + 'static,
     {
         // TODO: parallelize these calls again
-        let mut syncs = vec![];
+        let mut syncs = HashMap::new();
+        let mut failed = Vec::new();
         for domain in domains {
             let store = stores.get(domain).unwrap().clone();
             let sync = self
@@ -243,14 +247,19 @@ impl Settings {
                     advanced_log_meta,
                     broadcast_sender_enabled,
                 )
-                .await?;
-            syncs.push(sync);
+                .await;
+            match sync {
+                Ok(sync) => {
+                    syncs.insert(domain.clone(), sync);
+                }
+                Err(err) => {
+                    tracing::error!(?domain, ?err, "Failed to create contract_sync()");
+                    failed.push(domain.clone());
+                }
+            }
         }
 
-        syncs
-            .into_iter()
-            .map(|i| Ok((i.domain().clone(), i)))
-            .collect()
+        (syncs, failed)
     }
 
     /// Build single contract sync.
