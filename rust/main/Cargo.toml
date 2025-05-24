@@ -57,7 +57,7 @@ bytes = "1"
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
-config = "0.13.3"
+config = "0.15.11"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
 cosmrs = { version = "0.21.0", default-features = false, features = [
