@@ -3,12 +3,15 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {CallLib} from "./Call.sol";
+import {CommitmentMetadata} from "contracts/isms/libs/CommitmentMetadata.sol";
 
 /*
  * @title OwnableMulticall
  * @dev Permits immutable owner address to execute calls with value to other contracts.
  */
 contract OwnableMulticall {
+    using CommitmentMetadata for CallLib.Call[];
+
     /// @dev The owner will be the ICA Router that deployed this contract (via CREATE2).
     address public immutable owner;
 
@@ -48,9 +51,7 @@ contract OwnableMulticall {
         bytes32 salt
     ) external payable returns (bytes32 executedCommitment) {
         // Check if metadata matches stored commitment (checks)
-        bytes32 revealedHash = keccak256(
-            abi.encodePacked(salt, abi.encode(calls))
-        );
+        bytes32 revealedHash = calls.cmCommitment(salt);
         require(commitments[revealedHash], "ICA: Invalid Reveal");
 
         // Delete the commitment (effects)

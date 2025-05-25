@@ -42,4 +42,11 @@ library CommitmentMetadata {
     ) internal pure returns (bytes32) {
         return keccak256(_metadata[SALT_OFFSET:]);
     }
+
+    function cmCommitment(
+        CallLib.Call[] calldata calls,
+        bytes32 salt
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
+    }
 }
