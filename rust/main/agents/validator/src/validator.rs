@@ -259,8 +259,9 @@ impl BaseAgent for Validator {
                     }
                     break;
                 }
-                _ => {
+                Err(err)  => {
                     // Future that immediately resolves
+                    error!(?err, "Failed to get the merkle tree hook count");
                     return;
                 }
             }
