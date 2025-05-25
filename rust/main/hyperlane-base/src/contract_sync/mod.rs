@@ -235,10 +235,11 @@ where
                 }
 
                 // Update cursor
-                if let Err(err) = cursor.update(logs, range).await {
-                    warn!(?err, "Error updating cursor");
+                if let Err(err) = cursor.update(logs, range.clone()).await {
+                    warn!(?err, ?range, "Error updating cursor");
                     break Some(SLEEP_DURATION);
                 };
+
                 break None;
             },
             CursorAction::Sleep(duration) => Some(duration),
@@ -261,24 +262,47 @@ where
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
-        // Store deliveries
-        let stored = match self.store.store_logs(&logs).await {
-            Ok(stored) => stored,
-            Err(err) => {
-                warn!(?err, "Error storing logs in db");
-                Default::default()
+        let deduped_logs_count = logs.len() as u64;
+        let mut accumulated_stored_logs_count: u64 = 0;
+
+        loop {
+            let stored_logs_count = match self.store.store_logs(&logs).await {
+                Ok(stored) => stored,
+                Err(err) => {
+                    warn!(?err, "Error storing logs in db");
+                    Default::default()
+                }
+            };
+            if stored_logs_count > 0 {
+                debug!(
+                    domain = self.domain.as_ref(),
+                    count = stored_logs_count,
+                    sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                    "Stored logs in db",
+                );
             }
-        };
-        if stored > 0 {
-            debug!(
-                domain = self.domain.as_ref(),
-                count = stored,
-                sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
-                "Stored logs in db",
+            // Report amount of deliveries stored into db
+            stored_logs_metric.inc_by(stored_logs_count as u64);
+
+            accumulated_stored_logs_count += stored_logs_count as u64;
+            if accumulated_stored_logs_count == deduped_logs_count {
+                info!(
+                    ?accumulated_stored_logs_count,
+                    ?stored_logs_count,
+                    ?deduped_logs_count,
+                    "Successfully stored all logs",
+                );
+                break;
+            }
+
+            warn!(
+                ?accumulated_stored_logs_count,
+                ?stored_logs_count,
+                ?deduped_logs_count,
+                "Repeat storing logs since not all logs were stored yet",
             );
         }
-        // Report amount of deliveries stored into db
-        stored_logs_metric.inc_by(stored as u64);
+
         logs
     }
 }
