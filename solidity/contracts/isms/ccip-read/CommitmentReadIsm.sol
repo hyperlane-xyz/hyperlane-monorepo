@@ -12,6 +12,7 @@ import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {OwnableMulticall} from "../../middleware/libs/OwnableMulticall.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
+import {CommitmentMetadata} from "../libs/CommitmentMetadata.sol";
 
 interface CommitmentReadIsmService {
     function getCallsFromRevealMessage(
@@ -23,9 +24,10 @@ interface CommitmentReadIsmService {
 }
 
 contract CommitmentReadIsm is AbstractCcipReadIsm {
-    using InterchainAccountMessageReveal for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
+    using InterchainAccountMessageReveal for bytes;
+    using CommitmentMetadata for bytes;
 
     constructor(address _owner, string[] memory _urls) {
         _transferOwnership(msg.sender);
@@ -53,27 +55,14 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        // This is hash(salt, calls). The ica address is excluded
-        bytes32 revealedHash = keccak256(_metadata[20:]);
-        bytes32 msgCommitment = _message.body().commitment();
         require(
-            revealedHash == msgCommitment,
+            _metadata.cmCommitment() == _message.body().commitment(),
             "Commitment ISM: Revealed Hash Invalid"
         );
 
-        // Fetch encoded ica, salt, and calls
-        address _ica = address(bytes20(_metadata[:20]));
-        OwnableMulticall ica = OwnableMulticall(payable(_ica));
-
-        bytes32 salt = bytes32(_metadata[20:52]);
-
-        CallLib.Call[] memory calls = abi.decode(
-            _metadata[52:],
-            (CallLib.Call[])
-        );
-
         // The ica will check if the commitment is pending execution, reverting if not.
-        ica.revealAndExecute(calls, salt);
+        OwnableMulticall _ica = _metadata.cmIca();
+        _ica.revealAndExecute(_metadata.cmCalls(), _metadata.cmSalt());
 
         return true;
     }
