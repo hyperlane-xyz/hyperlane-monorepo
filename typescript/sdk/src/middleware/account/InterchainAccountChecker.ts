@@ -1,4 +1,4 @@
-import { IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
+import { InterchainAccountConfig } from '../../index.js';
 import { HyperlaneRouterChecker } from '../../router/HyperlaneRouterChecker.js';
 
 import { InterchainAccount } from './InterchainAccount.js';

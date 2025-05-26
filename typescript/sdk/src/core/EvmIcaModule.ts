@@ -1,8 +1,13 @@
+import { ethers } from 'ethers';
+
+import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import {
   Domain,
   EvmChainId,
   ProtocolType,
-  deepEquals,
+  addressToBytes32,
+  bytes32ToAddress,
+  difference,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -10,7 +15,8 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import { DerivedIcaRouterConfig, IcaRouterConfig } from '../ica/types.js';
+import { DerivedIcaRouterConfig } from '../ica/types.js';
+import { InterchainAccountConfig } from '../index.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -21,9 +27,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
-
-// just an alias
-type InterchainAccountConfig = IcaRouterConfig;
 
 export class EvmIcaModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -62,12 +65,135 @@ export class EvmIcaModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const actualConfig = await this.read();
 
-    if (deepEquals(actualConfig, expectedConfig)) {
+    const transactions: AnnotatedEV5Transaction[] = [
+      ...(await this.updateRemoteRoutersEnrollment(
+        actualConfig.remoteRouters,
+        expectedConfig.remoteRouters,
+      )),
+    ];
+
+    return transactions;
+  }
+
+  private async updateRemoteRoutersEnrollment(
+    actualConfig: DerivedIcaRouterConfig['remoteRouters'],
+    expectedConfig: InterchainAccountConfig['remoteRouters'] = {},
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const transactions: AnnotatedEV5Transaction[] = [
+      ...(await this.getEnrollremoteRoutersTxs(actualConfig, expectedConfig)),
+      ...(await this.getUnenrollremoteRoutersTxs(actualConfig, expectedConfig)),
+    ];
+
+    return transactions;
+  }
+
+  private async getEnrollremoteRoutersTxs(
+    actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
+    expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (!actualConfig) {
       return [];
     }
 
-    // TODO: implement offchain lookup URL updates and router enrollments
-    throw new Error('Not implemented');
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    const routesToEnroll = Array.from(
+      difference(
+        new Set(Object.keys(expectedConfig)),
+        new Set(Object.keys(actualConfig)),
+      ),
+    );
+
+    if (routesToEnroll.length === 0) {
+      return transactions;
+    }
+
+    const domainsToEnroll: string[] = [];
+    const remoteDomainIca: string[] = [];
+    const remoteIsm: string[] = [];
+
+    for (const domainId of routesToEnroll) {
+      domainsToEnroll.push(domainId);
+      remoteDomainIca.push(addressToBytes32(expectedConfig[domainId].address));
+      remoteIsm.push(ethers.utils.hexZeroPad('0x', 32));
+    }
+
+    const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
+      (domainId) => ({
+        annotation: `Enrolling InterchainAccountRouter on domain ${this.domainId} on InterchainAccountRouter at ${expectedConfig[domainId].address} on domain ${domainId}`,
+        chainId: this.multiProvider.getEvmChainId(domainId),
+        to: expectedConfig[domainId].address,
+        data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+          'enrollRemoteRouter(uint32,bytes32)',
+          [
+            this.domainId,
+            addressToBytes32(this.args.addresses.interchainAccountRouter),
+          ],
+        ),
+      }),
+    );
+
+    transactions.push({
+      annotation: `Enrolling remote InterchainAccountRouters on domain ${this.domainId}`,
+      chainId: this.chainId,
+      to: this.args.addresses.interchainAccountRouter,
+      data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+        'enrollRemoteRouterAndIsms(uint32[],bytes32[],bytes32[])',
+        [domainsToEnroll, remoteDomainIca, remoteIsm],
+      ),
+    });
+
+    transactions.push(...remoteTransactions);
+
+    return transactions;
+  }
+
+  private async getUnenrollremoteRoutersTxs(
+    actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
+    expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (!actualConfig) {
+      return [];
+    }
+
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    const routesToUnenroll = Array.from(
+      difference(
+        new Set(Object.keys(actualConfig)),
+        new Set(Object.keys(expectedConfig)),
+      ),
+    );
+
+    if (routesToUnenroll.length === 0) {
+      return transactions;
+    }
+
+    transactions.push({
+      annotation: `Unenrolling remote InterchainAccountRouters from chain ${this.domainId}`,
+      chainId: this.chainId,
+      to: this.args.addresses.interchainAccountRouter,
+      data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+        'unenrollRemoteRouters(uint32[])',
+        [routesToUnenroll],
+      ),
+    });
+
+    const remoteTransactions: AnnotatedEV5Transaction[] = routesToUnenroll.map(
+      (domainId) => ({
+        annotation: `Removing InterchainAccountRouter on domain ${this.domainId} from InterchainAccountRouter at ${actualConfig[domainId].address} on domain ${domainId}`,
+        chainId: this.multiProvider.getEvmChainId(domainId),
+        to: bytes32ToAddress(actualConfig[domainId].address),
+        data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+          'unenrollRemoteRouter(uint32)',
+          [this.domainId],
+        ),
+      }),
+    );
+
+    transactions.push(...remoteTransactions);
+
+    return transactions;
   }
 
   /**
