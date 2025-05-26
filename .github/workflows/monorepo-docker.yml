@@ -44,6 +44,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      # require PR write perms to be able to comment on the PR
+      pull-requests: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
@@ -114,6 +116,6 @@ jobs:
         uses: ./.github/actions/pr-comment
         with:
           comment_tag: Monorepo Docker Image
-          message: "Published image tag: `${{ steps.meta.outputs.tags }}`"
+          message: 'Published image tag: `${{ steps.meta.outputs.tags }}`'
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
