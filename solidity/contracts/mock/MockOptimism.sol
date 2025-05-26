@@ -6,6 +6,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
 import {IStandardBridge} from "../interfaces/optimism/IStandardBridge.sol";
+import {OPL2ToL1Withdrawal} from "../libs/OPL2ToL1Withdrawal.sol";
 
 // for both L1 and L2
 contract MockOptimismMessenger is ICrossDomainMessenger {
@@ -60,6 +61,9 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
 contract MockOptimismPortal is IOptimismPortal {
     error WithdrawalTransactionFailed();
 
+    mapping(bytes32 => ProvenWithdrawal) public _provenWithdrawals;
+    mapping(bytes32 => bool) public _finalizedWithdrawals;
+
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx
     ) external {
@@ -69,6 +73,8 @@ contract MockOptimismPortal is IOptimismPortal {
             _tx.data
         );
         CallLib.call(call);
+        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
+        _finalizedWithdrawals[withdrawalHash] = true;
     }
 
     function proveWithdrawalTransaction(
@@ -76,15 +82,26 @@ contract MockOptimismPortal is IOptimismPortal {
         uint256 _disputeGameIndex,
         OutputRootProof memory _outputRootProof,
         bytes[] memory _withdrawalProof
-    ) external {}
+    ) external {
+        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
+        _provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
+            outputRoot: _outputRootProof.stateRoot,
+            timestamp: uint128(block.timestamp),
+            l2OutputIndex: uint128(0)
+        });
+    }
 
     function finalizedWithdrawals(
         bytes32 _withdrawalHash
-    ) external view returns (bool value) {}
+    ) external view returns (bool value) {
+        return _finalizedWithdrawals[_withdrawalHash];
+    }
 
     function provenWithdrawals(
         bytes32 withdrawalHash
-    ) external view returns (ProvenWithdrawal memory) {}
+    ) external view returns (ProvenWithdrawal memory) {
+        return _provenWithdrawals[withdrawalHash];
+    }
 }
 
 // mock deployment on L2

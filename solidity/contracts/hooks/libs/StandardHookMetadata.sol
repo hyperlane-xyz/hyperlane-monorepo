@@ -124,6 +124,23 @@ library StandardHookMetadata {
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
      * @param _refundAddress Refund address for the message.
+     * @return ABI encoded standard hook metadata.
+     */
+    function format(
+        uint256 _msgValue,
+        uint256 _gasLimit,
+        address _refundAddress
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(VARIANT, _msgValue, _gasLimit, _refundAddress);
+    }
+
+    /**
+
+    /**
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @param _gasLimit Gas limit for the message.
+     * @param _refundAddress Refund address for the message.
      * @param _customMetadata Additional metadata to include in the standard hook metadata.
      * @return ABI encoded standard hook metadata.
      */
@@ -174,5 +191,19 @@ library StandardHookMetadata {
         address _refundAddress
     ) internal pure returns (bytes memory) {
         return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
+    }
+
+    function getRefundAddress(
+        bytes memory _metadata,
+        address _default
+    ) internal pure returns (address) {
+        if (_metadata.length < REFUND_ADDRESS_OFFSET + 20) return _default;
+        address result;
+        assembly {
+            let data_start_ptr := add(_metadata, 32) // Skip length prefix of _metadata
+            let mload_ptr := add(data_start_ptr, sub(REFUND_ADDRESS_OFFSET, 12))
+            result := mload(mload_ptr) // Loads 32 bytes; address takes lower 20 bytes.
+        }
+        return result;
     }
 }

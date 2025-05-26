@@ -4,7 +4,10 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
-import {MailboxClient} from "../../client/MailboxClient.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
+
+// ============ External Imports ============
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title AbstractCcipReadIsm
@@ -14,14 +17,12 @@ import {MailboxClient} from "../../client/MailboxClient.sol";
  * the range of applications that could be supported by a CcipReadIsm are so broad. However
  * there are few things to note when building a custom CcipReadIsm.
  *
- * 1. `getOffchainVerifyInfo` should revert with a `OffchainLookup` error, which encodes
- *    the data necessary to query for offchain information
- * 2. For full CCIP Read specification compatibility, CcipReadIsm's should expose a function
- *    that in turn calls `process` on the configured Mailbox with the provided metadata and
- *    message. This functions selector should be provided as the `callbackFunction` payload
- *    for the OffchainLookup error
  */
-abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
+abstract contract AbstractCcipReadIsm is
+    ICcipReadIsm,
+    OwnableUpgradeable,
+    PackageVersioned
+{
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
@@ -40,14 +41,6 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
         emit UrlsChanged(__urls);
     }
 
-    /// @dev called by the relayer when the off-chain data is ready
-    function process(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) external {
-        mailbox.process(_metadata, _message);
-    }
-
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
@@ -55,7 +48,7 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
             sender: address(this),
             urls: _urls,
             callData: _offchainLookupCalldata(_message),
-            callbackFunction: this.process.selector,
+            callbackFunction: this.verify.selector,
             extraData: _message
         });
     }
@@ -64,6 +57,9 @@ abstract contract AbstractCcipReadIsm is ICcipReadIsm, MailboxClient {
         return _urls;
     }
 
+    /*
+     * @dev This should return the calldata to be used for the offchain lookup.
+     **/
     function _offchainLookupCalldata(
         bytes calldata _message
     ) internal view virtual returns (bytes memory);

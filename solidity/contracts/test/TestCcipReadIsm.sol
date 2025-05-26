@@ -20,8 +20,6 @@ contract TestCcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         bytes message
     );
 
-    constructor(address _mailbox) MailboxClient(_mailbox) {}
-
     function _offchainLookupCalldata(
         bytes calldata /*_message*/
     ) internal pure override returns (bytes memory) {

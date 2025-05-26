@@ -54,6 +54,16 @@ contract InterchainAccountRouterTestBase is Test {
         bytes32 salt
     );
 
+    event RemoteCallDispatched(
+        uint32 indexed destination,
+        address indexed owner,
+        bytes32 router,
+        bytes32 ism,
+        bytes32 salt
+    );
+
+    event CommitRevealDispatched(bytes32 indexed commitment);
+
     MockHyperlaneEnvironment internal environment;
 
     uint32 internal origin = 1;
@@ -358,11 +368,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         assertEq(
-            originIcaRouter.quoteGasPayment(
-                destination,
-                "",
-                GAS_LIMIT_OVERRIDE
-            ),
+            originIcaRouter.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE),
             igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
         );
     }
@@ -399,12 +405,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // act
         CallLib.Call[] memory calls = getCalls(data, value);
-        originIcaRouter.callRemote{value: gasPaymentQuote}(
-            destination,
-            TypeCasts.bytes32ToAddress(calls[0].to),
-            calls[0].value,
-            calls[0].data
-        );
+        originIcaRouter.callRemote{value: gasPaymentQuote}(destination, calls);
 
         // assert
         uint256 balanceAfter = address(this).balance;
@@ -858,6 +859,40 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
     }
 
+    function test_callRemote_withZeroRouter(
+        bytes32 data,
+        uint256 value
+    ) public {
+        bytes32 router = bytes32(0);
+
+        CallLib.Call[] memory calls = getCalls(data, value);
+
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            router,
+            ismOverride,
+            calls
+        );
+
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        vm.expectRevert("no router specified for destination");
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            router,
+            ismOverride,
+            StandardHookMetadata.formatMetadata(
+                0,
+                GAS_LIMIT_OVERRIDE,
+                address(this),
+                ""
+            ),
+            customHook,
+            bytes32(0),
+            bytes32(0)
+        );
+    }
+
     function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
         // act
         originIcaRouter.callRemoteCommitReveal(
@@ -876,6 +911,35 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // assert
         // ICA router should have the commitment
         assertEq(ica.commitments(commitment), true);
+    }
+
+    function testFuzz_callRemoteCommitReveal_events(bytes32 commitment) public {
+        // arrange
+        bytes32 salt = bytes32(0);
+
+        // expect both events to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit RemoteCallDispatched(
+            destination,
+            address(this),
+            routerOverride,
+            ismOverride,
+            salt
+        );
+
+        vm.expectEmit(true, false, false, false);
+        emit CommitRevealDispatched(commitment);
+
+        // act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            salt,
+            commitment
+        );
     }
 
     function _get_metadata(
@@ -1025,7 +1089,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes memory metadata = _get_metadata(ica, salt, calls);
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
         vm.expectRevert("ICA: Invalid Reveal");
-        _ism.process(metadata, message);
+        _ism.verify(metadata, message);
     }
 
     function testFuzz_callRemoteCommitReveal_simpleOverload(
@@ -1056,6 +1120,65 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // Assert
         // ICA router should have the commitment
         assertEq(ica.commitments(commitment), true);
+    }
+
+    function test_callRemote_refundBehavior(
+        bytes32 data,
+        uint256 value
+    ) public {
+        uint256 gasLimit = 100_000;
+
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint quote = originIcaRouter.quoteGasPayment(destination, gasLimit);
+
+        uint256 balanceBefore = address(this).balance;
+
+        originIcaRouter.callRemote{value: 2 * quote}(
+            destination,
+            getCalls(data, value),
+            StandardHookMetadata.formatMetadata(
+                0,
+                gasLimit,
+                address(this),
+                bytes("")
+            )
+        );
+
+        uint256 balanceAfter = address(this).balance;
+        assertEq(balanceBefore - balanceAfter, quote);
+    }
+
+    function test_callRemoteCommitReveal_refundBehavior(
+        bytes32 commitment
+    ) public {
+        uint256 gasLimit = 100_000;
+
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            gasLimit
+        );
+
+        uint256 balanceBefore = address(this).balance;
+
+        originIcaRouter.callRemoteCommitReveal{value: 2 * quote}(
+            destination,
+            commitment,
+            gasLimit
+        );
+
+        uint256 balanceAfter = address(this).balance;
+        assertEq(balanceBefore - balanceAfter, quote);
     }
 
     function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
