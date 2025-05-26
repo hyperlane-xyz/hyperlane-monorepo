@@ -179,7 +179,7 @@ export class MultiChainResolver implements ChainResolver {
         addresses,
       ) as DeployedCoreAddresses;
 
-      const protocolType = argv.context.registry.getProtocol(argv.chain);
+      const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
       switch (protocolType) {
         case ProtocolType.Ethereum: {
