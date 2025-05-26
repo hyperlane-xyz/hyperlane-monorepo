@@ -11,7 +11,6 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
-  isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -28,6 +27,7 @@ import {
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
+  validateCoreIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -69,7 +69,7 @@ export async function runCoreDeploy(params: DeployParams) {
   }
 
   // Validate ISM compatibility
-  validateIsmCompatibility(chain, config, context);
+  validateCoreIsmCompatibility(chain, config, context);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -154,29 +154,6 @@ export async function runCoreDeploy(params: DeployParams) {
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
-}
-
-/**
- * Validates that the ISM configuration is compatible with the chain's technical stack.
- * Throws an error if an incompatible ISM type is configured.
- */
-function validateIsmCompatibility(
-  chain: ChainName,
-  config: CoreConfig,
-  context: WriteCommandContext,
-) {
-  const { technicalStack: chainTechnicalStack } =
-    context.multiProvider.getChainMetadata(chain);
-
-  if (typeof config.defaultIsm !== 'string') {
-    assert(
-      isIsmCompatible({
-        chainTechnicalStack,
-        ismType: config.defaultIsm?.type,
-      }),
-      `Selected ISM of type ${config.defaultIsm?.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
-    );
-  }
 }
 
 export async function runCoreApply(params: ApplyParams) {
