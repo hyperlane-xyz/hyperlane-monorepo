@@ -196,7 +196,7 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
   };
 }
 
-function validateCompatibility({
+function validateIsmCompatibility({
   chain,
   ismType,
   context,
@@ -229,7 +229,7 @@ export function validateCoreIsmCompatibility(
   context: WriteCommandContext,
 ) {
   if (typeof config.defaultIsm !== 'string') {
-    validateCompatibility({
+    validateIsmCompatibility({
       chain,
       ismType: config.defaultIsm?.type,
       context,
@@ -252,7 +252,7 @@ export function validateWarpIsmCompatibility(
       config.interchainSecurityModule &&
       typeof config.interchainSecurityModule !== 'string'
     ) {
-      validateCompatibility({
+      validateIsmCompatibility({
         chain,
         ismType: config.interchainSecurityModule.type,
         context,
