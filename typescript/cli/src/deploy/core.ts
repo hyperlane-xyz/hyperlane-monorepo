@@ -46,20 +46,6 @@ export async function runCoreDeploy(params: DeployParams) {
   const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
     context as any;
 
-  // // Select a dry-run chain if it's not supplied
-  // if (dryRunChain) {
-  //   chain = dryRunChain;
-  // } else if (!chain) {
-  //   if (skipConfirmation) throw new Error('No chain provided');
-  //   chain = await runSingleChainSelectionStep(
-  //     chainMetadata,
-  //     'Select chain to connect:',
-  //   );
-  // }
-  // let apiKeys: ChainMap<string> = {};
-  // if (!skipConfirmation)
-  //   apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
-
   const deploymentParams: DeployParams = {
     context: { ...context },
     chain,
@@ -175,6 +161,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     case ProtocolType.CosmosNative: {
+      await multiProtocolSigner?.initSigner(chain);
       const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
       assert(signer, 'Cosmos Native signer failed!');
 

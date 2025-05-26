@@ -118,10 +118,6 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
-    signer: {
-      type: 'string',
-      description: 'The signer that should be used this chain.',
-    },
   },
   handler: async ({
     context,

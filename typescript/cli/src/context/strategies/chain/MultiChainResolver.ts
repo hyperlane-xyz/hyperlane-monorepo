@@ -179,17 +179,29 @@ export class MultiChainResolver implements ChainResolver {
         addresses,
       ) as DeployedCoreAddresses;
 
-      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
-        chain: argv.chain,
-        config,
-        addresses: coreAddresses,
-      });
+      const protocolType = argv.context.registry.getProtocol(argv.chain);
 
-      const transactions = await evmCoreModule.update(config);
+      switch (protocolType) {
+        case ProtocolType.Ethereum: {
+          const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+            chain: argv.chain,
+            config,
+            addresses: coreAddresses,
+          });
 
-      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-        (chainId) => argv.context.multiProvider.getChainName(chainId),
-      );
+          const transactions = await evmCoreModule.update(config);
+
+          return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+            (chainId) => argv.context.multiProvider.getChainName(chainId),
+          );
+        }
+        case ProtocolType.CosmosNative: {
+          return [argv.chain];
+        }
+        default: {
+          throw new Error(`Protocol type ${protocolType} not supported`);
+        }
+      }
     } catch (error) {
       throw new Error(`Failed to resolve core apply chains`, {
         cause: error,
