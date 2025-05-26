@@ -117,6 +117,10 @@ export type ChainConfigInput = z.input<typeof ChainConfigSchema>;
 export type BaseConfig = z.infer<typeof BaseConfigSchema>;
 export type BaseConfigInput = z.input<typeof BaseConfigSchema>;
 
+// TODO: Simplify this typing structure by modifying `BaseConfigSchema` to have a `chains` entry
+//  `chains: z.record(z.string(), ChainConfigSchema),`
+//  Thus we avoid having mixed "specific" vs "index signature", and migrate all to "specific".
+//  An example of what the issue is can be found at: https://tsplay.dev/NljqOW
 export type ConfigFileInput = BaseConfigInput &
   ChainMap<
     | ChainConfigInput
