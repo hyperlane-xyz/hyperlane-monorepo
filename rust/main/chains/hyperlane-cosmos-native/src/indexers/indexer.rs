@@ -156,6 +156,8 @@ where
             block_events.extend(end_events);
         }
 
+        let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
+
         let tx_hashes: Vec<Hash> = block
             .clone()
             .block
@@ -189,11 +191,14 @@ where
                     proof: None,
                 };
 
-                let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
-
                 Some(self.handle_tx(tx_response, block_hash))
             })
             .flatten()
+            .chain(self.handle_block_events(
+                block_events,
+                block_hash,
+                block.block.header.height.into(),
+            ))
             .collect()
     }
 
