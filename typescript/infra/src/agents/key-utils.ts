@@ -354,7 +354,7 @@ export async function createAgentKeysIfNotExists(
 
   // Filter out keys for Starknet chains - we don't want to create or update them
   const nonStarknetKeys = keys.filter(
-    (key) => key.chainName && !isStarknetChain(key.chainName),
+    (key) => !(key.chainName && isStarknetChain(key.chainName)),
   );
 
   // Process only non-Starknet keys for creation
@@ -366,7 +366,7 @@ export async function createAgentKeysIfNotExists(
   );
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, keys);
+  await persistAddressesLocally(agentConfig, nonStarknetKeys);
   // Key funder expects the serialized addresses in GCP
   await persistAddressesInGcp(
     agentConfig.runEnv,
