@@ -1,11 +1,9 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, InterchainGasPaymaster, H256,
 };
 
@@ -46,13 +44,3 @@ impl HyperlaneContract for StarknetInterchainGasPaymaster {
 
 #[async_trait]
 impl InterchainGasPaymaster for StarknetInterchainGasPaymaster {}
-
-pub struct StarknetInterchainGasPaymasterAbi;
-
-impl HyperlaneAbi for StarknetInterchainGasPaymasterAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
-    }
-}

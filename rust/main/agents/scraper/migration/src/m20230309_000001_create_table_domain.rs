@@ -515,7 +515,7 @@ const DOMAINS: &[RawDomain] = &[
     },
     RawDomain {
         name: "starknettest23448593",
-        token: "KYVE",
+        token: "ETH",
         domain: 23448593,
         chain_id: 23448593,
         is_test_net: true,
@@ -523,7 +523,7 @@ const DOMAINS: &[RawDomain] = &[
     },
     RawDomain {
         name: "starknettest23448594",
-        token: "KYVE",
+        token: "ETH",
         domain: 23448594,
         chain_id: 23448594,
         is_test_net: true,
