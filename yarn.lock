@@ -7649,6 +7649,7 @@ __metadata:
     "@hyperlane-xyz/cosmos-sdk": "npm:13.1.1"
     "@hyperlane-xyz/registry": "npm:15.7.0"
     "@hyperlane-xyz/sdk": "npm:13.1.1"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:13.1.1"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
