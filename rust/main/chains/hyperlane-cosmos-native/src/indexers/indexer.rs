@@ -130,21 +130,18 @@ where
     async fn get_logs_in_block(&self, block_height: u32) -> ChainResult<Vec<(T, LogMeta)>> {
         let block = self.provider().get_block(block_height).await?;
         let block_results = self.provider().get_block_results(block_height).await?;
-        let result = self.handle_txs(block, block_results);
+        let result = self.handle_block(block, block_results);
         Ok(result)
     }
 
     /// Iterate through all txs, filter out failed txs, find target events
-    /// in successful txs, and parse them.
-    fn handle_txs(
+    /// in successful txs, and parse them. Also iterates through all events in the block and tries to parse them.
+    fn handle_block(
         &self,
         block: BlockResponse,
         block_results: BlockResultsResponse,
     ) -> Vec<(T, LogMeta)> {
-        let Some(tx_results) = block_results.txs_results else {
-            return vec![];
-        };
-
+        let tx_results = block_results.txs_results.unwrap_or_default();
         // Cosmos can also emit events in the block itself, those events do not originate from a tx, but rather from the block
         let mut block_events = block_results.finalize_block_events;
 
