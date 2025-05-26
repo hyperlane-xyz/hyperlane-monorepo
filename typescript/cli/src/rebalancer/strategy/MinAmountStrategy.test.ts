@@ -292,6 +292,37 @@ describe('MinAmountStrategy', () => {
         }),
       ).to.throw('Raw balance for chain chain2 is negative');
     });
+
+    it('should throw an error if strategies are not of the same type', () => {
+      expect(() =>
+        new MinAmountStrategy(
+          {
+            [chain1]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Relative,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Absolute,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
+            },
+          },
+          tokensByChainName,
+        ).getRebalancingRoutes({
+          [chain1]: 100n,
+          [chain2]: 100n,
+        }),
+      ).to.throw('All types for the minAmount strategy must be the same');
+    });
   });
 
   describe('getRebalancingRoutes', () => {
@@ -321,8 +352,8 @@ describe('MinAmountStrategy', () => {
       );
 
       const rawBalances: RawBalances = {
-        [chain1]: 100n,
-        [chain2]: 100n,
+        [chain1]: BigInt(100e18),
+        [chain2]: BigInt(100e18),
       };
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
@@ -427,6 +458,39 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
+    it('should throw an error when the sum of `min` is greater than the sum of collaterals', () => {
+      expect(() =>
+        new MinAmountStrategy(
+          {
+            [chain1]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Absolute,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
+            },
+            [chain2]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Absolute,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
+            },
+          },
+          tokensByChainName,
+        ).getRebalancingRoutes({
+          [chain1]: BigInt(100e18),
+          [chain2]: BigInt(80e18),
+        }),
+      ).to.throw(
+        `Sum of total minAmounts (200) shouldn't be greater than the sum of collaterals (180)`,
+      );
+    });
+
     it('should handle case where there is not enough surplus to meet all minimum requirements by scaling down deficits', () => {
       const strategy = new MinAmountStrategy(
         {
@@ -505,8 +569,8 @@ describe('MinAmountStrategy', () => {
       );
 
       const rawBalances = {
-        [chain1]: 100n,
-        [chain2]: 100n,
+        [chain1]: BigInt(100e18),
+        [chain2]: BigInt(100e18),
       };
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
