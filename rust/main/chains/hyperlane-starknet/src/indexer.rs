@@ -292,17 +292,24 @@ where
 
     events
         .into_iter()
-        .enumerate()
-        .map(|(index, event)| {
+        .map(|event| {
             let parsed_event = parse(&event)?;
+
+            let block_hash = event
+                .block_hash
+                .ok_or(HyperlaneStarknetError::InvalidBlock)?;
+            let block_number = event
+                .block_number
+                .ok_or(HyperlaneStarknetError::InvalidBlock)?;
+
             let meta = LogMeta {
                 address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
-                block_number: event.block_number.unwrap(),
-                block_hash: H256::from_slice(event.block_hash.unwrap().to_bytes_be().as_slice()),
+                block_number,
+                block_hash: H256::from_slice(block_hash.to_bytes_be().as_slice()),
                 transaction_id: H256::from_slice(event.transaction_hash.to_bytes_be().as_slice())
                     .into(),
-                transaction_index: index as u64,
-                log_index: U256::one(),
+                transaction_index: 0u64,
+                log_index: U256::zero(),
             };
             Ok((parsed_event, meta))
         })

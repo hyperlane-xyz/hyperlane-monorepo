@@ -125,7 +125,11 @@ impl HyperlaneProvider for StarknetProvider {
                     invoke_tx.calldata,
                 ),
             },
-            _ => (None, FieldElement::ZERO, vec![]),
+            _ => {
+                // We can only parse invoke transactions
+                // Other transaction types are not supported and should never be tried to indexed
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
+            }
         };
 
         // recipient is encoded in the calldata for invoke transactions
