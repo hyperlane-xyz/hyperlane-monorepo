@@ -12228,6 +12228,7 @@ dependencies = [
  "tower 0.4.13",
  "tracing",
  "tracing-futures",
+ "url",
 ]
 
 [[package]]
