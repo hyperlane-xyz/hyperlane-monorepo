@@ -85,6 +85,8 @@ export abstract class HyperlaneDeployer<
   protected logger: Logger;
   chainTimeoutMs: number;
 
+  private zkSyncContractVerifier: ZKSyncContractVerifier;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
@@ -108,6 +110,8 @@ export abstract class HyperlaneDeployer<
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
+
+    this.zkSyncContractVerifier = new ZKSyncContractVerifier(multiProvider);
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -119,16 +123,12 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    return this.options.contractVerifier?.verifyContract(chain, input, logger);
-  }
-
-  async verifyContractForZKSync(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    logger = this.logger,
-  ): Promise<void> {
-    const verifier = new ZKSyncContractVerifier(this.multiProvider);
-    return verifier.verifyContract(chain, input, logger);
+    const explorerFamily = this.multiProvider.tryGetExplorerApi(chain)?.family;
+    const verifier =
+      explorerFamily === ExplorerFamily.ZkSync
+        ? this.zkSyncContractVerifier
+        : this.options.contractVerifier;
+    return verifier?.verifyContract(chain, input, logger);
   }
 
   abstract deployContracts(
@@ -415,9 +415,7 @@ export abstract class HyperlaneDeployer<
       )})...`,
     );
 
-    const explorer = this.multiProvider.tryGetExplorerApi(chain);
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
-    const isZKSyncExplorer = explorer?.family === ExplorerFamily.ZkSync;
     const isZKSyncChain = technicalStack === ChainTechnicalStack.ZkSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
@@ -490,9 +488,7 @@ export abstract class HyperlaneDeployer<
 
     // try verifying contract
     try {
-      await this[
-        isZKSyncExplorer ? 'verifyContractForZKSync' : 'verifyContract'
-      ](chain, verificationInput);
+      await this.verifyContract(chain, verificationInput);
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);

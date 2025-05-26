@@ -617,11 +617,11 @@ export function isStaticDeploymentSupported(
  * @returns {boolean} True if the ISM type is compatible with the chain, false otherwise
  */
 export function isIsmCompatible({
-  ismType,
   chainTechnicalStack,
+  ismType,
 }: {
-  ismType: IsmType;
   chainTechnicalStack: ChainTechnicalStack | undefined;
+  ismType: IsmType;
 }): boolean {
   // Skip compatibility check for non-static ISMs as they're always supported
   if (!isStaticIsm(ismType)) return true;
