@@ -10,7 +10,8 @@ import {
   HypXERC20__factory,
   IFiatToken__factory,
   IXERC20__factory,
-  OPL2ToL1TokenBridgeNative__factory,
+  OpL1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory,
   ProxyAdmin__factory,
   TokenBridgeCctpV1__factory,
   TokenRouter__factory,
@@ -46,7 +47,8 @@ import {
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
-  OpL2toL1TokenConfig,
+  OpL1TokenConfig,
+  OpL2TokenConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -91,7 +93,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
-      [TokenType.nativeOpL2ToL1]: this.deriveOpL2ToL1TokenConfig.bind(this),
+      [TokenType.nativeOpL2]: this.deriveOpL2TokenConfig.bind(this),
+      [TokenType.nativeOpL1]: this.deriveOpL1TokenConfig.bind(this),
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
@@ -499,26 +502,44 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
-  private async deriveOpL2ToL1TokenConfig(
+  private async deriveOpL2TokenConfig(
     _address: Address,
-  ): Promise<OpL2toL1TokenConfig> {
+  ): Promise<OpL2TokenConfig> {
     const config = await this.deriveHypNativeTokenConfig(_address);
 
-    const contract = OPL2ToL1TokenBridgeNative__factory.connect(
+    const contract = OpL2NativeTokenBridge__factory.connect(
       _address,
       this.multiProvider.getProvider(this.chain),
     );
 
-    const [l1Domain, l2Bridge] = await Promise.all([
-      contract.l1Domain(),
-      contract.l2Bridge(),
-    ]);
+    const l2Bridge = await contract.l2Bridge();
 
     return {
       ...config,
-      type: TokenType.nativeOpL2ToL1,
-      l1Domain,
+      type: TokenType.nativeOpL2,
       l2Bridge,
+    };
+  }
+
+  private async deriveOpL1TokenConfig(
+    _address: Address,
+  ): Promise<OpL1TokenConfig> {
+    const config = await this.deriveHypNativeTokenConfig(_address);
+    const contract = OpL1NativeTokenBridge__factory.connect(
+      _address,
+      this.multiProvider.getProvider(this.chain),
+    );
+
+    const urls = await contract.urls();
+    const portal = await contract.opPortal();
+
+    return {
+      ...config,
+      type: TokenType.nativeOpL1,
+      urls,
+      portal,
+      // assume version 1 for now
+      version: 1,
     };
   }
 

@@ -50,7 +50,8 @@ import {
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
-  isOpL2toL1TokenConfig,
+  isOpL1TokenConfig,
+  isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
@@ -87,8 +88,10 @@ abstract class TokenDeployer<
       return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
       return [scale, config.mailbox];
-    } else if (isOpL2toL1TokenConfig(config)) {
-      return [scale, config.mailbox, config.l1Domain, config.l2Bridge];
+    } else if (isOpL2TokenConfig(config)) {
+      return [config.mailbox, config.l2Bridge];
+    } else if (isOpL1TokenConfig(config)) {
+      return [config.mailbox, config.portal, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];

@@ -34,16 +34,30 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
-export const OpL2toL1TokenConfigSchema = NativeTokenConfigSchema.merge(
+export const OpL2TokenConfigSchema = NativeTokenConfigSchema.merge(
   z.object({
-    type: z.literal(TokenType.nativeOpL2ToL1),
+    type: z.literal(TokenType.nativeOpL2),
   }),
 ).extend({
-  l1Domain: z.number(),
   l2Bridge: z.string(),
 });
-export type OpL2toL1TokenConfig = z.infer<typeof OpL2toL1TokenConfigSchema>;
-export const isOpL2toL1TokenConfig = isCompliant(OpL2toL1TokenConfigSchema);
+
+export const OpL1TokenConfigSchema = NativeTokenConfigSchema.merge(
+  z.object({
+    type: z.literal(TokenType.nativeOpL1),
+  }),
+)
+  .extend({
+    portal: z.string(),
+    version: z.number(),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+
+export type OpL1TokenConfig = z.infer<typeof OpL1TokenConfigSchema>;
+export const isOpL1TokenConfig = isCompliant(OpL1TokenConfigSchema);
+
+export type OpL2TokenConfig = z.infer<typeof OpL2TokenConfigSchema>;
+export const isOpL2TokenConfig = isCompliant(OpL2TokenConfigSchema);
 
 export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
   {
@@ -170,7 +184,8 @@ export type HypTokenRouterVirtualConfig = z.infer<
  */
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
-  OpL2toL1TokenConfigSchema,
+  OpL2TokenConfigSchema,
+  OpL1TokenConfigSchema,
   CollateralTokenConfigSchema,
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
