@@ -1,5 +1,5 @@
-import crypto from 'crypto';
 import type { TransactionReceipt } from '@ethersproject/providers';
+import crypto from 'crypto';
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
@@ -271,7 +271,7 @@ export class CallCommitmentsService extends BaseService {
       destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
-    return await destinationRouter[
+    return destinationRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
     ](originDomain, owner, originRouter, ismAddress, salt);
   }
@@ -288,7 +288,11 @@ export class CallCommitmentsService extends BaseService {
       const commitment = crypto.randomUUID().toString();
 
       try {
-        await this.insertCommitmentToDB(commitment, data);
+        await this.insertCommitmentToDB(commitment, {
+          ...data,
+          ica: '',
+          revealMessageId: '',
+        });
       } catch (_) {
         res.sendStatus(400);
       }
