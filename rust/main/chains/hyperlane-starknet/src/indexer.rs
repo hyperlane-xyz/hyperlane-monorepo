@@ -19,7 +19,7 @@ use crate::{
     HyperlaneStarknetError,
 };
 
-const CHUCNK_SIZE: u64 = 50;
+const CHUNK_SIZE: u64 = 50;
 
 #[derive(Debug)]
 /// Starknet Mailbox Indexer
@@ -279,7 +279,7 @@ where
 
     loop {
         let page = provider
-            .get_events(filter.clone(), token.clone(), CHUCNK_SIZE)
+            .get_events(filter.clone(), token.clone(), CHUNK_SIZE)
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
