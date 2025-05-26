@@ -16,6 +16,7 @@ import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSig
 export interface ContextSettings {
   registryUris: string[];
   key?: string;
+  signer?: ChainMap<{ key: string }>;
   fromAddress?: string;
   requiresKey?: boolean;
   disableProxy?: boolean;

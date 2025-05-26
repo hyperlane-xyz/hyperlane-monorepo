@@ -69,6 +69,7 @@ export const keyCommandOption: Options = {
 export const signerCommandOption: Options = {
   type: 'string',
   description: 'The signer that should be used this chain.',
+  defaultDescription: 'process.env.SIGNER_{CHAIN}_KEY',
 };
 
 export const disableProxyCommandOption: Options = {
