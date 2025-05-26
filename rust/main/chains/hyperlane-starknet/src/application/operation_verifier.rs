@@ -36,7 +36,7 @@ impl ApplicationOperationVerifier for StarknetApplicationOperationVerifier {
 impl StarknetApplicationOperationVerifier {
     fn verify_message(
         app_context: &Option<String>,
-        message: &HyperlaneMessage,
+        _message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
         let context = match app_context {
             Some(c) => c,
