@@ -5,8 +5,9 @@ use async_trait::async_trait;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
+    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod,
+    H256,
 };
 use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::FieldElement;
@@ -92,7 +93,10 @@ impl HyperlaneContract for StarknetMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for StarknetMerkleTreeHook {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
         let block_number =
             get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
@@ -104,17 +108,20 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        Ok(Checkpoint {
-            merkle_tree_hook_address: self.address(),
-            mailbox_domain: self.domain().id(),
-            root: H256::from_slice(root.to_bytes_be().as_slice()),
-            index,
+        Ok(CheckpointAtBlock {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: self.address(),
+                mailbox_domain: self.domain().id(),
+                root: H256::from_slice(root.to_bytes_be().as_slice()),
+                index,
+            },
+            block_height: Some(block_number),
         })
     }
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let block_number =
             get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
@@ -133,9 +140,12 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             .collect::<Vec<H256>>();
         branch.resize(TREE_DEPTH, H256::zero());
 
-        Ok(IncrementalMerkle {
-            branch: branch.try_into().unwrap(),
-            count: tree.count.low.try_into().unwrap(),
+        Ok(IncrementalMerkleAtBlock {
+            tree: IncrementalMerkle {
+                branch: branch.try_into().unwrap(),
+                count: tree.count.low.try_into().unwrap(),
+            },
+            block_height: Some(block_number),
         })
     }
 
@@ -153,5 +163,26 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(count)
+    }
+
+    /// Get the latest checkpoint at a specific block height.
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let (root, index) = self
+            .contract
+            .latest_checkpoint()
+            .block_id(starknet::core::types::BlockId::Number(height))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+        Ok(CheckpointAtBlock {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: self.address(),
+                mailbox_domain: self.domain().id(),
+                root: H256::from_slice(root.to_bytes_be().as_slice()),
+                index,
+            },
+            block_height: Some(height),
+        })
     }
 }
