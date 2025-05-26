@@ -28,11 +28,9 @@ port: 3000
 env:
   - name: ENABLED_MODULES
     value: "cctp,callCommitments"
-  - name: HYPERLANE_EXPLORER_API
+  - name: HYPERLANE_EXPLORER_URL
     value: "https://api.hyperlane.xyz/v1/graphql"
-  - name: CCTP_ATTESTATION_API
+  - name: CCTP_ATTESTATION_URL
     value: "https://iris-api-sandbox.circle.com"
-  - name: SERVER_URL_PREFIX
-    value: "/"
   - name: SERVER_PORT
     value: "3000"

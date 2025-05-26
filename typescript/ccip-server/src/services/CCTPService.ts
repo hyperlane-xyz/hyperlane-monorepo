@@ -27,7 +27,7 @@ class CCTPService extends BaseService {
   constructor() {
     super();
     this.hyperlaneService = new HyperlaneService(
-      process.env.HYPERLANE_EXPLORER_API!,
+      process.env.HYPERLANE_EXPLORER_URL!,
     );
     this.cctpAttestationService = new CCTPAttestationService(
       process.env.CCTP_ATTESTATION_URL!,
