@@ -343,6 +343,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     let contract: Contract;
     let estimatedGas: BigNumber;
 
+    // estimate gas for deploy
+    // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
@@ -362,6 +364,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       });
     }
 
+    // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
 
     this.logger.trace(
@@ -369,6 +372,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       { transaction: contract.deployTransaction },
     );
 
+    // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
