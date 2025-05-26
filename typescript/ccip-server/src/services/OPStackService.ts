@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { OPStackServiceAbi } from '../abis/OPStackServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
+import { BaseService } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
@@ -95,6 +96,10 @@ export class OPStackService {
         this.getFinalizeWithdrawalTx.bind(this),
       ),
     );
+  }
+
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new OPStackService());
   }
 
   async getWithdrawalTransactionFromReceipt(
