@@ -32,8 +32,12 @@ class CCTPService extends BaseService {
     this.cctpAttestationService = new CCTPAttestationService(
       process.env.CCTP_ATTESTATION_URL!,
     );
+    const registryUris = process.env.REGISTRY_URI?.split(',') || [
+      DEFAULT_GITHUB_REGISTRY,
+    ];
+    console.log('Using registry URIs', registryUris);
     const registry = getRegistry({
-      registryUris: [DEFAULT_GITHUB_REGISTRY],
+      registryUris: registryUris,
       enableProxy: true,
     });
 
