@@ -22,7 +22,7 @@ export class Executor implements IExecutor {
     private readonly rebalancerKey: string,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
-    private readonly tokensByChainName: Map<string, Token>,
+    private readonly tokensByChainName: ChainMap<Token>,
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
@@ -45,16 +45,16 @@ export class Executor implements IExecutor {
     for (const route of routes) {
       const { origin, destination, amount } = route;
 
-      const originToken = tokensByChainName.get(origin);
-      const destinationToken = tokensByChainName.get(destination);
+      const originToken = tokensByChainName[origin];
+      const destinationToken = tokensByChainName[destination];
 
-      if (!originToken) {
+      if (originToken === undefined) {
         throw new Error(
           `Token not found for chain ${origin}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
         );
       }
 
-      if (!destinationToken) {
+      if (destinationToken === undefined) {
         throw new Error(
           `Token not found for chain ${destination}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
         );

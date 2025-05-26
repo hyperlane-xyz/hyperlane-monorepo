@@ -1,25 +1,25 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { Token, TokenStandard } from '@hyperlane-xyz/sdk';
+import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
 import { MinAmountType } from '../config/Config.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import {
   MinAmountStrategy,
-  MinAmountStrategyConfig,
+  type MinAmountStrategyConfig,
 } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
 import {
   WeightedStrategy,
-  WeightedStrategyConfig,
+  type WeightedStrategyConfig,
 } from './WeightedStrategy.js';
 
 describe('StrategyFactory', () => {
   let chain1: string;
   let chain2: string;
-  const tokensByChainName = new Map();
+  const tokensByChainName: ChainMap<Token> = {};
   const tokenArgs = {
     name: 'token',
     decimals: 18,
@@ -31,9 +31,8 @@ describe('StrategyFactory', () => {
   beforeEach(() => {
     chain1 = 'chain1';
     chain2 = 'chain2';
-    tokensByChainName
-      .set(chain1, new Token({ ...tokenArgs, chainName: chain1 }))
-      .set(chain2, new Token({ ...tokenArgs, chainName: chain2 }));
+    tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
+    tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
   });
 
   describe('createStrategy', () => {

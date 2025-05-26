@@ -1,7 +1,12 @@
 import { AddressZero } from '@ethersproject/constants';
 import { expect } from 'chai';
 
-import { type ChainName, Token, TokenStandard } from '@hyperlane-xyz/sdk';
+import {
+  type ChainMap,
+  type ChainName,
+  Token,
+  TokenStandard,
+} from '@hyperlane-xyz/sdk';
 
 import { MinAmountType } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
@@ -12,7 +17,7 @@ describe('MinAmountStrategy', () => {
   let chain1: ChainName;
   let chain2: ChainName;
   let chain3: ChainName;
-  const tokensByChainName = new Map();
+  const tokensByChainName: ChainMap<Token> = {};
   const tokenArgs = {
     name: 'token',
     decimals: 18,
@@ -25,10 +30,9 @@ describe('MinAmountStrategy', () => {
     chain1 = 'chain1';
     chain2 = 'chain2';
     chain3 = 'chain3';
-    tokensByChainName
-      .set(chain1, new Token({ ...tokenArgs, chainName: chain1 }))
-      .set(chain2, new Token({ ...tokenArgs, chainName: chain2 }))
-      .set(chain3, new Token({ ...tokenArgs, chainName: chain3 }));
+    tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
+    tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
+    tokensByChainName[chain3] = new Token({ ...tokenArgs, chainName: chain3 });
   });
 
   describe('constructor', () => {

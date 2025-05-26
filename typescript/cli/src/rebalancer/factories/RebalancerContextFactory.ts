@@ -33,7 +33,7 @@ export class RebalancerContextFactory {
     private readonly config: Config,
     private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
-    private readonly tokensByChainName: Map<string, Token>,
+    private readonly tokensByChainName: ChainMap<Token>,
   ) {}
 
   /**
@@ -59,7 +59,7 @@ export class RebalancerContextFactory {
       );
     }
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-    const tokensByChainName = new Map(
+    const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
 

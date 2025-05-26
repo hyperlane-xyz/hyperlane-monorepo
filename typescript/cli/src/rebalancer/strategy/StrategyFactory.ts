@@ -22,7 +22,7 @@ export class StrategyFactory {
   static createStrategy(
     rebalanceStrategy: StrategyOptions,
     config: ChainMap<ChainConfig>,
-    tokensByChainName: Map<string, Token>,
+    tokensByChainName: ChainMap<Token>,
   ): IStrategy {
     if (rebalanceStrategy === StrategyOptions.Weighted) {
       return new WeightedStrategy(config as WeightedStrategyConfig);

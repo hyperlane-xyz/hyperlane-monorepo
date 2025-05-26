@@ -21,7 +21,7 @@ export class MinAmountStrategy extends BaseStrategy {
 
   constructor(
     config: MinAmountStrategyConfig,
-    private readonly tokensByChainName: Map<string, Token>,
+    private readonly tokensByChainName: ChainMap<Token>,
   ) {
     const chains = Object.keys(config);
     super(chains);
@@ -111,9 +111,9 @@ export class MinAmountStrategy extends BaseStrategy {
   }
 
   protected getTokenByChainName(chainName: string): Token {
-    const token = this.tokensByChainName.get(chainName);
+    const token = this.tokensByChainName[chainName];
 
-    if (!token) {
+    if (token === undefined) {
       throw new Error(`Token not found for chain ${chainName}`);
     }
 
