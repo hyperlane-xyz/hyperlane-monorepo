@@ -2,7 +2,7 @@ import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 export type BridgeConfig = {
   bridge: string;
-  bridgeMinAcceptedAmount: bigint;
+  bridgeMinAcceptedAmount: string | number;
   bridgeIsWarp: boolean;
   overrides?: ChainMap<Partial<BridgeConfig>>;
 };

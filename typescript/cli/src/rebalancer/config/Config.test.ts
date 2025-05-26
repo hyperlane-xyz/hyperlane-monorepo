@@ -418,7 +418,7 @@ describe('Config', () => {
 
       const chain2Overrides = chain1Overrides!.chain2;
       expect(chain2Overrides).to.have.property('bridgeMinAcceptedAmount');
-      expect(chain2Overrides.bridgeMinAcceptedAmount).to.equal(4000n);
+      expect(chain2Overrides.bridgeMinAcceptedAmount).to.equal(4000);
 
       const chain3Overrides = chain1Overrides!.chain3;
       expect(chain3Overrides).to.have.property('bridge');

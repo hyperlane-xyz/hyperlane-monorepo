@@ -746,7 +746,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         },
         bridge: bridgeContract.address,
         bridgeLockTime: 1,
-        bridgeMinAcceptedAmount: '5000000000000000001',
+        bridgeMinAcceptedAmount: '5.000001',
       },
     });
 

@@ -9,7 +9,7 @@ import {
   type TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { stringifyObject } from '@hyperlane-xyz/utils';
+import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
 import type { IExecutor } from '../interfaces/IExecutor.js';
@@ -110,7 +110,10 @@ export class Executor implements IExecutor {
 
       // Skip this rebalance route if the amount is below the configured minimum threshold.
       // This prevents dust amounts or economically unviable transfers
-      if (bridgeMinAcceptedAmount > amount) {
+      const minAccepted = BigInt(
+        toWei(bridgeMinAcceptedAmount, originTokenAmount.token.decimals),
+      );
+      if (minAccepted > amount) {
         log(
           `Route ${origin} → ${destination} skipped: amount ${decimalFormatAmount} ${originToken.name} below minimum threshold ${bridgeMinAcceptedAmount}`,
         );

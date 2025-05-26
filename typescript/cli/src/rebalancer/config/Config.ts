@@ -32,11 +32,7 @@ const MinAmountConfigSchema = z.object({
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
-  bridgeMinAcceptedAmount: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val))
-    .optional(),
+  bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
     .positive()

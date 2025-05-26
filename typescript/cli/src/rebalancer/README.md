@@ -38,7 +38,7 @@ sepolia:
 
   # Optional: Minimum amount to bridge (in wei)
   # Used to prevent transferring small amounts that are not worth the gas cost
-  bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
+  bridgeMinAcceptedAmount: 1 # 1 USDC
 
   # Optional: Set to true if the bridge is another Warp Route
   # This is because bridges composed of other Warp Routes are interacted with differently
@@ -53,7 +53,7 @@ sepolia:
     arbitrumsepolia: # Chain name to override settings for
       bridge: '0x4321...' # Use a different bridge when sending to this chain
       bridgeLockTime: 300000 # 5 minutes in ms
-      bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
+      bridgeMinAcceptedAmount: 1 # 1 USDC
       bridgeIsWarp: true
 
   # Strategy-specific parameters (depending on rebalanceStrategy)
