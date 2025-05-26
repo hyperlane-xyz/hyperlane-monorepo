@@ -329,13 +329,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         address = await deployStorage(
           new StorageMerkleRootMultisigIsm__factory(),
-          await getZKSyncArtifactByContractName('StorageMerkleRootMultisigIsm'),
+          await getZKSyncArtifactByContractName(config.type),
         );
         break;
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         address = await deployStorage(
           new StorageMessageIdMultisigIsm__factory(),
-          await getZKSyncArtifactByContractName('StorageMessageIdMultisigIsm'),
+          await getZKSyncArtifactByContractName(config.type),
         );
         break;
       default:
@@ -560,7 +560,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
-          await getZKSyncArtifactByContractName('DefaultFallbackRoutingIsm'),
+          await getZKSyncArtifactByContractName(config.type),
         );
         // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');
