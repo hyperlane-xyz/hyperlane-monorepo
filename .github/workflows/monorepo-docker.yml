@@ -108,3 +108,12 @@ jobs:
           build-args: |
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Comment on PR with new image tag
+        if: github.event.pull_request.number != ''
+        uses: ./.github/actions/pr-comment
+        with:
+          comment_tag: Monorepo Docker Image
+          message: "Published image tag: `${{ steps.meta.outputs.tags }}`"
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
