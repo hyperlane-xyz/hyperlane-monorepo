@@ -384,12 +384,35 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (starkKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let address = signer
+                .chain(&mut err)
+                .get_opt_key("address")
+                .parse_address_hash()
+                .unwrap_or_default();
+            let is_legacy = signer
+                .chain(&mut err)
+                .get_opt_key("legacy")
+                .parse_bool()
+                .unwrap_or(false);
+            err.into_result(SignerConf::StarkKey {
+                key,
+                address,
+                is_legacy,
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("starkKey") => parse_signer!(starkKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }
