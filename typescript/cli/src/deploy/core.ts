@@ -27,6 +27,7 @@ import {
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
+  validateCoreIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -66,6 +67,10 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
+
+  // Validate ISM compatibility
+  validateCoreIsmCompatibility(chain, config, context);
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
