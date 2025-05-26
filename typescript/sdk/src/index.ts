@@ -112,6 +112,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -719,7 +720,7 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-
+export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   StarknetContractName,
   getStarknetContract,
