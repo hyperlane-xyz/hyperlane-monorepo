@@ -47,9 +47,9 @@ export class MinAmountStrategy extends BaseStrategy {
           `Target amount (${target}) cannot be negative for chain ${chain}`,
         );
       }
-
-      this.config = config;
     }
+
+    this.config = config;
   }
 
   /**
