@@ -102,7 +102,7 @@ async function main() {
 
   // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
   rootLogger.info(
-    `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes${warpRouteId}-deploy.yaml`,
+    `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes/${warpRouteId}-deploy.yaml`,
   );
 }
 
