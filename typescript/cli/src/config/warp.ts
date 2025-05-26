@@ -185,8 +185,6 @@ export async function createWarpRouteDeployConfig({
         owner,
         excludeStaticIsms,
       );
-    } else {
-      interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
 
     const type = await select({
