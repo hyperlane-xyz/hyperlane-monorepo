@@ -43,7 +43,7 @@ pub enum HyperlaneStarknetError {
     InvalidTransactionReceipt,
     /// Pending Transaction receipt
     #[error("Pending transaction receipt")]
-    PendingTransaction(PendingTransactionReceipt),
+    PendingTransaction(Box<PendingTransactionReceipt>),
     /// Block is invalid
     #[error("Invalid block")]
     InvalidBlock,
