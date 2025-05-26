@@ -38,7 +38,7 @@ sepolia:
 
   # Optional: Minimum amount to bridge (in wei)
   # Used to prevent transferring small amounts that are not worth the gas cost
-  bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
+  bridgeMinAcceptedAmount: 1 # 1 USDC
 
   # Optional: Set to true if the bridge is another Warp Route
   # This is because bridges composed of other Warp Routes are interacted with differently
@@ -53,7 +53,7 @@ sepolia:
     arbitrumsepolia: # Chain name to override settings for
       bridge: '0x4321...' # Use a different bridge when sending to this chain
       bridgeLockTime: 300000 # 5 minutes in ms
-      bridgeMinAcceptedAmount: 1000000 # 1 USDC (6 decimals)
+      bridgeMinAcceptedAmount: 1 # 1 USDC
       bridgeIsWarp: true
 
   # Strategy-specific parameters (depending on rebalanceStrategy)
@@ -69,10 +69,11 @@ sepolia:
   # For minAmount strategy (absolute):
   minAmount:
     # Absolute requires exact token amounts
-    # Required: Minimum amount to maintain on this chain (in wei)
-    min: 100000000 # 100 USDC (6 decimals)
+    # Required: Minimum amount to maintain on this chain (token units)
+    min: 100 # 100 USDC
     # Required: The objective value to rebalance to.
-    target: 110000000 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+    target: 110 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
+    type: 'absolute'
 
   # For minAmount strategy (relative):
   minAmount:
@@ -82,6 +83,7 @@ sepolia:
     min: 0.3 # 30%
     # Required: The objective value to rebalance to.
     target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
+    type: 'relative'
 ```
 
 ## Basic Usage

@@ -1,8 +1,9 @@
-import { IRegistry } from '@hyperlane-xyz/registry';
+import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
+  type ChainMap,
+  type ChainMetadata,
   MultiProtocolProvider,
+  type Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
@@ -11,8 +12,8 @@ import { logDebug } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
 import { WithSemaphore } from '../executor/WithSemaphore.js';
-import { IExecutor } from '../interfaces/IExecutor.js';
-import { IStrategy } from '../interfaces/IStrategy.js';
+import type { IExecutor } from '../interfaces/IExecutor.js';
+import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
@@ -25,12 +26,14 @@ export class RebalancerContextFactory {
    * @param config - The rebalancer config
    * @param metadata - A `ChainMap` of chain names and `ChainMetadata` objects, sourced from the `IRegistry`.
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
+   * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    */
   private constructor(
     private readonly registry: IRegistry,
     private readonly config: Config,
     private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
+    private readonly tokensByChainName: ChainMap<Token>,
   ) {}
 
   /**
@@ -56,8 +59,18 @@ export class RebalancerContextFactory {
       );
     }
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
+    const tokensByChainName = Object.fromEntries(
+      warpCore.tokens.map((t) => [t.chainName, t]),
+    );
+
     logDebug('RebalancerContextFactory created successfully');
-    return new RebalancerContextFactory(registry, config, metadata, warpCore);
+    return new RebalancerContextFactory(
+      registry,
+      config,
+      metadata,
+      warpCore,
+      tokensByChainName,
+    );
   }
 
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
@@ -88,6 +101,7 @@ export class RebalancerContextFactory {
     return StrategyFactory.createStrategy(
       this.config.rebalanceStrategy,
       this.config.chains,
+      this.tokensByChainName,
     );
   }
 
@@ -96,13 +110,14 @@ export class RebalancerContextFactory {
     const executor = new Executor(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0n,
+        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
         bridgeIsWarp: v.bridgeIsWarp ?? false,
         override: v.override,
       })),
       this.config.rebalancerKey,
       this.warpCore,
       this.metadata,
+      this.tokensByChainName,
     );
 
     return new WithSemaphore(this.config, executor);

@@ -5,21 +5,19 @@ import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
-/**
- * Configuration for weighted strategy
- */
-export type WeightedStrategyConfig = ChainConfig &
-  Required<Pick<ChainConfig, 'weighted'>>;
+export type WeightedStrategyConfig = ChainMap<
+  ChainConfig & Required<Pick<ChainConfig, 'weighted'>>
+>;
 
 /**
  * Strategy implementation that rebalance based on weights
  * It distributes funds across chains based on their weights
  */
 export class WeightedStrategy extends BaseStrategy {
-  private readonly config: ChainMap<WeightedStrategyConfig>;
+  private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
 
-  constructor(config: ChainMap<WeightedStrategyConfig>) {
+  constructor(config: WeightedStrategyConfig) {
     const chains = Object.keys(config);
     super(chains);
 
@@ -29,11 +27,15 @@ export class WeightedStrategy extends BaseStrategy {
       const { weight, tolerance } = config[chain].weighted;
 
       if (weight <= 0n) {
-        throw new Error('Weight must be greater than 0');
+        throw new Error(
+          `Weight (${weight}) must be greater than 0 for ${chain}`,
+        );
       }
 
       if (tolerance < 0n || tolerance > 100n) {
-        throw new Error('Tolerance must be between 0 and 100');
+        throw new Error(
+          `Tolerance (${tolerance}) must be between 0 and 100 for ${chain}`,
+        );
       }
 
       totalWeight += weight;

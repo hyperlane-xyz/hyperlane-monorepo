@@ -18,19 +18,21 @@ const WeightedChainConfigSchema = z.object({
     .transform((val) => BigInt(val)),
 });
 
+export enum MinAmountType {
+  Absolute = 'absolute',
+  Relative = 'relative',
+}
+
 const MinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
+  type: z.nativeEnum(MinAmountType),
 });
 
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
-  bridgeMinAcceptedAmount: z
-    .string()
-    .or(z.number())
-    .transform((val) => BigInt(val))
-    .optional(),
+  bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
     .positive()
@@ -115,6 +117,10 @@ export type ChainConfigInput = z.input<typeof ChainConfigSchema>;
 export type BaseConfig = z.infer<typeof BaseConfigSchema>;
 export type BaseConfigInput = z.input<typeof BaseConfigSchema>;
 
+// TODO: Simplify this typing structure by modifying `BaseConfigSchema` to have a `chains` entry
+//  `chains: z.record(z.string(), ChainConfigSchema),`
+//  Thus we avoid having mixed "specific" vs "index signature", and migrate all to "specific".
+//  An example of what the issue is can be found at: https://tsplay.dev/NljqOW
 export type ConfigFileInput = BaseConfigInput &
   ChainMap<
     | ChainConfigInput

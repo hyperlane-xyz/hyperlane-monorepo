@@ -26,7 +26,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { StrategyOptions } from '../../rebalancer/index.js';
+import { MinAmountType, StrategyOptions } from '../../rebalancer/index.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
@@ -746,7 +746,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         },
         bridge: bridgeContract.address,
         bridgeLockTime: 1,
-        bridgeMinAcceptedAmount: '5000000000000000001',
+        bridgeMinAcceptedAmount: '5.000001',
       },
     });
 
@@ -1039,6 +1039,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         minAmount: {
           min: '-100',
           target: '110',
+          type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
@@ -1047,17 +1048,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         minAmount: {
           min: '100',
           target: '110',
+          type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
         bridgeLockTime: 1,
       },
     });
 
-    await startRebalancerAndExpectLog('Minimum amount cannot be negative', {
-      timeout: 10000,
-      withMetrics: false,
-      rebalanceStrategy: StrategyOptions.MinAmount,
-    });
+    await startRebalancerAndExpectLog(
+      'Minimum amount (-100) cannot be negative for chain anvil2',
+      {
+        timeout: 10000,
+        withMetrics: false,
+        rebalanceStrategy: StrategyOptions.MinAmount,
+      },
+    );
   });
 
   it('should use another warp route as bridge', async () => {

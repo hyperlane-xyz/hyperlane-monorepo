@@ -1,16 +1,15 @@
 import { ethers } from 'ethers';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
   EvmHypCollateralAdapter,
-  InterchainGasQuote,
-  Token,
-  TokenAmount,
-  WarpCore,
+  type InterchainGasQuote,
+  type Token,
+  type TokenAmount,
+  type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { stringifyObject } from '@hyperlane-xyz/utils';
+import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
 import type { IExecutor } from '../interfaces/IExecutor.js';
@@ -18,18 +17,13 @@ import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 
 export class Executor implements IExecutor {
-  private readonly tokensByChainName: Map<ChainName, Token>;
-
   constructor(
     private readonly bridges: ChainMap<BridgeConfig>,
     private readonly rebalancerKey: string,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
-  ) {
-    this.tokensByChainName = new Map(
-      warpCore.tokens.map((t) => [t.chainName, t]),
-    );
-  }
+    private readonly tokensByChainName: ChainMap<Token>,
+  ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
     log(`Rebalance initiated with ${routes.length} route(s)`);
@@ -51,16 +45,16 @@ export class Executor implements IExecutor {
     for (const route of routes) {
       const { origin, destination, amount } = route;
 
-      const originToken = tokensByChainName.get(origin);
-      const destinationToken = tokensByChainName.get(destination);
+      const originToken = tokensByChainName[origin];
+      const destinationToken = tokensByChainName[destination];
 
-      if (!originToken) {
+      if (originToken === undefined) {
         throw new Error(
           `Token not found for chain ${origin}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
         );
       }
 
-      if (!destinationToken) {
+      if (destinationToken === undefined) {
         throw new Error(
           `Token not found for chain ${destination}, for route from ${route.origin} to ${route.destination} for ${route.amount}`,
         );
@@ -116,7 +110,10 @@ export class Executor implements IExecutor {
 
       // Skip this rebalance route if the amount is below the configured minimum threshold.
       // This prevents dust amounts or economically unviable transfers
-      if (bridgeMinAcceptedAmount > amount) {
+      const minAccepted = BigInt(
+        toWei(bridgeMinAcceptedAmount, originTokenAmount.token.decimals),
+      );
+      if (minAccepted > amount) {
         log(
           `Route ${origin} → ${destination} skipped: amount ${decimalFormatAmount} ${originToken.name} below minimum threshold ${bridgeMinAcceptedAmount}`,
         );

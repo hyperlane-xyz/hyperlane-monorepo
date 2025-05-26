@@ -1,66 +1,55 @@
 import { BigNumber } from 'bignumber.js';
 
-import type { ChainMap } from '@hyperlane-xyz/sdk';
+import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
+import { toWei } from '@hyperlane-xyz/utils';
 
-import type { ChainConfig } from '../config/Config.js';
+import { type ChainConfig, MinAmountType } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
-export type MinAmountStrategyConfig = ChainConfig &
-  Required<Pick<ChainConfig, 'minAmount'>>;
-
-type InferredConfig =
-  | {
-      min: number;
-      target: number;
-      isRelative: true;
-    }
-  | {
-      min: bigint;
-      target: bigint;
-      isRelative: false;
-    };
+export type MinAmountStrategyConfig = ChainMap<
+  ChainConfig & Required<Pick<ChainConfig, 'minAmount'>>
+>;
 
 /**
  * Strategy implementation that rebalance based on minimum amounts
  * It ensures each chain has at least the specified minimum amount
  */
 export class MinAmountStrategy extends BaseStrategy {
-  private readonly config: ChainMap<InferredConfig> = {};
+  private readonly config: MinAmountStrategyConfig = {};
 
-  constructor(config: ChainMap<MinAmountStrategyConfig>) {
+  constructor(
+    config: MinAmountStrategyConfig,
+    private readonly tokensByChainName: ChainMap<Token>,
+  ) {
     const chains = Object.keys(config);
     super(chains);
 
     for (const chain of chains) {
-      const { min, target } = Object.fromEntries(
-        Object.entries(config[chain].minAmount).map(([k, v]) => [
-          k,
-          BigNumber(v.toString()),
-        ]),
-      );
+      const { min, target } = config[chain].minAmount;
 
       // check range constraints
-      if (target.lt(min)) {
+      if (BigNumber(target).lt(min)) {
         throw new Error(
-          `Target must be greater than or equal to min for chain ${chain}`,
+          `Target (${target}) must be greater than or equal to min (${min}) for chain ${chain}`,
         );
       }
 
-      if (min.lt(0)) {
-        throw new Error(`Minimum amount cannot be negative for chain ${chain}`);
+      if (BigNumber(min).lt(0)) {
+        throw new Error(
+          `Minimum amount (${min}) cannot be negative for chain ${chain}`,
+        );
       }
 
-      const isRelative =
-        min.gte(0) && min.lte(1) && target.gte(0) && target.lte(1);
-
-      this.config[chain] = {
-        min: isRelative ? min.toNumber() : BigInt(min.toString()),
-        target: isRelative ? target.toNumber() : BigInt(target.toString()),
-        isRelative,
-      } as InferredConfig;
+      if (BigNumber(target).lt(0)) {
+        throw new Error(
+          `Target amount (${target}) cannot be negative for chain ${chain}`,
+        );
+      }
     }
+
+    this.config = config;
   }
 
   /**
@@ -72,11 +61,6 @@ export class MinAmountStrategy extends BaseStrategy {
     surpluses: Delta[];
     deficits: Delta[];
   } {
-    // Get the total balance from all chains (needed for relative calculations)
-    const total = this.chains
-      .reduce((sum, chain) => sum + rawBalances[chain], 0n)
-      .toString();
-
     return this.chains.reduce(
       (acc, chain) => {
         const config = this.config[chain];
@@ -84,18 +68,24 @@ export class MinAmountStrategy extends BaseStrategy {
         let minAmount: bigint;
         let targetAmount: bigint;
 
-        if (!config.isRelative) {
-          minAmount = config.min;
-          targetAmount = config.target;
+        if (config.minAmount.type === MinAmountType.Absolute) {
+          const token = this.getTokenByChainName(chain);
+
+          minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
+          targetAmount = BigInt(toWei(config.minAmount.target, token.decimals));
         } else {
+          const total = this.chains
+            .reduce((sum, chain) => sum + rawBalances[chain], 0n)
+            .toString();
+
           minAmount = BigInt(
             BigNumber(total)
-              .times(config.min)
+              .times(config.minAmount.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(
             BigNumber(total)
-              .times(config.target)
+              .times(config.minAmount.target)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
         }
@@ -118,5 +108,15 @@ export class MinAmountStrategy extends BaseStrategy {
         deficits: [] as Delta[],
       },
     );
+  }
+
+  protected getTokenByChainName(chainName: string): Token {
+    const token = this.tokensByChainName[chainName];
+
+    if (token === undefined) {
+      throw new Error(`Token not found for chain ${chainName}`);
+    }
+
+    return token;
   }
 }
