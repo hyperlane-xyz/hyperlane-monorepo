@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
 use futures::future;
-use tendermint::abci::EventAttribute;
+use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::tx;
@@ -72,6 +72,9 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        if tx_hash.is_zero() {
+            return Ok(vec![]);
+        }
         let tx_response = self.provider().get_tx(&tx_hash).await?;
         let block_height = tx_response.height.value() as u32;
         let block = self.provider().get_block(block_height).await?;
@@ -142,6 +145,17 @@ where
             return vec![];
         };
 
+        // Cosmos can also emit events in the block itself, those events do not originate from a tx, but rather from the block
+        let mut block_events = block_results.finalize_block_events;
+
+        if let Some(begin_events) = block_results.begin_block_events {
+            block_events.extend(begin_events);
+        }
+
+        if let Some(end_events) = block_results.end_block_events {
+            block_events.extend(end_events);
+        }
+
         let tx_hashes: Vec<Hash> = block
             .clone()
             .block
@@ -183,6 +197,36 @@ where
             .collect()
     }
 
+    /// Iter through all events in the block, looking for any target events
+    fn handle_block_events(
+        &self,
+        events: Vec<Event>,
+        block_hash: H256,
+        block_height: u64,
+    ) -> impl Iterator<Item = (T, LogMeta)> {
+        events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+            if event.kind.as_str() != Self::target_type() {
+                return None;
+            }
+
+            self.parse(&event.attributes)
+                .map_err(|err| {
+                    trace!(?err, block_hash=?block_hash, log_idx, ?event, "Failed to parse block event attributes");
+                })
+                .ok()
+                .map(|parsed_event| {
+                    (parsed_event.event, LogMeta {
+                        address: parsed_event.contract_address,
+                        block_number: block_height,
+                        block_hash,
+                        transaction_id: H512::zero(),
+                        transaction_index: 0,
+                        log_index: U256::from(log_idx),
+                    })
+                })
+        })
+    }
+
     /// Iter through all events in the tx, looking for any target events
     /// made by the contract we are indexing.
     fn handle_tx(&self, tx: tx::Response, block_hash: H256) -> impl Iterator<Item = (T, LogMeta)> {
@@ -192,7 +236,6 @@ where
         let block_height = tx.height;
 
         tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
-
             if event.kind.as_str() != Self::target_type() {
                 return None;
             }
@@ -208,7 +251,7 @@ where
                         block_number: block_height.value(),
                         block_hash,
                         transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
-                        transaction_index: tx_index as u64,
+                        transaction_index: tx_index.into(),
                         log_index: U256::from(log_idx),
                     })
                 })
