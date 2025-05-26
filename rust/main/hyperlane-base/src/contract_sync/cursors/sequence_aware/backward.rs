@@ -158,7 +158,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         let low = current_indexing_snapshot
             .sequence
             .saturating_sub(self.chunk_size)
-            // Use the latest sequence as the upper bound of the range.
+            // Use the lowest sequence as the low bound of the range
+            // if the calculated low is less than the lowest sequence.
             .max(self.lowest_sequence);
         Some(low..=current_indexing_snapshot.sequence)
     }
