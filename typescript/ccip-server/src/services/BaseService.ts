@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 export abstract class BaseService {
   public readonly router: Router;
-  protected constructor(...args: any[]) {
+  protected constructor(..._args: any[]) {
     this.router = Router();
   }
 
