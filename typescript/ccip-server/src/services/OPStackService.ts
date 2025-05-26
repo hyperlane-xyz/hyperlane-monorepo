@@ -11,7 +11,7 @@ import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
 // Service that requests proofs from Succinct and RPC Provider
-export class OPStackService {
+export class OPStackService extends BaseService {
   // External Services
   crossChainMessenger: CrossChainMessenger;
   l1RpcService: RPCService;
@@ -20,6 +20,7 @@ export class OPStackService {
   public readonly router: Router;
 
   constructor() {
+    super();
     // Read configs from environment
     const hyperlaneConfig = { url: process.env.HYPERLANE_EXPLORER_API! };
     const l1RpcConfig = {
