@@ -23,6 +23,7 @@ import {
   logGray,
   logGreen,
   logPink,
+  logRed,
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';

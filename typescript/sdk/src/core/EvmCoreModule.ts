@@ -34,6 +34,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { shouldSkipStaticDeployment } from '../deploy/protocolDeploymentConfig.js';
 import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
 import { ProxyFactoryFactoriesAddresses } from '../deploy/types.js';

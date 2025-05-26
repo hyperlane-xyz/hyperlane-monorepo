@@ -714,6 +714,8 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
+export { shouldSkipStaticDeployment } from './deploy/protocolDeploymentConfig.js';
 export {
   getChainNameFromCCIPSelector,
   getCCIPChainSelector,

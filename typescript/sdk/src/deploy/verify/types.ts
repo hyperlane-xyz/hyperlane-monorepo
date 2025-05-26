@@ -62,6 +62,13 @@ export type ZKSyncCompilerOptions = {
   optimizationUsed: boolean;
 };
 
+export type ZKSyncCompilerOptions = {
+  codeFormat: 'solidity-standard-json-input';
+  compilerSolcVersion: string;
+  compilerZksolcVersion: string;
+  optimizationUsed: boolean;
+};
+
 export enum ExplorerApiActions {
   GETSOURCECODE = 'getsourcecode',
   VERIFY_IMPLEMENTATION = 'verifysourcecode',

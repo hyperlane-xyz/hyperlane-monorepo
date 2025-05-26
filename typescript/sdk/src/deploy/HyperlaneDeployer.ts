@@ -131,6 +131,15 @@ export abstract class HyperlaneDeployer<
     return verifier?.verifyContract(chain, input, logger);
   }
 
+  async verifyContractForZKSync(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ): Promise<void> {
+    const verifier = new ZKSyncContractVerifier(this.multiProvider);
+    return verifier?.verifyContract(chain, input, logger);
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
@@ -140,6 +149,7 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
+
     const ethereumConfigChains = configChains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
@@ -155,8 +165,9 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl =
-        await this.multiProvider.tryGetExplorerAddressUrl(chain);
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
@@ -278,6 +289,7 @@ export abstract class HyperlaneDeployer<
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
+
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
@@ -408,7 +420,6 @@ export abstract class HyperlaneDeployer<
         return cachedContract;
       }
     }
-
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
@@ -450,13 +461,14 @@ export abstract class HyperlaneDeployer<
           .estimateGas.initialize(...initializeArgs);
 
         const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
+          gasLimit: addBufferToGasLimit(estimatedGas),
         });
         this.logger.info(
           `Initializing contract ${contractName} on chain ${chain}...`,
         );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
+
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );
@@ -661,8 +673,9 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
-    const TimelockZkArtifact =
-      await getZKSyncArtifactByContractName('TimelockController');
+    const TimelockZkArtifact = await getZKSyncArtifactByContractName(
+      'TimelockController',
+    );
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
@@ -824,8 +837,9 @@ export abstract class HyperlaneDeployer<
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
-          const estimatedGas =
-            await ownable.estimateGas.transferOwnership(owner);
+          const estimatedGas = await ownable.estimateGas.transferOwnership(
+            owner,
+          );
           return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(owner, {

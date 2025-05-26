@@ -4,8 +4,8 @@ import {
   ContractFactory,
   ContractReceipt,
   ContractTransaction,
+  Signer as EthersSigner,
   PopulatedTransaction,
-  Signer,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
@@ -39,7 +39,8 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider;
+type Provider = providers.Provider | zk.Provider;
+type Signer = EthersSigner | zk.Wallet;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -55,7 +56,7 @@ export interface MultiProviderOptions {
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   readonly providers: ChainMap<Provider>;
   readonly providerBuilder: ProviderBuilderFn<Provider>;
-  signers: ChainMap<Signer>;
+  signers: ChainMap<zk.Wallet | Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
 
@@ -147,7 +148,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
+      this.setSigner(chainName, (signer as EthersSigner).connect(provider));
     }
     return provider;
   }
@@ -364,8 +365,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       });
     }
 
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
+    contract = await deployer.deploy(artifact, params, {
+      gasLimit: addBufferToGasLimit(estimatedGas),
+      ...overrides,
+    });
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
@@ -449,7 +452,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
-    const response = await signer.sendTransaction(txReq);
+
+    const response = await signer.sendTransaction({
+      ...txReq,
+    });
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }

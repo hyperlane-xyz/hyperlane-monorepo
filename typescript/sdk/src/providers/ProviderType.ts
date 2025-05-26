@@ -190,6 +190,10 @@ interface TypedContractBase<T> {
   contract: T;
 }
 
+export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
+  type: ProviderType.ZkSync;
+  contract: ZKSyncBaseContract;
+}
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
   contract: EV5Contract;
@@ -252,6 +256,11 @@ export interface EthersV5Transaction
   extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.EthersV5;
   transaction: EV5Transaction;
+}
+export interface ZKSyncTransaction
+  extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
+  type: ProviderType.ZkSync;
+  transaction: zkSyncTypes.TransactionRequest;
 }
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
@@ -318,6 +327,11 @@ interface TypedTransactionReceiptBase<T> {
   receipt: T;
 }
 
+export interface ZKSyncTransactionReceipt
+  extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
+  type: ProviderType.ZkSync;
+  receipt: zkSyncTypes.TransactionReceipt;
+}
 export interface EthersV5TransactionReceipt
   extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
   type: ProviderType.EthersV5;
