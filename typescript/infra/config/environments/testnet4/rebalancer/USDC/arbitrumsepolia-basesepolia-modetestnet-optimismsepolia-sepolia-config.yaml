@@ -1,20 +1,20 @@
 arbitrumsepolia:
   weight: '100'
-  tolerance: '15'
+  tolerance: '30'
   bridgeLockTime: 80000
   bridge: '0x88e688DFdE6E7a6f3Df968B20B5B12c594348542'
 optimismsepolia:
   weight: '100'
-  tolerance: '15'
+  tolerance: '30'
   bridgeLockTime: 80000
   bridge: '0x986a5a5e4700E87b4b596Ab4a6ac5d6215e963dc'
 basesepolia:
   weight: '100'
-  tolerance: '15'
+  tolerance: '30'
   bridgeLockTime: 80000
   bridge: '0x540c8f61DE5b75e7a95d471813C0079A4a30B2eF'
 sepolia:
   weight: '100'
-  tolerance: '15'
+  tolerance: '30'
   bridgeLockTime: 80000
   bridge: '0x635849EE15B8AAccb800f6F4981F00f63634edA3'
