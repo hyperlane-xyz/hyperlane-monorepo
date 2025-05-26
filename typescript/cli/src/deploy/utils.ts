@@ -5,15 +5,15 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
-  ChainTechnicalStack,
   CoreConfig,
   IsmConfig,
   IsmType,
   MultisigConfig,
+  WarpRouteDeployConfig,
   getLocalProvider,
-  shouldSkipStaticDeployment,
+  isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -197,28 +197,67 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
   };
 }
 
-/**
- * Checks if the given chain technical stack is compatible with the core configuration.
- *
- * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain.
- * @param {CoreConfig} params.config - The core configuration to check.
- * @returns {boolean} True if the configuration is compatible, false otherwise.
- */
-export function checkTechStackCoreConfigCompatibility({
-  chainTechnicalStack,
-  config,
+function validateIsmCompatibility({
+  chain,
+  ismType,
+  context,
 }: {
-  chainTechnicalStack: ChainTechnicalStack | undefined;
-  config: CoreConfig;
-}): boolean {
-  // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
-  if (
-    shouldSkipStaticDeployment(chainTechnicalStack) &&
-    typeof config.defaultIsm !== 'string' &&
-    config.defaultIsm.type === IsmType.AGGREGATION
-  ) {
-    logRed('⛔ Static contract deployment not available on ZKSync!');
-    return false;
+  chain: ChainName;
+  ismType?: IsmType;
+  context: WriteCommandContext;
+}) {
+  const { technicalStack: chainTechnicalStack } =
+    context.multiProvider.getChainMetadata(chain);
+
+  if (ismType) {
+    assert(
+      isIsmCompatible({
+        ismType,
+        chainTechnicalStack,
+      }),
+      `Selected ISM of type ${ismType} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+    );
   }
-  return true;
+}
+
+/**
+ * Validates that the ISM configuration is compatible with the chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured.
+ */
+export function validateCoreIsmCompatibility(
+  chain: ChainName,
+  config: CoreConfig,
+  context: WriteCommandContext,
+) {
+  if (typeof config.defaultIsm !== 'string') {
+    validateIsmCompatibility({
+      chain,
+      ismType: config.defaultIsm?.type,
+      context,
+    });
+  }
+}
+
+/**
+ * Validates that the ISM configurations are compatible with each chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured for a chain.
+ */
+export function validateWarpIsmCompatibility(
+  warpRouteConfig: WarpRouteDeployConfig,
+  context: WriteCommandContext,
+) {
+  for (const chain of Object.keys(warpRouteConfig)) {
+    const config = warpRouteConfig[chain];
+
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      validateIsmCompatibility({
+        chain,
+        ismType: config.interchainSecurityModule.type,
+        context,
+      });
+    }
+  }
 }

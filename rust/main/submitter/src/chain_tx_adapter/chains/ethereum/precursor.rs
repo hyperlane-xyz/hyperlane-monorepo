@@ -1,14 +1,29 @@
 use std::fmt::Debug;
 
-use ethers::abi::Function;
 use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::{abi::Function, types::H160};
 
 use crate::payload::{FullPayload, PayloadDetails};
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct EthereumTxPrecursor {
     pub tx: TypedTransaction,
     pub function: Function,
+}
+
+impl Debug for EthereumTxPrecursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EthereumTxPrecursor")
+            .field("tx.from", &self.tx.from())
+            .field("tx.to", &self.tx.to())
+            .field("tx.nonce", &self.tx.nonce())
+            .field("tx.gas_limit", &self.tx.gas())
+            .field("tx.gas_price", &self.tx.gas_price())
+            .field("tx.chain_id", &self.tx.chain_id())
+            .field("tx.value", &self.tx.value())
+            .field("function.name", &self.function.name)
+            .finish()
+    }
 }
 
 impl PartialEq for EthereumTxPrecursor {
@@ -28,10 +43,12 @@ impl EthereumTxPrecursor {
         Self { tx, function }
     }
 
-    pub fn from_payload(payload: &FullPayload) -> Self {
+    pub fn from_payload(payload: &FullPayload, signer: H160) -> Self {
         use super::payload::parse_data;
 
-        let (tx, function) = parse_data(payload);
+        let (mut tx, function) = parse_data(payload);
+        tx.set_from(signer);
+
         EthereumTxPrecursor::new(tx, function)
     }
 

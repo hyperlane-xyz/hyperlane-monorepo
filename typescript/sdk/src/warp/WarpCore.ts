@@ -227,6 +227,11 @@ export class WarpCore {
       interchainFee,
     });
 
+    // Starknet does not support gas estimation without starknet account
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
+
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
       try {

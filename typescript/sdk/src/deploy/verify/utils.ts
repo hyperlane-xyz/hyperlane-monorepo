@@ -1,5 +1,6 @@
 import { Interface } from '@ethersproject/abi';
 import { ethers, utils } from 'ethers';
+import { Hex, decodeFunctionData, parseAbi } from 'viem';
 
 import {
   ProxyAdmin__factory,
@@ -89,7 +90,7 @@ export async function getContractVerificationInputForZKSync({
   isProxy?: boolean;
   expectedimplementation?: Address;
 }): Promise<ContractVerificationInput> {
-  const args = await encodeArguments(artifact.abi, constructorArgs);
+  const args = encodeArguments(artifact.abi, constructorArgs);
   return buildVerificationInput(
     name,
     contract.address,
@@ -99,20 +100,9 @@ export async function getContractVerificationInputForZKSync({
   );
 }
 
-export async function encodeArguments(
-  abi: any,
-  constructorArgs: any[],
-): Promise<string> {
-  const contractInterface = new Interface(abi);
-  let deployArgumentsEncoded;
-  try {
-    deployArgumentsEncoded = contractInterface
-      .encodeDeploy(constructorArgs)
-      .replace('0x', '');
-  } catch {
-    throw new Error('Cant encode constructor args');
-  }
-  return deployArgumentsEncoded;
+export function encodeArguments(abi: any, constructorArgs: any[]): string {
+  const contractInterface = new utils.Interface(abi);
+  return contractInterface.encodeDeploy(constructorArgs).replace('0x', '');
 }
 
 /**
@@ -137,7 +127,14 @@ export function shouldAddVerificationInput(
 }
 
 /**
- * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
+ * @notice Defines verification delay times for different blockchain explorer families.
+ * @dev This constant object associates explorer families with specific delay times (in milliseconds)
+ */
+export const FamilyVerificationDelay = {
+  [ExplorerFamily.Etherscan]: 40000,
+} as const;
+
+/** Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 export async function getConstructorArgumentsApi({
   chainName,
@@ -163,6 +160,13 @@ export async function getConstructorArgumentsApi({
         multiProvider,
       });
       break;
+    case ExplorerFamily.ZkSync:
+      constructorArgs = await getZKSyncConstructorArgs({
+        chainName,
+        contractAddress,
+        multiProvider,
+      });
+      break;
     case ExplorerFamily.Blockscout:
       constructorArgs = await getBlockScoutConstructorArgs({
         chainName,
@@ -175,6 +179,51 @@ export async function getConstructorArgumentsApi({
   }
 
   return constructorArgs;
+}
+
+async function getConstructorArgsFromExplorer({
+  chainName,
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
+  contractAddress,
+  multiProvider,
+}: {
+  blockExplorerApiKey?: string;
+  blockExplorerApiUrl: string;
+  chainName: string;
+  contractAddress: Address;
+  multiProvider: MultiProvider;
+}) {
+  const url = new URL(blockExplorerApiUrl);
+  url.searchParams.append('module', 'contract');
+  url.searchParams.append('action', 'getcontractcreation');
+  url.searchParams.append('contractaddresses', contractAddress);
+
+  if (blockExplorerApiKey)
+    url.searchParams.append('apikey', blockExplorerApiKey);
+
+  const explorerResp = await fetch(url);
+  const creationTx = (await explorerResp.json()).result[0];
+
+  // Fetch deployment bytecode (includes constructor args)
+  assert(creationTx, 'Contract creation transaction not found!');
+  const metadata = multiProvider.getChainMetadata(chainName);
+  const rpcUrl = metadata.rpcUrls[0].http;
+
+  const creationTxResp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      method: 'eth_getTransactionByHash',
+      params: [creationTx.txHash],
+      id: 1,
+      jsonrpc: '2.0',
+    }),
+  });
+
+  return creationTxResp.json();
 }
 
 export async function getEtherscanConstructorArgs({
@@ -217,6 +266,40 @@ export async function getEtherscanConstructorArgs({
   // Truncate the deployment bytecode
   const creationInput: string = (await creationTxResp.json()).result.input;
   return creationInput.substring(bytecode.length);
+}
+
+export async function getZKSyncConstructorArgs({
+  chainName,
+  contractAddress,
+  multiProvider,
+}: {
+  chainName: string;
+  contractAddress: Address;
+  multiProvider: MultiProvider;
+}): Promise<string> {
+  const { apiUrl, apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+
+  // Create the API URL using Registry blockExplorers.apiUrl
+  // Assumes that ZkSync uses something like `https://zero-network.calderaexplorer.xyz/verification/contract_verification`.
+  const blockExplorerApiUrl = new URL('/api', new URL(apiUrl).origin).href;
+
+  // Truncate the deployment bytecode
+  const creationTxResp = await getConstructorArgsFromExplorer({
+    chainName,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
+    contractAddress,
+    multiProvider,
+  });
+  const creationInput: string = creationTxResp.result.input;
+
+  const res = decodeFunctionData({
+    abi: parseAbi(['function create(bytes32,bytes32,bytes)']),
+    data: creationInput as Hex,
+  });
+
+  return res.args[2].replace('0x', '');
 }
 
 export async function getBlockScoutConstructorArgs({

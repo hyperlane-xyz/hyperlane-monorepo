@@ -4,6 +4,7 @@ export * as coreQuery from './types/hyperlane/core/v1/query.js';
 export * as coreTx from './types/hyperlane/core/v1/tx.js';
 export * as coreTypes from './types/hyperlane/core/v1/types.js';
 
+export * as isEvents from './types/hyperlane/core/interchain_security/v1/events.js';
 export * as isGenesis from './types/hyperlane/core/interchain_security/v1/genesis.js';
 export * as isQuery from './types/hyperlane/core/interchain_security/v1/query.js';
 export * as isTx from './types/hyperlane/core/interchain_security/v1/tx.js';
@@ -16,6 +17,7 @@ export * as pdTx from './types/hyperlane/core/post_dispatch/v1/tx.js';
 export * as pdTypes from './types/hyperlane/core/post_dispatch/v1/types.js';
 
 export * as warpEvents from './types/hyperlane/warp/v1/events.js';
+export * as warpGenesis from './types/hyperlane/warp/v1/genesis.js';
 export * as warpQuery from './types/hyperlane/warp/v1/query.js';
 export * as warpTx from './types/hyperlane/warp/v1/tx.js';
 export * as warpTypes from './types/hyperlane/warp/v1/types.js';

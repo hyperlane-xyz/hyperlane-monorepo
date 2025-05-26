@@ -9,6 +9,7 @@ import { CosmNativeCoreAdapter } from './adapters/CosmNativeCoreAdapter.js';
 import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter.js';
 import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
 import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter.js';
+import { StarknetCoreAdapter } from './adapters/StarknetCoreAdapter.js';
 import { ICoreAdapter } from './adapters/types.js';
 import { CoreAddresses } from './contracts.js';
 
@@ -41,6 +42,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     if (protocol === ProtocolType.CosmosNative) return CosmNativeCoreAdapter;
+    if (protocol === ProtocolType.Starknet) return StarknetCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

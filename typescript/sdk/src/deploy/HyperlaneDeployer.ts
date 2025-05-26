@@ -32,7 +32,10 @@ import { HookConfig } from '../hook/types.js';
 import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
-import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
@@ -82,6 +85,8 @@ export abstract class HyperlaneDeployer<
   protected logger: Logger;
   chainTimeoutMs: number;
 
+  private zkSyncContractVerifier: ZKSyncContractVerifier;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
@@ -105,6 +110,8 @@ export abstract class HyperlaneDeployer<
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
+
+    this.zkSyncContractVerifier = new ZKSyncContractVerifier(multiProvider);
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -116,7 +123,12 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    return this.options.contractVerifier?.verifyContract(chain, input, logger);
+    const explorerFamily = this.multiProvider.tryGetExplorerApi(chain)?.family;
+    const verifier =
+      explorerFamily === ExplorerFamily.ZkSync
+        ? this.zkSyncContractVerifier
+        : this.options.contractVerifier;
+    return verifier?.verifyContract(chain, input, logger);
   }
 
   async verifyContractForZKSync(
@@ -153,8 +165,9 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl =
-        await this.multiProvider.tryGetExplorerAddressUrl(chain);
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
@@ -451,7 +464,9 @@ export abstract class HyperlaneDeployer<
           ...overrides,
           gasLimit: addBufferToGasLimit(estimatedGas),
         });
-        this.logger.info(`Contract ${contractName} initialized`);
+        this.logger.info(
+          `Initializing contract ${contractName} on chain ${chain}...`,
+        );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
 
         this.logger.debug(
@@ -463,8 +478,9 @@ export abstract class HyperlaneDeployer<
     let verificationInput: ContractVerificationInput;
     if (isZKSyncChain) {
       if (!artifact) {
-        // TODO: ARTIFACT NOT FOUND ERROR
-        throw Error('Artifact not found');
+        throw new Error(
+          `No ZkSync artifact found for contract: ${contractName}`,
+        );
       }
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
@@ -486,10 +502,7 @@ export abstract class HyperlaneDeployer<
 
     // try verifying contract
     try {
-      await this[isZKSyncChain ? 'verifyContractForZKSync' : 'verifyContract'](
-        chain,
-        verificationInput,
-      );
+      await this.verifyContract(chain, verificationInput);
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
@@ -660,9 +673,9 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
-    const TimelockZkArtifact =
-      await getZKSyncArtifactByContractName('TimelockController');
-
+    const TimelockZkArtifact = await getZKSyncArtifactByContractName(
+      'TimelockController',
+    );
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
@@ -824,8 +837,9 @@ export abstract class HyperlaneDeployer<
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
-          const estimatedGas =
-            await ownable.estimateGas.transferOwnership(owner);
+          const estimatedGas = await ownable.estimateGas.transferOwnership(
+            owner,
+          );
           return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(owner, {

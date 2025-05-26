@@ -30,9 +30,6 @@
   "artela": {
     "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
   },
-  "arthera": {
-    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
-  },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },

@@ -43,6 +43,7 @@ import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
+import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -493,9 +494,9 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Retrieves the ISM factory factories based on the provided protocol and parameters.
+   * Retrieves the ISM factory factories based on the provided technicalStack and parameters.
    *
-   * @param protocol - The protocol type to determine if static address set deployment should be skipped.
+   * @param technicalStack - The technicalStack to determine if static address set deployment should be skipped.
    * @param params - An object containing the parameters needed for ISM factory deployment.
    * @param params.chainName - The name of the chain for which the ISM factories are being deployed.
    * @param params.config - The core configuration to be used during deployment.
@@ -513,11 +514,9 @@ export class EvmCoreModule extends HyperlaneModule<
     },
   ): Promise<ProxyFactoryFactoriesAddresses> {
     // Check if we should skip static address set deployment
-    if (shouldSkipStaticDeployment(technicalStack)) {
+    if (!isStaticDeploymentSupported(technicalStack)) {
       return createDefaultProxyFactoryFactories();
-    } else {
-      // Otherwise, deploy ISM factories
-      return EvmCoreModule.deployIsmFactories(params);
     }
+    return EvmCoreModule.deployIsmFactories(params);
   }
 }

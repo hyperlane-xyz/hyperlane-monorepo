@@ -93,6 +93,7 @@ describe('2. cosmos sdk core e2e tests', async function () {
       default_hook: '',
       required_hook: '',
       new_owner: newOwner,
+      renounce_ownership: false,
     });
 
     // ASSERT

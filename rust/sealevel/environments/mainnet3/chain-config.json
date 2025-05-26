@@ -1505,10 +1505,10 @@
   "eclipsemainnet": {
     "blockExplorers": [
       {
-        "apiUrl": "https://explorer.eclipse.xyz/api",
+        "apiUrl": "https://api.eclipsescan.xyz/",
         "family": "other",
         "name": "Eclipse Explorer",
-        "url": "https://explorer.eclipse.xyz/"
+        "url": "https://eclipsescan.xyz/"
       }
     ],
     "blocks": {
@@ -2369,7 +2369,7 @@
   "immutablezkevmmainnet": {
     "blockExplorers": [
       {
-        "apiUrl": "https://explorer.immutable.com/api/eth-rpc",
+        "apiUrl": "https://explorer.immutable.com/api",
         "family": "blockscout",
         "name": "Immutable Explorer",
         "url": "https://explorer.immutable.com"
@@ -2659,6 +2659,68 @@
       }
     ],
     "technicalStack": "opstack"
+  },
+  "kyve": {
+    "bech32Prefix": "kyve",
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.kyve.network/kyve",
+        "family": "other",
+        "name": "Ping.Pub",
+        "url": "https://explorer.kyve.network/kyve"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 6,
+      "reorgPeriod": 1
+    },
+    "canonicalAsset": "ukyve",
+    "chainId": "kyve-1",
+    "contractAddressBytes": 32,
+    "deployer": {
+      "name": "KYVE",
+      "url": "https://kyve.network"
+    },
+    "displayName": "KYVE",
+    "domainId": 1264145989,
+    "gasCurrencyCoinGeckoId": "kyve-network",
+    "gasPrice": {
+      "amount": "2.0",
+      "denom": "ukyve"
+    },
+    "grpcUrls": [
+      {
+        "http": "https://grpc-raw.kyve.network"
+      }
+    ],
+    "index": {
+      "chunk": 10,
+      "from": 11592376
+    },
+    "name": "kyve",
+    "nativeToken": {
+      "decimals": 6,
+      "denom": "ukyve",
+      "name": "KYVE",
+      "symbol": "KYVE"
+    },
+    "protocol": "cosmosnative",
+    "restUrls": [
+      {
+        "http": "https://api.kyve.network"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://rpc.kyve.network"
+      }
+    ],
+    "slip44": 118,
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "gasPrice": "2.0"
+    }
   },
   "linea": {
     "blockExplorers": [
@@ -3180,6 +3242,45 @@
     ],
     "technicalStack": "opstack"
   },
+  "miraclechain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.miracleplay.io/api",
+        "family": "blockscout",
+        "name": "Miracle Chain explorer",
+        "url": "https://explorer.miracleplay.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 0
+    },
+    "chainId": 92278,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Miraclechain",
+    "domainId": 92278,
+    "gasCurrencyCoinGeckoId": "miracle-play",
+    "index": {
+      "from": 84964
+    },
+    "name": "miraclechain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "MiraclePlay",
+      "symbol": "MPT"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.miracleplay.io"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
+  },
   "mode": {
     "blockExplorers": [
       {
@@ -3540,7 +3641,6 @@
     "displayName": "Ontology",
     "domainId": 58,
     "gasCurrencyCoinGeckoId": "ong",
-    "isTestnet": false,
     "name": "ontology",
     "nativeToken": {
       "decimals": 18,
@@ -3787,10 +3887,10 @@
   "plume": {
     "blockExplorers": [
       {
-        "apiUrl": "https://phoenix-explorer.plumenetwork.xyz/api",
+        "apiUrl": "https://explorer.plume.org/api",
         "family": "blockscout",
         "name": "Plume Explorer",
-        "url": "https://phoenix-explorer.plumenetwork.xyz"
+        "url": "https://explorer.plume.org"
       }
     ],
     "blocks": {
@@ -3818,7 +3918,7 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://phoenix-rpc.plumenetwork.xyz"
+        "http": "https://rpc.plume.org"
       }
     ],
     "technicalStack": "arbitrumnitro"
@@ -4941,15 +5041,15 @@
   "svmbnb": {
     "blockExplorers": [
       {
-        "apiUrl": "https://explorer.svmbnbmainnet.soo.network/",
+        "apiUrl": "https://explorer.svmbnbmainnet.soo.network",
         "family": "other",
         "name": "svmBNB Explorer",
-        "url": "https://explorer.svmbnbmainnet.soo.network/"
+        "url": "https://explorer.svmbnbmainnet.soo.network"
       }
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 0.05,
+      "estimateBlockTime": 0.4,
       "reorgPeriod": 0
     },
     "chainId": 574456,

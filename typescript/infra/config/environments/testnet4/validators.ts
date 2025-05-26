@@ -245,18 +245,6 @@ export const validatorChainConfig = (
         'soneiumtestnet',
       ),
     },
-    suavetoliman: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('suavetoliman'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'suavetoliman',
-      ),
-    },
 
     unichaintestnet: {
       interval: 5,
@@ -569,6 +557,27 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xdb0128bb3d3f204eb18de7e8268e94fde0382daf'],
         },
         'bepolia',
+      ),
+    },
+
+    rometestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rometestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x259eec09dd54c34043bc991f1aae014294235b8e'],
+        },
+        'rometestnet',
+      ),
+    },
+    neuratestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('neuratestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d'],
+        },
+        'neuratestnet',
       ),
     },
   };

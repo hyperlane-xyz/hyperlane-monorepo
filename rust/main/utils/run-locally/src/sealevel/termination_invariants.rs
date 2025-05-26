@@ -1,11 +1,10 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
 use crate::{
     config::Config,
-    fetch_metric,
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
         scraper_termination_invariants_met, RelayerTerminationInvariantParams,
@@ -52,6 +51,7 @@ pub fn termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: sol_messages_with_non_matching_igp,
         sealevel_tx_id_indexing: true,
+        submitter_type,
     };
     if !relayer_termination_invariants_met(relayer_invariant_params.clone())? {
         log!("Relayer termination invariants not met");
@@ -84,145 +84,14 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(
-            relayer_invariant_params,
-            RELAYER_METRICS_PORT,
-            &hashmap! {"destination" => "sealeveltest2"},
-        )?
-    {
-        log!("Submitter metrics invariants not met");
-        return Ok(false);
-    }
-
     log!("Termination invariants have been meet");
-    Ok(true)
-}
-
-fn submitter_metrics_invariants_met(
-    params: RelayerTerminationInvariantParams,
-    relayer_port: &str,
-    filter_hashmap: &HashMap<&str, &str>,
-) -> eyre::Result<bool> {
-    let finalized_transactions = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_finalized_transactions",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-
-    let building_stage_queue_length = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_building_stage_queue_length",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-
-    let inclusion_stage_pool_length = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_inclusion_stage_pool_length",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-    let finality_stage_pool_length = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_finality_stage_pool_length",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-    let dropped_payloads = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_dropped_payloads",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-    let dropped_transactions = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_dropped_transactions",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-
-    let transaction_submissions = fetch_metric(
-        relayer_port,
-        "hyperlane_lander_transaction_submissions",
-        filter_hashmap,
-    )?
-    .iter()
-    .sum::<u32>();
-
-    if finalized_transactions < params.total_messages_expected {
-        log!(
-            "hyperlane_lander_finalized_transactions {} count, expected {}",
-            finalized_transactions,
-            params.total_messages_expected
-        );
-        return Ok(false);
-    }
-    if building_stage_queue_length != 0 {
-        log!(
-            "hyperlane_lander_building_stage_queue_length {} count, expected {}",
-            building_stage_queue_length,
-            0
-        );
-        return Ok(false);
-    }
-    if inclusion_stage_pool_length != 0 {
-        log!(
-            "hyperlane_lander_inclusion_stage_pool_length {} count, expected {}",
-            inclusion_stage_pool_length,
-            0
-        );
-        return Ok(false);
-    }
-    if finality_stage_pool_length != 0 {
-        log!(
-            "hyperlane_lander_finality_stage_pool_length {} count, expected {}",
-            finality_stage_pool_length,
-            0
-        );
-        return Ok(false);
-    }
-    if dropped_payloads != 0 {
-        log!(
-            "hyperlane_lander_dropped_payloads {} count, expected {}",
-            dropped_payloads,
-            0
-        );
-        return Ok(false);
-    }
-    if dropped_transactions != 0 {
-        log!(
-            "hyperlane_lander_dropped_transactions {} count, expected {}",
-            dropped_transactions,
-            0
-        );
-        return Ok(false);
-    }
-
-    // resubmissions are possible because it takes a while for the local
-    // solana validator to report a tx hash as included once broadcast
-    // but no more than 2 submissions are expected per message
-    if transaction_submissions > 2 * params.total_messages_expected {
-        log!(
-            "hyperlane_lander_transaction_submissions {} count, expected {}",
-            transaction_submissions,
-            params.total_messages_expected
-        );
-        return Ok(false);
-    }
-
     Ok(true)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::invariants::submitter_metrics_invariants_met;
     use maplit::hashmap;
 
     #[test]
@@ -231,7 +100,7 @@ mod tests {
         let filter_hashmap = hashmap! {
             "destination" => "sealeveltest2",
         };
-        let params = super::RelayerTerminationInvariantParams {
+        let params = RelayerTerminationInvariantParams {
             total_messages_expected: 10,
             // the rest are not used
             config: &crate::config::Config::load(),
@@ -244,9 +113,10 @@ mod tests {
             non_matching_igp_message_count: 0,
             double_insertion_message_count: 0,
             sealevel_tx_id_indexing: true,
+            submitter_type: SubmitterType::Lander,
         };
         assert_eq!(
-            super::submitter_metrics_invariants_met(
+            submitter_metrics_invariants_met(
                 params,
                 &relayer_metrics_port.to_string(),
                 &filter_hashmap

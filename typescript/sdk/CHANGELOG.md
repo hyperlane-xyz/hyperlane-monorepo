@@ -1,5 +1,49 @@
 # @hyperlane-xyz/sdk
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+  - @hyperlane-xyz/starknet-core@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Minor Changes
+
+- 6e86efa: Remove `defaultRpcConsensusType` from the agent config schema
+- c42ea09: Deploy to new chains: neuratestnet, rometestnet.
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/core@7.1.7
+  - @hyperlane-xyz/starknet-core@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
+## 13.0.0
+
+### Minor Changes
+
+- 72b90f8: add cosmos native core module & reader
+- bc58283: feat: Starknet SDK logic integration
+- 2724559: add cosmos native routing ism cosmos-sdk and types
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+- Updated dependencies [f8696c7]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/starknet-core@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+  - @hyperlane-xyz/core@7.1.6
+
 ## 12.6.0
 
 ### Minor Changes

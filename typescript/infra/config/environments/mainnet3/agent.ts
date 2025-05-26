@@ -74,7 +74,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: true,
+    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -223,7 +223,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
-    arthera: true,
+    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -372,7 +372,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: true,
+    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -818,6 +818,10 @@ const blacklistedMessageIds = [
 
   // oUSDT dest with zero'd out limits
   '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
+
+  // oUSDT messages sent to the zero address [2025-05-25]
+  '0x8149ccd407507fc2b066450ba125fc487461d9d8d99261b624496fdd8e30c129',
+  '0x4e11d1b530e15f1c5aa6ff9ddac7125397d9fb4b3d46f4690dab8e07cd634f6e',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -855,7 +859,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0fffbfb-20250514-130038',
+      tag: '1c01a4f-20250521-141620',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -880,7 +884,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'abdf139-20250514-081104',
+      tag: '197fd87-20250521-144619',
     },
     resources: scraperResources,
   },
@@ -895,7 +899,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0ad4122-20250514-154514',
+      tag: '4c678c5-20250521-125729',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

@@ -68,7 +68,12 @@ impl IsRetryable for SubmitterError {
                 // TODO: add logic to classify based on the error message
                 false
             }
-            SubmitterError::ChainCommunicationError(_) => {
+            SubmitterError::ChainCommunicationError(err) => {
+                // this error is returned randomly by the `TestTokenRecipient`,
+                // to simulate delivery errors
+                if err.to_string().contains("block hash ends in 0") {
+                    return true;
+                }
                 // TODO: add logic to classify based on the error message
                 false
             }

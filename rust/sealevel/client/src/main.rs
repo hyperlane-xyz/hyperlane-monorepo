@@ -632,6 +632,8 @@ struct MultisigIsmMessageIdDeploy {
     chain: String,
     #[arg(long)]
     context: String,
+    #[arg(long)]
+    chain_config_file: PathBuf,
 }
 
 #[derive(Args)]

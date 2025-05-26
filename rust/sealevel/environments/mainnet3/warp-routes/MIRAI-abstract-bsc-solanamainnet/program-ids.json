@@ -1,0 +1,14 @@
+{
+  "solanamainnet": {
+    "hex": "0x1071f5fcc751c8ef4c77456b617b76e17375cddf8364fe417b403f74c43e5d7c",
+    "base58": "27CK2NMbkSTTddgbBDvujccpqNrfGztr9WggXusNmnD1"
+  },
+  "bsc": {
+    "hex": "0x000000000000000000000000cb508877ffe5a085b2474641dd3b28f8bc22a57c",
+    "base58": "1111111111113qHaSkbVC6n27M5jBCfJURoVVszj"
+  },
+  "abstract": {
+    "hex": "0x000000000000000000000000bcda9ae6a148bc4fb411979ffa883c9d1df08f43",
+    "base58": "1111111111113dbrwMrFnehbw2Yo2ZaCdnbEJBSz"
+  }
+}

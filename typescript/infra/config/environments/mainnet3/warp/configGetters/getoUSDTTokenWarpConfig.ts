@@ -39,11 +39,11 @@ const deploymentChains = [
   'metal',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
-const xERC20LockboxChains: SuperTokenChainName[] = ['celo', 'ethereum'];
+const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 
-type SuperTokenChainName = (typeof deploymentChains)[number];
-type TypedSuperTokenChainMap<T> = {
-  [Key in SuperTokenChainName]: T;
+type oUSDTTokenChainName = (typeof deploymentChains)[number];
+type TypedoUSDTTokenChainMap<T> = {
+  [Key in oUSDTTokenChainName]: T;
 };
 
 // Environment-specific configuration
@@ -52,7 +52,7 @@ type TypedSuperTokenChainMap<T> = {
 const upperBufferCap = '20000000000000'; // 20M = 20 * 10^6 ^ 10^6
 const middleBufferCap = '8000000000000'; // 8M = 8 * 10^6 ^ 10^6
 const lowerBufferCap = '2000000000000'; // 2M = 2 * 10^6 ^ 10^6
-const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
+const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: upperBufferCap,
   celo: upperBufferCap,
   optimism: upperBufferCap,
@@ -76,7 +76,7 @@ const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
 const lowerRateLimitPerSecond = '500000000'; // 0.5k/s = 0.5 * 10^3 ^ 10^6
-const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
+const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: productionDefaultRateLimitPerSecond,
   celo: productionDefaultRateLimitPerSecond,
   optimism: productionDefaultRateLimitPerSecond,
@@ -98,7 +98,7 @@ const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
   metal: lowerRateLimitPerSecond,
 };
 
-const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
+const productionOwnerByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: awSafes['ethereum'],
   celo: '0xf1b3fc934bB46c459253fb38555A400b94909800',
   optimism: '0x8E3340E241880F80359AA95Ae20Dc498d3f62503',
@@ -250,7 +250,7 @@ const productionExtraLockboxes = {
   ],
 };
 
-const productionXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
+const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: productionEthereumXERC20LockboxAddress,
   celo: productionCeloXERC20LockboxAddress,
   optimism: productionXERC20TokenAddress,
@@ -274,7 +274,7 @@ const productionXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
 
 // Staging
 const stagingDefaultBufferCap = '25000000000';
-const stagingBufferCapByChain: TypedSuperTokenChainMap<string> = {
+const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: stagingDefaultBufferCap,
   celo: stagingDefaultBufferCap,
   optimism: stagingDefaultBufferCap,
@@ -296,7 +296,7 @@ const stagingBufferCapByChain: TypedSuperTokenChainMap<string> = {
   metal: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
-const stagingRateLimitByChain: TypedSuperTokenChainMap<string> = {
+const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: stagingDefaultRateLimitPerSecond,
   celo: stagingDefaultRateLimitPerSecond,
   optimism: stagingDefaultRateLimitPerSecond,
@@ -319,7 +319,7 @@ const stagingRateLimitByChain: TypedSuperTokenChainMap<string> = {
 };
 
 const ownerAddress = DEPLOYER;
-const stagingOwnerByChain: TypedSuperTokenChainMap<string> = {
+const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> = {
   ethereum: ownerAddress,
   celo: ownerAddress,
   optimism: ownerAddress,
@@ -346,7 +346,7 @@ const stagingEthereumXERC20LockboxAddress =
 const stagingCeloXERC20LockboxAddress =
   '0x9a3D8d7E931679374448FB2B661F664D42d05057';
 const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
-const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
+const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   ethereum: stagingEthereumXERC20LockboxAddress,
   celo: stagingCeloXERC20LockboxAddress,
   optimism: stagingXERC20TokenAddress,
@@ -404,12 +404,12 @@ const stagingExtraLockboxes = {
   ],
 };
 
-function isCCIPChain(chain: SuperTokenChainName): boolean {
+function isCCIPChain(chain: oUSDTTokenChainName): boolean {
   return supportedCCIPChains.includes(chain);
 }
 
 function generateIsmConfig(
-  destination: SuperTokenChainName,
+  destination: oUSDTTokenChainName,
   ownerByChain: ChainMap<Address>,
   amountRoutingThreshold: number,
 ): IsmConfig {
@@ -455,7 +455,7 @@ function generateIsmConfig(
 }
 
 function generateHookConfig(
-  origin: SuperTokenChainName,
+  origin: oUSDTTokenChainName,
   ownerByChain: ChainMap<Address>,
   amountRoutingThreshold: number,
 ): HookConfig {
@@ -499,7 +499,7 @@ function generateHookConfig(
   };
 }
 
-function generateSuperTokenConfig(
+function generateoUSDTTokenConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   ownerByChain: ChainMap<Address>,
   xERC20AddressesByChain: ChainMap<Address>,
@@ -552,10 +552,10 @@ function generateSuperTokenConfig(
 }
 
 // ref: https://www.notion.so/hyperlanexyz/Cross-chain-USDT-1926d35200d6804bbdb1dfd2042e1f19?pvs=4#1936d35200d680af9c05f6133d7bb9f7
-export const getSuperTokenStagingWarpConfig = async (
+export const getoUSDTTokenStagingWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return generateSuperTokenConfig(
+  return generateoUSDTTokenConfig(
     routerConfig,
     stagingOwnerByChain,
     stagingXERC20AddressesByChain,
@@ -566,10 +566,10 @@ export const getSuperTokenStagingWarpConfig = async (
   );
 };
 
-export const getSuperTokenProductionWarpConfig = async (
+export const getoUSDTTokenProductionWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return generateSuperTokenConfig(
+  return generateoUSDTTokenConfig(
     routerConfig,
     productionOwnerByChain,
     productionXERC20AddressesByChain,

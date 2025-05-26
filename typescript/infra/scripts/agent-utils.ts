@@ -15,6 +15,7 @@ import {
 import {
   Address,
   ProtocolType,
+  difference,
   inCIMode,
   objFilter,
   objMap,
@@ -493,16 +494,18 @@ export function ensureValidatorConfigConsistency(
       )
       .map(([chain]) => chain),
   );
-  const symDiff = symmetricDifference(
+  // Only error if there are context chains missing from the config
+  // (context ⊆ config is OK, but not the other way around)
+  const missingInConfig = difference(
     validatorContextChainNames,
     validatorConfigChains,
   );
-  if (symDiff.size > 0) {
+  if (missingInConfig.size > 0) {
     throw new Error(
       `Validator config invalid.\nValidator context chain names: ${[
         ...validatorContextChainNames,
-      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
-        ...symDiff,
+      ]}\nValidator config chains: ${[...validatorConfigChains]}\nMissing in config: ${[
+        ...missingInConfig,
       ]}`,
     );
   }
