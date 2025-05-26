@@ -949,7 +949,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           tolerance: '0',
         },
         bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 10000,
+        bridgeLockTime: 10,
       },
       [CHAIN_NAME_3]: {
         weighted: {
@@ -957,7 +957,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           tolerance: '0',
         },
         bridge: bridgeContract.address,
-        bridgeLockTime: 10000,
+        bridgeLockTime: 10,
       },
     });
 
@@ -1151,7 +1151,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           tolerance: '0',
         },
         bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-        bridgeLockTime: 60000,
+        bridgeLockTime: 60,
         bridgeIsWarp: true,
       },
       [CHAIN_NAME_3]: {
@@ -1160,7 +1160,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           tolerance: '0',
         },
         bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-        bridgeLockTime: 60000,
+        bridgeLockTime: 60,
         bridgeIsWarp: true,
       },
     });

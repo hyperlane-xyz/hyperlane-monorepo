@@ -36,7 +36,8 @@ const BaseChainConfigSchema = z.object({
   bridgeLockTime: z
     .number()
     .positive()
-    .describe('Expected time in milliseconds for bridge to process a transfer'),
+    .transform((val) => val * 1_000)
+    .describe('Expected time in seconds for bridge to process a transfer'),
   bridgeIsWarp: z
     .boolean()
     .optional()
