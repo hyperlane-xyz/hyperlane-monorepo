@@ -38,8 +38,6 @@ impl StarknetApplicationOperationVerifier {
         app_context: &Option<String>,
         message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        use ApplicationOperationVerifierReport::{MalformedMessage, ZeroAmount};
-
         let context = match app_context {
             Some(c) => c,
             None => return None,
@@ -50,17 +48,6 @@ impl StarknetApplicationOperationVerifier {
         }
 
         // Starting from this point we assume that we are in a warp route context
-
-        let mut reader = Cursor::new(message.body.as_slice());
-        let token_message = match TokenMessage::read_from(&mut reader) {
-            Ok(m) => m,
-            Err(_) => return Some(MalformedMessage(message.clone())),
-        };
-
-        if token_message.amount() == U256::zero() {
-            return Some(ZeroAmount);
-        }
-
         None
     }
 }
