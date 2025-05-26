@@ -5,14 +5,16 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap } from '../../types.js';
 import { MultiGeneric } from '../../utils/MultiGeneric.js';
 
+import { BaseContractVerifier } from './BaseContractVerifier.js';
 import { ContractVerifier } from './ContractVerifier.js';
+import { ZKSyncContractVerifier } from './ZKSyncContractVerifier.js';
 import { BuildArtifact, CompilerOptions, VerificationInput } from './types.js';
 
 export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger = rootLogger.child({
     module: 'PostDeploymentContractVerifier',
   });
-  protected readonly contractVerifier: ContractVerifier;
+  protected contractVerifier: BaseContractVerifier;
 
   constructor(
     verificationInputs: ChainMap<VerificationInput>,
@@ -35,6 +37,13 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
       targets.map(async (chain) => {
         // can check explorer family here to avoid doing these checks for each input in verifier
         const { family } = this.multiProvider.getExplorerApi(chain);
+        let contractVerifier: BaseContractVerifier = this.contractVerifier;
+
+        if (family === ExplorerFamily.ZkSync) {
+          this.logger.debug('Using ZkSync verifier');
+          contractVerifier = new ZKSyncContractVerifier(this.multiProvider);
+        }
+
         if (family === ExplorerFamily.Other) {
           this.logger.warn(
             `Skipping verification for ${chain} due to unsupported explorer family.`,
@@ -45,11 +54,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
         this.logger.debug(`Verifying ${chain}...`);
         for (const input of this.get(chain)) {
           try {
-            await this.contractVerifier.verifyContract(
-              chain,
-              input,
-              this.logger,
-            );
+            await contractVerifier.verifyContract(chain, input, this.logger);
           } catch (error) {
             this.logger.error(
               { name: input.name, address: input.address },
