@@ -38,7 +38,6 @@ export async function contextMiddleware(argv: Record<string, any>) {
       ...(argv.overrides ? [argv.overrides] : []),
     ],
     key: argv.key,
-    signer: argv.signer,
     fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
@@ -57,14 +56,8 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const {
-    key,
-    signer,
-    requiresKey,
-    multiProvider,
-    strategyPath,
-    chainMetadata,
-  } = argv.context;
+  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+    argv.context;
 
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
   if (!requiresKey) return argv;
@@ -91,7 +84,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
     chains,
     multiProvider,
     multiProtocolProvider,
-    { key, signer },
+    { key },
   );
 
   /**
@@ -110,7 +103,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
 export async function getContext({
   registryUris,
   key,
-  signer,
   requiresKey,
   skipConfirmation,
   disableProxy = false,
@@ -126,7 +118,7 @@ export async function getContext({
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
-  if (key) {
+  if (key && typeof key === 'string') {
     let signer: Signer;
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
     signerAddress = await signer.getAddress();
@@ -142,7 +134,6 @@ export async function getContext({
     multiProvider,
     multiProtocolProvider,
     key,
-    signer,
     skipConfirmation: !!skipConfirmation,
     signerAddress,
     strategyPath,
@@ -186,24 +177,31 @@ export async function getDryRunContext(
   let multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
   multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
-    fromAddress,
-    key,
-    skipConfirmation,
-  });
-  multiProvider.setSharedSigner(impersonatedSigner);
 
-  return {
-    registry,
-    chainMetadata: multiProvider.metadata,
-    key: impersonatedKey,
-    signer: impersonatedSigner,
-    multiProvider: multiProvider,
-    multiProtocolProvider: multiProtocolProvider,
-    skipConfirmation: !!skipConfirmation,
-    isDryRun: true,
-    dryRunChain: chain,
-  } as WriteCommandContext;
+  if (typeof key === 'string') {
+    const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner(
+      {
+        fromAddress,
+        key: key as string,
+        skipConfirmation,
+      },
+    );
+    multiProvider.setSharedSigner(impersonatedSigner);
+
+    return {
+      registry,
+      chainMetadata: multiProvider.metadata,
+      key: impersonatedKey,
+      signer: impersonatedSigner,
+      multiProvider: multiProvider,
+      multiProtocolProvider: multiProtocolProvider,
+      skipConfirmation: !!skipConfirmation,
+      isDryRun: true,
+      dryRunChain: chain,
+    } as WriteCommandContext;
+  } else {
+    throw new Error(`dry-run needs --key legacy key flag`);
+  }
 }
 
 /**

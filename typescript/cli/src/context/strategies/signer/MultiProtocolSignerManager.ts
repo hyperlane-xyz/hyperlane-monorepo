@@ -22,8 +22,7 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
-  key?: string;
-  signer?: ChainMap<{ key: string }>;
+  key?: string | ChainMap<string>;
 }
 
 /**
@@ -147,21 +146,21 @@ export class MultiProtocolSignerManager {
    * @notice Gets private key from strategy
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
-    if (this.options.signer && this.options.signer[chain]) {
+    if (this.options.key && typeof this.options.key === 'object') {
       this.logger.debug(
-        `Using private key passed via CLI --signer.${chain}.key flag for chain ${chain}`,
+        `Using private key passed via CLI --key.${chain} flag for chain ${chain}`,
       );
-      return { privateKey: this.options.signer[chain].key };
+      return { privateKey: this.options.key[chain] };
     }
 
-    if (process.env[`SIGNER_${chain.toUpperCase()}_KEY`]) {
+    if (process.env[`HYP_KEY_${chain.toUpperCase()}`]) {
       this.logger.debug(`Using private key from .env for chain ${chain}`);
-      return { privateKey: process.env[`SIGNER_${chain.toUpperCase()}_KEY`]! };
+      return { privateKey: process.env[`HYP_KEY_${chain.toUpperCase()}`]! };
     }
 
     // only use legacy key flag for ethereum
     if (this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-      if (this.options.key) {
+      if (this.options.key && typeof this.options.key === 'string') {
         this.logger.debug(
           `Using private key passed via CLI --key flag for chain ${chain}`,
         );
@@ -186,34 +185,6 @@ export class MultiProtocolSignerManager {
 
     return { privateKey: strategyConfig.privateKey };
   }
-
-  // private async resolveCosmosNativeConfig(
-  //   chain: ChainName,
-  //   key?: string,
-  // ): Promise<{ chain: ChainName } & SignerConfig> {
-  //   const signerStrategy = this.getSignerStrategyOrFail(chain);
-
-  //   if (!key) {
-  //     const strategyConfig = await signerStrategy.getSignerConfig(chain);
-  //     key = strategyConfig.privateKey;
-  //   }
-
-  //   const provider =
-  //     await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
-  //   const { bech32Prefix, gasPrice } =
-  //     this.multiProvider.getChainMetadata(chain);
-
-  //   assert(key, `No private key found for chain ${chain}`);
-  //   assert(provider, 'No Cosmos Native Provider found');
-
-  //   this.logger.info(`Using strategy config for Cosmos Native chain ${chain}`);
-
-  //   return {
-  //     chain,
-  //     privateKey: key,
-  //     extraParams: { provider, prefix: bech32Prefix, gasPrice },
-  //   };
-  // }
 
   private getSignerStrategyOrFail(chain: ChainName): IMultiProtocolSigner {
     const strategy = this.signerStrategies.get(chain);

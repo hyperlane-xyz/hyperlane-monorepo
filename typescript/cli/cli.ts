@@ -19,7 +19,6 @@ import {
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
   registryUrisCommandOption,
-  signerCommandOption,
   skipConfirmationOption,
   strategyCommandOption,
 } from './src/commands/options.js';
@@ -49,7 +48,6 @@ try {
     .option('authToken', githubAuthTokenOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
-    .option('signer', signerCommandOption)
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .option('strategy', strategyCommandOption)

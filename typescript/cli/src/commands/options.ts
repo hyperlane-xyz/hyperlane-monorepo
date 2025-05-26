@@ -66,12 +66,6 @@ export const keyCommandOption: Options = {
   defaultDescription: 'process.env.HYP_KEY',
 };
 
-export const signerCommandOption: Options = {
-  type: 'string',
-  description: 'The signer that should be used this chain.',
-  defaultDescription: 'process.env.SIGNER_{CHAIN}_KEY',
-};
-
 export const disableProxyCommandOption: Options = {
   type: 'boolean',
   description:
