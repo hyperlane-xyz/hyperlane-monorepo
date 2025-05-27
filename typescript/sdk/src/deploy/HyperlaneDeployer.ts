@@ -367,7 +367,7 @@ export abstract class HyperlaneDeployer<
     this.logger.debug(`Mailbox client on ${local} initialized...`);
   }
 
-  initializeFnSignature(contractName: string): string {
+  initializeFnSignature(_contractName: string): string {
     return 'initialize';
   }
 
