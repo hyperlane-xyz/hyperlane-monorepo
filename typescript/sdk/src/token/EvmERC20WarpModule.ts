@@ -553,8 +553,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    // Check if package version is below 7.1.5
-    if (actualConfig.packageVersion && actualConfig.packageVersion < '7.1.5') {
+    const actualVersion = actualConfig.packageVersion ?? '';
+    if (
+      expectedConfig.packageVersion &&
+      expectedConfig.packageVersion > actualVersion
+    ) {
       const provider = this.multiProvider.getProvider(this.domainId);
       const signer = this.multiProvider.getSigner(this.domainId);
       const proxyAddr = this.args.addresses.deployedTokenRoute;
