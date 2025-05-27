@@ -124,8 +124,8 @@ const productionOwnerByChain: TypedoUSDTTokenChainMap<string> = {
   metis: awSafes['metis'],
   linea: awSafes['linea'],
   metal: awSafes['metal'],
-  bob: awSafes['bob'],
-  hashkey: awSafes['hashkey'],
+  bob: DEPLOYER, // awSafes['bob'],
+  hashkey: DEPLOYER, // awSafes['hashkey'],
 };
 
 const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
