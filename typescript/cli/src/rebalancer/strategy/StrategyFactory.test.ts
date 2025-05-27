@@ -33,7 +33,7 @@ describe('StrategyFactory', () => {
   tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
 
   describe('createStrategy', () => {
-    it('creates a WeightedStrategy when given weighted configuration', async () => {
+    it('creates a WeightedStrategy when given weighted configuration', () => {
       const config: WeightedStrategyConfig = {
         [chain1]: {
           weighted: {
@@ -53,7 +53,7 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = await StrategyFactory.createStrategy(
+      const strategy = StrategyFactory.createStrategy(
         StrategyOptions.Weighted,
         config,
         tokensByChainName,
@@ -62,7 +62,7 @@ describe('StrategyFactory', () => {
       expect(strategy).to.be.instanceOf(WeightedStrategy);
     });
 
-    it('creates a MinAmountStrategy when given minAmount configuration', async () => {
+    it('creates a MinAmountStrategy when given minAmount configuration', () => {
       const config: MinAmountStrategyConfig = {
         [chain1]: {
           minAmount: {
@@ -84,7 +84,7 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = await StrategyFactory.createStrategy(
+      const strategy = StrategyFactory.createStrategy(
         StrategyOptions.MinAmount,
         config,
         tokensByChainName,
