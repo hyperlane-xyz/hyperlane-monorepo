@@ -122,9 +122,13 @@ export type CosmosKeyConfig = {
   type: AgentSignerKeyType.Cosmos;
   prefix: string;
 };
+
+// Starknet uses account abstraction, these contacts are either legacy or not.
+// They also have a public address - that address is not derived from the private key, which is the account address.
 export type StarknetKeyConfig = {
   type: AgentSignerKeyType.Starknet;
   legacy: boolean;
+  address: string;
 };
 export type KeyConfig =
   | AwsKeyConfig
@@ -244,10 +248,19 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
+      // TODO: we have to figure out a better way of handling this, we should not hard code and instead these values should be represented in the secret value itself
       if (chainName === 'paradexsepolia') {
-        return { type: AgentSignerKeyType.Starknet, legacy: true };
+        return {
+          type: AgentSignerKeyType.Starknet,
+          legacy: true,
+          address: 'QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd',
+        };
       }
-      return { type: AgentSignerKeyType.Starknet, legacy: false };
+      return {
+        type: AgentSignerKeyType.Starknet,
+        legacy: false,
+        address: 'VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV',
+      };
     }
     // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
