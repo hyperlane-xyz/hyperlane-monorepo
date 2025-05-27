@@ -59,7 +59,7 @@ pub async fn get_transaction_receipt(
             })
         },
         (TIMEOUT_DELAY / POLLING_INTERVAL) as usize,
-        Some(Duration::from_secs(TIMEOUT_DELAY)),
+        Some(Duration::from_secs(POLLING_INTERVAL)),
     )
     .await
 }
