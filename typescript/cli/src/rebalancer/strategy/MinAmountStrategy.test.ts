@@ -427,7 +427,7 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
-    it('should handle case where there is not enough surplus to meet all minimum requirements', () => {
+    it('should handle case where there is not enough surplus to meet all minimum requirements by scaling down deficits', () => {
       const strategy = new MinAmountStrategy(
         {
           [chain1]: {
@@ -469,10 +469,14 @@ describe('MinAmountStrategy', () => {
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      // Should use all surplus but only partially address the deficits
-      expect(routes.length).to.equal(1);
+      // It scales down the deficits to prevent sending all surplus to a single chain
+      expect(routes.length).to.equal(2);
       expect(routes[0].origin).to.equal(chain3);
-      expect(routes[0].amount).to.equal(BigInt(50e18));
+      expect(routes[0].destination).to.equal(chain1);
+      expect(routes[0].amount).to.equal(BigInt(25e18));
+      expect(routes[1].origin).to.equal(chain3);
+      expect(routes[1].destination).to.equal(chain2);
+      expect(routes[1].amount).to.equal(BigInt(25e18));
     });
 
     it('should have no surplus or deficit when all at min', () => {
