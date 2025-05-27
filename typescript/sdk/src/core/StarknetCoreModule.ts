@@ -128,8 +128,6 @@ export class StarknetCoreModule {
       protocolFee,
     );
 
-    console.log('updateCoreDeploy');
-
     // 5. Update the configuration with custom ISM and hooks if specified
     const { defaultIsm, defaultHook: merkleTreeHook } =
       await this.updateCoreDeploy(config, mailboxContract.address);
@@ -205,8 +203,6 @@ export class StarknetCoreModule {
 
     const owner = await this.readOwner(mailbox);
     const mailboxContract = getStarknetMailboxContract(mailbox, this.signer);
-
-    console.log('expectedConfig.defaultIsm', expectedConfig.defaultIsm);
 
     // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
