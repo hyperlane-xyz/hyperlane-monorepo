@@ -238,6 +238,12 @@ fn parse_chain(
         .parse_u32()
         .end();
 
+    let ignore_reorg_reports = chain
+        .chain(&mut err)
+        .get_opt_key("ignoreReorgReports")
+        .parse_bool()
+        .unwrap_or(false);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -273,6 +279,7 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        ignore_reorg_reports,
     })
 }
 
