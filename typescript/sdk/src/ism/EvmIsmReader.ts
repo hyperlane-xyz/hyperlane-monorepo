@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AbstractCcipReadIsm__factory,
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
@@ -37,7 +38,6 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
-  CCIPReadIsmConfig,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
@@ -45,11 +45,15 @@ import {
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
+  OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
+  deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -125,11 +129,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           derivedIsmConfig = await this.deriveNullConfig(address);
           break;
         case ModuleType.CCIP_READ:
-          // CCIP-Read ISM: metadata fetched off-chain
-          return {
-            address,
-            type: IsmType.CCIP_READ,
-          } as WithAddress<CCIPReadIsmConfig>;
+          derivedIsmConfig = await this.deriveOffchainLookupConfig(address);
+          break;
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
         default:
@@ -144,6 +145,23 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     }
 
     return derivedIsmConfig;
+  }
+
+  async deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>> {
+    const ism = AbstractCcipReadIsm__factory.connect(address, this.provider);
+
+    this.assertModuleType(await ism.moduleType(), ModuleType.CCIP_READ);
+
+    const [urls, owner] = await Promise.all([ism.urls(), ism.owner()]);
+
+    return {
+      address,
+      type: IsmType.OFFCHAIN_LOOKUP,
+      urls,
+      owner,
+    };
   }
 
   // expands ISM configs that are set as addresses by deriving the config

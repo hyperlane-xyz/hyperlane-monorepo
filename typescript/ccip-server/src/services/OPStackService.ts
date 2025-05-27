@@ -132,6 +132,10 @@ export class OPStackService extends BaseService {
     const receipt =
       await this.l2RpcService.provider.getTransactionReceipt(txHash);
 
+    if (!receipt) {
+      throw new Error('Transaction not yet mined');
+    }
+
     return Promise.all([
       this.getWithdrawalTransactionFromReceipt(receipt),
       this.crossChainMessenger.getBedrockMessageProof(receipt),
