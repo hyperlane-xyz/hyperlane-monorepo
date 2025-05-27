@@ -22,11 +22,15 @@ export class MinAmountStrategy extends BaseStrategy {
   constructor(
     config: MinAmountStrategyConfig,
     private readonly tokensByChainName: ChainMap<Token>,
+    totalCollateral: bigint,
   ) {
     const chains = Object.keys(config);
     super(chains);
 
     this.validateTypes(config);
+
+    const minAmountType = config[chains[0]].minAmount.type;
+    this.validateAmounts(totalCollateral, minAmountType, config);
 
     for (const chain of chains) {
       const { min, target } = config[chain].minAmount;
@@ -67,8 +71,9 @@ export class MinAmountStrategy extends BaseStrategy {
       (sum, chain) => sum + rawBalances[chain],
       0n,
     );
+    const minAmountType = this.config[this.chains[0]].minAmount.type;
 
-    this.validateAmounts(totalCollateral);
+    this.validateAmounts(totalCollateral, minAmountType);
 
     return this.chains.reduce(
       (acc, chain) => {
@@ -137,28 +142,36 @@ export class MinAmountStrategy extends BaseStrategy {
     }
   }
 
-  private validateAmounts(totalCollateral: bigint): void {
-    const minAmountType = this.config[this.chains[0]].minAmount.type;
+  private validateAmounts(
+    totalCollateral: bigint,
+    minAmountType: MinAmountType,
+    config?: MinAmountStrategyConfig,
+  ): void {
+    config ??= this.config;
 
     if (minAmountType === MinAmountType.Absolute) {
-      let totalMinAmount = 0n;
+      let totalTargets = 0n;
       let decimals: number = 0;
 
       for (const chainName of this.chains) {
-        const config = this.config[chainName];
         const token = this.getTokenByChainName(chainName);
         // all the tokens have the same amount of decimals
         decimals = token.decimals;
 
-        totalMinAmount += BigInt(toWei(config.minAmount.min, token.decimals));
+        totalTargets += BigInt(
+          toWei(config[chainName].minAmount.target, token.decimals),
+        );
       }
 
-      if (totalMinAmount > totalCollateral) {
+      if (totalTargets > totalCollateral) {
         throw new Error(
-          `Sum of total minAmounts (${fromWei(
-            totalMinAmount.toString(),
+          `Consider reducing the targets as the sum (${fromWei(
+            totalTargets.toString(),
             decimals,
-          )}) shouldn't be greater than the sum of collaterals (${fromWei(totalCollateral.toString(), decimals)})`,
+          )}) is greater than sum of collaterals (${fromWei(
+            totalCollateral.toString(),
+            decimals,
+          )})`,
         );
       }
     }

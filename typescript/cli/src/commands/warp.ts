@@ -584,7 +584,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const monitor = contextFactory.createMonitor();
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
-      const strategy = contextFactory.createStrategy();
+      const strategy = await contextFactory.createStrategy();
 
       // Instantiates the executor in charge of executing the rebalancing transactions
       const executor = !rebalancerConfig.monitorOnly

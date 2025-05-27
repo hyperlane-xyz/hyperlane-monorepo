@@ -25,6 +25,7 @@ describe('MinAmountStrategy', () => {
     standard: TokenStandard.ERC20,
     addressOrDenom: '',
   };
+  const totalCollateral = BigInt(300e18);
 
   beforeEach(() => {
     chain1 = 'chain1';
@@ -52,6 +53,7 @@ describe('MinAmountStrategy', () => {
               },
             },
             tokensByChainName,
+            totalCollateral,
           ),
       ).to.throw('At least two chains must be configured');
     });
@@ -79,6 +81,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
     });
 
@@ -105,6 +108,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
     });
 
@@ -133,6 +137,7 @@ describe('MinAmountStrategy', () => {
               },
             },
             tokensByChainName,
+            totalCollateral,
           ),
       ).to.throw('Minimum amount (-10) cannot be negative for chain chain2');
     });
@@ -162,6 +167,7 @@ describe('MinAmountStrategy', () => {
               },
             },
             tokensByChainName,
+            totalCollateral,
           ),
       ).to.throw(
         'Target (80) must be greater than or equal to min (100) for chain chain1',
@@ -193,6 +199,7 @@ describe('MinAmountStrategy', () => {
               },
             },
             tokensByChainName,
+            totalCollateral,
           ),
       ).to.throw(
         'Target (0.4) must be greater than or equal to min (0.5) for chain chain1',
@@ -223,6 +230,7 @@ describe('MinAmountStrategy', () => {
             },
           },
           tokensByChainName,
+          totalCollateral,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain2]: 200n,
@@ -255,6 +263,7 @@ describe('MinAmountStrategy', () => {
             },
           },
           tokensByChainName,
+          totalCollateral,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain3]: 300n,
@@ -286,6 +295,7 @@ describe('MinAmountStrategy', () => {
             },
           },
           tokensByChainName,
+          totalCollateral,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain2]: -2n,
@@ -317,6 +327,7 @@ describe('MinAmountStrategy', () => {
             },
           },
           tokensByChainName,
+          totalCollateral,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain2]: 100n,
@@ -349,11 +360,12 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances: RawBalances = {
-        [chain1]: BigInt(100e18),
-        [chain2]: BigInt(100e18),
+        [chain1]: BigInt(120e18),
+        [chain2]: BigInt(120e18),
       };
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
@@ -384,6 +396,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances = {
@@ -407,8 +420,8 @@ describe('MinAmountStrategy', () => {
         {
           [chain1]: {
             minAmount: {
-              min: '100',
-              target: '120',
+              min: '80',
+              target: '100',
               type: MinAmountType.Absolute,
             },
             bridge: AddressZero,
@@ -416,8 +429,8 @@ describe('MinAmountStrategy', () => {
           },
           [chain2]: {
             minAmount: {
-              min: '100',
-              target: '120',
+              min: '80',
+              target: '100',
               type: MinAmountType.Absolute,
             },
             bridge: AddressZero,
@@ -425,8 +438,8 @@ describe('MinAmountStrategy', () => {
           },
           [chain3]: {
             minAmount: {
-              min: '100',
-              target: '120',
+              min: '80',
+              target: '100',
               type: MinAmountType.Absolute,
             },
             bridge: AddressZero,
@@ -434,6 +447,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances = {
@@ -448,12 +462,12 @@ describe('MinAmountStrategy', () => {
         {
           origin: chain3,
           destination: chain1,
-          amount: BigInt(70e18),
+          amount: BigInt(50e18),
         },
         {
           origin: chain3,
           destination: chain2,
-          amount: BigInt(45e18),
+          amount: BigInt(25e18),
         },
       ]);
     });
@@ -482,12 +496,13 @@ describe('MinAmountStrategy', () => {
             },
           },
           tokensByChainName,
+          totalCollateral,
         ).getRebalancingRoutes({
           [chain1]: BigInt(100e18),
           [chain2]: BigInt(80e18),
         }),
       ).to.throw(
-        `Sum of total minAmounts (200) shouldn't be greater than the sum of collaterals (180)`,
+        `Consider reducing the targets as the sum (240) is greater than sum of collaterals (180)`,
       );
     });
 
@@ -549,7 +564,7 @@ describe('MinAmountStrategy', () => {
           [chain1]: {
             minAmount: {
               min: '100',
-              target: '110',
+              target: '100',
               type: MinAmountType.Absolute,
             },
             bridge: AddressZero,
@@ -558,7 +573,7 @@ describe('MinAmountStrategy', () => {
           [chain2]: {
             minAmount: {
               min: '100',
-              target: '110',
+              target: '100',
               type: MinAmountType.Absolute,
             },
             bridge: AddressZero,
@@ -566,6 +581,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances = {
@@ -601,6 +617,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances: RawBalances = {
@@ -619,45 +636,38 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
-    it('should consider the min amount when calculating deficit', () => {
-      const strategy = new MinAmountStrategy(
-        {
-          [chain1]: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: MinAmountType.Absolute,
+    it('should through when no surplus is not enough to cover deficits', () => {
+      expect(() =>
+        new MinAmountStrategy(
+          {
+            [chain1]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Absolute,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
             },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain2]: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: MinAmountType.Absolute,
+            [chain2]: {
+              minAmount: {
+                min: '100',
+                target: '120',
+                type: MinAmountType.Absolute,
+              },
+              bridge: AddressZero,
+              bridgeLockTime: 1,
             },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
           },
-        },
-        tokensByChainName,
+          tokensByChainName,
+          totalCollateral,
+        ).getRebalancingRoutes({
+          [chain1]: BigInt(80e18),
+          [chain2]: BigInt(130e18),
+        }),
+      ).to.throw(
+        `Consider reducing the targets as the sum (240) is greater than sum of collaterals (210)`,
       );
-
-      const rawBalances = {
-        [chain1]: BigInt(80e18),
-        [chain2]: BigInt(130e18),
-      };
-
-      const routes = strategy.getRebalancingRoutes(rawBalances);
-
-      expect(routes).to.deep.equal([
-        {
-          origin: chain2,
-          destination: chain1,
-          amount: BigInt(30e18),
-        },
-      ]);
     });
   });
 });

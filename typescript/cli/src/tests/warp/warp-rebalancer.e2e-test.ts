@@ -640,6 +640,66 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
+  it('should throw if the sum of minAmount targets is more than sum of collaterals', async () => {
+    // Assign rebalancer role
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
+    await chain3CollateralContract.grantRole(
+      rebalancerRole,
+      chain3Signer.address,
+    );
+
+    // Allow destination
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
+    );
+
+    // Deploy the bridge
+    const bridgeContract = await new MockValueTransferBridge__factory(
+      chain3Signer,
+    ).deploy();
+
+    // Allow bridge
+    await chain3CollateralContract.addBridge(
+      bridgeContract.address,
+      chain2Metadata.domainId,
+    );
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: StrategyOptions.MinAmount,
+      [CHAIN_NAME_2]: {
+        minAmount: {
+          min: 7,
+          target: 11,
+          type: MinAmountType.Absolute,
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [CHAIN_NAME_3]: {
+        minAmount: {
+          min: 8,
+          target: 12,
+          type: MinAmountType.Absolute,
+        },
+        bridge: bridgeContract.address,
+        bridgeLockTime: 1,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `Rebalancer error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
+    );
+  });
+
   it('should successfully send rebalance transaction', async () => {
     // Assign rebalancer role
     const chain3Provider = new ethers.providers.JsonRpcProvider(
@@ -1037,8 +1097,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         minAmount: {
-          min: '-100',
-          target: '110',
+          min: '-10',
+          target: '10',
           type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
@@ -1046,8 +1106,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
       [CHAIN_NAME_3]: {
         minAmount: {
-          min: '100',
-          target: '110',
+          min: '8',
+          target: '10',
           type: MinAmountType.Absolute,
         },
         bridge: ethers.constants.AddressZero,
@@ -1056,7 +1116,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      'Minimum amount (-100) cannot be negative for chain anvil2',
+      'Minimum amount (-10) cannot be negative for chain anvil2',
       {
         timeout: 10000,
         withMetrics: false,

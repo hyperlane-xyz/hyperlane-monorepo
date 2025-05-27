@@ -17,8 +17,10 @@ import {
 } from './WeightedStrategy.js';
 
 describe('StrategyFactory', () => {
-  let chain1: string;
-  let chain2: string;
+  const chain1 = 'chain1';
+  const chain2 = 'chain2';
+  const totalCollateral = BigInt(20e18);
+
   const tokensByChainName: ChainMap<Token> = {};
   const tokenArgs = {
     name: 'token',
@@ -27,16 +29,11 @@ describe('StrategyFactory', () => {
     standard: TokenStandard.ERC20,
     addressOrDenom: '',
   };
-
-  beforeEach(() => {
-    chain1 = 'chain1';
-    chain2 = 'chain2';
-    tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
-    tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
-  });
+  tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
+  tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
 
   describe('createStrategy', () => {
-    it('creates a WeightedStrategy when given weighted configuration', () => {
+    it('creates a WeightedStrategy when given weighted configuration', async () => {
       const config: WeightedStrategyConfig = {
         [chain1]: {
           weighted: {
@@ -56,20 +53,21 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = StrategyFactory.createStrategy(
+      const strategy = await StrategyFactory.createStrategy(
         StrategyOptions.Weighted,
         config,
         tokensByChainName,
+        totalCollateral,
       );
       expect(strategy).to.be.instanceOf(WeightedStrategy);
     });
 
-    it('creates a MinAmountStrategy when given minAmount configuration', () => {
+    it('creates a MinAmountStrategy when given minAmount configuration', async () => {
       const config: MinAmountStrategyConfig = {
         [chain1]: {
           minAmount: {
-            min: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            min: 8,
+            target: 10,
             type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
@@ -77,8 +75,8 @@ describe('StrategyFactory', () => {
         },
         [chain2]: {
           minAmount: {
-            min: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            min: 8,
+            target: 10,
             type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
@@ -86,10 +84,11 @@ describe('StrategyFactory', () => {
         },
       };
 
-      const strategy = StrategyFactory.createStrategy(
+      const strategy = await StrategyFactory.createStrategy(
         StrategyOptions.MinAmount,
         config,
         tokensByChainName,
+        totalCollateral,
       );
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
     });

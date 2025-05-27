@@ -100,12 +100,13 @@ export class RebalancerContextFactory {
     return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
-  public createStrategy(): IStrategy {
+  public async createStrategy(): Promise<IStrategy> {
     logDebug('Creating Strategy');
     return StrategyFactory.createStrategy(
       this.config.rebalanceStrategy,
       this.config.chains,
       this.tokensByChainName,
+      await this.getTotalCollateral(),
     );
   }
 
@@ -129,5 +130,19 @@ export class RebalancerContextFactory {
 
   public createMonitorToStrategyTransformer(): MonitorToStrategyTransformer {
     return new MonitorToStrategyTransformer(this.warpCore);
+  }
+
+  private async getTotalCollateral(): Promise<bigint> {
+    let totalCollateral = 0n;
+
+    for (const token of this.warpCore.tokens) {
+      if (token.collateralAddressOrDenom) {
+        logDebug(`Checking token: ${token.chainName}`);
+        const adapter = token.getHypAdapter(this.warpCore.multiProvider);
+        totalCollateral += (await adapter.getBridgedSupply()) ?? 0n;
+      }
+    }
+
+    return totalCollateral;
   }
 }
