@@ -2,10 +2,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import {
-  AbstractCcipReadIsm,
-  TestCcipReadIsm__factory,
-} from '@hyperlane-xyz/core';
+import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -21,7 +18,7 @@ describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
   let testRecipient: any;
-  let ccipReadIsm: AbstractCcipReadIsm;
+  let ccipReadIsm: TestCcipReadIsm;
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
@@ -47,12 +44,12 @@ describe('Offchain Lookup ISM Integration', () => {
 
     // Deploy the TestCcipReadIsm on test1 domain
     const domain = multiProvider.getDomainId('test1');
-    ccipReadIsm = (await multiProvider.handleDeploy(
+    ccipReadIsm = await multiProvider.handleDeploy(
       domain,
       new TestCcipReadIsm__factory(),
       // Pass in desired offchain URLs for the ISM constructor:
       [['http://example.com/{data}']],
-    )) as unknown as AbstractCcipReadIsm;
+    );
 
     // Configure the TestRecipient to use the CCIP-Read ISM
     await testRecipient.setInterchainSecurityModule(ccipReadIsm.address);
