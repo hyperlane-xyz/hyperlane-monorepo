@@ -193,6 +193,7 @@ impl ChainConnectionConf {
             Self::Ethereum(conf) => Some(&conf.op_submission_config),
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
+            Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }

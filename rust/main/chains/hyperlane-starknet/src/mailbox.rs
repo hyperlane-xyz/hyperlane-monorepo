@@ -230,12 +230,6 @@ impl Mailbox for StarknetMailbox {
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
-        info!(
-            domain = self.domain().name(),
-            "Processing batch of {} operations",
-            ops.len()
-        );
-
         let messages = ops
             .iter()
             .map(|op| op.try_batch())
