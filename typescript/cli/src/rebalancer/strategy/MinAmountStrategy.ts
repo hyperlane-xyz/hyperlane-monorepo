@@ -27,8 +27,6 @@ export class MinAmountStrategy extends BaseStrategy {
     const chains = Object.keys(config);
     super(chains);
 
-    this.validateTypes(config);
-
     const minAmountType = config[chains[0]].minAmount.type;
     this.validateAmounts(totalCollateral, minAmountType, config);
 
@@ -128,18 +126,6 @@ export class MinAmountStrategy extends BaseStrategy {
     }
 
     return token;
-  }
-
-  private validateTypes(config: MinAmountStrategyConfig): void {
-    const minAmountTypes = [];
-
-    for (const chainName of this.chains) {
-      minAmountTypes.push(config[chainName].minAmount.type);
-    }
-
-    if (new Set(minAmountTypes).size !== 1) {
-      throw new Error(`All types for the minAmount strategy must be the same`);
-    }
   }
 
   private validateAmounts(

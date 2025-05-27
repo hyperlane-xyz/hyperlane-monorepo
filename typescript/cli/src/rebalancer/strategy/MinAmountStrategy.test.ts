@@ -302,38 +302,6 @@ describe('MinAmountStrategy', () => {
         }),
       ).to.throw('Raw balance for chain chain2 is negative');
     });
-
-    it('should throw an error if strategies are not of the same type', () => {
-      expect(() =>
-        new MinAmountStrategy(
-          {
-            [chain1]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Relative,
-              },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
-            },
-            [chain2]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Absolute,
-              },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
-            },
-          },
-          tokensByChainName,
-          totalCollateral,
-        ).getRebalancingRoutes({
-          [chain1]: 100n,
-          [chain2]: 100n,
-        }),
-      ).to.throw('All types for the minAmount strategy must be the same');
-    });
   });
 
   describe('getRebalancingRoutes', () => {

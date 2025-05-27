@@ -356,6 +356,34 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
+  it('should throw if theres a mix of minAmount types', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: StrategyOptions.MinAmount,
+      [CHAIN_NAME_2]: {
+        minAmount: {
+          min: 9,
+          target: 10,
+          type: MinAmountType.Absolute,
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [CHAIN_NAME_3]: {
+        minAmount: {
+          min: 0.5,
+          target: 0.55,
+          type: MinAmountType.Relative,
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `Rebalancer error: Validation error: All chains must use the same minAmount type. at "minAmount.type"`,
+    );
+  });
+
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       rebalanceStrategy: StrategyOptions.Weighted,
