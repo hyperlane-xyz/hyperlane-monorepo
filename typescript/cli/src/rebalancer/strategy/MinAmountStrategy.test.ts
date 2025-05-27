@@ -440,37 +440,35 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
-    it('should throw an error when the sum of `min` is greater than the sum of collaterals', () => {
-      expect(() =>
-        new MinAmountStrategy(
-          {
-            [chain1]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Absolute,
+    it('should throw an error when the sum of `target` is greater than the sum of collaterals', () => {
+      expect(
+        () =>
+          new MinAmountStrategy(
+            {
+              [chain1]: {
+                minAmount: {
+                  min: '100',
+                  target: '220',
+                  type: MinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
               },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
-            },
-            [chain2]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Absolute,
+              [chain2]: {
+                minAmount: {
+                  min: '100',
+                  target: '120',
+                  type: MinAmountType.Absolute,
+                },
+                bridge: AddressZero,
+                bridgeLockTime: 1,
               },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
             },
-          },
-          tokensByChainName,
-          totalCollateral,
-        ).getRebalancingRoutes({
-          [chain1]: BigInt(100e18),
-          [chain2]: BigInt(80e18),
-        }),
+            tokensByChainName,
+            totalCollateral,
+          ),
       ).to.throw(
-        `Consider reducing the targets as the sum (240) is greater than sum of collaterals (180)`,
+        `Consider reducing the targets as the sum (340) is greater than sum of collaterals (300)`,
       );
     });
 
@@ -506,6 +504,7 @@ describe('MinAmountStrategy', () => {
           },
         },
         tokensByChainName,
+        totalCollateral,
       );
 
       const rawBalances = {
@@ -602,40 +601,6 @@ describe('MinAmountStrategy', () => {
           amount: 100n,
         },
       ]);
-    });
-
-    it('should throw when surplus is not enough to cover deficits', () => {
-      expect(() =>
-        new MinAmountStrategy(
-          {
-            [chain1]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Absolute,
-              },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
-            },
-            [chain2]: {
-              minAmount: {
-                min: '100',
-                target: '120',
-                type: MinAmountType.Absolute,
-              },
-              bridge: AddressZero,
-              bridgeLockTime: 1,
-            },
-          },
-          tokensByChainName,
-          totalCollateral,
-        ).getRebalancingRoutes({
-          [chain1]: BigInt(80e18),
-          [chain2]: BigInt(130e18),
-        }),
-      ).to.throw(
-        `Consider reducing the targets as the sum (240) is greater than sum of collaterals (210)`,
-      );
     });
   });
 });

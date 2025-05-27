@@ -69,9 +69,6 @@ export class MinAmountStrategy extends BaseStrategy {
       (sum, chain) => sum + rawBalances[chain],
       0n,
     );
-    const minAmountType = this.config[this.chains[0]].minAmount.type;
-
-    this.validateAmounts(totalCollateral, minAmountType);
 
     return this.chains.reduce(
       (acc, chain) => {
