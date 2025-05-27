@@ -1,5 +1,4 @@
-import { BigNumber } from 'ethers';
-import { Account, MultiType } from 'starknet';
+import { Account, MultiType, cairo } from 'starknet';
 
 import {
   ChainId,
@@ -111,8 +110,8 @@ export class StarknetCoreModule {
     const protocolFee = await this.deployer.deployContract(
       StarknetContractName.PROTOCOL_FEE,
       [
-        BigNumber.from(config.requiredHook.maxProtocolFee),
-        BigNumber.from(config.requiredHook.protocolFee),
+        cairo.uint256(config.requiredHook.maxProtocolFee),
+        cairo.uint256(config.requiredHook.protocolFee),
         config.requiredHook.beneficiary,
         config.owner,
         PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
@@ -128,6 +127,8 @@ export class StarknetCoreModule {
       defaultHook,
       protocolFee,
     );
+
+    console.log('updateCoreDeploy');
 
     // 5. Update the configuration with custom ISM and hooks if specified
     const { defaultIsm, defaultHook: merkleTreeHook } =
@@ -204,6 +205,8 @@ export class StarknetCoreModule {
 
     const owner = await this.readOwner(mailbox);
     const mailboxContract = getStarknetMailboxContract(mailbox, this.signer);
+
+    console.log('expectedConfig.defaultIsm', expectedConfig.defaultIsm);
 
     // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
