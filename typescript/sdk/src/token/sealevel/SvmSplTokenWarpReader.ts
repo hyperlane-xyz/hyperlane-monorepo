@@ -1,4 +1,10 @@
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  getAccount,
+  getTokenMetadata,
+} from '@solana/spl-token';
+// import { struct, u32, u8, } from '@solana/buffer-layout';
 import {
   Commitment,
   Connection,
@@ -11,6 +17,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
+  HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
   HYPERLANE_COLLATERAL_TOKEN_PDA_SEEDS,
   HYPERLANE_NATIVE_TOKEN_PDA_SEEDS,
   HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
@@ -19,9 +26,12 @@ import {
 } from '../../sealevel/pda.js';
 import { ChainNameOrId } from '../../types.js';
 import { TokenType } from '../config.js';
-import { DerivedTokenRouterConfig, HypTokenConfig } from '../types.js';
+import { DerivedTokenRouterConfig } from '../types.js';
 
-import { getSealevelHypTokenAccountData } from './token.js';
+import {
+  getLegacySPLTokenMetadata,
+  getSealevelHypTokenAccountData,
+} from './token.js';
 
 export class SvmSplTokenWarpRouteReader {
   protected readonly logger = rootLogger.child({
@@ -57,7 +67,7 @@ export class SvmSplTokenWarpRouteReader {
 
   protected readonly deriveTokenConfigMap!: Record<
     TokenType,
-    ((address: PublicKey) => Promise<HypTokenConfig>) | null
+    ((address: PublicKey) => Promise<DerivedTokenRouterConfig>) | null
   >;
 
   async deriveWarpRouteConfig(
@@ -77,9 +87,7 @@ export class SvmSplTokenWarpRouteReader {
       );
     }
 
-    const config = await deriveFunction(programId);
-
-    return config as any;
+    return deriveFunction(programId);
   }
 
   // Stub: you will need to provide this based on your setup
@@ -93,10 +101,7 @@ export class SvmSplTokenWarpRouteReader {
     ];
 
     for (const seeds of seedsByTokenType) {
-      const [tokenAccount, _bump] = PublicKey.findProgramAddressSync(
-        seeds,
-        programId,
-      );
+      const tokenAccount = BaseSealevelAdapter.derivePda(seeds, programId);
 
       const accountInfo = await this.connection.getAccountInfo(tokenAccount);
 
@@ -104,12 +109,20 @@ export class SvmSplTokenWarpRouteReader {
         continue;
       }
 
-      // TODO: correctly derive if it is a collateral or synthetic
       if (
         accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
         accountInfo.owner.equals(TOKEN_PROGRAM_ID)
       ) {
-        return TokenType.synthetic;
+        const escrowAccountAddress = BaseSealevelAdapter.derivePda(
+          HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
+          programId,
+        );
+
+        const escrowAccount =
+          await this.connection.getAccountInfo(escrowAccountAddress);
+
+        // if the escrow account does not exist we can be sure that the token is a collateral
+        return escrowAccount ? TokenType.collateral : TokenType.synthetic;
       }
 
       if (accountInfo.owner.equals(SvmSystemProgram)) {
@@ -122,38 +135,29 @@ export class SvmSplTokenWarpRouteReader {
     );
   }
 
-  private async deriveHypNativeTokenConfig(
+  private async getTokenAccountData(
     programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
-    const tokenAccount = BaseSealevelAdapter.derivePda(
-      HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
-      programId,
-    );
-
     const tokenData = await getSealevelHypTokenAccountData(
       this.connection,
-      tokenAccount,
+      BaseSealevelAdapter.derivePda(
+        HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
+        programId,
+      ),
     );
-
-    const chainMetadata = this.multiProvider.tryGetChainMetadata(this.chain);
-
-    assert(chainMetadata?.nativeToken, '');
-    const { name, symbol } = chainMetadata.nativeToken;
 
     return {
       type: TokenType.native,
       hook: tokenData.interchain_gas_paymaster_pubkey
-        ? tokenData.interchain_gas_paymaster_pubkey.toBase58()
-        : SystemProgram.programId.toBase58(),
-      interchainSecurityModule: tokenData.interchain_security_module
-        ? PublicKey.decode(Buffer.from(tokenData.interchain_security_module))
-        : SystemProgram.programId.toBase58(),
-      mailbox: PublicKey.decode(Buffer.from(tokenData.mailbox)),
-      owner: PublicKey.decode(Buffer.from(tokenData.owner!)),
+        ? tokenData.interchain_gas_paymaster_pubkey.toString()
+        : SystemProgram.programId.toString(),
+      interchainSecurityModule: tokenData.interchain_security_module_pubkey
+        ? tokenData.interchain_security_module_pubkey.toString()
+        : SystemProgram.programId.toString(),
+      mailbox: tokenData.mailbox_pubkey.toString(),
+      owner: tokenData.owner_pub_key!.toString(),
       decimals: tokenData.decimals,
       isNft: false,
-      symbol,
-      name,
       destinationGas: Object.fromEntries(
         Array.from(tokenData.destination_gas?.entries() ?? []).map(
           ([domain, gas]) => [domain.toString(), gas.toString()],
@@ -170,15 +174,103 @@ export class SvmSplTokenWarpRouteReader {
     };
   }
 
-  private deriveHypCollateralTokenConfig(
-    _programId: PublicKey,
+  private async deriveHypNativeTokenConfig(
+    programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
-    throw new Error('Not impl');
+    const tokenData = await this.getTokenAccountData(programId);
+
+    const chainMetadata = this.multiProvider.tryGetChainMetadata(this.chain);
+
+    assert(chainMetadata?.nativeToken, '');
+    const { name, symbol } = chainMetadata.nativeToken;
+
+    return {
+      ...tokenData,
+      type: TokenType.native,
+      isNft: false,
+      symbol,
+      name,
+    };
   }
 
-  private deriveHypSyntheticTokenConfig(
-    _programId: PublicKey,
+  private async deriveHypCollateralTokenConfig(
+    programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
-    throw new Error('Not impl');
+    const escrowAccountAddress = BaseSealevelAdapter.derivePda(
+      HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
+      programId,
+    );
+
+    const [tokenData, escrowAccountInfo] = await Promise.all([
+      this.getTokenAccountData(programId),
+      this.connection.getAccountInfo(escrowAccountAddress),
+    ]);
+
+    assert(
+      escrowAccountInfo,
+      `Escrow account not found for token at address "${programId.toString()}" on chain "${this.chain}"`,
+    );
+    assert(
+      escrowAccountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
+        escrowAccountInfo.owner.equals(TOKEN_PROGRAM_ID),
+      `Escrow account at "${escrowAccountAddress.toString()}" is not an Associated Token Account`,
+    );
+
+    const escrowAccount = await getAccount(
+      this.connection,
+      escrowAccountAddress,
+      'finalized',
+      escrowAccountInfo.owner,
+    );
+
+    const metadata = escrowAccountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
+      ? await getTokenMetadata(
+          this.connection,
+          escrowAccount.mint,
+          'finalized',
+          TOKEN_2022_PROGRAM_ID,
+        )
+      : await getLegacySPLTokenMetadata(this.connection, escrowAccount.mint);
+
+    return {
+      ...tokenData,
+      type: TokenType.collateral,
+      token: escrowAccount.mint.toString(),
+      isNft: false,
+      name: metadata?.name,
+      symbol: metadata?.symbol,
+    };
+  }
+
+  private async deriveHypSyntheticTokenConfig(
+    programId: PublicKey,
+  ): Promise<DerivedTokenRouterConfig> {
+    const mintAccountAddress = BaseSealevelAdapter.derivePda(
+      HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
+      programId,
+    );
+
+    const [tokenData, metadata] = await Promise.all([
+      this.getTokenAccountData(programId),
+      getTokenMetadata(
+        this.connection,
+        mintAccountAddress,
+        'finalized',
+        TOKEN_2022_PROGRAM_ID,
+      ),
+    ]);
+
+    assert(
+      metadata,
+      `Metadata not found for synthetic token on chain "${this.chain}" and address ${programId.toBase58()}`,
+    );
+
+    return {
+      ...tokenData,
+      type: TokenType.synthetic,
+      name: metadata.name,
+      symbol: metadata.symbol,
+      isNft: false,
+    };
   }
 }
