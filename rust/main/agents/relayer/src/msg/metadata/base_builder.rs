@@ -7,7 +7,6 @@ use derive_new::new;
 use eyre::Context;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
-use prometheus::IntGauge;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -223,7 +222,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        if let Some(syncer) = self.build_and_validate(&config, validator, None).await? {
+                        if let Some(syncer) = self.build_and_validate(&config, validator).await? {
                             // found the syncer for this validator
                             return Ok(Some((*validator, syncer)));
                         }
@@ -278,9 +277,8 @@ impl BaseMetadataBuilder {
         &self,
         config: &CheckpointSyncerConf,
         validator: &H256,
-        latest_index_gauge: Option<IntGauge>,
     ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
-        match config.build_and_validate(latest_index_gauge).await {
+        match config.build_and_validate(None).await {
             Ok(checkpoint_syncer) => {
                 return Ok(Some(checkpoint_syncer));
             }
