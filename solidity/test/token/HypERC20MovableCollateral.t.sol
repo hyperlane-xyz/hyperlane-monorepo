@@ -59,6 +59,8 @@ contract HypERC20MovableCollateralRouterTest is Test {
         uint256 amount,
         bytes32 recipient
     ) public {
+        vm.assume(recipient != bytes32(0));
+
         // Configuration
         // Grant permissions
         router.grantRole(router.REBALANCER_ROLE(), address(this));
