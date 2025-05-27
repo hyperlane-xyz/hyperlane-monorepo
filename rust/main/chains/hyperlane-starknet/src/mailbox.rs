@@ -18,7 +18,7 @@ use starknet::core::types::FieldElement;
 
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::contracts::mailbox::Mailbox as StarknetMailboxInternal;
 use crate::error::HyperlaneStarknetError;
