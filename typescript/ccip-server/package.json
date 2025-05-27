@@ -40,7 +40,6 @@
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },
-  "type": "module",
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",
     "@hyperlane-xyz/core": "7.1.5",
