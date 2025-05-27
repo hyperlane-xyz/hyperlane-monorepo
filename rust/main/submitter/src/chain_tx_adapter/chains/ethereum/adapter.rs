@@ -64,7 +64,8 @@ impl EthereumTxAdapter {
             )
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new();
+
+        let nonce_manager = NonceManager::new(&conf).await?;
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
 

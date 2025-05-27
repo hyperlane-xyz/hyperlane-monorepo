@@ -4,10 +4,13 @@
 
 use std::sync::Arc;
 
+use ethers::signers::Signer;
+use ethers_core::types::Address;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use hyperlane_ethereum::EvmProviderForSubmitter;
+use hyperlane_base::settings::{ChainConf, SignerConf};
+use hyperlane_ethereum::{EvmProviderForSubmitter, Signers};
 
 use crate::transaction::Transaction;
 use crate::SubmitterError;
@@ -16,13 +19,21 @@ use super::super::transaction::Precursor;
 
 pub struct NonceManager {
     tx_in_finality_count: Arc<Mutex<usize>>,
+    address: Address,
 }
 
 impl NonceManager {
-    pub fn new() -> Self {
-        Self {
+    pub async fn new(chain_conf: &ChainConf) -> eyre::Result<Self> {
+        let singer_conf = chain_conf
+            .signer
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("Signer configuration is missing"))?;
+        let signer: Signers = singer_conf.build().await?;
+        let address = signer.address();
+        Ok(Self {
             tx_in_finality_count: Arc::new(Mutex::new(0usize)),
-        }
+            address,
+        })
     }
 
     pub async fn set_nonce(
@@ -43,6 +54,13 @@ impl NonceManager {
             .ok_or(SubmitterError::TxSubmissionError(
                 "Transaction missing address".to_string(),
             ))?;
+
+        if address != self.address {
+            return Err(SubmitterError::TxSubmissionError(
+                "Transaction address does not match nonce manager address".to_string(),
+            ));
+        }
+
         let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
 
         let next_nonce = nonce + self.get_tx_in_finality_count().await as u64;
