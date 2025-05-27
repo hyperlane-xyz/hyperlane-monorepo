@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import { WithAddress } from '@hyperlane-xyz/utils';
-
 import { OffchainLookupIsmConfigSchema } from '../ism/types.js';
 import { RouterConfigSchema } from '../router/types.js';
 
@@ -11,9 +9,10 @@ export const IcaRouterConfigSchema = RouterConfigSchema.extend({
 
 export type IcaRouterConfig = z.infer<typeof IcaRouterConfigSchema>;
 
-// just an alias
-export const DerivedIcaRouterConfigSchema = IcaRouterConfigSchema;
+export const DerivedIcaRouterConfigSchema = IcaRouterConfigSchema.extend({
+  address: z.string(),
+});
 
-export type DerivedIcaRouterConfig = WithAddress<
-  z.infer<typeof DerivedIcaRouterConfigSchema>
+export type DerivedIcaRouterConfig = z.infer<
+  typeof DerivedIcaRouterConfigSchema
 >;

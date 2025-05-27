@@ -36,12 +36,12 @@ import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
-  [TokenType.collateralCctp]: 'A CCTP token',
-  [TokenType.nativeOpL2ToL1]: 'An OP L2 token',
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
+  [TokenType.collateralCctp]:
+    'A collateral token that can be transferred via CCTP',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
@@ -54,6 +54,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 with Warp Route functionality',
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
+  [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
+  [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -256,12 +258,7 @@ export async function createWarpRouteDeployConfig({
         };
         break;
       default:
-        result[chain] = {
-          type,
-          owner,
-          proxyAdmin,
-          interchainSecurityModule,
-        };
+        throw new Error(`Token type ${type} is not supported`);
     }
   }
 

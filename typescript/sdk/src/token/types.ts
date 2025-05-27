@@ -34,20 +34,18 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
-export const OpL2TokenConfigSchema = NativeTokenConfigSchema.merge(
-  z.object({
-    type: z.literal(TokenType.nativeOpL2),
-  }),
-).extend({
+export const OpL2TokenConfigSchema = NativeTokenConfigSchema.omit({
+  type: true,
+}).extend({
+  type: z.literal(TokenType.nativeOpL2),
   l2Bridge: z.string(),
 });
 
-export const OpL1TokenConfigSchema = NativeTokenConfigSchema.merge(
-  z.object({
-    type: z.literal(TokenType.nativeOpL1),
-  }),
-)
+export const OpL1TokenConfigSchema = NativeTokenConfigSchema.omit({
+  type: true,
+})
   .extend({
+    type: z.literal(TokenType.nativeOpL1),
     portal: z.string(),
     version: z.number(),
   })
@@ -103,21 +101,22 @@ export type XERC20TokenExtraBridgesLimits = z.infer<
   typeof xERC20ExtraBridgesLimitConfigsSchema
 >;
 
-export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
-  z.object({
+export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
-  }),
-).merge(xERC20TokenMetadataSchema);
+  })
+  .merge(xERC20TokenMetadataSchema);
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CctpTokenConfigSchema = CollateralTokenConfigSchema.merge(
-  z.object({
-    type: z.literal(TokenType.collateralCctp),
-  }),
-)
+export const CctpTokenConfigSchema = CollateralTokenConfigSchema.omit({
+  type: true,
+})
   .extend({
+    type: z.literal(TokenType.collateralCctp),
     messageTransmitter: z
       .string()
       .describe('CCTP Message Transmitter contract address'),
