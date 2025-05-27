@@ -108,6 +108,7 @@ type XERC20Metadata = {
   type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
   symbol: string;
   name: string;
+  decimals: number;
 };
 
 export class GovernTransactionReader {
@@ -181,6 +182,7 @@ export class GovernTransactionReader {
             type: token.standard,
             symbol: token.symbol,
             name: token.name,
+            decimals: token.decimals,
           };
         }
       }
@@ -392,7 +394,6 @@ export class GovernTransactionReader {
     return {
       chain,
       insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
-      tx,
     };
   }
 
@@ -542,6 +543,35 @@ export class GovernTransactionReader {
       }
     }
 
+    // general xerc20 functions
+    if (!insight) {
+      switch (decoded.functionFragment.name) {
+        case xerc20Interface.functions['mint(address,uint256)'].name: {
+          const [to, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
+          break;
+        }
+        case xerc20Interface.functions['approve(address,uint256)'].name: {
+          const [spender, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
+          break;
+        }
+        case xerc20Interface.functions['burn(address,uint256)'].name: {
+          const [from, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
+          break;
+        }
+      }
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
     let ownableTx = {};
     if (!insight) {
       ownableTx = await this.readOwnableTransaction(chain, tx);
@@ -551,8 +581,7 @@ export class GovernTransactionReader {
       ...ownableTx,
       to: `${metadata.symbol} (${metadata.name}, ${metadata.type}, ${tx.to})`,
       chain,
-      insight,
-      tx,
+      ...(insight ? { insight } : { args }),
       signature: decoded.signature,
     };
   }
