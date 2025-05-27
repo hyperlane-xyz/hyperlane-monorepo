@@ -477,6 +477,8 @@ fn configure_connection_client(
     let actual_ism = deployer.get_interchain_security_module(&client, program_id);
     let expected_ism = router_config.connection_client.interchain_security_module();
 
+    let owner = onchain_owner_or_payer(deployer, ctx, &chain_config.client(), &program_id);
+
     if actual_ism != expected_ism {
         ctx.new_txn()
             .add_with_description(
@@ -493,7 +495,7 @@ fn configure_connection_client(
                 ),
             )
             .with_client(&client)
-            .send_with_payer();
+            .send_with_pubkey_signer(&owner);
     }
 
     let actual_igp = deployer.get_interchain_gas_paymaster(&client, program_id);
@@ -519,7 +521,7 @@ fn configure_connection_client(
                     ),
                 )
                 .with_client(&client)
-                .send_with_payer();
+                .send_with_pubkey_signer(&owner);
         } else {
             println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_config.name, chain_config.domain_id());
         }
@@ -541,9 +543,23 @@ fn configure_owner(
     let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
 
     if actual_owner != expected_owner {
-        if actual_owner != Some(ctx.payer_pubkey) {
+        if let Some(actual_owner) = actual_owner {
+            ctx.new_txn()
+                .add_with_description(
+                    deployer.set_owner_instruction(&client, program_id, expected_owner),
+                    format!(
+                        "Setting owner for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_owner,
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&actual_owner);
+        } else {
+            // Flag if we can't change the owner
             println!(
-                "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is not the payer account",
+                "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is None",
                 chain_config.name,
                 chain_config.domain_id(),
                 actual_owner,
@@ -551,18 +567,6 @@ fn configure_owner(
             );
             return;
         }
-        ctx.new_txn()
-            .add_with_description(
-                deployer.set_owner_instruction(&client, program_id, expected_owner),
-                format!(
-                    "Setting owner for chain: {} ({}) to {:?}",
-                    chain_config.name,
-                    chain_config.domain_id(),
-                    expected_owner,
-                ),
-            )
-            .with_client(&client)
-            .send_with_payer();
 
         // Sanity check that it was updated!
 
@@ -590,10 +594,28 @@ fn configure_upgrade_authority(
     // And the upgrade authority is not what we expect...
     if actual_upgrade_authority.is_some() && actual_upgrade_authority != expected_upgrade_authority
     {
-        // Flag if we can't change the upgrade authority
-        if actual_upgrade_authority != Some(ctx.payer_pubkey) {
+        if let Some(actual_upgrade_authority) = actual_upgrade_authority {
+            // Then set the upgrade authority to what we expect.
+            ctx.new_txn()
+                .add_with_description(
+                    bpf_loader_upgradeable::set_upgrade_authority(
+                        program_id,
+                        &actual_upgrade_authority,
+                        expected_upgrade_authority.as_ref(),
+                    ),
+                    format!(
+                        "Setting upgrade authority for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_upgrade_authority,
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&actual_upgrade_authority);
+        } else {
+            // Flag if we can't change the upgrade authority
             println!(
-                "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is not the payer account",
+                "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is None",
                 chain_config.name,
                 chain_config.domain_id(),
                 actual_upgrade_authority,
@@ -601,24 +623,6 @@ fn configure_upgrade_authority(
             );
             return;
         }
-
-        // Then set the upgrade authority to what we expect.
-        ctx.new_txn()
-            .add_with_description(
-                bpf_loader_upgradeable::set_upgrade_authority(
-                    program_id,
-                    actual_upgrade_authority.as_ref().unwrap(),
-                    expected_upgrade_authority.as_ref(),
-                ),
-                format!(
-                    "Setting upgrade authority for chain: {} ({}) to {:?}",
-                    chain_config.name,
-                    chain_config.domain_id(),
-                    expected_upgrade_authority,
-                ),
-            )
-            .with_client(&client)
-            .send_with_payer();
 
         // Sanity check that it was updated!
 
@@ -728,6 +732,8 @@ fn enroll_all_remote_routers<
         if !router_configs.is_empty() {
             adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
+            let owner = onchain_owner_or_payer(deployer, ctx, &chain_config.client(), &program_id);
+
             ctx.new_txn()
                 .add_with_description(
                     deployer.enroll_remote_routers_instruction(
@@ -741,7 +747,7 @@ fn enroll_all_remote_routers<
                     ),
                 )
                 .with_client(&chain_config.client())
-                .send_with_payer();
+                .send_with_pubkey_signer(&owner);
         } else {
             println!(
                 "No router changes for chain: {}, program_id {}",
@@ -749,6 +755,17 @@ fn enroll_all_remote_routers<
             );
         }
     }
+}
+
+fn onchain_owner_or_payer(
+    ownable: &impl Ownable,
+    ctx: &Context,
+    rpc_client: &RpcClient,
+    program_id: &Pubkey,
+) -> Pubkey {
+    ownable
+        .get_owner(rpc_client, &program_id)
+        .unwrap_or(ctx.payer_pubkey)
 }
 
 // Writes router program IDs as hex and base58.
