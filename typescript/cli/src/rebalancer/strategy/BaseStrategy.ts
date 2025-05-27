@@ -1,6 +1,6 @@
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
-import { logDebug, logGray } from '../../logger.js';
+import { logDebug, logGray, warnYellow } from '../../logger.js';
 import type {
   IStrategy,
   RawBalances,
@@ -36,6 +36,34 @@ export abstract class BaseStrategy implements IStrategy {
 
     logDebug(`[${this.constructor.name}] Surpluses:`, surpluses);
     logDebug(`[${this.constructor.name}] Deficits:`, deficits);
+
+    // Calculate sums of surpluses and deficits
+    const totalSurplus = surpluses.reduce(
+      (sum, surplus) => sum + surplus.amount,
+      0n,
+    );
+    const totalDeficit = deficits.reduce(
+      (sum, deficit) => sum + deficit.amount,
+      0n,
+    );
+
+    logDebug(`[${this.constructor.name}] Total surplus: ${totalSurplus}`);
+    logDebug(`[${this.constructor.name}] Total deficit: ${totalDeficit}`);
+
+    // If total surplus is less than total deficit, scale down deficits proportionally
+    if (totalSurplus < totalDeficit) {
+      warnYellow(
+        `[${this.constructor.name}] Deficits are greater than surpluses. Scaling deficits...`,
+      );
+
+      for (const deficit of deficits) {
+        const newAmount = (deficit.amount * totalSurplus) / totalDeficit;
+
+        deficit.amount = newAmount;
+      }
+
+      logDebug(`[${this.constructor.name}] Scaled deficits:`, deficits);
+    }
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
     // first and decrease the amount of routes required
