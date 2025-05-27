@@ -157,8 +157,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const reader = new EvmRouterReader(this.multiProvider, this.chain);
 
     const [mailboxClientConfig, urls] = await Promise.all([
-      await reader.fetchMailboxClientConfig(address),
-      await ism.urls(),
+      reader.fetchMailboxClientConfig(address),
+      ism.urls(),
     ]);
 
     return {
