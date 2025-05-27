@@ -23,7 +23,7 @@ export class StrategyFactory {
     rebalanceStrategy: StrategyOptions,
     config: ChainMap<ChainConfig>,
     tokensByChainName: ChainMap<Token>,
-    totalCollateral: bigint,
+    initialTotalCollateral: bigint,
   ): IStrategy {
     if (rebalanceStrategy === StrategyOptions.Weighted) {
       return new WeightedStrategy(config as WeightedStrategyConfig);
@@ -31,7 +31,7 @@ export class StrategyFactory {
       return new MinAmountStrategy(
         config as MinAmountStrategyConfig,
         tokensByChainName,
-        totalCollateral,
+        initialTotalCollateral,
       );
     } else {
       throw new Error(`Unsupported strategy type: ${rebalanceStrategy}`);

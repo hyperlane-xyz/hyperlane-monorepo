@@ -106,7 +106,7 @@ export class RebalancerContextFactory {
       this.config.rebalanceStrategy,
       this.config.chains,
       this.tokensByChainName,
-      await this.getTotalCollateral(),
+      await this.getInitialTotalCollateral(),
     );
   }
 
@@ -132,18 +132,18 @@ export class RebalancerContextFactory {
     return new MonitorToStrategyTransformer(this.warpCore);
   }
 
-  private async getTotalCollateral(): Promise<bigint> {
-    let totalCollateral = 0n;
+  private async getInitialTotalCollateral(): Promise<bigint> {
+    let initialTotalCollateral = 0n;
 
     for (const token of this.warpCore.tokens) {
       if (token.collateralAddressOrDenom) {
         const adapter = token.getHypAdapter(this.warpCore.multiProvider);
         const bridgedSupply = await adapter.getBridgedSupply();
 
-        totalCollateral += bridgedSupply ?? 0n;
+        initialTotalCollateral += bridgedSupply ?? 0n;
       }
     }
 
-    return totalCollateral;
+    return initialTotalCollateral;
   }
 }

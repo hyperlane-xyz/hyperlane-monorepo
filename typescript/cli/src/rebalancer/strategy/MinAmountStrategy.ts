@@ -22,13 +22,13 @@ export class MinAmountStrategy extends BaseStrategy {
   constructor(
     config: MinAmountStrategyConfig,
     private readonly tokensByChainName: ChainMap<Token>,
-    totalCollateral: bigint,
+    initialTotalCollateral: bigint,
   ) {
     const chains = Object.keys(config);
     super(chains);
 
     const minAmountType = config[chains[0]].minAmount.type;
-    this.validateAmounts(totalCollateral, minAmountType, config);
+    this.validateAmounts(initialTotalCollateral, minAmountType, config);
 
     for (const chain of chains) {
       const { min, target } = config[chain].minAmount;
