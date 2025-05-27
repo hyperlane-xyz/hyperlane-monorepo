@@ -11,8 +11,6 @@ use crate::transaction::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
-const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
-
 const TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX: &str = "tx_index_by_id_";
 const TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX: &str = "tx_id_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";

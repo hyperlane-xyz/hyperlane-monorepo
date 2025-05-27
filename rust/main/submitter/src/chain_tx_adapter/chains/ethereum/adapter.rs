@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_base::CoreMetrics;
@@ -49,6 +50,7 @@ impl EthereumTxAdapter {
         conf: ChainConf,
         connection_conf: ConnectionConf,
         raw_conf: RawChainConf,
+        db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
         let locator = ContractLocator {
@@ -65,7 +67,7 @@ impl EthereumTxAdapter {
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
 
-        let nonce_manager = NonceManager::new(&conf).await?;
+        let nonce_manager = NonceManager::new(&conf, db).await?;
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
 
