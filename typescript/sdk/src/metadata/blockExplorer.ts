@@ -11,16 +11,6 @@ export function getExplorerBaseUrl(
   return url.toString();
 }
 
-export function getExplorerAddressPathStub(metadata: ChainMetadata, index = 0) {
-  if (!metadata?.blockExplorers?.[index]) return null;
-  const blockExplorer = metadata.blockExplorers[index];
-  if (!blockExplorer.family) return null;
-
-  return blockExplorer.family === ExplorerFamily.Voyager
-    ? 'contract'
-    : 'address';
-}
-
 export function getExplorerApi(
   metadata: ChainMetadata,
   index = 0,
@@ -88,4 +78,14 @@ function appendToPath(baseUrl: string, pathExtension: string) {
   const newUrl = new URL(newPath, base);
   newUrl.search = base.searchParams.toString();
   return newUrl;
+}
+
+function getExplorerAddressPathStub(metadata: ChainMetadata, index = 0) {
+  if (!metadata?.blockExplorers?.[index]) return null;
+  const blockExplorer = metadata.blockExplorers[index];
+  if (!blockExplorer.family) return null;
+
+  return blockExplorer.family === ExplorerFamily.Voyager
+    ? 'contract'
+    : 'address';
 }
