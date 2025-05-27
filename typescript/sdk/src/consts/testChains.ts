@@ -159,6 +159,14 @@ export const testStarknetChain: ChainMetadata = {
       http: 'http://127.0.0.1:5050',
     },
   ],
+  blockExplorers: [
+    {
+      apiUrl: 'https://sepolia.voyager.online/api',
+      family: ExplorerFamily.Voyager,
+      name: 'Starknet Sepolia Explorer',
+      url: 'https://sepolia.voyager.online',
+    },
+  ],
 };
 
 export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
