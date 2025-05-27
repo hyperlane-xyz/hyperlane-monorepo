@@ -13,7 +13,7 @@ import { DEPLOYER } from '../../owners.js';
 
 // TODO: Confirm ownership
 const safeOwners: ChainMap<Address> = {
-  bsc: DEPLOYER,
+  bsc: '0xE472F601aeEeBEafbbd3a6FD9A788966011AD1Df',
   milkyway: 'milk169dcaz397j75tjfpl6ykm23dfrv39dqd58lsag',
 };
 
