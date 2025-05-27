@@ -477,25 +477,34 @@ fn configure_connection_client(
     let actual_ism = deployer.get_interchain_security_module(&client, program_id);
     let expected_ism = router_config.connection_client.interchain_security_module();
 
-    let owner = onchain_owner_or_payer(deployer, ctx, &chain_config.client(), &program_id);
+    let owner = deployer.get_owner(&client, program_id);
 
     if actual_ism != expected_ism {
-        ctx.new_txn()
-            .add_with_description(
-                deployer.set_interchain_security_module_instruction(
-                    &client,
-                    program_id,
-                    expected_ism,
-                ),
-                format!(
-                    "Setting ISM for chain: {} ({}) to {:?}",
-                    chain_config.name,
-                    chain_config.domain_id(),
-                    expected_ism
-                ),
-            )
-            .with_client(&client)
-            .send_with_pubkey_signer(&owner);
+        if let Some(owner) = owner {
+            ctx.new_txn()
+                .add_with_description(
+                    deployer.set_interchain_security_module_instruction(
+                        &client,
+                        program_id,
+                        expected_ism,
+                    ),
+                    format!(
+                        "Setting ISM for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_ism
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&owner);
+        } else {
+            println!(
+                "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
+                chain_config.name,
+                chain_config.domain_id(),
+                expected_ism
+            );
+        }
     }
 
     let actual_igp = deployer.get_interchain_gas_paymaster(&client, program_id);
@@ -510,18 +519,25 @@ fn configure_connection_client(
             expected_igp.clone(),
         );
         if let Some(instruction) = instruction {
-            ctx.new_txn()
-                .add_with_description(
-                    instruction,
-                    format!(
-                        "Setting IGP for chain: {} ({}) to {:?}",
-                        chain_config.name,
-                        chain_config.domain_id(),
-                        expected_igp
-                    ),
-                )
-                .with_client(&client)
-                .send_with_pubkey_signer(&owner);
+            if let Some(owner) = owner {
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!(
+                            "Setting IGP for chain: {} ({}) to {:?}",
+                            chain_config.name,
+                            chain_config.domain_id(),
+                            expected_igp
+                        ),
+                    )
+                    .with_client(&client)
+                    .send_with_pubkey_signer(&owner);
+            } else {
+                println!(
+                    "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
+                    chain_config.name, chain_config.domain_id(), expected_igp
+                );
+            }
         } else {
             println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_config.name, chain_config.domain_id());
         }
@@ -683,10 +699,10 @@ fn enroll_all_remote_routers<
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
-
         let chain_config = chain_configs
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+        let client = chain_config.client();
 
         let domain_id = chain_config.domain_id();
         let program_id: Pubkey =
@@ -732,22 +748,29 @@ fn enroll_all_remote_routers<
         if !router_configs.is_empty() {
             adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
-            let owner = onchain_owner_or_payer(deployer, ctx, &chain_config.client(), &program_id);
+            let owner = deployer.get_owner(&client, &program_id);
 
-            ctx.new_txn()
-                .add_with_description(
-                    deployer.enroll_remote_routers_instruction(
-                        program_id,
-                        ctx.payer_pubkey,
-                        router_configs.clone(),
-                    ),
-                    format!(
-                        "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
-                        chain_name, program_id, router_configs,
-                    ),
-                )
-                .with_client(&chain_config.client())
-                .send_with_pubkey_signer(&owner);
+            if let Some(owner) = owner {
+                ctx.new_txn()
+                    .add_with_description(
+                        deployer.enroll_remote_routers_instruction(
+                            program_id,
+                            ctx.payer_pubkey,
+                            router_configs.clone(),
+                        ),
+                        format!(
+                            "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
+                            chain_name, program_id, router_configs,
+                        ),
+                    )
+                    .with_client(&chain_config.client())
+                    .send_with_pubkey_signer(&owner);
+            } else {
+                println!(
+                    "WARNING: Cannot enroll routers for chain: {} ({}) with program_id {}, the existing owner is None",
+                    chain_name, domain_id, program_id
+                );
+            }
         } else {
             println!(
                 "No router changes for chain: {}, program_id {}",
@@ -755,17 +778,6 @@ fn enroll_all_remote_routers<
             );
         }
     }
-}
-
-fn onchain_owner_or_payer(
-    ownable: &impl Ownable,
-    ctx: &Context,
-    rpc_client: &RpcClient,
-    program_id: &Pubkey,
-) -> Pubkey {
-    ownable
-        .get_owner(rpc_client, &program_id)
-        .unwrap_or(ctx.payer_pubkey)
 }
 
 // Writes router program IDs as hex and base58.
