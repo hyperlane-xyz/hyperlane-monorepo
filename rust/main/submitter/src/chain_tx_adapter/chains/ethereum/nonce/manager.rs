@@ -11,29 +11,33 @@ use tracing::info;
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
+use hyperlane_core::U256;
 use hyperlane_ethereum::{EvmProviderForSubmitter, Signers};
 
-use crate::transaction::Transaction;
-use crate::SubmitterError;
+use crate::transaction::{Transaction, TransactionId};
+use crate::{SubmitterError, TransactionStatus};
 
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
+use super::state::{NonceAction, NonceManagerState, NonceStatus};
 
 pub struct NonceManager {
-    tx_in_finality_count: Arc<Mutex<usize>>,
     address: Address,
     db: Arc<dyn NonceDb>,
+    state: NonceManagerState,
 }
 
 impl NonceManager {
     pub async fn new(chain_conf: &ChainConf, db: Arc<HyperlaneRocksDB>) -> eyre::Result<Self> {
         let address = Self::address(chain_conf).await?;
         let db = db as Arc<dyn NonceDb>;
-        Ok(Self {
-            tx_in_finality_count: Arc::new(Mutex::new(0usize)),
-            address,
-            db,
-        })
+        let state = NonceManagerState::new();
+
+        Ok(Self { address, db, state })
+    }
+
+    pub async fn update_nonce_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+        self.state.update_nonce_status(tx, tx_status).await;
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
@@ -46,34 +50,10 @@ impl NonceManager {
         Ok(address)
     }
 
-    pub async fn set_nonce(
-        &self,
-        tx: &mut Transaction,
-        provider: &Box<dyn EvmProviderForSubmitter>,
-    ) -> Result<(), SubmitterError> {
+    pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let tx_id = tx.id.clone();
 
         let precursor = tx.precursor_mut();
-
-        if let Some(nonce) = precursor.tx.nonce() {
-            let stored_tx_id = self
-                .db
-                .retrieve_tx_id_by_nonce_and_signer_address(
-                    &nonce.into(),
-                    &self.address.to_string(),
-                )
-                .await?
-                .ok_or(SubmitterError::TxSubmissionError(
-                    "Nonce not found in database".to_string(),
-                ))?;
-            if stored_tx_id != tx_id {
-                return Err(SubmitterError::TxSubmissionError(format!(
-                    "Nonce already used for a different transaction, stored tx id {:?}, current tx id {:?}",
-                    stored_tx_id, tx_id
-                )));
-            }
-            return Ok(());
-        }
 
         let address = *precursor
             .tx
@@ -88,9 +68,15 @@ impl NonceManager {
             ));
         }
 
-        let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
+        if let Some(nonce) = precursor.tx.nonce() {
+            let nonce: U256 = nonce.into();
+            let action = self.state.validate_assigned_nonce(&nonce).await?;
+            if matches!(action, NonceAction::None) {
+                return Ok(());
+            };
+        }
 
-        let next_nonce = nonce + self.get_tx_in_finality_count().await as u64;
+        let next_nonce = self.state.identify_next_nonce().await?;
 
         self.db
             .store_tx_id_by_nonce_and_signer_address(&next_nonce, &address.to_string(), &tx_id)
@@ -109,10 +95,6 @@ impl NonceManager {
     }
 
     pub async fn set_tx_in_finality_count(&self, count: usize) {
-        *self.tx_in_finality_count.lock().await = count;
-    }
-
-    async fn get_tx_in_finality_count(&self) -> usize {
-        *self.tx_in_finality_count.lock().await
+        self.state.set_tx_in_finality_count(count).await;
     }
 }

@@ -8,8 +8,9 @@ use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
 use eyre::eyre;
+use futures_util::future::join_all;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -92,7 +93,7 @@ impl EthereumTxAdapter {
     }
 
     async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+        self.nonce_manager.assign_nonce(tx).await?;
         Ok(())
     }
 
@@ -196,6 +197,10 @@ impl AdaptsChain for EthereumTxAdapter {
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, SubmitterError> {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
+    }
+
+    async fn on_tx_status_update(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+        self.nonce_manager.update_nonce_status(tx, tx_status).await;
     }
 
     async fn reverted_payloads(
