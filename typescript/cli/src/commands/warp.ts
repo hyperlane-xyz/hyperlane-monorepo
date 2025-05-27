@@ -550,15 +550,15 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       if (rebalanceStrategy === StrategyOptions.Manual) {
         if (!origin) {
-          throw new Error('Origin is required for manual rebalance');
+          throw new Error('--origin is required for manual rebalance');
         }
 
         if (!destination) {
-          throw new Error('Destination is required for manual rebalance');
+          throw new Error('--destination is required for manual rebalance');
         }
 
         if (!amount) {
-          throw new Error('Amount is required for manual rebalance');
+          throw new Error('--amount is required for manual rebalance');
         }
 
         warnYellow(
