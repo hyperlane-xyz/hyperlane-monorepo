@@ -14,7 +14,7 @@ import { DEPLOYER } from '../../owners.js';
 // TODO: Confirm ownership
 const safeOwners: ChainMap<Address> = {
   bsc: DEPLOYER,
-  milkyway: 'milk1326ley07fm6rpeqgxmxevnqevrsjfew2akzupg',
+  milkyway: 'milk169dcaz397j75tjfpl6ykm23dfrv39dqd58lsag',
 };
 
 export const getBscMilkywayMILKWarpConfig = async (
