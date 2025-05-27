@@ -5,7 +5,9 @@ import { zeroAddress } from 'viem';
 import {
   GasRouter__factory,
   HypERC20Collateral__factory,
+  ITransparentUpgradeableProxy__factory,
   MailboxClient__factory,
+  ProxyAdmin__factory,
   TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -33,7 +35,7 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
+import { proxyAdmin, proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
@@ -553,16 +555,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     // Check if package version is below 7.1.5
     if (actualConfig.packageVersion && actualConfig.packageVersion < '7.1.5') {
+      const provider = this.multiProvider.getProvider(this.domainId);
+      const signer = this.multiProvider.getSigner(this.domainId);
+      const proxyAddr = this.args.addresses.deployedTokenRoute;
       // Create transaction to upgrade implementation
       // Deploy new implementation
       const warpRoute = HypERC20Collateral__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
+        proxyAddr,
+        provider,
       );
 
-      const factory = new HypERC20Collateral__factory(
-        this.multiProvider.getSigner(this.domainId),
-      );
+      const factory = new HypERC20Collateral__factory(signer);
       const newWarpRouteImpl = await factory.deploy(
         await warpRoute.wrappedToken(),
         await warpRoute.scale(),
@@ -579,13 +582,22 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         [hook, ism, owner],
       );
 
+      const proxyAdminContract = ProxyAdmin__factory.connect(
+        await proxyAdmin(provider, proxyAddr),
+        signer,
+      );
+
+      console.log('proxyAdmin: ', proxyAdminContract.address);
+      console.log('proxyAdmin owner', await proxyAdminContract.owner());
+      console.log('signer: ', await signer.getAddress());
+
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
-        to: warpRoute.address,
-        data: TransparentUpgradeableProxy__factory.createInterface().encodeFunctionData(
-          'upgradeToAndCall',
-          [newWarpRouteImpl.address, initCallData],
+        to: proxyAdminContract.address,
+        data: proxyAdminContract.interface.encodeFunctionData(
+          'upgradeAndCall',
+          [proxyAddr, newWarpRouteImpl.address, initCallData],
         ),
       });
     }
