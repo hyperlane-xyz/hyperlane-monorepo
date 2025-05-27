@@ -1,10 +1,22 @@
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Commitment, Connection, PublicKey } from '@solana/web3.js';
+import {
+  Commitment,
+  Connection,
+  PublicKey,
+  SystemProgram,
+} from '@solana/web3.js';
+import { deserializeUnchecked } from 'borsh';
 
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainNameOrId } from '../../types.js';
+import { SealevelAccountDataWrapper } from '../../utils/sealevelSerialization.js';
+import {
+  SealevelHyperlaneTokenData,
+  SealevelHyperlaneTokenDataSchema,
+} from '../adapters/serialization.js';
 import { TokenType } from '../config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from '../types.js';
 
@@ -25,7 +37,9 @@ export class SvmSplTokenWarpRouteReader {
 
   constructor(
     protected readonly chain: ChainNameOrId,
-    protected readonly multiProvider: MultiProtocolProvider,
+    protected readonly multiProvider: MultiProtocolProvider<{
+      mailbox?: Address;
+    }>,
   ) {
     this.connection = multiProvider.getSolanaWeb3Provider(chain);
 
@@ -47,7 +61,7 @@ export class SvmSplTokenWarpRouteReader {
 
   protected readonly deriveTokenConfigMap!: Record<
     TokenType,
-    ((address: Address) => Promise<HypTokenConfig>) | null
+    ((address: PublicKey) => Promise<HypTokenConfig>) | null
   >;
 
   async deriveWarpRouteConfig(
@@ -60,9 +74,16 @@ export class SvmSplTokenWarpRouteReader {
 
     const tokenType = await this.getTokenTypeForProgram(programId);
 
-    console.log(tokenType);
+    const deriveFunction = this.deriveTokenConfigMap[tokenType];
+    if (!deriveFunction) {
+      throw new Error(
+        `Provided unsupported token type "${tokenType}" when fetching token metadata on chain "${this.chain}" at address "${warpRouteAddress}"`,
+      );
+    }
 
-    return {} as DerivedTokenRouterConfig;
+    const config = await deriveFunction(programId);
+
+    return config as any;
   }
 
   // Stub: you will need to provide this based on your setup
@@ -105,20 +126,69 @@ export class SvmSplTokenWarpRouteReader {
     );
   }
 
-  private deriveHypNativeTokenConfig(
-    _programId: Address,
+  private async deriveHypNativeTokenConfig(
+    programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
-    throw new Error('Not impl');
+    const tokenAccount = BaseSealevelAdapter.derivePda(
+      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
+      programId,
+    );
+
+    const accountInfo = await this.connection.getAccountInfo(tokenAccount);
+
+    assert(!!accountInfo, '');
+
+    const { data } = deserializeUnchecked<
+      SealevelAccountDataWrapper<SealevelHyperlaneTokenData>
+    >(
+      SealevelHyperlaneTokenDataSchema,
+      SealevelAccountDataWrapper,
+      accountInfo.data,
+    );
+
+    const chainMetadata = this.multiProvider.tryGetChainMetadata(this.chain);
+
+    assert(chainMetadata?.nativeToken, '');
+    const { name, symbol } = chainMetadata.nativeToken;
+
+    return {
+      type: TokenType.native,
+      hook: data.interchain_gas_paymaster_pubkey
+        ? data.interchain_gas_paymaster_pubkey.toBase58()
+        : SystemProgram.programId.toBase58(),
+      interchainSecurityModule: data.interchain_security_module
+        ? PublicKey.decode(Buffer.from(data.interchain_security_module))
+        : SystemProgram.programId.toBase58(),
+      mailbox: PublicKey.decode(Buffer.from(data.mailbox)),
+      owner: PublicKey.decode(Buffer.from(data.owner!)),
+      decimals: data.decimals,
+      isNft: false,
+      symbol,
+      name,
+      destinationGas: Object.fromEntries(
+        Array.from(data.destination_gas?.entries() ?? []).map(
+          ([domain, gas]) => [domain.toString(), gas.toString()],
+        ),
+      ),
+      remoteRouters: Object.fromEntries(
+        Array.from(data.remote_router_pubkeys?.entries() ?? []).map(
+          ([domain, routerAddress]) => [
+            domain.toString(),
+            { address: routerAddress.toString() },
+          ],
+        ),
+      ),
+    };
   }
 
   private deriveHypCollateralTokenConfig(
-    _programId: Address,
+    _programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
     throw new Error('Not impl');
   }
 
   private deriveHypSyntheticTokenConfig(
-    _programId: Address,
+    _programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
     throw new Error('Not impl');
   }
