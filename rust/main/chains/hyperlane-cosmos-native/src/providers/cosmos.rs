@@ -394,6 +394,9 @@ impl HyperlaneProvider for CosmosNativeProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        if hash.is_zero() {
+            return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
+        }
         let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 

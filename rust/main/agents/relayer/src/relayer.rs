@@ -376,6 +376,7 @@ impl BaseAgent for Relayer {
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
@@ -395,6 +396,7 @@ impl BaseAgent for Relayer {
                         settings.ism_cache_configs.clone(),
                     ),
                     ccip_signers.get(destination).cloned().flatten(),
+                    origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
@@ -631,6 +633,7 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
+            None,
         )
         .await
     }
@@ -1181,6 +1184,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 
