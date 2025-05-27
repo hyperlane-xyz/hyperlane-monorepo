@@ -587,12 +587,18 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let no_metadata_message_count = *matched_logs
         .get(&line_filters)
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
+
+    log!(
+        "CouldNotFetchMetadata log count found {}, expected {}",
+        no_metadata_message_count,
+        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    );
     // These messages are never inserted into the merkle tree.
     // So these messages will never be deliverable and will always
     // be in a CouldNotFetchMetadata state.
     // When the relayer restarts, these messages' statuses should be
     // retrieved from the database with CouldNotFetchMetadata status.
-    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+    if no_metadata_message_count != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "No metadata message count is {}, expected {}",
             no_metadata_message_count,
@@ -600,10 +606,6 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
         );
         return Ok(false);
     }
-    assert_eq!(
-        no_metadata_message_count,
-        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-    );
     Ok(true)
 }
 
