@@ -147,6 +147,10 @@ export class MultiProtocolSignerManager {
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
     if (this.options.key && typeof this.options.key === 'object') {
+      assert(
+        this.options.key[chain],
+        `Key flag --key.${chain} for chain ${chain} not provided`,
+      );
       this.logger.debug(
         `Using private key passed via CLI --key.${chain} flag for chain ${chain}`,
       );

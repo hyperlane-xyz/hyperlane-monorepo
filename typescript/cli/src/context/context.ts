@@ -10,10 +10,10 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
-import { isSignCommand } from '../commands/signCommands.js';
+import { isSignCommand, isValidKey } from '../commands/signCommands.js';
 import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -32,6 +32,12 @@ import {
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
+
+  assert(
+    isValidKey(argv.key),
+    `Key inputs not valid, make sure to use --key.{chain_name} or the legacy flag --key but not both at the same time`,
+  );
+
   const settings: ContextSettings = {
     registryUris: [
       ...argv.registry,
