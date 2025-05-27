@@ -1498,11 +1498,27 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   milkyway: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0x55010624d5e239281d0850dc7915b78187e8bc0e',
+        alias: 'Nodes.Guru',
+      },
+      {
+        address: '0x9ecf299947b030f9898faf328e5edbf77b13e974',
+        alias: 'B-Harvest',
+      },
+      {
+        address: '0x56fa9ac314ad49836ffb35918043d6b2dec304fb',
+        alias: 'DSRV',
+      },
+      {
+        address: '0xb69c0d1aacd305edeca88b482b9dd9657f3a8b5c',
+        alias: 'CryptoCrew',
       },
     ],
   },
