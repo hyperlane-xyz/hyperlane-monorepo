@@ -137,9 +137,10 @@ export class RebalancerContextFactory {
 
     for (const token of this.warpCore.tokens) {
       if (token.collateralAddressOrDenom) {
-        logDebug(`Checking token: ${token.chainName}`);
         const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-        totalCollateral += (await adapter.getBridgedSupply()) ?? 0n;
+        const bridgedSupply = await adapter.getBridgedSupply();
+
+        totalCollateral += bridgedSupply ?? 0n;
       }
     }
 
