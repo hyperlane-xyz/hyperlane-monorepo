@@ -575,7 +575,7 @@ jobs:
 
       - name: agent tests with Starknet
         run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
-        if: matrix.e2e-type == 'starknet'
+        if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
