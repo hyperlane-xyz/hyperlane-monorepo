@@ -34,11 +34,27 @@ async function validateRegistryCommit(commit: string) {
       stdio: 'inherit',
     });
     rootLogger.info(chalk.grey.italic('Fetch completed successfully.'));
-  } catch (_) {
-    rootLogger.error(chalk.red(`Unable to fetch registry commit ${commit}.`));
-    process.exit(1);
+  } catch (error) {
+    rootLogger.warn(
+      chalk.yellow(
+        `Unable to fetch registry commit ${commit}. Falling back to main branch...`,
+      ),
+    );
+    try {
+      execSync(`cd ${registryUri} && git fetch origin main`, {
+        stdio: 'inherit',
+      });
+      rootLogger.info(chalk.grey.italic('Successfully fetched main branch.'));
+      return 'main';
+    } catch (fallbackError) {
+      rootLogger.error(chalk.red('Failed to fetch main branch as fallback.'));
+      process.exit(1);
+    }
   }
+  return commit;
 }
+
+export { validateRegistryCommit };
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -57,7 +73,7 @@ async function main() {
     message:
       'Enter the registry version to use (can be a commit, branch or tag):',
   });
-  await validateRegistryCommit(registryCommit);
+  const validatedCommit = await validateRegistryCommit(registryCommit);
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
@@ -67,7 +83,7 @@ async function main() {
       warpRouteId,
       environment,
       agentConfig.environmentChainNames,
-      registryCommit,
+      validatedCommit,
     );
     await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
