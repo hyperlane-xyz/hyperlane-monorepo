@@ -206,11 +206,19 @@ export class StarknetIsmReader {
 
     for (const domain of domains) {
       try {
+        const chainName = this.multiProvider.tryGetChainName(domain);
+        if (!chainName) {
+          this.logger.warn(
+            `Unknown domain ID ${domain}, skipping domain configuration`,
+          );
+          continue;
+        }
+
         const module = await ism.module(domain);
         const moduleConfig = await this.deriveIsmConfig(
           num.toHex64(module.toString()),
         );
-        domainConfigs[domain.toString()] = moduleConfig;
+        domainConfigs[chainName] = moduleConfig;
       } catch (error) {
         this.logger.error(
           `Failed to derive config for domain ${domain}`,
