@@ -60,7 +60,7 @@ export const skipConfirmationOption: Options = {
 export const keyCommandOption: Options = {
   type: 'string',
   description:
-    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var. Use --key.{chain_name} or HYP_KEY_{CHAIN_NAME} for chain specific key inputs',
   alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
