@@ -18,7 +18,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
-import { MonitorToStrategyTransformer } from '../transformers/MonitorToStrategyTransformer.js';
+import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
 
 export class RebalancerContextFactory {
   /**
@@ -128,15 +128,14 @@ export class RebalancerContextFactory {
     return new WithSemaphore(this.config, executor);
   }
 
-  public createMonitorToStrategyTransformer(): MonitorToStrategyTransformer {
-    return new MonitorToStrategyTransformer(this.warpCore);
-  }
-
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
     for (const token of this.warpCore.tokens) {
-      if (token.collateralAddressOrDenom && token.isCollateralized()) {
+      if (
+        isCollateralizedTokenEligibleForRebalancing(token) &&
+        token.collateralAddressOrDenom
+      ) {
         const adapter = token.getHypAdapter(this.warpCore.multiProvider);
         const bridgedSupply = await adapter.getBridgedSupply();
 

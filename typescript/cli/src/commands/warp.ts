@@ -36,6 +36,7 @@ import {
   RebalancerContextFactory,
   StrategyOptions,
 } from '../rebalancer/index.js';
+import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { ENV } from '../utils/env.js';
@@ -608,9 +609,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
         );
       }
 
-      const monitorToStrategy =
-        contextFactory.createMonitorToStrategyTransformer();
-
       await monitor
         // Observe balances events and process rebalancing routes
         .on(MonitorEventType.TokenInfo, (event) => {
@@ -624,7 +622,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
             }
           }
 
-          const rawBalances = monitorToStrategy.transform(event);
+          const rawBalances = getRawBalances(event);
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
