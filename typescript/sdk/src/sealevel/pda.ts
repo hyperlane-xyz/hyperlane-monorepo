@@ -26,6 +26,14 @@ export const HYPERLANE_COLLATERAL_TOKEN_PDA_SEEDS = [
   Buffer.from('escrow'),
 ];
 
+export const HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS = [
+  'hyperlane_message_recipient',
+  '-',
+  'handle',
+  '-',
+  'account_metas',
+];
+
 export const SvmSystemProgram = new PublicKey(
   '11111111111111111111111111111111',
 );

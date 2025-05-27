@@ -5,27 +5,23 @@ import {
   PublicKey,
   SystemProgram,
 } from '@solana/web3.js';
-import { deserializeUnchecked } from 'borsh';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainNameOrId } from '../../types.js';
-import { SealevelAccountDataWrapper } from '../../utils/sealevelSerialization.js';
-import {
-  SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
-} from '../adapters/serialization.js';
-import { TokenType } from '../config.js';
-import { DerivedTokenRouterConfig, HypTokenConfig } from '../types.js';
-
 import {
   HYPERLANE_COLLATERAL_TOKEN_PDA_SEEDS,
   HYPERLANE_NATIVE_TOKEN_PDA_SEEDS,
   HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
+  HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
   SvmSystemProgram,
-} from './pda.js';
+} from '../../sealevel/pda.js';
+import { ChainNameOrId } from '../../types.js';
+import { TokenType } from '../config.js';
+import { DerivedTokenRouterConfig, HypTokenConfig } from '../types.js';
+
+import { getSealevelHypTokenAccountData } from './token.js';
 
 export class SvmSplTokenWarpRouteReader {
   protected readonly logger = rootLogger.child({
@@ -130,20 +126,13 @@ export class SvmSplTokenWarpRouteReader {
     programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
     const tokenAccount = BaseSealevelAdapter.derivePda(
-      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
+      HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
       programId,
     );
 
-    const accountInfo = await this.connection.getAccountInfo(tokenAccount);
-
-    assert(!!accountInfo, '');
-
-    const { data } = deserializeUnchecked<
-      SealevelAccountDataWrapper<SealevelHyperlaneTokenData>
-    >(
-      SealevelHyperlaneTokenDataSchema,
-      SealevelAccountDataWrapper,
-      accountInfo.data,
+    const tokenData = await getSealevelHypTokenAccountData(
+      this.connection,
+      tokenAccount,
     );
 
     const chainMetadata = this.multiProvider.tryGetChainMetadata(this.chain);
@@ -153,25 +142,25 @@ export class SvmSplTokenWarpRouteReader {
 
     return {
       type: TokenType.native,
-      hook: data.interchain_gas_paymaster_pubkey
-        ? data.interchain_gas_paymaster_pubkey.toBase58()
+      hook: tokenData.interchain_gas_paymaster_pubkey
+        ? tokenData.interchain_gas_paymaster_pubkey.toBase58()
         : SystemProgram.programId.toBase58(),
-      interchainSecurityModule: data.interchain_security_module
-        ? PublicKey.decode(Buffer.from(data.interchain_security_module))
+      interchainSecurityModule: tokenData.interchain_security_module
+        ? PublicKey.decode(Buffer.from(tokenData.interchain_security_module))
         : SystemProgram.programId.toBase58(),
-      mailbox: PublicKey.decode(Buffer.from(data.mailbox)),
-      owner: PublicKey.decode(Buffer.from(data.owner!)),
-      decimals: data.decimals,
+      mailbox: PublicKey.decode(Buffer.from(tokenData.mailbox)),
+      owner: PublicKey.decode(Buffer.from(tokenData.owner!)),
+      decimals: tokenData.decimals,
       isNft: false,
       symbol,
       name,
       destinationGas: Object.fromEntries(
-        Array.from(data.destination_gas?.entries() ?? []).map(
+        Array.from(tokenData.destination_gas?.entries() ?? []).map(
           ([domain, gas]) => [domain.toString(), gas.toString()],
         ),
       ),
       remoteRouters: Object.fromEntries(
-        Array.from(data.remote_router_pubkeys?.entries() ?? []).map(
+        Array.from(tokenData.remote_router_pubkeys?.entries() ?? []).map(
           ([domain, routerAddress]) => [
             domain.toString(),
             { address: routerAddress.toString() },

@@ -12,7 +12,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
-import { deserializeUnchecked, serialize } from 'borsh';
+import { serialize } from 'borsh';
 
 import {
   Address,
@@ -35,11 +35,10 @@ import {
 } from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS } from '../../sealevel/pda.js';
 import { ChainName } from '../../types.js';
-import {
-  SealevelAccountDataWrapper,
-  SealevelInstructionWrapper,
-} from '../../utils/sealevelSerialization.js';
+import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
+import { getSealevelHypTokenAccountData } from '../sealevel/token.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -52,7 +51,6 @@ import {
 import {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
-  SealevelHyperlaneTokenDataSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './serialization.js';
@@ -290,19 +288,16 @@ export abstract class SealevelHypTokenAdapter
   }
 
   async getTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
-    if (!this.cachedTokenAccountData) {
-      const tokenPda = this.deriveHypTokenAccount();
-      const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
-      if (!accountInfo)
-        throw new Error(`No account info found for ${tokenPda}`);
-      const wrappedData = deserializeUnchecked(
-        SealevelHyperlaneTokenDataSchema,
-        SealevelAccountDataWrapper,
-        accountInfo.data,
-      );
-      this.cachedTokenAccountData =
-        wrappedData.data as SealevelHyperlaneTokenData;
+    if (this.cachedTokenAccountData) {
+      return this.cachedTokenAccountData;
     }
+
+    const tokenData = await getSealevelHypTokenAccountData(
+      this.getProvider(),
+      this.deriveHypTokenAccount(),
+    );
+    this.cachedTokenAccountData = tokenData;
+
     return this.cachedTokenAccountData;
   }
 
@@ -570,7 +565,7 @@ export abstract class SealevelHypTokenAdapter
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
   deriveHypTokenAccount(): PublicKey {
     return super.derivePda(
-      ['hyperlane_message_recipient', '-', 'handle', '-', 'account_metas'],
+      HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
       this.warpProgramPubKey,
     );
   }
