@@ -9,6 +9,7 @@ import {
   IsmType,
   TokenType,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -230,7 +231,20 @@ const zeroLimits: XERC20LimitConfig = {
   rateLimitPerSecond: '0',
 };
 
-const productionExtraLockboxes = {
+const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
+  ethereum: '0xce19f75bce7fb74c9e2328766ebe50465df24ca3',
+  celo: '0x47db76c9c97f4bcfd54d8872fdb848cab696092d',
+  base: '0xa760d20a91c076a57b270d3f7a3150421ab40591',
+  sonic: '0x6a21a19ad44542d83f7f7ff45aa31a62a36200de',
+  optimism: '0x6a21a19ad44542d83f7f7ff45aa31a62a36200de',
+};
+
+const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
+  bufferCap: upperBufferCap,
+  rateLimitPerSecond: productionDefaultRateLimitPerSecond,
+};
+
+const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ethereum: [
     {
       lockbox: productionEthereumXERC20LockboxAddress,
@@ -239,29 +253,33 @@ const productionExtraLockboxes = {
         rateLimitPerSecond: productionRateLimitByChain.ethereum,
       },
     },
+    {
+      lockbox: productionCCIPTokenPoolAddresses.ethereum,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  celo: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.celo,
+      limits: productionCCIPTokenPoolLimits,
+    },
   ],
   base: [
     {
-      // usdt
-      lockbox: '0x9d922c23d78179c2e75fe394fc8e49363f2dda85',
-      limits: zeroLimits,
+      lockbox: productionCCIPTokenPoolAddresses.base,
+      limits: productionCCIPTokenPoolLimits,
     },
+  ],
+  sonic: [
     {
-      // usdc
-      lockbox: '0xe92e51d99ae33114c60d9621fb2e1ec0acea7e30',
-      limits: zeroLimits,
+      lockbox: productionCCIPTokenPoolAddresses.sonic,
+      limits: productionCCIPTokenPoolLimits,
     },
   ],
   optimism: [
     {
-      // usdc
-      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: zeroLimits,
-    },
-    {
-      // usdt
-      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: zeroLimits,
+      lockbox: productionCCIPTokenPoolAddresses.optimism,
+      limits: productionCCIPTokenPoolLimits,
     },
   ],
 };
@@ -394,7 +412,7 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   hashkey: stagingXERC20TokenAddress,
 };
 
-const stagingExtraLockboxes = {
+const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ethereum: [
     {
       lockbox: stagingEthereumXERC20LockboxAddress,
@@ -402,30 +420,6 @@ const stagingExtraLockboxes = {
         bufferCap: stagingBufferCapByChain.ethereum,
         rateLimitPerSecond: stagingRateLimitByChain.ethereum,
       },
-    },
-  ],
-  base: [
-    {
-      // usdt
-      lockbox: '0xd28ca33022d41758bed4f1a31a99dde8fc4d89b3',
-      limits: zeroLimits,
-    },
-    {
-      // usdc
-      lockbox: '0x50df545016d26735daacbbf5afda56dc17d8748b',
-      limits: zeroLimits,
-    },
-  ],
-  optimism: [
-    {
-      // usdc
-      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: zeroLimits,
-    },
-    {
-      // usdt
-      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: zeroLimits,
     },
   ],
 };
@@ -532,7 +526,7 @@ function generateoUSDTTokenConfig(
   amountRoutingThreshold: number,
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
-  extraLockboxes?: ChainMap<{ lockbox: Address; limits: XERC20LimitConfig }[]>,
+  extraBridges?: ChainMap<XERC20TokenExtraBridgesLimits[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
   return Object.fromEntries(
@@ -550,7 +544,7 @@ function generateoUSDTTokenConfig(
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },
-          extraBridges: extraLockboxes ? extraLockboxes[chain] : undefined,
+          extraBridges: extraBridges ? extraBridges[chain] : undefined,
         },
         // The ISM configuration uses a fallback routing ISM that routes messages based on amount thresholds:
         // - Below threshold: Uses default ISM
@@ -588,7 +582,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
     stagingAmountRoutingThreshold,
     stagingBufferCapByChain,
     stagingRateLimitByChain,
-    stagingExtraLockboxes,
+    stagingExtraBridges,
   );
 };
 
@@ -602,7 +596,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
     productionAmountRoutingThreshold,
     productionBufferCapByChain,
     productionRateLimitByChain,
-    productionExtraLockboxes,
+    productionExtraBridges,
     productionOwnerOverridesByChain,
   );
 };
