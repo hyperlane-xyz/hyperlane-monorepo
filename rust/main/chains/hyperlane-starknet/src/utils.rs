@@ -1,13 +1,12 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
+use starknet::core::types::ExecutionResult;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -17,6 +16,7 @@ use starknet::{
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
     signers::LocalWallet,
 };
+use tracing::debug;
 use url::Url;
 
 use crate::contracts::{
@@ -41,27 +41,45 @@ pub async fn get_transaction_receipt(
     const TIMEOUT_DELAY: u64 = 60;
     const POLLING_INTERVAL: u64 = 2;
 
-    call_and_retry_n_times(
-        || {
-            let rpc = rpc.clone();
-            Box::pin(async move {
-                let receipt = rpc
-                    .get_transaction_receipt(transaction_hash)
-                    .await
-                    .map_err(HyperlaneStarknetError::from)?;
+    let n = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
 
-                match receipt {
-                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                        Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
+    for retry_number in 1..n {
+        let receipt = rpc
+            .get_transaction_receipt(transaction_hash)
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
+        match receipt {
+            MaybePendingTransactionReceipt::PendingReceipt(pending) => {
+                match pending.execution_result() {
+                    // Even if the pending transaction succeeded, we still need to wait for the transaction to be sealed
+                    ExecutionResult::Succeeded => {
+                        debug!(
+                            retry_number,
+                            "Starknet pending transaction receipt: {:?}", pending
+                        );
                     }
-                    MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
+                    // If the transaction didn't succeed, we can short-circuit and return the error
+                    ExecutionResult::Reverted { reason } => {
+                        return Err(
+                            HyperlaneStarknetError::TransactionReverted(reason.to_owned()).into(),
+                        );
+                    }
                 }
-            })
-        },
-        (TIMEOUT_DELAY / POLLING_INTERVAL) as usize,
-        Some(Duration::from_secs(POLLING_INTERVAL)),
-    )
-    .await
+            }
+            MaybePendingTransactionReceipt::Receipt(receipt) => return Ok(receipt),
+        }
+    }
+
+    // If we reach here, it means we didn't get the receipt in time
+    debug!(
+        "Starknet transaction receipt not available after {} retries",
+        n
+    );
+
+    Err(ChainCommunicationError::CustomError(format!(
+        "Starknet transaction receipt not available after {} retries",
+        n
+    )))
 }
 
 /// Creates a single owner account for a given signer and account address.
