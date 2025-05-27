@@ -818,6 +818,10 @@ const blacklistedMessageIds = [
 
   // oUSDT dest with zero'd out limits
   '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
+
+  // oUSDT messages sent to the zero address [2025-05-25]
+  '0x8149ccd407507fc2b066450ba125fc487461d9d8d99261b624496fdd8e30c129',
+  '0x4e11d1b530e15f1c5aa6ff9ddac7125397d9fb4b3d46f4690dab8e07cd634f6e',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -855,7 +859,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1c01a4f-20250521-141620',
+      tag: 'b1c502c-20250526-160239',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
