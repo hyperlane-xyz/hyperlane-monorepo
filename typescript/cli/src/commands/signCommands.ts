@@ -23,7 +23,7 @@ export function isValidKey(key: string | ChainMap<string>): boolean {
   if (typeof key === 'string') {
     return true;
   } else if (Array.isArray(key)) {
-    // if type if array it means the user inputed both --key.{chain_name}
+    // if type if array it means the user inputted both --key.{chain_name}
     // and the legacy flag --key at the same time
     return false;
   } else if (typeof key === 'object') {
