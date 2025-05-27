@@ -31,7 +31,6 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -154,18 +153,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     this.assertModuleType(await ism.moduleType(), ModuleType.CCIP_READ);
 
-    const reader = new EvmRouterReader(this.multiProvider, this.chain);
-
-    const [mailboxClientConfig, urls] = await Promise.all([
-      reader.fetchMailboxClientConfig(address),
-      ism.urls(),
-    ]);
+    const [urls, owner] = await Promise.all([ism.urls(), ism.owner()]);
 
     return {
       address,
       type: IsmType.OFFCHAIN_LOOKUP,
       urls,
-      ...mailboxClientConfig,
+      owner,
     };
   }
 

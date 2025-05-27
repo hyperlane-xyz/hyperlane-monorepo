@@ -1,12 +1,7 @@
 import { constants } from 'ethers';
 
 import { MailboxClient__factory, Router__factory } from '@hyperlane-xyz/core';
-import {
-  Address,
-  bytes32ToAddress,
-  eqAddress,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
@@ -86,10 +81,7 @@ export class EvmRouterReader extends HyperlaneReader {
     const routers = Object.fromEntries(
       await Promise.all(
         domains.map(async (domain) => {
-          return [
-            domain,
-            { address: bytes32ToAddress(await router.routers(domain)) },
-          ];
+          return [domain, { address: await router.routers(domain) }];
         }),
       ),
     );

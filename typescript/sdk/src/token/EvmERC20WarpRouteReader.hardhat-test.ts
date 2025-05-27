@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
 import { zeroAddress } from 'viem';
 
@@ -36,6 +35,7 @@ import { ChainMap } from '../types.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
+import { derivedIsmAddress } from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -141,6 +141,8 @@ describe('ERC20WarpRouterReader', async () => {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
       },
     };
@@ -151,16 +153,21 @@ describe('ERC20WarpRouterReader', async () => {
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
     );
-
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
       if (deployedValue && typeof value === 'string')
         expect(deployedValue).to.equal(value);
     }
 
-    expect(derivedConfig.hook).to.equal(ethers.constants.AddressZero);
-    expect(derivedConfig.interchainSecurityModule).to.equal(
-      ethers.constants.AddressZero,
+    // Check hook because they're potentially objects
+    expect(derivedConfig.hook).to.deep.equal(
+      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+        config[chain].hook as string,
+      ),
+    );
+    // Check ism
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
     );
 
     // Check if token values matches
@@ -209,8 +216,8 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(derivedConfig.interchainSecurityModule).to.be.equal(
-      ethers.constants.AddressZero,
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
     );
 
     // Check if token values matches
@@ -259,8 +266,8 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(derivedConfig.interchainSecurityModule).to.be.equal(
-      ethers.constants.AddressZero,
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
     );
 
     // Check if token values matches
