@@ -9,7 +9,7 @@ use cursors::*;
 use derive_new::new;
 use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
-use tokio::sync::mpsc::Receiver as MpscReceiver;
+use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, info, instrument, trace, warn};
 
@@ -108,6 +108,8 @@ where
             .stored_events
             .with_label_values(&[label, chain_name]);
 
+        let shared_store = Arc::new(Mutex::new(self.store.clone()));
+
         // transaction id task for fetching events via transaction id
         let tx_id_task = match opts.tx_id_receiver {
             Some(rx) => {
@@ -118,7 +120,7 @@ where
                 ]);
                 let domain_clone = self.domain.clone();
                 let indexer_clone = self.indexer.clone();
-                let store_clone = self.store.clone();
+                let store_clone = shared_store.clone();
                 let stored_logs_metric = stored_logs_metric.clone();
                 tokio::task::spawn(async move {
                     Self::tx_id_receiver_task(
@@ -145,7 +147,7 @@ where
                 ]);
                 let domain_clone = self.domain.clone();
                 let indexer_clone = self.indexer.clone();
-                let store_clone = self.store.clone();
+                let store_clone = shared_store.clone();
                 let broadcast_sender = self.broadcast_sender.clone();
 
                 let stored_logs_metric = stored_logs_metric.clone();
@@ -186,7 +188,7 @@ where
     async fn tx_id_receiver_task(
         domain: HyperlaneDomain,
         indexer: I,
-        store: S,
+        store: Arc<Mutex<S>>,
         mut recv: MpscReceiver<H512>,
         stored_logs_metric: GenericCounter<AtomicU64>,
         liveness_metric: GenericGauge<AtomicI64>,
@@ -209,8 +211,10 @@ where
                 }
             };
 
-            let logs =
-                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await;
+            let logs = {
+                let store = store.lock().await;
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
             let num_logs = logs.len() as u64;
             info!(
                 num_logs,
@@ -227,7 +231,7 @@ where
     async fn cursor_receiver_task(
         domain: HyperlaneDomain,
         indexer: I,
-        store: S,
+        store: Arc<Mutex<S>>,
         mut cursor: Box<dyn ContractSyncCursor<T>>,
         broadcast_sender: Option<BroadcastMpscSender<H512>>,
         stored_logs_metric: GenericCounter<AtomicU64>,
@@ -270,8 +274,10 @@ where
                 }
             };
 
-            let logs =
-                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await;
+            let logs = {
+                let store = store.lock().await;
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
             let logs_found = logs.len() as u64;
             info!(
                 ?range,
