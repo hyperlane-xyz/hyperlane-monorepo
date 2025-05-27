@@ -176,7 +176,7 @@ export class StarknetIsmReader {
       return {
         address,
         paused,
-        owner,
+        owner: num.toHex64(owner.toString()),
         type: IsmType.PAUSABLE,
       };
     } catch {
