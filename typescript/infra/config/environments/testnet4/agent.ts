@@ -228,6 +228,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('nobletestnet'),
         destinationDomain: getDomainId('hyperliquidevmtestnet'),
       },
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
     ],
   },
   {
@@ -253,18 +260,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('infinityvmmonza') },
       // Temporary workaround due to InfinityVM Monza whitelisting.
       { destinationDomain: getDomainId('infinityvmmonza') },
-    ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      // Temporary workaround due to IGP not being implemented on starknet chain.
-      // starknetsepolia
-      { originDomain: getDomainId('starknetsepolia') },
-      { destinationDomain: getDomainId('starknetsepolia') },
-      // paradexsepolia
-      { originDomain: getDomainId('paradexsepolia') },
-      { destinationDomain: getDomainId('paradexsepolia') },
     ],
   },
   // Default policy is OnChainFeeQuoting
