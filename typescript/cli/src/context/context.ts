@@ -33,10 +33,13 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
 
-  assert(
-    isValidKey(argv.key),
-    `Key inputs not valid, make sure to use --key.{chain_name} or the legacy flag --key but not both at the same time`,
-  );
+  // if a key was provided, check if it has a valid format
+  if (argv.key) {
+    assert(
+      isValidKey(argv.key),
+      `Key inputs not valid, make sure to use --key.{chain_name} or the legacy flag --key but not both at the same time`,
+    );
+  }
 
   const settings: ContextSettings = {
     registryUris: [
