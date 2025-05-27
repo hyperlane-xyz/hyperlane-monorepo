@@ -256,6 +256,15 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
+    fetch_metric(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .map(|s: &String| s.as_str())
+    .for_each(|s| println!("GAS_PAYMENT: {:?}", s));
+
     let gas_payments_scraped = fetch_metric(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
