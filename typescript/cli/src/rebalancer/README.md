@@ -15,7 +15,7 @@ warpRouteId: USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia
 # Required: How often the monitor should check for imbalances (in milliseconds)
 checkFrequency: 300000 # 5 minutes
 
-# Required: Rebalancing strategy ('weighted' or 'minAmount')
+# Required: Rebalancing strategy ('weighted', 'minAmount', 'manual')
 rebalanceStrategy: weighted
 
 # Optional: Only monitor balances without executing rebalancing
@@ -132,15 +132,20 @@ hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_key --wit
 
 A manual rebalance allows you to execute one rebalance by specifying the execution route.
 
-> [!NOTE]
-> It won't rely on strategies, but will use the configuration file properly execute the rebalance, i.e.: bridge address.
-
-For instance, if you need to move `1000` USDC from `sepolia` to `arbitrumsepolia`:
+For instance, if you need to move `100` USDC from `sepolia` to `arbitrumsepolia`:
 
 ```bash
-# --amount must be expressed in token units
-hyperlane warp rebalance --config ./rebalancer-config.yaml --origin sepolia --destination arbitrumsepolia --amount '1000000000'
+# --amount is specified in token units (e.g., 100 for 100 USDC)
+
+hyperlane warp rebalance \
+  --config ./rebalancer-config.yaml \
+  --origin sepolia \
+  --destination arbitrumsepolia \
+  --amount '100' \
+  --rebalance-strategy manual
 ```
+
+The command will automatically convert the amount to the appropriate wei value based on the token's decimals.
 
 ### Environment Variables
 
