@@ -15,6 +15,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
     module: 'PostDeploymentContractVerifier',
   });
   protected contractVerifier: BaseContractVerifier;
+  protected zkSyncContractVerifier: ZKSyncContractVerifier;
 
   constructor(
     verificationInputs: ChainMap<VerificationInput>,
@@ -30,6 +31,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
       buildArtifact,
       licenseType,
     );
+    this.zkSyncContractVerifier = new ZKSyncContractVerifier(multiProvider);
   }
 
   verify(targets = this.chains()): Promise<PromiseSettledResult<void>[]> {
@@ -41,7 +43,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
 
         if (family === ExplorerFamily.ZkSync) {
           this.logger.debug('Using ZkSync verifier');
-          contractVerifier = new ZKSyncContractVerifier(this.multiProvider);
+          contractVerifier = this.zkSyncContractVerifier;
         }
 
         if (family === ExplorerFamily.Other) {

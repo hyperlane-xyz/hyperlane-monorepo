@@ -85,7 +85,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     }
 
     async fn try_load_next_item(&mut self) -> Result<LoadingOutcome, SubmitterError> {
-        // Always prioritize advancing the the high nonce iterator, as
+        // Always prioritize advancing the high nonce iterator, as
         // we have a preference for higher nonces
         if let Some(high_index_iter) = &mut self.high_index_iter {
             match high_index_iter.try_load_item().await? {

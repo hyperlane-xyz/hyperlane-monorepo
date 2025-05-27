@@ -395,6 +395,7 @@ where
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
+                index_settings.from,
                 index_settings.mode,
             )
             .await?,

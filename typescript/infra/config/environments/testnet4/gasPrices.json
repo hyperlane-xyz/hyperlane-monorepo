@@ -131,6 +131,10 @@
     "amount": "0.001000273",
     "decimals": 9
   },
+  "paradexsepolia": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "plumetestnet2": {
     "amount": "0.01",
     "decimals": 9
@@ -170,6 +174,10 @@
   "sonicsvmtestnet": {
     "amount": "0.01",
     "decimals": 1
+  },
+  "starknetsepolia": {
+    "amount": "0.01",
+    "decimals": 9
   },
   "subtensortestnet": {
     "amount": "10.0",

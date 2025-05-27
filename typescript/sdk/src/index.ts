@@ -223,10 +223,12 @@ export {
 } from './ism/types.js';
 export {
   collectValidators,
-  moduleCanCertainlyVerify,
-  isStaticDeploymentSupported,
   isIsmCompatible,
+  isStaticDeploymentSupported,
+  isStaticIsm,
+  moduleCanCertainlyVerify,
 } from './ism/utils.js';
+export { isHookCompatible } from './hook/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,

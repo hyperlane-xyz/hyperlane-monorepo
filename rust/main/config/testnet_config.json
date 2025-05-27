@@ -974,6 +974,50 @@
       "gasCurrencyCoinGeckoId": "solana",
       "interchainSecurityModule": "4GHxwWyKB9exhKG4fdyU2hfLgfFzhHp2WcsSKc2uNR1k"
     },
+    "starknetsepolia": {
+      "chainId": "0x534e5f5345504f4c4941",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 30,
+        "reorgPeriod": 0
+      },
+      "blockExplorers": [
+        {
+          "apiUrl": "https://sepolia.voyager.online/api",
+          "family": "other",
+          "name": "Starknet Sepolia",
+          "url": "https://sepolia.voyager.online/"
+        }
+      ],
+      "displayName": "Starknet Sepolia",
+      "domainId": 23448591,
+      "isTestnet": true,
+      "name": "starknetsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "starknet",
+      "rpcUrls": [
+        {
+          "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
+        }
+      ],
+      "defaultHook": "0x01b99baf9dffac163065478b345429bd2ed21fdbfc5e3eec7ceabcde3d55c214",
+      "defaultIsm": "0x01ca167956f5efaeb5239295fb564d7e3eed29a7f25a78d7321659b5e74ccf01",
+      "mailbox": "0x03c725cd6a4463e4a9258d29304bcca5e4f1bbccab078ffd69784f5193a6d792",
+      "merkleTreeHook": "0x01eff3a364cb5ec3ebef9267d0cc3ebcb22cb983af981d7c128fc8bad30b6bc2",
+      "noopIsm": "0x034b4605a53e6fe4f151183d5a49e47bf4a02dcbdb4350ef02a8123bcbc4cdf5",
+      "protocolFee": "0x04d853a59c0dcf6126f1d6dc5066def49398a0e0a78ef451d8e25e099fe81088",
+      "testRecipient": "0x075107ea1d4bd44e24c8da9105161953f7d6e19b13d248ed760522bb788c9eb9",
+      "validatorAnnounce": "0x06587686d7270349bf233976265fa6bd53d73c9f13b5fc916f541ad9b297dce8",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 715709,
+        "chunk": 999
+      }
+    },
     "superpositiontestnet": {
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",
       "blockExplorers": [
@@ -2075,6 +2119,50 @@
       "validatorAnnounce": "0xB589407cf6bEA5CD81AD0946b9F1467933ede74c",
       "index": {
         "from": 13357661
+      }
+    },
+    "paradexsepolia": {
+      "chainId": "0x505249564154455f534e5f504f54435f5345504f4c4941",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 4,
+        "reorgPeriod": 0
+      },
+      "blockExplorers": [
+        {
+          "apiUrl": "https://voyager.testnet.paradex.trade/api",
+          "family": "other",
+          "name": "Paradex testnet",
+          "url": "https://voyager.testnet.paradex.trade"
+        }
+      ],
+      "displayName": "Paradexsepolia",
+      "domainId": 12263410,
+      "isTestnet": true,
+      "name": "paradexsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "EtherDUMMY_TOKEN",
+        "symbol": "DT"
+      },
+      "protocol": "starknet",
+      "rpcUrls": [
+        {
+          "http": "https://pathfinder.api.testnet.paradex.trade/rpc/v0_7"
+        }
+      ],
+      "defaultHook": "0x02a0d232f4d55c2f8f0248296301848d3567134abaa14b261847b6633aa13861",
+      "defaultIsm": "0x015255cdfcf7cc9414b5bd56d8ad104cd71243c35ff3450483f302d23ea0db17",
+      "mailbox": "0x03dfd685b4e799f1a6a947285a4be355acbfc1715b1c7c11d249b8abd1a691d1",
+      "merkleTreeHook": "0x03199cc7c5e3572eff65349a861e3618a91f335b3ec57693867b807fe3d0eb0d",
+      "noopIsm": "0x0256662d4c368fe51005467086cd6294d03ceb019884fe2e20080e729efb14a9",
+      "protocolFee": "0x0440d66a29cbbde0fe45371903cebc736b148b1e8c7c56b2335d599dda352b0f",
+      "testRecipient": "0x0488b721d2632ba3fa11019170cdbb76b12d970b32b03b60081c85947bc4923c",
+      "validatorAnnounce": "0x03606e11cfdec0745e8c49cf3179df9b4c37528baf0131ae1ec079055a7cab0b",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 224346,
+        "chunk": 999
       }
     },
     "chronicleyellowstone": {
