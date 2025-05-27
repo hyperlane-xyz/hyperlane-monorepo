@@ -32,7 +32,7 @@ sepolia:
   # Required: The address of the bridge that will be used to perform cross-chain transfers
   bridge: '0x1234...'
 
-  # Required: Expected time in milliseconds for bridge to process a transfer
+  # Required: Expected time in seconds for bridge to process a transfer
   # Used to prevent triggering new rebalances while a transfer is in progress
   bridgeLockTime: 300 # 5 minutes in seconds
 
