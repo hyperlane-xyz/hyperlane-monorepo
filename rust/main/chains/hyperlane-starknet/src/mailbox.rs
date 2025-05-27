@@ -18,7 +18,7 @@ use starknet::core::types::FieldElement;
 
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::contracts::mailbox::Mailbox as StarknetMailboxInternal;
 use crate::error::HyperlaneStarknetError;
@@ -224,13 +224,18 @@ impl Mailbox for StarknetMailbox {
     /// True if the destination chain supports batching
     /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
     fn supports_batching(&self) -> bool {
-        // Default to false
         true
     }
 
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        info!(
+            domain = self.domain().name(),
+            "Processing batch of {} operations",
+            ops.len()
+        );
+
         let messages = ops
             .iter()
             .map(|op| op.try_batch())
