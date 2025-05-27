@@ -34,10 +34,13 @@ pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
 ) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
+
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
@@ -55,8 +58,8 @@ pub async fn get_transaction_receipt(
                 }
             })
         },
-        8,
-        Some(Duration::from_millis(2000)),
+        (TIMEOUT_DELAY / POLLING_INTERVAL) as usize,
+        Some(Duration::from_secs(TIMEOUT_DELAY)),
     )
     .await
 }
