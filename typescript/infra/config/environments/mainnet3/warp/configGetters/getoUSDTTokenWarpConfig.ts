@@ -37,6 +37,8 @@ const deploymentChains = [
   'metis',
   'linea',
   'metal',
+  'bob',
+  'hashkey',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
@@ -72,6 +74,8 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metis: lowerBufferCap,
   linea: lowerBufferCap,
   metal: lowerBufferCap,
+  bob: lowerBufferCap,
+  hashkey: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -96,6 +100,8 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metis: lowerRateLimitPerSecond,
   linea: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
+  bob: lowerRateLimitPerSecond,
+  hashkey: lowerRateLimitPerSecond,
 };
 
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> = {
@@ -118,9 +124,11 @@ const productionOwnerByChain: TypedoUSDTTokenChainMap<string> = {
   metis: awSafes['metis'],
   linea: awSafes['linea'],
   metal: awSafes['metal'],
+  bob: awSafes['bob'],
+  hashkey: awSafes['hashkey'],
 };
 
-const productionOwnerOverridesByChain: ChainMap<
+const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
   Record<'collateralToken' | 'collateralProxyAdmin', string>
 > = {
   ethereum: {
@@ -199,6 +207,14 @@ const productionOwnerOverridesByChain: ChainMap<
     collateralToken: productionOwnerByChain.metal,
     collateralProxyAdmin: productionOwnerByChain.metal,
   },
+  bob: {
+    collateralToken: productionOwnerByChain.bob,
+    collateralProxyAdmin: productionOwnerByChain.bob,
+  },
+  hashkey: {
+    collateralToken: productionOwnerByChain.hashkey,
+    collateralProxyAdmin: productionOwnerByChain.hashkey,
+  },
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
@@ -270,6 +286,8 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metis: productionXERC20TokenAddress,
   linea: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
+  bob: productionXERC20TokenAddress,
+  hashkey: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -294,6 +312,8 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metis: stagingDefaultBufferCap,
   linea: stagingDefaultBufferCap,
   metal: stagingDefaultBufferCap,
+  bob: stagingDefaultBufferCap,
+  hashkey: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
 const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
@@ -316,6 +336,8 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metis: stagingDefaultRateLimitPerSecond,
   linea: stagingDefaultRateLimitPerSecond,
   metal: stagingDefaultRateLimitPerSecond,
+  bob: stagingDefaultRateLimitPerSecond,
+  hashkey: stagingDefaultRateLimitPerSecond,
 };
 
 const ownerAddress = DEPLOYER;
@@ -339,6 +361,8 @@ const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> = {
   metis: ownerAddress,
   linea: ownerAddress,
   metal: ownerAddress,
+  bob: ownerAddress,
+  hashkey: ownerAddress,
 };
 const stagingAmountRoutingThreshold = 5;
 const stagingEthereumXERC20LockboxAddress =
@@ -366,6 +390,8 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metis: stagingXERC20TokenAddress,
   linea: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
+  bob: stagingXERC20TokenAddress,
+  hashkey: stagingXERC20TokenAddress,
 };
 
 const stagingExtraLockboxes = {

@@ -24,8 +24,8 @@ const DEFAULT_TIMEOUT = 100000;
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'oUSDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-  'USDTSTAGING/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  'oUSDT/base-bitlayer-bob-celo-ethereum-fraxtal-hashkey-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  'oUSDTSTAGE/base-bitlayer-bob-celo-ethereum-fraxtal-hashkey-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
 ];
 
 async function getConfigsForBranch(branch: string) {
