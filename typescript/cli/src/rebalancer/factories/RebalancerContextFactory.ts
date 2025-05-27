@@ -73,6 +73,10 @@ export class RebalancerContextFactory {
     );
   }
 
+  public getWarpCore(): WarpCore {
+    return this.warpCore;
+  }
+
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
     logDebug('Creating Metrics');
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);

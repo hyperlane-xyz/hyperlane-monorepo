@@ -8,7 +8,7 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, objFilter, toWei } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -445,15 +445,15 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  origin?: string;
-  destination?: string;
-  amount?: string;
   warpRouteId?: string;
   checkFrequency?: number;
   withMetrics?: boolean;
   monitorOnly?: boolean;
   coingeckoApiKey?: string;
   rebalanceStrategy?: StrategyOptions;
+  origin?: string;
+  destination?: string;
+  amount?: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -464,25 +464,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
-    },
-    origin: {
-      type: 'string',
-      description: 'The origin chain',
-      demandOption: false,
-      alias: ['o', 'from', 'fromChain'],
-      implies: ['destination', 'amount'],
-    },
-    destination: {
-      type: 'string',
-      description: 'The destination chain',
-      demandOption: false,
-      alias: ['d', 'to', 'toChain'],
-      implies: ['origin', 'amount'],
-    },
-    amount: {
-      type: 'string',
-      description: 'The amount to rebalance from `--origin` to `--destination`',
-      implies: ['origin', 'destination'],
     },
     warpRouteId: {
       type: 'string',
@@ -513,16 +494,29 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     rebalanceStrategy: {
       type: 'string',
-      description: 'Rebalancer strategy (weighted or minAmount)',
+      description: 'Rebalancer strategy (weighted, minAmount, manual)',
       demandOption: false,
       alias: ['rs', 'rebalance-strategy'],
+    },
+    origin: {
+      type: 'string',
+      description: 'The origin chain for manual rebalance',
+      demandOption: false,
+    },
+    destination: {
+      type: 'string',
+      description: 'The destination chain for manual rebalance',
+      demandOption: false,
+    },
+    amount: {
+      type: 'string',
+      description:
+        'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
+      demandOption: false,
     },
   },
   handler: async ({
     context,
-    origin,
-    destination,
-    amount,
     config,
     warpRouteId,
     checkFrequency,
@@ -530,6 +524,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
     monitorOnly,
     coingeckoApiKey = ENV.COINGECKO_API_KEY,
     rebalanceStrategy,
+    origin,
+    destination,
+    amount,
   }) => {
     try {
       const { registry, key: rebalancerKey } = context;
@@ -551,13 +548,33 @@ export const rebalancer: CommandModuleWithWriteContext<{
         rebalancerConfig,
       );
 
-      const immediateExec = origin && destination && amount;
+      if (rebalanceStrategy === StrategyOptions.Manual) {
+        if (!origin) {
+          throw new Error('--origin is required for manual rebalance');
+        }
 
-      if (immediateExec) {
+        if (!destination) {
+          throw new Error('--destination is required for manual rebalance');
+        }
+
+        if (!amount) {
+          throw new Error('--amount is required for manual rebalance');
+        }
+
+        warnYellow(
+          `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
+        );
+
+        const warpCore = contextFactory.getWarpCore();
         const executor = contextFactory.createExecutor();
+        const originToken = warpCore.tokens.find((t) => t.chainName === origin);
 
         await executor.rebalance([
-          { origin, destination, amount: BigInt(amount) },
+          {
+            origin,
+            destination,
+            amount: BigInt(toWei(amount, originToken!.decimals)),
+          },
         ]);
 
         process.exit(0);

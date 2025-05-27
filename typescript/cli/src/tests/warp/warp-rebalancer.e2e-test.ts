@@ -1259,7 +1259,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             tolerance: '0',
           },
           bridge: ethers.constants.AddressZero,
-          bridgeTolerance: 1,
           bridgeLockTime: 1,
         },
         [CHAIN_NAME_3]: {
@@ -1268,7 +1267,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             tolerance: '0',
           },
           bridge: bridgeContract.address,
-          bridgeTolerance: 1,
           bridgeLockTime: 1,
         },
       });
@@ -1295,11 +1293,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         );
       });
 
+      const manualRebalanceAmount = '5';
+
       // Start the rebalancer
       const rebalancer = startRebalancer({
+        rebalanceStrategy: StrategyOptions.Manual,
         origin: originName,
         destination: destName,
-        amount: toWei(5),
+        amount: manualRebalanceAmount,
       });
 
       // Await for the event that is emitted when the rebalance is triggered
@@ -1309,7 +1310,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       expect(sentTransferRemote.origin).to.equal(originDomain);
       expect(sentTransferRemote.destination).to.equal(destDomain);
       expect(sentTransferRemote.recipient).to.equal(destContractAddress);
-      expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
+      expect(sentTransferRemote.amount).to.equal(
+        BigInt(toWei(manualRebalanceAmount)),
+      );
 
       const originTkn = ERC20__factory.connect(
         originTknAddress,
@@ -1340,8 +1343,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destBalance = await destTkn.balanceOf(destContractAddress);
 
       // Verify that the tokens have been rebalanced according their weights defined by the config
-      expect(originBalance.toString()).to.equal(toWei(5));
-      expect(destBalance.toString()).to.equal(toWei(15));
+      expect(originBalance.toString()).to.equal(
+        toWei(10 - Number(manualRebalanceAmount)),
+      );
+      expect(destBalance.toString()).to.equal(
+        toWei(10 + Number(manualRebalanceAmount)),
+      );
 
       // Kill the process to finish the test
       await rebalancer.kill();
@@ -1438,9 +1445,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             tolerance: '0',
           },
           bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-          bridgeTolerance: 60000,
           bridgeIsWarp: true,
-          bridgeLockTime: 1,
+          bridgeLockTime: 60000,
         },
         [CHAIN_NAME_3]: {
           weighted: {
@@ -1448,9 +1454,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             tolerance: '0',
           },
           bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-          bridgeTolerance: 60000,
           bridgeIsWarp: true,
-          bridgeLockTime: 1,
+          bridgeLockTime: 60000,
         },
       });
 
@@ -1474,18 +1479,22 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           { monitorOnly: true },
         );
 
+        const manualRebalanceAmount = '5';
+
         await startRebalancerAndExpectLog(
           [
+            `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
             'Rebalance initiated with 1 route(s)',
-            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5 token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
-            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: 5 token`,
+            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=${manualRebalanceAmount} token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
+            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount} token`,
             '✅ Rebalance successful',
           ],
           {
             timeout: 30000,
+            rebalanceStrategy: StrategyOptions.Manual,
             origin: CHAIN_NAME_2,
             destination: CHAIN_NAME_3,
-            amount: toWei(5),
+            amount: manualRebalanceAmount,
           },
         );
 
