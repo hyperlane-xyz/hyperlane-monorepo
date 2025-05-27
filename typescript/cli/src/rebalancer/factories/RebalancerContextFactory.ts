@@ -136,7 +136,7 @@ export class RebalancerContextFactory {
     let initialTotalCollateral = 0n;
 
     for (const token of this.warpCore.tokens) {
-      if (token.collateralAddressOrDenom) {
+      if (token.collateralAddressOrDenom && token.isCollateralized()) {
         const adapter = token.getHypAdapter(this.warpCore.multiProvider);
         const bridgedSupply = await adapter.getBridgedSupply();
 
