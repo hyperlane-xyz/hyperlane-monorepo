@@ -6,6 +6,7 @@ export default [
     ignores: [
       '**/test/**/*',
       '**/dist/**/*',
+      '**/lib/**/*',
       '**/typechain/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',

@@ -3,7 +3,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;
@@ -222,8 +222,13 @@ where
                 );
 
                 if let Some(tx) = self.broadcast_sender.as_ref() {
-                    for (_, meta) in &logs {
-                        if let Err(err) = tx.send(meta.transaction_id).await {
+                    // If multiple logs occur in the same transaction they'll have the same transaction_id.
+                    // Deduplicate their txids to avoid doing wasteful queries in txid indexer
+                    let unique_txids: HashSet<_> =
+                        logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+
+                    for tx_id in unique_txids {
+                        if let Err(err) = tx.send(tx_id).await {
                             trace!(?err, "Error sending txid to receiver");
                         }
                     }
@@ -390,6 +395,7 @@ where
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
+                index_settings.from,
                 index_settings.mode,
             )
             .await?,

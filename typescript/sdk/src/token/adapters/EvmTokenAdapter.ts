@@ -394,7 +394,7 @@ export class EvmHypSyntheticRebaseAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
-  public declare contract: HypERC4626;
+  declare public contract: HypERC4626;
 
   constructor(
     public readonly chainName: ChainName,

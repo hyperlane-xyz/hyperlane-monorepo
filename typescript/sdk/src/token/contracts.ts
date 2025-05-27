@@ -19,8 +19,10 @@ import { TokenType } from './config.js';
 export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.syntheticRebase]: 'HypERC4626',
+  [TokenType.syntheticUri]: 'HypERC721',
   [TokenType.collateral]: 'HypERC20Collateral',
   [TokenType.collateralFiat]: 'HypFiatToken',
+  [TokenType.collateralUri]: 'HypERC721Collateral',
   [TokenType.XERC20]: 'HypXERC20',
   [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
   [TokenType.collateralVault]: 'HypERC4626OwnerCollateral',

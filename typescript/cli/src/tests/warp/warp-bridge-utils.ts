@@ -206,6 +206,8 @@ export function getTokenSymbolFromDeployment(
   let symbol: string;
   if (warpConfig[CHAIN_NAME_2].type.match(/.*vault.*/i)) {
     symbol = tokenVaultChain2Symbol;
+  } else if (warpConfig[CHAIN_NAME_3].type.match(/.*native.*/i)) {
+    symbol = 'ETH';
   } else if (warpConfig[CHAIN_NAME_2].type.match(/.*collateral.*/i)) {
     symbol = tokenChain2Symbol;
   } else if (warpConfig[CHAIN_NAME_3].type.match(/.*vault.*/i)) {
@@ -250,9 +252,8 @@ export async function collateralizeWarpTokens(
           !warpDeployConfig[chainName].type.match(/.*synthetic/i) &&
           warpDeployConfig[chainName].type.match(/.*collateral/i)
         ) {
-          const decimals = await walletAndCollateralByChain[
-            chainName
-          ].collateral.decimals();
+          const decimals =
+            await walletAndCollateralByChain[chainName].collateral.decimals();
           const tx = await walletAndCollateralByChain[
             chainName
           ].collateral.transfer(

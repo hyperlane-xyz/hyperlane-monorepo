@@ -29,7 +29,7 @@ use std::{
 };
 
 use ethers_contract::MULTICALL_ADDRESS;
-use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReprepareReason};
+use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReprepareReason, SubmitterType};
 use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
@@ -96,6 +96,8 @@ const FAILED_MESSAGE_COUNT: u32 = 1;
 
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
+
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Classic;
 
 type DynPath = Box<dyn AsRef<Path>>;
 
@@ -371,13 +373,22 @@ fn main() -> ExitCode {
         log!("Success: Post startup invariants are met");
     }
 
-    let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+    let starting_relayer_balance = loop {
+        let result = agent_balance_sum(9092);
+        log!("Relayer balance result: {:?}", result);
+        if let Ok(starting_relayer_balance) = result {
+            break starting_relayer_balance;
+        } else {
+            log!("Relayer balance not yet available");
+            sleep(Duration::from_secs(5));
+        }
+    };
 
     // wait for CI invariants to pass
     let mut test_passed = wait_for_condition(
         &config,
         loop_start,
-        || termination_invariants_met(&config, starting_relayer_balance),
+        || termination_invariants_met(&config, starting_relayer_balance, SUBMITTER_TYPE),
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -482,6 +493,9 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_TEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_TEST2_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_TEST3_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(

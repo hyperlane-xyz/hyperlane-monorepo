@@ -3,7 +3,6 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/tx.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -41,6 +40,8 @@ export interface MsgSetMailbox {
   required_hook: string;
   /** new_owner ... */
   new_owner: string;
+  /** renounce_ownership */
+  renounce_ownership: boolean;
 }
 
 /** MsgSetMailboxResponse ... */
@@ -278,6 +279,7 @@ function createBaseMsgSetMailbox(): MsgSetMailbox {
     default_hook: '',
     required_hook: '',
     new_owner: '',
+    renounce_ownership: false,
   };
 }
 
@@ -303,6 +305,9 @@ export const MsgSetMailbox = {
     }
     if (message.new_owner !== '') {
       writer.uint32(50).string(message.new_owner);
+    }
+    if (message.renounce_ownership !== false) {
+      writer.uint32(56).bool(message.renounce_ownership);
     }
     return writer;
   },
@@ -357,6 +362,13 @@ export const MsgSetMailbox = {
 
           message.new_owner = reader.string();
           continue;
+        case 7:
+          if (tag !== 56) {
+            break;
+          }
+
+          message.renounce_ownership = reader.bool();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -384,6 +396,9 @@ export const MsgSetMailbox = {
       new_owner: isSet(object.new_owner)
         ? globalThis.String(object.new_owner)
         : '',
+      renounce_ownership: isSet(object.renounce_ownership)
+        ? globalThis.Boolean(object.renounce_ownership)
+        : false,
     };
   },
 
@@ -407,6 +422,9 @@ export const MsgSetMailbox = {
     if (message.new_owner !== '') {
       obj.new_owner = message.new_owner;
     }
+    if (message.renounce_ownership !== false) {
+      obj.renounce_ownership = message.renounce_ownership;
+    }
     return obj;
   },
 
@@ -425,6 +443,7 @@ export const MsgSetMailbox = {
     message.default_hook = object.default_hook ?? '';
     message.required_hook = object.required_hook ?? '';
     message.new_owner = object.new_owner ?? '';
+    message.renounce_ownership = object.renounce_ownership ?? false;
     return message;
   },
 };
@@ -723,12 +742,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin

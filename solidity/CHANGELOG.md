@@ -1,5 +1,47 @@
 # @hyperlane-xyz/core
 
+## 7.1.8
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/utils@13.1.1
+
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+
+## 7.1.6
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+  - @hyperlane-xyz/utils@13.0.0
+
+## 7.1.5
+
+### Patch Changes
+
+- Updated dependencies [d182d7d]
+- Updated dependencies [b360802]
+  - @hyperlane-xyz/utils@12.6.0
+
+## 7.1.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.5.0
+
+## 7.1.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.4.0
+
 ## 7.1.2
 
 ### Patch Changes

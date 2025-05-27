@@ -171,6 +171,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
 
+    /// Creates success criteria for the operation
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>>;
+
     /// Public version of on_reprepare method
     fn on_reprepare(
         &mut self,
@@ -279,12 +282,15 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to store payload id by message id")]
     /// Failed to store payload id by message id
     ErrorStoringPayloadIdsByMessageId,
-    #[strum(to_string = "Failed to retrieve payload id by message id")]
-    /// Failed to retrieve payload id by message id
-    ErrorRetrievingPayloadId,
-    #[strum(to_string = "Failed to retrieve payload id by message id")]
-    /// Failed to retrieve payload id by message id
+    #[strum(to_string = "Failed to retrieve payload ids by message id")]
+    /// Failed to retrieve payload ids by message id
+    ErrorRetrievingPayloadIds,
+    #[strum(to_string = "Failed to retrieve payload id status by message id")]
+    /// Failed to retrieve payload id status by message id
     ErrorRetrievingPayloadStatus,
+    #[strum(to_string = "Failed to create payload success criteria")]
+    /// Failed to create payload success criteria
+    ErrorCreatingPayloadSuccessCriteria,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

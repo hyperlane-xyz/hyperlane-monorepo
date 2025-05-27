@@ -9,8 +9,87 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  LOG_FORMAT: PRETTY
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
 jobs:
+  # This job prepares the release by creating or updating a release PR.
+  # Notice the omission of the `publish` flag in the changesets action.
+  prepare-release:
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    runs-on: depot-ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          # check out full history
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Create Release PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: yarn version:prepare
+        env:
+          NPM_CONFIG_PROVENANCE: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  check-latest-published:
+    runs-on: ubuntu-latest
+    outputs:
+      all_latest: ${{ steps.check.outputs.all_latest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve package versions
+        id: pkg
+        run: |
+          find . -name 'package.json' -print0 | while IFS= read -r -d '' pkg; do
+            jq -r 'select(.private != true) | .name + "@" + .version' "$pkg"
+          done | tee versions.txt
+
+      - name: Compare package versions
+        id: check
+        run: |
+          all_latest=true
+          while read -r pkg; do
+            echo "Checking if $pkg is published..."
+            exists=$(npm view "$pkg" version 2>/dev/null || echo "N/A")
+            echo "npm returned: $exists"
+            if [ "$exists" = "N/A" ]; then
+              echo "$pkg is NOT published."
+              all_latest=false
+              break
+            else
+              echo "$pkg is published."
+            fi
+          done < versions.txt
+          echo "all_latest=$all_latest" >> $GITHUB_OUTPUT
+
+  # If we detect that not all packages are published, we run the
+  # cli-install-cross-platform-release-test workflow to verify that the CLI installs correctly on all platforms.
+  # In all other cases, we already have a barebones `cli-install` test on the default CI platform
+  # which will catch most issues before any offending PR is merged.
   cli-install-cross-platform-release-test:
+    needs: [check-latest-published]
+    if: needs.check-latest-published.outputs.all_latest == 'false'
     strategy:
       matrix:
         os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022]
@@ -28,18 +107,18 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.sha }}
+          cache-provider: github
 
       - name: Test run the CLI
         run: hyperlane --version
 
-  release:
-    needs:
-      - cli-install-cross-platform-release-test
+  # This job publishes the release to NPM.
+  publish-release:
+    needs: cli-install-cross-platform-release-test
     permissions:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -57,7 +136,7 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
-      - name: Create Release PR or Publish to NPM
+      - name: Publish Release to NPM
         id: changesets
         uses: changesets/action@v1
         with:

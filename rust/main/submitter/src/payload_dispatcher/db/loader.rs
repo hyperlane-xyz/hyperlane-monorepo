@@ -85,22 +85,35 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     }
 
     async fn try_load_next_item(&mut self) -> Result<LoadingOutcome, SubmitterError> {
-        // Always prioritize advancing the the high nonce iterator, as
+        // Always prioritize advancing the high nonce iterator, as
         // we have a preference for higher nonces
         if let Some(high_index_iter) = &mut self.high_index_iter {
-            if let Some(LoadingOutcome::Loaded) = high_index_iter.try_load_item().await? {
-                // If we have a high nonce item, we can process it
-                high_index_iter.iterate();
-                return Ok(LoadingOutcome::Loaded);
+            match high_index_iter.try_load_item().await? {
+                Some(LoadingOutcome::Loaded) => {
+                    high_index_iter.iterate();
+                    // If we have a high nonce item, we can process it
+                    return Ok(LoadingOutcome::Loaded);
+                }
+                Some(LoadingOutcome::Skipped) => {
+                    high_index_iter.iterate();
+                }
+                None => {}
             }
         }
 
         // Low nonce messages are only processed if the high nonce iterator
         // can't make any progress
-        if let Some(LoadingOutcome::Loaded) = self.low_index_iter.try_load_item().await? {
-            // If we have a low nonce item, we can process it
-            self.low_index_iter.iterate();
-            return Ok(LoadingOutcome::Loaded);
+        match self.low_index_iter.try_load_item().await? {
+            Some(LoadingOutcome::Loaded) => {
+                // If we have a low nonce item, we can process it
+                self.low_index_iter.iterate();
+                return Ok(LoadingOutcome::Loaded);
+            }
+            Some(LoadingOutcome::Skipped) => {
+                // If we don't have any items, we can skip
+                self.low_index_iter.iterate();
+            }
+            None => {}
         }
         Ok(LoadingOutcome::Skipped)
     }
@@ -117,6 +130,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                     // If we are only loading backward, we have processed all items
                     return Ok(());
                 }
+                debug!(?self, "No items to process, sleeping for a bit");
                 // sleep to wait for new items to be added
                 sleep(Duration::from_millis(100)).await;
             } else {

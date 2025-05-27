@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
@@ -9,5 +9,5 @@
     "outDir": "./dist"
   },
   "include": ["./src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.stories.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.stories.tsx"]
 }

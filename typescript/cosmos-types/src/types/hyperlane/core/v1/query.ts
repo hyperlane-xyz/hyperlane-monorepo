@@ -3,7 +3,6 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/query.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -65,11 +64,36 @@ export interface QueryVerifyDryRunRequest {
   ism_id: string;
   message: string;
   metadata: string;
+  gas_limit: string;
 }
 
 /** QueryVerifyDryRunResponse ... */
 export interface QueryVerifyDryRunResponse {
   verified: boolean;
+}
+
+/** QueryRegisteredISMs ... */
+export interface QueryRegisteredISMs {}
+
+/** QueryRegisteredISMsResponse ... */
+export interface QueryRegisteredISMsResponse {
+  ids: number[];
+}
+
+/** QueryRegisteredHooks ... */
+export interface QueryRegisteredHooks {}
+
+/** QueryRegisteredHooksResponse ... */
+export interface QueryRegisteredHooksResponse {
+  ids: number[];
+}
+
+/** QueryRegisteredApps ... */
+export interface QueryRegisteredApps {}
+
+/** QueryRegisteredAppsResponse ... */
+export interface QueryRegisteredAppsResponse {
+  ids: number[];
 }
 
 function createBaseQueryMailboxesRequest(): QueryMailboxesRequest {
@@ -685,7 +709,7 @@ export const QueryRecipientIsmResponse = {
 };
 
 function createBaseQueryVerifyDryRunRequest(): QueryVerifyDryRunRequest {
-  return { ism_id: '', message: '', metadata: '' };
+  return { ism_id: '', message: '', metadata: '', gas_limit: '' };
 }
 
 export const QueryVerifyDryRunRequest = {
@@ -701,6 +725,9 @@ export const QueryVerifyDryRunRequest = {
     }
     if (message.metadata !== '') {
       writer.uint32(26).string(message.metadata);
+    }
+    if (message.gas_limit !== '') {
+      writer.uint32(34).string(message.gas_limit);
     }
     return writer;
   },
@@ -737,6 +764,13 @@ export const QueryVerifyDryRunRequest = {
 
           message.metadata = reader.string();
           continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.gas_limit = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -753,6 +787,9 @@ export const QueryVerifyDryRunRequest = {
       metadata: isSet(object.metadata)
         ? globalThis.String(object.metadata)
         : '',
+      gas_limit: isSet(object.gas_limit)
+        ? globalThis.String(object.gas_limit)
+        : '',
     };
   },
 
@@ -766,6 +803,9 @@ export const QueryVerifyDryRunRequest = {
     }
     if (message.metadata !== '') {
       obj.metadata = message.metadata;
+    }
+    if (message.gas_limit !== '') {
+      obj.gas_limit = message.gas_limit;
     }
     return obj;
   },
@@ -782,6 +822,7 @@ export const QueryVerifyDryRunRequest = {
     message.ism_id = object.ism_id ?? '';
     message.message = object.message ?? '';
     message.metadata = object.metadata ?? '';
+    message.gas_limit = object.gas_limit ?? '';
     return message;
   },
 };
@@ -858,6 +899,414 @@ export const QueryVerifyDryRunResponse = {
   },
 };
 
+function createBaseQueryRegisteredISMs(): QueryRegisteredISMs {
+  return {};
+}
+
+export const QueryRegisteredISMs = {
+  encode(
+    _: QueryRegisteredISMs,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): QueryRegisteredISMs {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredISMs();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): QueryRegisteredISMs {
+    return {};
+  },
+
+  toJSON(_: QueryRegisteredISMs): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredISMs>, I>>(
+    base?: I,
+  ): QueryRegisteredISMs {
+    return QueryRegisteredISMs.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredISMs>, I>>(
+    _: I,
+  ): QueryRegisteredISMs {
+    const message = createBaseQueryRegisteredISMs();
+    return message;
+  },
+};
+
+function createBaseQueryRegisteredISMsResponse(): QueryRegisteredISMsResponse {
+  return { ids: [] };
+}
+
+export const QueryRegisteredISMsResponse = {
+  encode(
+    message: QueryRegisteredISMsResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    writer.uint32(10).fork();
+    for (const v of message.ids) {
+      writer.uint32(v);
+    }
+    writer.ldelim();
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryRegisteredISMsResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredISMsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag === 8) {
+            message.ids.push(reader.uint32());
+
+            continue;
+          }
+
+          if (tag === 10) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.ids.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): QueryRegisteredISMsResponse {
+    return {
+      ids: globalThis.Array.isArray(object?.ids)
+        ? object.ids.map((e: any) => globalThis.Number(e))
+        : [],
+    };
+  },
+
+  toJSON(message: QueryRegisteredISMsResponse): unknown {
+    const obj: any = {};
+    if (message.ids?.length) {
+      obj.ids = message.ids.map((e) => Math.round(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredISMsResponse>, I>>(
+    base?: I,
+  ): QueryRegisteredISMsResponse {
+    return QueryRegisteredISMsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredISMsResponse>, I>>(
+    object: I,
+  ): QueryRegisteredISMsResponse {
+    const message = createBaseQueryRegisteredISMsResponse();
+    message.ids = object.ids?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseQueryRegisteredHooks(): QueryRegisteredHooks {
+  return {};
+}
+
+export const QueryRegisteredHooks = {
+  encode(
+    _: QueryRegisteredHooks,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryRegisteredHooks {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredHooks();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): QueryRegisteredHooks {
+    return {};
+  },
+
+  toJSON(_: QueryRegisteredHooks): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredHooks>, I>>(
+    base?: I,
+  ): QueryRegisteredHooks {
+    return QueryRegisteredHooks.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredHooks>, I>>(
+    _: I,
+  ): QueryRegisteredHooks {
+    const message = createBaseQueryRegisteredHooks();
+    return message;
+  },
+};
+
+function createBaseQueryRegisteredHooksResponse(): QueryRegisteredHooksResponse {
+  return { ids: [] };
+}
+
+export const QueryRegisteredHooksResponse = {
+  encode(
+    message: QueryRegisteredHooksResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    writer.uint32(10).fork();
+    for (const v of message.ids) {
+      writer.uint32(v);
+    }
+    writer.ldelim();
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryRegisteredHooksResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredHooksResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag === 8) {
+            message.ids.push(reader.uint32());
+
+            continue;
+          }
+
+          if (tag === 10) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.ids.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): QueryRegisteredHooksResponse {
+    return {
+      ids: globalThis.Array.isArray(object?.ids)
+        ? object.ids.map((e: any) => globalThis.Number(e))
+        : [],
+    };
+  },
+
+  toJSON(message: QueryRegisteredHooksResponse): unknown {
+    const obj: any = {};
+    if (message.ids?.length) {
+      obj.ids = message.ids.map((e) => Math.round(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredHooksResponse>, I>>(
+    base?: I,
+  ): QueryRegisteredHooksResponse {
+    return QueryRegisteredHooksResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredHooksResponse>, I>>(
+    object: I,
+  ): QueryRegisteredHooksResponse {
+    const message = createBaseQueryRegisteredHooksResponse();
+    message.ids = object.ids?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseQueryRegisteredApps(): QueryRegisteredApps {
+  return {};
+}
+
+export const QueryRegisteredApps = {
+  encode(
+    _: QueryRegisteredApps,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): QueryRegisteredApps {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredApps();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): QueryRegisteredApps {
+    return {};
+  },
+
+  toJSON(_: QueryRegisteredApps): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredApps>, I>>(
+    base?: I,
+  ): QueryRegisteredApps {
+    return QueryRegisteredApps.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredApps>, I>>(
+    _: I,
+  ): QueryRegisteredApps {
+    const message = createBaseQueryRegisteredApps();
+    return message;
+  },
+};
+
+function createBaseQueryRegisteredAppsResponse(): QueryRegisteredAppsResponse {
+  return { ids: [] };
+}
+
+export const QueryRegisteredAppsResponse = {
+  encode(
+    message: QueryRegisteredAppsResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    writer.uint32(10).fork();
+    for (const v of message.ids) {
+      writer.uint32(v);
+    }
+    writer.ldelim();
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryRegisteredAppsResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseQueryRegisteredAppsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag === 8) {
+            message.ids.push(reader.uint32());
+
+            continue;
+          }
+
+          if (tag === 10) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.ids.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): QueryRegisteredAppsResponse {
+    return {
+      ids: globalThis.Array.isArray(object?.ids)
+        ? object.ids.map((e: any) => globalThis.Number(e))
+        : [],
+    };
+  },
+
+  toJSON(message: QueryRegisteredAppsResponse): unknown {
+    const obj: any = {};
+    if (message.ids?.length) {
+      obj.ids = message.ids.map((e) => Math.round(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<QueryRegisteredAppsResponse>, I>>(
+    base?: I,
+  ): QueryRegisteredAppsResponse {
+    return QueryRegisteredAppsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<QueryRegisteredAppsResponse>, I>>(
+    object: I,
+  ): QueryRegisteredAppsResponse {
+    const message = createBaseQueryRegisteredAppsResponse();
+    message.ids = object.ids?.map((e) => e) || [];
+    return message;
+  },
+};
+
 /** Query defines the module Query service. */
 export interface Query {
   /** Mailboxes ... */
@@ -880,6 +1329,18 @@ export interface Query {
   VerifyDryRun(
     request: QueryVerifyDryRunRequest,
   ): Promise<QueryVerifyDryRunResponse>;
+  /** RegisteredISMs ... */
+  RegisteredISMs(
+    request: QueryRegisteredISMs,
+  ): Promise<QueryRegisteredISMsResponse>;
+  /** RegisteredHooks ... */
+  RegisteredHooks(
+    request: QueryRegisteredHooks,
+  ): Promise<QueryRegisteredHooksResponse>;
+  /** RegisteredApps ... */
+  RegisteredApps(
+    request: QueryRegisteredApps,
+  ): Promise<QueryRegisteredAppsResponse>;
 }
 
 export const QueryServiceName = 'hyperlane.core.v1.Query';
@@ -894,6 +1355,9 @@ export class QueryClientImpl implements Query {
     this.Delivered = this.Delivered.bind(this);
     this.RecipientIsm = this.RecipientIsm.bind(this);
     this.VerifyDryRun = this.VerifyDryRun.bind(this);
+    this.RegisteredISMs = this.RegisteredISMs.bind(this);
+    this.RegisteredHooks = this.RegisteredHooks.bind(this);
+    this.RegisteredApps = this.RegisteredApps.bind(this);
   }
   Mailboxes(request: QueryMailboxesRequest): Promise<QueryMailboxesResponse> {
     const data = QueryMailboxesRequest.encode(request).finish();
@@ -938,6 +1402,36 @@ export class QueryClientImpl implements Query {
       QueryVerifyDryRunResponse.decode(_m0.Reader.create(data)),
     );
   }
+
+  RegisteredISMs(
+    request: QueryRegisteredISMs,
+  ): Promise<QueryRegisteredISMsResponse> {
+    const data = QueryRegisteredISMs.encode(request).finish();
+    const promise = this.rpc.request(this.service, 'RegisteredISMs', data);
+    return promise.then((data) =>
+      QueryRegisteredISMsResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  RegisteredHooks(
+    request: QueryRegisteredHooks,
+  ): Promise<QueryRegisteredHooksResponse> {
+    const data = QueryRegisteredHooks.encode(request).finish();
+    const promise = this.rpc.request(this.service, 'RegisteredHooks', data);
+    return promise.then((data) =>
+      QueryRegisteredHooksResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  RegisteredApps(
+    request: QueryRegisteredApps,
+  ): Promise<QueryRegisteredAppsResponse> {
+    const data = QueryRegisteredApps.encode(request).finish();
+    const promise = this.rpc.request(this.service, 'RegisteredApps', data);
+    return promise.then((data) =>
+      QueryRegisteredAppsResponse.decode(_m0.Reader.create(data)),
+    );
+  }
 }
 
 interface Rpc {
@@ -960,12 +1454,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin

@@ -198,39 +198,49 @@ export async function getGovernor(
     if (!warpRouteId) {
       warpRouteId = await getWarpRouteIdInteractive();
     }
+
     const config = await getWarpConfig(
       multiProvider,
       envConfig,
       warpRouteId,
       registryUris,
-    );
+    ).catch((error) => {
+      console.log(
+        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,
+      );
+      process.exit(0);
+    });
+
     const warpAddresses = await getWarpAddressesFrom(warpRouteId, registryUris);
 
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
-      .reduce((obj, key) => {
-        obj[key] = {
-          ...warpAddresses[key],
-        };
+      .reduce(
+        (obj, key) => {
+          obj[key] = {
+            ...warpAddresses[key],
+          };
 
-        // Use the specified proxyAdmin if it is set in the config
-        let proxyAdmin = config[key].proxyAdmin?.address;
-        // If the owner in the config is an AW account and there is no proxyAdmin in the config,
-        // set the proxyAdmin to the AW singleton proxyAdmin.
-        // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
-        if (
-          !proxyAdmin &&
-          eqAddress(config[key].owner, envConfig.owners[key]?.owner)
-        ) {
-          proxyAdmin = chainAddresses[key]?.proxyAdmin;
-        }
+          // Use the specified proxyAdmin if it is set in the config
+          let proxyAdmin = config[key].proxyAdmin?.address;
+          // If the owner in the config is an AW account and there is no proxyAdmin in the config,
+          // set the proxyAdmin to the AW singleton proxyAdmin.
+          // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
+          if (
+            !proxyAdmin &&
+            eqAddress(config[key].owner, envConfig.owners[key]?.owner)
+          ) {
+            proxyAdmin = chainAddresses[key]?.proxyAdmin;
+          }
 
-        if (proxyAdmin) {
-          obj[key].proxyAdmin = proxyAdmin;
-        }
+          if (proxyAdmin) {
+            obj[key].proxyAdmin = proxyAdmin;
+          }
 
-        return obj;
-      }, {} as typeof warpAddresses);
+          return obj;
+        },
+        {} as typeof warpAddresses,
+      );
 
     const { contractsMap, foreignDeployments } =
       attachContractsMapAndGetForeignDeployments(
@@ -243,8 +253,8 @@ export async function getGovernor(
     const nonEvmChains = chains
       ? chains.filter((c) => foreignDeployments[c])
       : fork && foreignDeployments[fork]
-      ? [fork]
-      : [];
+        ? [fork]
+        : [];
 
     if (nonEvmChains.length > 0) {
       const chainList = nonEvmChains.join(', ');

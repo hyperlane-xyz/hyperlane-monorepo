@@ -3,11 +3,34 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/types.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
 export const protobufPackage = 'hyperlane.core.interchain_security.v1';
+
+/** Route */
+export interface Route {
+  /** ism ... */
+  ism: string;
+  /** domain ... */
+  domain: number;
+}
+
+/** Routing ISM ... */
+export interface RoutingISM {
+  /** id ... */
+  id: string;
+  /** owner ... */
+  owner: string;
+  /**
+   * Routes associated with the Routing ISM.
+   * These are stored directly within the ISM to simplify the design,
+   * as the number of routes is expected to remain small.
+   * This approach avoids the added complexity of managing a separate
+   * collection.
+   */
+  routes: Route[];
+}
 
 /** MessageIdMultisigISM ... */
 export interface MessageIdMultisigISM {
@@ -46,6 +69,178 @@ export interface NoopISM {
   /** owner ... */
   owner: string;
 }
+
+function createBaseRoute(): Route {
+  return { ism: '', domain: 0 };
+}
+
+export const Route = {
+  encode(message: Route, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.ism !== '') {
+      writer.uint32(10).string(message.ism);
+    }
+    if (message.domain !== 0) {
+      writer.uint32(16).uint32(message.domain);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Route {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRoute();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ism = reader.string();
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.domain = reader.uint32();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Route {
+    return {
+      ism: isSet(object.ism) ? globalThis.String(object.ism) : '',
+      domain: isSet(object.domain) ? globalThis.Number(object.domain) : 0,
+    };
+  },
+
+  toJSON(message: Route): unknown {
+    const obj: any = {};
+    if (message.ism !== '') {
+      obj.ism = message.ism;
+    }
+    if (message.domain !== 0) {
+      obj.domain = Math.round(message.domain);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Route>, I>>(base?: I): Route {
+    return Route.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Route>, I>>(object: I): Route {
+    const message = createBaseRoute();
+    message.ism = object.ism ?? '';
+    message.domain = object.domain ?? 0;
+    return message;
+  },
+};
+
+function createBaseRoutingISM(): RoutingISM {
+  return { id: '', owner: '', routes: [] };
+}
+
+export const RoutingISM = {
+  encode(
+    message: RoutingISM,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.id !== '') {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    for (const v of message.routes) {
+      Route.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RoutingISM {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRoutingISM();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.routes.push(Route.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RoutingISM {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      routes: globalThis.Array.isArray(object?.routes)
+        ? object.routes.map((e: any) => Route.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: RoutingISM): unknown {
+    const obj: any = {};
+    if (message.id !== '') {
+      obj.id = message.id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.routes?.length) {
+      obj.routes = message.routes.map((e) => Route.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RoutingISM>, I>>(base?: I): RoutingISM {
+    return RoutingISM.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RoutingISM>, I>>(
+    object: I,
+  ): RoutingISM {
+    const message = createBaseRoutingISM();
+    message.id = object.id ?? '';
+    message.owner = object.owner ?? '';
+    message.routes = object.routes?.map((e) => Route.fromPartial(e)) || [];
+    return message;
+  },
+};
 
 function createBaseMessageIdMultisigISM(): MessageIdMultisigISM {
   return { id: '', owner: '', validators: [], threshold: 0 };
@@ -375,12 +570,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin

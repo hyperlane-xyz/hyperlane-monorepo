@@ -169,13 +169,12 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{
-                dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
-            },
+            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
         },
+        test_utils::dummy_data::dummy_submission_metrics,
     };
     use ethers::utils::hex;
     use hyperlane_base::{
@@ -253,11 +252,9 @@ mod tests {
         ));
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
@@ -311,13 +308,10 @@ mod tests {
         )
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     #[ignore]
     async fn benchmarking_with_real_rpcs() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-
         let arb_chain_conf = ChainConf {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
@@ -392,6 +386,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,
