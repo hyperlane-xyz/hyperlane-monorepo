@@ -604,7 +604,7 @@ describe('MinAmountStrategy', () => {
       ]);
     });
 
-    it('should through when no surplus is not enough to cover deficits', () => {
+    it('should throw when surplus is not enough to cover deficits', () => {
       expect(() =>
         new MinAmountStrategy(
           {
