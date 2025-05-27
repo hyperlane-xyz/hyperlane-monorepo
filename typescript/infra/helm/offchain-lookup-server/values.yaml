@@ -23,14 +23,3 @@ ingress:
   staticIpName: my-ingress-ip # Deprecated
 
 port: 3000
-
-# TODO split between prod and testnet
-env:
-  - name: ENABLED_MODULES
-    value: "cctp,callCommitments"
-  - name: HYPERLANE_EXPLORER_URL
-    value: "https://api.hyperlane.xyz/v1/graphql"
-  - name: CCTP_ATTESTATION_URL
-    value: "https://iris-api-sandbox.circle.com"
-  - name: SERVER_PORT
-    value: "3000"
