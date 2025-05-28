@@ -5,7 +5,7 @@ import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ValueTransferBridge} from "./ValueTransferBridge.sol";
 
-import {EnumerableMapExtended} from "contracts/libs/EnumerableMapExtended.sol";
+import {EnumerableMapExtended, EnumerableMap} from "contracts/libs/EnumerableMapExtended.sol";
 
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
@@ -15,15 +15,18 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 abstract contract MovableCollateralRouter is Router {
     using SafeERC20 for IERC20;
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     /// @notice Mapping of domains to allowed recipients => router. For a given domain we have one router we send/receive messages from.
     /// @dev mapping(uint32 destinationDomain => bytes32 recipient)
-    EnumerableMapExtended.UintToBytes32Map allowedDestinations;
+    EnumerableMapExtended.UintToBytes32Map internal allowedDestinations;
 
     mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
         public allowedBridges;
 
-    mapping(address user => bool isRebalancer) public allowedRebalancers;
+    /// @notice Mapping of address to true if the address is a rebalancer.
+    /// @dev mapping(address user => bool isRebalancer)
+    EnumerableMap.AddressToUintMap internal allowedRebalancers;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -36,11 +39,14 @@ abstract contract MovableCollateralRouter is Router {
     error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
     function addRebalancer(address rebalancer) external onlyOwner {
-        allowedRebalancers[rebalancer] = true;
+        allowedRebalancers.set(rebalancer, 1);
     }
 
     modifier onlyRebalancer() {
-        require(allowedRebalancers[_msgSender()], "MCR: Only Rebalancer");
+        require(
+            allowedRebalancers.contains(_msgSender()),
+            "MCR: Only Rebalancer"
+        );
         _;
     }
 
