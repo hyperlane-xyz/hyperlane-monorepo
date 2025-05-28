@@ -253,8 +253,10 @@ contract TokenBridgeCctpTest is Test {
 
         vm.expectCall(
             address(messageTransmitterDestination),
-            abi.encodePacked(
-                MockCircleMessageTransmitter.receiveMessage.selector
+            abi.encodeWithSelector(
+                MockCircleMessageTransmitter.receiveMessage.selector,
+                cctpMessage,
+                attestation
             )
         );
         assertEq(tbDestination.verify(metadata, message), true);
