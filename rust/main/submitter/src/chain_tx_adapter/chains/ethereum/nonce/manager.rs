@@ -55,16 +55,16 @@ impl NonceManager {
 
         let precursor = tx.precursor_mut();
 
-        let address = *precursor
+        let from = *precursor
             .tx
             .from()
             .ok_or(SubmitterError::TxSubmissionError(
                 "Transaction missing address".to_string(),
             ))?;
 
-        if address != self.address {
+        if from != self.address {
             return Err(SubmitterError::TxSubmissionError(
-                "Transaction address does not match nonce manager address".to_string(),
+                "Transaction from address does not match nonce manager address".to_string(),
             ));
         }
 
@@ -79,7 +79,7 @@ impl NonceManager {
         let next_nonce = self.state.identify_next_nonce().await?;
 
         self.db
-            .store_tx_id_by_nonce_and_signer_address(&next_nonce, &address.to_string(), &tx_id)
+            .store_tx_id_by_nonce_and_signer_address(&next_nonce, &self.address.to_string(), &tx_id)
             .await?;
 
         self.state
@@ -90,7 +90,7 @@ impl NonceManager {
 
         info!(
             nonce = next_nonce.to_string(),
-            address = ?address,
+            address = ?from,
             ?tx_id,
             precursor = ?precursor,
             "Set nonce for transaction"
