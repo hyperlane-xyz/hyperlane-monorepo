@@ -230,9 +230,7 @@ contract TokenBridgeCctpTest is Test {
             amount
         );
 
-        // Relayer role
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
+        bytes memory message = mailboxDestination.inboundMessages(0);
 
         _expectOffChainLookUpRevert(message);
         tbDestination.getOffchainVerifyInfo(message);
@@ -266,20 +264,15 @@ contract TokenBridgeCctpTest is Test {
         tokenOrigin.approve(address(tbOrigin), quote[1].amount);
 
         // invalid nonce := nextNonce + 1
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce() + 1;
+        uint64 badNonce = tokenMessengerOrigin.nextNonce() + 1;
         tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
         );
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
+        bytes memory message = mailboxDestination.inboundMessages(0);
 
-        bytes memory cctpMessage = _encodeCctpMessage(
-            cctpNonce,
-            cctpOrigin,
-            ""
-        );
+        bytes memory cctpMessage = _encodeCctpMessage(badNonce, cctpOrigin, "");
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
@@ -303,13 +296,13 @@ contract TokenBridgeCctpTest is Test {
             user.addressToBytes32(),
             amount
         );
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
+        bytes memory message = mailboxDestination.inboundMessages(0);
 
         // invalid source domain := destination
+        uint32 badSourceDomain = cctpDestination;
         bytes memory cctpMessage = _encodeCctpMessage(
             cctpNonce,
-            cctpDestination,
+            badSourceDomain,
             ""
         );
         bytes memory attestation = bytes("");
