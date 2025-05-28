@@ -42,13 +42,17 @@ export function createAbiHandler<F extends string>(
       const args = fragment.inputs.map((_, i) => decoded[i]);
       // Invoke service and get result
       const result = await serviceMethod(...args);
+      if (skipResultEncoding) {
+        return res.json({ data: result });
+      }
+
       // ABI-encode according to the function's outputs
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
       // If skipResultEncoding is true, return the raw result
-      return res.json({ data: skipResultEncoding ? result : encoded });
+      return res.json({ data: encoded });
     } catch (err: any) {
       console.error(`Error in ABI handler ${functionName}:`, err);
       return res.status(500).json({ error: err.message });
