@@ -16,6 +16,7 @@ import {
   ContractVerifier,
   CosmosNativeDeployer,
   CosmosNativeIsmModule,
+  CosmosNativeWarpModule,
   EvmERC20WarpModule,
   EvmHookModule,
   EvmIsmModule,
@@ -1068,15 +1069,6 @@ async function enrollCrossChainRouters(
   },
   deployedContracts: ChainMap<Address>,
 ) {
-  // get unique list of protocols
-  const protocols = Array.from(
-    new Set(
-      Object.keys(warpDeployConfig).map((chainName) =>
-        context.multiProvider.getProtocol(chainName),
-      ),
-    ),
-  );
-
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: 0, // TODO: protocol specific gas?,
     ...config,
@@ -1108,6 +1100,19 @@ async function enrollCrossChainRouters(
         break;
       }
       case ProtocolType.CosmosNative: {
+        const signer =
+          context.multiProtocolSigner!.getCosmosNativeSigner(chain);
+        const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+          context.multiProvider,
+          {
+            chain,
+            config: configMapToDeploy[chain],
+            addresses: {} as any,
+          },
+          signer,
+        );
+
+        await cosmosNativeWarpModule.enrollRemoteRouters(remoteRoutes);
         break;
       }
       default: {

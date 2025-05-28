@@ -78,14 +78,19 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
   }
 
   async enrollRemoteRouters(
-    remoteRouters: { domain: number; contract: string; gas: string }[],
+    remoteRouters: {
+      tokenId: string;
+      receiverDomain: number;
+      receiverContract: string;
+      gas: string;
+    }[],
   ) {
     for (const remoteRouter of remoteRouters) {
       await this.signer.enrollRemoteRouter({
-        token_id: remoteRouter.contract,
+        token_id: remoteRouter.tokenId,
         remote_router: {
-          receiver_domain: remoteRouter.domain,
-          receiver_contract: remoteRouter.contract,
+          receiver_domain: remoteRouter.receiverDomain,
+          receiver_contract: remoteRouter.receiverContract,
           gas: remoteRouter.gas,
         },
       });
