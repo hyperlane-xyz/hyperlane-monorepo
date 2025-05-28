@@ -67,11 +67,13 @@ export function hyperlaneWarpDeployRaw({
   hypKey,
   skipConfirmationPrompts,
   privateKey,
+  warpRouteId,
 }: {
   warpCorePath?: string;
   hypKey?: string;
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${
     hypKey ? ['HYP_KEY=' + hypKey] : ''
@@ -80,6 +82,7 @@ export function hyperlaneWarpDeployRaw({
         ${warpCorePath ? ['--config', warpCorePath] : ''} \
         ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         ${skipConfirmationPrompts ? ['--yes'] : ''}`;
 }
 
