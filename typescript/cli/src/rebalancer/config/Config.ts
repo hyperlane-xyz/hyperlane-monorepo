@@ -61,7 +61,7 @@ const ChainConfigSchema = BaseChainConfigSchema.extend({
 });
 
 const BaseConfigSchema = z.object({
-  warpRouteId: z.string().optional(),
+  warpRouteId: z.string(),
   checkFrequency: z.number().optional(),
   withMetrics: z.boolean().optional().default(false),
   monitorOnly: z.boolean().optional().default(false),
@@ -125,7 +125,6 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
-
 export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 
 // Union type for all chain configs
@@ -161,7 +160,9 @@ export class Config {
   static load(
     configFilePath: string,
     rebalancerKey: string,
-    overrides: Partial<BaseConfig & { coingeckoApiKey: string }>,
+    overrides: Partial<
+      Omit<BaseConfig, 'warpRouteId'> & { coingeckoApiKey: string }
+    >,
   ) {
     const config: ConfigFileInput = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
@@ -183,17 +184,12 @@ export class Config {
       throw new Error('No chains configured');
     }
 
-    const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
     const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
     const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly;
     const withMetrics = overrides.withMetrics ?? fileWithMetrics;
     const coingeckoApiKey = overrides.coingeckoApiKey ?? '';
     const rebalanceStrategy =
       overrides.rebalanceStrategy ?? fileRebalanceStrategy;
-
-    if (!warpRouteId) {
-      throw new Error('warpRouteId is required');
-    }
 
     if (!checkFrequency) {
       throw new Error('checkFrequency is required');
@@ -205,7 +201,7 @@ export class Config {
 
     return new Config(
       rebalancerKey,
-      warpRouteId,
+      fileWarpRouteId,
       checkFrequency,
       monitorOnly,
       withMetrics,

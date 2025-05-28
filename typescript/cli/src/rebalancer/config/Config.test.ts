@@ -95,25 +95,14 @@ describe('Config', () => {
   });
 
   it('should throw if no warp route id is configured', () => {
+    // @ts-ignore
     delete data.warpRouteId;
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
-      'warpRouteId is required',
+      'Validation error: Required at "warpRouteId"',
     );
-  });
-
-  it('should load if warp route id is provided by override', () => {
-    delete data.warpRouteId;
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
-
-    expect(
-      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {
-        warpRouteId: 'warpRouteId by override',
-      }).warpRouteId,
-    ).to.equal('warpRouteId by override');
   });
 
   it('should throw if no check frequency is configured', () => {
@@ -145,7 +134,6 @@ describe('Config', () => {
 
     expect(
       Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {
-        warpRouteId: 'warpRouteId by override',
         checkFrequency: 1337,
         monitorOnly: false,
         withMetrics: false,
@@ -153,7 +141,7 @@ describe('Config', () => {
         rebalanceStrategy: StrategyOptions.Weighted,
       }),
     ).to.deep.equal({
-      warpRouteId: 'warpRouteId by override',
+      warpRouteId: 'warpRouteId',
       checkFrequency: 1337,
       monitorOnly: false,
       rebalancerKey: ANVIL_KEY,

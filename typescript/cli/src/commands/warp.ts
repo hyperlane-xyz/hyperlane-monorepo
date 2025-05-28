@@ -446,7 +446,6 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  warpRouteId?: string;
   checkFrequency?: number;
   withMetrics?: boolean;
   monitorOnly?: boolean;
@@ -465,11 +464,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
-    },
-    warpRouteId: {
-      type: 'string',
-      description: 'The warp route ID to rebalance',
-      demandOption: false,
     },
     checkFrequency: {
       type: 'number',
@@ -519,7 +513,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
   handler: async ({
     context,
     config,
-    warpRouteId,
     checkFrequency,
     withMetrics,
     monitorOnly,
@@ -534,7 +527,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       // Load rebalancer config from disk
       const rebalancerConfig = Config.load(config, rebalancerKey, {
-        warpRouteId,
         checkFrequency,
         withMetrics,
         monitorOnly,
