@@ -5,7 +5,8 @@ import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ValueTransferBridge} from "./ValueTransferBridge.sol";
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {EnumerableMapExtended} from "contracts/libs/EnumerableMapExtended.sol";
+
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,9 +14,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 abstract contract MovableCollateralRouter is Router {
     using SafeERC20 for IERC20;
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 
-    mapping(uint32 destinationDomain => bytes32 recipient)
-        public allowedDestinations;
+    /// @notice Mapping of domains to allowed recipients => router. For a given domain we have one router we send/receive messages from.
+    /// @dev mapping(uint32 destinationDomain => bytes32 recipient)
+    EnumerableMapExtended.UintToBytes32Map allowedDestinations;
 
     mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
         public allowedBridges;
@@ -48,7 +51,7 @@ abstract contract MovableCollateralRouter is Router {
     ) external payable onlyRebalancer {
         address rebalancer = _msgSender();
 
-        bytes32 recipient = allowedDestinations[domain];
+        (, bytes32 recipient) = allowedDestinations.tryGet(domain);
         bytes32 domainRouter = routers(domain);
         recipient = recipient != bytes32(0) ? recipient : domainRouter;
 
@@ -83,7 +86,7 @@ abstract contract MovableCollateralRouter is Router {
     }
 
     function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
-        allowedDestinations[domain] = recipient;
+        allowedDestinations.set(domain, recipient);
     }
 
     function addBridge(
