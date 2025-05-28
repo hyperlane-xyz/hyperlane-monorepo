@@ -216,16 +216,26 @@ contract TokenBridgeCctpTest is Test {
             cctpNonce
         );
 
-        messageTransmitterDestination.process(nonceId, user, amount);
-
         bytes memory cctpMessage = _encodeCctpMessage(cctpNonce, "");
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
+        vm.expectCall(
+            address(messageTransmitterDestination),
+            abi.encodePacked(
+                MockCircleMessageTransmitter.receiveMessage.selector
+            )
+        );
         tbDestination.verify(metadata, message);
+
+        // receiveMessage does not mint the token, so we need to do it manually
+        messageTransmitterDestination.process(nonceId, user, amount);
 
         uint256 tokenBalance = tokenDestination.balanceOf(user);
         assertEq(tokenBalance, amount);
+
+        // verify again to ensure the message is not received twice but the ISM returns true
+        assertEq(tbDestination.verify(metadata, message), true);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
