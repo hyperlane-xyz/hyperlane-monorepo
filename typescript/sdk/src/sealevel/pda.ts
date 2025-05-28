@@ -1,5 +1,3 @@
-import { PublicKey } from '@solana/web3.js';
-
 export const HYPERLANE_TOKEN_PDA_SEEDS = [
   'hyperlane_message_recipient',
   '-',
@@ -39,7 +37,3 @@ export const HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS = [
   '-',
   'escrow',
 ];
-
-export const SvmSystemProgram = new PublicKey(
-  '11111111111111111111111111111111',
-);

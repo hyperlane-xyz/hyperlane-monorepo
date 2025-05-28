@@ -4,7 +4,6 @@ import {
   getAccount,
   getTokenMetadata,
 } from '@solana/spl-token';
-// import { struct, u32, u8, } from '@solana/buffer-layout';
 import {
   Commitment,
   Connection,
@@ -12,7 +11,12 @@ import {
   SystemProgram,
 } from '@solana/web3.js';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -22,7 +26,6 @@ import {
   HYPERLANE_NATIVE_TOKEN_PDA_SEEDS,
   HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
   HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
-  SvmSystemProgram,
 } from '../../sealevel/pda.js';
 import { ChainNameOrId } from '../../types.js';
 import { TokenType } from '../config.js';
@@ -39,7 +42,7 @@ export class SvmSplTokenWarpRouteReader {
   });
 
   protected readonly connection: Connection;
-  protected readonly commitment: Commitment = 'confirmed';
+  protected readonly commitment: Commitment = 'finalized';
 
   constructor(
     protected readonly chain: ChainNameOrId,
@@ -50,14 +53,14 @@ export class SvmSplTokenWarpRouteReader {
     this.connection = multiProvider.getSolanaWeb3Provider(chain);
 
     this.deriveTokenConfigMap = {
+      [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
+      [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
+      [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
       [TokenType.XERC20]: null,
       [TokenType.XERC20Lockbox]: null,
-      [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
       [TokenType.collateralFiat]: null,
       [TokenType.collateralVault]: null,
       [TokenType.collateralVaultRebase]: null,
-      [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
-      [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
       [TokenType.syntheticRebase]: null,
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
@@ -90,7 +93,6 @@ export class SvmSplTokenWarpRouteReader {
     return deriveFunction(programId);
   }
 
-  // Stub: you will need to provide this based on your setup
   protected async getTokenTypeForProgram(
     programId: PublicKey,
   ): Promise<TokenType> {
@@ -101,9 +103,9 @@ export class SvmSplTokenWarpRouteReader {
     ];
 
     for (const seeds of seedsByTokenType) {
-      const tokenAccount = BaseSealevelAdapter.derivePda(seeds, programId);
-
-      const accountInfo = await this.connection.getAccountInfo(tokenAccount);
+      const accountInfo = await this.connection.getAccountInfo(
+        BaseSealevelAdapter.derivePda(seeds, programId),
+      );
 
       if (!accountInfo) {
         continue;
@@ -113,19 +115,18 @@ export class SvmSplTokenWarpRouteReader {
         accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
         accountInfo.owner.equals(TOKEN_PROGRAM_ID)
       ) {
-        const escrowAccountAddress = BaseSealevelAdapter.derivePda(
-          HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
-          programId,
+        const escrowAccount = await this.connection.getAccountInfo(
+          BaseSealevelAdapter.derivePda(
+            HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
+            programId,
+          ),
         );
 
-        const escrowAccount =
-          await this.connection.getAccountInfo(escrowAccountAddress);
-
-        // if the escrow account does not exist we can be sure that the token is a collateral
+        // if the escrow account does not exist we can be sure that the token is a synthetic
         return escrowAccount ? TokenType.collateral : TokenType.synthetic;
       }
 
-      if (accountInfo.owner.equals(SvmSystemProgram)) {
+      if (accountInfo.owner.equals(SystemProgram.programId)) {
         return TokenType.native;
       }
     }
@@ -167,7 +168,7 @@ export class SvmSplTokenWarpRouteReader {
         Array.from(tokenData.remote_router_pubkeys?.entries() ?? []).map(
           ([domain, routerAddress]) => [
             domain.toString(),
-            { address: routerAddress.toString() },
+            { address: addressToBytes32(routerAddress.toString()) },
           ],
         ),
       ),
@@ -219,7 +220,7 @@ export class SvmSplTokenWarpRouteReader {
     const escrowAccount = await getAccount(
       this.connection,
       escrowAccountAddress,
-      'finalized',
+      this.commitment,
       escrowAccountInfo.owner,
     );
 
@@ -227,18 +228,23 @@ export class SvmSplTokenWarpRouteReader {
       ? await getTokenMetadata(
           this.connection,
           escrowAccount.mint,
-          'finalized',
+          this.commitment,
           TOKEN_2022_PROGRAM_ID,
         )
       : await getLegacySPLTokenMetadata(this.connection, escrowAccount.mint);
+
+    assert(
+      metadata,
+      `Metadata not found for synthetic token on chain "${this.chain}" and address ${programId.toBase58()}`,
+    );
 
     return {
       ...tokenData,
       type: TokenType.collateral,
       token: escrowAccount.mint.toString(),
       isNft: false,
-      name: metadata?.name,
-      symbol: metadata?.symbol,
+      name: metadata.name,
+      symbol: metadata.symbol,
     };
   }
 
@@ -255,7 +261,7 @@ export class SvmSplTokenWarpRouteReader {
       getTokenMetadata(
         this.connection,
         mintAccountAddress,
-        'finalized',
+        this.commitment,
         TOKEN_2022_PROGRAM_ID,
       ),
     ]);
