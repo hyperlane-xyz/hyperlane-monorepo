@@ -201,48 +201,60 @@ async function executeDeploy(
     contractVerifier,
   );
 
-  const evmConfig = objFilter(
-    modifiedConfig,
-    (chain, _): _ is any =>
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-  );
-  const cosmosNativeConfig = objFilter(
-    modifiedConfig,
-    (chain, _): _ is any =>
-      multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
-  );
-
   let deployedContracts = {};
 
-  if (!isObjEmpty(evmConfig)) {
-    const deployer = warpDeployConfig.isNft
-      ? new HypERC721Deployer(multiProvider)
-      : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
+  // get unique list of protocols
+  const protocols = Array.from(
+    new Set(
+      Object.keys(modifiedConfig).map((chainName) =>
+        multiProvider.getProtocol(chainName),
+      ),
+    ),
+  );
 
-    // TODO: enroll non-evm routes
-    const evmContracts = await deployer.deploy(modifiedConfig);
-    deployedContracts = { ...deployedContracts, ...evmContracts };
-  }
-
-  if (!isObjEmpty(cosmosNativeConfig)) {
-    const signersMap = objMap(
-      cosmosNativeConfig,
-      (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
-    );
-
-    const nonCosmosNativeConfig = objFilter(
+  for (const protocol of protocols) {
+    const protocolSpecificConfig = objFilter(
       modifiedConfig,
-      (chain, _): _ is any =>
-        multiProvider.getProtocol(chain) !== ProtocolType.CosmosNative,
+      (chainName, _): _ is any =>
+        multiProvider.getProtocol(chainName) === protocol,
     );
 
-    const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
-    const cosmosNativeContracts = await deployer.deploy(
-      cosmosNativeConfig,
-      nonCosmosNativeConfig,
-    );
+    if (isObjEmpty(protocolSpecificConfig)) {
+      continue;
+    }
 
-    deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
+    switch (protocol) {
+      case ProtocolType.Ethereum: {
+        const deployer = warpDeployConfig.isNft
+          ? new HypERC721Deployer(multiProvider)
+          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
+
+        // TODO: enroll non-evm routes
+        const evmContracts = await deployer.deploy(modifiedConfig);
+        deployedContracts = { ...deployedContracts, ...evmContracts };
+        break;
+      }
+      case ProtocolType.CosmosNative: {
+        const signersMap = objMap(
+          protocolSpecificConfig,
+          (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
+        );
+
+        const nonCosmosNativeConfig = objFilter(
+          modifiedConfig,
+          (chain, _): _ is any =>
+            multiProvider.getProtocol(chain) !== ProtocolType.CosmosNative,
+        );
+
+        const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
+        const cosmosNativeContracts = await deployer.deploy(
+          protocolSpecificConfig,
+          nonCosmosNativeConfig,
+        );
+
+        deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
+      }
+    }
   }
 
   logGreen('✅ Warp contract deployments complete');
