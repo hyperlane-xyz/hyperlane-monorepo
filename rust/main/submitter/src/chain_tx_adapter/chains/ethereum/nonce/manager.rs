@@ -70,8 +70,8 @@ impl NonceManager {
 
         if let Some(nonce) = precursor.tx.nonce() {
             let nonce: U256 = nonce.into();
-            let action = self.state.validate_assigned_nonce(&nonce).await?;
-            if matches!(action, NonceAction::None) {
+            let action = self.state.validate_assigned_nonce(&nonce).await;
+            if matches!(action, NonceAction::Noop) {
                 return Ok(());
             };
         }

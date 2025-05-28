@@ -18,7 +18,7 @@ pub(crate) enum NonceStatus {
 }
 
 pub(crate) enum NonceAction {
-    None,
+    Noop,
     Reassign,
 }
 
@@ -70,21 +70,19 @@ impl NonceManagerState {
         }
     }
 
-    pub(crate) async fn validate_assigned_nonce(
-        &self,
-        nonce: &U256,
-    ) -> Result<NonceAction, SubmitterError> {
+    pub(crate) async fn validate_assigned_nonce(&self, nonce: &U256) -> NonceAction {
+        use NonceAction::{Noop, Reassign};
         use NonceStatus::{Finalized, Free, Taken};
 
         let nonce_status = self.get_nonce_status(&nonce.into()).await;
 
         if let Some(status) = nonce_status {
             match status {
-                Free => Ok(NonceAction::Reassign),
-                Taken | Finalized => Ok(NonceAction::None),
+                Free => Reassign,
+                Taken | Finalized => Noop,
             }
         } else {
-            Ok(NonceAction::Reassign)
+            Reassign
         }
     }
 
