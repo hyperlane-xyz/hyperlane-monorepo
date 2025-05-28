@@ -5,6 +5,7 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MovableCollateralRouter, ValueTransferBridge} from "contracts/token/libs/MovableCollateralRouter.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
+import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -31,11 +32,13 @@ contract MockValueTransferBridge is ValueTransferBridge {
         uint256 amountOut
     ) external payable override returns (bytes32 transferId) {
         token.transferFrom(msg.sender, address(this), amountOut);
-        return keccak256("fake message");
+        return recipient;
     }
 }
 
 contract MovableCollateralRouterTest is Test {
+    using TypeCasts for address;
+
     MovableCollateralRouter internal router;
     MockValueTransferBridge internal vtb;
     ERC20Test internal token;
@@ -134,5 +137,26 @@ contract MovableCollateralRouterTest is Test {
         // Execute
         vm.prank(notAdmin);
         router.approveTokenForBridge(token, vtb);
+    }
+
+    function testWeUseTheRouterMapping() public {
+        // TODO: we should inspect the collateral moved event to make sure we sent message to Alice
+        // Add remote router to serve as default recipient
+        router.enrollRemoteRouter(destinationDomain, alice.addressToBytes32());
+
+        //
+        // Add the given bridge
+        router.addBridge(vtb, destinationDomain);
+
+        // Setup
+        token.mintTo(address(router), 1e18);
+        vm.prank(address(router));
+        token.approve(address(vtb), 1e18);
+
+        // Execute
+        router.rebalance(destinationDomain, 1e18, vtb);
+        // Assert
+        assertEq(token.balanceOf(address(router)), 0);
+        assertEq(token.balanceOf(address(vtb)), 1e18);
     }
 }
