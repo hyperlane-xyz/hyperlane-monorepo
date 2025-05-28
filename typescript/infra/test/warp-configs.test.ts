@@ -22,7 +22,7 @@ chai.use(chaiAsPromised);
 chai.should();
 const DEFAULT_TIMEOUT = 100000;
 
-const warpIdsToSkip = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
+const warpIdsToSkip: string[] = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
 
 async function getConfigsForBranch(branch: string) {
   return getRegistry({
