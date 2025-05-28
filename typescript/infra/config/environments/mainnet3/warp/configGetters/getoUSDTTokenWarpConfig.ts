@@ -266,6 +266,16 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ],
   base: [
     {
+      // usdt
+      lockbox: '0x9d922c23d78179c2e75fe394fc8e49363f2dda85',
+      limits: zeroLimits,
+    },
+    {
+      // usdc
+      lockbox: '0xe92e51d99ae33114c60d9621fb2e1ec0acea7e30',
+      limits: zeroLimits,
+    },
+    {
       lockbox: productionCCIPTokenPoolAddresses.base,
       limits: productionCCIPTokenPoolLimits,
     },
@@ -277,6 +287,16 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     },
   ],
   optimism: [
+    {
+      // usdc
+      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
+      limits: zeroLimits,
+    },
+    {
+      // usdt
+      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
+      limits: zeroLimits,
+    },
     {
       lockbox: productionCCIPTokenPoolAddresses.optimism,
       limits: productionCCIPTokenPoolLimits,
