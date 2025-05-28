@@ -5,14 +5,15 @@ use std::sync::Arc;
 
 use eyre::Result;
 
+use hyperlane_base::{
+    db::HyperlaneRocksDB,
+    settings::{ChainConf, ChainConnectionConf, RawChainConf},
+    CoreMetrics,
+};
+
 use crate::chain_tx_adapter::{
     chains::{cosmos::CosmosTxAdapter, ethereum::EthereumTxAdapter, sealevel::SealevelTxAdapter},
     AdaptsChain,
-};
-use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_base::{
-    settings::{ChainConf, ChainConnectionConf, RawChainConf},
-    CoreMetrics,
 };
 
 pub struct ChainTxAdapterFactory {}
