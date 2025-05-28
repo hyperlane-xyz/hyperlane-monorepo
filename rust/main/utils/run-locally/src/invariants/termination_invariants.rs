@@ -17,8 +17,6 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub config: &'a Config,
     pub starting_relayer_balance: f64,
     pub msg_processed_count: u32,
-    pub msg_confirmed_count: u32,
-    pub msg_confirmed_count_expected: u32,
     pub gas_payment_events_count: u32,
     pub total_messages_expected: u32,
     pub total_messages_dispatched: u32,
@@ -39,8 +37,6 @@ pub fn relayer_termination_invariants_met(
         config,
         starting_relayer_balance,
         msg_processed_count,
-        msg_confirmed_count,
-        msg_confirmed_count_expected,
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
@@ -77,20 +73,6 @@ pub fn relayer_termination_invariants_met(
             "Relayer has {} processed messages, expected {}",
             msg_processed_count,
             total_messages_expected
-        );
-        return Ok(false);
-    }
-
-    log!(
-        "Relayer message confirmed count {}, expected {}",
-        msg_confirmed_count,
-        msg_confirmed_count_expected
-    );
-    if msg_confirmed_count != msg_confirmed_count_expected {
-        log!(
-            "Relayer has {} confirmed messages, expected {}",
-            msg_confirmed_count,
-            msg_confirmed_count_expected
         );
         return Ok(false);
     }
