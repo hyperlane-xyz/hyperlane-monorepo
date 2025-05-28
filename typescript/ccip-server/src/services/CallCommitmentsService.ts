@@ -25,6 +25,15 @@ import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService } from './BaseService.js';
 
+const EnvSchema = z.object({
+  REGISTRY_URI: z
+    .string()
+    .transform((val) => val.split(',').map((s) => s.trim()))
+    .optional(),
+});
+
+const env = EnvSchema.parse(process.env);
+
 const postCallsSchema = z.object({
   calls: z
     .array(
@@ -49,9 +58,7 @@ export class CallCommitmentsService extends BaseService {
   }
 
   static async initialize() {
-    const registryUris = process.env.REGISTRY_URI?.split(',') || [
-      DEFAULT_GITHUB_REGISTRY,
-    ];
+    const registryUris = env.REGISTRY_URI ?? [DEFAULT_GITHUB_REGISTRY];
     console.log('Using registry URIs', registryUris);
     const registry = getRegistry({
       registryUris: registryUris,

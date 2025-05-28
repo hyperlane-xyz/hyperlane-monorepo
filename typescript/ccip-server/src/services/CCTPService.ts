@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
+import { z } from 'zod';
 
 import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
 
@@ -10,6 +11,14 @@ import { BaseService } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
+
+const EnvSchema = z.object({
+  HYPERLANE_EXPLORER_URL: z.string().url(),
+  CCTP_ATTESTATION_URL: z.string().url(),
+  RPC_URL: z.string().url(),
+});
+
+const env = EnvSchema.parse(process.env);
 
 class CCTPService extends BaseService {
   // External Services
@@ -24,14 +33,12 @@ class CCTPService extends BaseService {
 
   constructor() {
     super();
-    this.hyperlaneService = new HyperlaneService(
-      process.env.HYPERLANE_EXPLORER_URL!,
-    );
+    this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
     this.cctpAttestationService = new CCTPAttestationService(
-      process.env.CCTP_ATTESTATION_URL!,
+      env.CCTP_ATTESTATION_URL,
     );
     // TODO: fetch this from a configured MultiProvider from IRegistry
-    this.rpcService = new RPCService(process.env.RPC_URL!);
+    this.rpcService = new RPCService(env.RPC_URL);
 
     this.router = Router();
 
