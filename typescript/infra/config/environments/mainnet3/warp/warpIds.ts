@@ -1,4 +1,5 @@
 export enum WarpRouteIds {
+  BscMilkywayMILK = 'MILK/bsc-milkyway',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH = 'EZETH/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
   ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE = 'EZETHSTAGE/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
@@ -79,10 +80,7 @@ export enum WarpRouteIds {
   EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
-  // TODO: uncomment after merging the staging route to registry
-  // this has been commented out as it leads to check-warp-deploy cron job failing
-  // SuperTokenStaging = 'USDTSTAGING/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-  SuperUSDT = 'USDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  oUSDT = 'oUSDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',

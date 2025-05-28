@@ -24,6 +24,7 @@ import {
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
+  validateCoreIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -42,9 +43,12 @@ interface ApplyParams extends DeployParams {
  */
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
-  const chain = params.chain;
+  let chain = params.chain;
   const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
-    context as any;
+    context;
+
+  // Validate ISM compatibility
+  validateCoreIsmCompatibility(chain, config, context);
 
   const deploymentParams: DeployParams = {
     context: { ...context },
@@ -73,7 +77,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
         const contractVerifier = new ContractVerifier(
           multiProvider,
-          apiKeys,
+          apiKeys!,
           coreBuildArtifact,
           ExplorerLicenseType.MIT,
         );

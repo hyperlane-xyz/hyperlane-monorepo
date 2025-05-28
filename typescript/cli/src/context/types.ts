@@ -42,6 +42,7 @@ export interface WriteCommandContext extends CommandContext {
   multiProtocolSigner?: MultiProtocolSignerManager;
   isDryRun?: boolean;
   dryRunChain?: string;
+  apiKeys?: ChainMap<string>;
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
