@@ -5,22 +5,29 @@ import {
   ERC721Enumerable__factory,
   GasRouter,
   IERC4626__factory,
+  IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
   ProtocolType,
   assert,
+  objFilter,
   objKeys,
   objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
-import { ChainName } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
 import {
@@ -33,13 +40,18 @@ import {
   hypERC721factories,
 } from './contracts.js';
 import {
+  CctpTokenConfig,
+  HypTokenConfig,
   HypTokenRouterConfig,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
+  isOpL1TokenConfig,
+  isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
@@ -76,6 +88,10 @@ abstract class TokenDeployer<
       return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
       return [scale, config.mailbox];
+    } else if (isOpL2TokenConfig(config)) {
+      return [config.mailbox, config.l2Bridge];
+    } else if (isOpL1TokenConfig(config)) {
+      return [config.mailbox, config.portal, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];
@@ -84,9 +100,23 @@ abstract class TokenDeployer<
         config.collateralChainName,
       );
       return [config.decimals, scale, config.mailbox, collateralDomain];
+    } else if (isCctpTokenConfig(config)) {
+      return [
+        config.token,
+        scale,
+        config.mailbox,
+        config.messageTransmitter,
+        config.tokenMessenger,
+      ];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
+  }
+
+  initializeFnSignature(name: string): string {
+    return name === 'TokenBridgeCctp'
+      ? 'initialize(address,address,string[])'
+      : 'initialize';
   }
 
   async initializeArgs(
@@ -106,6 +136,8 @@ abstract class TokenDeployer<
       isNativeTokenConfig(config)
     ) {
       return defaultArgs;
+    } else if (isCctpTokenConfig(config)) {
+      return [config.hook ?? constants.AddressZero, config.owner, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
       return [
         config.initialSupply ?? 0,
@@ -142,7 +174,11 @@ abstract class TokenDeployer<
         }
       }
 
-      if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+      if (
+        isCollateralTokenConfig(config) ||
+        isXERC20TokenConfig(config) ||
+        isCctpTokenConfig(config)
+      ) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {
@@ -197,6 +233,55 @@ abstract class TokenDeployer<
     return undefined;
   }
 
+  protected async configureCctpDomains(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const cctpConfigs = objFilter(
+      configMap,
+      (_, config): config is CctpTokenConfig => isCctpTokenConfig(config),
+    );
+
+    const circleDomains = await promiseObjAll(
+      objMap(cctpConfigs, (chain, config) =>
+        IMessageTransmitter__factory.connect(
+          config.messageTransmitter,
+          this.multiProvider.getProvider(chain),
+        ).localDomain(),
+      ),
+    );
+
+    const domains = Object.entries(circleDomains).map(([chain, circle]) => ({
+      hyperlane: this.multiProvider.getDomainId(chain),
+      circle,
+    }));
+
+    if (domains.length === 0) {
+      return;
+    }
+
+    await promiseObjAll(
+      objMap(cctpConfigs, async (chain, _config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridge = TokenBridgeCctp__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+        const remoteDomains = domains.filter(
+          (domain) =>
+            domain.hyperlane !== this.multiProvider.getDomainId(chain),
+        );
+        this.logger.info(`Mapping Circle domains on ${chain}`, {
+          remoteDomains,
+        });
+        await this.multiProvider.handleTx(
+          chain,
+          tokenBridge.addDomains(remoteDomains),
+        );
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
@@ -214,7 +299,12 @@ abstract class TokenDeployer<
       gas: gasOverhead(config.type),
       ...config,
     }));
-    return super.deploy(resolvedConfigMap);
+    const deployedContractsMap = await super.deploy(resolvedConfigMap);
+
+    // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
+    await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    return deployedContractsMap;
   }
 }
 
