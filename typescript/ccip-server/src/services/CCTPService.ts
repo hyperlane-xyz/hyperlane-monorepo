@@ -18,7 +18,7 @@ import { HyperlaneService } from './HyperlaneService.js';
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.string().url(),
   CCTP_ATTESTATION_URL: z.string().url(),
-  REGISTRY_URI: z.string().url(),
+  REGISTRY_URI: z.string().url().optional(),
 });
 
 class CCTPService extends BaseService {
@@ -39,7 +39,7 @@ class CCTPService extends BaseService {
     this.cctpAttestationService = new CCTPAttestationService(
       env.CCTP_ATTESTATION_URL,
     );
-    const registryUris = process.env.REGISTRY_URI?.split(',') || [
+    const registryUris = env.REGISTRY_URI?.split(',') || [
       DEFAULT_GITHUB_REGISTRY,
     ];
     console.log('Using registry URIs', registryUris);
