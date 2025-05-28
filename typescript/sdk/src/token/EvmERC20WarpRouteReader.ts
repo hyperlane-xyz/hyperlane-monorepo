@@ -13,7 +13,7 @@ import {
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   ProxyAdmin__factory,
-  TokenBridgeCctpV1__factory,
+  TokenBridgeCctp__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -396,7 +396,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctpV1__factory.connect(
+    const tokenBridge = TokenBridgeCctp__factory.connect(
       hypToken,
       this.provider,
     );

@@ -27,6 +27,41 @@ library CctpMessage {
     uint8 private constant SOURCE_DOMAIN_INDEX = 4;
     uint8 private constant NONCE_INDEX = 12;
 
+    /**
+     * @notice Returns formatted (packed) message with provided fields
+     * @param _msgVersion the version of the message format
+     * @param _msgSourceDomain Domain of home chain
+     * @param _msgDestinationDomain Domain of destination chain
+     * @param _msgNonce Destination-specific nonce
+     * @param _msgSender Address of sender on source chain as bytes32
+     * @param _msgRecipient Address of recipient on destination chain as bytes32
+     * @param _msgDestinationCaller Address of caller on destination chain as bytes32
+     * @param _msgRawBody Raw bytes of message body
+     * @return Formatted message
+     **/
+    function _formatMessage(
+        uint32 _msgVersion,
+        uint32 _msgSourceDomain,
+        uint32 _msgDestinationDomain,
+        uint64 _msgNonce,
+        bytes32 _msgSender,
+        bytes32 _msgRecipient,
+        bytes32 _msgDestinationCaller,
+        bytes memory _msgRawBody
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                _msgVersion,
+                _msgSourceDomain,
+                _msgDestinationDomain,
+                _msgNonce,
+                _msgSender,
+                _msgRecipient,
+                _msgDestinationCaller,
+                _msgRawBody
+            );
+    }
+
     function _sourceDomain(bytes29 _message) internal pure returns (uint32) {
         return uint32(_message.indexUint(SOURCE_DOMAIN_INDEX, 4));
     }
