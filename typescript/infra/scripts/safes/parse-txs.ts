@@ -34,7 +34,7 @@ async function main() {
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
 
-  // Initialise the transaction reader for the given governance type
+  // Initialize the transaction reader for the given governance type
   const reader = await GovernTransactionReader.create(
     environment,
     governanceType,
