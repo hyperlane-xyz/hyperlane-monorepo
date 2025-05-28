@@ -28,7 +28,6 @@ abstract contract MovableCollateralRouter is Router {
         address indexed rebalancer
     );
 
-    error BadDestination(address rebalancer, uint32 domain);
     error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
     function addRebalancer(address rebalancer) external onlyOwner {
@@ -48,11 +47,8 @@ abstract contract MovableCollateralRouter is Router {
         address rebalancer = _msgSender();
 
         bytes32 recipient = allowedDestinations[domain];
-        bytes32 domainRouter = routers(domain);
-        recipient = recipient != bytes32(0) ? recipient : domainRouter;
-
         if (recipient == bytes32(0)) {
-            revert BadDestination({rebalancer: rebalancer, domain: domain});
+            recipient = _mustHaveRemoteRouter(domain);
         }
 
         if (!(allowedBridges[domain][bridge])) {

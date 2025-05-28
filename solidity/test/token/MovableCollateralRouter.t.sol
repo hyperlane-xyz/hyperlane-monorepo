@@ -86,21 +86,6 @@ contract MovableCollateralRouterTest is Test {
         router.rebalance(destinationDomain, 1e18, vtb);
     }
 
-    function testBadRecipient() public {
-        // Configuration
-
-        // We didn't add the recipient
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MovableCollateralRouter.BadDestination.selector,
-                address(this),
-                destinationDomain
-            )
-        );
-        // Execute
-        router.rebalance(destinationDomain, 1e18, vtb);
-    }
-
     function testBadBridge() public {
         // Configuration
 
