@@ -18,6 +18,7 @@ import {HypERC20} from "../HypERC20.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
@@ -126,7 +127,7 @@ contract HypERC4626 is HypERC20 {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
+    ) internal virtual override(Router, TokenRouter) {
         if (_origin == collateralDomain) {
             (uint256 newExchangeRate, uint32 rateUpdateNonce) = abi.decode(
                 _message.metadata(),

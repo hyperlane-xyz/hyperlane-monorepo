@@ -14,7 +14,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
+contract HypNative is FungibleTokenRouter {
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
 
@@ -43,7 +43,6 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         address _owner
     ) public virtual reinitializer(2) {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _MovableCollateralRouter_initialize(_owner);
     }
 
     function quoteTransferRemote(
