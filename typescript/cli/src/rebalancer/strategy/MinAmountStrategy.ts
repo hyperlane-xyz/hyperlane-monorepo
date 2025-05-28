@@ -1,7 +1,7 @@
 import { BigNumber } from 'bignumber.js';
 
 import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
-import { toWei } from '@hyperlane-xyz/utils';
+import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import { type ChainConfig, MinAmountType } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
@@ -22,9 +22,13 @@ export class MinAmountStrategy extends BaseStrategy {
   constructor(
     config: MinAmountStrategyConfig,
     private readonly tokensByChainName: ChainMap<Token>,
+    initialTotalCollateral: bigint,
   ) {
     const chains = Object.keys(config);
     super(chains);
+
+    const minAmountType = config[chains[0]].minAmount.type;
+    this.validateAmounts(initialTotalCollateral, minAmountType, config);
 
     for (const chain of chains) {
       const { min, target } = config[chain].minAmount;
@@ -61,6 +65,11 @@ export class MinAmountStrategy extends BaseStrategy {
     surpluses: Delta[];
     deficits: Delta[];
   } {
+    const totalCollateral = this.chains.reduce(
+      (sum, chain) => sum + rawBalances[chain],
+      0n,
+    );
+
     return this.chains.reduce(
       (acc, chain) => {
         const config = this.config[chain];
@@ -74,17 +83,13 @@ export class MinAmountStrategy extends BaseStrategy {
           minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
           targetAmount = BigInt(toWei(config.minAmount.target, token.decimals));
         } else {
-          const total = this.chains
-            .reduce((sum, chain) => sum + rawBalances[chain], 0n)
-            .toString();
-
           minAmount = BigInt(
-            BigNumber(total)
+            BigNumber(totalCollateral.toString())
               .times(config.minAmount.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(
-            BigNumber(total)
+            BigNumber(totalCollateral.toString())
               .times(config.minAmount.target)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
@@ -118,5 +123,40 @@ export class MinAmountStrategy extends BaseStrategy {
     }
 
     return token;
+  }
+
+  private validateAmounts(
+    totalCollateral: bigint,
+    minAmountType: MinAmountType,
+    config?: MinAmountStrategyConfig,
+  ): void {
+    config ??= this.config;
+
+    if (minAmountType === MinAmountType.Absolute) {
+      let totalTargets = 0n;
+      let decimals: number = 0;
+
+      for (const chainName of this.chains) {
+        const token = this.getTokenByChainName(chainName);
+        // all the tokens have the same amount of decimals
+        decimals = token.decimals;
+
+        totalTargets += BigInt(
+          toWei(config[chainName].minAmount.target, token.decimals),
+        );
+      }
+
+      if (totalTargets > totalCollateral) {
+        throw new Error(
+          `Consider reducing the targets as the sum (${fromWei(
+            totalTargets.toString(),
+            decimals,
+          )}) is greater than sum of collaterals (${fromWei(
+            totalCollateral.toString(),
+            decimals,
+          )})`,
+        );
+      }
+    }
   }
 }

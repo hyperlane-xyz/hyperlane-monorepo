@@ -51,6 +51,7 @@ export abstract class BaseStrategy implements IStrategy {
     logDebug(`[${this.constructor.name}] Total deficit: ${totalDeficit}`);
 
     // If total surplus is less than total deficit, scale down deficits proportionally
+    // TODO: consider how to handle sum of targets > sum of collateral balances i.e throw or raise an alert
     if (totalSurplus < totalDeficit) {
       warnYellow(
         `[${this.constructor.name}] Deficits are greater than surpluses. Scaling deficits...`,

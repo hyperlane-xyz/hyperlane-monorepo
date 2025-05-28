@@ -32,9 +32,9 @@ sepolia:
   # Required: The address of the bridge that will be used to perform cross-chain transfers
   bridge: '0x1234...'
 
-  # Required: Expected time in milliseconds for bridge to process a transfer
+  # Required: Expected time in seconds for bridge to process a transfer
   # Used to prevent triggering new rebalances while a transfer is in progress
-  bridgeLockTime: 300000 # 5 minutes in ms
+  bridgeLockTime: 300 # 5 minutes in seconds
 
   # Optional: Minimum amount to bridge (in wei)
   # Used to prevent transferring small amounts that are not worth the gas cost
@@ -52,7 +52,7 @@ sepolia:
   override:
     arbitrumsepolia: # Chain name to override settings for
       bridge: '0x4321...' # Use a different bridge when sending to this chain
-      bridgeLockTime: 300000 # 5 minutes in ms
+      bridgeLockTime: 300 # 5 minutes in seconds
       bridgeMinAcceptedAmount: 1 # 1 USDC
       bridgeIsWarp: true
 

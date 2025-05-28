@@ -17,8 +17,10 @@ import {
 } from './WeightedStrategy.js';
 
 describe('StrategyFactory', () => {
-  let chain1: string;
-  let chain2: string;
+  const chain1 = 'chain1';
+  const chain2 = 'chain2';
+  const totalCollateral = BigInt(20e18);
+
   const tokensByChainName: ChainMap<Token> = {};
   const tokenArgs = {
     name: 'token',
@@ -27,13 +29,8 @@ describe('StrategyFactory', () => {
     standard: TokenStandard.ERC20,
     addressOrDenom: '',
   };
-
-  beforeEach(() => {
-    chain1 = 'chain1';
-    chain2 = 'chain2';
-    tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
-    tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
-  });
+  tokensByChainName[chain1] = new Token({ ...tokenArgs, chainName: chain1 });
+  tokensByChainName[chain2] = new Token({ ...tokenArgs, chainName: chain2 });
 
   describe('createStrategy', () => {
     it('creates a WeightedStrategy when given weighted configuration', () => {
@@ -60,6 +57,7 @@ describe('StrategyFactory', () => {
         StrategyOptions.Weighted,
         config,
         tokensByChainName,
+        totalCollateral,
       );
       expect(strategy).to.be.instanceOf(WeightedStrategy);
     });
@@ -68,8 +66,8 @@ describe('StrategyFactory', () => {
       const config: MinAmountStrategyConfig = {
         [chain1]: {
           minAmount: {
-            min: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            min: 8,
+            target: 10,
             type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
@@ -77,8 +75,8 @@ describe('StrategyFactory', () => {
         },
         [chain2]: {
           minAmount: {
-            min: ethers.utils.parseEther('100').toString(),
-            target: ethers.utils.parseEther('120').toString(),
+            min: 8,
+            target: 10,
             type: MinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
@@ -90,6 +88,7 @@ describe('StrategyFactory', () => {
         StrategyOptions.MinAmount,
         config,
         tokensByChainName,
+        totalCollateral,
       );
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
     });
