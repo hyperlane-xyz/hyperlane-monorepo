@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use maplit::hashmap;
 use num_traits::Zero;
-use prometheus::{IntCounter, IntGaugeVec};
+use prometheus::{IntCounterVec, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -540,12 +541,15 @@ async fn process_batch(
             )
         })
         .count();
+
     let batch_len = batch.len();
     for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
+        let app_context = op.app_context();
         match prepare_result {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation prepared");
-                metrics.ops_prepared.inc();
+
+                metrics.inc_prepared_with_app_context(app_context);
                 // TODO: push multiple messages at once
                 submit_queue
                     .push(op, Some(PendingOperationStatus::ReadyToSubmit))
@@ -555,13 +559,13 @@ async fn process_batch(
                 prepare_queue.push(op, None).await;
             }
             PendingOperationResult::Reprepare(reason) => {
-                metrics.ops_failed.inc();
+                metrics.inc_failed_with_app_context(app_context);
                 prepare_queue
                     .push(op, Some(PendingOperationStatus::Retry(reason)))
                     .await;
             }
             PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
+                metrics.inc_dropped_with_app_context(app_context);
                 op.decrement_metric_if_exists();
             }
             PendingOperationResult::Confirm(reason) => {
@@ -757,13 +761,14 @@ async fn confirm_op(
 ) {
     use ConfirmReason::SubmittedBySelf;
 
+    let app_context = op.app_context();
     let destination = op.destination_domain().clone();
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
     confirm_queue
         .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
         .await;
-    metrics.ops_submitted.inc();
+    metrics.inc_submitted_with_app_context(app_context);
 
     if matches!(
         destination.domain_protocol(),
@@ -970,10 +975,12 @@ async fn process_confirm_result(
     metrics: SerialSubmitterMetrics,
     operation_result: PendingOperationResult,
 ) -> PendingOperationResult {
+    let app_context = op.app_context();
+
     match &operation_result {
         PendingOperationResult::Success => {
             debug!(id=?op.id(), ?op, "Operation confirmed");
-            metrics.ops_confirmed.inc();
+            metrics.inc_confirmed_with_app_context(app_context);
             op.decrement_metric_if_exists();
         }
         PendingOperationResult::NotReady => {
@@ -989,7 +996,7 @@ async fn process_confirm_result(
             send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
-            metrics.ops_dropped.inc();
+            metrics.inc_dropped_with_app_context(app_context);
             op.decrement_metric_if_exists();
         }
     }
@@ -1002,7 +1009,9 @@ async fn send_back_on_failed_submission(
     metrics: &SerialSubmitterMetrics,
     maybe_reason: Option<&ReprepareReason>,
 ) {
-    metrics.ops_failed.inc();
+    let app_context = op.app_context();
+    metrics.inc_failed_with_app_context(app_context);
+
     let reason = maybe_reason.unwrap_or(&ReprepareReason::ErrorSubmitting);
     prepare_queue
         .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
@@ -1011,39 +1020,64 @@ async fn send_back_on_failed_submission(
 
 #[derive(Debug, Clone)]
 pub struct SerialSubmitterMetrics {
+    pub destination: String,
     pub(crate) submitter_queue_length: IntGaugeVec,
-    pub(crate) ops_prepared: IntCounter,
-    pub(crate) ops_submitted: IntCounter,
-    pub(crate) ops_confirmed: IntCounter,
-    pub(crate) ops_failed: IntCounter,
-    pub(crate) ops_dropped: IntCounter,
+    pub(crate) ops_prepared: IntCounterVec,
+    pub(crate) ops_submitted: IntCounterVec,
+    pub(crate) ops_confirmed: IntCounterVec,
+    pub(crate) ops_failed: IntCounterVec,
+    pub(crate) ops_dropped: IntCounterVec,
 }
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: impl AsRef<CoreMetrics>, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
+
         Self {
+            destination: destination.to_string(),
             submitter_queue_length: metrics.as_ref().submitter_queue_length(),
-            ops_prepared: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["prepared", destination]),
-            ops_submitted: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["submitted", destination]),
-            ops_confirmed: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["confirmed", destination]),
-            ops_failed: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["failed", destination]),
-            ops_dropped: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["dropped", destination]),
+            ops_prepared: metrics.as_ref().operations_processed_count(),
+            ops_submitted: metrics.as_ref().operations_processed_count(),
+            ops_confirmed: metrics.as_ref().operations_processed_count(),
+            ops_failed: metrics.as_ref().operations_processed_count(),
+            ops_dropped: metrics.as_ref().operations_processed_count(),
+        }
+    }
+
+    pub fn inc_prepared_with_app_context(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("prepared", app_context);
+    }
+
+    pub fn inc_submitted_with_app_context(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("submitted", app_context);
+    }
+
+    pub fn inc_confirmed_with_app_context(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("confirmed", app_context);
+    }
+
+    pub fn inc_dropped_with_app_context(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("dropped", app_context);
+    }
+
+    pub fn inc_failed_with_app_context(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("failed", app_context);
+    }
+
+    fn inc_phase_with_app_context(&self, phase: &str, app_context: Option<String>) {
+        let labels = hashmap! {
+            "app_context" => app_context.as_deref().unwrap_or("Unknown"),
+            "phase" => phase,
+            "chain" => self.destination.as_str(),
+        };
+
+        match phase {
+            "prepared" => self.ops_prepared.with(&labels).inc(),
+            "submitted" => self.ops_submitted.with(&labels).inc(),
+            "confirmed" => self.ops_confirmed.with(&labels).inc(),
+            "failed" => self.ops_failed.with(&labels).inc(),
+            "dropped" => self.ops_dropped.with(&labels).inc(),
+            _ => {}
         }
     }
 }
