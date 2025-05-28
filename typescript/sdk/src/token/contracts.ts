@@ -14,7 +14,7 @@ import {
   HypXERC20__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
-  TokenBridgeCctpV1__factory,
+  TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
@@ -42,8 +42,7 @@ export type HypERC20contracts = typeof hypERC20contracts;
 export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
-  // assume V1 for now
-  [TokenType.collateralCctp]: new TokenBridgeCctpV1__factory(),
+  [TokenType.collateralCctp]: new TokenBridgeCctp__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
   [TokenType.syntheticRebase]: new HypERC4626__factory(),
