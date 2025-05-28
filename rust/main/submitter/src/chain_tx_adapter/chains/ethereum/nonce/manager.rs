@@ -72,7 +72,16 @@ impl NonceManager {
             let nonce: U256 = nonce.into();
             let action = self.state.validate_assigned_nonce(&nonce).await;
             if matches!(action, NonceAction::Noop) {
-                return Ok(());
+                let assigned_tx_id = self
+                    .db
+                    .retrieve_tx_id_by_nonce_and_signer_address(&nonce, &self.address.to_string())
+                    .await?;
+
+                if let Some(assigned_tx_id) = assigned_tx_id {
+                    if assigned_tx_id == tx_id {
+                        return Ok(());
+                    }
+                }
             };
         }
 
