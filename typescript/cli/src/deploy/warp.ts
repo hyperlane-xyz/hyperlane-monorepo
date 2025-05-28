@@ -253,9 +253,15 @@ async function executeDeploy(
         );
 
         deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
+        break;
+      }
+      default: {
+        throw new Error(`Protocol type ${protocol} not supported`);
       }
     }
   }
+
+  await enrollCrossChainRouters(params);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -1052,4 +1058,59 @@ async function getWarpApplySubmitter({
     submissionStrategy,
     multiProvider,
   });
+}
+
+async function enrollCrossChainRouters({
+  context,
+  warpDeployConfig,
+}: {
+  context: WriteCommandContext;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  // get unique list of protocols
+  const protocols = Array.from(
+    new Set(
+      Object.keys(warpDeployConfig).map((chainName) =>
+        context.multiProvider.getProtocol(chainName),
+      ),
+    ),
+  );
+
+  const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
+    gas: 0, // TODO: protocol specific gas?,
+    ...config,
+  }));
+
+  const configMapToDeploy = objFilter(
+    resolvedConfigMap,
+    (_, config: any): config is any => !config.foreignDeployment,
+  );
+
+  const allChains = Object.keys(configMapToDeploy);
+
+  for (const chain of allChains) {
+    const protocol = context.multiProvider.getProtocol(chain);
+
+    const allRemoteChains = context.multiProvider
+      .getRemoteChains(chain)
+      .filter((c) => allChains.includes(c));
+
+    const remoteRoutes = allRemoteChains.map((c) => ({
+      domain: context.multiProvider.getDomainId(c),
+      contract: '', // TODO
+      gas: '0', // TODO
+    }));
+
+    switch (protocol) {
+      case ProtocolType.Ethereum: {
+        break;
+      }
+      case ProtocolType.CosmosNative: {
+        break;
+      }
+      default: {
+        throw new Error(`Protocol type ${protocol} not supported`);
+      }
+    }
+  }
 }
