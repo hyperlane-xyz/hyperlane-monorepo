@@ -43,7 +43,7 @@ interface ApplyParams extends DeployParams {
  */
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
-  let chain = params.chain;
+  const chain = params.chain;
   const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
     context;
 
