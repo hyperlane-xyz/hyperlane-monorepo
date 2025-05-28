@@ -513,7 +513,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `[getRawBalances] Skipping token on chain anvil4 that is not in config`,
+      `[getRawBalances] Skipping token on chain anvil4 that is not in chains list`,
     );
   });
 
