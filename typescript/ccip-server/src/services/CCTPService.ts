@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
+import { z } from 'zod';
 
 import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -14,6 +15,12 @@ import { BaseService } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 
+const EnvSchema = z.object({
+  HYPERLANE_EXPLORER_URL: z.string().url(),
+  CCTP_ATTESTATION_URL: z.string().url(),
+  REGISTRY_URI: z.string().url(),
+});
+
 class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
@@ -27,11 +34,10 @@ class CCTPService extends BaseService {
 
   constructor() {
     super();
-    this.hyperlaneService = new HyperlaneService(
-      process.env.HYPERLANE_EXPLORER_URL!,
-    );
+    const env = EnvSchema.parse(process.env);
+    this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
     this.cctpAttestationService = new CCTPAttestationService(
-      process.env.CCTP_ATTESTATION_URL!,
+      env.CCTP_ATTESTATION_URL,
     );
     const registryUris = process.env.REGISTRY_URI?.split(',') || [
       DEFAULT_GITHUB_REGISTRY,

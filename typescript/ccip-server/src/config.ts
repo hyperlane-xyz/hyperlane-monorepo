@@ -1,14 +1,19 @@
 import dotenvFlow from 'dotenv-flow';
+import { z } from 'zod';
 
 dotenvFlow.config();
 
+const ConfigSchema = z.object({
+  ENABLED_MODULES: z.string().transform((val) =>
+    val
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean),
+  ),
+});
+
+const config = ConfigSchema.parse(process.env);
+
 export function getEnabledModules(): string[] {
-  const raw = process.env.ENABLED_MODULES;
-  if (!raw) {
-    throw new Error('ENABLED_MODULES environment variable is not set');
-  }
-  return raw
-    .split(',')
-    .map((m) => m.trim())
-    .filter(Boolean);
+  return config.ENABLED_MODULES;
 }
