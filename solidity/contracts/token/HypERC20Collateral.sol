@@ -54,7 +54,7 @@ contract HypERC20Collateral is FungibleTokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual reinitializer(2) {
+    ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
