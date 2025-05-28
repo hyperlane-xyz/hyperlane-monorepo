@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
 use hyperlane_core::Indexed;
@@ -6,7 +7,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
-use starknet::core::types::{ExecutionResult, PendingTransactionReceipt};
+use starknet::core::types::PendingTransactionReceipt;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -16,6 +17,7 @@ use starknet::{
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
     signers::LocalWallet,
 };
+use tokio::time::sleep;
 use tracing::debug;
 use url::Url;
 
@@ -49,52 +51,34 @@ pub async fn get_transaction_receipt(
             .await
             .map_err(HyperlaneStarknetError::from);
 
+        debug!(
+            retry_number,
+            "Starknet pending transaction receipt: {:?}", receipt
+        );
+
         if receipt.is_err() {
-            debug!(
-                retry_number,
-                "Starknet pending transaction receipt: {:?}", receipt
-            );
+            sleep(Duration::from_secs(POLLING_INTERVAL)).await;
+            continue;
         }
 
         let receipt = receipt?;
         match receipt {
             MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                match pending.execution_result() {
-                    // Even if the pending transaction succeeded, we still need to wait for the transaction to be sealed
-                    ExecutionResult::Succeeded => {
-                        debug!(
-                            retry_number,
-                            "Starknet pending transaction receipt: {:?}", pending
-                        );
-                        if let PendingTransactionReceipt::Invoke(receipt) = pending {
-                            return tx_pending_receipt_to_outcome(receipt);
-                        }
-                        return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
-                    }
-                    // If the transaction didn't succeed, we can short-circuit and return the error
-                    ExecutionResult::Reverted { reason } => {
-                        return Err(
-                            HyperlaneStarknetError::TransactionReverted(reason.to_owned()).into(),
-                        );
-                    }
+                if let PendingTransactionReceipt::Invoke(receipt) = pending {
+                    return tx_pending_receipt_to_outcome(receipt);
                 }
+                // If the receipt is not an Invoke receipt, we return an error
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
             }
             MaybePendingTransactionReceipt::Receipt(receipt) => {
                 if let TransactionReceipt::Invoke(receipt) = receipt {
                     return tx_receipt_to_outcome(receipt);
                 }
-
                 // If the receipt is not an Invoke receipt, we return an error
                 return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
             }
         }
     }
-
-    // If we reach here, it means we didn't get the receipt in time
-    debug!(
-        "Starknet transaction receipt not available after {} retries",
-        n
-    );
 
     Err(ChainCommunicationError::CustomError(format!(
         "Starknet transaction receipt not available after {} retries",
