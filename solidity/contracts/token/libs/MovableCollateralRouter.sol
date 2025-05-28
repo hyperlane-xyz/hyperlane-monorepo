@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ValueTransferBridge} from "./ValueTransferBridge.sol";
 
@@ -10,19 +11,16 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract MovableCollateralRouter is AccessControlUpgradeable {
+abstract contract MovableCollateralRouter is Router {
     using SafeERC20 for IERC20;
-
-    function _MovableCollateralRouter_initialize(address admin) internal {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-    }
-
-    bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
 
     mapping(uint32 destinationDomain => bytes32 recipient)
         public allowedDestinations;
+
     mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
         public allowedBridges;
+
+    mapping(address user => bool isRebalancer) public allowedRebalancers;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -34,11 +32,20 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
     error BadDestination(address rebalancer, uint32 domain);
     error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
+    function addRebalancer(address rebalancer) external onlyOwner {
+        allowedRebalancers[rebalancer] = true;
+    }
+
+    modifier onlyRebalancer() {
+        require(allowedRebalancers[msg.sender], "MCR: Only Rebalancer");
+        _;
+    }
+
     function rebalance(
         uint32 domain,
         uint256 amount,
         ValueTransferBridge bridge
-    ) external payable onlyRole(REBALANCER_ROLE) {
+    ) external payable onlyRebalancer {
         address rebalancer = _msgSender();
         bytes32 recipient = allowedDestinations[domain];
         if (recipient == bytes32(0)) {
@@ -71,17 +78,14 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
         });
     }
 
-    function addRecipient(
-        uint32 domain,
-        bytes32 recipient
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
         allowedDestinations[domain] = recipient;
     }
 
     function addBridge(
         ValueTransferBridge bridge,
         uint32 destinationDomain
-    ) external onlyRole((DEFAULT_ADMIN_ROLE)) {
+    ) external onlyOwner {
         allowedBridges[destinationDomain][bridge] = true;
     }
 
@@ -94,7 +98,7 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
     function approveTokenForBridge(
         IERC20 token,
         ValueTransferBridge bridge
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyOwner {
         token.safeApprove(address(bridge), type(uint256).max);
     }
 }

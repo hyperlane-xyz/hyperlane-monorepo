@@ -43,7 +43,6 @@ contract HypNative is FungibleTokenRouter {
         address _owner
     ) public virtual reinitializer(2) {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _MovableCollateralRouter_initialize(_owner);
     }
 
     function quoteTransferRemote(

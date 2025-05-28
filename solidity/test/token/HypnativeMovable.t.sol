@@ -38,8 +38,7 @@ contract HypNativeMovableTest is Test {
 
     function testMovingCollateral() public {
         // Configuration
-        // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
+        router.addRebalancer(address(this));
 
         // Add the destination domain
         router.addRecipient(

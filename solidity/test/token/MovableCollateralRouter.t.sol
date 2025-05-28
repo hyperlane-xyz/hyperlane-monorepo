@@ -3,14 +3,19 @@ pragma solidity ^0.8.13;
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MovableCollateralRouter, ValueTransferBridge} from "contracts/token/libs/MovableCollateralRouter.sol";
+import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+import {Router} from "contracts/client/Router.sol";
 
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract MockMovableCollateralRouter is MovableCollateralRouter {
-    constructor() {
-        _MovableCollateralRouter_initialize(msg.sender);
-    }
+    constructor(address _mailbox) Router(_mailbox) {}
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
+    ) internal override {}
 }
 
 contract MockValueTransferBridge is ValueTransferBridge {
@@ -38,16 +43,14 @@ contract MovableCollateralRouterTest is Test {
     address internal constant alice = address(1);
 
     function setUp() public {
-        router = new MockMovableCollateralRouter();
+        router = new MockMovableCollateralRouter(address(new MockMailbox(1)));
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
         vtb = new MockValueTransferBridge(token);
+        router.addRebalancer(address(this));
     }
 
     function testMovingCollateral() public {
         // Configuration
-        // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
-
         // Add the destination domain
         router.addRecipient(
             destinationDomain,
@@ -70,21 +73,14 @@ contract MovableCollateralRouterTest is Test {
     }
 
     function testBadRebalancer() public {
-        bytes memory revertBytes = abi.encodePacked(
-            "AccessControl: account ",
-            Strings.toHexString(address(this)),
-            " is missing role ",
-            Strings.toHexString(uint(router.REBALANCER_ROLE()), 32)
-        );
-        vm.expectRevert(revertBytes);
+        vm.expectRevert("MCR: Only Rebalancer");
+        vm.prank(address(1));
         // Execute
         router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function testBadRecipient() public {
         // Configuration
-        // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
 
         // We didn't add the recipient
         vm.expectRevert(
@@ -100,8 +96,6 @@ contract MovableCollateralRouterTest is Test {
 
     function testBadBridge() public {
         // Configuration
-        // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
 
         // Add the destination domain
         router.addRecipient(
@@ -123,9 +117,6 @@ contract MovableCollateralRouterTest is Test {
 
     function testApproveTokenForBridge() public {
         // Configuration
-        // Grant admin role to test contract
-        router.grantRole(router.DEFAULT_ADMIN_ROLE(), address(this));
-
         // Execute
         router.approveTokenForBridge(token, vtb);
 
@@ -136,16 +127,9 @@ contract MovableCollateralRouterTest is Test {
         );
     }
 
-    function testApproveTokenForBridge_NotAdmin() public {
+    function testApproveTokenForBridge_NotOwnwer() public {
         address notAdmin = address(1);
-        // We don't grant admin role
-        bytes memory revertBytes = abi.encodePacked(
-            "AccessControl: account ",
-            Strings.toHexString(notAdmin),
-            " is missing role ",
-            Strings.toHexString(uint(router.DEFAULT_ADMIN_ROLE()), 32)
-        );
-        vm.expectRevert(revertBytes);
+        vm.expectRevert("Ownable: caller is not the owner");
 
         // Execute
         vm.prank(notAdmin);
