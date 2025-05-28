@@ -15,6 +15,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     using Strings for uint32;
 
     // ============ Mutable Storage ============
+    /// @dev Mapping of domain => router. For a given domain we have one router we send/receive messages from.
     EnumerableMapExtended.UintToBytes32Map internal _routers;
 
     uint256[48] private __GAP; // gap for upgrade safety
