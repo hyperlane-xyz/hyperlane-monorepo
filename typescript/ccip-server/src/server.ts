@@ -8,7 +8,10 @@ import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
 import { ProofsService } from './services/ProofsService.js';
-import startPrometheusServer from './utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  startPrometheusServer,
+} from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, typeof BaseService> = {
   callCommitments: CallCommitmentsService,
@@ -31,7 +34,14 @@ async function startServer() {
     }
     const service = await ServiceClass.initialize(); // module reads its own ENV config
 
+    app.use(`/${name}`, (req, res, next) => {
+      res.on('finish', () => {
+        PrometheusMetrics.logLookupRequest(name, res.statusCode);
+      });
+      next();
+    });
     app.use(`/${name}`, service.router);
+
     console.log(`✅  Mounted '${name}' at '/${name}'`);
   }
 

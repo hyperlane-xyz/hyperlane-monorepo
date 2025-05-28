@@ -53,7 +53,7 @@ class CCTPService extends BaseService {
 
     this.router = Router();
 
-    // CCIP-read spec: GET /getProofs/:sender/:callData.json
+    // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
     this.router.get(
       '/getCctpAttestation/:sender/:callData.json',
       createAbiHandler(
@@ -63,7 +63,7 @@ class CCTPService extends BaseService {
       ),
     );
 
-    // CCIP-read spec: POST /getProofs
+    // CCIP-read spec: POST /getCctpAttestation
     this.router.post(
       '/getCctpAttestation',
       createAbiHandler(
