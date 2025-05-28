@@ -82,7 +82,12 @@ impl NonceManager {
             .store_tx_id_by_nonce_and_signer_address(&next_nonce, &address.to_string(), &tx_id)
             .await?;
 
+        self.state
+            .insert_nonce_status(&next_nonce, NonceStatus::Taken)
+            .await;
+
         precursor.tx.set_nonce(next_nonce);
+
         info!(
             nonce = next_nonce.to_string(),
             address = ?address,

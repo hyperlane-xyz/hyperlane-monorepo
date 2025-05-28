@@ -5,10 +5,10 @@ use tokio::sync::Mutex;
 
 use hyperlane_core::U256;
 
-use crate::transaction::Transaction;
-use crate::{SubmitterError, TransactionStatus};
-
 use super::super::transaction::Precursor;
+use crate::transaction::Transaction;
+use crate::TransactionStatus::{Finalized, Included, Mempool, PendingInclusion};
+use crate::{SubmitterError, TransactionStatus};
 
 #[derive(Clone)]
 pub(crate) enum NonceStatus {
@@ -46,6 +46,16 @@ impl NonceManagerState {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(NonceManagerStateInner::new())),
+        }
+    }
+
+    pub(crate) async fn insert_nonce_status(&self, nonce: &U256, nonce_status: NonceStatus) {
+        let mut guard = self.inner.lock().await;
+
+        guard.nonces.insert(nonce.into(), nonce_status);
+
+        if nonce >= &guard.upper_nonce {
+            guard.upper_nonce = nonce + 1;
         }
     }
 
@@ -103,16 +113,6 @@ impl NonceManagerState {
     pub(crate) async fn set_tx_in_finality_count(&self, count: usize) {
         let mut guard = self.inner.lock().await;
         guard.tx_in_finality_count = count;
-    }
-
-    async fn insert_nonce_status(&self, nonce: &U256, nonce_status: NonceStatus) {
-        let mut guard = self.inner.lock().await;
-
-        guard.nonces.insert(nonce.into(), nonce_status);
-
-        if nonce >= &guard.upper_nonce {
-            guard.upper_nonce = nonce + 1;
-        }
     }
 
     async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
