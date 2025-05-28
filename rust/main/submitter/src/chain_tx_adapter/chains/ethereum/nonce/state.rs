@@ -95,7 +95,7 @@ impl NonceManagerState {
         }
     }
 
-    pub(crate) async fn identify_next_nonce(&self) -> Result<U256, SubmitterError> {
+    pub(crate) async fn identify_next_nonce(&self) -> U256 {
         use NonceStatus::Free;
 
         let guard = self.inner.lock().await;
@@ -106,7 +106,7 @@ impl NonceManagerState {
             .min_by_key(|(nonce, _)| *nonce)
             .map(|(nonce, _)| nonce)
             .unwrap_or(&guard.upper_nonce);
-        Ok(*available_nonce)
+        *available_nonce
     }
 
     async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {

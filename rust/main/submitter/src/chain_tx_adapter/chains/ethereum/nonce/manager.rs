@@ -85,7 +85,7 @@ impl NonceManager {
             };
         }
 
-        let next_nonce = self.state.identify_next_nonce().await?;
+        let next_nonce = self.state.identify_next_nonce().await;
 
         self.db
             .store_tx_id_by_nonce_and_signer_address(&next_nonce, &self.address.to_string(), &tx_id)
