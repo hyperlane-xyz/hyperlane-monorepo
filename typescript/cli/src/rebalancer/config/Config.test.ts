@@ -42,6 +42,8 @@ describe('Config', () => {
 
     overrides = {
       checkFrequency: 1000,
+      monitorOnly: false,
+      withMetrics: false,
     };
   });
 
@@ -64,8 +66,8 @@ describe('Config', () => {
       warpRouteId: 'warpRouteId',
       checkFrequency: overrides.checkFrequency,
       rebalancerKey: ANVIL_KEY,
-      monitorOnly: false,
-      withMetrics: false,
+      monitorOnly: overrides.monitorOnly,
+      withMetrics: overrides.withMetrics,
       coingeckoApiKey: '',
       rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
@@ -112,11 +114,6 @@ describe('Config', () => {
   });
 
   it('should prefer using overrides rather than config file', () => {
-    data.monitorOnly = true;
-    data.withMetrics = true;
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
-
     overrides = {
       checkFrequency: 1337,
       monitorOnly: false,

@@ -472,7 +472,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
-      monitorOnly: true,
       [CHAIN_NAME_2]: {
         weighted: {
           weight: '75',
@@ -493,6 +492,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     await startRebalancerAndExpectLog(
       `Running in monitorOnly mode: no transactions will be executed.`,
+      { monitorOnly: true },
     );
   });
 

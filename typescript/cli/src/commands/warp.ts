@@ -447,8 +447,8 @@ export const check: CommandModuleWithContext<{
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
   checkFrequency: number;
-  withMetrics?: boolean;
-  monitorOnly?: boolean;
+  withMetrics: boolean;
+  monitorOnly: boolean;
   coingeckoApiKey?: string;
   rebalanceStrategy?: StrategyOptions;
   origin?: string;
@@ -472,13 +472,15 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     withMetrics: {
       type: 'boolean',
-      description: 'Enable metrics',
+      description: 'Enable metrics (default: true)',
       demandOption: false,
+      default: true,
     },
     monitorOnly: {
       type: 'boolean',
-      description: 'Run in monitor only mode',
+      description: 'Run in monitor only mode (default: false)',
       demandOption: false,
+      default: false,
     },
     coingeckoApiKey: {
       type: 'string',

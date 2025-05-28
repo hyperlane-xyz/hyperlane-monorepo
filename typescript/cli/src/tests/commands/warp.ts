@@ -185,11 +185,11 @@ export function hyperlaneWarpRebalancer(
         --config ${config} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        ${monitorOnly ? ['--monitorOnly'] : ['']} \
+        --withMetrics ${withMetrics ? ['true'] : ['false']} \
+        --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
         ${origin ? ['--origin', origin] : ['']} \
         ${destination ? ['--destination', destination] : ['']} \
         ${amount ? ['--amount', amount] : ['']} \
-        ${withMetrics ? ['--withMetrics'] : ['']} \
         ${rebalanceStrategy ? ['--rebalanceStrategy', rebalanceStrategy] : []}`;
 }
 
