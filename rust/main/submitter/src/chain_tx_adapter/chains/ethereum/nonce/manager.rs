@@ -98,8 +98,4 @@ impl NonceManager {
 
         Ok(())
     }
-
-    pub async fn set_tx_in_finality_count(&self, count: usize) {
-        self.state.set_tx_in_finality_count(count).await;
-    }
 }

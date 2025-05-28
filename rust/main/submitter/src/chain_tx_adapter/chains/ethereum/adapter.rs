@@ -235,8 +235,4 @@ impl AdaptsChain for EthereumTxAdapter {
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
     }
-
-    async fn set_unfinalized_tx_count(&self, count: usize) {
-        self.nonce_manager.set_tx_in_finality_count(count).await;
-    }
 }

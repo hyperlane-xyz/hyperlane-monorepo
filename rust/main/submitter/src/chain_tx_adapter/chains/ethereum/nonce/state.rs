@@ -23,7 +23,6 @@ pub(crate) enum NonceAction {
 }
 
 pub struct NonceManagerStateInner {
-    tx_in_finality_count: usize,
     nonces: HashMap<U256, NonceStatus>,
     upper_nonce: U256,
 }
@@ -35,7 +34,6 @@ pub(crate) struct NonceManagerState {
 impl NonceManagerStateInner {
     pub fn new() -> Self {
         Self {
-            tx_in_finality_count: 0,
             nonces: HashMap::new(),
             upper_nonce: U256::zero(),
         }
@@ -109,11 +107,6 @@ impl NonceManagerState {
             .map(|(nonce, _)| nonce)
             .unwrap_or(&guard.upper_nonce);
         Ok(*available_nonce)
-    }
-
-    pub(crate) async fn set_tx_in_finality_count(&self, count: usize) {
-        let mut guard = self.inner.lock().await;
-        guard.tx_in_finality_count = count;
     }
 
     async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
