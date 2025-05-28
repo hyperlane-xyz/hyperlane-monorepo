@@ -1,4 +1,4 @@
-environment: testnet
+environment: mainnet
 
 # General deployment configuration
 image:
