@@ -2830,7 +2830,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "0.001"
+        "amount": "2.0"
       },
       "index": {
         "chunk": 10,
@@ -2956,7 +2956,7 @@
       "domainId": 1162171030,
       "gasPrice": {
         "denom": "umilk",
-        "amount": "0.001"
+        "amount": "0.0"
       },
       "grpcUrls": [
         {

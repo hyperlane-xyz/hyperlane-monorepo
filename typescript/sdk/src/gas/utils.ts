@@ -82,6 +82,12 @@ export async function getCosmosChainGasPrice(
     throw new Error(`Chain ${chain} is not a Cosmos chain`);
   }
 
+  // Prioritize the gas price from the metadata, if available.
+  if (metadata.gasPrice) {
+    return metadata.gasPrice;
+  }
+
+  // Use the cosmos registry gas price as a fallback.
   const cosmosRegistryChain = await getCosmosRegistryChain(chain);
   const nativeToken = metadata.nativeToken;
   if (!nativeToken) {
