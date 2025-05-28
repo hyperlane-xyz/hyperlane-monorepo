@@ -44,7 +44,7 @@ pub async fn get_transaction_receipt(
 
     let n = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
 
-    for retry_number in 1..n {
+    for retry_number in 0..n {
         let receipt = rpc
             .get_transaction_receipt(transaction_hash)
             .await
@@ -58,10 +58,14 @@ pub async fn get_transaction_receipt(
 
         let receipt = receipt?;
         match receipt {
-            MaybePendingTransactionReceipt::PendingReceipt(receipt) => debug!(
-                retry_number,
-                "transaction receipt is still pending: {:?}", receipt
-            ),
+            MaybePendingTransactionReceipt::PendingReceipt(receipt) => {
+                debug!(
+                    retry_number,
+                    "transaction receipt is still pending: {:?}", receipt
+                );
+                sleep(Duration::from_secs(POLLING_INTERVAL)).await;
+                continue;
+            }
             MaybePendingTransactionReceipt::Receipt(receipt) => {
                 if let TransactionReceipt::Invoke(receipt) = receipt {
                     return tx_receipt_to_outcome(receipt);
