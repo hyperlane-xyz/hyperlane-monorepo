@@ -133,7 +133,7 @@ export async function runWarpRouteDeploy({
   await writeDeploymentArtifacts(
     warpCoreConfig,
     context,
-    warpRouteId ? { warpRouteId } : addWarpRouteOptions,
+    warpRouteId ? { warpRouteId } : addWarpRouteOptions, // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
   );
 
   await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
