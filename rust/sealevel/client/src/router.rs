@@ -755,7 +755,7 @@ fn enroll_all_remote_routers<
                     .add_with_description(
                         deployer.enroll_remote_routers_instruction(
                             program_id,
-                            ctx.payer_pubkey,
+                            owner,
                             router_configs.clone(),
                         ),
                         format!(
