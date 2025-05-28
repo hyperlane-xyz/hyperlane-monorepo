@@ -365,4 +365,5 @@ export const IsmConfigSchema = z.union([
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
+  IcaIsmConfigSchema,
 ]);
