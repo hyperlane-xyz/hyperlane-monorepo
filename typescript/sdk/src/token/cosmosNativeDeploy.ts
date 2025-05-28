@@ -1,7 +1,13 @@
 import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { objFilter, objMap, objMerge, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  objFilter,
+  objMap,
+  objMerge,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -22,13 +28,13 @@ export class CosmosNativeDeployer {
   async deploy(
     configMap: WarpRouteDeployConfigMailboxRequired,
     nonCosmosNativeConfigMap: WarpRouteDeployConfigMailboxRequired,
-  ): Promise<ChainMap<{ [x: string]: { address: string } }>> {
+  ): Promise<ChainMap<Address>> {
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       gas: gasOverhead(config.type),
       ...config,
     }));
 
-    let result: ChainMap<{ [x: string]: { address: string } }> = {};
+    let result: ChainMap<Address> = {};
     let token_id = '';
 
     const configMapToDeploy = objFilter(
@@ -55,11 +61,7 @@ export class CosmosNativeDeployer {
             origin_denom: config.token,
           });
           token_id = collateralToken.id;
-          result[chain] = {
-            [TokenType.collateral]: {
-              address: collateralToken.id,
-            },
-          };
+          result[chain] = collateralToken.id;
           break;
         }
         case TokenType.synthetic: {
@@ -69,11 +71,7 @@ export class CosmosNativeDeployer {
             origin_mailbox: config.mailbox,
           });
           token_id = syntheticToken.id;
-          result[chain] = {
-            [TokenType.synthetic]: {
-              address: syntheticToken.id,
-            },
-          };
+          result[chain] = syntheticToken.id;
           break;
         }
         default: {
