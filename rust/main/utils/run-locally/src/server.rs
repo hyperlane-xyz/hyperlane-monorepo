@@ -71,18 +71,6 @@ pub fn fetch_relayer_message_processed_count() -> eyre::Result<u32> {
     .sum::<u32>())
 }
 
-pub fn fetch_relayer_message_confirmed_count() -> eyre::Result<u32> {
-    Ok(fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_operations_processed_count",
-        &hashmap! {
-            "phase" => "confirmed",
-        },
-    )?
-    .iter()
-    .sum::<u32>())
-}
-
 pub fn fetch_relayer_gas_payment_event_count() -> eyre::Result<u32> {
     Ok(fetch_metric(
         RELAYER_METRICS_PORT,
