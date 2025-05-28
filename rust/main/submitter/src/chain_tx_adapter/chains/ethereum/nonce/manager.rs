@@ -41,11 +41,11 @@ impl NonceManager {
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
-        let singer_conf = chain_conf
+        let signer_conf = chain_conf
             .signer
             .as_ref()
             .ok_or_else(|| eyre::eyre!("Signer configuration is missing"))?;
-        let signer: Signers = singer_conf.build().await?;
+        let signer: Signers = signer_conf.build().await?;
         let address = signer.address();
         Ok(address)
     }
