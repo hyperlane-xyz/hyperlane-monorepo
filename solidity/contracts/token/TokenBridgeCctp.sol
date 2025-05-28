@@ -163,26 +163,40 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         return true;
     }
 
-    function _transferFromSender(
-        uint256 _amountOrId
-    ) internal virtual override returns (bytes memory metadata) {
-        HypERC20Collateral._transferFromSender(_amountOrId);
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
+        HypERC20Collateral._transferFromSender(_amount);
 
-        // decode transferRemote(uint32, bytes32, uint256,...) calldata
-        (uint32 destination, bytes32 recipient, uint256 amount) = abi.decode(
-            msg.data[4:],
-            (uint32, bytes32, uint256)
-        );
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
+        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint64 nonce = tokenMessenger.depositForBurn(
-            amount,
+            _amount,
             circleDomain,
-            recipient,
+            _recipient,
             address(wrappedToken)
         );
 
-        return abi.encodePacked(nonce);
+        uint256 outboundAmount = _outboundAmount(_amount);
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            outboundAmount,
+            abi.encodePacked(nonce)
+        );
+
+        messageId = _Router_dispatch(
+            _destination,
+            _value,
+            _tokenMessage,
+            _hookMetadata,
+            _hook
+        );
+
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
     }
 
     function _offchainLookupCalldata(
