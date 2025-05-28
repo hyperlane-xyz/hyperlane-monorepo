@@ -7,7 +7,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
-use starknet::core::types::PendingTransactionReceipt;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -25,7 +24,7 @@ use crate::contracts::{
     aggregation_ism, interchain_security_module, mailbox, multisig_ism, routing_ism,
     validator_announce,
 };
-use crate::types::{tx_pending_receipt_to_outcome, tx_receipt_to_outcome, HyH256};
+use crate::types::{tx_receipt_to_outcome, HyH256};
 use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
@@ -51,25 +50,21 @@ pub async fn get_transaction_receipt(
             .await
             .map_err(HyperlaneStarknetError::from);
 
-        debug!(
-            retry_number,
-            "Starknet pending transaction receipt: {:?}", receipt
-        );
-
         if receipt.is_err() {
+            debug!(
+                retry_number,
+                "Starknet transaction receipt error: {:?}", receipt
+            );
             sleep(Duration::from_secs(POLLING_INTERVAL)).await;
             continue;
         }
 
         let receipt = receipt?;
         match receipt {
-            MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                if let PendingTransactionReceipt::Invoke(receipt) = pending {
-                    return tx_pending_receipt_to_outcome(receipt);
-                }
-                // If the receipt is not an Invoke receipt, we return an error
-                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
-            }
+            MaybePendingTransactionReceipt::PendingReceipt(receipt) => debug!(
+                "Starknet transaction receipt is still pending: {:?}",
+                receipt
+            ),
             MaybePendingTransactionReceipt::Receipt(receipt) => {
                 if let TransactionReceipt::Invoke(receipt) = receipt {
                     return tx_receipt_to_outcome(receipt);

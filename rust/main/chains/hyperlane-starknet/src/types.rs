@@ -2,7 +2,7 @@ use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{ChainResult, TxOutcome, H256, U256};
 use starknet::core::types::{
     ExecutionResult, FieldElement, FromByteArrayError, FromStrError, InvokeTransactionReceipt,
-    PendingInvokeTransactionReceipt, ValueOutOfRangeError,
+    ValueOutOfRangeError,
 };
 
 pub struct HyH256(pub H256);
@@ -51,17 +51,6 @@ impl TryInto<FieldElement> for HyU256 {
 }
 
 pub fn tx_receipt_to_outcome(receipt: InvokeTransactionReceipt) -> ChainResult<TxOutcome> {
-    Ok(TxOutcome {
-        transaction_id: H256::from_slice(receipt.transaction_hash.to_bytes_be().as_slice()).into(),
-        executed: receipt.execution_result == ExecutionResult::Succeeded,
-        gas_used: U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice()),
-        gas_price: U256::one().try_into()?,
-    })
-}
-
-pub fn tx_pending_receipt_to_outcome(
-    receipt: PendingInvokeTransactionReceipt,
-) -> ChainResult<TxOutcome> {
     Ok(TxOutcome {
         transaction_id: H256::from_slice(receipt.transaction_hash.to_bytes_be().as_slice()).into(),
         executed: receipt.execution_result == ExecutionResult::Succeeded,
