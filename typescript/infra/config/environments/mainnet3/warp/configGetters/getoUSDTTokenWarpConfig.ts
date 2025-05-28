@@ -232,11 +232,11 @@ const zeroLimits: XERC20LimitConfig = {
 };
 
 const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
-  ethereum: '0xce19f75bce7fb74c9e2328766ebe50465df24ca3',
-  celo: '0x47db76c9c97f4bcfd54d8872fdb848cab696092d',
-  base: '0xa760d20a91c076a57b270d3f7a3150421ab40591',
-  sonic: '0x6a21a19ad44542d83f7f7ff45aa31a62a36200de',
-  optimism: '0x6a21a19ad44542d83f7f7ff45aa31a62a36200de',
+  ethereum: '0xCe19f75BCE7Fb74c9e2328766Ebe50465df24CA3',
+  celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
+  base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
+  sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
+  optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
 };
 
 const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
