@@ -37,7 +37,7 @@ abstract contract MovableCollateralRouter is Router {
     }
 
     modifier onlyRebalancer() {
-        require(allowedRebalancers[msg.sender], "MCR: Only Rebalancer");
+        require(allowedRebalancers[_msgSender()], "MCR: Only Rebalancer");
         _;
     }
 
@@ -47,7 +47,11 @@ abstract contract MovableCollateralRouter is Router {
         ValueTransferBridge bridge
     ) external payable onlyRebalancer {
         address rebalancer = _msgSender();
+
         bytes32 recipient = allowedDestinations[domain];
+        bytes32 domainRouter = routers(domain);
+        recipient = recipient != bytes32(0) ? recipient : domainRouter;
+
         if (recipient == bytes32(0)) {
             revert BadDestination({rebalancer: rebalancer, domain: domain});
         }
