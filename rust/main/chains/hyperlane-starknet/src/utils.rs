@@ -51,10 +51,7 @@ pub async fn get_transaction_receipt(
             .map_err(HyperlaneStarknetError::from);
 
         if receipt.is_err() {
-            debug!(
-                retry_number,
-                "Starknet transaction receipt error: {:?}", receipt
-            );
+            debug!(retry_number, "transaction receipt error: {:?}", receipt);
             sleep(Duration::from_secs(POLLING_INTERVAL)).await;
             continue;
         }
@@ -62,8 +59,8 @@ pub async fn get_transaction_receipt(
         let receipt = receipt?;
         match receipt {
             MaybePendingTransactionReceipt::PendingReceipt(receipt) => debug!(
-                "Starknet transaction receipt is still pending: {:?}",
-                receipt
+                retry_number,
+                "transaction receipt is still pending: {:?}", receipt
             ),
             MaybePendingTransactionReceipt::Receipt(receipt) => {
                 if let TransactionReceipt::Invoke(receipt) = receipt {
