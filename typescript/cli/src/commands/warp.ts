@@ -446,7 +446,7 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  checkFrequency?: number;
+  checkFrequency: number;
   withMetrics?: boolean;
   monitorOnly?: boolean;
   coingeckoApiKey?: string;
@@ -468,7 +468,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     checkFrequency: {
       type: 'number',
       description: 'Frequency to check balances in ms',
-      demandOption: false,
+      demandOption: true,
     },
     withMetrics: {
       type: 'boolean',

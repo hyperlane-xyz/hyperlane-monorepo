@@ -14,11 +14,11 @@ import { Config, type ConfigFileInput, MinAmountType } from './Config.js';
 
 describe('Config', () => {
   let data: ConfigFileInput;
+  let overrides: Parameters<typeof Config.load>[2];
 
   beforeEach(() => {
     data = {
       warpRouteId: 'warpRouteId',
-      checkFrequency: 1000,
       rebalanceStrategy: StrategyOptions.Weighted,
       chain1: {
         weighted: {
@@ -39,6 +39,10 @@ describe('Config', () => {
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+
+    overrides = {
+      checkFrequency: 1000,
+    };
   });
 
   afterEach(() => {
@@ -48,15 +52,17 @@ describe('Config', () => {
   it('should throw when the config file does not exist', () => {
     rmSync(REBALANCER_CONFIG_PATH, { force: true });
 
-    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
-      `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
-    );
+    expect(() =>
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+    ).to.throw(`File doesn't exist at ${REBALANCER_CONFIG_PATH}`);
   });
 
   it('should load config from file', () => {
-    expect(Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.deep.equal({
+    expect(
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+    ).to.deep.equal({
       warpRouteId: 'warpRouteId',
-      checkFrequency: 1000,
+      checkFrequency: overrides.checkFrequency,
       rebalancerKey: ANVIL_KEY,
       monitorOnly: false,
       withMetrics: false,
@@ -89,9 +95,9 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
-      'No chains configured',
-    );
+    expect(() =>
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+    ).to.throw('No chains configured');
   });
 
   it('should throw if no warp route id is configured', () => {
@@ -100,30 +106,9 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
-      'Validation error: Required at "warpRouteId"',
-    );
-  });
-
-  it('should throw if no check frequency is configured', () => {
-    delete data.checkFrequency;
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
-
-    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
-      'checkFrequency is required',
-    );
-  });
-
-  it('should load if check frequency is provided by override', () => {
-    delete data.checkFrequency;
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
-
-    expect(
-      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, { checkFrequency: 1337 })
-        .checkFrequency,
-    ).to.equal(1337);
+    expect(() =>
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+    ).to.throw('Validation error: Required at "warpRouteId"');
   });
 
   it('should prefer using overrides rather than config file', () => {
@@ -132,22 +117,24 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(
-      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {
-        checkFrequency: 1337,
-        monitorOnly: false,
-        withMetrics: false,
-        coingeckoApiKey: COINGECKO_API_KEY,
-        rebalanceStrategy: StrategyOptions.Weighted,
-      }),
-    ).to.deep.equal({
-      warpRouteId: 'warpRouteId',
+    overrides = {
       checkFrequency: 1337,
       monitorOnly: false,
-      rebalancerKey: ANVIL_KEY,
       withMetrics: false,
       coingeckoApiKey: COINGECKO_API_KEY,
       rebalanceStrategy: StrategyOptions.Weighted,
+    };
+
+    expect(
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+    ).to.deep.equal({
+      warpRouteId: 'warpRouteId',
+      checkFrequency: overrides.checkFrequency,
+      monitorOnly: overrides.monitorOnly,
+      rebalancerKey: ANVIL_KEY,
+      withMetrics: overrides.withMetrics,
+      coingeckoApiKey: overrides.coingeckoApiKey,
+      rebalanceStrategy: overrides.rebalanceStrategy,
       chains: {
         chain1: {
           weighted: {
@@ -185,7 +172,7 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides).chains.chain1,
     ).to.deep.equal({
       ...data.chain1,
       bridgeLockTime: 1_000,
@@ -213,7 +200,7 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {}).chains.chain1,
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides).chains.chain1,
     ).to.deep.equal({
       ...data.chain1,
       bridgeLockTime: 1_000,
@@ -229,7 +216,6 @@ describe('Config', () => {
     it('should parse a config with overrides', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: {
@@ -267,7 +253,7 @@ describe('Config', () => {
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {});
+      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides);
       expect(config.chains.chain1).to.have.property('override');
 
       const override = config.chains.chain1.override;
@@ -284,7 +270,6 @@ describe('Config', () => {
     it('should throw when an override references a non-existent chain', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: {
@@ -316,7 +301,9 @@ describe('Config', () => {
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-      expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
+      expect(() =>
+        Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+      ).to.throw(
         "Chain 'chain1' has an override for 'chain3', but 'chain3' is not defined in the config",
       );
     });
@@ -324,7 +311,6 @@ describe('Config', () => {
     it('should throw when an override references itself', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        checkFrequency: 1000,
         rebalanceStrategy: StrategyOptions.MinAmount,
         chain1: {
           minAmount: {
@@ -353,7 +339,9 @@ describe('Config', () => {
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-      expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
+      expect(() =>
+        Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides),
+      ).to.throw(
         "Chain 'chain1' has an override for 'chain1', but 'chain1' is self-referencing",
       );
     });
@@ -399,7 +387,7 @@ describe('Config', () => {
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {});
+      const config = Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, overrides);
 
       const chain1Overrides = config.chains.chain1.override;
       expect(chain1Overrides).to.not.be.undefined;
