@@ -1,3 +1,4 @@
+import { starknetsepolia } from '@hyperlane-xyz/registry';
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
@@ -482,7 +483,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3befffb-20250527-121951',
+      tag: 'c80ccb8-20250527-155053',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -492,6 +493,11 @@ const neutron: RootAgentConfig = {
       enabled: true,
     },
     resources: relayerResources,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 10,
+      },
+    },
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,

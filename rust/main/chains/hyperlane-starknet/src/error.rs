@@ -44,7 +44,7 @@ pub enum HyperlaneStarknetError {
     /// Pending Transaction receipt
     #[error("Pending transaction receipt")]
     PendingTransaction(Box<PendingTransactionReceipt>),
-    /// Transaction revered
+    /// Transaction reverted
     #[error("Transaction reverted: {0}")]
     TransactionReverted(String),
     /// Block is invalid

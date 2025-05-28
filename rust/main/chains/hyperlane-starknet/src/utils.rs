@@ -6,7 +6,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
-use starknet::core::types::ExecutionResult;
+use starknet::core::types::{ExecutionResult, PendingTransactionReceipt};
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -23,7 +23,7 @@ use crate::contracts::{
     aggregation_ism, interchain_security_module, mailbox, multisig_ism, routing_ism,
     validator_announce,
 };
-use crate::types::{tx_receipt_to_outcome, HyH256};
+use crate::types::{tx_pending_receipt_to_outcome, tx_receipt_to_outcome, HyH256};
 use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
@@ -33,7 +33,7 @@ use crate::{
 pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
-) -> ChainResult<TransactionReceipt> {
+) -> ChainResult<TxOutcome> {
     // there is a delay between the transaction being available
     // at the client and the sealing of the block
 
@@ -47,7 +47,16 @@ pub async fn get_transaction_receipt(
         let receipt = rpc
             .get_transaction_receipt(transaction_hash)
             .await
-            .map_err(HyperlaneStarknetError::from)?;
+            .map_err(HyperlaneStarknetError::from);
+
+        if receipt.is_err() {
+            debug!(
+                retry_number,
+                "Starknet pending transaction receipt: {:?}", receipt
+            );
+        }
+
+        let receipt = receipt?;
         match receipt {
             MaybePendingTransactionReceipt::PendingReceipt(pending) => {
                 match pending.execution_result() {
@@ -57,6 +66,10 @@ pub async fn get_transaction_receipt(
                             retry_number,
                             "Starknet pending transaction receipt: {:?}", pending
                         );
+                        if let PendingTransactionReceipt::Invoke(receipt) = pending {
+                            return tx_pending_receipt_to_outcome(receipt);
+                        }
+                        return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
                     }
                     // If the transaction didn't succeed, we can short-circuit and return the error
                     ExecutionResult::Reverted { reason } => {
@@ -66,7 +79,14 @@ pub async fn get_transaction_receipt(
                     }
                 }
             }
-            MaybePendingTransactionReceipt::Receipt(receipt) => return Ok(receipt),
+            MaybePendingTransactionReceipt::Receipt(receipt) => {
+                if let TransactionReceipt::Invoke(receipt) = receipt {
+                    return tx_receipt_to_outcome(receipt);
+                }
+
+                // If the receipt is not an Invoke receipt, we return an error
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
+            }
         }
     }
 
@@ -350,12 +370,7 @@ pub async fn send_and_confirm(
         .await
         .map_err(HyperlaneStarknetError::from)?;
 
-    let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
-
-    match receipt {
-        TransactionReceipt::Invoke(receipt) => Ok(tx_receipt_to_outcome(receipt)?),
-        _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
-    }
+    get_transaction_receipt(rpc_client, tx.transaction_hash).await
 }
 
 #[cfg(test)]
