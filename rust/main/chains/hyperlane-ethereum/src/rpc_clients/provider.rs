@@ -117,7 +117,11 @@ pub trait EvmProviderForLander: Send + Sync {
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
     /// Get the next nonce to use for a given address (using the finalized block)
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256>;
 
     /// Get the fee history
     async fn fee_history(
@@ -200,9 +204,19 @@ where
         Ok(success)
     }
 
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256> {
+        let finalized_block_number = self.get_finalized_block_number(reorg_period).await?;
         self.provider
-            .get_transaction_count(*address, Some(BlockId::Number(BlockNumber::Finalized)))
+            .get_transaction_count(
+                *address,
+                Some(BlockId::Number(BlockNumber::Number(
+                    finalized_block_number.into(),
+                ))),
+            )
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(Into::into)
