@@ -175,7 +175,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         );
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
-        uint64 nonce = ITokenMessenger(tokenMessenger).depositForBurn(
+        uint64 nonce = tokenMessenger.depositForBurn(
             amount,
             circleDomain,
             recipient,
