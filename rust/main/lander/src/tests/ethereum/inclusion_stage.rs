@@ -9,17 +9,18 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
     },
 };
+use tokio::{select, sync::mpsc};
+use tracing_test::traced_test;
+
 use hyperlane_core::{
     config::OpSubmissionConfig, identifiers::UniqueIdentifier, KnownHyperlaneDomain, H256,
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
-use tokio::{select, sync::mpsc};
-use tracing_test::traced_test;
 
 use crate::{
     adapter::{
         chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState},
+            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
             tests::MockEvmProvider,
             EthereumAdapter,
         },
@@ -217,18 +218,33 @@ fn mock_ethereum_adapter(
     nonce_db: Arc<dyn NonceDb>,
     signer: H160,
 ) -> EthereumAdapter {
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let state = Arc::new(NonceManagerState::new());
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        Duration::from_millis(10),
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        db: nonce_db,
+        state,
+        nonce_updater,
+    };
+
     EthereumAdapter {
         estimated_block_time: Duration::from_millis(10),
         domain: KnownHyperlaneDomain::Arbitrum.into(),
         transaction_overrides: Default::default(),
         submission_config: OpSubmissionConfig::default(),
-        provider: Arc::new(provider),
-        reorg_period: EthereumReorgPeriod::Blocks(1),
-        nonce_manager: NonceManager {
-            address: signer,
-            db: nonce_db,
-            state: NonceManagerState::new(),
-        },
+        provider,
+        reorg_period,
+        nonce_manager,
     }
 }
 

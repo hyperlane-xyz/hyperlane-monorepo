@@ -54,6 +54,10 @@ impl NonceManagerState {
         }
     }
 
+    pub(crate) async fn update_upper_nonce(&self, nonce: &U256) {
+        self.inner.lock().await.upper_nonce = *nonce;
+    }
+
     pub(crate) async fn insert_nonce_status(&self, nonce: &U256, nonce_status: NonceStatus) {
         let mut guard = self.inner.lock().await;
 

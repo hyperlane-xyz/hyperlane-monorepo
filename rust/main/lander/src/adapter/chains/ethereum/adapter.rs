@@ -61,15 +61,20 @@ impl EthereumAdapter {
                 SubmitterProviderBuilder {},
             )
             .await?;
+
+        let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone()).await?;
+
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,
             domain: conf.domain.clone(),
             transaction_overrides: connection_conf.transaction_overrides.clone(),
             submission_config: connection_conf.op_submission_config.clone(),
             provider,
-            reorg_period: EthereumReorgPeriod::try_from(&conf.reorg_period)?,
-            nonce_manager: NonceManager::new(&conf, db).await?,
+            reorg_period,
+            nonce_manager,
         };
+
         Ok(adapter)
     }
 

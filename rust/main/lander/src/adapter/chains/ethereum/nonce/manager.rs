@@ -8,7 +8,7 @@ use tracing::info;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
-use hyperlane_ethereum::Signers;
+use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -16,20 +16,41 @@ use crate::{LanderError, TransactionStatus};
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState, NonceStatus};
+use super::updater::NonceUpdater;
 
 pub struct NonceManager {
     pub address: Address,
     pub db: Arc<dyn NonceDb>,
-    pub state: NonceManagerState,
+    pub state: Arc<NonceManagerState>,
+    pub nonce_updater: NonceUpdater,
 }
 
 impl NonceManager {
-    pub async fn new(chain_conf: &ChainConf, db: Arc<HyperlaneRocksDB>) -> eyre::Result<Self> {
+    pub async fn new(
+        chain_conf: &ChainConf,
+        db: Arc<HyperlaneRocksDB>,
+        provider: Arc<dyn EvmProviderForLander>,
+    ) -> eyre::Result<Self> {
         let address = Self::address(chain_conf).await?;
-        let db = db as Arc<dyn NonceDb>;
-        let state = NonceManagerState::new();
+        let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
+        let block_time = chain_conf.estimated_block_time;
 
-        Ok(Self { address, db, state })
+        let db = db as Arc<dyn NonceDb>;
+        let state = Arc::new(NonceManagerState::new());
+
+        let mut nonce_updater =
+            NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
+        nonce_updater.immediate().await;
+        nonce_updater.run();
+
+        let manager = Self {
+            address,
+            db,
+            state,
+            nonce_updater,
+        };
+
+        Ok(manager)
     }
 
     pub async fn update_nonce_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
