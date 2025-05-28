@@ -186,6 +186,7 @@ export function hyperlaneWarpRebalancer(
         --checkFrequency ${checkFrequency} \
         --config ${config} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
         ${monitorOnly ? ['--monitorOnly'] : ['']} \
         ${origin ? ['--origin', origin] : ['']} \
         ${destination ? ['--destination', destination] : ['']} \
