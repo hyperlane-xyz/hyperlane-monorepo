@@ -246,7 +246,7 @@ impl Mailbox for StarknetMailbox {
             .collect();
 
         let tx = self.contract.account.execute(calls);
-        // simluate the batch execution
+        // simulate the batch execution
         let fee_estimate = tx
             .estimate_fee()
             .await
