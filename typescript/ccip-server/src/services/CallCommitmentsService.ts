@@ -114,6 +114,7 @@ export class CallCommitmentsService extends BaseService {
       return encoded;
     } catch (error: any) {
       console.error('Error fetching commitment from message', message, error);
+      // TODO we might not want to show the error
       return JSON.stringify({ error: error.message });
     }
   }

@@ -1,0 +1,26 @@
+environment: testnet
+
+# General deployment configuration
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  # Modify this tag to deploy a new revision.
+  # Images can be found here:
+  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
+  tag: 0b57705-20250514-150736
+
+secrets:
+  name: "offchain-lookup-server"
+  # List all secrets which are fetched from the Google Secret Store
+  secret_envs:
+    - DATABASE_URL
+    - EXAMPLE
+
+# Ingress / Loadbalancer
+# Needs external coordination with Google Cloud External IP and DNS provider
+# TODO move over to testnet values (and shutdown old service)
+ingress:
+  host: offchain-lookup.web3tools.net # Deprecated
+  staticIpName: my-ingress-ip # Deprecated
+
+port: 3000
+prometheus_port: 9090

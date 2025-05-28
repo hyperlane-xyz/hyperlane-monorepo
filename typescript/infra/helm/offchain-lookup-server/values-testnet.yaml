@@ -1,0 +1,29 @@
+environment: testnet
+
+# General deployment configuration
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  # Modify this tag to deploy a new revision.
+  # Images can be found here:
+  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
+  tag: af5b4bb-20250520-161756
+
+# In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be acessible by
+# the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
+secrets:
+  prefix: "hyperlane-testnet4"
+
+ingress:
+  host: testnet-offchain-lookup.services.hyperlane.xyz
+  # This needs to be created/looked up in Google Cloud Console
+  staticIpName: offchain-lookup-server-testnet
+
+env:
+  - name: ENABLED_MODULES
+    value: "cctp,callCommitments"
+  - name: HYPERLANE_EXPLORER_URL
+    value: "https://api.hyperlane.xyz/v1/graphql"
+  - name: CCTP_ATTESTATION_URL
+    value: "https://iris-api-sandbox.circle.com"
+  - name: SERVER_PORT
+    value: "3000"

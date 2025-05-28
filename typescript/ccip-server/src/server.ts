@@ -5,8 +5,13 @@ import { getEnabledModules } from './config.js';
 import { BaseService } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
 import { ProofsService } from './services/ProofsService.js';
+import {
+  PrometheusMetrics,
+  startPrometheusServer,
+} from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, typeof BaseService> = {
   callCommitments: CallCommitmentsService,
@@ -29,9 +34,20 @@ async function startServer() {
     }
     const service = await ServiceClass.initialize(); // module reads its own ENV config
 
+    app.use(`/${name}`, (req, res, next) => {
+      res.on('finish', () => {
+        PrometheusMetrics.logLookupRequest(name, res.statusCode);
+      });
+      next();
+    });
     app.use(`/${name}`, service.router);
+
     console.log(`✅  Mounted '${name}' at '/${name}'`);
   }
+
+  // Register Health Service
+  const healthService = await HealthService.initialize();
+  app.use(`/health`, healthService.router);
 
   // Log and handle undefined endpoints
   app.use((req, res) => {
@@ -39,8 +55,20 @@ async function startServer() {
     res.status(404).json({ error: 'Endpoint not found' });
   });
 
-  const port = process.env.PORT || 3000;
+  const port = parseInt(process.env.SERVER_PORT ?? '3000');
   app.listen(port, () => console.log(`Listening on port ${port}`));
 }
 
 startServer().then(console.log).catch(console.error);
+startPrometheusServer().then(console.log).catch(console.error);
+
+/*
+ * TODO: if PRISMA throws an error the entire express application crashes.
+ *  This is a temporary workaround to catch these kind of errors.
+ * */
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', JSON.stringify(err.message));
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', JSON.stringify(reason));
+});
