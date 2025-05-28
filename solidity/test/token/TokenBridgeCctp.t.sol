@@ -238,11 +238,6 @@ contract TokenBridgeCctpTest is Test {
         _expectOffChainLookUpRevert(message);
         tbDestination.getOffchainVerifyInfo(message);
 
-        bytes32 nonceId = messageTransmitterDestination.hashSourceAndNonce(
-            tbDestination.hyperlaneDomainToCircleDomain(origin),
-            cctpNonce
-        );
-
         bytes memory cctpMessage = _encodeCctpMessage(
             cctpNonce,
             cctpOrigin,
