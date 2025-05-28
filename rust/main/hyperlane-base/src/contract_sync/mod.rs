@@ -125,6 +125,8 @@ where
             .liveness_metrics
             .with_label_values(&[label, chain_name]);
 
+        // Channel used by main thread to receive messages
+        // from tx id task and cursor indexing task.
         let (message_tx, mut message_rx) = mpsc::unbounded_channel();
 
         let tx_clone = message_tx.clone();
@@ -134,24 +136,34 @@ where
             }
         });
 
-        let (fetch_range_tx, fetch_range_rx) = mpsc::unbounded_channel();
-
+        // Channel used between main thread and cursor indexing task.
+        // Blocks cursor indexing task until the range has been processed
+        // by the main thread.
+        // This prevents the cursor indexing task from sending too many
+        // messages.
+        let (cursor_range_tx, cursor_range_rx) = mpsc::unbounded_channel();
         if let Some(cursor) = opts.cursor {
             let tx_clone = message_tx.clone();
             tokio::spawn(async move {
-                Self::cursor_indexer_task(cursor, fetch_range_rx, tx_clone, &indexed_height_metric)
-                    .await;
+                Self::cursor_indexer_task(
+                    cursor,
+                    tx_clone,
+                    cursor_range_rx,
+                    &indexed_height_metric,
+                )
+                .await;
             });
         }
 
         loop {
+            Self::update_liveness_metric(&liveness_metric);
+
             let msg = match message_rx.recv().await {
                 Some(msg) => msg,
                 None => break,
             };
             tracing::debug!(?msg, "Received contract sync message");
 
-            Self::update_liveness_metric(&liveness_metric);
             match msg {
                 ContractSyncMessage::TxId(tx_id) => {
                     let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
@@ -177,7 +189,7 @@ where
                         Ok(logs) => logs,
                         Err(err) => {
                             warn!(?err, ?range, "Error fetching logs in range");
-                            let _ = fetch_range_tx.send(None);
+                            let _ = cursor_range_tx.send(None);
                             continue;
                         }
                     };
@@ -203,15 +215,13 @@ where
                             }
                         }
                     }
-                    let _ = fetch_range_tx.send(Some((logs, range)));
+                    let _ = cursor_range_tx.send(Some((logs, range)));
                 }
             }
         }
 
-        // Although the above loop should never end (unless by panicking),
-        // we put log here to make sure that we see when this method returns normally.
-        // Hopefully, compiler will not optimise this code out.
-        info!(chain = chain_name, label, "contract sync loop exit");
+        // this should never happen
+        tracing::error!(chain = chain_name, label, "contract sync loop exit");
     }
 
     fn update_liveness_metric(liveness_metric: &GenericGauge<AtomicI64>) {
@@ -223,6 +233,7 @@ where
         );
     }
 
+    /// task for listening to and forwarding tx id events
     async fn tx_id_receiver_task(
         mut recv: MpscReceiver<H512>,
         sender: UnboundedSender<ContractSyncMessage>,
@@ -237,10 +248,11 @@ where
         tracing::error!("Message ID receiver task exited");
     }
 
+    /// task for cursor events
     async fn cursor_indexer_task(
         mut cursor: Box<dyn ContractSyncCursor<T>>,
-        mut query_complete_rx: QueryReceiver<T>,
         sender: UnboundedSender<ContractSyncMessage>,
+        mut cursor_range_rx: QueryReceiver<T>,
         indexed_height_metric: &GenericGauge<AtomicI64>,
     ) {
         loop {
@@ -256,8 +268,7 @@ where
             match action {
                 CursorAction::Query(range) => {
                     let _ = sender.send(ContractSyncMessage::QueryRange(range.clone()));
-                    let resp_res = query_complete_rx.recv().await;
-                    match resp_res {
+                    match cursor_range_rx.recv().await {
                         Some(query_res) => {
                             if let Some((logs, range)) = query_res {
                                 if let Err(err) = cursor.update(logs, range).await {
@@ -478,6 +489,7 @@ mod tests {
         }
     }
 
+    /// Test to check main thread is not blocked by cursor task sleeping
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_sync_unblocked() {
@@ -499,7 +511,7 @@ mod tests {
             .await;
         });
 
-        let (_, query_complete_rx) = mpsc::unbounded_channel();
+        let (_, cursor_range_rx) = mpsc::unbounded_channel();
 
         // 2. start task to listen to watermark cursor
         let cursor = Box::new(MockContractSyncCursor {});
@@ -511,8 +523,8 @@ mod tests {
                 Arc<dyn SequenceAwareIndexer<HyperlaneMessage>>,
             >::cursor_indexer_task(
                 cursor,
-                query_complete_rx,
                 contract_sync_message_tx_clone,
+                cursor_range_rx,
                 &indexed_height_metric,
             )
             .await;
