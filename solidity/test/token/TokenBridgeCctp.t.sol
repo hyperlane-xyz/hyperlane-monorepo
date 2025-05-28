@@ -21,6 +21,7 @@ import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {CctpMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
@@ -105,11 +106,9 @@ contract TokenBridgeCctpTest is Test {
         TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
                 address(originImplementation),
                 proxyAdmin,
-                abi.encodeWithSelector(
-                    TokenBridgeCctp.initialize.selector,
-                    address(0),
-                    address(this),
-                    urls
+                abi.encodeCall(
+                    TokenBridgeCctp.initialize,
+                    (address(0), address(this), urls)
                 )
             );
 
@@ -126,11 +125,9 @@ contract TokenBridgeCctpTest is Test {
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
                 address(destinationImplementation),
                 proxyAdmin,
-                abi.encodeWithSelector(
-                    TokenBridgeCctp.initialize.selector,
-                    address(0),
-                    address(this),
-                    urls
+                abi.encodeCall(
+                    TokenBridgeCctp.initialize,
+                    (address(0), address(this), urls)
                 )
             );
 
@@ -199,12 +196,14 @@ contract TokenBridgeCctpTest is Test {
 
         vm.expectCall(
             address(tokenMessengerOrigin),
-            abi.encodeWithSelector(
-                MockCircleTokenMessenger.depositForBurn.selector,
-                amount,
-                cctpDestination,
-                user.addressToBytes32(),
-                address(tokenOrigin)
+            abi.encodeCall(
+                MockCircleTokenMessenger.depositForBurn,
+                (
+                    amount,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin)
+                )
             )
         );
         tbOrigin.transferRemote{value: quote[0].amount}(
@@ -248,10 +247,9 @@ contract TokenBridgeCctpTest is Test {
 
         vm.expectCall(
             address(messageTransmitterDestination),
-            abi.encodeWithSelector(
-                MockCircleMessageTransmitter.receiveMessage.selector,
-                cctpMessage,
-                attestation
+            abi.encodeCall(
+                MockCircleMessageTransmitter.receiveMessage,
+                (cctpMessage, attestation)
             )
         );
         assertEq(tbDestination.verify(metadata, message), true);
@@ -354,7 +352,7 @@ contract TokenBridgeCctpTest is Test {
                 ICcipReadIsm.OffchainLookup.selector,
                 address(tbDestination),
                 urls,
-                abi.encodeWithSignature("getCCTPAttestation(bytes)", message),
+                abi.encodeCall(CctpService.getCCTPAttestation, (message)),
                 tbDestination.verify.selector,
                 message
             )
