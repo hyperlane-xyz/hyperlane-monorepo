@@ -2,6 +2,7 @@ import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
 import { Router } from 'express';
+import { z } from 'zod';
 
 import { OPStackServiceAbi } from '../abis/OPStackServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
@@ -9,6 +10,24 @@ import { createAbiHandler } from '../utils/abiHandler.js';
 import { BaseService } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
+
+const EnvSchema = z.object({
+  HYPERLANE_EXPLORER_API: z.string().url(),
+  RPC_ADDRESS: z.string().url(),
+  CHAIN_ID: z.string(),
+  L2_RPC_ADDRESS: z.string().url(),
+  L2_CHAIN_ID: z.string(),
+  L1_ADDRESS_MANAGER: z.string(),
+  L1_CROSS_DOMAIN_MESSENGER: z.string(),
+  L1_STANDARD_BRIDGE: z.string(),
+  L1_STATE_COMMITMENT_CHAIN: z.string(),
+  L1_CANONICAL_TRANSACTION_CHAIN: z.string(),
+  L1_BOND_MANAGER: z.string(),
+  L1_OPTIMISM_PORTAL: z.string(),
+  L2_OUTPUT_ORACLE: z.string(),
+});
+
+const env = EnvSchema.parse(process.env);
 
 // Service that requests proofs from Succinct and RPC Provider
 export class OPStackService extends BaseService {
@@ -22,25 +41,25 @@ export class OPStackService extends BaseService {
   constructor() {
     super();
     // Read configs from environment
-    const hyperlaneConfig = { url: process.env.HYPERLANE_EXPLORER_API! };
+    const hyperlaneConfig = { url: env.HYPERLANE_EXPLORER_API };
     const l1RpcConfig = {
-      url: process.env.RPC_ADDRESS!,
-      chainId: process.env.CHAIN_ID!,
+      url: env.RPC_ADDRESS,
+      chainId: env.CHAIN_ID,
     };
     const l2RpcConfig = {
-      url: process.env.L2_RPC_ADDRESS!,
-      chainId: process.env.L2_CHAIN_ID!,
+      url: env.L2_RPC_ADDRESS,
+      chainId: env.L2_CHAIN_ID,
     };
     const opContracts = {
       l1: {
-        AddressManager: process.env.L1_ADDRESS_MANAGER!,
-        L1CrossDomainMessenger: process.env.L1_CROSS_DOMAIN_MESSENGER!,
-        L1StandardBridge: process.env.L1_STANDARD_BRIDGE!,
-        StateCommitmentChain: process.env.L1_STATE_COMMITMENT_CHAIN!,
-        CanonicalTransactionChain: process.env.L1_CANONICAL_TRANSACTION_CHAIN!,
-        BondManager: process.env.L1_BOND_MANAGER!,
-        OptimismPortal: process.env.L1_OPTIMISM_PORTAL!,
-        L2OutputOracle: process.env.L2_OUTPUT_ORACLE!,
+        AddressManager: env.L1_ADDRESS_MANAGER,
+        L1CrossDomainMessenger: env.L1_CROSS_DOMAIN_MESSENGER,
+        L1StandardBridge: env.L1_STANDARD_BRIDGE,
+        StateCommitmentChain: env.L1_STATE_COMMITMENT_CHAIN,
+        CanonicalTransactionChain: env.L1_CANONICAL_TRANSACTION_CHAIN,
+        BondManager: env.L1_BOND_MANAGER,
+        OptimismPortal: env.L1_OPTIMISM_PORTAL,
+        L2OutputOracle: env.L2_OUTPUT_ORACLE,
       },
     };
 
