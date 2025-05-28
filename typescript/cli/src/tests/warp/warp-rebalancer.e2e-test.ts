@@ -491,6 +491,66 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
+  it('should skip chains that are not in the config', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: StrategyOptions.Weighted,
+      [CHAIN_NAME_2]: {
+        weighted: {
+          weight: '75',
+          tolerance: '0',
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [CHAIN_NAME_3]: {
+        weighted: {
+          weight: '25',
+          tolerance: '0',
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `[getRawBalances] Skipping token on chain anvil4 that is not in chains list`,
+    );
+  });
+
+  it('should skip chains that are not supported collaterals', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: StrategyOptions.Weighted,
+      [CHAIN_NAME_2]: {
+        weighted: {
+          weight: '75',
+          tolerance: '0',
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [CHAIN_NAME_3]: {
+        weighted: {
+          weight: '25',
+          tolerance: '0',
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+      [CHAIN_NAME_4]: {
+        weighted: {
+          weight: '25',
+          tolerance: '0',
+        },
+        bridge: ethers.constants.AddressZero,
+        bridgeLockTime: 1,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `[getRawBalances] Skipping token on chain anvil4 that is not collateralized`,
+    );
+  });
+
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       rebalanceStrategy: StrategyOptions.Weighted,

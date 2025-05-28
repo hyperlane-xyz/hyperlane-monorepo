@@ -622,7 +622,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
             }
           }
 
-          const rawBalances = getRawBalances(event);
+          const rawBalances = getRawBalances(
+            Object.keys(rebalancerConfig.chains),
+            event,
+          );
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
