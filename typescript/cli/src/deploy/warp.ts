@@ -24,7 +24,6 @@ import {
   HypERC20Deployer,
   HypERC20Factories,
   HypERC721Deployer,
-  HypERC721Factories,
   HypTokenRouterConfig,
   HyperlaneContracts,
   HyperlaneContractsMap,
@@ -35,7 +34,6 @@ import {
   MultisigIsmConfig,
   OpStackIsmConfig,
   PausableIsmConfig,
-  ProtocolMap,
   RoutingIsmConfig,
   SubmissionStrategy,
   TrustedRelayerIsmConfig,
@@ -45,8 +43,6 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
-  attachContractsMap,
-  connectContractsMap,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
@@ -168,7 +164,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
-): Promise<ProtocolMap<ChainMap<Address>>> {
+): Promise<ChainMap<Address>> {
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
   const {
@@ -202,9 +198,7 @@ async function executeDeploy(
     contractVerifier,
   );
 
-  let deployedContracts: ProtocolMap<ChainMap<Address>> = {} as ProtocolMap<
-    ChainMap<Address>
-  >;
+  let deployedContracts: ChainMap<Address> = {};
 
   // get unique list of protocols
   const protocols = Array.from(
@@ -234,11 +228,13 @@ async function executeDeploy(
 
         // TODO: enroll non-evm routes
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
-        deployedContracts[protocol] = objMap(
-          evmContracts as HyperlaneContractsMap<HypERC20Factories>,
-          (_, contracts) => getRouter(contracts).address,
-        );
-        deployedContracts = { ...deployedContracts, ...evmContracts };
+        deployedContracts = {
+          ...deployedContracts,
+          ...objMap(
+            evmContracts as HyperlaneContractsMap<HypERC20Factories>,
+            (_, contracts) => getRouter(contracts).address,
+          ),
+        };
         break;
       }
       case ProtocolType.CosmosNative: {
@@ -254,12 +250,14 @@ async function executeDeploy(
         );
 
         const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
-        const cosmosNativeContracts = await deployer.deploy(
-          protocolSpecificConfig,
-          nonCosmosNativeConfig,
-        );
+        deployedContracts = {
+          ...deployedContracts,
+          ...(await deployer.deploy(
+            protocolSpecificConfig,
+            nonCosmosNativeConfig,
+          )),
+        };
 
-        deployedContracts[protocol] = cosmosNativeContracts;
         break;
       }
       default: {
@@ -268,7 +266,7 @@ async function executeDeploy(
     }
   }
 
-  await enrollCrossChainRouters(params);
+  await enrollCrossChainRouters(params, deployedContracts);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -484,7 +482,7 @@ async function createWarpHook({
 
 async function getWarpCoreConfig(
   params: DeployParams,
-  contracts: ProtocolMap<ChainMap<Address>>,
+  contracts: ChainMap<Address>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions?: AddWarpRouteOptions;
@@ -504,6 +502,7 @@ async function getWarpCoreConfig(
   assert(decimals, 'Missing decimals on token metadata');
 
   generateTokenConfigs(
+    params.context.multiProvider,
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
@@ -521,31 +520,32 @@ async function getWarpCoreConfig(
  * Creates token configs.
  */
 function generateTokenConfigs(
+  multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  contracts: ProtocolMap<ChainMap<Address>>,
+  contracts: ChainMap<Address>,
   symbol: string,
   name: string,
   decimals: number,
 ): void {
-  for (const [protocol, chainMap] of Object.entries(contracts)) {
-    for (const [chainName, addressOrDenom] of Object.entries(chainMap)) {
-      const config = warpDeployConfig[chainName];
-      const collateralAddressOrDenom =
-        isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
-          ? config.token // gets set in the above deriveTokenMetadata()
-          : undefined;
+  for (const chainName of Object.keys(contracts)) {
+    const config = warpDeployConfig[chainName];
+    const collateralAddressOrDenom =
+      isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
+        ? config.token // gets set in the above deriveTokenMetadata()
+        : undefined;
 
-      warpCoreConfig.tokens.push({
-        chainName,
-        standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
-        decimals,
-        symbol: config.symbol || symbol,
-        name,
-        addressOrDenom,
-        collateralAddressOrDenom,
-      });
-    }
+    const protocol = multiProvider.getProtocol(chainName);
+
+    warpCoreConfig.tokens.push({
+      chainName,
+      standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      decimals,
+      symbol: config.symbol || symbol,
+      name,
+      addressOrDenom: contracts[chainName],
+      collateralAddressOrDenom,
+    });
   }
 }
 
@@ -649,7 +649,6 @@ async function deployWarpExtensionContracts(
 
   // Merge existing and new routers
   const mergedRouters = mergeAllRouters(
-    params.context.multiProvider,
     existingConfigs,
     newDeployedContracts,
     warpCoreConfigByChain,
@@ -825,26 +824,23 @@ async function deriveMetadataFromExisting(
  * Merges existing router configs with newly deployed router contracts.
  */
 function mergeAllRouters(
-  multiProvider: MultiProvider,
   existingConfigs: WarpRouteDeployConfigMailboxRequired,
-  deployedContractsMap: HyperlaneContractsMap<
-    HypERC20Factories | HypERC721Factories
-  >,
+  deployedContractsMap: ChainMap<Address>,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
-  const existingContractAddresses = objMap(
-    existingConfigs,
-    (chain, config) => ({
-      [config.type]: warpCoreConfigByChain[chain].addressOrDenom!,
-    }),
-  );
+): ChainMap<Address> {
+  let result: ChainMap<Address> = {};
+
+  for (const chain of Object.keys(existingConfigs)) {
+    result = {
+      ...result,
+      [chain]: warpCoreConfigByChain[chain].addressOrDenom!,
+    };
+  }
+
   return {
-    ...connectContractsMap(
-      attachContractsMap(existingContractAddresses, hypERC20factories),
-      multiProvider,
-    ),
+    ...result,
     ...deployedContractsMap,
-  } as HyperlaneContractsMap<HypERC20Factories>;
+  };
 }
 
 function displayWarpDeployPlan(
@@ -1062,13 +1058,16 @@ async function getWarpApplySubmitter({
   });
 }
 
-async function enrollCrossChainRouters({
-  context,
-  warpDeployConfig,
-}: {
-  context: WriteCommandContext;
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-}) {
+async function enrollCrossChainRouters(
+  {
+    context,
+    warpDeployConfig,
+  }: {
+    context: WriteCommandContext;
+    warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  },
+  deployedContracts: ChainMap<Address>,
+) {
   // get unique list of protocols
   const protocols = Array.from(
     new Set(
@@ -1098,8 +1097,9 @@ async function enrollCrossChainRouters({
       .filter((c) => allChains.includes(c));
 
     const remoteRoutes = allRemoteChains.map((c) => ({
-      domain: context.multiProvider.getDomainId(c),
-      contract: '', // TODO
+      tokenId: deployedContracts[chain],
+      receiverDomain: context.multiProvider.getDomainId(c),
+      receiverContract: deployedContracts[c],
       gas: '0', // TODO
     }));
 
