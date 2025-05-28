@@ -119,18 +119,35 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Extract the reveal message ID from the second DispatchId event in the receipt.
+   * Extract the reveal message ID from the transaction receipt.
+   * Finds the second DispatchId event after the CommitRevealDispatched event.
    */
   private extractRevealMessageId(receipt: TransactionReceipt): string {
+    const iface = InterchainAccountRouter__factory.createInterface();
     const dispatchIdTopic =
       Mailbox__factory.createInterface().getEventTopic('DispatchId');
-    const dispatchLogs = receipt.logs.filter(
-      (l) => l.topics[0] === dispatchIdTopic,
+    const revealDispatchedTopic = iface.getEventTopic('CommitRevealDispatched');
+
+    // Find the index of the CommitRevealDispatched log
+    const revealIndex = receipt.logs.findIndex(
+      (log) => log.topics[0] === revealDispatchedTopic,
     );
-    if (dispatchLogs.length < 2) {
-      throw new Error('Reveal DispatchId event not found');
+    if (revealIndex === -1) {
+      throw new Error('CommitRevealDispatched event not found in logs');
     }
-    return dispatchLogs[1].topics[1];
+
+    // Find the next two DispatchId logs after the CommitRevealDispatched
+    const dispatchLogsAfterReveal = receipt.logs
+      .slice(revealIndex + 1)
+      .filter((log) => log.topics[0] === dispatchIdTopic);
+
+    if (dispatchLogsAfterReveal.length < 2) {
+      throw new Error(
+        'Not enough DispatchId events after CommitRevealDispatched',
+      );
+    }
+
+    return dispatchLogsAfterReveal[1].topics[1];
   }
 
   /**
