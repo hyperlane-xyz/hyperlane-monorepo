@@ -87,7 +87,7 @@ export async function getCosmosChainGasPrice(
   try {
     cosmosRegistryChain = await getCosmosRegistryChain(chain);
   } catch {
-    // Fallabck to our registry gas price from the metadata.
+    // Fallback to our registry gas price from the metadata.
     if (metadata.gasPrice) {
       return metadata.gasPrice;
     }
