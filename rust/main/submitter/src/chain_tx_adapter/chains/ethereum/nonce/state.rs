@@ -10,13 +10,14 @@ use crate::transaction::Transaction;
 use crate::TransactionStatus::{Finalized, Included, Mempool, PendingInclusion};
 use crate::{SubmitterError, TransactionStatus};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceStatus {
     Free,
     Taken,
     Committed,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
     Noop,
     Reassign,
@@ -113,3 +114,6 @@ impl NonceManagerState {
         self.inner.lock().await.nonces.get(nonce).cloned()
     }
 }
+
+#[cfg(test)]
+mod tests;
