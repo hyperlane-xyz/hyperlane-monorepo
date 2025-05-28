@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
   getEnvironmentConfig,
@@ -21,12 +22,7 @@ chai.use(chaiAsPromised);
 chai.should();
 const DEFAULT_TIMEOUT = 100000;
 
-const warpIdsToSkip = [
-  'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'oUSDT/base-bitlayer-bob-celo-ethereum-fraxtal-hashkey-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-  'oUSDTSTAGE/base-bitlayer-bob-celo-ethereum-fraxtal-hashkey-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-];
+const warpIdsToSkip = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
 
 async function getConfigsForBranch(branch: string) {
   return getRegistry({
