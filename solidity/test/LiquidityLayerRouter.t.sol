@@ -222,7 +222,7 @@ contract LiquidityLayerRouterTest is Test {
             destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
                 originDomain
             ),
-            tokenMessenger.nextNonce()
+            tokenMessenger.nextNonce() - 1
         );
 
         messageTransmitter.process(
@@ -249,7 +249,7 @@ contract LiquidityLayerRouterTest is Test {
             destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
                 originDomain
             ),
-            tokenMessenger.nextNonce()
+            tokenMessenger.nextNonce() - 1
         );
         messageTransmitter.process(
             nonceId,
@@ -276,7 +276,7 @@ contract LiquidityLayerRouterTest is Test {
             destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
                 originDomain
             ),
-            tokenMessenger.nextNonce()
+            tokenMessenger.nextNonce() - 1
         );
         messageTransmitter.process(
             nonceId,
