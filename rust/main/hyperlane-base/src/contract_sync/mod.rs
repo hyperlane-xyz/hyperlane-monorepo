@@ -85,7 +85,7 @@ impl<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, S, I>
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContractSyncMessage {
     /// Message Id from Message Indexer
-    MessageTxId(H512),
+    TxId(H512),
     /// Range from Watermark Indexer
     QueryRange(RangeInclusive<u32>),
 }
@@ -139,13 +139,8 @@ where
         if let Some(cursor) = opts.cursor {
             let tx_clone = message_tx.clone();
             tokio::spawn(async move {
-                Self::cursor_receiver_task(
-                    cursor,
-                    fetch_range_rx,
-                    tx_clone,
-                    &indexed_height_metric,
-                )
-                .await;
+                Self::cursor_indexer_task(cursor, fetch_range_rx, tx_clone, &indexed_height_metric)
+                    .await;
             });
         }
 
@@ -158,7 +153,7 @@ where
 
             Self::update_liveness_metric(&liveness_metric);
             match msg {
-                ContractSyncMessage::MessageTxId(tx_id) => {
+                ContractSyncMessage::TxId(tx_id) => {
                     let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
                         Ok(logs) => logs,
                         Err(err) => {
@@ -176,11 +171,39 @@ where
                     );
                 }
                 ContractSyncMessage::QueryRange(range) => {
-                    let logs_and_range = self
-                        .fetch_logs_from_range(range.clone(), &stored_logs_metric)
-                        .await
-                        .map(|logs| (logs, range.clone()));
-                    let _ = fetch_range_tx.send(logs_and_range);
+                    debug!(?range, "Looking for events in index range");
+
+                    let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, ?range, "Error fetching logs in range");
+                            let _ = fetch_range_tx.send(None);
+                            continue;
+                        }
+                    };
+
+                    let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                    let logs_found = logs.len() as u64;
+                    info!(
+                        ?range,
+                        num_logs = logs_found,
+                        sequences = ?logs.iter().map(|(log, meta)| IndexedTxIdAndSequence::new(meta.transaction_id, log.sequence)).collect::<Vec<_>>(),
+                        "Found log(s) in index range"
+                    );
+
+                    if let Some(broadcast_tx) = self.broadcast_sender.as_ref() {
+                        // If multiple logs occur in the same transaction they'll have the same transaction_id.
+                        // Deduplicate their txids to avoid doing wasteful queries in txid indexer
+                        let unique_txids: HashSet<_> =
+                            logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+
+                        for tx_id in unique_txids {
+                            if let Err(err) = broadcast_tx.send(tx_id).await {
+                                trace!(?err, "Error sending txid to receiver");
+                            }
+                        }
+                    }
+                    let _ = fetch_range_tx.send(Some((logs, range)));
                 }
             }
         }
@@ -209,12 +232,12 @@ where
                 Some(s) => s,
                 None => break,
             };
-            let _ = sender.send(ContractSyncMessage::MessageTxId(tx_id));
+            let _ = sender.send(ContractSyncMessage::TxId(tx_id));
         }
         tracing::error!("Message ID receiver task exited");
     }
 
-    async fn cursor_receiver_task(
+    async fn cursor_indexer_task(
         mut cursor: Box<dyn ContractSyncCursor<T>>,
         mut query_complete_rx: QueryReceiver<T>,
         sender: UnboundedSender<ContractSyncMessage>,
@@ -258,47 +281,6 @@ where
             }
         }
         tracing::error!("Watermark cursor task exited");
-    }
-
-    #[instrument(fields(domain=self.domain().name()), skip(self, stored_logs_metric))]
-    async fn fetch_logs_from_range(
-        &self,
-        range: RangeInclusive<u32>,
-        stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Option<Vec<(Indexed<T>, LogMeta)>> {
-        debug!(?range, "Looking for events in index range");
-
-        let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
-            Ok(logs) => logs,
-            Err(err) => {
-                warn!(?err, ?range, "Error fetching logs in range");
-                sleep(SLEEP_DURATION).await;
-                return None;
-            }
-        };
-
-        let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-        let logs_found = logs.len() as u64;
-        info!(
-            ?range,
-            num_logs = logs_found,
-            sequences = ?logs.iter().map(|(log, meta)| IndexedTxIdAndSequence::new(meta.transaction_id, log.sequence)).collect::<Vec<_>>(),
-            "Found log(s) in index range"
-        );
-
-        if let Some(broadcast_tx) = self.broadcast_sender.as_ref() {
-            // If multiple logs occur in the same transaction they'll have the same transaction_id.
-            // Deduplicate their txids to avoid doing wasteful queries in txid indexer
-            let unique_txids: HashSet<_> =
-                logs.iter().map(|(_, meta)| meta.transaction_id).collect();
-
-            for tx_id in unique_txids {
-                if let Err(err) = broadcast_tx.send(tx_id).await {
-                    trace!(?err, "Error sending txid to receiver");
-                }
-            }
-        }
-        Some(logs)
     }
 
     async fn dedupe_and_store_logs(
@@ -527,7 +509,7 @@ mod tests {
                 HyperlaneMessage,
                 Arc<dyn HyperlaneWatermarkedLogStore<HyperlaneMessage>>,
                 Arc<dyn SequenceAwareIndexer<HyperlaneMessage>>,
-            >::cursor_receiver_task(
+            >::cursor_indexer_task(
                 cursor,
                 query_complete_rx,
                 contract_sync_message_tx_clone,
@@ -543,7 +525,7 @@ mod tests {
             let msg_id = H512::from_low_u64_be(i as u64);
             let _ = message_id_tx.send(msg_id.clone()).await;
             let msg = contract_sync_message_rx.recv().await;
-            assert_eq!(msg, Some(ContractSyncMessage::MessageTxId(msg_id)));
+            assert_eq!(msg, Some(ContractSyncMessage::TxId(msg_id)));
         }
 
         // we should be able to process all those messages relatively quickly
