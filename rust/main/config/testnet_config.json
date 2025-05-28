@@ -979,7 +979,7 @@
       "blocks": {
         "confirmations": 0,
         "estimateBlockTime": 30,
-        "reorgPeriod": 1
+        "reorgPeriod": 0
       },
       "blockExplorers": [
         {
