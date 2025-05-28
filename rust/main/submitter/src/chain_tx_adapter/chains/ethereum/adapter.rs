@@ -8,9 +8,8 @@ use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
 use eyre::eyre;
-use futures_util::future::join_all;
 use tokio::sync::Mutex;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::db::HyperlaneRocksDB;
