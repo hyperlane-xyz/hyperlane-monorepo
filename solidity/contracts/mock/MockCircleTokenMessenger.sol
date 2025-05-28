@@ -19,8 +19,8 @@ contract MockCircleTokenMessenger is ITokenMessenger {
         bytes32,
         address _burnToken
     ) external returns (uint64 _nonce) {
-        nextNonce = nextNonce + 1;
         _nonce = nextNonce;
+        nextNonce += 1;
         require(address(token) == _burnToken);
         token.transferFrom(msg.sender, address(this), _amount);
         token.burn(_amount);
@@ -33,8 +33,8 @@ contract MockCircleTokenMessenger is ITokenMessenger {
         address,
         bytes32
     ) external returns (uint64 _nonce) {
-        nextNonce = nextNonce + 1;
         _nonce = nextNonce;
+        nextNonce += 1;
     }
 
     function messageBodyVersion() external returns (uint32) {
@@ -59,7 +59,7 @@ contract MockCircleTokenMessengerV2 is ITokenMessengerV2 {
         uint256,
         uint32
     ) external {
-        nextNonce = nextNonce + 1;
+        nextNonce += 1;
         require(address(token) == _burnToken);
         token.transferFrom(msg.sender, address(this), _amount);
         token.burn(_amount);
