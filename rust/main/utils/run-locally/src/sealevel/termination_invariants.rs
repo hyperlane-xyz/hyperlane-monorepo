@@ -12,7 +12,10 @@ use crate::{
     },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
-    server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
+    server::{
+        fetch_relayer_gas_payment_event_count, fetch_relayer_message_confirmed_count,
+        fetch_relayer_message_processed_count,
+    },
     RELAYER_METRICS_PORT,
 };
 
@@ -39,10 +42,14 @@ pub fn termination_invariants_met(
     let msg_processed_count = fetch_relayer_message_processed_count()?;
     let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
+    let msg_confirmed_count = fetch_relayer_message_confirmed_count()?;
+
     let relayer_invariant_params = RelayerTerminationInvariantParams {
         config,
         starting_relayer_balance,
         msg_processed_count,
+        msg_confirmed_count,
+        msg_confirmed_count_expected: total_messages_expected,
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
@@ -106,6 +113,8 @@ mod tests {
             config: &crate::config::Config::load(),
             starting_relayer_balance: 0.0,
             msg_processed_count: 0,
+            msg_confirmed_count: 10,
+            msg_confirmed_count_expected: 10,
             gas_payment_events_count: 0,
             total_messages_dispatched: 0,
             failed_message_count: 0,

@@ -8,7 +8,10 @@ use crate::invariants::{
     ScraperTerminationInvariantParams,
 };
 use crate::logging::log;
-use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
+use crate::server::{
+    fetch_relayer_gas_payment_event_count, fetch_relayer_message_confirmed_count,
+    fetch_relayer_message_processed_count,
+};
 use crate::{FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
@@ -29,10 +32,14 @@ pub fn termination_invariants_met(
     let msg_processed_count = fetch_relayer_message_processed_count()?;
     let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
+    let msg_confirmed_count = fetch_relayer_message_confirmed_count()?;
+
     let params = RelayerTerminationInvariantParams {
         config,
         starting_relayer_balance,
         msg_processed_count,
+        msg_confirmed_count,
+        msg_confirmed_count_expected: eth_messages_expected,
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched: total_messages_expected,
