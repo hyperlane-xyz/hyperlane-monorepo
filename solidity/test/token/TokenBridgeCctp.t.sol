@@ -143,12 +143,13 @@ contract TokenBridgeCctpTest is Test {
 
     function _encodeCctpMessage(
         uint64 nonce,
+        uint32 sourceDomain,
         bytes memory body
     ) internal view returns (bytes memory) {
         return
             CctpMessage._formatMessage(
                 version,
-                cctpOrigin,
+                sourceDomain,
                 cctpDestination,
                 nonce,
                 address(tbOrigin).addressToBytes32(),
@@ -216,7 +217,11 @@ contract TokenBridgeCctpTest is Test {
             cctpNonce
         );
 
-        bytes memory cctpMessage = _encodeCctpMessage(cctpNonce, "");
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            ""
+        );
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
@@ -236,6 +241,70 @@ contract TokenBridgeCctpTest is Test {
 
         // verify again to ensure the message is not received twice but the ISM returns true
         assertEq(tbDestination.verify(metadata, message), true);
+    }
+
+    function test_revertsWhen_invalidNonce() public {
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        // invalid nonce := nextNonce + 1
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce() + 1;
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+        uint256 nonce = mailboxDestination.inboundProcessedNonce();
+        bytes memory message = mailboxDestination.inboundMessages(nonce);
+
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            ""
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid nonce"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_revertsWhen_invalidSourceDomain() public {
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+        uint256 nonce = mailboxDestination.inboundProcessedNonce();
+        bytes memory message = mailboxDestination.inboundMessages(nonce);
+
+        // invalid source domain := destination
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpDestination,
+            ""
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid source domain"));
+        tbDestination.verify(metadata, message);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
