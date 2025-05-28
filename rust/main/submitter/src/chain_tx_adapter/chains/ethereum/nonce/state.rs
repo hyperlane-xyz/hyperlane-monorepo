@@ -112,7 +112,7 @@ impl NonceManagerState {
 
         guard.nonces.insert(nonce.into(), nonce_status);
 
-        if nonce > &guard.upper_nonce {
+        if nonce >= &guard.upper_nonce {
             guard.upper_nonce = nonce + 1;
         }
     }
