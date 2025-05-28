@@ -594,7 +594,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     // be in a CouldNotFetchMetadata state.
     // When the relayer restarts, these messages' statuses should be
     // retrieved from the database with CouldNotFetchMetadata status.
-    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+    if no_metadata_message_count != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "No metadata message count is {}, expected {}",
             no_metadata_message_count,

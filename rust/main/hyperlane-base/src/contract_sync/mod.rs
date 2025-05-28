@@ -9,17 +9,18 @@ use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;
 use eyre::Result;
+use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
+use tokio::sync::mpsc::Receiver as MpscReceiver;
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::time::sleep;
+use tracing::{debug, info, instrument, trace, warn};
+
 use hyperlane_core::{
     ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer,
 };
 use hyperlane_core::{Indexed, LogMeta, H512};
-use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
-use tokio::sync::mpsc::Receiver as MpscReceiver;
-use tokio::sync::mpsc::{self, UnboundedSender};
-use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn};
 
 use crate::settings::IndexSettings;
 
