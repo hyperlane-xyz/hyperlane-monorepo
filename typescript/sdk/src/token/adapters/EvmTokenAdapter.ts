@@ -4,10 +4,8 @@ import {
   constants as ethersConstants,
   ethers
 } from 'ethers';
-import { ArcadiaSDK } from 'arcadia-sdk-wip';
-import { RefineResult } from 'arcadia-sdk-wip/types/Refine.js';
-import { RpcIntentState } from 'arcadia-sdk-wip/types/index.js';
-
+import { ArcadiaSDK } from '@tvl-labs/arcadia-sdk';
+import { RefineResult, RpcIntentState } from '@tvl-labs/arcadia-sdk/types';
 import {
   ERC20,
   ERC20__factory,
@@ -60,6 +58,7 @@ import {
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
+import { NetworkType } from '@tvl-labs/arcadia-sdk/config.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -912,7 +911,7 @@ export class EvmKhalaniIntentTokenAdapter
   private readonly intentBookAddress;
 
   static getArcadiaSdk() {
-    return new ArcadiaSDK('EthersV5');
+    return new ArcadiaSDK('EthersV5', NetworkType.testnet);
   }
 
   constructor(
@@ -942,10 +941,11 @@ export class EvmKhalaniIntentTokenAdapter
       arcadiaChainInfo.rpcUrl[0],
     );
 
+    const assetReservesAbi = contractService.getAssetReservesABI<ContractInterface>();
     // instantiate assetReserves
     this.assetReservesContract = new ethers.Contract(
       this.addresses.addressOrDenom,
-      contractService.getAssetReservesABI(),
+      assetReservesAbi,
       chainProvider,
     ) as ethers.Contract & {
       deposit: (
@@ -1014,7 +1014,7 @@ export class EvmKhalaniIntentTokenAdapter
       BigNumber.from(weiAmountOrId),
       this.arcadiaChainId,
       {
-        value: this.depositService.getGasValue(),
+        value: this.depositService.getValueInWei(),
       },
     );
 

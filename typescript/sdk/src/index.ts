@@ -534,7 +534,7 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
-export { type RefineResult as ArcadiaRefineResult } from 'arcadia-sdk-wip/types';
+export { type RefineResult as ArcadiaRefineResult } from '@tvl-labs/arcadia-sdk/types';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
