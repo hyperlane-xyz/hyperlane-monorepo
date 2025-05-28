@@ -23,3 +23,4 @@ ingress:
   staticIpName: my-ingress-ip # Deprecated
 
 port: 3000
+prometheus_port: 9090

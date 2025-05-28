@@ -44,4 +44,4 @@ helm upgrade --install offchain-lookup-server . -f values.yaml -f values-testnet
 
 ## Mainnet
 
-_Not deployed yet_
+helm upgrade --install offchain-lookup-server . -f values.yaml -f values-mainnet.yaml --namespace mainnet3
