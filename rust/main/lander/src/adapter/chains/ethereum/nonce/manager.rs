@@ -1,7 +1,3 @@
-// the evm provider-building logic returns a box. `EvmProviderForLander` is only implemented for the underlying type rather than the boxed type.
-// implementing the trait for the boxed type would require a lot of boilerplate code.
-#![allow(clippy::borrowed_box)]
-
 use std::sync::Arc;
 
 use ethers::signers::Signer;

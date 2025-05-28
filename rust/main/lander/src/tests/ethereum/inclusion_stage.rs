@@ -222,7 +222,7 @@ fn mock_ethereum_adapter(
         domain: KnownHyperlaneDomain::Arbitrum.into(),
         transaction_overrides: Default::default(),
         submission_config: OpSubmissionConfig::default(),
-        provider: Box::new(provider),
+        provider: Arc::new(provider),
         reorg_period: EthereumReorgPeriod::Blocks(1),
         nonce_manager: NonceManager {
             address: signer,

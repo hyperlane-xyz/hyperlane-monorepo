@@ -394,7 +394,7 @@ pub struct SubmitterProviderBuilder {}
 
 #[async_trait]
 impl BuildableWithProvider for SubmitterProviderBuilder {
-    type Output = Box<dyn EvmProviderForLander>;
+    type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 
     // the submitter does not use the ethers submission middleware.
@@ -410,7 +410,7 @@ impl BuildableWithProvider for SubmitterProviderBuilder {
         _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumProvider::new(
+        Arc::new(EthereumProvider::new(
             Arc::new(provider),
             locator.domain.clone(),
         ))
