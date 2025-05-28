@@ -2,6 +2,7 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
+import fs from 'fs';
 
 import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
@@ -27,6 +28,7 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
+  REGISTRY_PATH,
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
@@ -285,6 +287,60 @@ describe('hyperlane warp deploy e2e tests', async function () {
           mailboxAddress,
         );
       }
+    });
+
+    it.only(`should successfully deploy a warp route with a custom warp route id`, async function () {
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+      const warpRouteId = 'ETH/custom-warp-route-id';
+      const warpDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
+      writeYamlOrJson(warpDeployPath, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarpDeployRaw({
+        warpRouteId,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      expect(finalOutput.exitCode).to.equal(0);
+
+      const warpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-config.yaml`;
+      expect(fs.existsSync(warpCorePath)).to.be.true;
     });
 
     it(`should successfully deploy a ${TokenType.collateralFiat} -> ${TokenType.collateral} warp route`, async function () {
