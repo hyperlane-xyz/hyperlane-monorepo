@@ -21,6 +21,7 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
 
 contract MockValueTransferBridge is ValueTransferBridge {
     ERC20Test token;
+    bytes32 public myRecipient;
 
     constructor(ERC20Test _token) {
         token = _token;
@@ -32,6 +33,7 @@ contract MockValueTransferBridge is ValueTransferBridge {
         uint256 amountOut
     ) external payable override returns (bytes32 transferId) {
         token.transferFrom(msg.sender, address(this), amountOut);
+        myRecipient = recipient;
         return recipient;
     }
 }
@@ -44,9 +46,11 @@ contract MovableCollateralRouterTest is Test {
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
+    MockMailbox mailbox;
 
     function setUp() public {
-        router = new MockMovableCollateralRouter(address(new MockMailbox(1)));
+        mailbox = new MockMailbox(1);
+        router = new MockMovableCollateralRouter(address(mailbox));
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
         vtb = new MockValueTransferBridge(token);
         router.addRebalancer(address(this));
@@ -130,7 +134,7 @@ contract MovableCollateralRouterTest is Test {
         );
     }
 
-    function testApproveTokenForBridge_NotOwnwer() public {
+    function testApproveTokenForBridge_NotOwner() public {
         address notAdmin = address(1);
         vm.expectRevert("Ownable: caller is not the owner");
 
@@ -158,5 +162,27 @@ contract MovableCollateralRouterTest is Test {
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), 1e18);
+    }
+
+    function testDefaultRecipient() public {
+        // Skipping adding the recipient to the destination mappings
+
+        // Add the given bridge
+        router.addBridge(vtb, destinationDomain);
+
+        // Router setup
+        bytes32 remoteRouter = address(10).addressToBytes32();
+        router.enrollRemoteRouter(destinationDomain, remoteRouter);
+
+        // Approvals
+        token.mintTo(address(router), 1e18);
+        vm.prank(address(router));
+        token.approve(address(vtb), 1e18);
+
+        // Execute
+        router.rebalance(destinationDomain, 1e18, vtb);
+
+        // Assert
+        assertEq(vtb.myRecipient(), remoteRouter);
     }
 }

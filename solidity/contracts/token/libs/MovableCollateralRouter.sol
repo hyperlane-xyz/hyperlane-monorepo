@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 import {Router} from "contracts/client/Router.sol";
-import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ValueTransferBridge} from "./ValueTransferBridge.sol";
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
