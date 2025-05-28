@@ -7647,7 +7647,7 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/cosmos-sdk": "npm:13.1.1"
-    "@hyperlane-xyz/registry": "npm:15.7.0"
+    "@hyperlane-xyz/registry": "npm:15.10.1"
     "@hyperlane-xyz/sdk": "npm:13.1.1"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:13.1.1"
@@ -7803,7 +7803,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:7.1.8"
-    "@hyperlane-xyz/registry": "npm:15.7.0"
+    "@hyperlane-xyz/registry": "npm:15.10.1"
     "@hyperlane-xyz/sdk": "npm:13.1.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7854,7 +7854,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:13.1.1"
-    "@hyperlane-xyz/registry": "npm:15.7.0"
+    "@hyperlane-xyz/registry": "npm:15.10.1"
     "@hyperlane-xyz/sdk": "npm:13.1.1"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:13.1.1"
@@ -7920,14 +7920,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:15.7.0":
-  version: 15.7.0
-  resolution: "@hyperlane-xyz/registry@npm:15.7.0"
+"@hyperlane-xyz/registry@npm:15.10.1":
+  version: 15.10.1
+  resolution: "@hyperlane-xyz/registry@npm:15.10.1"
   dependencies:
     jszip: "npm:^3.10.1"
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/9f1475deb9abe690f08eb2dd5f7cbce5aff7239c43d588f3e5be52f171ff9339932a3a45c741f423a4a4d8cbad5563212c3b10e456909a32704bf036af79d0a0
+  checksum: 10/cafd861d93bd02f79489f3a6b0d45d4cc6e40c46ed35dda2d903799259eafa648a1d7c0d600debee7fc2ed0a0692eb814bf6e5fb1b5bc74632dfebf0280f7840
   languageName: node
   linkType: hard
 
@@ -8061,7 +8061,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/cosmos-sdk": "npm:13.1.1"
-    "@hyperlane-xyz/registry": "npm:15.7.0"
+    "@hyperlane-xyz/registry": "npm:15.10.1"
     "@hyperlane-xyz/sdk": "npm:13.1.1"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:13.1.1"

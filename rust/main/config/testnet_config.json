@@ -984,9 +984,9 @@
       "blockExplorers": [
         {
           "apiUrl": "https://sepolia.voyager.online/api",
-          "family": "other",
-          "name": "Starknet Sepolia",
-          "url": "https://sepolia.voyager.online/"
+          "family": "voyager",
+          "name": "Starknet Sepolia Explorer",
+          "url": "https://sepolia.voyager.online"
         }
       ],
       "displayName": "Starknet Sepolia",
@@ -996,7 +996,8 @@
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
-        "symbol": "ETH"
+        "symbol": "ETH",
+        "denom": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
       },
       "protocol": "starknet",
       "rpcUrls": [
@@ -1016,6 +1017,10 @@
       "index": {
         "from": 715709,
         "chunk": 999
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "superpositiontestnet": {
@@ -2124,26 +2129,27 @@
     "paradexsepolia": {
       "chainId": "0x505249564154455f534e5f504f54435f5345504f4c4941",
       "blocks": {
-        "confirmations": 0,
+        "confirmations": 1,
         "estimateBlockTime": 4,
         "reorgPeriod": 0
       },
       "blockExplorers": [
         {
           "apiUrl": "https://voyager.testnet.paradex.trade/api",
-          "family": "other",
-          "name": "Paradex testnet",
+          "family": "voyager",
+          "name": "Paradex Testnet Explorer",
           "url": "https://voyager.testnet.paradex.trade"
         }
       ],
-      "displayName": "Paradexsepolia",
+      "displayName": "Paradex Sepolia",
       "domainId": 12263410,
       "isTestnet": true,
       "name": "paradexsepolia",
       "nativeToken": {
         "decimals": 18,
         "name": "EtherDUMMY_TOKEN",
-        "symbol": "DT"
+        "symbol": "DT",
+        "denom": "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7"
       },
       "protocol": "starknet",
       "rpcUrls": [
@@ -2163,6 +2169,10 @@
       "index": {
         "from": 224346,
         "chunk": 999
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "chronicleyellowstone": {

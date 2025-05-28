@@ -88,6 +88,9 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+    /// Whether to ignore reorg reports from this chain
+    /// when it is the origin of a message.
+    pub ignore_reorg_reports: bool,
 }
 
 /// A sequence-aware indexer for messages

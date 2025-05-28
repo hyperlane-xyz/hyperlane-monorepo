@@ -14,12 +14,11 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{ChainConf, CheckpointSyncerBuildError},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
-
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
@@ -123,12 +122,22 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(raw_signer.clone());
 
         let core = settings.build_hyperlane_core(metrics.clone());
-        // Be extra sure to panic checkpoint syncer fails, which indicates
+
+        let reorg_reporter =
+            LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?;
+        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
+
+        let checkpoint_syncer_result = settings.checkpoint_syncer.build_and_validate(None).await;
+
+        Self::report_latest_checkpoints_from_each_endpoint(
+            &reorg_reporter,
+            &checkpoint_syncer_result,
+        )
+        .await;
+
+        // Be extra sure to panic when checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = settings
-            .checkpoint_syncer
-            .build_and_validate(None)
-            .await
+        let checkpoint_syncer = checkpoint_syncer_result
             .expect("Failed to build checkpoint syncer")
             .into();
 
@@ -139,10 +148,6 @@ impl BaseAgent for Validator {
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
-
-        let reorg_reporter =
-            LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?;
-        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
 
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
@@ -462,5 +467,18 @@ impl Validator {
             }
         }
         Ok(())
+    }
+
+    async fn report_latest_checkpoints_from_each_endpoint(
+        reorg_reporter: &Arc<dyn ReorgReporter>,
+        checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
+    ) {
+        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+            checkpoint_syncer_result.as_ref()
+        {
+            reorg_reporter
+                .report_with_reorg_period(&reorg_event.reorg_period)
+                .await;
+        }
     }
 }
