@@ -8,8 +8,6 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    signer::null_signer::NullSigner,
-    signers::Signers,
     transaction::Transaction,
 };
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
@@ -84,27 +82,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn payer_can_sign(&self) -> bool {
-        self.payer_keypair.is_some()
-    }
-
-    pub(crate) fn payer_signer(&self) -> Box<dyn Signer> {
+    pub(crate) fn payer_signer(&self) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
-            Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap())
+            Some(Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap()))
         } else {
-            Box::new(NullSigner::new(&self.payer_pubkey))
+            None
         }
     }
 
     /// If the pubkey matches the payer's pubkey, return the payer's signer.
     /// Otherwise, return a NullSigner for the given pubkey.
-    pub(crate) fn signer_for_pubkey(&self, pubkey: &Pubkey) -> Box<dyn Signer> {
+    pub(crate) fn signer_for_pubkey(&self, pubkey: &Pubkey) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
             if &keypair.pubkey() == pubkey {
                 return self.payer_signer();
             }
         }
-        Box::new(NullSigner::new(pubkey))
+        None
     }
 
     pub(crate) fn payer_keypair_path(&self) -> &String {
@@ -194,7 +188,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let payer_signer = self.ctx.payer_signer();
-        self.send(&[&*payer_signer])
+        self.send(&[payer_signer.as_deref()])
     }
 
     /// Sends the transaction with a signer for the given pubkey.
@@ -205,19 +199,19 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         pubkey: &Pubkey,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let signer = self.ctx.signer_for_pubkey(pubkey);
-        self.send(&[&*signer])
+        self.send(&[signer.as_deref()])
     }
 
-    pub(crate) fn send<T: Signers>(
+    pub(crate) fn send(
         self,
-        signers: &T,
+        signers: &[Option<&dyn Signer>],
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
         // process.
         // We print the transaction to stdout and wait for user confirmation to
         // continue.
-        if !self.ctx.payer_can_sign() {
+        if signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
             self.pretty_print_transaction();
@@ -226,6 +220,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
             return None;
         }
+
+        let signers: Vec<&dyn Signer> = signers.iter().map(|s| s.unwrap()).collect();
 
         // Print the tx as an indication for what's about to happen
         self.pretty_print_transaction();
@@ -240,7 +236,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         let txn = Transaction::new_signed_with_payer(
             &self.instructions(),
             Some(&self.ctx.payer_pubkey),
-            signers,
+            &signers,
             recent_blockhash,
         );
 

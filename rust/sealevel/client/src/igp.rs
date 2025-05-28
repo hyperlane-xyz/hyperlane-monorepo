@@ -233,9 +233,10 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 )
                 .unwrap();
 
-            ctx.new_txn()
-                .add(ixn)
-                .send(&[&*ctx.payer_signer(), &unique_gas_payment_keypair]);
+            ctx.new_txn().add(ixn).send(&[
+                ctx.payer_signer().as_deref(),
+                Some(&unique_gas_payment_keypair),
+            ]);
 
             println!(
                 "Made a payment for message {} with gas payment data account {}",
