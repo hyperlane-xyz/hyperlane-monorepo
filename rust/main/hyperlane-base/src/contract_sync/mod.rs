@@ -108,6 +108,8 @@ where
             .stored_events
             .with_label_values(&[label, chain_name]);
 
+        // need to put this behind an Arc Mutex because we might
+        // index the same event twice now. Which causes e2e to fail
         let shared_store = Arc::new(Mutex::new(self.store.clone()));
 
         // transaction id task for fetching events via transaction id
@@ -123,7 +125,7 @@ where
                 let store_clone = shared_store.clone();
                 let stored_logs_metric = stored_logs_metric.clone();
                 tokio::task::spawn(async move {
-                    Self::tx_id_receiver_task(
+                    Self::tx_id_indexer_task(
                         domain_clone,
                         indexer_clone,
                         store_clone,
@@ -153,7 +155,7 @@ where
                 let stored_logs_metric = stored_logs_metric.clone();
 
                 tokio::task::spawn(async {
-                    Self::cursor_receiver_task(
+                    Self::cursor_indexer_task(
                         domain_clone,
                         indexer_clone,
                         store_clone,
@@ -172,7 +174,7 @@ where
         let res = tokio::join!(tx_id_task, cursor_task);
 
         // we should never reach this because the 2 tasks should never end
-        warn!(chain = chain_name, label, ?res, "contract sync loop exit");
+        tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
     }
 
     fn update_liveness_metric(liveness_metric: &GenericGauge<AtomicI64>) {
@@ -185,7 +187,7 @@ where
     }
 
     #[instrument(fields(domain=domain.name()), skip(indexer, store, recv, stored_logs_metric, liveness_metric))]
-    async fn tx_id_receiver_task(
+    async fn tx_id_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,
         store: Arc<Mutex<S>>,
@@ -198,7 +200,7 @@ where
             let tx_id = match recv.recv().await {
                 Some(tx_id) => tx_id,
                 None => {
-                    warn!("Error: channel has closed");
+                    tracing::error!("Error: channel has closed");
                     break;
                 }
             };
@@ -228,7 +230,7 @@ where
 
     #[allow(clippy::too_many_arguments)]
     #[instrument(fields(domain=domain.name()), skip(indexer, store, stored_logs_metric, indexed_height_metric, liveness_metric))]
-    async fn cursor_receiver_task(
+    async fn cursor_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,
         store: Arc<Mutex<S>>,
