@@ -4,19 +4,22 @@ import { rmSync } from 'fs';
 
 import {
   ANVIL_KEY,
-  COINGECKO_API_KEY,
   REBALANCER_CONFIG_PATH,
 } from '../../tests/commands/helpers.js';
+import { ENV } from '../../utils/env.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import { Config, type ConfigFileInput, MinAmountType } from './Config.js';
 
 describe('Config', () => {
+  let coingeckoApiKeyBackup: string | undefined;
   let data: ConfigFileInput;
   let overrides: Parameters<typeof Config.load>[2];
 
   beforeEach(() => {
+    coingeckoApiKeyBackup = ENV.COINGECKO_API_KEY;
+
     data = {
       warpRouteId: 'warpRouteId',
       rebalanceStrategy: StrategyOptions.Weighted,
@@ -45,10 +48,14 @@ describe('Config', () => {
       monitorOnly: false,
       withMetrics: false,
     };
+
+    ENV.COINGECKO_API_KEY = 'coingeckoApiKey';
   });
 
   afterEach(() => {
     rmSync(REBALANCER_CONFIG_PATH, { force: true });
+
+    ENV.COINGECKO_API_KEY = coingeckoApiKeyBackup;
   });
 
   it('should throw when the config file does not exist', () => {
@@ -68,7 +75,7 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       monitorOnly: overrides.monitorOnly,
       withMetrics: overrides.withMetrics,
-      coingeckoApiKey: '',
+      coingeckoApiKey: ENV.COINGECKO_API_KEY,
       rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
@@ -118,7 +125,6 @@ describe('Config', () => {
       checkFrequency: 1337,
       monitorOnly: false,
       withMetrics: false,
-      coingeckoApiKey: COINGECKO_API_KEY,
       rebalanceStrategy: StrategyOptions.Weighted,
     };
 
@@ -130,7 +136,7 @@ describe('Config', () => {
       monitorOnly: overrides.monitorOnly,
       rebalancerKey: ANVIL_KEY,
       withMetrics: overrides.withMetrics,
-      coingeckoApiKey: overrides.coingeckoApiKey,
+      coingeckoApiKey: ENV.COINGECKO_API_KEY,
       rebalanceStrategy: overrides.rebalanceStrategy,
       chains: {
         chain1: {

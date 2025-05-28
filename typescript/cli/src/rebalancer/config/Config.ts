@@ -3,6 +3,7 @@ import { fromZodError } from 'zod-validation-error';
 
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
+import { ENV } from '../../utils/env.js';
 import { readYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
@@ -149,7 +150,7 @@ export class Config {
     public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
-    public readonly coingeckoApiKey: string,
+    public readonly coingeckoApiKey: string | undefined,
     public readonly rebalanceStrategy: StrategyOptions,
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
@@ -161,7 +162,6 @@ export class Config {
       checkFrequency: number;
       monitorOnly: boolean;
       withMetrics: boolean;
-      coingeckoApiKey?: string;
       rebalanceStrategy?: StrategyOptions;
     },
   ) {
@@ -182,7 +182,6 @@ export class Config {
       throw new Error('No chains configured');
     }
 
-    const coingeckoApiKey = overrides.coingeckoApiKey ?? '';
     const rebalanceStrategy =
       overrides.rebalanceStrategy ?? fileRebalanceStrategy;
 
@@ -196,7 +195,7 @@ export class Config {
       overrides.checkFrequency,
       overrides.monitorOnly,
       overrides.withMetrics,
-      coingeckoApiKey,
+      ENV.COINGECKO_API_KEY,
       rebalanceStrategy,
       chains,
     );

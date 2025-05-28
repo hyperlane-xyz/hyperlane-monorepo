@@ -39,7 +39,6 @@ import {
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
-import { ENV } from '../utils/env.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -449,7 +448,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
   checkFrequency: number;
   withMetrics: boolean;
   monitorOnly: boolean;
-  coingeckoApiKey?: string;
   rebalanceStrategy?: StrategyOptions;
   origin?: string;
   destination?: string;
@@ -482,13 +480,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: false,
       default: false,
     },
-    coingeckoApiKey: {
-      type: 'string',
-      description: 'CoinGecko API key',
-      demandOption: false,
-      alias: ['g', 'coingecko-api-key'],
-      implies: 'withMetrics',
-    },
     rebalanceStrategy: {
       type: 'string',
       description: 'Rebalancer strategy (weighted, minAmount, manual)',
@@ -518,7 +509,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
     checkFrequency,
     withMetrics,
     monitorOnly,
-    coingeckoApiKey = ENV.COINGECKO_API_KEY,
     rebalanceStrategy,
     origin,
     destination,
@@ -532,7 +522,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
         checkFrequency,
         withMetrics,
         monitorOnly,
-        coingeckoApiKey,
         rebalanceStrategy,
       });
       logGreen('✅ Loaded rebalancer config');
