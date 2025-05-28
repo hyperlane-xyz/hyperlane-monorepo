@@ -1,4 +1,3 @@
-import { starknetsepolia } from '@hyperlane-xyz/registry';
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
