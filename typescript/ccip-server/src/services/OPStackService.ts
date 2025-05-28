@@ -27,8 +27,6 @@ const EnvSchema = z.object({
   L2_OUTPUT_ORACLE: z.string(),
 });
 
-const env = EnvSchema.parse(process.env);
-
 // Service that requests proofs from Succinct and RPC Provider
 export class OPStackService extends BaseService {
   // External Services
@@ -40,6 +38,7 @@ export class OPStackService extends BaseService {
 
   constructor() {
     super();
+    const env = EnvSchema.parse(process.env);
     // Read configs from environment
     const hyperlaneConfig = { url: env.HYPERLANE_EXPLORER_API };
     const l1RpcConfig = {

@@ -18,8 +18,6 @@ const EnvSchema = z.object({
   RPC_URL: z.string().url(),
 });
 
-const env = EnvSchema.parse(process.env);
-
 class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
@@ -33,6 +31,7 @@ class CCTPService extends BaseService {
 
   constructor() {
     super();
+    const env = EnvSchema.parse(process.env);
     this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
     this.cctpAttestationService = new CCTPAttestationService(
       env.CCTP_ATTESTATION_URL,

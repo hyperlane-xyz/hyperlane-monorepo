@@ -32,8 +32,6 @@ const EnvSchema = z.object({
     .optional(),
 });
 
-const env = EnvSchema.parse(process.env);
-
 const postCallsSchema = z.object({
   calls: z
     .array(
@@ -58,6 +56,7 @@ export class CallCommitmentsService extends BaseService {
   }
 
   static async initialize() {
+    const env = EnvSchema.parse(process.env);
     const registryUris = env.REGISTRY_URI ?? [DEFAULT_GITHUB_REGISTRY];
     console.log('Using registry URIs', registryUris);
     const registry = getRegistry({
@@ -245,11 +244,18 @@ export class CallCommitmentsService extends BaseService {
     if (revealLogs.length === 0) {
       throw new Error('CommitRevealDispatched event not found');
     }
+
     const matched = revealLogs
       .map((l: any) => iface.parseLog(l))
       .some((parsed: any) => parsed.args.commitment === commitment);
+
     if (!matched) {
-      throw new Error('No matching CommitRevealDispatched for this commitment');
+      const foundCommitments = revealLogs.map(
+        (l: any) => iface.parseLog(l).args.commitment,
+      );
+      throw new Error(
+        `No matching CommitRevealDispatched for this commitment: ${commitment}. Found commitments: ${foundCommitments.join(', ')}`,
+      );
     }
   }
 
