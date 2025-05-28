@@ -36,7 +36,7 @@ pub struct EthereumAdapter {
     pub domain: HyperlaneDomain,
     pub transaction_overrides: hyperlane_ethereum::TransactionOverrides,
     pub submission_config: OpSubmissionConfig,
-    pub provider: Box<dyn EvmProviderForLander>,
+    pub provider: Arc<dyn EvmProviderForLander>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
 }
@@ -142,7 +142,7 @@ impl AdaptsChain for EthereumAdapter {
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
-            &self.provider,
+            self.provider.clone(),
             precursor,
             &self.transaction_overrides,
             &self.domain,
