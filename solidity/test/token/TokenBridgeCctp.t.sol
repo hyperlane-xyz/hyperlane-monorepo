@@ -20,11 +20,11 @@ import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessenger
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {CctpMessage} from "../../contracts/libs/CctpMessage.sol";
-
-import {console} from "forge-std/console.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
+    using Message for bytes;
 
     uint32 internal constant CCTP_VERSION_1 = 0;
     uint32 internal constant CCTP_VERSION_2 = 1;
@@ -196,14 +196,40 @@ contract TokenBridgeCctpTest is Test {
         tokenOrigin.approve(address(tbOrigin), quote[1].amount);
 
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeWithSelector(
+                MockCircleTokenMessenger.depositForBurn.selector,
+                amount,
+                cctpDestination,
+                user.addressToBytes32(),
+                address(tokenOrigin)
+            )
+        );
         tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
         );
+    }
 
-        vm.expectRevert();
-        environment.processNextPendingMessage();
+    function test_verify() public {
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
 
         // Relayer role
         uint256 nonce = mailboxDestination.inboundProcessedNonce();
@@ -231,19 +257,10 @@ contract TokenBridgeCctpTest is Test {
                 MockCircleMessageTransmitter.receiveMessage.selector
             )
         );
-        tbDestination.verify(metadata, message);
-
-        // receiveMessage does not mint the token, so we need to do it manually
-        messageTransmitterDestination.process(nonceId, user, amount);
-
-        uint256 tokenBalance = tokenDestination.balanceOf(user);
-        assertEq(tokenBalance, amount);
-
-        // verify again to ensure the message is not received twice but the ISM returns true
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
-    function test_revertsWhen_invalidNonce() public {
+    function test_verify_revertsWhen_invalidNonce() public {
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
@@ -275,7 +292,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_revertsWhen_invalidSourceDomain() public {
+    function test_verify_revertsWhen_invalidSourceDomain() public {
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
