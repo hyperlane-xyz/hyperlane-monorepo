@@ -8,6 +8,7 @@ import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
 import { ProofsService } from './services/ProofsService.js';
+import startPrometheusServer from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, typeof BaseService> = {
   callCommitments: CallCommitmentsService,
@@ -35,7 +36,7 @@ async function startServer() {
   }
 
   // Register Health Service
-  const healthService = await HealthService.initialize(); // module reads its own ENV config
+  const healthService = await HealthService.initialize();
   app.use(`/health`, healthService.router);
 
   // Log and handle undefined endpoints
@@ -49,14 +50,15 @@ async function startServer() {
 }
 
 startServer().then(console.log).catch(console.error);
+startPrometheusServer().then(console.log).catch(console.error);
 
 /*
  * TODO: if PRISMA throws an error the entire express application crashes.
  *  This is a temporary workaround to catch these kind of errors.
  * */
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  console.error('Uncaught Exception:', JSON.stringify(err.message));
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
+  console.error('Unhandled Rejection:', JSON.stringify(reason));
 });

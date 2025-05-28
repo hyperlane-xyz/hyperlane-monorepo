@@ -14,7 +14,6 @@ class HealthService extends BaseService {
     super();
     this.router = Router();
 
-    // CCIP-read spec: GET /getProofs/:sender/:callData.json
     this.router.get('', (_, res) => {
       res.status(200).send('OK');
     });
