@@ -270,7 +270,7 @@ export class CallCommitmentsService extends BaseService {
       destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
-    return await destinationRouter[
+    return destinationRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
     ](originDomain, owner, originRouter, ismAddress, salt);
   }
