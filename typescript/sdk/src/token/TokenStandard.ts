@@ -53,6 +53,7 @@ export enum TokenStandard {
   //Starknet
   StarknetHypNative = 'StarknetHypNative',
   StarknetHypCollateral = 'StarknetHypCollateral',
+  StarknetHypDexCollateral = 'StarknetHypDexCollateral',
   StarknetHypSynthetic = 'StarknetHypSynthetic',
 }
 
@@ -102,6 +103,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
 
   // Starknet
   StarknetHypCollateral: ProtocolType.Starknet,
+  StarknetHypDexCollateral: ProtocolType.Starknet,
   StarknetHypNative: ProtocolType.Starknet,
   StarknetHypSynthetic: ProtocolType.Starknet,
 };
@@ -137,6 +139,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.CosmNativeHypCollateral,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.StarknetHypCollateral,
+  TokenStandard.StarknetHypDexCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -176,6 +180,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypSynthetic,
+  TokenStandard.StarknetHypDexCollateral,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -207,6 +212,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.collateralDex]: TokenStandard.StarknetHypDexCollateral,
 };
 
 // Starknet supported token types
@@ -214,6 +220,7 @@ export const STARKNET_SUPPORTED_TOKEN_TYPES = [
   TokenType.collateral,
   TokenType.native,
   TokenType.synthetic,
+  TokenType.collateralDex,
 ] as const;
 
 type StarknetSupportedTokenTypes =
@@ -226,6 +233,7 @@ export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateral]: TokenStandard.StarknetHypCollateral,
   [TokenType.native]: TokenStandard.StarknetHypNative,
   [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
+  [TokenType.collateralDex]: TokenStandard.StarknetHypDexCollateral,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
