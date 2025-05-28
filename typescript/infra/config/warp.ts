@@ -74,6 +74,7 @@ import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGett
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import { getSuperTokenProductionWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
+import { getCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
 type WarpConfigGetter = (
@@ -140,6 +141,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
+  [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

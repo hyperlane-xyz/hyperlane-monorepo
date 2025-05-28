@@ -7629,6 +7629,7 @@ __metadata:
   resolution: "@hyperlane-xyz/ccip-server@workspace:typescript/ccip-server"
   dependencies:
     "@eth-optimism/sdk": "npm:^3.3.3"
+    "@hyperlane-xyz/core": "npm:7.1.5"
     "@hyperlane-xyz/sdk": "npm:12.6.0"
     "@hyperlane-xyz/utils": "npm:12.6.0"
     "@jest/globals": "npm:^29.7.0"

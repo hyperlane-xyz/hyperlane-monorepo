@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
 
-import { ProofsServiceAbi } from '../abis/ProofsServiceAbi.js';
+import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
@@ -87,7 +87,9 @@ class ProofsService extends BaseService {
     this.router.get(
       '/getProofs/:sender/:callData.json',
       createAbiHandler(
-        ProofsServiceAbi,
+        // TODO: Use the correct ABI for the endpoint
+        // Currently using CallCommitmentsAbi as a placeholder
+        CallCommitmentsAbi,
         'getProofs',
         this.getProofs.bind(this),
       ),
@@ -97,7 +99,9 @@ class ProofsService extends BaseService {
     this.router.post(
       '/getProofs',
       createAbiHandler(
-        ProofsServiceAbi,
+        // TODO: Use the correct ABI for the endpoint
+        // Currently using CallCommitmentsAbi as a placeholder
+        CallCommitmentsAbi,
         'getProofs',
         this.getProofs.bind(this),
       ),

@@ -1,4 +1,4 @@
-import { Fragment, Interface } from '@ethersproject/abi';
+import { Interface, JsonFragment } from '@ethersproject/abi';
 import type { Request, Response } from 'express';
 
 /**
@@ -14,13 +14,15 @@ import type { Request, Response } from 'express';
  * @param serviceMethod A method that takes the decoded arguments and returns a Promise of the result
  */
 export function createAbiHandler<F extends string>(
-  abi: string | Fragment | Array<string | Fragment>,
+  abi: Readonly<JsonFragment[]>,
   functionName: F,
   serviceMethod: (...args: any[]) => Promise<any>,
   skipResultEncoding: boolean = false,
 ) {
   // Normalize ABI to an array of fragments
-  const fragments: Array<string | Fragment> = Array.isArray(abi) ? abi : [abi];
+  const fragments: Array<string | JsonFragment> = Array.isArray(abi)
+    ? abi
+    : [abi];
   const iface = new Interface(fragments);
   return async (req: Request, res: Response) => {
     try {

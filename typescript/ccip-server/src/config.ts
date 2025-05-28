@@ -1,4 +1,5 @@
 import dotenvFlow from 'dotenv-flow';
+
 dotenvFlow.config();
 
 export function getEnabledModules(): string[] {
@@ -6,5 +7,8 @@ export function getEnabledModules(): string[] {
   if (!raw) {
     throw new Error('ENABLED_MODULES environment variable is not set');
   }
-  return raw.split(',').map(m => m.trim()).filter(Boolean);
+  return raw
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
 }

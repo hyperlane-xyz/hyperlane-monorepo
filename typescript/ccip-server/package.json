@@ -11,6 +11,8 @@
   "engines": {
     "node": ">=16"
   },
+  "type": "module",
+  "moduleResolution": "nodenext",
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
@@ -38,9 +40,9 @@
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },
-  "type": "module",
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",
+    "@hyperlane-xyz/core": "7.1.5",
     "@hyperlane-xyz/sdk": "12.6.0",
     "@hyperlane-xyz/utils": "12.6.0",
     "@prisma/client": "^6.8.2",
