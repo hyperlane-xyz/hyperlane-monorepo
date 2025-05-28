@@ -14,7 +14,7 @@ use crate::{SubmitterError, TransactionStatus};
 pub(crate) enum NonceStatus {
     Free,
     Taken,
-    Finalized,
+    Committed,
 }
 
 pub(crate) enum NonceAction {
@@ -67,14 +67,15 @@ impl NonceManagerState {
         use crate::transaction::TransactionStatus::{
             Dropped, Finalized, Included, Mempool, PendingInclusion,
         };
+        use NonceStatus::{Committed, Free, Taken};
 
         let precursor = tx.precursor();
         let nonce = precursor.tx.nonce();
         if let Some(nonce) = nonce {
             let nonce_status = match tx_status {
-                PendingInclusion | Mempool | Included => NonceStatus::Taken,
-                Finalized => NonceStatus::Finalized,
-                Dropped(_) => NonceStatus::Free,
+                PendingInclusion | Mempool | Included => Taken,
+                Finalized => Committed,
+                Dropped(_) => Free,
             };
             self.insert_nonce_status(&nonce.into(), nonce_status).await;
         }
@@ -82,14 +83,14 @@ impl NonceManagerState {
 
     pub(crate) async fn validate_assigned_nonce(&self, nonce: &U256) -> NonceAction {
         use NonceAction::{Noop, Reassign};
-        use NonceStatus::{Finalized, Free, Taken};
+        use NonceStatus::{Committed, Free, Taken};
 
         let nonce_status = self.get_nonce_status(&nonce.into()).await;
 
         if let Some(status) = nonce_status {
             match status {
                 Free => Reassign,
-                Taken | Finalized => Noop,
+                Taken | Committed => Noop,
             }
         } else {
             Reassign
