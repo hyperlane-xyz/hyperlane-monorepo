@@ -18,14 +18,25 @@ abstract contract MovableCollateralRouter is Router {
 
     /// @notice Mapping of domains to allowed recipients => router. For a given domain we have one router we send/receive messages from.
     /// @dev mapping(uint32 destinationDomain => bytes32 recipient)
-    EnumerableMapExtended.UintToBytes32Map internal allowedDestinations;
+    EnumerableMapExtended.UintToBytes32Map internal _allowedDestinations;
+    function allowedDestinations(
+        uint32 domain
+    ) external view returns (bytes32) {
+        (, bytes32 recipient) = _allowedDestinations.tryGet(domain);
+        return recipient;
+    }
 
     mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
         public allowedBridges;
 
     /// @notice Mapping of address to true if the address is a rebalancer.
     /// @dev mapping(address user => bool isRebalancer)
-    EnumerableMap.AddressToUintMap internal allowedRebalancers;
+    EnumerableMap.AddressToUintMap internal _allowedRebalancers;
+    function allowedRebalancers(
+        address rebalancer
+    ) external view returns (bool) {
+        return _allowedRebalancers.contains(rebalancer);
+    }
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -36,16 +47,34 @@ abstract contract MovableCollateralRouter is Router {
 
     error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
-    function addRebalancer(address rebalancer) external onlyOwner {
-        allowedRebalancers.set(rebalancer, 1);
-    }
-
     modifier onlyRebalancer() {
         require(
-            allowedRebalancers.contains(_msgSender()),
+            _allowedRebalancers.contains(_msgSender()),
             "MCR: Only Rebalancer"
         );
         _;
+    }
+
+    function addRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.set(rebalancer, 1);
+    }
+
+    function removeRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.remove(rebalancer);
+    }
+
+    function addRebalancers(address[] calldata rebalancers) external onlyOwner {
+        for (uint256 i = 0; i < rebalancers.length; i++) {
+            _allowedRebalancers.set(rebalancers[i], 1);
+        }
+    }
+
+    function removeRebalancers(
+        address[] calldata rebalancers
+    ) external onlyOwner {
+        for (uint256 i = 0; i < rebalancers.length; i++) {
+            _allowedRebalancers.remove(rebalancers[i]);
+        }
     }
 
     function rebalance(
@@ -55,7 +84,7 @@ abstract contract MovableCollateralRouter is Router {
     ) external payable onlyRebalancer {
         address rebalancer = _msgSender();
 
-        (, bytes32 recipient) = allowedDestinations.tryGet(domain);
+        (, bytes32 recipient) = _allowedDestinations.tryGet(domain);
         if (recipient == bytes32(0)) {
             recipient = _mustHaveRemoteRouter(domain);
         }
@@ -87,7 +116,7 @@ abstract contract MovableCollateralRouter is Router {
     }
 
     function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
-        allowedDestinations.set(domain, recipient);
+        _allowedDestinations.set(domain, recipient);
     }
 
     function addBridge(

@@ -170,4 +170,30 @@ contract MovableCollateralRouterTest is Test {
         // Assert
         assertEq(vtb.myRecipient(), remoteRouter);
     }
+
+    function testAddRebalancer() public {
+        router.addRebalancer(address(1));
+        assertEq(router.allowedRebalancers(address(1)), true);
+    }
+
+    function testRemoveRebalancer() public {
+        router.addRebalancer(address(1));
+        router.removeRebalancer(address(1));
+        assertEq(router.allowedRebalancers(address(1)), false);
+    }
+
+    function testAddRebalancers() public {
+        address[] memory rebalancers = new address[](1);
+        rebalancers[0] = address(1);
+        router.addRebalancers(rebalancers);
+        assertEq(router.allowedRebalancers(rebalancers[0]), true);
+    }
+
+    function testRemoveRebalancers() public {
+        address[] memory rebalancers = new address[](1);
+        rebalancers[0] = address(1);
+        router.addRebalancers(rebalancers);
+        router.removeRebalancers(rebalancers);
+        assertEq(router.allowedRebalancers(rebalancers[0]), false);
+    }
 }
