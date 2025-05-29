@@ -125,7 +125,6 @@ describe('Config', () => {
       checkFrequency: 1337,
       monitorOnly: false,
       withMetrics: false,
-      rebalanceStrategy: StrategyOptions.Weighted,
     };
 
     expect(
@@ -137,7 +136,7 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       withMetrics: overrides.withMetrics,
       coingeckoApiKey: ENV.COINGECKO_API_KEY,
-      rebalanceStrategy: overrides.rebalanceStrategy,
+      rebalanceStrategy: StrategyOptions.Weighted,
       chains: {
         chain1: {
           weighted: {

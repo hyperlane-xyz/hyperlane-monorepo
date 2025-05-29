@@ -228,8 +228,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     options: {
       checkFrequency?: number;
       withMetrics?: boolean;
-      rebalanceStrategy?: string;
       monitorOnly?: boolean;
+      manual?: boolean;
       origin?: string;
       destination?: string;
       amount?: string;
@@ -238,8 +238,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const {
       checkFrequency = CHECK_FREQUENCY,
       withMetrics = false,
-      rebalanceStrategy,
       monitorOnly = false,
+      manual = false,
       origin,
       destination,
       amount,
@@ -249,8 +249,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       checkFrequency,
       REBALANCER_CONFIG_PATH,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -263,8 +263,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       timeout?: number;
       checkFrequency?: number;
       withMetrics?: boolean;
-      rebalanceStrategy?: string;
       monitorOnly?: boolean;
+      manual?: boolean;
       origin?: string;
       destination?: string;
       amount?: string;
@@ -274,8 +274,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       timeout = 10_000,
       checkFrequency,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -284,8 +284,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const process = startRebalancer({
       checkFrequency,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -1198,39 +1198,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await process.kill();
   });
 
-  it('should use the rebalanceStrategy flag to override the config file', async () => {
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      warpRouteId,
-      [CHAIN_NAME_2]: {
-        minAmount: {
-          min: '-10',
-          target: '10',
-          type: MinAmountType.Absolute,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        minAmount: {
-          min: '8',
-          target: '10',
-          type: MinAmountType.Absolute,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-    });
-
-    await startRebalancerAndExpectLog(
-      'Minimum amount (-10) cannot be negative for chain anvil2',
-      {
-        timeout: 10000,
-        withMetrics: false,
-        rebalanceStrategy: StrategyOptions.MinAmount,
-      },
-    );
-  });
-
   it('should use another warp route as bridge', async () => {
     // --- Deploy the other warp route ---
 
@@ -1465,7 +1432,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Start the rebalancer
       const rebalancer = startRebalancer({
-        rebalanceStrategy: StrategyOptions.Manual,
+        manual: true,
         origin: originName,
         destination: destName,
         amount: manualRebalanceAmount,
@@ -1660,7 +1627,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           ],
           {
             timeout: 30000,
-            rebalanceStrategy: StrategyOptions.Manual,
+            manual: true,
             origin: CHAIN_NAME_2,
             destination: CHAIN_NAME_3,
             amount: manualRebalanceAmount,

@@ -3,7 +3,6 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 export enum StrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
-  Manual = 'manual',
 }
 
 export type RawBalances = ChainMap<bigint>;

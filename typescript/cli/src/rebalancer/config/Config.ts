@@ -63,7 +63,7 @@ const ChainConfigSchema = BaseChainConfigSchema.extend({
 
 const BaseConfigSchema = z.object({
   warpRouteId: z.string(),
-  rebalanceStrategy: z.nativeEnum(StrategyOptions).optional(),
+  rebalanceStrategy: z.nativeEnum(StrategyOptions),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
@@ -162,7 +162,6 @@ export class Config {
       checkFrequency: number;
       monitorOnly: boolean;
       withMetrics: boolean;
-      rebalanceStrategy?: StrategyOptions;
     },
   ) {
     const config: ConfigFileInput = readYamlOrJson(configFilePath);
@@ -172,26 +171,15 @@ export class Config {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const {
-      warpRouteId: fileWarpRouteId,
-      rebalanceStrategy: fileRebalanceStrategy,
-      ...chains
-    } = validationResult.data;
+    const { warpRouteId, rebalanceStrategy, ...chains } = validationResult.data;
 
     if (!Object.keys(chains).length) {
       throw new Error('No chains configured');
     }
 
-    const rebalanceStrategy =
-      overrides.rebalanceStrategy ?? fileRebalanceStrategy;
-
-    if (!rebalanceStrategy) {
-      throw new Error('rebalanceStrategy is required');
-    }
-
     return new Config(
       rebalancerKey,
-      fileWarpRouteId,
+      warpRouteId,
       overrides.checkFrequency,
       overrides.monitorOnly,
       overrides.withMetrics,

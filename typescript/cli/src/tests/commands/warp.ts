@@ -173,8 +173,8 @@ export function hyperlaneWarpRebalancer(
   checkFrequency: number,
   config: string,
   withMetrics: boolean,
-  rebalanceStrategy?: string,
   monitorOnly?: boolean,
+  manual?: boolean,
   origin?: string,
   destination?: string,
   amount?: string,
@@ -187,10 +187,10 @@ export function hyperlaneWarpRebalancer(
         --verbosity debug \
         --withMetrics ${withMetrics ? ['true'] : ['false']} \
         --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
-        ${origin ? ['--origin', origin] : ['']} \
-        ${destination ? ['--destination', destination] : ['']} \
-        ${amount ? ['--amount', amount] : ['']} \
-        ${rebalanceStrategy ? ['--rebalanceStrategy', rebalanceStrategy] : []}`;
+        ${manual ? ['--manual'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
+        ${amount ? ['--amount', amount] : []}`;
 }
 
 /**

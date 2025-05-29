@@ -34,7 +34,6 @@ import {
   MonitorEventType,
   MonitorPollingError,
   RebalancerContextFactory,
-  StrategyOptions,
 } from '../rebalancer/index.js';
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -448,7 +447,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   checkFrequency: number;
   withMetrics: boolean;
   monitorOnly: boolean;
-  rebalanceStrategy?: StrategyOptions;
+  manual?: boolean;
   origin?: string;
   destination?: string;
   amount?: string;
@@ -480,27 +479,31 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: false,
       default: false,
     },
-    rebalanceStrategy: {
-      type: 'string',
-      description: 'Rebalancer strategy (weighted, minAmount, manual)',
+    manual: {
+      type: 'boolean',
+      description:
+        'Trigger a rebalancer manual run (default: false, requires --origin, --destination, --amount)',
       demandOption: false,
-      alias: ['rs', 'rebalance-strategy'],
+      implies: ['origin', 'destination', 'amount'],
     },
     origin: {
       type: 'string',
       description: 'The origin chain for manual rebalance',
       demandOption: false,
+      implies: 'manual',
     },
     destination: {
       type: 'string',
       description: 'The destination chain for manual rebalance',
       demandOption: false,
+      implies: 'manual',
     },
     amount: {
-      type: 'string',
+      type: 'number',
       description:
         'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
       demandOption: false,
+      implies: 'manual',
     },
   },
   handler: async ({
@@ -509,7 +512,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     checkFrequency,
     withMetrics,
     monitorOnly,
-    rebalanceStrategy,
+    manual,
     origin,
     destination,
     amount,
@@ -522,7 +525,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
         checkFrequency,
         withMetrics,
         monitorOnly,
-        rebalanceStrategy,
       });
       logGreen('✅ Loaded rebalancer config');
 
@@ -532,18 +534,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
         rebalancerConfig,
       );
 
-      if (rebalanceStrategy === StrategyOptions.Manual) {
-        if (!origin) {
-          throw new Error('--origin is required for manual rebalance');
-        }
-
-        if (!destination) {
-          throw new Error('--destination is required for manual rebalance');
-        }
-
-        if (!amount) {
-          throw new Error('--amount is required for manual rebalance');
-        }
+      if (manual) {
+        // These values will be enforced when manual is true given the 'implies' option in the builder.
+        // This will probably never fail, but allows the type to be infered as not undefined.
+        assert(origin, '--origin is required');
+        assert(destination, '--destination is required');
+        assert(amount, '--amount is required');
 
         warnYellow(
           `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
