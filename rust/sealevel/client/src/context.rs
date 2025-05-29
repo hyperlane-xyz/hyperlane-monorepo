@@ -204,14 +204,14 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
     pub(crate) fn send(
         self,
-        signers: &[Option<&dyn Signer>],
+        maybe_signers: &[Option<&dyn Signer>],
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
         // process.
         // We print the transaction to stdout and wait for user confirmation to
         // continue.
-        if signers.iter().any(|s| s.is_none()) {
+        if maybe_signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
             self.pretty_print_transaction();
@@ -221,7 +221,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             return None;
         }
 
-        let signers: Vec<&dyn Signer> = signers.iter().map(|s| s.unwrap()).collect();
+        let signers: Vec<&dyn Signer> = maybe_signers.iter().map(|s| s.unwrap()).collect();
 
         // Print the tx as an indication for what's about to happen
         self.pretty_print_transaction();
