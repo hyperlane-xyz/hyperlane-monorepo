@@ -2,7 +2,10 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
-import { createAgentKeysIfNotExists } from '../../src/agents/key-utils.js';
+import {
+  createAgentKeysIfNotExists,
+  isAgentKeyToBeCreated,
+} from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
@@ -107,7 +110,25 @@ async function main() {
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
-  await createAgentKeysIfNotExists(agentConfig);
+  const agentKeyToBeCreated = await isAgentKeyToBeCreated(agentConfig);
+
+  if (agentKeyToBeCreated) {
+    const shouldContinue = await confirm({
+      message: chalk.yellow.bold(
+        `Warning: New agent key will be created. Are you sure you want to continue?`,
+      ),
+      default: false,
+    });
+    if (!shouldContinue) {
+      console.log(chalk.red.bold('Exiting...'));
+      process.exit(1);
+    }
+
+    console.log(chalk.green.bold('Creating new agent key if needed.'));
+    await createAgentKeysIfNotExists(agentConfig);
+  } else {
+    console.log(chalk.green.bold('No new agent key will be created.'));
+  }
 
   // Check if current branch is up-to-date with the main branch
   const commitsBehind = await getCommitsBehindMain();

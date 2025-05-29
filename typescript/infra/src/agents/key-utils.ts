@@ -376,6 +376,18 @@ export async function createAgentKeysIfNotExists(
   return;
 }
 
+export async function isAgentKeyToBeCreated(agentConfig: AgentContextConfig) {
+  const keys = getAllCloudAgentKeys(agentConfig);
+
+  const exists = await Promise.all(
+    keys.map(async (key) => {
+      return key.exists();
+    }),
+  );
+
+  return exists.some((exists) => !exists);
+}
+
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
   debugLog('Deleting agent keys');
   const keys = getAllCloudAgentKeys(agentConfig);

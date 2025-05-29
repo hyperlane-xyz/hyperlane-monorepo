@@ -74,6 +74,15 @@ export class AgentGCPKey extends CloudAgentKey {
     }
   }
 
+  async exists() {
+    try {
+      await this.fetch();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   serializeAsAddress() {
     this.requireFetched();
     this.logger.debug('Serializing key as address');
