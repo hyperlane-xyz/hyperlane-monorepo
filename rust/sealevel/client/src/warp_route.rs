@@ -555,12 +555,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 );
                     ctx.new_txn()
                         .add_with_description(
-                            set_destination_gas_configs(
-                                program_id,
-                                ctx.payer_pubkey,
-                                destination_gas_configs,
-                            )
-                            .unwrap(),
+                            set_destination_gas_configs(program_id, owner, destination_gas_configs)
+                                .unwrap(),
                             description,
                         )
                         .with_client(&chain_config.client())
