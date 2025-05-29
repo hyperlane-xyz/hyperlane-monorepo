@@ -284,8 +284,8 @@ describe('hyperlane warp apply owner update tests', async function () {
       normalizeAddressEvm,
     );
 
-    for (const rebalacer of allowedRebalancers) {
-      warpConfig.anvil1.allowedRebalancers = [rebalacer];
+    for (const rebalancer of allowedRebalancers) {
+      warpConfig.anvil1.allowedRebalancers = [rebalancer];
       const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
       writeYamlOrJson(warpConfigPath, anvil2Config);
 
@@ -303,7 +303,7 @@ describe('hyperlane warp apply owner update tests', async function () {
 
       const [currentRebalancer] =
         updatedWarpDeployConfig.anvil2.allowedRebalancers ?? [];
-      expect(currentRebalancer).to.equal(rebalacer);
+      expect(currentRebalancer).to.equal(rebalancer);
     }
   });
 });

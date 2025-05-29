@@ -267,12 +267,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const formattedExpectedRebalancers = new Set(
-      Array.from(expectedConfig.allowedRebalancers).map(normalizeAddressEvm),
+      expectedConfig.allowedRebalancers.map(normalizeAddressEvm),
     );
     const formattedActualRebalancers = new Set(
-      Array.from(actualConfig.allowedRebalancers ?? []).map(
-        normalizeAddressEvm,
-      ),
+      (actualConfig.allowedRebalancers ?? []).map(normalizeAddressEvm),
     );
 
     const rebalancersToAdd = Array.from(
@@ -312,17 +310,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const formattedExepctedRebalancers = new Set(
-      Array.from(expectedConfig.allowedRebalancers).map(normalizeAddressEvm),
+    const formattedExpectedRebalancers = new Set(
+      expectedConfig.allowedRebalancers.map(normalizeAddressEvm),
     );
     const formattedActualRebalancers = new Set(
-      Array.from(actualConfig.allowedRebalancers ?? []).map(
-        normalizeAddressEvm,
-      ),
+      (actualConfig.allowedRebalancers ?? []).map(normalizeAddressEvm),
     );
 
     const rebalancersToRemove = Array.from(
-      difference(formattedActualRebalancers, formattedExepctedRebalancers),
+      difference(formattedActualRebalancers, formattedExpectedRebalancers),
     );
 
     if (rebalancersToRemove.length === 0) {
@@ -332,7 +328,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     return [
       {
         chainId: this.chainId,
-        annotation: `Removing rebalancer role to "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        annotation: `Removing rebalancer role from "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
         data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
           'removeRebalancers',
