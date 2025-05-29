@@ -186,9 +186,8 @@ contract OpL1V1NativeTokenBridge is
 {
     constructor(
         address _mailbox,
-        address _opPortal,
-        string[] memory _urls
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
+        address _opPortal
+    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -197,7 +196,6 @@ contract OpL1V2NativeTokenBridge is
 {
     constructor(
         address _mailbox,
-        address _opPortal,
-        string[] memory _urls
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
+        address _opPortal
+    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }

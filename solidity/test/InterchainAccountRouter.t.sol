@@ -86,13 +86,14 @@ contract InterchainAccountRouterTestBase is Test {
         IPostDispatchHook _customHook,
         address _owner
     ) public returns (InterchainAccountRouter) {
+        string[] memory urls = new string[](1);
         return
             new InterchainAccountRouter(
                 address(_mailbox),
                 address(_customHook),
                 _owner,
                 20_000,
-                new string[](0)
+                urls
             );
     }
 
@@ -152,6 +153,15 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
                 address(environment.isms(destination))
             );
         assertEq(_account.owner(), address(destinationIcaRouter));
+    }
+
+    function test_constructor_revertsWhen_ownerIsZeroAddress() public {
+        // The constructor of OwnableMulticall is called internally when deploying InterchainAccountRouter
+        // So, we test this by trying to deploy an InterchainAccountRouter with a zero address owner for the OwnableMulticall part.
+        // This specific path isn't directly testable from ICA router's constructor as ICA takes its own owner.
+        // However, OwnableMulticall itself has a direct constructor check.
+        vm.expectRevert("OwnableMulticall: invalid owner");
+        new OwnableMulticall(address(0));
     }
 
     function testFuzz_getRemoteInterchainAccount(

@@ -102,6 +102,10 @@ contract MockOptimismPortal is IOptimismPortal {
     ) external view returns (ProvenWithdrawal memory) {
         return _provenWithdrawals[withdrawalHash];
     }
+
+    function version() external pure returns (string memory) {
+        return "1.0.0";
+    }
 }
 
 // mock deployment on L2

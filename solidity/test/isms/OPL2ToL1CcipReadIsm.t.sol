@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity ^0.8.13;
+
 import "forge-std/Test.sol";
 
 import {Message} from "../../contracts/libs/Message.sol";
@@ -11,8 +14,6 @@ import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnviro
 import {LightTestRecipient} from "../../contracts/test/LightTestRecipient.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
-
-import {console} from "forge-std/console.sol";
 
 contract OpL1V1NativeTokenBridgeTest is Test {
     using TypeCasts for address;
@@ -56,12 +57,20 @@ contract OpL1V1NativeTokenBridgeTest is Test {
 
         ism = new OpL1V1NativeTokenBridge(
             address(mailboxDestination),
-            address(portal),
-            urls
+            address(portal)
         );
 
         mailboxDestination.setDefaultIsm(address(ism));
         mailboxDestination.addRemoteMailbox(origin, mailboxOrigin);
+    }
+
+    function test_constructor_revertsWhen_opPortalNotContract() public {
+        address nonContract = address(0x123);
+        vm.expectRevert("OPL2ToL1CcipReadIsm: invalid opPortal");
+        new OpL1V1NativeTokenBridge(
+            address(mailboxDestination),
+            nonContract // Using a non-contract address for portal
+        );
     }
 
     function test_verify_revertsWhen_mailboxTryToCallVerify() public {

@@ -23,6 +23,7 @@ import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGas
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
 
 contract OPL2ToL1TokenBridgeNativeTest is Test {
     using TypeCasts for address;
@@ -99,10 +100,12 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
         vtbOrigin = OpL2NativeTokenBridge(payable(proxy));
 
+        MockOptimismPortal portal = new MockOptimismPortal();
+        string[] memory urls = new string[](1);
+
         OpL1V1NativeTokenBridge l1implementation = new OpL1V1NativeTokenBridge(
             address(environment.mailboxes(destination)),
-            address(0),
-            new string[](0)
+            address(portal)
         );
 
         proxy = new TransparentUpgradeableProxy(
