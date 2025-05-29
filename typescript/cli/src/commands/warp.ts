@@ -521,7 +521,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const { registry, key: rebalancerKey } = context;
 
       // Load rebalancer config from disk
-      const rebalancerConfig = Config.load(config, rebalancerKey, {
+      const rebalancerConfig = Config.load(config, {
+        rebalancerKey,
         checkFrequency,
         withMetrics,
         monitorOnly,

@@ -155,10 +155,14 @@ export class Config {
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 
+  /**
+   * Loads config from a file
+   * @param extraArgs Params to be provided along the config file (E.g. Params provided from cli args)
+   */
   static load(
     configFilePath: string,
-    rebalancerKey: string,
-    overrides: {
+    extraArgs: {
+      rebalancerKey: string;
       checkFrequency: number;
       monitorOnly: boolean;
       withMetrics: boolean;
@@ -178,11 +182,11 @@ export class Config {
     }
 
     return new Config(
-      rebalancerKey,
+      extraArgs.rebalancerKey,
       warpRouteId,
-      overrides.checkFrequency,
-      overrides.monitorOnly,
-      overrides.withMetrics,
+      extraArgs.checkFrequency,
+      extraArgs.monitorOnly,
+      extraArgs.withMetrics,
       ENV.COINGECKO_API_KEY,
       rebalanceStrategy,
       chains,
