@@ -171,12 +171,13 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config) ||
-      // use HypNative initialize
-      isOpL1TokenConfig(config) ||
-      isOpL2TokenConfig(config)
+      isNativeTokenConfig(config)
     ) {
       return defaultArgs;
+    } else if (isOpL2TokenConfig(config)) {
+      return [config.hook ?? constants.AddressZero, config.owner];
+    } else if (isOpL1TokenConfig(config)) {
+      return [config.owner, config.urls];
     } else if (isCctpTokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner, config.urls];
     } else if (isSyntheticTokenConfig(config)) {
