@@ -123,7 +123,7 @@ export class RebalancerContextFactory {
       this.warpCore,
       this.metadata,
       this.tokensByChainName,
-      this.context,
+      this.context.multiProvider,
     );
 
     return new WithSemaphore(this.config, executor);

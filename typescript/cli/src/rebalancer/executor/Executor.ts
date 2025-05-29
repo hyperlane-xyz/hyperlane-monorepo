@@ -5,13 +5,13 @@ import {
   type ChainMetadata,
   EvmHypCollateralAdapter,
   type InterchainGasQuote,
+  type MultiProvider,
   type Token,
   type TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
-import type { WriteCommandContext } from '../../context/types.js';
 import { errorRed, log } from '../../logger.js';
 import type { IExecutor } from '../interfaces/IExecutor.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
@@ -23,7 +23,7 @@ export class Executor implements IExecutor {
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
-    private readonly context: WriteCommandContext,
+    private readonly multiProvider: MultiProvider,
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
@@ -78,10 +78,10 @@ export class Executor implements IExecutor {
         );
       }
 
-      const signer = this.context.multiProvider.getSigner(origin);
+      const signer = this.multiProvider.getSigner(origin);
       const signerAddress = await signer.getAddress();
       const connectedSigner = signer.connect(
-        this.context.multiProvider.getProvider(origin),
+        this.multiProvider.getProvider(origin),
       );
       const domain = chainMetadata[destination].domainId;
       const recipient = destinationToken.addressOrDenom;
@@ -228,10 +228,7 @@ export class Executor implements IExecutor {
                 route.destination
               } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
             );
-            const receipt = await this.context.multiProvider.handleTx(
-              route.origin,
-              tx,
-            );
+            const receipt = await this.multiProvider.handleTx(route.origin, tx);
             log(
               `Transaction confirmed for route from ${route.origin} to ${
                 route.destination
