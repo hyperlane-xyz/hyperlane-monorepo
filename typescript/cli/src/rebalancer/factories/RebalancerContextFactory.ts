@@ -132,10 +132,13 @@ export class RebalancerContextFactory {
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
+    const chainNames = new Set(Object.keys(this.config.chains));
+
     for (const token of this.warpCore.tokens) {
       if (
         isCollateralizedTokenEligibleForRebalancing(token) &&
-        token.collateralAddressOrDenom
+        token.collateralAddressOrDenom &&
+        chainNames.has(token.chainName)
       ) {
         const adapter = token.getHypAdapter(this.warpCore.multiProvider);
         const bridgedSupply = await adapter.getBridgedSupply();
