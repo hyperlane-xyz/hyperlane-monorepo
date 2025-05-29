@@ -289,7 +289,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       }
     });
 
-    it.only(`should successfully deploy a warp route with a custom warp route id`, async function () {
+    it(`should successfully deploy a warp route with a custom warp route id`, async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
 
       const warpConfig: WarpRouteDeployConfig = {
