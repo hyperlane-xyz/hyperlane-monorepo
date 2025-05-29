@@ -32,7 +32,7 @@ export const TokenMetadataSchema = z.object({
     .string()
     .refine(
       (version) => compareVersions(version, CONTRACTS_VERSION) === 0,
-      'Contract version must match the @hyperlane-xyz/core dependency version',
+      `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_VERSION})`,
     )
     .optional(),
 });
