@@ -161,9 +161,8 @@ const forkCommand: CommandModuleWithContext<{
     const provider = new JsonRpcProvider(anvil);
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
-    const rpcUrl = result.rpcUrls[0].http;
     logGray(`Forking ${name} (latest block)`);
-    await resetFork(provider, rpcUrl);
+    await resetFork();
   },
 };
 

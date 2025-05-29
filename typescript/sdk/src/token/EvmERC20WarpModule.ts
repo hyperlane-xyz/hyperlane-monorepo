@@ -5,11 +5,9 @@ import { zeroAddress } from 'viem';
 import {
   GasRouter__factory,
   HypERC20Collateral__factory,
-  ITransparentUpgradeableProxy__factory,
   MailboxClient__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
-  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {

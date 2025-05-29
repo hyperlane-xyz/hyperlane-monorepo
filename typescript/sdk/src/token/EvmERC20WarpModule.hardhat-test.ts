@@ -8,7 +8,6 @@ import {
   ERC20Test__factory,
   ERC4626Test__factory,
   GasRouter,
-  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
