@@ -7972,6 +7972,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^8.1.6"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
+    compare-versions: "npm:^6.1.1"
     cosmjs-types: "npm:^0.9.0"
     cross-fetch: "npm:^3.1.5"
     dotenv: "npm:^10.0.0"
@@ -21038,6 +21039,13 @@ __metadata:
   version: 6.1.0
   resolution: "compare-versions@npm:6.1.0"
   checksum: 10/20f349e7f8ad784704c68265f4e660e2abbe2c3d5c75793184fccb85f0c5c0263260e01fdd4488376f6b74b0f069e16c9684463f7316b075716fb1581eb36b77
+  languageName: node
+  linkType: hard
+
+"compare-versions@npm:^6.1.1":
+  version: 6.1.1
+  resolution: "compare-versions@npm:6.1.1"
+  checksum: 10/9325c0fadfba81afa0ec17e6fc2ef823ba785c693089698b8d9374e5460509f1916a88591644d4cb4045c9a58e47fafbcc0724fe8bf446d2a875a3d6eeddf165
   languageName: node
   linkType: hard
 
