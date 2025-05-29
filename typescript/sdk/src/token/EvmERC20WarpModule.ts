@@ -5,7 +5,6 @@ import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
-  HypERC20Collateral__factory,
   MailboxClient__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
@@ -34,7 +33,11 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { proxyAdmin, proxyAdminUpdateTxs } from '../deploy/proxy.js';
+import {
+  isInitialized,
+  proxyAdmin,
+  proxyAdminUpdateTxs,
+} from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
@@ -51,6 +54,8 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  VERSION_ERROR_MESSAGE,
+  contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
 } from './types.js';
@@ -540,7 +545,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Creates a transaction to upgrade the Warp Route implementation if the package version is below 7.1.5.
+   * Creates a transaction to upgrade the Warp Route implementation if the package version is below specified version.
    *
    * @param actualConfig - The current on-chain configuration
    * @param expectedConfig - The expected configuration
@@ -558,54 +563,48 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
     if (
       expectedConfig.contractVersion &&
+      // expected > actual
       compareVersions(
         expectedConfig.contractVersion,
         actualConfig.contractVersion,
       ) === 1
     ) {
+      assert(
+        contractVersionMatchesDependency(expectedConfig.contractVersion),
+        VERSION_ERROR_MESSAGE,
+      );
+
+      this.logger.info(
+        `Upgrading Warp Route implementation on ${this.args.chain} from ${actualConfig.contractVersion} to ${expectedConfig.contractVersion}`,
+      );
+
+      const deployer = new HypERC20Deployer(this.multiProvider);
+      const constructorArgs = await deployer.constructorArgs(
+        this.chainName,
+        expectedConfig,
+      );
+      const implementation = await deployer.deployContract(
+        this.chainName,
+        expectedConfig.type,
+        constructorArgs,
+      );
+
       const provider = this.multiProvider.getProvider(this.domainId);
-      const signer = this.multiProvider.getSigner(this.domainId);
-      const proxyAddr = this.args.addresses.deployedTokenRoute;
-      // Create transaction to upgrade implementation
-      // Deploy new implementation
-      const warpRoute = HypERC20Collateral__factory.connect(
-        proxyAddr,
-        provider,
+      const proxyAddress = this.args.addresses.deployedTokenRoute;
+      const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+
+      assert(
+        await isInitialized(provider, proxyAddress),
+        'Proxy is not initialized',
       );
-
-      const factory = new HypERC20Collateral__factory(signer);
-      const newWarpRouteImpl = await factory.deploy(
-        await warpRoute.wrappedToken(),
-        await warpRoute.scale(),
-        await warpRoute.mailbox(),
-      );
-
-      // Upgrade to new implementation using `upgradeToAndCall`
-      const owner = await warpRoute.owner();
-      const hook = await warpRoute.hook();
-      const ism = await warpRoute.interchainSecurityModule();
-
-      const initCallData = warpRoute.interface.encodeFunctionData(
-        'initialize(address,address,address)',
-        [hook, ism, owner],
-      );
-
-      const proxyAdminContract = ProxyAdmin__factory.connect(
-        await proxyAdmin(provider, proxyAddr),
-        signer,
-      );
-
-      console.log('proxyAdmin: ', proxyAdminContract.address);
-      console.log('proxyAdmin owner', await proxyAdminContract.owner());
-      console.log('signer: ', await signer.getAddress());
 
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
-        to: proxyAdminContract.address,
-        data: proxyAdminContract.interface.encodeFunctionData(
-          'upgradeAndCall',
-          [proxyAddr, newWarpRouteImpl.address, initCallData],
+        to: proxyAdminAddress,
+        data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+          'upgrade',
+          [proxyAddress, implementation.address],
         ),
       });
     }
