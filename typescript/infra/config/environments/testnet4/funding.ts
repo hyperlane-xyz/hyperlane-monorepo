@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8d76c56-20250328-185250',
+    tag: '0817ec4-20250521-141641',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,6 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
@@ -31,9 +32,11 @@ export const keyFunderConfig: KeyFunderConfig<
     alfajores: '5',
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
+    auroratestnet: '0.05',
+    basecamptestnet: '0.05',
     basesepolia: '0.1',
+    bepolia: '0.05',
     bsctestnet: '5',
-    camptestnet: '0.1',
     carrchaintestnet: '0.1',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
@@ -50,14 +53,21 @@ export const keyFunderConfig: KeyFunderConfig<
     infinityvmmonza: '0',
     inksepolia: '0.1',
     kyvetestnet: '0',
+    megaethtestnet: '0.01',
+    milkywaytestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
+    neuratestnet: '0.1',
+    nobletestnet: '0',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
+    paradexsepolia: '0',
     plumetestnet2: '0.1',
     polygonamoy: '0.2',
+    rometestnet: '0.1',
     scrollsepolia: '1',
     sepolia: '5',
+    starknetsepolia: '0',
     // no funding for SVM chains
     solanatestnet: '0',
     somniatestnet: '10',
@@ -65,10 +75,8 @@ export const keyFunderConfig: KeyFunderConfig<
     sonicblaze: '0.1',
     // no funding for SVM chains
     sonicsvmtestnet: '0',
-    suavetoliman: '0.1',
     subtensortestnet: '0.1',
     superpositiontestnet: '1',
-    treasuretopaz: '5',
     unichaintestnet: '0.1',
     weavevmtestnet: '0.1',
   },
@@ -84,9 +92,11 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '0',
     optimismsepolia: '0',
+    paradexsepolia: '0',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
+    starknetsepolia: '0',
     // no funding for solana
     solanatestnet: '0',
     superpositiontestnet: '0',
@@ -98,6 +108,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bsctestnet: '1',
     connextsepolia: '0.1',
     ecotestnet: '0.01',
+    paradexsepolia: '0', // paradexsepolia doesn't have IGP currently
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
@@ -108,6 +119,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
+    starknetsepolia: '0', // starknetsepolia doesn't have IGP currently
     superpositiontestnet: '0.1',
   },
 };

@@ -58,6 +58,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
 mod artifacts;
@@ -69,6 +70,7 @@ mod igp;
 mod multisig_ism;
 mod router;
 mod serde;
+mod squads;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
@@ -113,10 +115,11 @@ enum HyperlaneSealevelCmd {
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
+    Squads(SquadsCmd),
 }
 
 #[derive(Args)]
-struct EnvironmentArgs {
+pub struct EnvironmentArgs {
     #[arg(long)]
     environment: String,
     #[arg(long)]
@@ -629,6 +632,8 @@ struct MultisigIsmMessageIdDeploy {
     chain: String,
     #[arg(long)]
     context: String,
+    #[arg(long)]
+    chain_config_file: PathBuf,
 }
 
 #[derive(Args)]
@@ -775,6 +780,7 @@ fn main() {
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Squads(cmd) => process_squads_cmd(ctx, cmd),
     }
 }
 

@@ -44,7 +44,7 @@ use super::TryFromWithMetrics;
 ///     }
 /// }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,
@@ -162,6 +162,7 @@ impl Settings {
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
         advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -177,6 +178,7 @@ impl Settings {
             store.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
+            broadcast_sender_enabled,
         )))
     }
 
@@ -188,6 +190,7 @@ impl Settings {
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
         advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
     ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -203,6 +206,7 @@ impl Settings {
             store.clone() as WatermarkLogStore<_>,
             indexer,
             sync_metrics.clone(),
+            broadcast_sender_enabled,
         )))
     }
 
@@ -216,6 +220,7 @@ impl Settings {
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
         advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -230,7 +235,14 @@ impl Settings {
         for domain in domains {
             let store = stores.get(domain).unwrap().clone();
             let sync = self
-                .contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .contract_sync(
+                    domain,
+                    metrics,
+                    sync_metrics,
+                    store,
+                    advanced_log_meta,
+                    broadcast_sender_enabled,
+                )
                 .await?;
             syncs.push(sync);
         }
@@ -251,6 +263,7 @@ impl Settings {
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
         advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
     ) -> Result<Arc<dyn ContractSyncer<T>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -262,11 +275,25 @@ impl Settings {
     {
         let sync = match T::indexing_cursor(domain.domain_protocol()) {
             CursorType::SequenceAware => self
-                .sequenced_contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .sequenced_contract_sync(
+                    domain,
+                    metrics,
+                    sync_metrics,
+                    store,
+                    advanced_log_meta,
+                    broadcast_sender_enabled,
+                )
                 .await
                 .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
             CursorType::RateLimited => self
-                .watermark_contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .watermark_contract_sync(
+                    domain,
+                    metrics,
+                    sync_metrics,
+                    store,
+                    advanced_log_meta,
+                    broadcast_sender_enabled,
+                )
                 .await
                 .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
         };

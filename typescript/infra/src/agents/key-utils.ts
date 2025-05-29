@@ -1,17 +1,25 @@
 import { join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { Address, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  deepEquals,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
+import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json';
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
 import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
+import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
@@ -247,10 +255,15 @@ export function getRelayerKeyForChain(
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Relayer);
+    return new AgentAwsKey(agentConfig, Role.Relayer, chainName);
   }
 
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Relayer,
+    chainName,
+  );
 }
 
 // Gets the kathy key used for signing txs to the provided chain.
@@ -276,6 +289,12 @@ export function getKathyKeyForChain(
 export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   debugLog('Retrieving deployer key');
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+}
+
+// Helper function to determine if a chain is Starknet
+function isStarknetChain(chainName: ChainName): boolean {
+  const metadata = getChain(chainName);
+  return metadata?.protocol === ProtocolType.Starknet;
 }
 
 // Returns the validator signer key and the chain signer key for the given validator for
@@ -333,20 +352,40 @@ export async function createAgentKeysIfNotExists(
   debugLog('Creating agent keys if none exist');
   const keys = getAllCloudAgentKeys(agentConfig);
 
+  // Filter out keys for Starknet chains - we don't want to create or update them
+  const nonStarknetKeys = keys.filter(
+    (key) => !(key.chainName && isStarknetChain(key.chainName)),
+  );
+
+  // Process only non-Starknet keys for creation
   await Promise.all(
-    keys.map(async (key) => {
+    nonStarknetKeys.map(async (key) => {
+      debugLog(`Creating key if not exists: ${key.identifier}`);
       return key.createIfNotExists();
     }),
   );
 
-  await persistAddressesLocally(agentConfig, keys);
+  // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
+  await persistAddressesLocally(agentConfig, nonStarknetKeys);
+  // Key funder expects the serialized addresses in GCP
+  await persistAddressesInGcp(
+    agentConfig.runEnv,
+    agentConfig.context,
+    nonStarknetKeys.map((key) => key.serializeAsAddress()),
+  );
   return;
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
   debugLog('Deleting agent keys');
   const keys = getAllCloudAgentKeys(agentConfig);
-  await Promise.all(keys.map((key) => key.delete()));
+
+  // Filter out Starknet keys - we don't want to delete them
+  const nonStarknetKeys = keys.filter(
+    (key) => key.chainName && !isStarknetChain(key.chainName),
+  );
+
+  await Promise.all(nonStarknetKeys.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
       agentConfig.runEnv,
@@ -364,6 +403,42 @@ export async function rotateKey(
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   await persistAddressesLocally(agentConfig, [key]);
+}
+
+async function persistAddressesInGcp(
+  environment: DeployEnvironment,
+  context: Contexts,
+  keys: KeyAsAddress[],
+) {
+  try {
+    const existingSecret = (await fetchGCPSecret(
+      addressesIdentifier(environment, context),
+      true,
+    )) as KeyAsAddress[];
+    if (deepEquals(keys, existingSecret)) {
+      debugLog(
+        `Addresses already persisted to GCP for ${context} context in ${environment} environment`,
+      );
+      return;
+    }
+  } catch (e) {
+    // If the secret doesn't exist, we'll create it below.
+    debugLog(
+      `No existing secret found for ${context} context in ${environment} environment`,
+    );
+  }
+
+  debugLog(
+    `Persisting addresses to GCP for ${context} context in ${environment} environment`,
+  );
+  await setGCPSecretUsingClient(
+    addressesIdentifier(environment, context),
+    JSON.stringify(keys),
+    {
+      environment,
+      context,
+    },
+  );
 }
 
 async function persistAddressesLocally(

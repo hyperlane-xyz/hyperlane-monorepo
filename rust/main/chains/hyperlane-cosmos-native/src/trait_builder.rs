@@ -4,14 +4,14 @@ use derive_new::new;
 use url::Url;
 
 use hyperlane_core::{
-    config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
 };
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// gRPC urls to connect to
-    grpc_urls: Vec<Url>,
+    pub grpc_urls: Vec<Url>,
     /// The RPC url to connect to
     rpc_urls: Vec<Url>,
     /// The chain ID
@@ -31,7 +31,7 @@ pub struct ConnectionConf {
     /// bech32 with the appropriate length.
     contract_address_bytes: usize,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub operation_batch: OpSubmissionConfig,
     /// Native Token
     native_token: NativeToken,
 }
@@ -141,7 +141,7 @@ impl ConnectionConf {
         minimum_gas_price: RawCosmosAmount,
         gas_multiplier: f64,
         contract_address_bytes: usize,
-        operation_batch: OperationBatchConfig,
+        operation_batch: OpSubmissionConfig,
         native_token: NativeToken,
     ) -> Self {
         Self {

@@ -18,8 +18,17 @@
   "arcadiatestnet2": {
     "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
+  "auroratestnet": {
+    "validators": ["0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937"]
+  },
+  "basecamptestnet": {
+    "validators": ["0x84441e39ed5251410aa2baa72e7747c46d1e5e9d"]
+  },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
+  },
+  "bepolia": {
+    "validators": ["0xdb0128bb3d3f204eb18de7e8268e94fde0382daf"]
   },
   "bsctestnet": {
     "validators": [
@@ -27,9 +36,6 @@
       "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
-  },
-  "camptestnet": {
-    "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
   "carrchaintestnet": {
     "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
@@ -74,11 +80,23 @@
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
+  "megaethtestnet": {
+    "validators": ["0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef"]
+  },
+  "milkywaytestnet": {
+    "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
+  },
   "modetestnet": {
     "validators": ["0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"]
   },
   "monadtestnet": {
     "validators": ["0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"]
+  },
+  "neuratestnet": {
+    "validators": ["0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d"]
+  },
+  "nobletestnet": {
+    "validators": ["0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a"]
   },
   "odysseytestnet": {
     "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
@@ -91,6 +109,9 @@
   },
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
+  },
+  "rometestnet": {
+    "validators": ["0x259eec09dd54c34043bc991f1aae014294235b8e"]
   },
   "scrollsepolia": {
     "validators": [
@@ -118,28 +139,16 @@
   "sonicblaze": {
     "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
   },
-  "sonicsvmtestnet": {
-    "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
-  },
-  "suavetoliman": {
-    "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
-  },
   "subtensortestnet": {
     "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   },
-  "treasuretopaz": {
-    "validators": ["0x9750849beda0a7870462d4685f953fe39033a5ae"]
-  },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
-  },
-  "kyvetestnet": {
-    "validators": ["0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"]
   }
 }

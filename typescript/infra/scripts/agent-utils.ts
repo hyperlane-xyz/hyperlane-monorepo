@@ -15,6 +15,8 @@ import {
 import {
   Address,
   ProtocolType,
+  difference,
+  inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
@@ -51,7 +53,6 @@ import {
   assertRole,
   filterRemoteDomainMetadata,
   getInfraPath,
-  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
@@ -345,6 +346,13 @@ export function withSkipReview<T>(args: Argv<T>) {
     .default('skipReview', false);
 }
 
+export function withPropose<T>(args: Argv<T>) {
+  return args
+    .describe('propose', 'Propose')
+    .boolean('propose')
+    .default('propose', false);
+}
+
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
   const choices = Object.values(WarpRouteIds)
@@ -376,7 +384,7 @@ export async function getWarpRouteIdsInteractive() {
       pageSize: 30,
     });
     if (!selection.length) {
-      console.log('Please select at least one Warp Route ID');
+      rootLogger.info('Please select at least one Warp Route ID');
     }
   }
 
@@ -486,16 +494,18 @@ export function ensureValidatorConfigConsistency(
       )
       .map(([chain]) => chain),
   );
-  const symDiff = symmetricDifference(
+  // Only error if there are context chains missing from the config
+  // (context ⊆ config is OK, but not the other way around)
+  const missingInConfig = difference(
     validatorContextChainNames,
     validatorConfigChains,
   );
-  if (symDiff.size > 0) {
+  if (missingInConfig.size > 0) {
     throw new Error(
       `Validator config invalid.\nValidator context chain names: ${[
         ...validatorContextChainNames,
-      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
-        ...symDiff,
+      ]}\nValidator config chains: ${[...validatorConfigChains]}\nMissing in config: ${[
+        ...missingInConfig,
       ]}`,
     );
   }
@@ -675,7 +685,7 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     const cluster = coreConfig.infra.kubernetes.clusterName;
-    console.error(
+    rootLogger.error(
       `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
       `Want clusterName ${cluster}`,
       `Run gcloud container clusters get-credentials ${cluster} --zone us-east1-c`,

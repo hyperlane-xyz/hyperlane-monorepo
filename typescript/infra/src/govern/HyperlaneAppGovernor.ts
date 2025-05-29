@@ -2,11 +2,11 @@ import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Ownable__factory } from '@hyperlane-xyz/core';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
@@ -14,9 +14,8 @@ import {
   OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
+  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
-// @ts-ignore
-import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
@@ -24,9 +23,11 @@ import {
   eqAddress,
   objMap,
   retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
+import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { GovernanceType, determineGovernanceType } from '../governance.js';
 
 import {
   ManualMultiSend,
@@ -46,6 +47,7 @@ export type AnnotatedCallData = CallData & {
   description: string;
   expandedDescription?: string;
   icaTargetChain?: ChainName;
+  governanceType?: GovernanceType;
 };
 
 export type InferredCall = {
@@ -106,9 +108,17 @@ export abstract class HyperlaneAppGovernor<
 
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain] || [];
-    console.log(`\nFound ${calls.length} transactions for ${chain}`);
-    const filterCalls = (submissionType: SubmissionType) =>
-      calls.filter((call) => call.submissionType == submissionType);
+    rootLogger.info(`\nFound ${calls.length} transactions for ${chain}`);
+    const filterCalls = (
+      submissionType: SubmissionType,
+      governanceType?: GovernanceType,
+    ) =>
+      calls.filter(
+        (call) =>
+          call.submissionType == submissionType &&
+          (governanceType === undefined ||
+            call.governanceType == governanceType),
+      );
     const summarizeCalls = async (
       submissionType: SubmissionType,
       callsForSubmissionType: AnnotatedCallData[],
@@ -117,17 +127,17 @@ export abstract class HyperlaneAppGovernor<
         return false;
       }
 
-      console.log(
+      rootLogger.info(
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
       callsForSubmissionType.map(
         ({ icaTargetChain, description, expandedDescription, ...call }) => {
           // Print a blank line to separate calls
-          console.log('');
+          rootLogger.info('');
 
           // Print the ICA call header if it exists
           if (icaTargetChain) {
-            console.log(
+            rootLogger.info(
               chalk.bold(
                 `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
               ),
@@ -135,14 +145,14 @@ export abstract class HyperlaneAppGovernor<
           }
 
           // Print the call details
-          console.log(chalk.bold(`> ${description.trimEnd()}`));
+          rootLogger.info(chalk.bold(`> ${description.trimEnd()}`));
           if (expandedDescription) {
-            console.info(chalk.gray(`${expandedDescription.trimEnd()}`));
+            rootLogger.info(chalk.gray(`${expandedDescription.trimEnd()}`));
           }
 
-          console.info(chalk.gray(`to: ${call.to}`));
-          console.info(chalk.gray(`data: ${call.data}`));
-          console.info(chalk.gray(`value: ${call.value}`));
+          rootLogger.info(chalk.gray(`to: ${call.to}`));
+          rootLogger.info(chalk.gray(`data: ${call.data}`));
+          rootLogger.info(chalk.gray(`value: ${call.value}`));
         },
       );
       if (!requestConfirmation) return true;
@@ -160,25 +170,10 @@ export abstract class HyperlaneAppGovernor<
     const sendCallsForType = async (
       submissionType: SubmissionType,
       multiSend: MultiSend,
+      governanceType?: GovernanceType,
     ) => {
       const callsForSubmissionType = [];
-      const filteredCalls = filterCalls(submissionType);
-
-      // If calls are being submitted via a safe, we need to check for any safe owner changes first
-      if (submissionType === SubmissionType.SAFE) {
-        try {
-          const { safeSdk } = await getSafeAndService(
-            chain,
-            this.checker.multiProvider,
-            (multiSend as SafeMultiSend).safeAddress,
-          );
-          const updateOwnerCalls = await updateSafeOwner(safeSdk);
-          callsForSubmissionType.push(...updateOwnerCalls);
-        } catch (error) {
-          // Catch but don't throw because we want to try submitting any remaining calls
-          console.error(`Error updating safe owner: ${error}`);
-        }
-      }
+      const filteredCalls = filterCalls(submissionType, governanceType);
 
       // Add the filtered calls to the calls for submission type
       callsForSubmissionType.push(...filteredCalls);
@@ -190,7 +185,7 @@ export abstract class HyperlaneAppGovernor<
           callsForSubmissionType,
         );
         if (confirmed) {
-          console.info(
+          rootLogger.info(
             chalk.italic(
               `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
             ),
@@ -204,12 +199,12 @@ export abstract class HyperlaneAppGovernor<
               })),
             );
           } catch (error) {
-            console.error(
+            rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${error}`),
             );
           }
         } else {
-          console.info(
+          rootLogger.info(
             chalk.italic(
               `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
             ),
@@ -218,31 +213,36 @@ export abstract class HyperlaneAppGovernor<
       }
     };
 
+    // Do all SIGNER calls first
     await sendCallsForType(
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
 
-    const safeOwner =
-      this.checker.configMap[chain].ownerOverrides?._safeAddress;
-    if (safeOwner) {
-      await retryAsync(
-        () =>
-          sendCallsForType(
-            SubmissionType.SAFE,
-            new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
-          ),
-        10,
-      );
+    // Then propose transactions on safes for all governance types
+    for (const governanceType of Object.values(GovernanceType)) {
+      const safeOwner = getGovernanceSafes(governanceType)[chain];
+      if (safeOwner) {
+        await retryAsync(
+          () =>
+            sendCallsForType(
+              SubmissionType.SAFE,
+              new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+              governanceType,
+            ),
+          10,
+        );
+      }
     }
 
+    // Then finally submit remaining calls manually
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
 
     this.printSeparator();
   }
 
   private printSeparator() {
-    console.log(
+    rootLogger.info(
       `-------------------------------------------------------------------------------------------------------------------`,
     );
   }
@@ -299,7 +299,7 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
         } catch (error) {
-          console.error(
+          rootLogger.error(
             chalk.red(
               `Error inferring call submission types for chain ${chain}: ${error}`,
             ),
@@ -354,7 +354,7 @@ export abstract class HyperlaneAppGovernor<
 
     // If the account's owner is not the ICA router, default to manual submission
     if (!eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
-      console.info(
+      rootLogger.info(
         chalk.gray(
           `Account's owner ${localOwner} is not ICA router. Defaulting to manual submission.`,
         ),
@@ -374,7 +374,7 @@ export abstract class HyperlaneAppGovernor<
     const origin = this.interchainAccount.multiProvider.getChainName(
       accountConfig.origin,
     );
-    console.info(
+    rootLogger.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
           accountConfig.owner,
@@ -405,6 +405,11 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
+    const { governanceType } = await determineGovernanceType(
+      origin,
+      accountConfig.owner,
+    );
+
     // If the call to the remote ICA is valid, infer the submission type
     const { description, expandedDescription } = call;
     const encodedCall: AnnotatedCallData = {
@@ -413,6 +418,7 @@ export abstract class HyperlaneAppGovernor<
       value: callRemote.value,
       description,
       expandedDescription,
+      governanceType,
     };
 
     // Try to infer the submission type for the ICA call
@@ -512,42 +518,62 @@ export abstract class HyperlaneAppGovernor<
       try {
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
-      } catch (e) {
+      } catch (_) {
         return false;
       }
     };
 
     // Check if the transaction will succeed with the SIGNER
     if (await checkTransactionSuccess(chain, signerAddress)) {
-      return { type: SubmissionType.SIGNER, chain, call };
+      return {
+        type: SubmissionType.SIGNER,
+        chain,
+        call,
+      };
+    }
+
+    // Fallback to manual submission if we're on a ZkSync chain.
+    // This is because we are not allowed to estimate gas for non-signer addresses on ZkSync.
+    // And if we can't simulate the transaction, we can't know for sure ourselves which safe to submit it to.
+    const { technicalStack } = multiProvider.getChainMetadata(chain);
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      return { type: SubmissionType.MANUAL, chain, call };
     }
 
     // Check if the transaction will succeed with a SAFE
-    const safeAddress =
-      this.checker.configMap[chain].ownerOverrides?._safeAddress;
-    if (typeof safeAddress === 'string') {
-      // Check if the safe can propose transactions
-      const canProposeSafe = await this.checkSafeProposalEligibility(
-        chain,
-        signerAddress,
-        safeAddress,
-      );
-      if (
-        canProposeSafe &&
-        (await checkTransactionSuccess(chain, safeAddress))
-      ) {
-        // If the transaction will succeed with the safe, return the inferred call
-        return { type: SubmissionType.SAFE, chain, call };
+    // Need to check all governance types because the safe address is different for each type
+    for (const governanceType of Object.values(GovernanceType)) {
+      const safeAddress = getGovernanceSafes(governanceType)[chain];
+      if (typeof safeAddress === 'string') {
+        // Check if the safe can propose transactions
+        const canProposeSafe = await this.checkSafeProposalEligibility(
+          chain,
+          signerAddress,
+          safeAddress,
+        );
+        if (
+          canProposeSafe &&
+          (await checkTransactionSuccess(chain, safeAddress))
+        ) {
+          call.governanceType = governanceType;
+          // If the transaction will succeed with the safe, return the inferred call
+          return { type: SubmissionType.SAFE, chain, call };
+        }
       }
     }
 
     // If we're not already an ICA call, try to infer an ICA call
+    // We'll also infer the governance type for the ICA call
     if (!isICACall) {
       return this.inferICAEncodedSubmissionType(chain, call);
     }
 
     // If the transaction will not succeed with SIGNER, SAFE or ICA, default to MANUAL submission
-    return { type: SubmissionType.MANUAL, chain, call };
+    return {
+      type: SubmissionType.MANUAL,
+      chain,
+      call,
+    };
   }
 
   private async checkSubmitterBalance(
@@ -559,7 +585,7 @@ export abstract class HyperlaneAppGovernor<
       .getProvider(chain)
       .getBalance(submitterAddress);
     if (submitterBalance.lt(requiredValue)) {
-      console.warn(
+      rootLogger.warn(
         chalk.yellow(
           `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalance}, Balance required: ${requiredValue}`,
         ),
@@ -590,7 +616,7 @@ export abstract class HyperlaneAppGovernor<
           errorMessage.includes('invalid multisend contract address') ||
           errorMessage.includes('invalid multisendcallonly contract address')
         ) {
-          console.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
+          rootLogger.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
           return false;
         }
 
@@ -599,7 +625,7 @@ export abstract class HyperlaneAppGovernor<
           errorMessage.includes('service unavailable') ||
           errorMessage.includes('too many requests')
         ) {
-          console.warn(
+          rootLogger.warn(
             chalk.yellow(
               `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
             ),
@@ -618,7 +644,7 @@ export abstract class HyperlaneAppGovernor<
         }
 
         // Handle all other errors
-        console.error(
+        rootLogger.error(
           chalk.red(
             `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
           ),

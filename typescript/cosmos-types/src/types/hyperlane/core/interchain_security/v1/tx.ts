@@ -3,9 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/tx.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
+
+import { Route } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.interchain_security.v1';
 
@@ -72,6 +73,60 @@ export interface MsgAnnounceValidator {
 
 /** MsgAnnounceValidatorResponse ... */
 export interface MsgAnnounceValidatorResponse {}
+
+/** MsgCreateRoutingIsm ... */
+export interface MsgCreateRoutingIsm {
+  /** creator ... */
+  creator: string;
+  /** routes ... */
+  routes: Route[];
+}
+
+/** MsgCreateRoutingIsmResponse ... */
+export interface MsgCreateRoutingIsmResponse {
+  id: string;
+}
+
+/** MsgSetRoutingIsmDomain ... */
+export interface MsgSetRoutingIsmDomain {
+  /** ism_id ... */
+  ism_id: string;
+  /** route ... */
+  route?: Route | undefined;
+  /** owner ... */
+  owner: string;
+}
+
+/** MsgSetRoutingIsmDomainResponse ... */
+export interface MsgSetRoutingIsmDomainResponse {}
+
+/** MsgRemoveRoutingIsmDomain ... */
+export interface MsgRemoveRoutingIsmDomain {
+  /** ism_id ... */
+  ism_id: string;
+  /** domain ... */
+  domain: number;
+  /** owner ... */
+  owner: string;
+}
+
+/** MsgRemoveRoutingIsmDomainResponse ... */
+export interface MsgRemoveRoutingIsmDomainResponse {}
+
+/** MsgUpdateRoutingIsmOwner ... */
+export interface MsgUpdateRoutingIsmOwner {
+  /** ism_id ... */
+  ism_id: string;
+  /** owner ... */
+  owner: string;
+  /** new owner */
+  new_owner: string;
+  /** renounce_ownership */
+  renounce_ownership: boolean;
+}
+
+/** MsgUpdateRoutingIsmOwnerResponse ... */
+export interface MsgUpdateRoutingIsmOwnerResponse {}
 
 function createBaseMsgCreateMessageIdMultisigIsm(): MsgCreateMessageIdMultisigIsm {
   return { creator: '', validators: [], threshold: 0 };
@@ -754,6 +809,642 @@ export const MsgAnnounceValidatorResponse = {
   },
 };
 
+function createBaseMsgCreateRoutingIsm(): MsgCreateRoutingIsm {
+  return { creator: '', routes: [] };
+}
+
+export const MsgCreateRoutingIsm = {
+  encode(
+    message: MsgCreateRoutingIsm,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.creator !== '') {
+      writer.uint32(10).string(message.creator);
+    }
+    for (const v of message.routes) {
+      Route.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): MsgCreateRoutingIsm {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgCreateRoutingIsm();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.creator = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.routes.push(Route.decode(reader, reader.uint32()));
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgCreateRoutingIsm {
+    return {
+      creator: isSet(object.creator) ? globalThis.String(object.creator) : '',
+      routes: globalThis.Array.isArray(object?.routes)
+        ? object.routes.map((e: any) => Route.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: MsgCreateRoutingIsm): unknown {
+    const obj: any = {};
+    if (message.creator !== '') {
+      obj.creator = message.creator;
+    }
+    if (message.routes?.length) {
+      obj.routes = message.routes.map((e) => Route.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgCreateRoutingIsm>, I>>(
+    base?: I,
+  ): MsgCreateRoutingIsm {
+    return MsgCreateRoutingIsm.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgCreateRoutingIsm>, I>>(
+    object: I,
+  ): MsgCreateRoutingIsm {
+    const message = createBaseMsgCreateRoutingIsm();
+    message.creator = object.creator ?? '';
+    message.routes = object.routes?.map((e) => Route.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseMsgCreateRoutingIsmResponse(): MsgCreateRoutingIsmResponse {
+  return { id: '' };
+}
+
+export const MsgCreateRoutingIsmResponse = {
+  encode(
+    message: MsgCreateRoutingIsmResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.id !== '') {
+      writer.uint32(10).string(message.id);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgCreateRoutingIsmResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgCreateRoutingIsmResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgCreateRoutingIsmResponse {
+    return { id: isSet(object.id) ? globalThis.String(object.id) : '' };
+  },
+
+  toJSON(message: MsgCreateRoutingIsmResponse): unknown {
+    const obj: any = {};
+    if (message.id !== '') {
+      obj.id = message.id;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgCreateRoutingIsmResponse>, I>>(
+    base?: I,
+  ): MsgCreateRoutingIsmResponse {
+    return MsgCreateRoutingIsmResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgCreateRoutingIsmResponse>, I>>(
+    object: I,
+  ): MsgCreateRoutingIsmResponse {
+    const message = createBaseMsgCreateRoutingIsmResponse();
+    message.id = object.id ?? '';
+    return message;
+  },
+};
+
+function createBaseMsgSetRoutingIsmDomain(): MsgSetRoutingIsmDomain {
+  return { ism_id: '', route: undefined, owner: '' };
+}
+
+export const MsgSetRoutingIsmDomain = {
+  encode(
+    message: MsgSetRoutingIsmDomain,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.ism_id !== '') {
+      writer.uint32(10).string(message.ism_id);
+    }
+    if (message.route !== undefined) {
+      Route.encode(message.route, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.owner !== '') {
+      writer.uint32(26).string(message.owner);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgSetRoutingIsmDomain {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgSetRoutingIsmDomain();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ism_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.route = Route.decode(reader, reader.uint32());
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgSetRoutingIsmDomain {
+    return {
+      ism_id: isSet(object.ism_id) ? globalThis.String(object.ism_id) : '',
+      route: isSet(object.route) ? Route.fromJSON(object.route) : undefined,
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+    };
+  },
+
+  toJSON(message: MsgSetRoutingIsmDomain): unknown {
+    const obj: any = {};
+    if (message.ism_id !== '') {
+      obj.ism_id = message.ism_id;
+    }
+    if (message.route !== undefined) {
+      obj.route = Route.toJSON(message.route);
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgSetRoutingIsmDomain>, I>>(
+    base?: I,
+  ): MsgSetRoutingIsmDomain {
+    return MsgSetRoutingIsmDomain.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgSetRoutingIsmDomain>, I>>(
+    object: I,
+  ): MsgSetRoutingIsmDomain {
+    const message = createBaseMsgSetRoutingIsmDomain();
+    message.ism_id = object.ism_id ?? '';
+    message.route =
+      object.route !== undefined && object.route !== null
+        ? Route.fromPartial(object.route)
+        : undefined;
+    message.owner = object.owner ?? '';
+    return message;
+  },
+};
+
+function createBaseMsgSetRoutingIsmDomainResponse(): MsgSetRoutingIsmDomainResponse {
+  return {};
+}
+
+export const MsgSetRoutingIsmDomainResponse = {
+  encode(
+    _: MsgSetRoutingIsmDomainResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgSetRoutingIsmDomainResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgSetRoutingIsmDomainResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgSetRoutingIsmDomainResponse {
+    return {};
+  },
+
+  toJSON(_: MsgSetRoutingIsmDomainResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgSetRoutingIsmDomainResponse>, I>>(
+    base?: I,
+  ): MsgSetRoutingIsmDomainResponse {
+    return MsgSetRoutingIsmDomainResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgSetRoutingIsmDomainResponse>, I>>(
+    _: I,
+  ): MsgSetRoutingIsmDomainResponse {
+    const message = createBaseMsgSetRoutingIsmDomainResponse();
+    return message;
+  },
+};
+
+function createBaseMsgRemoveRoutingIsmDomain(): MsgRemoveRoutingIsmDomain {
+  return { ism_id: '', domain: 0, owner: '' };
+}
+
+export const MsgRemoveRoutingIsmDomain = {
+  encode(
+    message: MsgRemoveRoutingIsmDomain,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.ism_id !== '') {
+      writer.uint32(10).string(message.ism_id);
+    }
+    if (message.domain !== 0) {
+      writer.uint32(16).uint32(message.domain);
+    }
+    if (message.owner !== '') {
+      writer.uint32(26).string(message.owner);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgRemoveRoutingIsmDomain {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgRemoveRoutingIsmDomain();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ism_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.domain = reader.uint32();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgRemoveRoutingIsmDomain {
+    return {
+      ism_id: isSet(object.ism_id) ? globalThis.String(object.ism_id) : '',
+      domain: isSet(object.domain) ? globalThis.Number(object.domain) : 0,
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+    };
+  },
+
+  toJSON(message: MsgRemoveRoutingIsmDomain): unknown {
+    const obj: any = {};
+    if (message.ism_id !== '') {
+      obj.ism_id = message.ism_id;
+    }
+    if (message.domain !== 0) {
+      obj.domain = Math.round(message.domain);
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomain>, I>>(
+    base?: I,
+  ): MsgRemoveRoutingIsmDomain {
+    return MsgRemoveRoutingIsmDomain.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomain>, I>>(
+    object: I,
+  ): MsgRemoveRoutingIsmDomain {
+    const message = createBaseMsgRemoveRoutingIsmDomain();
+    message.ism_id = object.ism_id ?? '';
+    message.domain = object.domain ?? 0;
+    message.owner = object.owner ?? '';
+    return message;
+  },
+};
+
+function createBaseMsgRemoveRoutingIsmDomainResponse(): MsgRemoveRoutingIsmDomainResponse {
+  return {};
+}
+
+export const MsgRemoveRoutingIsmDomainResponse = {
+  encode(
+    _: MsgRemoveRoutingIsmDomainResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgRemoveRoutingIsmDomainResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgRemoveRoutingIsmDomainResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgRemoveRoutingIsmDomainResponse {
+    return {};
+  },
+
+  toJSON(_: MsgRemoveRoutingIsmDomainResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomainResponse>, I>>(
+    base?: I,
+  ): MsgRemoveRoutingIsmDomainResponse {
+    return MsgRemoveRoutingIsmDomainResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<
+    I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomainResponse>, I>,
+  >(_: I): MsgRemoveRoutingIsmDomainResponse {
+    const message = createBaseMsgRemoveRoutingIsmDomainResponse();
+    return message;
+  },
+};
+
+function createBaseMsgUpdateRoutingIsmOwner(): MsgUpdateRoutingIsmOwner {
+  return { ism_id: '', owner: '', new_owner: '', renounce_ownership: false };
+}
+
+export const MsgUpdateRoutingIsmOwner = {
+  encode(
+    message: MsgUpdateRoutingIsmOwner,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.ism_id !== '') {
+      writer.uint32(10).string(message.ism_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.new_owner !== '') {
+      writer.uint32(26).string(message.new_owner);
+    }
+    if (message.renounce_ownership !== false) {
+      writer.uint32(32).bool(message.renounce_ownership);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgUpdateRoutingIsmOwner {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgUpdateRoutingIsmOwner();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ism_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.new_owner = reader.string();
+          continue;
+        case 4:
+          if (tag !== 32) {
+            break;
+          }
+
+          message.renounce_ownership = reader.bool();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgUpdateRoutingIsmOwner {
+    return {
+      ism_id: isSet(object.ism_id) ? globalThis.String(object.ism_id) : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      new_owner: isSet(object.new_owner)
+        ? globalThis.String(object.new_owner)
+        : '',
+      renounce_ownership: isSet(object.renounce_ownership)
+        ? globalThis.Boolean(object.renounce_ownership)
+        : false,
+    };
+  },
+
+  toJSON(message: MsgUpdateRoutingIsmOwner): unknown {
+    const obj: any = {};
+    if (message.ism_id !== '') {
+      obj.ism_id = message.ism_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.new_owner !== '') {
+      obj.new_owner = message.new_owner;
+    }
+    if (message.renounce_ownership !== false) {
+      obj.renounce_ownership = message.renounce_ownership;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwner>, I>>(
+    base?: I,
+  ): MsgUpdateRoutingIsmOwner {
+    return MsgUpdateRoutingIsmOwner.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwner>, I>>(
+    object: I,
+  ): MsgUpdateRoutingIsmOwner {
+    const message = createBaseMsgUpdateRoutingIsmOwner();
+    message.ism_id = object.ism_id ?? '';
+    message.owner = object.owner ?? '';
+    message.new_owner = object.new_owner ?? '';
+    message.renounce_ownership = object.renounce_ownership ?? false;
+    return message;
+  },
+};
+
+function createBaseMsgUpdateRoutingIsmOwnerResponse(): MsgUpdateRoutingIsmOwnerResponse {
+  return {};
+}
+
+export const MsgUpdateRoutingIsmOwnerResponse = {
+  encode(
+    _: MsgUpdateRoutingIsmOwnerResponse,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgUpdateRoutingIsmOwnerResponse {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgUpdateRoutingIsmOwnerResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgUpdateRoutingIsmOwnerResponse {
+    return {};
+  },
+
+  toJSON(_: MsgUpdateRoutingIsmOwnerResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwnerResponse>, I>>(
+    base?: I,
+  ): MsgUpdateRoutingIsmOwnerResponse {
+    return MsgUpdateRoutingIsmOwnerResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<
+    I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwnerResponse>, I>,
+  >(_: I): MsgUpdateRoutingIsmOwnerResponse {
+    const message = createBaseMsgUpdateRoutingIsmOwnerResponse();
+    return message;
+  },
+};
+
 /** Msg defines the module Msg service. */
 export interface Msg {
   /** CreateMessageIdMultisigIsm ... */
@@ -766,6 +1457,22 @@ export interface Msg {
   ): Promise<MsgCreateMerkleRootMultisigIsmResponse>;
   /** CreateNoopIsm ... */
   CreateNoopIsm(request: MsgCreateNoopIsm): Promise<MsgCreateNoopIsmResponse>;
+  /** CreateRoutingIsm ... */
+  CreateRoutingIsm(
+    request: MsgCreateRoutingIsm,
+  ): Promise<MsgCreateRoutingIsmResponse>;
+  /** SetRoutingIsmDomain ... */
+  SetRoutingIsmDomain(
+    request: MsgSetRoutingIsmDomain,
+  ): Promise<MsgSetRoutingIsmDomainResponse>;
+  /** RemoveRoutingIsmDomain ... */
+  RemoveRoutingIsmDomain(
+    request: MsgRemoveRoutingIsmDomain,
+  ): Promise<MsgRemoveRoutingIsmDomainResponse>;
+  /** UpdateRoutingIsmOwner ... */
+  UpdateRoutingIsmOwner(
+    request: MsgUpdateRoutingIsmOwner,
+  ): Promise<MsgUpdateRoutingIsmOwnerResponse>;
   /** AnnounceValidator ... */
   AnnounceValidator(
     request: MsgAnnounceValidator,
@@ -784,6 +1491,10 @@ export class MsgClientImpl implements Msg {
     this.CreateMerkleRootMultisigIsm =
       this.CreateMerkleRootMultisigIsm.bind(this);
     this.CreateNoopIsm = this.CreateNoopIsm.bind(this);
+    this.CreateRoutingIsm = this.CreateRoutingIsm.bind(this);
+    this.SetRoutingIsmDomain = this.SetRoutingIsmDomain.bind(this);
+    this.RemoveRoutingIsmDomain = this.RemoveRoutingIsmDomain.bind(this);
+    this.UpdateRoutingIsmOwner = this.UpdateRoutingIsmOwner.bind(this);
     this.AnnounceValidator = this.AnnounceValidator.bind(this);
   }
   CreateMessageIdMultisigIsm(
@@ -822,6 +1533,54 @@ export class MsgClientImpl implements Msg {
     );
   }
 
+  CreateRoutingIsm(
+    request: MsgCreateRoutingIsm,
+  ): Promise<MsgCreateRoutingIsmResponse> {
+    const data = MsgCreateRoutingIsm.encode(request).finish();
+    const promise = this.rpc.request(this.service, 'CreateRoutingIsm', data);
+    return promise.then((data) =>
+      MsgCreateRoutingIsmResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  SetRoutingIsmDomain(
+    request: MsgSetRoutingIsmDomain,
+  ): Promise<MsgSetRoutingIsmDomainResponse> {
+    const data = MsgSetRoutingIsmDomain.encode(request).finish();
+    const promise = this.rpc.request(this.service, 'SetRoutingIsmDomain', data);
+    return promise.then((data) =>
+      MsgSetRoutingIsmDomainResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  RemoveRoutingIsmDomain(
+    request: MsgRemoveRoutingIsmDomain,
+  ): Promise<MsgRemoveRoutingIsmDomainResponse> {
+    const data = MsgRemoveRoutingIsmDomain.encode(request).finish();
+    const promise = this.rpc.request(
+      this.service,
+      'RemoveRoutingIsmDomain',
+      data,
+    );
+    return promise.then((data) =>
+      MsgRemoveRoutingIsmDomainResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  UpdateRoutingIsmOwner(
+    request: MsgUpdateRoutingIsmOwner,
+  ): Promise<MsgUpdateRoutingIsmOwnerResponse> {
+    const data = MsgUpdateRoutingIsmOwner.encode(request).finish();
+    const promise = this.rpc.request(
+      this.service,
+      'UpdateRoutingIsmOwner',
+      data,
+    );
+    return promise.then((data) =>
+      MsgUpdateRoutingIsmOwnerResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
   AnnounceValidator(
     request: MsgAnnounceValidator,
   ): Promise<MsgAnnounceValidatorResponse> {
@@ -853,12 +1612,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin

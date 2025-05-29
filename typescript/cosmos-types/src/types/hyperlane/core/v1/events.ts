@@ -3,14 +3,13 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/events.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
 export const protobufPackage = 'hyperlane.core.v1';
 
-/** Dispatch ... */
-export interface Dispatch {
+/** EventDispatch ... */
+export interface EventDispatch {
   /** origin_mailbox_id ... */
   origin_mailbox_id: string;
   /** sender ... */
@@ -23,8 +22,8 @@ export interface Dispatch {
   message: string;
 }
 
-/** Process ... */
-export interface Process {
+/** EventProcess ... */
+export interface EventProcess {
   /** origin_mailbox_id ... */
   origin_mailbox_id: string;
   /** origin ... */
@@ -39,7 +38,39 @@ export interface Process {
   message: string;
 }
 
-function createBaseDispatch(): Dispatch {
+/** EventCreateMailbox ... */
+export interface EventCreateMailbox {
+  /** mailbox_id ... */
+  mailbox_id: string;
+  /** owner ... */
+  owner: string;
+  /** default_ism ... */
+  default_ism: string;
+  /** default_hook ... */
+  default_hook: string;
+  /** required_hook ... */
+  required_hook: string;
+  /** local_domain ... */
+  local_domain: number;
+}
+
+/** EventSetMailbox ... */
+export interface EventSetMailbox {
+  /** mailbox_id ... */
+  mailbox_id: string;
+  /** owner ... */
+  owner: string;
+  /** default_ism ... */
+  default_ism: string;
+  /** default_hook ... */
+  default_hook: string;
+  /** new_owner ... */
+  new_owner: string;
+  /** renounce_ownership ... */
+  renounce_ownership: boolean;
+}
+
+function createBaseEventDispatch(): EventDispatch {
   return {
     origin_mailbox_id: '',
     sender: '',
@@ -49,9 +80,9 @@ function createBaseDispatch(): Dispatch {
   };
 }
 
-export const Dispatch = {
+export const EventDispatch = {
   encode(
-    message: Dispatch,
+    message: EventDispatch,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.origin_mailbox_id !== '') {
@@ -72,11 +103,11 @@ export const Dispatch = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): Dispatch {
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventDispatch {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDispatch();
+    const message = createBaseEventDispatch();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -124,7 +155,7 @@ export const Dispatch = {
     return message;
   },
 
-  fromJSON(object: any): Dispatch {
+  fromJSON(object: any): EventDispatch {
     return {
       origin_mailbox_id: isSet(object.origin_mailbox_id)
         ? globalThis.String(object.origin_mailbox_id)
@@ -140,7 +171,7 @@ export const Dispatch = {
     };
   },
 
-  toJSON(message: Dispatch): unknown {
+  toJSON(message: EventDispatch): unknown {
     const obj: any = {};
     if (message.origin_mailbox_id !== '') {
       obj.origin_mailbox_id = message.origin_mailbox_id;
@@ -160,11 +191,15 @@ export const Dispatch = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Dispatch>, I>>(base?: I): Dispatch {
-    return Dispatch.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<EventDispatch>, I>>(
+    base?: I,
+  ): EventDispatch {
+    return EventDispatch.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<Dispatch>, I>>(object: I): Dispatch {
-    const message = createBaseDispatch();
+  fromPartial<I extends Exact<DeepPartial<EventDispatch>, I>>(
+    object: I,
+  ): EventDispatch {
+    const message = createBaseEventDispatch();
     message.origin_mailbox_id = object.origin_mailbox_id ?? '';
     message.sender = object.sender ?? '';
     message.destination = object.destination ?? 0;
@@ -174,7 +209,7 @@ export const Dispatch = {
   },
 };
 
-function createBaseProcess(): Process {
+function createBaseEventProcess(): EventProcess {
   return {
     origin_mailbox_id: '',
     origin: 0,
@@ -185,9 +220,9 @@ function createBaseProcess(): Process {
   };
 }
 
-export const Process = {
+export const EventProcess = {
   encode(
-    message: Process,
+    message: EventProcess,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.origin_mailbox_id !== '') {
@@ -211,11 +246,11 @@ export const Process = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): Process {
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventProcess {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseProcess();
+    const message = createBaseEventProcess();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -270,7 +305,7 @@ export const Process = {
     return message;
   },
 
-  fromJSON(object: any): Process {
+  fromJSON(object: any): EventProcess {
     return {
       origin_mailbox_id: isSet(object.origin_mailbox_id)
         ? globalThis.String(object.origin_mailbox_id)
@@ -287,7 +322,7 @@ export const Process = {
     };
   },
 
-  toJSON(message: Process): unknown {
+  toJSON(message: EventProcess): unknown {
     const obj: any = {};
     if (message.origin_mailbox_id !== '') {
       obj.origin_mailbox_id = message.origin_mailbox_id;
@@ -310,17 +345,339 @@ export const Process = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Process>, I>>(base?: I): Process {
-    return Process.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<EventProcess>, I>>(
+    base?: I,
+  ): EventProcess {
+    return EventProcess.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<Process>, I>>(object: I): Process {
-    const message = createBaseProcess();
+  fromPartial<I extends Exact<DeepPartial<EventProcess>, I>>(
+    object: I,
+  ): EventProcess {
+    const message = createBaseEventProcess();
     message.origin_mailbox_id = object.origin_mailbox_id ?? '';
     message.origin = object.origin ?? 0;
     message.sender = object.sender ?? '';
     message.recipient = object.recipient ?? '';
     message.message_id = object.message_id ?? '';
     message.message = object.message ?? '';
+    return message;
+  },
+};
+
+function createBaseEventCreateMailbox(): EventCreateMailbox {
+  return {
+    mailbox_id: '',
+    owner: '',
+    default_ism: '',
+    default_hook: '',
+    required_hook: '',
+    local_domain: 0,
+  };
+}
+
+export const EventCreateMailbox = {
+  encode(
+    message: EventCreateMailbox,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.mailbox_id !== '') {
+      writer.uint32(10).string(message.mailbox_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.default_ism !== '') {
+      writer.uint32(26).string(message.default_ism);
+    }
+    if (message.default_hook !== '') {
+      writer.uint32(34).string(message.default_hook);
+    }
+    if (message.required_hook !== '') {
+      writer.uint32(42).string(message.required_hook);
+    }
+    if (message.local_domain !== 0) {
+      writer.uint32(48).uint32(message.local_domain);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventCreateMailbox {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventCreateMailbox();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.mailbox_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.default_ism = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.default_hook = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.required_hook = reader.string();
+          continue;
+        case 6:
+          if (tag !== 48) {
+            break;
+          }
+
+          message.local_domain = reader.uint32();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventCreateMailbox {
+    return {
+      mailbox_id: isSet(object.mailbox_id)
+        ? globalThis.String(object.mailbox_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      default_ism: isSet(object.default_ism)
+        ? globalThis.String(object.default_ism)
+        : '',
+      default_hook: isSet(object.default_hook)
+        ? globalThis.String(object.default_hook)
+        : '',
+      required_hook: isSet(object.required_hook)
+        ? globalThis.String(object.required_hook)
+        : '',
+      local_domain: isSet(object.local_domain)
+        ? globalThis.Number(object.local_domain)
+        : 0,
+    };
+  },
+
+  toJSON(message: EventCreateMailbox): unknown {
+    const obj: any = {};
+    if (message.mailbox_id !== '') {
+      obj.mailbox_id = message.mailbox_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.default_ism !== '') {
+      obj.default_ism = message.default_ism;
+    }
+    if (message.default_hook !== '') {
+      obj.default_hook = message.default_hook;
+    }
+    if (message.required_hook !== '') {
+      obj.required_hook = message.required_hook;
+    }
+    if (message.local_domain !== 0) {
+      obj.local_domain = Math.round(message.local_domain);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventCreateMailbox>, I>>(
+    base?: I,
+  ): EventCreateMailbox {
+    return EventCreateMailbox.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventCreateMailbox>, I>>(
+    object: I,
+  ): EventCreateMailbox {
+    const message = createBaseEventCreateMailbox();
+    message.mailbox_id = object.mailbox_id ?? '';
+    message.owner = object.owner ?? '';
+    message.default_ism = object.default_ism ?? '';
+    message.default_hook = object.default_hook ?? '';
+    message.required_hook = object.required_hook ?? '';
+    message.local_domain = object.local_domain ?? 0;
+    return message;
+  },
+};
+
+function createBaseEventSetMailbox(): EventSetMailbox {
+  return {
+    mailbox_id: '',
+    owner: '',
+    default_ism: '',
+    default_hook: '',
+    new_owner: '',
+    renounce_ownership: false,
+  };
+}
+
+export const EventSetMailbox = {
+  encode(
+    message: EventSetMailbox,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.mailbox_id !== '') {
+      writer.uint32(10).string(message.mailbox_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.default_ism !== '') {
+      writer.uint32(26).string(message.default_ism);
+    }
+    if (message.default_hook !== '') {
+      writer.uint32(34).string(message.default_hook);
+    }
+    if (message.new_owner !== '') {
+      writer.uint32(42).string(message.new_owner);
+    }
+    if (message.renounce_ownership !== false) {
+      writer.uint32(48).bool(message.renounce_ownership);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventSetMailbox {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventSetMailbox();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.mailbox_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.default_ism = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.default_hook = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.new_owner = reader.string();
+          continue;
+        case 6:
+          if (tag !== 48) {
+            break;
+          }
+
+          message.renounce_ownership = reader.bool();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventSetMailbox {
+    return {
+      mailbox_id: isSet(object.mailbox_id)
+        ? globalThis.String(object.mailbox_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      default_ism: isSet(object.default_ism)
+        ? globalThis.String(object.default_ism)
+        : '',
+      default_hook: isSet(object.default_hook)
+        ? globalThis.String(object.default_hook)
+        : '',
+      new_owner: isSet(object.new_owner)
+        ? globalThis.String(object.new_owner)
+        : '',
+      renounce_ownership: isSet(object.renounce_ownership)
+        ? globalThis.Boolean(object.renounce_ownership)
+        : false,
+    };
+  },
+
+  toJSON(message: EventSetMailbox): unknown {
+    const obj: any = {};
+    if (message.mailbox_id !== '') {
+      obj.mailbox_id = message.mailbox_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.default_ism !== '') {
+      obj.default_ism = message.default_ism;
+    }
+    if (message.default_hook !== '') {
+      obj.default_hook = message.default_hook;
+    }
+    if (message.new_owner !== '') {
+      obj.new_owner = message.new_owner;
+    }
+    if (message.renounce_ownership !== false) {
+      obj.renounce_ownership = message.renounce_ownership;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventSetMailbox>, I>>(
+    base?: I,
+  ): EventSetMailbox {
+    return EventSetMailbox.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventSetMailbox>, I>>(
+    object: I,
+  ): EventSetMailbox {
+    const message = createBaseEventSetMailbox();
+    message.mailbox_id = object.mailbox_id ?? '';
+    message.owner = object.owner ?? '';
+    message.default_ism = object.default_ism ?? '';
+    message.default_hook = object.default_hook ?? '';
+    message.new_owner = object.new_owner ?? '';
+    message.renounce_ownership = object.renounce_ownership ?? false;
     return message;
   },
 };
@@ -337,12 +694,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin

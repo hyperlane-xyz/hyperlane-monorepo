@@ -3,7 +3,9 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  ChainTechnicalStack,
   DeployedOwnableConfig,
+  HypERC20Deployer,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -22,13 +24,16 @@ import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
+  isFile,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
+  getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
+import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -61,7 +66,7 @@ const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
   description: TYPE_DESCRIPTIONS[type],
 }));
 
-async function fillDefaults(
+export async function fillDefaults(
   context: CommandContext,
   config: ChainMap<Partial<MailboxClientConfig>>,
 ): Promise<ChainMap<MailboxClientConfig>> {
@@ -88,13 +93,24 @@ async function fillDefaults(
   );
 }
 
-export async function readWarpRouteDeployConfig(
-  filePath: string,
-  context: CommandContext,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config = readYamlOrJson(filePath);
-  if (!config)
-    throw new Error(`No warp route deploy config found at ${filePath}`);
+export async function readWarpRouteDeployConfig({
+  context,
+  ...args
+}:
+  | {
+      context: CommandContext;
+      warpRouteId: string;
+    }
+  | {
+      context: CommandContext;
+      filePath: string;
+    }): Promise<WarpRouteDeployConfigMailboxRequired> {
+  let config =
+    'filePath' in args
+      ? readYamlOrJson(args.filePath)
+      : await context.registry.getWarpDeployConfig(args.warpRouteId);
+
+  assert(config, `No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
 
@@ -112,7 +128,7 @@ export async function createWarpRouteDeployConfig({
   advanced = false,
 }: {
   context: CommandContext;
-  outPath: string;
+  outPath?: string;
   advanced: boolean;
 }) {
   logBlue('Creating a new warp route deployment config...');
@@ -140,6 +156,10 @@ export async function createWarpRouteDeployConfig({
     const proxyAdmin: DeployedOwnableConfig | undefined =
       await setProxyAdminConfig(context, chain);
 
+    const excludeStaticIsms =
+      context.multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.ZkSync;
+
     /**
      * The logic from the cli is as follows:
      *  --yes flag is provided: set ism to undefined (default ISM config)
@@ -152,13 +172,19 @@ export async function createWarpRouteDeployConfig({
     if (context.skipConfirmation) {
       interchainSecurityModule = undefined;
     } else if (advanced) {
-      interchainSecurityModule = await createAdvancedIsmConfig(context);
+      interchainSecurityModule = await createAdvancedIsmConfig(
+        context,
+        excludeStaticIsms,
+      );
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+      interchainSecurityModule = createDefaultWarpIsmConfig(
+        owner,
+        excludeStaticIsms,
+      );
     }
 
     const type = await select({
@@ -166,21 +192,27 @@ export async function createWarpRouteDeployConfig({
       choices: typeChoices,
     });
 
-    // TODO: restore NFT prompting
-    const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
-
     switch (type) {
       case TokenType.collateral:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
       case TokenType.collateralUri:
         result[chain] = {
           type,
           owner,
           proxyAdmin,
-          isNft,
+          isNft: true,
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
@@ -191,7 +223,6 @@ export async function createWarpRouteDeployConfig({
         result[chain] = {
           type,
           owner,
-          isNft,
           proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
@@ -206,7 +237,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
@@ -220,11 +250,19 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
+        };
+        break;
+      case TokenType.syntheticUri:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          isNft: true,
         };
         break;
       default:
@@ -232,7 +270,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
         };
     }
@@ -242,8 +279,32 @@ export async function createWarpRouteDeployConfig({
     const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
     log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
-    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
-    logGreen('✅ Successfully created new warp route deployment config.');
+    if (outPath) {
+      writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    } else {
+      const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+        context.multiProvider,
+        warpRouteDeployConfig,
+      );
+      const symbol: string = tokenMetadata.getDefaultSymbol();
+
+      let warpRouteId;
+      if (!context.skipConfirmation) {
+        warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
+          context.registry,
+          warpRouteDeployConfig,
+          symbol,
+        );
+      }
+
+      await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
+        symbol,
+        warpRouteId, // Will default to SYMBOL/chain1 if `undefined`
+      });
+      logGreen(
+        `✅ Successfully created new warp route deployment config with warp route id: ${warpRouteId}`,
+      );
+    }
   } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
@@ -258,30 +319,63 @@ function restrictChoices(typeChoices: TokenType[]) {
 
 // Note, this is different than the function above which reads a config
 // for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
-export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
-  const config = readYamlOrJson(filePath);
-  if (!config) throw new Error(`No warp route config found at ${filePath}`);
+export async function readWarpCoreConfig(
+  args:
+    | {
+        context: CommandContext;
+        warpRouteId: string;
+      }
+    | {
+        filePath: string;
+      },
+): Promise<WarpCoreConfig> {
+  let config: WarpCoreConfig | null = null;
+  const readWithFilePath = 'filePath' in args;
+  if (readWithFilePath) {
+    config = readYamlOrJson(args.filePath);
+  } else {
+    config = await args.context.registry.getWarpRoute(args.warpRouteId);
+  }
+  assert(
+    config,
+    `No warp route config found for warp route ${
+      readWithFilePath ? args.filePath : args.warpRouteId
+    }`,
+  );
   return WarpCoreConfigSchema.parse(config);
 }
 
 /**
- * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
+ * Creates a default configuration for an ISM.
  *
- * Properties relayer and owner are both set as input owner.
+ * When excludeStaticIsms is false (default):
+ * - Creates an AGGREGATION ISM with TRUSTED_RELAYER and FALLBACK_ROUTING modules
+ * - Properties relayer and owner are both set as input owner
  *
- * @param owner - The address of the owner of the ISM.
- * @returns The default Aggregation ISM configuration.
+ * When excludeStaticIsms is true:
+ * - Creates only a TRUSTED_RELAYER ISM (as static ISMs like AGGREGATION are not supported)
+ * - Properties relayer is set as input owner
+ *
+ * @param owner - The address of the owner of the ISM
+ * @param excludeStaticIsms - Whether to exclude static ISM types (default: false)
+ * @returns The ISM configuration
  */
-function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
+function createDefaultWarpIsmConfig(
+  owner: Address,
+  excludeStaticIsms: boolean = false,
+): IsmConfig {
+  const trustedRelayerModule: IsmConfig = {
+    type: IsmType.TRUSTED_RELAYER,
+    relayer: owner,
+  };
+
+  if (excludeStaticIsms) {
+    return trustedRelayerModule;
+  }
+
   return {
     type: IsmType.AGGREGATION,
-    modules: [
-      {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: owner,
-      },
-      createFallbackRoutingConfig(owner),
-    ],
+    modules: [trustedRelayerModule, createFallbackRoutingConfig(owner)],
     threshold: 1,
   };
 }
@@ -298,4 +392,45 @@ function createFallbackRoutingConfig(owner: Address): IsmConfig {
     domains: {},
     owner,
   };
+}
+
+export async function getWarpRouteDeployConfig({
+  context,
+  warpRouteDeployConfigPath,
+  warpRouteId: providedWarpRouteId,
+  symbol,
+}: {
+  context: CommandContext;
+  warpRouteDeployConfigPath?: string;
+  warpRouteId?: string;
+  symbol?: string;
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
+  let warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+
+  if (warpRouteDeployConfigPath) {
+    assert(
+      isFile(warpRouteDeployConfigPath),
+      `Warp route deployment config file not found at ${warpRouteDeployConfigPath}`,
+    );
+    log(`Using warp route deployment config at ${warpRouteDeployConfigPath}`);
+
+    warpDeployConfig = await readWarpRouteDeployConfig({
+      context,
+      filePath: warpRouteDeployConfigPath,
+    });
+  } else {
+    const warpRouteId = await useProvidedWarpRouteIdOrPrompt({
+      warpRouteId: providedWarpRouteId,
+      context,
+      symbol,
+      promptByDeploymentConfigs: true,
+    });
+
+    warpDeployConfig = await readWarpRouteDeployConfig({
+      context,
+      warpRouteId,
+    });
+  }
+
+  return warpDeployConfig;
 }

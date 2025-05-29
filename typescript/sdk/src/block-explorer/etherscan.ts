@@ -37,9 +37,10 @@ function formatExplorerUrl<TModule extends string, TAction extends string>(
 async function handleEtherscanResponse<T>(response: Response): Promise<T> {
   const body = await response.json();
 
+  const explorerUrl = new URL(response.url);
   if (body.status === '0') {
     throw new Error(
-      `Error while performing request to Etherscan like API: ${body.message} ${body.result}`,
+      `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
     );
   }
 
@@ -70,9 +71,10 @@ export async function tryGetContractDeploymentTransaction(
   const requestUrl = formatExplorerUrl(explorerOptions, options);
   const response = await fetch(requestUrl);
 
-  const [deploymentTx] = await handleEtherscanResponse<
-    Array<GetContractDeploymentTransactionResponse>
-  >(response);
+  const [deploymentTx] =
+    await handleEtherscanResponse<
+      Array<GetContractDeploymentTransactionResponse>
+    >(response);
 
   return deploymentTx;
 }

@@ -1,12 +1,12 @@
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
+use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::identifiers::UniqueIdentifier;
 use hyperlane_core::KnownHyperlaneDomain;
-use uuid::Uuid;
+use tokio::sync::Mutex;
 
 use super::*;
 use crate::chain_tx_adapter::*;
@@ -21,10 +21,12 @@ mockall::mock! {
     #[async_trait]
     impl AdaptsChain for Adapter {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
-        async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+        async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+        async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+        async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, SubmitterError>;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
         async fn nonce_gap_exists(&self) -> bool;
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;
@@ -51,11 +53,13 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
         .collect();
     Transaction {
         id: UniqueIdentifier::random(),
-        hash: None,
-        vm_specific_data: VmSpecificTxData::Evm,
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
         status,
         submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
     }
 }
 
@@ -79,4 +83,20 @@ pub(crate) async fn create_random_txs_and_store_them(
 
 pub(crate) async fn initialize_payload_db(payload_db: &Arc<dyn PayloadDb>, payload: &FullPayload) {
     payload_db.store_payload_by_id(payload).await.unwrap();
+}
+
+pub async fn are_all_txs_in_pool(
+    txs: Vec<Transaction>,
+    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+) -> bool {
+    let pool = pool.lock().await;
+    txs.iter().all(|tx| pool.contains_key(&tx.id))
+}
+
+pub async fn are_no_txs_in_pool(
+    txs: Vec<Transaction>,
+    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+) -> bool {
+    let pool = pool.lock().await;
+    txs.iter().all(|tx| !pool.contains_key(&tx.id))
 }

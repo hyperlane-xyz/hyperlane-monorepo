@@ -1,34 +1,36 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq
-
-RUN yarn set version 4.5.1
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
+    yarn set version 4.5.1
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
-COPY typescript/utils/package.json ./typescript/utils/
-COPY typescript/sdk/package.json ./typescript/sdk/
-COPY typescript/helloworld/package.json ./typescript/helloworld/
-COPY typescript/cli/package.json ./typescript/cli/
-COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
-COPY typescript/widgets/package.json ./typescript/widgets/
-COPY typescript/github-proxy/package.json ./typescript/github-proxy/
-COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
+COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/github-proxy/package.json ./typescript/github-proxy/
+COPY typescript/helloworld/package.json ./typescript/helloworld/
+COPY typescript/infra/package.json ./typescript/infra/
+COPY typescript/sdk/package.json ./typescript/sdk/
+COPY typescript/tsconfig/package.json ./typescript/tsconfig/
+COPY typescript/utils/package.json ./typescript/utils/
+COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/
+COPY starknet/package.json ./starknet/
 
 RUN yarn install && yarn cache clean
 
 # Copy everything else
-COPY tsconfig.json ./
+COPY turbo.json ./
 COPY typescript ./typescript
 COPY solidity ./solidity
+COPY starknet ./starknet
 
 RUN yarn build
 

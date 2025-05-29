@@ -51,11 +51,14 @@ describe('EvmIsmModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    factoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    factoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
     const legacyIsmFactory = new HyperlaneIsmFactory(
@@ -216,9 +219,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update route in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // changing the type of a domain should enroll the domain
         (
@@ -235,9 +237,8 @@ describe('EvmIsmModule', async () => {
 
       it(`deletes route in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // deleting the domain should unenroll the domain
         delete exampleRoutingConfig.domains[TestChainName.test3];
@@ -278,9 +279,8 @@ describe('EvmIsmModule', async () => {
 
       it(`updates owner in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // change the config owner
         exampleRoutingConfig.owner = randomAddress();
@@ -295,9 +295,8 @@ describe('EvmIsmModule', async () => {
 
       it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // expect 0 updates
         await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
@@ -381,9 +380,8 @@ describe('EvmIsmModule', async () => {
         const originalOwner = exampleRoutingConfig.owner;
 
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the config owner and impersonate the original owner
         exampleRoutingConfig.owner = randomAddress();
@@ -399,9 +397,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update validators in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the validators for a domain
         exampleRoutingConfig.domains[TestChainName.test2] = {
@@ -420,9 +417,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update threshold in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the threshold for a domain
         (
@@ -438,7 +434,7 @@ describe('EvmIsmModule', async () => {
       });
 
       it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
-        // create a an initial ISM
+        // create an initial ISM
         const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
 
         // update the threshold for a domain

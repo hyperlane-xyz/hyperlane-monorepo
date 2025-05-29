@@ -1,5 +1,29 @@
 # @hyperlane-xyz/ccip-server
 
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+## 13.0.0
+
+## 12.6.0
+
+## 12.5.0
+
+## 12.4.0
+
+## 12.3.0
+
+## 12.2.0
+
+## 12.1.0
+
+## 12.0.0
+
 ## 11.0.0
 
 ## 10.0.0

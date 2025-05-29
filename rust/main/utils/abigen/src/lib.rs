@@ -1,6 +1,8 @@
 #[cfg(feature = "fuels")]
 use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
+#[cfg(feature = "starknet")]
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
@@ -12,6 +14,7 @@ use inflector::Inflector;
 pub enum BuildType {
     Ethers,
     Fuels,
+    Starknet,
 }
 
 /// A `build.rs` tool for building a directory of ABIs. This will parse the
@@ -68,6 +71,8 @@ pub fn generate_bindings_for_dir(
 /// Generate the bindings for a given ABI and return the new module name. Will
 /// create a file within the designated path with the correct `{module_name}.rs`
 /// format.
+// We allow unused variables due to some feature flagging.
+#[allow(unused_variables)]
 pub fn generate_bindings(
     contract_path: impl AsRef<Path>,
     output_dir: impl AsRef<Path>,
@@ -122,6 +127,31 @@ pub fn generate_bindings(
             .expect("Could not write bindings to file");
 
         fmt_file(&output_file);
+    }
+    #[cfg(feature = "starknet")]
+    if build_type == BuildType::Starknet {
+        let mut aliases = HashMap::new();
+        aliases.insert(
+            String::from("openzeppelin::access::ownable::ownable::OwnableComponent::Event"),
+            String::from("OwnableCptEvent"),
+        );
+        aliases.insert(
+            String::from("openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event"),
+            String::from("UpgradeableCptEvent"),
+        );
+        aliases.insert(
+            String::from("hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event"),
+            String::from("MailboxclientCptEvent")
+        );
+
+        let abigen =
+            cainome::rs::Abigen::new(contract_name, abi_source).with_types_aliases(aliases);
+
+        abigen
+            .generate()
+            .expect("Fail to generate bindings")
+            .write_to_file(output_file.to_str().expect("valid utf8 path"))
+            .expect("Fail to write bindings to file");
     }
 
     module_name

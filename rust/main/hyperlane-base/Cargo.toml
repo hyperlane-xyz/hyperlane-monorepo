@@ -10,12 +10,16 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
+aws-config.workspace = true
+aws-sdk-s3.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
 console-subscriber.workspace = true
 convert_case.workspace = true
+dashmap.workspace = true
 derive-new.workspace = true
+derive_builder.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
@@ -43,6 +47,8 @@ tracing.workspace = true
 url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
+moka = { workspace = true, features = ["future"] }
+chrono = { workspace = true, features = ["serde"] }
 
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
@@ -56,13 +62,13 @@ hyperlane-test = { path = "../hyperlane-test" }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
+hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"
 rusoto_kms = "*"
-rusoto_s3 = "*"
 rusoto_sts = "*"
 
 [dev-dependencies]

@@ -3,57 +3,132 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/events.proto
-
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
 
-/** RemoteTransfer ... */
-export interface RemoteTransfer {
+/** EventCreateSyntheticToken ... */
+export interface EventCreateSyntheticToken {
+  token_id: string;
+  owner: string;
+  origin_mailbox: string;
+  origin_denom: string;
+}
+
+/** EventCreateCollateralToken ... */
+export interface EventCreateCollateralToken {
+  token_id: string;
+  owner: string;
+  origin_mailbox: string;
+  origin_denom: string;
+}
+
+/** EventSetToken ... */
+export interface EventSetToken {
+  token_id: string;
+  owner: string;
+  ism_id: string;
+  new_owner: string;
+  renounce_ownership: boolean;
+}
+
+/** EventEnrollRemoteRouter ... */
+export interface EventEnrollRemoteRouter {
+  token_id: string;
+  owner: string;
+  receiver_domain: number;
+  receiver_contract: string;
+  gas: string;
+}
+
+/** EventUnrollRemoteRouter ... */
+export interface EventUnrollRemoteRouter {
+  token_id: string;
+  owner: string;
+  receiver_domain: number;
+}
+
+/** EventSendRemoteTransfer ... */
+export interface EventSendRemoteTransfer {
+  token_id: string;
+  sender: string;
   destination_domain: number;
-  recipient_address: string;
+  recipient: string;
+  amount: string;
 }
 
-function createBaseRemoteTransfer(): RemoteTransfer {
-  return { destination_domain: 0, recipient_address: '' };
+/** EventReceiveRemoteTransfer ... */
+export interface EventReceiveRemoteTransfer {
+  token_id: string;
+  sender: string;
+  origin_domain: number;
+  recipient: string;
+  amount: string;
 }
 
-export const RemoteTransfer = {
+function createBaseEventCreateSyntheticToken(): EventCreateSyntheticToken {
+  return { token_id: '', owner: '', origin_mailbox: '', origin_denom: '' };
+}
+
+export const EventCreateSyntheticToken = {
   encode(
-    message: RemoteTransfer,
+    message: EventCreateSyntheticToken,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.destination_domain !== 0) {
-      writer.uint32(8).uint32(message.destination_domain);
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
     }
-    if (message.recipient_address !== '') {
-      writer.uint32(18).string(message.recipient_address);
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.origin_mailbox !== '') {
+      writer.uint32(26).string(message.origin_mailbox);
+    }
+    if (message.origin_denom !== '') {
+      writer.uint32(34).string(message.origin_denom);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): RemoteTransfer {
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventCreateSyntheticToken {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRemoteTransfer();
+    const message = createBaseEventCreateSyntheticToken();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag !== 8) {
+          if (tag !== 10) {
             break;
           }
 
-          message.destination_domain = reader.uint32();
+          message.token_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.recipient_address = reader.string();
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.origin_mailbox = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.origin_denom = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -64,39 +139,841 @@ export const RemoteTransfer = {
     return message;
   },
 
-  fromJSON(object: any): RemoteTransfer {
+  fromJSON(object: any): EventCreateSyntheticToken {
     return {
-      destination_domain: isSet(object.destination_domain)
-        ? globalThis.Number(object.destination_domain)
-        : 0,
-      recipient_address: isSet(object.recipient_address)
-        ? globalThis.String(object.recipient_address)
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      origin_mailbox: isSet(object.origin_mailbox)
+        ? globalThis.String(object.origin_mailbox)
+        : '',
+      origin_denom: isSet(object.origin_denom)
+        ? globalThis.String(object.origin_denom)
         : '',
     };
   },
 
-  toJSON(message: RemoteTransfer): unknown {
+  toJSON(message: EventCreateSyntheticToken): unknown {
     const obj: any = {};
-    if (message.destination_domain !== 0) {
-      obj.destination_domain = Math.round(message.destination_domain);
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
     }
-    if (message.recipient_address !== '') {
-      obj.recipient_address = message.recipient_address;
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.origin_mailbox !== '') {
+      obj.origin_mailbox = message.origin_mailbox;
+    }
+    if (message.origin_denom !== '') {
+      obj.origin_denom = message.origin_denom;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RemoteTransfer>, I>>(
+  create<I extends Exact<DeepPartial<EventCreateSyntheticToken>, I>>(
     base?: I,
-  ): RemoteTransfer {
-    return RemoteTransfer.fromPartial(base ?? ({} as any));
+  ): EventCreateSyntheticToken {
+    return EventCreateSyntheticToken.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RemoteTransfer>, I>>(
+  fromPartial<I extends Exact<DeepPartial<EventCreateSyntheticToken>, I>>(
     object: I,
-  ): RemoteTransfer {
-    const message = createBaseRemoteTransfer();
+  ): EventCreateSyntheticToken {
+    const message = createBaseEventCreateSyntheticToken();
+    message.token_id = object.token_id ?? '';
+    message.owner = object.owner ?? '';
+    message.origin_mailbox = object.origin_mailbox ?? '';
+    message.origin_denom = object.origin_denom ?? '';
+    return message;
+  },
+};
+
+function createBaseEventCreateCollateralToken(): EventCreateCollateralToken {
+  return { token_id: '', owner: '', origin_mailbox: '', origin_denom: '' };
+}
+
+export const EventCreateCollateralToken = {
+  encode(
+    message: EventCreateCollateralToken,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.origin_mailbox !== '') {
+      writer.uint32(26).string(message.origin_mailbox);
+    }
+    if (message.origin_denom !== '') {
+      writer.uint32(34).string(message.origin_denom);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventCreateCollateralToken {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventCreateCollateralToken();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.origin_mailbox = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.origin_denom = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventCreateCollateralToken {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      origin_mailbox: isSet(object.origin_mailbox)
+        ? globalThis.String(object.origin_mailbox)
+        : '',
+      origin_denom: isSet(object.origin_denom)
+        ? globalThis.String(object.origin_denom)
+        : '',
+    };
+  },
+
+  toJSON(message: EventCreateCollateralToken): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.origin_mailbox !== '') {
+      obj.origin_mailbox = message.origin_mailbox;
+    }
+    if (message.origin_denom !== '') {
+      obj.origin_denom = message.origin_denom;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventCreateCollateralToken>, I>>(
+    base?: I,
+  ): EventCreateCollateralToken {
+    return EventCreateCollateralToken.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventCreateCollateralToken>, I>>(
+    object: I,
+  ): EventCreateCollateralToken {
+    const message = createBaseEventCreateCollateralToken();
+    message.token_id = object.token_id ?? '';
+    message.owner = object.owner ?? '';
+    message.origin_mailbox = object.origin_mailbox ?? '';
+    message.origin_denom = object.origin_denom ?? '';
+    return message;
+  },
+};
+
+function createBaseEventSetToken(): EventSetToken {
+  return {
+    token_id: '',
+    owner: '',
+    ism_id: '',
+    new_owner: '',
+    renounce_ownership: false,
+  };
+}
+
+export const EventSetToken = {
+  encode(
+    message: EventSetToken,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.ism_id !== '') {
+      writer.uint32(26).string(message.ism_id);
+    }
+    if (message.new_owner !== '') {
+      writer.uint32(34).string(message.new_owner);
+    }
+    if (message.renounce_ownership !== false) {
+      writer.uint32(40).bool(message.renounce_ownership);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): EventSetToken {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventSetToken();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.ism_id = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.new_owner = reader.string();
+          continue;
+        case 5:
+          if (tag !== 40) {
+            break;
+          }
+
+          message.renounce_ownership = reader.bool();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventSetToken {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      ism_id: isSet(object.ism_id) ? globalThis.String(object.ism_id) : '',
+      new_owner: isSet(object.new_owner)
+        ? globalThis.String(object.new_owner)
+        : '',
+      renounce_ownership: isSet(object.renounce_ownership)
+        ? globalThis.Boolean(object.renounce_ownership)
+        : false,
+    };
+  },
+
+  toJSON(message: EventSetToken): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.ism_id !== '') {
+      obj.ism_id = message.ism_id;
+    }
+    if (message.new_owner !== '') {
+      obj.new_owner = message.new_owner;
+    }
+    if (message.renounce_ownership !== false) {
+      obj.renounce_ownership = message.renounce_ownership;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventSetToken>, I>>(
+    base?: I,
+  ): EventSetToken {
+    return EventSetToken.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventSetToken>, I>>(
+    object: I,
+  ): EventSetToken {
+    const message = createBaseEventSetToken();
+    message.token_id = object.token_id ?? '';
+    message.owner = object.owner ?? '';
+    message.ism_id = object.ism_id ?? '';
+    message.new_owner = object.new_owner ?? '';
+    message.renounce_ownership = object.renounce_ownership ?? false;
+    return message;
+  },
+};
+
+function createBaseEventEnrollRemoteRouter(): EventEnrollRemoteRouter {
+  return {
+    token_id: '',
+    owner: '',
+    receiver_domain: 0,
+    receiver_contract: '',
+    gas: '',
+  };
+}
+
+export const EventEnrollRemoteRouter = {
+  encode(
+    message: EventEnrollRemoteRouter,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.receiver_domain !== 0) {
+      writer.uint32(24).uint32(message.receiver_domain);
+    }
+    if (message.receiver_contract !== '') {
+      writer.uint32(34).string(message.receiver_contract);
+    }
+    if (message.gas !== '') {
+      writer.uint32(42).string(message.gas);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventEnrollRemoteRouter {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventEnrollRemoteRouter();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.receiver_domain = reader.uint32();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.receiver_contract = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.gas = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventEnrollRemoteRouter {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      receiver_domain: isSet(object.receiver_domain)
+        ? globalThis.Number(object.receiver_domain)
+        : 0,
+      receiver_contract: isSet(object.receiver_contract)
+        ? globalThis.String(object.receiver_contract)
+        : '',
+      gas: isSet(object.gas) ? globalThis.String(object.gas) : '',
+    };
+  },
+
+  toJSON(message: EventEnrollRemoteRouter): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.receiver_domain !== 0) {
+      obj.receiver_domain = Math.round(message.receiver_domain);
+    }
+    if (message.receiver_contract !== '') {
+      obj.receiver_contract = message.receiver_contract;
+    }
+    if (message.gas !== '') {
+      obj.gas = message.gas;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventEnrollRemoteRouter>, I>>(
+    base?: I,
+  ): EventEnrollRemoteRouter {
+    return EventEnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventEnrollRemoteRouter>, I>>(
+    object: I,
+  ): EventEnrollRemoteRouter {
+    const message = createBaseEventEnrollRemoteRouter();
+    message.token_id = object.token_id ?? '';
+    message.owner = object.owner ?? '';
+    message.receiver_domain = object.receiver_domain ?? 0;
+    message.receiver_contract = object.receiver_contract ?? '';
+    message.gas = object.gas ?? '';
+    return message;
+  },
+};
+
+function createBaseEventUnrollRemoteRouter(): EventUnrollRemoteRouter {
+  return { token_id: '', owner: '', receiver_domain: 0 };
+}
+
+export const EventUnrollRemoteRouter = {
+  encode(
+    message: EventUnrollRemoteRouter,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.owner !== '') {
+      writer.uint32(18).string(message.owner);
+    }
+    if (message.receiver_domain !== 0) {
+      writer.uint32(24).uint32(message.receiver_domain);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventUnrollRemoteRouter {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventUnrollRemoteRouter();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.receiver_domain = reader.uint32();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventUnrollRemoteRouter {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      receiver_domain: isSet(object.receiver_domain)
+        ? globalThis.Number(object.receiver_domain)
+        : 0,
+    };
+  },
+
+  toJSON(message: EventUnrollRemoteRouter): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.receiver_domain !== 0) {
+      obj.receiver_domain = Math.round(message.receiver_domain);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventUnrollRemoteRouter>, I>>(
+    base?: I,
+  ): EventUnrollRemoteRouter {
+    return EventUnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventUnrollRemoteRouter>, I>>(
+    object: I,
+  ): EventUnrollRemoteRouter {
+    const message = createBaseEventUnrollRemoteRouter();
+    message.token_id = object.token_id ?? '';
+    message.owner = object.owner ?? '';
+    message.receiver_domain = object.receiver_domain ?? 0;
+    return message;
+  },
+};
+
+function createBaseEventSendRemoteTransfer(): EventSendRemoteTransfer {
+  return {
+    token_id: '',
+    sender: '',
+    destination_domain: 0,
+    recipient: '',
+    amount: '',
+  };
+}
+
+export const EventSendRemoteTransfer = {
+  encode(
+    message: EventSendRemoteTransfer,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.sender !== '') {
+      writer.uint32(18).string(message.sender);
+    }
+    if (message.destination_domain !== 0) {
+      writer.uint32(24).uint32(message.destination_domain);
+    }
+    if (message.recipient !== '') {
+      writer.uint32(34).string(message.recipient);
+    }
+    if (message.amount !== '') {
+      writer.uint32(42).string(message.amount);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventSendRemoteTransfer {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventSendRemoteTransfer();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sender = reader.string();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.destination_domain = reader.uint32();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.recipient = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventSendRemoteTransfer {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      sender: isSet(object.sender) ? globalThis.String(object.sender) : '',
+      destination_domain: isSet(object.destination_domain)
+        ? globalThis.Number(object.destination_domain)
+        : 0,
+      recipient: isSet(object.recipient)
+        ? globalThis.String(object.recipient)
+        : '',
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : '',
+    };
+  },
+
+  toJSON(message: EventSendRemoteTransfer): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.sender !== '') {
+      obj.sender = message.sender;
+    }
+    if (message.destination_domain !== 0) {
+      obj.destination_domain = Math.round(message.destination_domain);
+    }
+    if (message.recipient !== '') {
+      obj.recipient = message.recipient;
+    }
+    if (message.amount !== '') {
+      obj.amount = message.amount;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventSendRemoteTransfer>, I>>(
+    base?: I,
+  ): EventSendRemoteTransfer {
+    return EventSendRemoteTransfer.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventSendRemoteTransfer>, I>>(
+    object: I,
+  ): EventSendRemoteTransfer {
+    const message = createBaseEventSendRemoteTransfer();
+    message.token_id = object.token_id ?? '';
+    message.sender = object.sender ?? '';
     message.destination_domain = object.destination_domain ?? 0;
-    message.recipient_address = object.recipient_address ?? '';
+    message.recipient = object.recipient ?? '';
+    message.amount = object.amount ?? '';
+    return message;
+  },
+};
+
+function createBaseEventReceiveRemoteTransfer(): EventReceiveRemoteTransfer {
+  return {
+    token_id: '',
+    sender: '',
+    origin_domain: 0,
+    recipient: '',
+    amount: '',
+  };
+}
+
+export const EventReceiveRemoteTransfer = {
+  encode(
+    message: EventReceiveRemoteTransfer,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.token_id !== '') {
+      writer.uint32(10).string(message.token_id);
+    }
+    if (message.sender !== '') {
+      writer.uint32(18).string(message.sender);
+    }
+    if (message.origin_domain !== 0) {
+      writer.uint32(24).uint32(message.origin_domain);
+    }
+    if (message.recipient !== '') {
+      writer.uint32(34).string(message.recipient);
+    }
+    if (message.amount !== '') {
+      writer.uint32(42).string(message.amount);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): EventReceiveRemoteTransfer {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventReceiveRemoteTransfer();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token_id = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sender = reader.string();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.origin_domain = reader.uint32();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.recipient = reader.string();
+          continue;
+        case 5:
+          if (tag !== 42) {
+            break;
+          }
+
+          message.amount = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventReceiveRemoteTransfer {
+    return {
+      token_id: isSet(object.token_id)
+        ? globalThis.String(object.token_id)
+        : '',
+      sender: isSet(object.sender) ? globalThis.String(object.sender) : '',
+      origin_domain: isSet(object.origin_domain)
+        ? globalThis.Number(object.origin_domain)
+        : 0,
+      recipient: isSet(object.recipient)
+        ? globalThis.String(object.recipient)
+        : '',
+      amount: isSet(object.amount) ? globalThis.String(object.amount) : '',
+    };
+  },
+
+  toJSON(message: EventReceiveRemoteTransfer): unknown {
+    const obj: any = {};
+    if (message.token_id !== '') {
+      obj.token_id = message.token_id;
+    }
+    if (message.sender !== '') {
+      obj.sender = message.sender;
+    }
+    if (message.origin_domain !== 0) {
+      obj.origin_domain = Math.round(message.origin_domain);
+    }
+    if (message.recipient !== '') {
+      obj.recipient = message.recipient;
+    }
+    if (message.amount !== '') {
+      obj.amount = message.amount;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventReceiveRemoteTransfer>, I>>(
+    base?: I,
+  ): EventReceiveRemoteTransfer {
+    return EventReceiveRemoteTransfer.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventReceiveRemoteTransfer>, I>>(
+    object: I,
+  ): EventReceiveRemoteTransfer {
+    const message = createBaseEventReceiveRemoteTransfer();
+    message.token_id = object.token_id ?? '';
+    message.sender = object.sender ?? '';
+    message.origin_domain = object.origin_domain ?? 0;
+    message.recipient = object.recipient ?? '';
+    message.amount = object.amount ?? '';
     return message;
   },
 };
@@ -113,12 +990,12 @@ type Builtin =
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends globalThis.Array<infer U>
-  ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U>
-  ? ReadonlyArray<DeepPartial<U>>
-  : T extends {}
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
