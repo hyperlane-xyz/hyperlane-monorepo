@@ -85,6 +85,7 @@ interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  warpRouteId?: string;
 }
 
 export async function runWarpRouteDeploy({
@@ -419,7 +420,9 @@ export async function extendWarpRoute(
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
-    addWarpRouteOptions,
+    params.warpRouteId
+      ? { warpRouteId: params.warpRouteId } // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
+      : addWarpRouteOptions,
   );
 
   return updatedWarpCoreConfig;

@@ -19,6 +19,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
@@ -30,6 +31,7 @@ import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import { hyperlaneCoreDeploy } from './core.js';
 import {
   hyperlaneWarpApply,
+  hyperlaneWarpApplyRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
 } from './warp.js';
@@ -253,6 +255,7 @@ export async function extendWarpConfig(params: {
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
+  warpRouteId?: string;
 }): Promise<string> {
   const {
     chain,
@@ -261,6 +264,7 @@ export async function extendWarpConfig(params: {
     warpCorePath,
     warpDeployPath,
     strategyUrl,
+    warpRouteId,
   } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
@@ -273,7 +277,12 @@ export async function extendWarpConfig(params: {
   delete warpDeployConfig[chain].destinationGas;
 
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
+  await hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+  });
 
   return warpDeployPath;
 }

@@ -104,7 +104,12 @@ export const apply: CommandModuleWithWarpApplyContext<{
       coerce: (dir) => removeEndingSlash(dir),
     },
   },
-  handler: async ({ context, strategy: strategyUrl, receiptsDir }) => {
+  handler: async ({
+    context,
+    strategy: strategyUrl,
+    receiptsDir,
+    warpRouteId,
+  }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
     if (strategyUrl)
@@ -117,6 +122,7 @@ export const apply: CommandModuleWithWarpApplyContext<{
       warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
+      warpRouteId,
     });
     process.exit(0);
   },
