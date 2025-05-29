@@ -10,7 +10,7 @@ import {
   HypXERC20__factory,
   IFiatToken__factory,
   IXERC20__factory,
-  PackageVersioned,
+  PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -378,6 +378,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     }
 
     const config = await deriveFunction(warpRouteAddress);
+
+    config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
+
     return HypTokenConfigSchema.parse(config);
   }
 
@@ -438,15 +441,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const erc20TokenMetadata = await this.fetchERC20Metadata(
       collateralTokenAddress,
     );
-    const packageVersion = await this.fetchPackageVersion(
-      hypCollateralTokenInstance,
-    );
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
       token: collateralTokenAddress,
-      contractVersion: packageVersion,
     };
   }
 
@@ -551,8 +550,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     return { name, symbol, decimals, isNft: false };
   }
 
-  async fetchPackageVersion(versionContract: PackageVersioned) {
-    return versionContract.PACKAGE_VERSION();
+  async fetchPackageVersion(address: Address) {
+    return PackageVersioned__factory.connect(
+      address,
+      this.provider,
+    ).PACKAGE_VERSION();
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
