@@ -74,12 +74,12 @@ export class Monitor implements IMonitor {
           // Emit the event warp routes info
           this.emitter.emit(MonitorEventType.TokenInfo, event);
           logDebug('Polling cycle completed');
-        } catch (e) {
+        } catch (error) {
           this.emitter.emit(
             MonitorEventType.Error,
             new MonitorPollingError(
-              `Error during monitor execution cycle: ${(e as Error).message}`,
-              e as Error,
+              `Error during monitor execution cycle: ${(error as Error).message}`,
+              error as Error,
             ),
           );
         }
@@ -87,12 +87,12 @@ export class Monitor implements IMonitor {
         // Wait for the specified check frequency before the next iteration
         await sleep(this.checkFrequency);
       }
-    } catch (e) {
+    } catch (error) {
       this.emitter.emit(
         MonitorEventType.Error,
         new MonitorStartError(
-          `Error starting monitor: ${(e as Error).message}`,
-          e as Error,
+          `Error starting monitor: ${(error as Error).message}`,
+          error as Error,
         ),
       );
     }
