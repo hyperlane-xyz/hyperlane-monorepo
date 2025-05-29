@@ -1,49 +1,9 @@
 import http from 'http';
-import { Gauge, Pushgateway, Registry } from 'prom-client';
-import { format } from 'util';
+import { Gauge, Registry } from 'prom-client';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 const logger = rootLogger.child({ module: 'metrics' });
-
-function getPushGateway(register: Registry): Pushgateway | null {
-  const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
-  if (gatewayAddr) {
-    return new Pushgateway(gatewayAddr, [], register);
-  } else {
-    logger.warn(
-      'Prometheus push gateway address was not defined; not publishing metrics.',
-    );
-    return null;
-  }
-}
-
-export async function submitMetrics(
-  register: Registry,
-  jobName: string,
-  options?: { overwriteAllMetrics?: boolean },
-) {
-  const gateway = getPushGateway(register);
-  if (!gateway) return;
-
-  let resp;
-  try {
-    if (options?.overwriteAllMetrics) {
-      resp = (await gateway.push({ jobName })).resp;
-    } else {
-      resp = (await gateway.pushAdd({ jobName })).resp;
-    }
-  } catch (error) {
-    logger.error('Error when pushing metrics', { error: format(error) });
-    return;
-  }
-
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
-  logger.info('Prometheus metrics pushed to PushGateway', { statusCode });
-}
 
 /**
  * Start a simple HTTP server to host metrics. This just takes the registry and dumps the text
