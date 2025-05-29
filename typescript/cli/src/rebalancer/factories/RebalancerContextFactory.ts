@@ -10,13 +10,13 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 import type { WriteCommandContext } from '../../context/types.js';
 import { logDebug } from '../../logger.js';
 import { Config } from '../config/Config.js';
-import { Executor } from '../executor/Executor.js';
-import { WithSemaphore } from '../executor/WithSemaphore.js';
-import type { IExecutor } from '../interfaces/IExecutor.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
+import { Rebalancer } from '../rebalancer/Rebalancer.js';
+import { WithSemaphore } from '../rebalancer/WithSemaphore.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
 
@@ -111,9 +111,9 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createExecutor(): IExecutor {
-    logDebug('Creating Executor');
-    const executor = new Executor(
+  public createRebalancer(): IRebalancer {
+    logDebug('Creating Rebalancer');
+    const rebalancer = new Rebalancer(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
         bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
@@ -126,7 +126,7 @@ export class RebalancerContextFactory {
       this.context.multiProvider,
     );
 
-    return new WithSemaphore(this.config, executor);
+    return new WithSemaphore(this.config, rebalancer);
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

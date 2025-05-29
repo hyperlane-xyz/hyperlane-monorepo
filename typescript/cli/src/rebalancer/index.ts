@@ -1,4 +1,4 @@
-export * from './interfaces/IExecutor.js';
+export * from './interfaces/IRebalancer.js';
 export * from './interfaces/IMonitor.js';
 export * from './interfaces/IStrategy.js';
 export * from './config/Config.js';

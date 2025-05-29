@@ -545,10 +545,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
         );
 
         const warpCore = contextFactory.getWarpCore();
-        const executor = contextFactory.createExecutor();
+        const rebalancer = contextFactory.createRebalancer();
         const originToken = warpCore.tokens.find((t) => t.chainName === origin);
 
-        await executor.rebalance([
+        await rebalancer.rebalance([
           {
             origin,
             destination,
@@ -565,9 +565,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Instantiates the strategy that will compute how rebalance routes should be performed
       const strategy = await contextFactory.createStrategy();
 
-      // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor = !rebalancerConfig.monitorOnly
-        ? contextFactory.createExecutor()
+      // Instantiates the rebalancer in charge of executing the rebalancing transactions
+      const rebalancer = !rebalancerConfig.monitorOnly
+        ? contextFactory.createRebalancer()
         : undefined;
 
       if (rebalancerConfig.monitorOnly) {
@@ -607,7 +607,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          executor?.rebalance(rebalancingRoutes).catch((e) => {
+          rebalancer?.rebalance(rebalancingRoutes).catch((e) => {
             errorRed('Error while rebalancing:', format(e));
           });
         })

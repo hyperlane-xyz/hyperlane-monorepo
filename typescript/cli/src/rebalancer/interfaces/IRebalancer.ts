@@ -1,5 +1,5 @@
 import { RebalancingRoute } from './IStrategy.js';
 
-export interface IExecutor {
+export interface IRebalancer {
   rebalance(routes: RebalancingRoute[]): Promise<void>;
 }
