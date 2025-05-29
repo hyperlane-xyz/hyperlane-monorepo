@@ -141,12 +141,20 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     let allowedRebalancers: Address[] | undefined;
     if (isMovableCollateralTokenType(type)) {
-      const rebalancers = await MovableCollateralRouter__factory.connect(
-        warpRouteAddress,
-        this.provider,
-      ).allRebalancers();
+      try {
+        const rebalancers = await MovableCollateralRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ).allRebalancers();
 
-      allowedRebalancers = rebalancers.length ? rebalancers : undefined;
+        allowedRebalancers = rebalancers.length ? rebalancers : undefined;
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get configured rebalancers for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
     }
 
     return {
