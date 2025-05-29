@@ -214,11 +214,6 @@ export class Executor implements IExecutor {
           } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
         );
         try {
-          log(
-            `About to send transaction for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-          );
           const receipt = await this.multiProvider.sendTransaction(
             route.origin,
             populatedTx,
