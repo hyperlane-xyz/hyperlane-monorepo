@@ -91,7 +91,7 @@ abstract class TokenDeployer<
     } else if (isOpL2TokenConfig(config)) {
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
-      return [config.mailbox, config.portal, config.urls];
+      return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];
@@ -133,7 +133,10 @@ abstract class TokenDeployer<
     if (
       isCollateralTokenConfig(config) ||
       isXERC20TokenConfig(config) ||
-      isNativeTokenConfig(config)
+      isNativeTokenConfig(config) ||
+      // use HypNative initialize
+      isOpL1TokenConfig(config) ||
+      isOpL2TokenConfig(config)
     ) {
       return defaultArgs;
     } else if (isCctpTokenConfig(config)) {
