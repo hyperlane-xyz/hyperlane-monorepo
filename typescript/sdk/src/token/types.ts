@@ -31,7 +31,10 @@ export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
-  allowedRebalancers: z.set(ZHash).optional(),
+  allowedRebalancers: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -73,7 +76,10 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
-    allowedRebalancers: z.set(ZHash).optional(),
+    allowedRebalancers: z
+      .array(ZHash)
+      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+      .optional(),
   },
 );
 
@@ -143,7 +149,10 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
-  allowedRebalancers: z.set(ZHash).optional(),
+  allowedRebalancers: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -152,7 +161,10 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
-    allowedRebalancers: z.set(ZHash).optional(),
+    allowedRebalancers: z
+      .array(ZHash)
+      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+      .optional(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema

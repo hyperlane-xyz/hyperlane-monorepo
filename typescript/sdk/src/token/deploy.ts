@@ -7,6 +7,7 @@ import {
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  MovableCollateralRouter__factory,
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -49,6 +50,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -282,6 +284,38 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setRebalancers(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const chainsToUpdate = objFilter(
+      configMap,
+      (_chain, config): config is HypTokenConfig =>
+        isMovableCollateralTokenConfig(config) && !!config.allowedRebalancers,
+    );
+
+    await promiseObjAll(
+      objMap(chainsToUpdate, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const rebalancers = Array.from(config.allowedRebalancers ?? []);
+        if (rebalancers.length === 0) {
+          return;
+        }
+
+        await this.multiProvider.handleTx(
+          chain,
+          movableToken.addRebalancers(rebalancers),
+        );
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
@@ -303,6 +337,8 @@ abstract class TokenDeployer<
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    await this.setRebalancers(configMap, deployedContractsMap);
 
     return deployedContractsMap;
   }

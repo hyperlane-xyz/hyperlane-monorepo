@@ -139,14 +139,14 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
-    let allowedRebalancers: Set<string> | undefined;
+    let allowedRebalancers: Address[] | undefined;
     if (isMovableCollateralTokenType(type)) {
       const rebalancers = await MovableCollateralRouter__factory.connect(
         warpRouteAddress,
         this.provider,
       ).allRebalancers();
 
-      allowedRebalancers = new Set(rebalancers);
+      allowedRebalancers = rebalancers.length ? rebalancers : undefined;
     }
 
     return {

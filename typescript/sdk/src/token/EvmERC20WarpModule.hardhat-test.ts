@@ -339,7 +339,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         chain,
         config: {
           ...config,
-          allowedRebalancers: rebalancers,
+          allowedRebalancers: Array.from(rebalancers),
         },
         multiProvider,
         proxyFactoryFactories: ismFactoryAddresses,
@@ -857,7 +857,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           chain,
           config: {
             ...config,
-            allowedRebalancers: new Set([initialRebalancer]),
+            allowedRebalancers: [initialRebalancer],
           },
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
@@ -866,7 +866,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const expectedRebalancers = [initialRebalancer, randomAddress()];
         const txs = await evmERC20WarpModule.update({
           ...config,
-          allowedRebalancers: new Set(expectedRebalancers),
+          allowedRebalancers: expectedRebalancers,
         });
 
         expect(txs.length).to.equal(1);
@@ -891,7 +891,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           chain,
           config: {
             ...config,
-            allowedRebalancers: rebalancers,
+            allowedRebalancers: Array.from(rebalancers),
           },
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
@@ -899,7 +899,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
         const txs = await evmERC20WarpModule.update({
           ...config,
-          allowedRebalancers: new Set([rebalancerToKeep]),
+          allowedRebalancers: [rebalancerToKeep],
         });
 
         expect(txs.length).to.equal(1);
@@ -922,7 +922,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           chain,
           config: {
             ...config,
-            allowedRebalancers: new Set([rebalancerToKeep.toLowerCase()]),
+            allowedRebalancers: [rebalancerToKeep.toLowerCase()],
           },
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
@@ -930,7 +930,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
         const txs = await evmERC20WarpModule.update({
           ...config,
-          allowedRebalancers: new Set([rebalancerToKeep]),
+          allowedRebalancers: [rebalancerToKeep],
         });
 
         expect(txs.length).to.equal(0);

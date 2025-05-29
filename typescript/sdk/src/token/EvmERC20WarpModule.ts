@@ -679,7 +679,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
 
-    if (config.allowedRebalancers && config.allowedRebalancers.size !== 0) {
+    if (config.allowedRebalancers && config.allowedRebalancers.length !== 0) {
       const addRebalancerTxs = await warpModule.createAddRebalancersUpdateTxs(
         actualConfig,
         config,
