@@ -1,4 +1,3 @@
-import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
   type ChainMetadata,
@@ -8,6 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
+import type { WriteCommandContext } from '../../context/types.js';
 import { logDebug } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
@@ -22,29 +22,30 @@ import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollater
 
 export class RebalancerContextFactory {
   /**
-   * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
    * @param config - The rebalancer config
    * @param metadata - A `ChainMap` of chain names and `ChainMetadata` objects, sourced from the `IRegistry`.
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
+   * @param context - CLI context
    */
   private constructor(
-    private readonly registry: IRegistry,
     private readonly config: Config,
     private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
+    private readonly context: WriteCommandContext,
   ) {}
 
   /**
-   * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
    * @param config - The rebalancer config
+   * @param context - CLI context
    */
   public static async create(
-    registry: IRegistry,
     config: Config,
+    context: WriteCommandContext,
   ): Promise<RebalancerContextFactory> {
     logDebug('Creating RebalancerContextFactory');
+    const { registry } = context;
     const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
 
@@ -65,11 +66,11 @@ export class RebalancerContextFactory {
 
     logDebug('RebalancerContextFactory created successfully');
     return new RebalancerContextFactory(
-      registry,
       config,
       metadata,
       warpCore,
       tokensByChainName,
+      context,
     );
   }
 
@@ -83,7 +84,7 @@ export class RebalancerContextFactory {
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
     );
-    const warpDeployConfig = await this.registry.getWarpDeployConfig(
+    const warpDeployConfig = await this.context.registry.getWarpDeployConfig(
       this.config.warpRouteId,
     );
 
@@ -119,10 +120,10 @@ export class RebalancerContextFactory {
         bridgeIsWarp: v.bridgeIsWarp ?? false,
         override: v.override,
       })),
-      this.config.rebalancerKey,
       this.warpCore,
       this.metadata,
       this.tokensByChainName,
+      this.context,
     );
 
     return new WithSemaphore(this.config, executor);

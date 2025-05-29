@@ -145,7 +145,6 @@ export type ConfigFileInput = BaseConfigInput &
 
 export class Config {
   constructor(
-    public readonly rebalancerKey: string,
     public readonly warpRouteId: string,
     public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
@@ -162,7 +161,6 @@ export class Config {
   static load(
     configFilePath: string,
     extraArgs: {
-      rebalancerKey: string;
       checkFrequency: number;
       monitorOnly: boolean;
       withMetrics: boolean;
@@ -182,7 +180,6 @@ export class Config {
     }
 
     return new Config(
-      extraArgs.rebalancerKey,
       warpRouteId,
       extraArgs.checkFrequency,
       extraArgs.monitorOnly,

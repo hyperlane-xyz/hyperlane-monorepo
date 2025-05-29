@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
 import {
-  ANVIL_KEY,
   REBALANCER_CONFIG_PATH,
 } from '../../tests/commands/helpers.js';
 import { ENV } from '../../utils/env.js';
@@ -71,7 +70,6 @@ describe('Config', () => {
     expect(Config.load(REBALANCER_CONFIG_PATH, extraArgs)).to.deep.equal({
       warpRouteId: 'warpRouteId',
       checkFrequency: extraArgs.checkFrequency,
-      rebalancerKey: ANVIL_KEY,
       monitorOnly: extraArgs.monitorOnly,
       withMetrics: extraArgs.withMetrics,
       coingeckoApiKey: ENV.COINGECKO_API_KEY,
@@ -144,7 +142,7 @@ describe('Config', () => {
         target: 0.3,
         type: MinAmountType.Relative,
       },
-    });
+    );
   });
 
   it('should load absolute params without modifications', () => {
@@ -172,7 +170,7 @@ describe('Config', () => {
         target: 140000,
         type: MinAmountType.Absolute,
       },
-    });
+    );
   });
 
   describe('override functionality', () => {

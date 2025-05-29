@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
+import type { WriteCommandContext } from '../../context/types.js';
 import { errorRed, log } from '../../logger.js';
 import type { IExecutor } from '../interfaces/IExecutor.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
@@ -19,10 +20,10 @@ import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 export class Executor implements IExecutor {
   constructor(
     private readonly bridges: ChainMap<BridgeConfig>,
-    private readonly rebalancerKey: string,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
+    private readonly context: WriteCommandContext,
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
@@ -36,7 +37,7 @@ export class Executor implements IExecutor {
     const { warpCore, chainMetadata, tokensByChainName } = this;
 
     const transactions: {
-      signer: ethers.Signer;
+      connectedSigner: ethers.Signer;
       populatedTx: ethers.PopulatedTransaction;
       route: RebalancingRoute;
       originTokenAmount: TokenAmount;
@@ -77,9 +78,11 @@ export class Executor implements IExecutor {
         );
       }
 
-      const provider = warpCore.multiProvider.getEthersV5Provider(origin);
-      const signer = new ethers.Wallet(this.rebalancerKey, provider);
+      const signer = this.context.multiProvider.getSigner(origin);
       const signerAddress = await signer.getAddress();
+      const connectedSigner = signer.connect(
+        this.context.multiProvider.getProvider(origin),
+      );
       const domain = chainMetadata[destination].domainId;
       const recipient = destinationToken.addressOrDenom;
       const { bridge, bridgeMinAcceptedAmount, bridgeIsWarp } = getBridgeConfig(
@@ -153,7 +156,7 @@ export class Executor implements IExecutor {
       );
 
       transactions.push({
-        signer,
+        connectedSigner,
         populatedTx,
         route,
         originTokenAmount: originToken.amount(amount),
@@ -174,9 +177,9 @@ export class Executor implements IExecutor {
     // This is mainly to check that the transaction will not fail before sending them.
     const estimateGasResults = await Promise.allSettled(
       transactions.map(
-        async ({ signer, populatedTx, route, originTokenAmount }) => {
+        async ({ connectedSigner, populatedTx, route, originTokenAmount }) => {
           try {
-            await signer.estimateGas(populatedTx);
+            await connectedSigner.estimateGas(populatedTx);
             log(
               `Gas estimation succeeded for route from ${route.origin} to ${
                 route.destination
@@ -212,20 +215,23 @@ export class Executor implements IExecutor {
     log('Sending transactions');
     const results = await Promise.allSettled(
       transactions.map(
-        async ({ signer, populatedTx, route, originTokenAmount }) => {
+        async ({ connectedSigner, populatedTx, route, originTokenAmount }) => {
           log(
             `Sending transaction for route from ${route.origin} to ${
               route.destination
             } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
           );
           try {
-            const tx = await signer.sendTransaction(populatedTx);
+            const tx = await connectedSigner.sendTransaction(populatedTx);
             log(
               `Transaction sent for route from ${route.origin} to ${
                 route.destination
               } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
             );
-            const receipt = await tx.wait();
+            const receipt = await this.context.multiProvider.handleTx(
+              route.origin,
+              tx,
+            );
             log(
               `Transaction confirmed for route from ${route.origin} to ${
                 route.destination
