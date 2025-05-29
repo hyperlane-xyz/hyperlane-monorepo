@@ -8,11 +8,12 @@ import {
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
-import { TokenType } from './config.js';
+import { MovableTokenType, TokenType } from './config.js';
 
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
@@ -30,6 +31,7 @@ export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  allowedRebalancers: z.set(ZHash).optional(),
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -71,6 +73,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
+    allowedRebalancers: z.set(ZHash).optional(),
   },
 );
 
@@ -140,6 +143,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
+  allowedRebalancers: z.set(ZHash).optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -148,6 +152,7 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
+    allowedRebalancers: z.set(ZHash).optional(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema
@@ -441,3 +446,25 @@ function extractCCIPIsmMap(
       break;
   }
 }
+
+const isMovableTokenCheckConfigMap: Record<
+  MovableTokenType,
+  (config: any) => boolean
+> = {
+  [TokenType.collateral]: isCollateralTokenConfig,
+  [TokenType.collateralVault]: isCollateralTokenConfig,
+  [TokenType.collateralVaultRebase]: isCollateralTokenConfig,
+  [TokenType.native]: isNativeTokenConfig,
+  [TokenType.synthetic]: isCompliant(SyntheticTokenConfigSchema),
+  [TokenType.syntheticRebase]: isSyntheticRebaseTokenConfig,
+};
+
+export const isMovableCollateralTokenConfig = (config: any): boolean => {
+  if (!config.type) {
+    return false;
+  }
+
+  const checkFunction =
+    isMovableTokenCheckConfigMap[config.type as MovableTokenType];
+  return checkFunction ? checkFunction(config) : false;
+};

@@ -4,6 +4,7 @@ import { zeroAddress } from 'viem';
 import {
   GasRouter__factory,
   MailboxClient__factory,
+  MovableCollateralRouter__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -20,6 +21,7 @@ import {
   isObjEmpty,
   objMap,
   rootLogger,
+  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
@@ -49,6 +51,7 @@ import {
   HypTokenRouterConfigSchema,
   derivedHookAddress,
   derivedIsmAddress,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
@@ -128,6 +131,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
       ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
+      ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -243,6 +247,39 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     });
 
     return updateTransactions;
+  }
+
+  createAddRebalancersUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    actualConfig.type;
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancers) {
+      return [];
+    }
+
+    const rebalancersToAdd = symmetricDifference(
+      expectedConfig.allowedRebalancers,
+      actualConfig.allowedRebalancers ?? new Set(),
+    );
+
+    return Array.from(rebalancersToAdd).map((rebalancer) => {
+      return {
+        annotation: `Adding rebalancer role to "${rebalancer}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+          'addRebalancer',
+          [rebalancer],
+        ),
+      };
+    });
   }
 
   /**
