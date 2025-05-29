@@ -2,6 +2,7 @@ import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
+import { Pair } from 'yaml';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';

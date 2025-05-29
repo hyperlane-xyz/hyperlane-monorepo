@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import { execSync } from 'child_process';
 
 import {
+  agentKeysToBeCreated,
   createAgentKeysIfNotExists,
-  isAgentKeyToBeCreated,
 } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
@@ -110,12 +110,12 @@ async function main() {
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
-  const agentKeyToBeCreated = await isAgentKeyToBeCreated(agentConfig);
+  const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
 
-  if (agentKeyToBeCreated) {
+  if (agentKeysToCreate.length > 0) {
     const shouldContinue = await confirm({
       message: chalk.yellow.bold(
-        `Warning: New agent key will be created. Are you sure you want to continue?`,
+        `Warning: New agent key will be created: ${agentKeysToCreate}. Are you sure you want to continue?`,
       ),
       default: false,
     });
