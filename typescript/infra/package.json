@@ -82,7 +82,7 @@
     "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts}.test.ts\"",
     "test:hardhat": "yarn hardhat-esm test test/govern.hardhat-test.ts",
     "test": "yarn test:unit && yarn test:hardhat && yarn test:warp && yarn test:balance",
-    "test:ci": "yarn test:unit && yarn test:hardhat",
+    "test:ci": "yarn test:unit -e mainnet3 && yarn test:hardhat",
     "update-agent-config:mainnet3": "tsx scripts/agents/update-agent-config.ts -e mainnet3",
     "update-agent-config:test": "tsx scripts/agents/update-agent-config.ts -e test",
     "update-agent-config:testnet4": "tsx scripts/agents/update-agent-config.ts -e testnet4"
