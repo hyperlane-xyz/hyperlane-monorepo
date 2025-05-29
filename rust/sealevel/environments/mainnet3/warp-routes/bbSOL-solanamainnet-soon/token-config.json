@@ -3,7 +3,8 @@
     "type": "collateral",
     "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "token": "Bybit2vBJGhPF52GBdNaQfUJ6ZpThSgHBobjWZpLPb4B"
+    "token": "Bybit2vBJGhPF52GBdNaQfUJ6ZpThSgHBobjWZpLPb4B",
+    "owner": "E2vjMXigtkS9xxaTt87MgddnesCoiW87akkg3U5BXvTY"
   },
   "soon": {
     "type": "synthetic",
@@ -11,6 +12,7 @@
     "name": "Bybit Staked SOL",
     "symbol": "bbSOL",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/e0a0fa55d28546055dff15210831b91b9c2fe526/deployments/warp_routes/bbSOL/metadata.json",
-    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A"
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": "CvD8JycSHKTXV5ibc3xeq8CojMMJBtL2ZMNDqjk5fLF3"
   }
 }
