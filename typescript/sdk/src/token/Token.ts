@@ -323,7 +323,8 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.StarknetHypCollateral) {
       return new StarknetHypCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
-    })} else if (standard === TokenStandard.EvmKhalaniIntent) {
+      });
+    } else if (standard === TokenStandard.EvmKhalaniIntent) {
       assert(
         collateralAddressOrDenom,
         `collateralAddressOrDenom required for Khalani tokens`,
