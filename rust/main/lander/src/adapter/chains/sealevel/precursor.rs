@@ -4,9 +4,10 @@ use solana_sdk::instruction::Instruction as SealevelInstruction;
 
 use hyperlane_sealevel::SealevelTxCostEstimate;
 
-use crate::adapter::chains::sealevel::payload;
-use crate::adapter::chains::sealevel::payload::Instruction;
-use crate::payload::FullPayload;
+use crate::{
+    adapter::chains::sealevel::{payload, payload::Instruction},
+    payload::FullPayload,
+};
 
 #[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct SealevelTxPrecursor {

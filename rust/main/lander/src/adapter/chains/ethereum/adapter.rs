@@ -1,20 +1,19 @@
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use ethers::contract::builders::ContractCall;
-use ethers::prelude::U64;
-use ethers::providers::Middleware;
-use ethers::types::H256;
+use ethers::{contract::builders::ContractCall, prelude::U64, providers::Middleware, types::H256};
 use eyre::eyre;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
-use hyperlane_base::settings::{ChainConf, RawChainConf};
-use hyperlane_base::CoreMetrics;
+use hyperlane_base::{
+    settings::{
+        parser::h_eth::{BuildableWithProvider, ConnectionConf},
+        ChainConf, RawChainConf,
+    },
+    CoreMetrics,
+};
 use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter, SubmitterProviderBuilder};
 
@@ -25,9 +24,7 @@ use crate::{
     LanderError,
 };
 
-use super::nonce::NonceManager;
-use super::transaction::Precursor;
-use super::EthereumTxPrecursor;
+use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
 
 mod gas_limit_estimator;
 mod gas_price_estimator;

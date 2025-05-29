@@ -1,5 +1,4 @@
-use std::time::Duration;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -31,28 +30,27 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{ChainResult, ReorgPeriod, H256, H512};
-use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use hyperlane_sealevel::{
-    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
+    fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc},
+    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter,
+    SealevelTxCostEstimate,
 };
 
-use crate::adapter::{AdaptsChain, GasLimit};
-use crate::payload::FullPayload;
-use crate::transaction::{
-    SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
-};
-use crate::TransactionDropReason;
-use crate::{
-    adapter::chains::sealevel::transaction::{Precursor, TransactionFactory, Update},
-    error::LanderError,
-};
-use crate::{adapter::chains::sealevel::SealevelTxPrecursor, payload::PayloadDetails};
 use crate::{
     adapter::{
-        chains::sealevel::conf::{create_keypair, get_connection_conf},
+        chains::sealevel::{
+            conf::{create_keypair, get_connection_conf},
+            transaction::{Precursor, TransactionFactory, Update},
+            SealevelTxPrecursor,
+        },
         core::TxBuildingResult,
+        AdaptsChain, GasLimit,
     },
     error,
+    error::LanderError,
+    payload::{FullPayload, PayloadDetails},
+    transaction::{SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData},
+    TransactionDropReason,
 };
 
 const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;

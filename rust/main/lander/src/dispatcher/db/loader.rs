@@ -1,10 +1,12 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::cmp::max;
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    cmp::max,
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_new::new;
 use hyperlane_base::db::HyperlaneDb;
@@ -14,8 +16,7 @@ use hyperlane_base::db::DbResult;
 use tokio::time::sleep;
 use tracing::{debug, info, instrument};
 
-use crate::dispatcher::metrics::DispatcherMetrics;
-use crate::error::LanderError;
+use crate::{dispatcher::metrics::DispatcherMetrics, error::LanderError};
 
 #[async_trait]
 pub trait LoadableFromDb {

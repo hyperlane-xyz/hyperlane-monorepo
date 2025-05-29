@@ -1,12 +1,11 @@
-use std::num::NonZeroU32;
-use std::time::Duration;
+use std::{num::NonZeroU32, time::Duration};
 
 use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
-use hyperlane_core::config::OpSubmissionConfig;
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
+use hyperlane_core::{
+    config::OpSubmissionConfig, HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType,
+};
 
-use crate::adapter::chains::sealevel::adapter::tests::common::adapter_config;
-use crate::adapter::AdaptsChain;
+use crate::adapter::{chains::sealevel::adapter::tests::common::adapter_config, AdaptsChain};
 
 #[test]
 fn test_configuration_fields() {

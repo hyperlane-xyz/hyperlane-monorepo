@@ -1,5 +1,7 @@
-use crate::adapter::chains::sealevel::SealevelTxPrecursor;
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{
+    adapter::chains::sealevel::SealevelTxPrecursor,
+    transaction::{Transaction, VmSpecificTxData},
+};
 
 pub trait Precursor {
     fn precursor(&self) -> &SealevelTxPrecursor;

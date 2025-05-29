@@ -1,6 +1,10 @@
-use crate::adapter::chains::sealevel::adapter::tests::common::{adapter, payload, precursor};
-use crate::adapter::chains::sealevel::transaction::TransactionFactory;
-use crate::adapter::AdaptsChain;
+use crate::adapter::{
+    chains::sealevel::{
+        adapter::tests::common::{adapter, payload, precursor},
+        transaction::TransactionFactory,
+    },
+    AdaptsChain,
+};
 
 #[tokio::test]
 async fn test_simulate_tx() {

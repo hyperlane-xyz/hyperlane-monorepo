@@ -1,16 +1,17 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::collections::HashMap;
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
 use chrono::{DateTime, Utc};
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
-use crate::adapter::{EthereumTxPrecursor, SealevelTxPrecursor};
-use crate::payload::PayloadDetails;
-use crate::LanderError;
+use crate::{
+    adapter::{EthereumTxPrecursor, SealevelTxPrecursor},
+    payload::PayloadDetails,
+    LanderError,
+};
 
 pub type TransactionId = UniqueIdentifier;
 pub type SignerAddress = H256;

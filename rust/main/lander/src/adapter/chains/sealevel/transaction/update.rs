@@ -1,7 +1,9 @@
 use hyperlane_core::H512;
 
-use crate::adapter::chains::sealevel::SealevelTxPrecursor;
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{
+    adapter::chains::sealevel::SealevelTxPrecursor,
+    transaction::{Transaction, VmSpecificTxData},
+};
 
 pub trait Update {
     fn update_after_submission(&mut self, hash: H512, precursor: SealevelTxPrecursor) -> &mut Self;

@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
-use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::{abi::Function, types::H160};
+use ethers::{
+    abi::Function,
+    types::{transaction::eip2718::TypedTransaction, H160},
+};
 
 use crate::payload::{FullPayload, PayloadDetails};
 

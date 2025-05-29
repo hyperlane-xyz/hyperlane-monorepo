@@ -3,13 +3,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
-use solana_sdk::instruction::Instruction as SealevelInstruction;
-use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::{Signature, Signer};
-use solana_sdk::transaction::Transaction as SealevelTransaction;
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction as SealevelInstruction,
+    message::Message,
+    pubkey::Pubkey,
+    signature::{Signature, Signer},
+    transaction::Transaction as SealevelTransaction,
+};
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction,
     EncodedTransactionWithStatusMeta, UiConfirmedBlock,
@@ -17,17 +19,22 @@ use solana_transaction_status::{
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
-use hyperlane_sealevel::fallback::SubmitSealevelRpc;
 use hyperlane_sealevel::{
-    PriorityFeeOracle, SealevelKeypair, SealevelProviderForSubmitter, SealevelTxCostEstimate,
-    TransactionSubmitter,
+    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForSubmitter,
+    SealevelTxCostEstimate, TransactionSubmitter,
 };
 
-use crate::adapter::chains::sealevel::transaction::{TransactionFactory, Update};
-use crate::adapter::chains::sealevel::SealevelTxAdapter;
-use crate::adapter::SealevelTxPrecursor;
-use crate::payload::FullPayload;
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{
+    adapter::{
+        chains::sealevel::{
+            transaction::{TransactionFactory, Update},
+            SealevelTxAdapter,
+        },
+        SealevelTxPrecursor,
+    },
+    payload::FullPayload,
+    transaction::{Transaction, VmSpecificTxData},
+};
 
 pub const GAS_LIMIT: u32 = 42;
 

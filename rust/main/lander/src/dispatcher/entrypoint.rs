@@ -71,9 +71,10 @@ impl Entrypoint for DispatcherEntrypoint {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
 
     use async_trait::async_trait;
     use eyre::Result;
@@ -81,13 +82,14 @@ mod tests {
     use hyperlane_core::KnownHyperlaneDomain;
 
     use super::*;
-    use crate::adapter::*;
-    use crate::dispatcher::metrics::DispatcherMetrics;
-    use crate::dispatcher::test_utils::MockAdapter;
-    use crate::dispatcher::PayloadDb;
-    use crate::dispatcher::TransactionDb;
-    use crate::payload::*;
-    use crate::transaction::*;
+    use crate::{
+        adapter::*,
+        dispatcher::{
+            metrics::DispatcherMetrics, test_utils::MockAdapter, PayloadDb, TransactionDb,
+        },
+        payload::*,
+        transaction::*,
+    };
 
     struct MockDb {
         // need arcmutex for interior mutability

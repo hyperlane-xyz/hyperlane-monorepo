@@ -9,8 +9,7 @@ use tracing::info;
 
 use hyperlane_ethereum::EvmProviderForSubmitter;
 
-use crate::transaction::Transaction;
-use crate::LanderError;
+use crate::{transaction::Transaction, LanderError};
 
 use super::super::transaction::Precursor;
 

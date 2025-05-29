@@ -1,8 +1,10 @@
 use uuid::Uuid;
 
-use crate::adapter::chains::ethereum::precursor::EthereumTxPrecursor;
-use crate::payload::FullPayload;
-use crate::transaction::{Transaction, TransactionId, TransactionStatus, VmSpecificTxData};
+use crate::{
+    adapter::chains::ethereum::precursor::EthereumTxPrecursor,
+    payload::FullPayload,
+    transaction::{Transaction, TransactionId, TransactionStatus, VmSpecificTxData},
+};
 
 pub struct TransactionFactory {}
 

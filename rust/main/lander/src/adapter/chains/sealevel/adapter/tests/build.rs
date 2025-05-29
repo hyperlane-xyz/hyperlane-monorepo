@@ -2,13 +2,15 @@ use eyre::Result;
 
 use hyperlane_sealevel::SealevelTxCostEstimate;
 
-use crate::adapter::chains::sealevel::adapter::tests::common::{
-    adapter, estimate, instruction, payload,
+use crate::{
+    adapter::{
+        chains::sealevel::adapter::tests::common::{adapter, estimate, instruction, payload},
+        AdaptsChain, SealevelTxPrecursor, TxBuildingResult,
+    },
+    error::LanderError,
+    payload::PayloadDetails,
+    transaction::{Transaction, VmSpecificTxData},
 };
-use crate::adapter::{AdaptsChain, SealevelTxPrecursor, TxBuildingResult};
-use crate::error::LanderError;
-use crate::payload::PayloadDetails;
-use crate::transaction::{Transaction, VmSpecificTxData};
 
 #[tokio::test]
 async fn test_build_transactions() {

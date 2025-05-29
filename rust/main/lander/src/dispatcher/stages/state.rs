@@ -6,8 +6,7 @@ use std::sync::Arc;
 use chrono::format;
 use derive_new::new;
 use eyre::Result;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
+use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{error, info, instrument::Instrumented, warn};
 
 use hyperlane_base::{

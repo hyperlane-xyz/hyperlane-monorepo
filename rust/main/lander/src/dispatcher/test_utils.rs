@@ -1,18 +1,13 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_core::identifiers::UniqueIdentifier;
-use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
 use tokio::sync::Mutex;
 
 use super::*;
-use crate::adapter::*;
-use crate::error::LanderError;
-use crate::payload::*;
-use crate::transaction::*;
+use crate::{adapter::*, error::LanderError, payload::*, transaction::*};
 
 mockall::mock! {
     pub Adapter {

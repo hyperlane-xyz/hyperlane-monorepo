@@ -1,5 +1,7 @@
-use crate::adapter::EthereumTxPrecursor;
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{
+    adapter::EthereumTxPrecursor,
+    transaction::{Transaction, VmSpecificTxData},
+};
 
 pub trait Precursor {
     fn precursor(&self) -> &EthereumTxPrecursor;
