@@ -1125,8 +1125,8 @@ impl Relayer {
     ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>> {
         settings
             .contract_syncs(
-                &core_metrics,
-                &contract_sync_metrics,
+                core_metrics,
+                contract_sync_metrics,
                 stores.clone(),
                 ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
@@ -1157,8 +1157,8 @@ impl Relayer {
     ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>> {
         settings
             .contract_syncs(
-                &core_metrics,
-                &contract_sync_metrics,
+                core_metrics,
+                contract_sync_metrics,
                 stores.clone(),
                 ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
@@ -1189,8 +1189,8 @@ impl Relayer {
     ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>> {
         settings
             .contract_syncs(
-                &core_metrics,
-                &contract_sync_metrics,
+                core_metrics,
+                contract_sync_metrics,
                 stores.clone(),
                 ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
