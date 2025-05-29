@@ -2,7 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { Config } from '../config/Config.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { IRebalancer } from '../interfaces/IRebalancer.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -24,7 +24,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -48,7 +48,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
@@ -65,7 +65,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -90,7 +90,7 @@ describe('WithSemaphore', () => {
   it('should throw if a chain is missing', async () => {
     const config = {
       chains: {},
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -113,7 +113,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {

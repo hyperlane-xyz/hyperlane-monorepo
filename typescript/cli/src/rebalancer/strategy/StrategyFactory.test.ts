@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
-import { MinAmountType } from '../config/Config.js';
+import { MinAmountType } from '../config/RebalancerConfig.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
 import {

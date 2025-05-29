@@ -9,7 +9,7 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
 import { logDebug } from '../../logger.js';
-import { Config } from '../config/Config.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -29,7 +29,7 @@ export class RebalancerContextFactory {
    * @param context - CLI context
    */
   private constructor(
-    private readonly config: Config,
+    private readonly config: RebalancerConfig,
     private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
@@ -41,7 +41,7 @@ export class RebalancerContextFactory {
    * @param context - CLI context
    */
   public static async create(
-    config: Config,
+    config: RebalancerConfig,
     context: WriteCommandContext,
   ): Promise<RebalancerContextFactory> {
     logDebug('Creating RebalancerContextFactory');

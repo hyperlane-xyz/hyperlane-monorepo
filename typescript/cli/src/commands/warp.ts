@@ -31,9 +31,9 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
-  Config,
   MonitorEventType,
   MonitorPollingError,
+  RebalancerConfig,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
@@ -520,7 +520,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   }) => {
     try {
       // Load rebalancer config from disk
-      const rebalancerConfig = Config.load(config, {
+      const rebalancerConfig = RebalancerConfig.load(config, {
         checkFrequency,
         withMetrics,
         monitorOnly,

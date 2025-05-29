@@ -1,5 +1,5 @@
 import { log } from '../../logger.js';
-import { Config } from '../config/Config.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -13,7 +13,7 @@ export class WithSemaphore implements IRebalancer {
   private executing: boolean = false;
 
   constructor(
-    private readonly config: Config,
+    private readonly config: RebalancerConfig,
     private readonly rebalancer: IRebalancer,
   ) {}
 

@@ -1,6 +1,6 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import type { ChainConfig } from '../config/Config.js';
+import type { ChainConfig } from '../config/RebalancerConfig.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';

@@ -61,65 +61,65 @@ const ChainConfigSchema = BaseChainConfigSchema.extend({
     .optional(),
 });
 
-const BaseConfigSchema = z.object({
+const RebalancerBaseConfigSchema = z.object({
   warpRouteId: z.string(),
   rebalanceStrategy: z.nativeEnum(StrategyOptions),
 });
 
-const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
-  (config, ctx) => {
-    // Get all chain names from the config
-    const chainNames = new Set(
-      Object.keys(config).filter(
-        (key) => !Object.keys(BaseConfigSchema.shape).includes(key),
-      ),
-    );
+const RebalancerConfigSchema = RebalancerBaseConfigSchema.catchall(
+  ChainConfigSchema,
+).superRefine((config, ctx) => {
+  // Get all chain names from the config
+  const chainNames = new Set(
+    Object.keys(config).filter(
+      (key) => !Object.keys(RebalancerBaseConfigSchema.shape).includes(key),
+    ),
+  );
 
-    // Check each chain's overrides
-    for (const chainName of chainNames) {
-      const chain = config[chainName] as ChainConfig;
+  // Check each chain's overrides
+  for (const chainName of chainNames) {
+    const chain = config[chainName] as ChainConfig;
 
-      if (chain.override) {
-        for (const overrideChainName of Object.keys(chain.override)) {
-          // Each override key must reference a valid chain
-          if (!chainNames.has(overrideChainName)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
-              path: [chainName, 'override', overrideChainName],
-            });
-          }
+    if (chain.override) {
+      for (const overrideChainName of Object.keys(chain.override)) {
+        // Each override key must reference a valid chain
+        if (!chainNames.has(overrideChainName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+            path: [chainName, 'override', overrideChainName],
+          });
+        }
 
-          // Override shouldn't be self-referencing
-          if (chainName === overrideChainName) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
-              path: [chainName, 'override', overrideChainName],
-            });
-          }
+        // Override shouldn't be self-referencing
+        if (chainName === overrideChainName) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
+            path: [chainName, 'override', overrideChainName],
+          });
         }
       }
     }
+  }
 
-    const minAmountChainsTypes: MinAmountType[] = [];
-    for (const chainName of chainNames) {
-      const chain = config[chainName];
+  const minAmountChainsTypes: MinAmountType[] = [];
+  for (const chainName of chainNames) {
+    const chain = config[chainName];
 
-      if (chain.minAmount) {
-        minAmountChainsTypes.push(chain.minAmount.type);
-      }
+    if (chain.minAmount) {
+      minAmountChainsTypes.push(chain.minAmount.type);
     }
+  }
 
-    if (minAmountChainsTypes.length && new Set(minAmountChainsTypes).size > 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `All chains must use the same minAmount type.`,
-        path: ['minAmount', 'type'],
-      });
-    }
-  },
-);
+  if (minAmountChainsTypes.length && new Set(minAmountChainsTypes).size > 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `All chains must use the same minAmount type.`,
+      path: ['minAmount', 'type'],
+    });
+  }
+});
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
@@ -129,21 +129,23 @@ export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 export type ChainConfigInput = z.input<typeof ChainConfigSchema>;
 
-export type BaseConfig = z.infer<typeof BaseConfigSchema>;
-export type BaseConfigInput = z.input<typeof BaseConfigSchema>;
+export type RebalancerBaseConfig = z.infer<typeof RebalancerBaseConfigSchema>;
+export type RebalancerBaseConfigInput = z.input<
+  typeof RebalancerBaseConfigSchema
+>;
 
 // TODO: Simplify this typing structure by modifying `BaseConfigSchema` to have a `chains` entry
 //  `chains: z.record(z.string(), ChainConfigSchema),`
 //  Thus we avoid having mixed "specific" vs "index signature", and migrate all to "specific".
 //  An example of what the issue is can be found at: https://tsplay.dev/NljqOW
-export type ConfigFileInput = BaseConfigInput &
+export type RebalancerConfigFileInput = RebalancerBaseConfigInput &
   ChainMap<
     | ChainConfigInput
     // to allow "specific" and "index signature" mix
     | any
   >;
 
-export class Config {
+export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly checkFrequency: number,
@@ -166,8 +168,8 @@ export class Config {
       withMetrics: boolean;
     },
   ) {
-    const config: ConfigFileInput = readYamlOrJson(configFilePath);
-    const validationResult = ConfigSchema.safeParse(config);
+    const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
+    const validationResult = RebalancerConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
       throw new Error(fromZodError(validationResult.error).message);
@@ -179,7 +181,7 @@ export class Config {
       throw new Error('No chains configured');
     }
 
-    return new Config(
+    return new RebalancerConfig(
       warpRouteId,
       extraArgs.checkFrequency,
       extraArgs.monitorOnly,

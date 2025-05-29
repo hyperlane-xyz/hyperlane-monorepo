@@ -3,7 +3,7 @@ import { BigNumber } from 'bignumber.js';
 import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
-import { type ChainConfig, MinAmountType } from '../config/Config.js';
+import { type ChainConfig, MinAmountType } from '../config/RebalancerConfig.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';

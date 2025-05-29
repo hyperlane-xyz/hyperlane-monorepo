@@ -8,7 +8,7 @@ import {
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 
-import { MinAmountType } from '../config/Config.js';
+import { MinAmountType } from '../config/RebalancerConfig.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
