@@ -53,7 +53,11 @@ impl NonceManager {
         Ok(manager)
     }
 
-    pub async fn update_nonce_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+    pub(crate) async fn update_nonce_status(
+        &self,
+        tx: &Transaction,
+        tx_status: &TransactionStatus,
+    ) {
         self.state.update_nonce_status(tx, tx_status).await;
     }
 

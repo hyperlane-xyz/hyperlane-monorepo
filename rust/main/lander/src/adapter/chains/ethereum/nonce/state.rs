@@ -28,6 +28,7 @@ pub(crate) enum NonceAction {
 
 pub struct NonceManagerStateInner {
     nonces: HashMap<U256, NonceStatus>,
+    lowest_nonce: U256,
     /// The lowest nonce which is not tracked by the manager and can be assigned.
     /// This is not the next nonce necessarily since if `nonces` contains a nonce
     /// with status `Free`, it will be returned as the next available nonce.
@@ -42,6 +43,7 @@ impl NonceManagerStateInner {
     pub fn new() -> Self {
         Self {
             nonces: HashMap::new(),
+            lowest_nonce: U256::zero(),
             upper_nonce: U256::zero(),
         }
     }
@@ -54,8 +56,13 @@ impl NonceManagerState {
         }
     }
 
-    pub(crate) async fn update_upper_nonce(&self, nonce: &U256) {
-        self.inner.lock().await.upper_nonce = *nonce;
+    pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) {
+        let mut guard = self.inner.lock().await;
+
+        guard.lowest_nonce = *nonce;
+        if guard.lowest_nonce > guard.upper_nonce {
+            guard.upper_nonce = *nonce;
+        }
     }
 
     pub(crate) async fn insert_nonce_status(&self, nonce: &U256, nonce_status: NonceStatus) {
@@ -92,11 +99,13 @@ impl NonceManagerState {
         use NonceAction::{Noop, Reassign};
         use NonceStatus::{Committed, Free, Taken};
 
-        let nonce_status = self.get_nonce_status(&nonce.into()).await;
+        let (nonce_status, lowest_nonce) =
+            self.get_nonce_status_and_lowest_nonce(&nonce.into()).await;
 
         if let Some(status) = nonce_status {
             match status {
                 Free => Reassign,
+                Taken if nonce < &lowest_nonce => Reassign,
                 Taken | Committed => Noop,
             }
         } else {
@@ -118,8 +127,9 @@ impl NonceManagerState {
         *available_nonce
     }
 
-    async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
-        self.inner.lock().await.nonces.get(nonce).cloned()
+    async fn get_nonce_status_and_lowest_nonce(&self, nonce: &U256) -> (Option<NonceStatus>, U256) {
+        let guard = self.inner.lock().await;
+        (guard.nonces.get(nonce).cloned(), guard.lowest_nonce)
     }
 }
 
