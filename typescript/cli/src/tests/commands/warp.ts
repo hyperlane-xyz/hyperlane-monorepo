@@ -76,6 +76,7 @@ export async function hyperlaneWarpApply(
   warpCorePath: string,
   strategyUrl = '',
 ) {
+  console.log('about to hyperlane warp apply');
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         --config ${warpDeployPath} \

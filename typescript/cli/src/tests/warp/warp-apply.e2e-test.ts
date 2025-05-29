@@ -25,6 +25,7 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
+  deployToken,
   extendWarpConfig,
   getCombinedWarpRoutePath,
   getDomainId,
@@ -41,6 +42,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   let chain2Addresses: ChainAddresses = {};
 
   before(async function () {
+    console.log('\n\n\nWARP APPLY SETUP');
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
 
     chain2Addresses = await deployOrUseExistingCore(
@@ -53,14 +55,35 @@ describe('hyperlane warp apply owner update tests', async function () {
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    const erc20 = await deployToken(ANVIL_KEY, 'anvil2');
+    const anvil2Config = {
+      anvil2: {
+        ...warpConfig.anvil1,
+        type: 'collateral',
+        token: erc20.address,
+      },
+    };
+    // writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+    writeYamlOrJson(warpConfigPath, anvil2Config);
   });
 
   beforeEach(async function () {
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
   });
 
+  it.only('should upgrade implementation', async function () {
+    console.log('RUNNING TESTS');
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(warpConfigPath);
+
+    console.log('DEBUG: warpConfig: ', warpConfig);
+
+    // warpConfig.anvil2.packageVersion = '7.0.0';
+    writeYamlOrJson(warpConfigPath, warpConfig);
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+  });
   it('should burn owner address', async function () {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(

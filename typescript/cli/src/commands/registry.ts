@@ -2,7 +2,7 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { CommandModule } from 'yargs';
 import { $ } from 'zx';
 
-import { resetFork } from '@hyperlane-xyz/sdk';
+// import { resetFork } from '@hyperlane-xyz/sdk';
 import { retryAsync } from '@hyperlane-xyz/utils';
 
 import { createAgentConfig } from '../config/agent.js';
@@ -162,7 +162,7 @@ const forkCommand: CommandModuleWithContext<{
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(`Forking ${name} (latest block)`);
-    await resetFork();
+    // await resetFork();
   },
 };
 

@@ -2,6 +2,7 @@
   "extensions": ["ts"],
   "node-option": [
     "experimental-specifier-resolution=node",
-    "loader=ts-node/esm"
+    "loader=ts-node/esm",
+    "import=ts-node/esm"
   ]
 }

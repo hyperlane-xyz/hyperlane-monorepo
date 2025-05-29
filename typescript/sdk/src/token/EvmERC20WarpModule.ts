@@ -555,6 +555,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
+    console.log('\n\nCREATE WARP ROUTE TXS');
+    console.log('DEBUG: ACTUAL CONFIG: ', actualConfig);
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
     assert(
