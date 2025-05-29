@@ -923,9 +923,15 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(ica.commitments(commitment), true);
     }
 
-    function testFuzz_callRemoteCommitReveal_events(bytes32 commitment) public {
-        // arrange
-        bytes32 salt = bytes32(0);
+    function testFuzz_callRemoteCommitReveal_events(
+        bytes32 data,
+        uint256 value,
+        bytes32 callsSalt,
+        bytes32 userSalt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = _get_commitment(callsSalt, calls);
 
         // expect both events to be emitted
         vm.expectEmit(true, true, true, true);
@@ -934,7 +940,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(this),
             routerOverride,
             ismOverride,
-            salt
+            userSalt
         );
 
         vm.expectEmit(true, false, false, false);
@@ -947,9 +953,27 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             ismOverride,
             bytes(""),
             new TestPostDispatchHook(),
-            salt,
+            userSalt,
             commitment
         );
+
+        OwnableMulticall derivedIca = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                address(this).addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                userSalt
+            );
+
+        vm.expectEmit(true, false, false, false);
+        emit OwnableMulticall.CommitmentSet(commitment);
+        environment.processNextPendingMessage();
+
+        vm.deal(address(derivedIca), value);
+        vm.expectEmit(true, false, false, false);
+        emit OwnableMulticall.CommitmentExecuted(commitment);
+        derivedIca.revealAndExecute(calls, callsSalt);
     }
 
     function _get_metadata(

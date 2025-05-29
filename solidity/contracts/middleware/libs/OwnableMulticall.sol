@@ -34,6 +34,8 @@ contract OwnableMulticall {
 
     event CommitmentSet(bytes32 indexed commitmentHash);
 
+    event CommitmentExecuted(bytes32 indexed commitmentHash);
+
     /// @notice Sets the commitment value that will be executed next
     /// @param _commitment The new commitment value to be set
     function setCommitment(bytes32 _commitment) external onlyOwner {
@@ -60,6 +62,8 @@ contract OwnableMulticall {
         // Delete the commitment (effects)
         executedCommitment = revealedHash;
         delete commitments[revealedHash];
+
+        emit CommitmentExecuted(executedCommitment);
 
         // Execute the calls (interactions)
         CallLib.multicall(calls);
