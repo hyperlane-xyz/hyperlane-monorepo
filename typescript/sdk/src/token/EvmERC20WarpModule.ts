@@ -19,9 +19,9 @@ import {
   difference,
   eqAddress,
   isObjEmpty,
+  normalizeAddressEvm,
   objMap,
   rootLogger,
-  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
@@ -132,6 +132,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -265,21 +266,78 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const rebalancersToAdd = symmetricDifference(
-      expectedConfig.allowedRebalancers,
-      actualConfig.allowedRebalancers ?? new Set(),
+    const formattedExpectedRebalancers = new Set(
+      Array.from(expectedConfig.allowedRebalancers).map(normalizeAddressEvm),
+    );
+    const formattedActualRebalancers = new Set(
+      Array.from(actualConfig.allowedRebalancers ?? []).map(
+        normalizeAddressEvm,
+      ),
     );
 
-    return Array.from(rebalancersToAdd).map((rebalancer) => {
-      return {
-        annotation: `Adding rebalancer role to "${rebalancer}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+    const rebalancersToAdd = Array.from(
+      difference(formattedExpectedRebalancers, formattedActualRebalancers),
+    );
+
+    if (rebalancersToAdd.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Adding rebalancer role to "${rebalancersToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
         data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-          'addRebalancer',
-          [rebalancer],
+          'addRebalancers',
+          [rebalancersToAdd],
         ),
-      };
-    });
+      },
+    ];
+  }
+
+  createRemoveRebalancersUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    actualConfig.type;
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancers) {
+      return [];
+    }
+
+    const formattedExepctedRebalancers = new Set(
+      Array.from(expectedConfig.allowedRebalancers).map(normalizeAddressEvm),
+    );
+    const formattedActualRebalancers = new Set(
+      Array.from(actualConfig.allowedRebalancers ?? []).map(
+        normalizeAddressEvm,
+      ),
+    );
+
+    const rebalancersToRemove = Array.from(
+      difference(formattedActualRebalancers, formattedExepctedRebalancers),
+    );
+
+    if (rebalancersToRemove.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Removing rebalancer role to "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+          'removeRebalancers',
+          [rebalancersToRemove],
+        ),
+      },
+    ];
   }
 
   /**
@@ -610,10 +668,25 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       contractVerifier,
     );
 
+    const actualConfig = await warpModule.read();
     if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
-      const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
+      const enrollRemoteTxs =
+        await warpModule.createEnrollRemoteRoutersUpdateTxs(
+          actualConfig,
+          config,
+        ); // @TODO Remove when EvmERC20WarpModule.create can be used
       const onlyTxIndex = 0;
       await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
+    }
+
+    if (config.allowedRebalancers && config.allowedRebalancers.size !== 0) {
+      const addRebalancerTxs = await warpModule.createAddRebalancersUpdateTxs(
+        actualConfig,
+        config,
+      ); // @TODO Remove when EvmERC20WarpModule.create can be used
+
+      const onlyTxIndex = 0;
+      await multiProvider.sendTransaction(chain, addRebalancerTxs[onlyTxIndex]);
     }
 
     return warpModule;

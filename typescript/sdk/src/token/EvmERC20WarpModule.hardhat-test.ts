@@ -28,7 +28,12 @@ import {
   proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, deepCopy, randomInt } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  deepCopy,
+  eqAddress,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -119,6 +124,68 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     ismAddress = await mailbox.defaultIsm();
   });
+
+  const movableCollateralTypes = Object.values(TokenType).filter(
+    isMovableCollateralTokenType,
+  ) as MovableTokenType[];
+
+  const assertAllowedRebalancers = async (
+    evmERC20WarpModule: EvmERC20WarpModule,
+    expectedRebalancers: string[],
+  ) => {
+    const currentConfig = await evmERC20WarpModule.read();
+    const currentRebalancers = Array.from(
+      currentConfig.allowedRebalancers ?? [],
+    );
+
+    expect(currentRebalancers.length).to.equal(expectedRebalancers.length);
+    currentRebalancers.forEach(
+      (rebalancer, idx) =>
+        expect(eqAddress(rebalancer, expectedRebalancers[idx])).to.be.true,
+    );
+  };
+
+  const getMovableTokenConfig = (): Record<
+    MovableTokenType,
+    HypTokenRouterConfig
+  > => {
+    return {
+      [TokenType.collateral]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+      },
+      [TokenType.collateralVault]: {
+        ...baseConfig,
+        type: TokenType.collateralVault,
+        token: vault.address,
+      },
+      [TokenType.collateralVaultRebase]: {
+        ...baseConfig,
+        type: TokenType.collateralVaultRebase,
+        token: vault.address,
+      },
+      [TokenType.native]: {
+        ...baseConfig,
+        type: TokenType.native,
+      },
+      [TokenType.synthetic]: {
+        ...baseConfig,
+        type: TokenType.synthetic,
+        decimals: TOKEN_DECIMALS,
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+      },
+      [TokenType.syntheticRebase]: {
+        ...baseConfig,
+        type: TokenType.syntheticRebase,
+        decimals: TOKEN_DECIMALS,
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        collateralChainName: chain,
+      },
+    };
+  };
 
   it('should create with a collateral config', async () => {
     const config: HypTokenRouterConfig = {
@@ -258,7 +325,31 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(Object.keys(remoteRouters!).length).to.equal(numOfRouters);
   });
 
-  describe('Update', async () => {
+  for (const tokenType of movableCollateralTypes) {
+    it(`should deploy the token with rebalancers when the token is of type "${tokenType}"`, async () => {
+      const movableTokenConfigs = getMovableTokenConfig();
+
+      const config: HypTokenRouterConfig = deepCopy(
+        movableTokenConfigs[tokenType],
+      );
+
+      const rebalancers = new Set([randomAddress(), randomAddress()]);
+      const expectedRebalancers = Array.from(rebalancers);
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          allowedRebalancers: rebalancers,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
+    });
+  }
+
+  describe(EvmERC20WarpModule.prototype.update.name, async () => {
     const owner = randomAddress();
     const ismConfigToUpdate: IsmConfig[] = [
       {
@@ -754,50 +845,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
 
-    const movableCollateralTypes = Object.values(TokenType).filter(
-      isMovableCollateralTokenType,
-    ) as MovableTokenType[];
     for (const tokenType of movableCollateralTypes) {
       it(`should update add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
-        const movableTokenConfigs: Record<
-          MovableTokenType,
-          HypTokenRouterConfig
-        > = {
-          [TokenType.collateral]: {
-            ...baseConfig,
-            type: TokenType.collateral,
-            token: token.address,
-          },
-          [TokenType.collateralVault]: {
-            ...baseConfig,
-            type: TokenType.collateralVault,
-            token: vault.address,
-          },
-          [TokenType.collateralVaultRebase]: {
-            ...baseConfig,
-            type: TokenType.collateralVaultRebase,
-            token: vault.address,
-          },
-          [TokenType.native]: {
-            ...baseConfig,
-            type: TokenType.native,
-          },
-          [TokenType.synthetic]: {
-            ...baseConfig,
-            type: TokenType.synthetic,
-            decimals: TOKEN_DECIMALS,
-            name: TOKEN_NAME,
-            symbol: TOKEN_NAME,
-          },
-          [TokenType.syntheticRebase]: {
-            ...baseConfig,
-            type: TokenType.syntheticRebase,
-            decimals: TOKEN_DECIMALS,
-            name: TOKEN_NAME,
-            symbol: TOKEN_NAME,
-            collateralChainName: chain,
-          },
-        };
+        const movableTokenConfigs = getMovableTokenConfig();
 
         const config: HypTokenRouterConfig = deepCopy(
           movableTokenConfigs[tokenType],
@@ -809,14 +859,77 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const newRebalancer = randomAddress();
+        const expectedRebalancers = [randomAddress()];
         const txs = await evmERC20WarpModule.update({
           ...config,
-          allowedRebalancers: new Set([newRebalancer]),
-        } as any);
+          allowedRebalancers: new Set(expectedRebalancers),
+        });
 
         expect(txs.length).to.equal(1);
         await sendTxs(txs);
+
+        await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
+      });
+    }
+
+    for (const tokenType of movableCollateralTypes) {
+      it(`should remove a rebalancer on the deployed token if the token is of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const config: HypTokenRouterConfig = deepCopy(
+          movableTokenConfigs[tokenType],
+        );
+
+        const rebalancerToKeep = randomAddress();
+        const expectedRebalancers = [rebalancerToKeep];
+        const rebalancers = new Set([rebalancerToKeep, randomAddress()]);
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            allowedRebalancers: rebalancers,
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancers: new Set([rebalancerToKeep]),
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
+      });
+    }
+
+    for (const tokenType of movableCollateralTypes) {
+      it(`should not generate rebalancer update transactions if the address is in a different casing when token is of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const config: HypTokenRouterConfig = deepCopy(
+          movableTokenConfigs[tokenType],
+        );
+
+        const rebalancerToKeep = randomAddress();
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            allowedRebalancers: new Set([rebalancerToKeep.toLowerCase()]),
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancers: new Set([rebalancerToKeep]),
+        });
+
+        expect(txs.length).to.equal(0);
       });
     }
   });
