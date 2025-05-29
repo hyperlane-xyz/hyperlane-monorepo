@@ -348,28 +348,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
   });
 
-  it('should throw when checkFrequency is 0', async () => {
-    await startRebalancerAndExpectLog(
-      '--checkFrequency is required when not using --manual',
-      {
-        checkFrequency: 0,
-      },
-    );
-  });
-
-  it('should not throw when manual option is defined and checkFrequency is 0', async () => {
-    await startRebalancerAndExpectLog(
-      `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: 1`,
-      {
-        checkFrequency: 0,
-        manual: true,
-        origin: CHAIN_NAME_2,
-        destination: CHAIN_NAME_3,
-        amount: '1',
-      },
-    );
-  });
-
   it('should throw when strategy config file does not exist', async () => {
     rmSync(REBALANCER_CONFIG_PATH);
 

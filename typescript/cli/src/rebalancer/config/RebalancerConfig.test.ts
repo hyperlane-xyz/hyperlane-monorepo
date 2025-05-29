@@ -13,7 +13,7 @@ import {
   type RebalancerConfigFileInput,
 } from './RebalancerConfig.js';
 
-describe('Config', () => {
+describe('RebalancerConfig', () => {
   let coingeckoApiKeyBackup: string | undefined;
   let data: RebalancerConfigFileInput;
   let extraArgs: Parameters<typeof RebalancerConfig.load>[1];

@@ -465,9 +465,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     checkFrequency: {
       type: 'number',
-      description: 'Frequency to check balances in ms',
+      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
       demandOption: false,
-      default: 0,
+      default: 30000,
     },
     withMetrics: {
       type: 'boolean',
@@ -520,10 +520,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
     amount,
   }) => {
     try {
-      if (!manual && !checkFrequency) {
-        throw new Error('--checkFrequency is required when not using --manual');
-      }
-
       // Load rebalancer config from disk
       const rebalancerConfig = RebalancerConfig.load(config, {
         checkFrequency,

@@ -80,17 +80,18 @@ To run the rebalancer, you need to provide:
 
 1. A configuration file
 2. A private key to sign rebalance transactions
-3. The frequency at which to check for rebalancing
 
 ```bash
 # Using environment variable for private key
-HYP_KEY=your_private_key hyperlane warp rebalancer --config ./rebalancer-config.yaml --check-frequency 60000
+HYP_KEY=your_private_key hyperlane warp rebalancer --config ./rebalancer-config.yaml
 
 # Using CLI option for private key
-hyperlane warp rebalancer --config ./rebalancer-config.yaml --check-frequency 60000 --key your_private_key
+hyperlane warp rebalancer --config ./rebalancer-config.yaml --key your_private_key
 ```
 
 ### Additional Options
+
+`--checkFrequency`: Frequency to check balances in ms (defaults: 30 seconds)
 
 `--monitorOnly`: Run in monitor-only mode (no transactions will be sent)
 
