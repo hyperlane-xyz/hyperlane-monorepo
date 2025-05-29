@@ -113,10 +113,8 @@ Requires providing the following options to the execution command:
 For instance, if you need to move `100` USDC from `sepolia` to `arbitrumsepolia`:
 
 ```bash
-# check-frequency is ignored for manual rebalances but required by the CLI
 hyperlane warp rebalance \
   --config ./rebalancer-config.yaml \
-  --check-frequency 60000 \
   --manual \
   --origin sepolia \
   --destination arbitrumsepolia \
