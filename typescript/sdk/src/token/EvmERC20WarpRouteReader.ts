@@ -10,6 +10,7 @@ import {
   HypXERC20__factory,
   IFiatToken__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   ProxyAdmin__factory,
@@ -39,7 +40,11 @@ import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
-import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
+import {
+  NON_ZERO_SENDER_ADDRESS,
+  TokenType,
+  isMovableCollateralTokenType,
+} from './config.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
@@ -134,9 +139,20 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
+    let allowedRebalancers: Set<string> | undefined;
+    if (isMovableCollateralTokenType(type)) {
+      const rebalancers = await MovableCollateralRouter__factory.connect(
+        warpRouteAddress,
+        this.provider,
+      ).allRebalancers();
+
+      allowedRebalancers = new Set(rebalancers);
+    }
+
     return {
       ...routerConfig,
       ...tokenConfig,
+      allowedRebalancers,
       proxyAdmin,
       destinationGas,
     };
