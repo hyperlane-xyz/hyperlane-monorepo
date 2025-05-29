@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  ERC4626Test,
   ERC4626Test__factory,
   GasRouter,
   HypERC20__factory,
@@ -27,7 +28,7 @@ import {
   proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
+import { addressToBytes32, deepCopy, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -42,7 +43,11 @@ import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
-import { TokenType } from './config.js';
+import {
+  MovableTokenType,
+  TokenType,
+  isMovableCollateralTokenType,
+} from './config.js';
 import { HypTokenRouterConfig, derivedHookAddress } from './types.js';
 
 const randomRemoteRouters = (n: number) => {
@@ -66,6 +71,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
+  let vaultFactory: ERC4626Test__factory;
+  let vault: ERC4626Test;
   let token: ERC20Test;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
@@ -104,6 +111,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_DECIMALS,
     );
 
+    vaultFactory = new ERC4626Test__factory(signer);
+    vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+
     baseConfig = routerConfigMap[chain];
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
@@ -133,12 +143,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral vault config', async () => {
-    const vaultFactory = new ERC4626Test__factory(signer);
-    const vault = await vaultFactory.deploy(
-      token.address,
-      TOKEN_NAME,
-      TOKEN_NAME,
-    );
     const config: HypTokenRouterConfig = {
       type: TokenType.collateralVault,
       token: vault.address,
@@ -749,5 +753,71 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
       expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
+
+    const movableCollateralTypes = Object.values(TokenType).filter(
+      isMovableCollateralTokenType,
+    ) as MovableTokenType[];
+    for (const tokenType of movableCollateralTypes) {
+      it(`should update add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
+        const movableTokenConfigs: Record<
+          MovableTokenType,
+          HypTokenRouterConfig
+        > = {
+          [TokenType.collateral]: {
+            ...baseConfig,
+            type: TokenType.collateral,
+            token: token.address,
+          },
+          [TokenType.collateralVault]: {
+            ...baseConfig,
+            type: TokenType.collateralVault,
+            token: vault.address,
+          },
+          [TokenType.collateralVaultRebase]: {
+            ...baseConfig,
+            type: TokenType.collateralVaultRebase,
+            token: vault.address,
+          },
+          [TokenType.native]: {
+            ...baseConfig,
+            type: TokenType.native,
+          },
+          [TokenType.synthetic]: {
+            ...baseConfig,
+            type: TokenType.synthetic,
+            decimals: TOKEN_DECIMALS,
+            name: TOKEN_NAME,
+            symbol: TOKEN_NAME,
+          },
+          [TokenType.syntheticRebase]: {
+            ...baseConfig,
+            type: TokenType.syntheticRebase,
+            decimals: TOKEN_DECIMALS,
+            name: TOKEN_NAME,
+            symbol: TOKEN_NAME,
+            collateralChainName: chain,
+          },
+        };
+
+        const config: HypTokenRouterConfig = deepCopy(
+          movableTokenConfigs[tokenType],
+        );
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const newRebalancer = randomAddress();
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancers: new Set([newRebalancer]),
+        } as any);
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+      });
+    }
   });
 });
