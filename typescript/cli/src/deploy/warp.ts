@@ -74,6 +74,7 @@ import {
   completeDeploy,
   prepareDeploy,
   runPreflightChecksForChains,
+  validateWarpIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -98,6 +99,10 @@ export async function runWarpRouteDeploy({
   warpRouteId?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
+
+  // Validate ISM compatibility for all chains
+  validateWarpIsmCompatibility(warpDeployConfig, context);
+
   const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -110,7 +115,6 @@ export async function runWarpRouteDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
-
   // Some of the below functions throw if passed non-EVM chains
   const ethereumChains = chains.filter(
     (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,

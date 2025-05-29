@@ -66,6 +66,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -225,7 +226,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
-                false,
+                ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
             )
             .await?
@@ -245,8 +246,8 @@ impl BaseAgent for Relayer {
                         dbs.iter()
                             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                             .collect(),
+                        ADVANCED_LOG_META,
                         false,
-                        settings.tx_id_indexing_enabled,
                     )
                     .await?
                     .into_iter()
@@ -267,8 +268,8 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                ADVANCED_LOG_META,
                 false,
-                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
