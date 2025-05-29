@@ -225,6 +225,8 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
   sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
+  bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
+  hashkey: '0x55aeb80Aa6Ab34aA83E1F387903F8Bb2Aa9e2F2d',
 };
 
 const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
@@ -287,6 +289,18 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     },
     {
       lockbox: productionCCIPTokenPoolAddresses.optimism,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  bob: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.bob,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  hashkey: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.hashkey,
       limits: productionCCIPTokenPoolLimits,
     },
   ],
