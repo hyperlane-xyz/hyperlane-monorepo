@@ -91,7 +91,7 @@ impl Context {
     }
 
     /// If the pubkey matches the payer's pubkey, return the payer's signer.
-    /// Otherwise, return a NullSigner for the given pubkey.
+    /// Otherwise, return None.
     pub(crate) fn signer_for_pubkey(&self, pubkey: &Pubkey) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
             if &keypair.pubkey() == pubkey {
