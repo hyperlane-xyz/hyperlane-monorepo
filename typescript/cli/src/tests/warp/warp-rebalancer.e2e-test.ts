@@ -174,6 +174,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   beforeEach(async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -227,8 +228,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     options: {
       checkFrequency?: number;
       withMetrics?: boolean;
-      rebalanceStrategy?: string;
       monitorOnly?: boolean;
+      manual?: boolean;
       origin?: string;
       destination?: string;
       amount?: string;
@@ -237,20 +238,19 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const {
       checkFrequency = CHECK_FREQUENCY,
       withMetrics = false,
-      rebalanceStrategy,
       monitorOnly = false,
+      manual = false,
       origin,
       destination,
       amount,
     } = options;
 
     return hyperlaneWarpRebalancer(
-      warpRouteId,
       checkFrequency,
       REBALANCER_CONFIG_PATH,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -263,8 +263,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       timeout?: number;
       checkFrequency?: number;
       withMetrics?: boolean;
-      rebalanceStrategy?: string;
       monitorOnly?: boolean;
+      manual?: boolean;
       origin?: string;
       destination?: string;
       amount?: string;
@@ -274,8 +274,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       timeout = 10_000,
       checkFrequency,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -284,8 +284,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const process = startRebalancer({
       checkFrequency,
       withMetrics,
-      rebalanceStrategy,
       monitorOnly,
+      manual,
       origin,
       destination,
       amount,
@@ -358,6 +358,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if theres a mix of minAmount types', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.MinAmount,
       [CHAIN_NAME_2]: {
         minAmount: {
@@ -386,6 +387,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -410,6 +412,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -434,6 +437,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a bridge value is not a valid address', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -466,8 +470,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should not rebalance if mode is monitorOnly', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
-      monitorOnly: true,
       [CHAIN_NAME_2]: {
         weighted: {
           weight: '75',
@@ -488,11 +492,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     await startRebalancerAndExpectLog(
       `Running in monitorOnly mode: no transactions will be executed.`,
+      { monitorOnly: true },
     );
   });
 
   it('should skip chains that are not in the config', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -519,6 +525,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should skip chains that are not supported collaterals', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -553,6 +560,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -579,6 +587,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the destination is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -624,6 +633,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the bridge is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -675,6 +685,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if rebalance quotes cannot be obtained', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -762,6 +773,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.MinAmount,
       [CHAIN_NAME_2]: {
         minAmount: {
@@ -822,6 +834,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -878,6 +891,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -961,6 +975,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
     // we need to add the address of the allowed bridge to chain 3
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -1090,6 +1105,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // --- Configure rebalancer ---
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -1121,6 +1137,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -1179,38 +1196,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
 
     await process.kill();
-  });
-
-  it('should use the rebalanceStrategy flag to override the config file', async () => {
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      [CHAIN_NAME_2]: {
-        minAmount: {
-          min: '-10',
-          target: '10',
-          type: MinAmountType.Absolute,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        minAmount: {
-          min: '8',
-          target: '10',
-          type: MinAmountType.Absolute,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-    });
-
-    await startRebalancerAndExpectLog(
-      'Minimum amount (-10) cannot be negative for chain anvil2',
-      {
-        timeout: 10000,
-        withMetrics: false,
-        rebalanceStrategy: StrategyOptions.MinAmount,
-      },
-    );
   });
 
   it('should use another warp route as bridge', async () => {
@@ -1292,6 +1277,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     ).wait();
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      warpRouteId,
       rebalanceStrategy: StrategyOptions.Weighted,
       [CHAIN_NAME_2]: {
         weighted: {
@@ -1400,6 +1386,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
       // we need to add the address of the allowed bridge to chain 3
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        warpRouteId,
         rebalanceStrategy: StrategyOptions.Weighted,
         [CHAIN_NAME_2]: {
           weighted: {
@@ -1445,7 +1432,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Start the rebalancer
       const rebalancer = startRebalancer({
-        rebalanceStrategy: StrategyOptions.Manual,
+        manual: true,
         origin: originName,
         destination: destName,
         amount: manualRebalanceAmount,
@@ -1586,6 +1573,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       ).wait();
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        warpRouteId,
         rebalanceStrategy: StrategyOptions.Weighted,
         [CHAIN_NAME_2]: {
           weighted: {
@@ -1639,7 +1627,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           ],
           {
             timeout: 30000,
-            rebalanceStrategy: StrategyOptions.Manual,
+            manual: true,
             origin: CHAIN_NAME_2,
             destination: CHAIN_NAME_3,
             amount: manualRebalanceAmount,

@@ -34,12 +34,10 @@ import {
   MonitorEventType,
   MonitorPollingError,
   RebalancerContextFactory,
-  StrategyOptions,
 } from '../rebalancer/index.js';
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
-import { ENV } from '../utils/env.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -446,12 +444,10 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithWriteContext<{
   config: string;
-  warpRouteId?: string;
-  checkFrequency?: number;
-  withMetrics?: boolean;
-  monitorOnly?: boolean;
-  coingeckoApiKey?: string;
-  rebalanceStrategy?: StrategyOptions;
+  checkFrequency: number;
+  withMetrics: boolean;
+  monitorOnly: boolean;
+  manual?: boolean;
   origin?: string;
   destination?: string;
   amount?: string;
@@ -466,65 +462,57 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
     },
-    warpRouteId: {
-      type: 'string',
-      description: 'The warp route ID to rebalance',
-      demandOption: false,
-    },
     checkFrequency: {
       type: 'number',
       description: 'Frequency to check balances in ms',
-      demandOption: false,
+      demandOption: true,
     },
     withMetrics: {
       type: 'boolean',
-      description: 'Enable metrics',
+      description: 'Enable metrics (default: true)',
       demandOption: false,
+      default: true,
     },
     monitorOnly: {
       type: 'boolean',
-      description: 'Run in monitor only mode',
+      description: 'Run in monitor only mode (default: false)',
       demandOption: false,
+      default: false,
     },
-    coingeckoApiKey: {
-      type: 'string',
-      description: 'CoinGecko API key',
+    manual: {
+      type: 'boolean',
+      description:
+        'Trigger a rebalancer manual run (default: false, requires --origin, --destination, --amount)',
       demandOption: false,
-      alias: ['g', 'coingecko-api-key'],
-      implies: 'withMetrics',
-    },
-    rebalanceStrategy: {
-      type: 'string',
-      description: 'Rebalancer strategy (weighted, minAmount, manual)',
-      demandOption: false,
-      alias: ['rs', 'rebalance-strategy'],
+      implies: ['origin', 'destination', 'amount'],
     },
     origin: {
       type: 'string',
       description: 'The origin chain for manual rebalance',
       demandOption: false,
+      implies: 'manual',
     },
     destination: {
       type: 'string',
       description: 'The destination chain for manual rebalance',
       demandOption: false,
+      implies: 'manual',
     },
     amount: {
-      type: 'string',
+      type: 'number',
       description:
         'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
       demandOption: false,
+      implies: 'manual',
     },
   },
   handler: async ({
     context,
     config,
-    warpRouteId,
     checkFrequency,
     withMetrics,
     monitorOnly,
-    coingeckoApiKey = ENV.COINGECKO_API_KEY,
-    rebalanceStrategy,
+    manual,
     origin,
     destination,
     amount,
@@ -533,13 +521,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const { registry, key: rebalancerKey } = context;
 
       // Load rebalancer config from disk
-      const rebalancerConfig = Config.load(config, rebalancerKey, {
-        warpRouteId,
+      const rebalancerConfig = Config.load(config, {
+        rebalancerKey,
         checkFrequency,
         withMetrics,
         monitorOnly,
-        coingeckoApiKey,
-        rebalanceStrategy,
       });
       logGreen('✅ Loaded rebalancer config');
 
@@ -549,18 +535,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
         rebalancerConfig,
       );
 
-      if (rebalanceStrategy === StrategyOptions.Manual) {
-        if (!origin) {
-          throw new Error('--origin is required for manual rebalance');
-        }
-
-        if (!destination) {
-          throw new Error('--destination is required for manual rebalance');
-        }
-
-        if (!amount) {
-          throw new Error('--amount is required for manual rebalance');
-        }
+      if (manual) {
+        // These values will be enforced when manual is true given the 'implies' option in the builder.
+        // This will probably never fail, but allows the type to be infered as not undefined.
+        assert(origin, '--origin is required');
+        assert(destination, '--destination is required');
+        assert(amount, '--amount is required');
 
         warnYellow(
           `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,

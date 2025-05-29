@@ -3,6 +3,7 @@ import { fromZodError } from 'zod-validation-error';
 
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
+import { ENV } from '../../utils/env.js';
 import { readYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
 
@@ -61,11 +62,8 @@ const ChainConfigSchema = BaseChainConfigSchema.extend({
 });
 
 const BaseConfigSchema = z.object({
-  warpRouteId: z.string().optional(),
-  checkFrequency: z.number().optional(),
-  withMetrics: z.boolean().optional().default(false),
-  monitorOnly: z.boolean().optional().default(false),
-  rebalanceStrategy: z.nativeEnum(StrategyOptions).optional(),
+  warpRouteId: z.string(),
+  rebalanceStrategy: z.nativeEnum(StrategyOptions),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
@@ -125,7 +123,6 @@ const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema).superRefine(
 
 // Define separate types for each strategy config
 export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
-
 export type MinAmountChainConfig = z.infer<typeof MinAmountConfigSchema>;
 
 // Union type for all chain configs
@@ -153,15 +150,23 @@ export class Config {
     public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
-    public readonly coingeckoApiKey: string,
+    public readonly coingeckoApiKey: string | undefined,
     public readonly rebalanceStrategy: StrategyOptions,
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 
+  /**
+   * Loads config from a file
+   * @param extraArgs Params to be provided along the config file (E.g. Params provided from cli args)
+   */
   static load(
     configFilePath: string,
-    rebalancerKey: string,
-    overrides: Partial<BaseConfig & { coingeckoApiKey: string }>,
+    extraArgs: {
+      rebalancerKey: string;
+      checkFrequency: number;
+      monitorOnly: boolean;
+      withMetrics: boolean;
+    },
   ) {
     const config: ConfigFileInput = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
@@ -170,46 +175,19 @@ export class Config {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const {
-      warpRouteId: fileWarpRouteId,
-      checkFrequency: fileCheckFrequency,
-      monitorOnly: fileMonitorOnly,
-      withMetrics: fileWithMetrics,
-      rebalanceStrategy: fileRebalanceStrategy,
-      ...chains
-    } = validationResult.data;
+    const { warpRouteId, rebalanceStrategy, ...chains } = validationResult.data;
 
     if (!Object.keys(chains).length) {
       throw new Error('No chains configured');
     }
 
-    const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
-    const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
-    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly;
-    const withMetrics = overrides.withMetrics ?? fileWithMetrics;
-    const coingeckoApiKey = overrides.coingeckoApiKey ?? '';
-    const rebalanceStrategy =
-      overrides.rebalanceStrategy ?? fileRebalanceStrategy;
-
-    if (!warpRouteId) {
-      throw new Error('warpRouteId is required');
-    }
-
-    if (!checkFrequency) {
-      throw new Error('checkFrequency is required');
-    }
-
-    if (!rebalanceStrategy) {
-      throw new Error('rebalanceStrategy is required');
-    }
-
     return new Config(
-      rebalancerKey,
+      extraArgs.rebalancerKey,
       warpRouteId,
-      checkFrequency,
-      monitorOnly,
-      withMetrics,
-      coingeckoApiKey,
+      extraArgs.checkFrequency,
+      extraArgs.monitorOnly,
+      extraArgs.withMetrics,
+      ENV.COINGECKO_API_KEY,
       rebalanceStrategy,
       chains,
     );

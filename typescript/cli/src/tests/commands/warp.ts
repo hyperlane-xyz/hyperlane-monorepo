@@ -170,29 +170,27 @@ export function hyperlaneWarpSendRelay(
 }
 
 export function hyperlaneWarpRebalancer(
-  warpRouteId: string,
   checkFrequency: number,
   config: string,
   withMetrics: boolean,
-  rebalanceStrategy?: string,
   monitorOnly?: boolean,
+  manual?: boolean,
   origin?: string,
   destination?: string,
   amount?: string,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
-        --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        ${monitorOnly ? ['--monitorOnly'] : ['']} \
-        ${origin ? ['--origin', origin] : ['']} \
-        ${destination ? ['--destination', destination] : ['']} \
-        ${amount ? ['--amount', amount] : ['']} \
-        ${withMetrics ? ['--withMetrics'] : ['']} \
-        ${rebalanceStrategy ? ['--rebalanceStrategy', rebalanceStrategy] : []}`;
+        --withMetrics ${withMetrics ? ['true'] : ['false']} \
+        --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
+        ${manual ? ['--manual'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
+        ${amount ? ['--amount', amount] : []}`;
 }
 
 /**
