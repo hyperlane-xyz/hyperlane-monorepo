@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -231,8 +232,12 @@ export async function requestAndSaveApiKeys(
   const apiKeys: ChainMap<string> = {};
 
   for (const chain of chains) {
-    if (chainMetadata[chain]?.blockExplorers?.[0]?.apiKey) {
-      apiKeys[chain] = chainMetadata[chain]!.blockExplorers![0]!.apiKey!;
+    const blockExplorer = chainMetadata[chain]?.blockExplorers?.[0];
+    if (blockExplorer?.family !== ExplorerFamily.Etherscan) {
+      continue;
+    }
+    if (blockExplorer?.apiKey) {
+      apiKeys[chain] = blockExplorer.apiKey;
       continue;
     }
     const wantApiKey = await confirm({

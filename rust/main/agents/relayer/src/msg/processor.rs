@@ -89,7 +89,7 @@ impl ForwardBackwardIterator {
             let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
 
             match (high_nonce_message_status, low_nonce_message_status) {
-                // Always prioritize advancing the the high nonce iterator, as
+                // Always prioritize advancing the high nonce iterator, as
                 // we have a preference for higher nonces
                 (MessageStatus::Processed, _) => {
                     self.high_nonce_iter.iterate();

@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  AbstractStorageMultisigIsm__factory,
   AmountRoutingIsm__factory,
   CCIPIsm__factory,
   DomainRoutingIsm__factory,
@@ -30,6 +31,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import {
   DomainRoutingIsmConfig,
@@ -235,6 +237,24 @@ export async function moduleMatchesConfig(
   if (actualType !== ismTypeToModuleType(config.type)) return false;
   let matches = true;
   switch (config.type) {
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG: {
+      // A storage multisig ism matches if validators and threshold match the config
+      const storageMerkleRootMultisigIsm =
+        AbstractStorageMultisigIsm__factory.connect(moduleAddress, provider);
+      const [validators, threshold] =
+        await storageMerkleRootMultisigIsm.validatorsAndThreshold(
+          ethers.constants.AddressZero,
+        );
+      matches = deepEquals(
+        normalizeConfig({ validators, threshold }),
+        normalizeConfig({
+          validators: config.validators,
+          threshold: config.threshold,
+        }),
+      );
+      break;
+    }
     case IsmType.MERKLE_ROOT_MULTISIG: {
       // A MerkleRootMultisigIsm matches if validators and threshold match the config
       const expectedAddress =
@@ -556,6 +576,8 @@ export function collectValidators(
 
   let validators: string[] = [];
   if (
+    config.type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG ||
+    config.type === IsmType.STORAGE_MESSAGE_ID_MULTISIG ||
     config.type === IsmType.MERKLE_ROOT_MULTISIG ||
     config.type === IsmType.MESSAGE_ID_MULTISIG
   ) {

@@ -215,16 +215,12 @@ impl Settings {
     /// watermark trait bounds
     pub async fn contract_syncs<T, S>(
         &self,
-        domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> (
-        HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>,
-        Vec<HyperlaneDomain>,
-    )
+    ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -235,12 +231,10 @@ impl Settings {
     {
         // TODO: parallelize these calls again
         let mut syncs = HashMap::new();
-        let mut failed = Vec::new();
-        for domain in domains {
-            let store = stores.get(domain).unwrap().clone();
+        for (domain, store) in stores {
             let sync = self
                 .contract_sync(
-                    domain,
+                    &domain,
                     metrics,
                     sync_metrics,
                     store,
@@ -248,18 +242,9 @@ impl Settings {
                     broadcast_sender_enabled,
                 )
                 .await;
-            match sync {
-                Ok(sync) => {
-                    syncs.insert(domain.clone(), sync);
-                }
-                Err(err) => {
-                    tracing::error!(?domain, ?err, "Failed to create contract_sync()");
-                    failed.push(domain.clone());
-                }
-            }
+            syncs.insert(domain, sync);
         }
-
-        (syncs, failed)
+        syncs
     }
 
     /// Build single contract sync.

@@ -40,6 +40,7 @@ import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/
 import { getBobaBsquaredSoneiumSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
+import { getBscMilkywayMILKWarpConfig } from './environments/mainnet3/warp/configGetters/getBscMilkywayMILKWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -83,6 +84,7 @@ type WarpConfigGetter = (
 ) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
+  [WarpRouteIds.BscMilkywayMILK]: getBscMilkywayMILKWarpConfig,
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,

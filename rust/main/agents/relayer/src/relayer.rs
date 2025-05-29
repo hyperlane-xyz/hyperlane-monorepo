@@ -224,41 +224,27 @@ impl BaseAgent for Relayer {
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
 
-        let (message_syncs, failed_syncs) = settings
-            .contract_syncs::<HyperlaneMessage, _>(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                stores.clone(),
-                ADVANCED_LOG_META,
-                settings.tx_id_indexing_enabled,
-            )
-            .await;
-        failed_syncs.iter().for_each(|domain| {
-            let err = "Failed to create message sync";
-            let error_msg = "Failed to create message sync";
-            Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-        });
+        let message_syncs = Self::build_message_contract_syncs(
+            &settings,
+            &core_metrics,
+            &chain_metrics,
+            &contract_sync_metrics,
+            stores.clone(),
+        )
+        .await;
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let interchain_gas_payment_syncs = if settings.igp_indexing_enabled {
-            let (igp_syncs, failed_syncs) = settings
-                .contract_syncs::<InterchainGasPayment, _>(
-                    settings.origin_chains.iter(),
-                    &core_metrics,
-                    &contract_sync_metrics,
-                    stores.clone(),
-                    ADVANCED_LOG_META,
-                    settings.tx_id_indexing_enabled,
-                )
-                .await;
-            failed_syncs.iter().for_each(|domain| {
-                let err = "Failed to create interchain gas payment sync";
-                let error_msg = "Failed to create interchain gas payment sync";
-                Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-            });
+            let igp_syncs = Self::build_interchain_gas_payment_contract_syncs(
+                &settings,
+                &core_metrics,
+                &chain_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+            )
+            .await;
             Some(igp_syncs)
         } else {
             None
@@ -266,21 +252,14 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let (merkle_tree_hook_syncs, failed_syncs) = settings
-            .contract_syncs::<MerkleTreeInsertion, _>(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                stores.clone(),
-                ADVANCED_LOG_META,
-                settings.tx_id_indexing_enabled,
-            )
-            .await;
-        failed_syncs.iter().for_each(|domain| {
-            let err = "Failed to create merkle tree hook sync";
-            let error_msg = "Failed to create merkle tree hook sync";
-            Self::record_critical_error(domain, &err, error_msg, chain_metrics.clone());
-        });
+        let merkle_tree_hook_syncs = Self::build_merkle_tree_insertion_contract_syncs(
+            &settings,
+            &core_metrics,
+            &chain_metrics,
+            &contract_sync_metrics,
+            stores.clone(),
+        )
+        .await;
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized merkle tree hook syncs", "Relayer startup duration measurement");
 
@@ -399,6 +378,7 @@ impl BaseAgent for Relayer {
                     }
                 };
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
@@ -418,6 +398,7 @@ impl BaseAgent for Relayer {
                         settings.ism_cache_configs.clone(),
                     ),
                     ccip_signers.get(destination).cloned().flatten(),
+                    origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
@@ -654,6 +635,7 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
+            None,
         )
         .await
     }
@@ -1099,6 +1081,90 @@ impl Relayer {
             .collect()
     }
 
+    pub async fn build_message_contract_syncs(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+        contract_sync_metrics: &ContractSyncMetrics,
+        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>> {
+        settings
+            .contract_syncs(
+                &core_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await
+            .into_iter()
+            .filter_map(|(domain, sync)| match sync {
+                Ok(s) => Some((domain, s)),
+                Err(err) => {
+                    error!(?err, domain=?domain.name(), "Critical error when building message contract sync");
+                    chain_metrics.set_critical_error(domain.name(), true);
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub async fn build_interchain_gas_payment_contract_syncs(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+        contract_sync_metrics: &ContractSyncMetrics,
+        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>> {
+        settings
+            .contract_syncs(
+                &core_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await
+            .into_iter()
+            .filter_map(|(domain, sync)| match sync {
+                Ok(s) => Some((domain, s)),
+                Err(err) => {
+                    error!(?err, domain=?domain.name(), "Critical error when building interchain gas payment contract sync");
+                    chain_metrics.set_critical_error(domain.name(), true);
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub async fn build_merkle_tree_insertion_contract_syncs(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+        contract_sync_metrics: &ContractSyncMetrics,
+        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>> {
+        settings
+            .contract_syncs(
+                &core_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await
+            .into_iter()
+            .filter_map(|(domain, sync)| match sync {
+                Ok(s) => Some((domain, s)),
+                Err(err) => {
+                    error!(?err, domain=?domain.name(), "Critical error when building merkle tree hook contract sync");
+                    chain_metrics.set_critical_error(domain.name(), true);
+                    None
+                }
+            })
+            .collect()
+    }
+
     fn reset_critical_errors(settings: &RelayerSettings, chain_metrics: &ChainMetrics) {
         settings
             .origin_chains
@@ -1204,6 +1270,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 
