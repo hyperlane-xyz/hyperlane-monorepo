@@ -1,3 +1,6 @@
+import { ethers } from 'ethers';
+import { format } from 'util';
+
 import {
   type ChainMap,
   type ChainMetadata,
@@ -11,6 +14,7 @@ import {
 import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
+import { WrappedError } from '../../utils/errors.js';
 import type { IExecutor } from '../interfaces/IExecutor.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
@@ -135,8 +139,9 @@ export class Executor implements IExecutor {
           bridgeIsWarp,
         );
       } catch (error) {
-        throw new Error(
-          `Could not get rebalance quotes from ${origin} to ${destination}, for ${decimalFormatAmount} ${originToken.name}: ${(error as Error).message}`,
+        throw new WrappedError(
+          `Could not get rebalance quotes from ${origin} to ${destination}, for ${decimalFormatAmount} ${originToken.name}`,
+          error as Error,
         );
       }
 
@@ -248,11 +253,7 @@ export class Executor implements IExecutor {
       if (result.status === 'fulfilled') {
         log(`Transaction receipt: ${stringifyObject(result.value)}`);
       } else {
-        errorRed(
-          result.reason instanceof Error
-            ? result.reason.message
-            : result.reason,
-        );
+        errorRed(format(result.reason));
       }
     }
 

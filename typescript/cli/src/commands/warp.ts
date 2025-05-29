@@ -1,3 +1,4 @@
+import { format } from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -607,7 +608,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
           executor?.rebalance(rebalancingRoutes).catch((e) => {
-            errorRed('Error while rebalancing:', (e as Error).message);
+            errorRed('Error while rebalancing:', format(e));
           });
         })
         // Observe monitor errors and exit
@@ -626,7 +627,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         // Finally, starts the monitor to begin polling balances.
         .start();
     } catch (e) {
-      errorRed('Rebalancer error:', (e as Error).message);
+      errorRed('Rebalancer error:', format(e));
       process.exit(1);
     }
   },

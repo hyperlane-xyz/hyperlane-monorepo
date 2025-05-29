@@ -381,7 +381,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer error: Validation error: All chains must use the same minAmount type. at "minAmount.type"`,
+      `Rebalancer error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type"`,
     );
   });
 
@@ -733,9 +733,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Could not get rebalance quotes from ${chain3Metadata.name} to ${
-        chain2Metadata.name
-      }, for 5 token: All providers failed on chain unknown for method call and params`,
+      `Could not get rebalance quotes from ${chain3Metadata.name} to ${chain2Metadata.name}, for 5 token`,
     );
   });
 
@@ -796,7 +794,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
+      `Rebalancer error: Error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
     );
   });
 
