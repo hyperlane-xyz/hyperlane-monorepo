@@ -71,6 +71,10 @@ pub fn fetch_relayer_message_processed_count() -> eyre::Result<u32> {
     .sum::<u32>())
 }
 
+pub fn fetch_relayer_operation_processed_count() -> eyre::Result<u32> {
+    Ok(0)
+}
+
 pub fn fetch_relayer_gas_payment_event_count() -> eyre::Result<u32> {
     Ok(fetch_metric(
         RELAYER_METRICS_PORT,
