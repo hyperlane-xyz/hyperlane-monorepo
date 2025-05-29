@@ -7,6 +7,8 @@ import {
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  OpL1V1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory,
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -32,6 +34,7 @@ import { ChainMap, ChainName } from '../types.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
+  HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   hypERC20contracts,
@@ -57,6 +60,43 @@ import {
   isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
+
+export const TOKEN_INITIALIZE_SELECTOR = (
+  contractName: HypERC20contracts[TokenType],
+) => {
+  switch (contractName) {
+    case 'OPL2TokenBridgeNative':
+      // initialize(address _hook, address _owner)
+      const OpL2FunctionName = 'initialize(address,address)';
+      assert(
+        OpL2NativeTokenBridge__factory.createInterface().functions[
+          OpL2FunctionName
+        ],
+        'missing expected initialize function',
+      );
+      return OpL2FunctionName;
+    case 'OpL1TokenBridgeNative':
+      // initialize(address _owner, string[] memory _urls)
+      const OpL1FunctionName = 'initialize(address,string[])';
+      assert(
+        OpL1V1NativeTokenBridge__factory.createInterface().functions[
+          OpL1FunctionName
+        ],
+        'missing expected initialize function',
+      );
+      return OpL1FunctionName;
+    case 'TokenBridgeCctp':
+      // initialize(address _hook, address _owner, string[] memory __urls)
+      const CctpFunctionName = 'initialize(address,address,string[])';
+      assert(
+        TokenBridgeCctp__factory.createInterface().functions[CctpFunctionName],
+        'missing expected initialize function',
+      );
+      return CctpFunctionName;
+    default:
+      return 'initialize';
+  }
+};
 
 abstract class TokenDeployer<
   Factories extends TokenFactories,
@@ -114,9 +154,7 @@ abstract class TokenDeployer<
   }
 
   initializeFnSignature(name: string): string {
-    return name === 'TokenBridgeCctp'
-      ? 'initialize(address,address,string[])'
-      : 'initialize';
+    return TOKEN_INITIALIZE_SELECTOR(name as any);
   }
 
   async initializeArgs(
