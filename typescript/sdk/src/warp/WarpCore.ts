@@ -499,12 +499,12 @@ export class WarpCore {
       const adapter = token.getAdapter(
         this.multiProvider,
       ) as EvmHypXERC20LockboxAdapter;
-      const tokenColleteral = await adapter.getBridgedSupply();
-      return tokenColleteral;
+      const tokenCollateral = await adapter.getBridgedSupply();
+      return tokenCollateral;
     } else {
       const adapter = token.getAdapter(this.multiProvider);
-      const tokenColleteral = await adapter.getBalance(token.addressOrDenom);
-      return tokenColleteral;
+      const tokenCollateral = await adapter.getBalance(token.addressOrDenom);
+      return tokenCollateral;
     }
   }
 
