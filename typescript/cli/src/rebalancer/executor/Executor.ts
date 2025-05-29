@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { format } from 'util';
 
 import {
