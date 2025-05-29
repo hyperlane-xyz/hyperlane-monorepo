@@ -846,20 +846,24 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
 
     for (const tokenType of movableCollateralTypes) {
-      it(`should update add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
+      it(`should add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const config: HypTokenRouterConfig = deepCopy(
           movableTokenConfigs[tokenType],
         );
+        const initialRebalancer = randomAddress();
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config,
+          config: {
+            ...config,
+            allowedRebalancers: new Set([initialRebalancer]),
+          },
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const expectedRebalancers = [randomAddress()];
+        const expectedRebalancers = [initialRebalancer, randomAddress()];
         const txs = await evmERC20WarpModule.update({
           ...config,
           allowedRebalancers: new Set(expectedRebalancers),
