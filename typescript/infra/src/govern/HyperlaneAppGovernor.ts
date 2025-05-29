@@ -6,6 +6,7 @@ import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
@@ -529,6 +530,14 @@ export abstract class HyperlaneAppGovernor<
         chain,
         call,
       };
+    }
+
+    // Fallback to manual submission if we're on a ZkSync chain.
+    // This is because we are not allowed to estimate gas for non-signer addresses on ZkSync.
+    // And if we can't simulate the transaction, we can't know for sure ourselves which safe to submit it to.
+    const { technicalStack } = multiProvider.getChainMetadata(chain);
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      return { type: SubmissionType.MANUAL, chain, call };
     }
 
     // Check if the transaction will succeed with a SAFE
