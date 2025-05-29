@@ -18,11 +18,16 @@ abstract contract MovableCollateralRouter is Router {
 
     /// @notice Mapping of domains to allowed recipients => router. For a given domain we have one router we send/receive messages from.
     /// @dev mapping(uint32 destinationDomain => bytes32 recipient)
-    EnumerableMapExtended.UintToBytes32Map internal _allowedDestinations;
-    function allowedDestinations(
-        uint32 domain
-    ) external view returns (bytes32) {
-        (, bytes32 recipient) = _allowedDestinations.tryGet(domain);
+    EnumerableMapExtended.UintToBytes32Map internal _allowedRecipients;
+
+    /// @notice Returns all domains that have a recipient.
+    function allDomains() external view returns (uint32[] memory) {
+        return _allowedRecipients.uint32Keys();
+    }
+
+    /// @notice Returns recipient for a given domain.
+    function allowedRecipients(uint32 domain) external view returns (bytes32) {
+        (, bytes32 recipient) = _allowedRecipients.tryGet(domain);
         return recipient;
     }
 
@@ -32,6 +37,13 @@ abstract contract MovableCollateralRouter is Router {
     /// @notice Mapping of address to true if the address is a rebalancer.
     /// @dev mapping(address user => bool isRebalancer)
     EnumerableMap.AddressToUintMap internal _allowedRebalancers;
+
+    /// @notice All rebalancers.
+    function allRebalancers() external view returns (address[] memory) {
+        return _allowedRebalancers.keys();
+    }
+
+    /// @notice Returns true if a given address is a rebalancer.
     function allowedRebalancers(
         address rebalancer
     ) external view returns (bool) {
@@ -84,7 +96,7 @@ abstract contract MovableCollateralRouter is Router {
     ) external payable onlyRebalancer {
         address rebalancer = _msgSender();
 
-        (, bytes32 recipient) = _allowedDestinations.tryGet(domain);
+        (, bytes32 recipient) = _allowedRecipients.tryGet(domain);
         if (recipient == bytes32(0)) {
             recipient = _mustHaveRemoteRouter(domain);
         }
@@ -116,7 +128,7 @@ abstract contract MovableCollateralRouter is Router {
     }
 
     function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
-        _allowedDestinations.set(domain, recipient);
+        _allowedRecipients.set(domain, recipient);
     }
 
     function addBridge(
