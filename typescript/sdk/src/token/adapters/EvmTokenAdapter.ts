@@ -58,7 +58,7 @@ import {
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
-import { NetworkType } from '@tvl-labs/arcadia-sdk/config.js';
+import { NetworkType } from '@tvl-labs/arcadia-sdk/config';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -941,7 +941,7 @@ export class EvmKhalaniIntentTokenAdapter
       arcadiaChainInfo.rpcUrl[0],
     );
 
-    const assetReservesAbi = contractService.getAssetReservesABI<ContractInterface>();
+    const assetReservesAbi = contractService.getAssetReservesABI<ContractInterface>(true);
     // instantiate assetReserves
     this.assetReservesContract = new ethers.Contract(
       this.addresses.addressOrDenom,

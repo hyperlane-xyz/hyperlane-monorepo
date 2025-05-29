@@ -1,4 +1,4 @@
-import { RefineResult } from '@tvl-labs/arcadia-sdk/types/Refine.js';
+import { RefineResult } from '@tvl-labs/arcadia-sdk/types';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from '../types.js';

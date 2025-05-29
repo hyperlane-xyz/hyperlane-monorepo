@@ -8477,7 +8477,7 @@ __metadata:
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.95.4"
     "@types/chai-as-promised": "npm:^8"
-    "@tvl-labs/arcadia-sdk": "npm:^0.0.3"
+    "@tvl-labs/arcadia-sdk": "npm:^0.0.6"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
     "@types/sinon": "npm:^17.0.1"
@@ -16588,15 +16588,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tvl-labs/arcadia-sdk@npm:^0.0.3":
-  version: 0.0.3
-  resolution: "@tvl-labs/arcadia-sdk@npm:0.0.3"
+"@tvl-labs/arcadia-sdk@npm:^0.0.6":
+  version: 0.0.6
+  resolution: "@tvl-labs/arcadia-sdk@npm:0.0.6"
   dependencies:
     "@uniswap/permit2-sdk": "npm:^1.2.0"
     ethers-v6: "npm:ethers@^6.7.1"
   peerDependencies:
     ethers: ^5.7.0
-  checksum: 10/077ee637a01c5ff7c9c81a8bb8f5427a0bc536f06e3b7a906973033df2658afdec1c2a9a61b7fdf0c938a0cd37cb74126dac48ba5ac623262b9a9415254a1b2d
+  checksum: 10/d989d40f2649f65e119434cbff6782ee6dddd3ba73c4da7563f0b7d2c77da87699d53671a65b8d1263f72660977bf4a2a148ecd2711b7852193449cd3044eba4
   languageName: node
   linkType: hard
 
