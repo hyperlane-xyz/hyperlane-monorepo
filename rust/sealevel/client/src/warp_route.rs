@@ -570,7 +570,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             } else {
                 println!(
                     "Cannot set destination gas amounts for chain: {}, program_id {} because owner is None",
-                    program_id, chain_name
+                    chain_name, program_id
                 );
             }
         }
