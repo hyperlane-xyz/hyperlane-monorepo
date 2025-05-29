@@ -72,6 +72,30 @@ export function getCombinedWarpRoutePath(
   )}-config.yaml`;
 }
 
+export function exportWarpConfigsToFilePaths({
+  warpRouteId,
+  warpConfig,
+  warpCoreConfig,
+}: {
+  warpRouteId: string;
+  warpConfig: WarpRouteDeployConfig;
+  warpCoreConfig: WarpCoreConfig;
+}): {
+  warpDeployPath: string;
+  warpCorePath: string;
+} {
+  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
+  const updatedWarpCorePath = `${basePath}-config.yaml`;
+  writeYamlOrJson(updatedWarpConfigPath, warpConfig);
+  writeYamlOrJson(updatedWarpCorePath, warpCoreConfig);
+
+  return {
+    warpDeployPath: updatedWarpConfigPath,
+    warpCorePath: updatedWarpCorePath,
+  };
+}
+
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
 export enum KeyBoardKeys {
