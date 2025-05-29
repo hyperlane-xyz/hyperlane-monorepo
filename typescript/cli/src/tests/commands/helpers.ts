@@ -66,7 +66,7 @@ export function getCombinedWarpRoutePath(
 ): string {
   return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains,
+    chains.sort().join('-'),
   )}-config.yaml`;
 }
 
