@@ -20,7 +20,7 @@ use solana_transaction_status::{
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::{
-    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForSubmitter,
+    fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
     SealevelTxCostEstimate, TransactionSubmitter,
 };
 
@@ -28,7 +28,7 @@ use crate::{
     adapter::{
         chains::sealevel::{
             transaction::{TransactionFactory, Update},
-            SealevelTxAdapter,
+            SealevelAdapter,
         },
         SealevelTxPrecursor,
     },
@@ -93,7 +93,7 @@ mock! {
 struct MockProvider {}
 
 #[async_trait]
-impl SealevelProviderForSubmitter for MockProvider {
+impl SealevelProviderForLander for MockProvider {
     async fn create_transaction_for_instruction(
         &self,
         _compute_unit_limit: u32,
@@ -146,13 +146,13 @@ pub fn estimate() -> SealevelTxCostEstimate {
     }
 }
 
-pub fn adapter() -> SealevelTxAdapter {
+pub fn adapter() -> SealevelAdapter {
     let client = mock_client();
     let oracle = MockOracle::new();
     let provider = MockProvider {};
     let submitter = mock_submitter();
 
-    SealevelTxAdapter::new_internal_default(
+    SealevelAdapter::new_internal_default(
         Box::new(client),
         Box::new(provider),
         Box::new(oracle),
@@ -160,14 +160,14 @@ pub fn adapter() -> SealevelTxAdapter {
     )
 }
 
-pub fn adapter_config(conf: ChainConf) -> SealevelTxAdapter {
+pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     let raw_conf = RawChainConf::default();
     let client = mock_client();
     let oracle = MockOracle::new();
     let provider = MockProvider {};
     let submitter = mock_submitter();
 
-    SealevelTxAdapter::new_internal(
+    SealevelAdapter::new_internal(
         conf,
         raw_conf,
         Box::new(client),

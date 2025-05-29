@@ -11,12 +11,12 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
-pub struct CosmosTxAdapter {
+pub struct CosmosAdapter {
     _conf: ChainConf,
     _raw_conf: RawChainConf,
 }
 
-impl CosmosTxAdapter {
+impl CosmosAdapter {
     pub fn new(conf: ChainConf, raw_conf: RawChainConf) -> Self {
         Self {
             _conf: conf,
@@ -26,7 +26,7 @@ impl CosmosTxAdapter {
 }
 
 #[async_trait]
-impl AdaptsChain for CosmosTxAdapter {
+impl AdaptsChain for CosmosAdapter {
     async fn estimate_gas_limit(
         &self,
         _payload: &FullPayload,

@@ -32,8 +32,7 @@ use hyperlane_base::{
 use hyperlane_core::{ChainResult, ReorgPeriod, H256, H512};
 use hyperlane_sealevel::{
     fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc},
-    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter,
-    SealevelTxCostEstimate,
+    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForLander, SealevelTxCostEstimate,
 };
 
 use crate::{
@@ -62,18 +61,18 @@ pub enum EstimateFreshnessCache {
     Fresh,
 }
 
-pub struct SealevelTxAdapter {
+pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
     keypair: SealevelKeypair,
     client: Box<dyn SubmitSealevelRpc>,
-    provider: Box<dyn SealevelProviderForSubmitter>,
+    provider: Box<dyn SealevelProviderForLander>,
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
     estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
 }
 
-impl SealevelTxAdapter {
+impl SealevelAdapter {
     pub fn new(
         conf: ChainConf,
         raw_conf: RawChainConf,
@@ -121,7 +120,7 @@ impl SealevelTxAdapter {
         conf: ChainConf,
         _raw_conf: RawChainConf,
         client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForSubmitter>,
+        provider: Box<dyn SealevelProviderForLander>,
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
@@ -146,7 +145,7 @@ impl SealevelTxAdapter {
     #[cfg(test)]
     fn new_internal_default(
         client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForSubmitter>,
+        provider: Box<dyn SealevelProviderForLander>,
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
     ) -> Self {
@@ -271,7 +270,7 @@ impl SealevelTxAdapter {
 }
 
 #[async_trait]
-impl AdaptsChain for SealevelTxAdapter {
+impl AdaptsChain for SealevelAdapter {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,

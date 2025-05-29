@@ -1,4 +1,4 @@
-pub use adapter::EthereumTxAdapter;
+pub use adapter::EthereumAdapter;
 pub use precursor::EthereumTxPrecursor;
 
 mod adapter;

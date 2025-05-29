@@ -214,7 +214,7 @@ impl InclusionStage {
         // info!(?tx, "Transaction simulation succeeded");
 
         // Estimating transaction just before we submit it
-        // TODO we will need to re-classify `ChainCommunicationError` into `SubmitterError::EstimateError` in the future.
+        // TODO we will need to re-classify `ChainCommunicationError` into `LanderError::EstimateError` in the future.
         // At the moment, both errors are non-retryable, so we can keep them as is.
         tx = call_until_success_or_nonretryable_error(
             || {

@@ -1,15 +1,15 @@
-// the evm provider-building logic returns a box. `EvmProviderForSubmitter` is only implemented for the underlying type rather than the boxed type.
+// the evm provider-building logic returns a box. `EvmProviderForLander` is only implemented for the underlying type rather than the boxed type.
 // implementing the trait for the boxed type would require a lot of boilerplate code.
 #![allow(clippy::borrowed_box)]
 
 use ethers::types::U64;
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter};
+use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 use tracing::warn;
 
 use crate::{LanderError, TransactionStatus};
 
 async fn block_number_result_to_tx_status(
-    provider: &Box<dyn EvmProviderForSubmitter>,
+    provider: &Box<dyn EvmProviderForLander>,
     block_number: Option<U64>,
     reorg_period: &EthereumReorgPeriod,
 ) -> TransactionStatus {
@@ -36,7 +36,7 @@ async fn block_number_result_to_tx_status(
 }
 
 pub async fn get_tx_hash_status(
-    provider: &Box<dyn EvmProviderForSubmitter>,
+    provider: &Box<dyn EvmProviderForLander>,
     hash: hyperlane_core::H512,
     reorg_period: &EthereumReorgPeriod,
 ) -> Result<TransactionStatus, LanderError> {

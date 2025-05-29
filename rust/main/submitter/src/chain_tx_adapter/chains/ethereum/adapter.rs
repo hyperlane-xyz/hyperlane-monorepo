@@ -1,30 +1,34 @@
-use std::{marker::PhantomData, sync::Arc, time::Duration};
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use ethers::{contract::builders::ContractCall, prelude::U64, providers::Middleware, types::H256};
+use ethers::contract::builders::ContractCall;
+use ethers::prelude::U64;
+use ethers::providers::Middleware;
+use ethers::types::H256;
 use eyre::eyre;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use hyperlane_base::{
-    settings::{
-        parser::h_eth::{BuildableWithProvider, ConnectionConf},
-        ChainConf, RawChainConf,
-    },
-    CoreMetrics,
-};
+use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
+use hyperlane_base::settings::{ChainConf, RawChainConf};
+use hyperlane_base::CoreMetrics;
 use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterProviderBuilder};
 
 use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
-    LanderError,
+    SubmitterError,
 };
 
-use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
+use super::nonce::NonceManager;
+use super::transaction::Precursor;
+use super::EthereumTxPrecursor;
 
 mod gas_limit_estimator;
 mod gas_price_estimator;
@@ -46,6 +50,7 @@ impl EthereumAdapter {
         conf: ChainConf,
         connection_conf: ConnectionConf,
         raw_conf: RawChainConf,
+        db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
         let locator = ContractLocator {
@@ -61,7 +66,8 @@ impl EthereumAdapter {
             )
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new();
+
+        let nonce_manager = NonceManager::new(&conf, db).await?;
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
 
@@ -85,19 +91,19 @@ impl EthereumAdapter {
             .max_batch_size)
     }
 
-    async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+    async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        self.nonce_manager.assign_nonce(tx).await?;
         Ok(())
     }
 
-    async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         if tx.precursor().tx.gas().is_none() {
             self.estimate_tx(tx).await?;
         }
         Ok(())
     }
 
-    async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         if tx.precursor().tx.gas_price().is_none() {
             gas_price_estimator::estimate_gas_price(
                 &self.provider,
@@ -117,7 +123,7 @@ impl AdaptsChain for EthereumAdapter {
     async fn estimate_gas_limit(
         &self,
         _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
+    ) -> Result<Option<GasLimit>, SubmitterError> {
         todo!()
     }
 
@@ -147,11 +153,11 @@ impl AdaptsChain for EthereumAdapter {
         transactions
     }
 
-    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, LanderError> {
+    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, SubmitterError> {
         todo!()
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
             &self.provider,
@@ -163,7 +169,7 @@ impl AdaptsChain for EthereumAdapter {
         .await
     }
 
-    async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         use super::transaction::Precursor;
 
         self.set_nonce_if_needed(tx).await?;
@@ -188,14 +194,18 @@ impl AdaptsChain for EthereumAdapter {
     async fn get_tx_hash_status(
         &self,
         hash: hyperlane_core::H512,
-    ) -> Result<TransactionStatus, LanderError> {
+    ) -> Result<TransactionStatus, SubmitterError> {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
+    }
+
+    async fn on_tx_status_update(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+        self.nonce_manager.update_nonce_status(tx, tx_status).await;
     }
 
     async fn reverted_payloads(
         &self,
         tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, LanderError> {
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
         let payload_details_and_precursors = tx
             .payload_details
             .iter()
@@ -223,9 +233,5 @@ impl AdaptsChain for EthereumAdapter {
 
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
-    }
-
-    async fn set_unfinalized_tx_count(&self, count: usize) {
-        self.nonce_manager.set_tx_in_finality_count(count).await;
     }
 }

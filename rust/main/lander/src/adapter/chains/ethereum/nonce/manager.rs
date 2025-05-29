@@ -1,4 +1,4 @@
-// the evm provider-building logic returns a box. `EvmProviderForSubmitter` is only implemented for the underlying type rather than the boxed type.
+// the evm provider-building logic returns a box. `EvmProviderForLander` is only implemented for the underlying type rather than the boxed type.
 // implementing the trait for the boxed type would require a lot of boilerplate code.
 #![allow(clippy::borrowed_box)]
 
@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use hyperlane_ethereum::EvmProviderForSubmitter;
+use hyperlane_ethereum::EvmProviderForLander;
 
 use crate::{transaction::Transaction, LanderError};
 
@@ -27,7 +27,7 @@ impl NonceManager {
     pub async fn set_nonce(
         &self,
         tx: &mut Transaction,
-        provider: &Box<dyn EvmProviderForSubmitter>,
+        provider: &Box<dyn EvmProviderForLander>,
     ) -> Result<(), LanderError> {
         let tx_id = tx.id.to_string();
         let precursor = tx.precursor_mut();
