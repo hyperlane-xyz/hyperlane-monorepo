@@ -96,12 +96,12 @@ describe('hyperlane warp read e2e tests', async function () {
     it('should successfully read the complete warp route config from all the chains', async () => {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
-          type: TokenType.native,
+          type: TokenType.synthetic,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
         [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
+          type: TokenType.native,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
         },
@@ -134,10 +134,10 @@ describe('hyperlane warp read e2e tests', async function () {
         WARP_DEPLOY_OUTPUT_PATH,
       );
       expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
-      expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.native);
+      expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.synthetic);
 
       expect(warpReadResult[CHAIN_NAME_3]).not.to.be.undefined;
-      expect(warpReadResult[CHAIN_NAME_3].type).to.equal(TokenType.synthetic);
+      expect(warpReadResult[CHAIN_NAME_3].type).to.equal(TokenType.native);
     });
   });
 
