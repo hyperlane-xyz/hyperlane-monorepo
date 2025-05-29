@@ -166,10 +166,7 @@ describe('hyperlane warp check e2e tests', async function () {
       await deployAndExportWarpRoute();
 
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(
-          tokenSymbol,
-          [CHAIN_NAME_3].sort().join('-'),
-        ),
+        warpRouteId: createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3),
       })
         .stdio('pipe')
         .nothrow();
@@ -237,10 +234,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       // Finally run warp check
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(
-          symbol,
-          [CHAIN_NAME_2].sort().join('-'),
-        ),
+        warpRouteId: createWarpRouteConfigId(symbol, CHAIN_NAME_2),
       })
         .stdio('pipe')
         .nothrow();
