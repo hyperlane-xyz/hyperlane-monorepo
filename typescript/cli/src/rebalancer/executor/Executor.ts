@@ -1,10 +1,9 @@
-import { ethers } from 'ethers';
-
 import {
   type ChainMap,
   type ChainMetadata,
   EvmHypCollateralAdapter,
   type InterchainGasQuote,
+  type MultiProvider,
   type Token,
   type TokenAmount,
   type WarpCore,
@@ -19,10 +18,10 @@ import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 export class Executor implements IExecutor {
   constructor(
     private readonly bridges: ChainMap<BridgeConfig>,
-    private readonly rebalancerKey: string,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
+    private readonly multiProvider: MultiProvider,
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
@@ -36,8 +35,9 @@ export class Executor implements IExecutor {
     const { warpCore, chainMetadata, tokensByChainName } = this;
 
     const transactions: {
-      signer: ethers.Signer;
-      populatedTx: ethers.PopulatedTransaction;
+      populatedTx: Awaited<
+        ReturnType<EvmHypCollateralAdapter['populateRebalanceTx']>
+      >;
       route: RebalancingRoute;
       originTokenAmount: TokenAmount;
     }[] = [];
@@ -77,8 +77,7 @@ export class Executor implements IExecutor {
         );
       }
 
-      const provider = warpCore.multiProvider.getEthersV5Provider(origin);
-      const signer = new ethers.Wallet(this.rebalancerKey, provider);
+      const signer = this.multiProvider.getSigner(origin);
       const signerAddress = await signer.getAddress();
       const domain = chainMetadata[destination].domainId;
       const recipient = destinationToken.addressOrDenom;
@@ -153,7 +152,6 @@ export class Executor implements IExecutor {
       );
 
       transactions.push({
-        signer,
         populatedTx,
         route,
         originTokenAmount: originToken.amount(amount),
@@ -173,25 +171,23 @@ export class Executor implements IExecutor {
     // Estimate gas before sending transactions.
     // This is mainly to check that the transaction will not fail before sending them.
     const estimateGasResults = await Promise.allSettled(
-      transactions.map(
-        async ({ signer, populatedTx, route, originTokenAmount }) => {
-          try {
-            await signer.estimateGas(populatedTx);
-            log(
-              `Gas estimation succeeded for route from ${route.origin} to ${
-                route.destination
-              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-            );
-          } catch (error) {
-            log(
-              `❌ Could not estimate gas for route from ${route.origin} to ${
-                route.destination
-              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-            );
-            throw error;
-          }
-        },
-      ),
+      transactions.map(async ({ populatedTx, route, originTokenAmount }) => {
+        try {
+          await this.multiProvider.estimateGas(route.origin, populatedTx);
+          log(
+            `Gas estimation succeeded for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+          );
+        } catch (error) {
+          log(
+            `❌ Could not estimate gas for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+          );
+          throw error;
+        }
+      }),
     );
 
     if (estimateGasResults.some((result) => result.status === 'rejected')) {
@@ -211,37 +207,32 @@ export class Executor implements IExecutor {
 
     log('Sending transactions');
     const results = await Promise.allSettled(
-      transactions.map(
-        async ({ signer, populatedTx, route, originTokenAmount }) => {
-          log(
-            `Sending transaction for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+      transactions.map(async ({ populatedTx, route, originTokenAmount }) => {
+        log(
+          `Sending transaction for route from ${route.origin} to ${
+            route.destination
+          } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
+        );
+        try {
+          const receipt = await this.multiProvider.sendTransaction(
+            route.origin,
+            populatedTx,
           );
-          try {
-            const tx = await signer.sendTransaction(populatedTx);
-            log(
-              `Transaction sent for route from ${route.origin} to ${
-                route.destination
-              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
-            );
-            const receipt = await tx.wait();
-            log(
-              `Transaction confirmed for route from ${route.origin} to ${
-                route.destination
-              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${tx.hash}`,
-            );
-            return receipt;
-          } catch (error) {
-            errorRed(
-              `Transaction failed for route from ${route.origin} to ${
-                route.destination
-              } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${error}`,
-            );
-            throw error;
-          }
-        },
-      ),
+          log(
+            `Transaction confirmed for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${receipt.transactionHash}`,
+          );
+          return receipt;
+        } catch (error) {
+          errorRed(
+            `Transaction failed for route from ${route.origin} to ${
+              route.destination
+            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${error}`,
+          );
+          throw error;
+        }
+      }),
     );
 
     for (let i = 0; i < results.length; i++) {

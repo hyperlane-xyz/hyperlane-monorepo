@@ -2,10 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
-import {
-  ANVIL_KEY,
-  REBALANCER_CONFIG_PATH,
-} from '../../tests/commands/helpers.js';
+import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
 import { ENV } from '../../utils/env.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
@@ -44,7 +41,6 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     extraArgs = {
-      rebalancerKey: ANVIL_KEY,
       checkFrequency: 1000,
       monitorOnly: false,
       withMetrics: false,
@@ -71,7 +67,6 @@ describe('Config', () => {
     expect(Config.load(REBALANCER_CONFIG_PATH, extraArgs)).to.deep.equal({
       warpRouteId: 'warpRouteId',
       checkFrequency: extraArgs.checkFrequency,
-      rebalancerKey: ANVIL_KEY,
       monitorOnly: extraArgs.monitorOnly,
       withMetrics: extraArgs.withMetrics,
       coingeckoApiKey: ENV.COINGECKO_API_KEY,

@@ -518,11 +518,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
     amount,
   }) => {
     try {
-      const { registry, key: rebalancerKey } = context;
-
       // Load rebalancer config from disk
       const rebalancerConfig = Config.load(config, {
-        rebalancerKey,
         checkFrequency,
         withMetrics,
         monitorOnly,
@@ -531,8 +528,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
-        registry,
         rebalancerConfig,
+        context,
       );
 
       if (manual) {
