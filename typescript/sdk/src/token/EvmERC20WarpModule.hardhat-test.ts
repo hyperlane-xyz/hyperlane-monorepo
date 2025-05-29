@@ -8,7 +8,6 @@ import {
   ERC20Test__factory,
   ERC4626Test__factory,
   GasRouter,
-  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
@@ -808,10 +807,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       versionStub.restore();
 
       const updatedConfig = await evmERC20WarpModule.read();
-      console.log('\n\n\n\n\n\nUpdated: ', updatedConfig.packageVersion);
+      console.log('\n\n\n\n\n\nUpdated: ', updatedConfig.contractVersion);
 
       // Assert
-      expect(updatedConfig.packageVersion ?? '0' > '6.0.0');
+      expect(updatedConfig.contractVersion ?? '0' > '6.0.0');
       expect(origImpl).to.not.eq(await warpRoute.implementation());
     });
   });

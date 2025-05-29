@@ -1,15 +1,14 @@
 // import { expect } from 'chai';
+import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
   HypERC20Collateral__factory,
-  ITransparentUpgradeableProxy__factory,
   MailboxClient__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
-  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
@@ -553,10 +552,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    const actualVersion = actualConfig.packageVersion ?? '';
+    assert(
+      actualConfig.contractVersion,
+      'Actual contract version is undefined',
+    );
     if (
-      expectedConfig.packageVersion &&
-      expectedConfig.packageVersion > actualVersion
+      expectedConfig.contractVersion &&
+      compareVersions(
+        expectedConfig.contractVersion,
+        actualConfig.contractVersion,
+      ) === 1
     ) {
       const provider = this.multiProvider.getProvider(this.domainId);
       const signer = this.multiProvider.getSigner(this.domainId);

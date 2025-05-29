@@ -17,6 +17,7 @@
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.4",
     "bignumber.js": "^9.1.1",
+    "compare-versions": "^6.1.1",
     "cosmjs-types": "^0.9.0",
     "cross-fetch": "^3.1.5",
     "ethers": "^5.7.2",

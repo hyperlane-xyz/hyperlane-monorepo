@@ -26,8 +26,10 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { ExplorerLicenseType } from '../deploy/verify/types.js';
-import { VerifyContractTypes } from '../deploy/verify/types.js';
+import {
+  ExplorerLicenseType,
+  VerifyContractTypes,
+} from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -444,7 +446,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
       token: collateralTokenAddress,
-      packageVersion,
+      contractVersion: packageVersion,
     };
   }
 
