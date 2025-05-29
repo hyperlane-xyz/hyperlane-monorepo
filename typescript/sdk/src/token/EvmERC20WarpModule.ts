@@ -285,6 +285,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return [
       {
+        chainId: this.chainId,
         annotation: `Adding rebalancer role to "${rebalancersToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
         data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
@@ -330,6 +331,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return [
       {
+        chainId: this.chainId,
         annotation: `Removing rebalancer role to "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         to: this.args.addresses.deployedTokenRoute,
         data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(

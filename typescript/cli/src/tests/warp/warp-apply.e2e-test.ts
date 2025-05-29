@@ -10,6 +10,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
+import { normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -269,5 +270,40 @@ describe('hyperlane warp apply owner update tests', async function () {
       updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
     );
     expect(remoteRouterKeys2).to.include(chain1Id);
+  });
+
+  it('should add a new rebalancer and remove an existing one', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      WARP_CONFIG_PATH_EXAMPLE,
+    );
+
+    // Add the first address as rebalancer and then remove it and add the second one
+    const allowedRebalancers = [randomAddress(), randomAddress()].map(
+      normalizeAddressEvm,
+    );
+
+    for (const rebalacer of allowedRebalancers) {
+      warpConfig.anvil1.allowedRebalancers = [rebalacer];
+      const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
+      writeYamlOrJson(warpConfigPath, anvil2Config);
+
+      await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+      const updatedWarpDeployConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2,
+        warpConfigPath,
+      );
+
+      expect(
+        updatedWarpDeployConfig.anvil2.allowedRebalancers?.length,
+      ).to.equal(1);
+
+      const [currentRebalancer] =
+        updatedWarpDeployConfig.anvil2.allowedRebalancers ?? [];
+      expect(currentRebalancer).to.equal(rebalacer);
+    }
   });
 });
