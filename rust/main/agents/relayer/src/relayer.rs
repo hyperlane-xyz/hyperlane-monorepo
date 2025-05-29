@@ -317,10 +317,10 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
         let mut msg_ctxs = HashMap::new();
-        let mut destination_chains = HashMap::new();
+
+        start_entity_init = Instant::now();
 
         // only iterate through destination chains that were successfully instantiated
-        start_entity_init = Instant::now();
         let ccip_signer_futures = mailboxes
             .keys()
             .map(|destination| {
@@ -328,7 +328,7 @@ impl BaseAgent for Relayer {
                     core.settings.chain_setup(destination).unwrap().clone();
                 let signer = destination_chain_setup.signer.clone();
                 async move {
-                    if  !matches!(destination.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+                    if !matches!(destination.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
                         return (destination, None);
                     }
                     let signer = if let Some(builder) = signer {
@@ -350,6 +350,8 @@ impl BaseAgent for Relayer {
             .await
             .into_iter()
             .collect::<HashMap<_, _>>();
+
+        let mut destination_chains = HashMap::new();
         for (destination, dest_mailbox) in mailboxes.iter() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
                 Ok(setup) => setup.clone(),
@@ -373,12 +375,18 @@ impl BaseAgent for Relayer {
                 let db = match dbs.get(origin) {
                     Some(db) => db.clone(),
                     None => {
-                        tracing::error!(?origin, "DB missing");
+                        tracing::error!(origin=?origin.name(), "DB missing");
                         continue;
                     }
                 };
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
-                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
+                let origin_chain_setup = match core.settings.chain_setup(origin) {
+                    Ok(chain_setup) => chain_setup.clone(),
+                    Err(err) => {
+                        tracing::error!(origin=?origin.name(), ?err, "Chain setup error");
+                        continue;
+                    }
+                };
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
@@ -388,7 +396,7 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     cache.clone(),
-                    db,
+                    db.clone(),
                     IsmAwareAppContextClassifier::new(
                         default_ism_getter.clone(),
                         settings.metric_app_contexts.clone(),
@@ -408,7 +416,7 @@ impl BaseAgent for Relayer {
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
-                        origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
+                        origin_db: Arc::new(db),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
@@ -490,27 +498,31 @@ impl BaseAgent for Relayer {
             let payload_dispatcher_entrypoint =
                 self.payload_dispatcher_entrypoints.remove(dest_domain);
 
-            let db = self
-                .dbs
-                .get(dest_domain)
-                .expect("DB should be created for every chain")
-                .clone();
+            let db = match self.dbs.get(dest_domain) {
+                Some(db) => db.clone(),
+                None => {
+                    tracing::error!(domain=?dest_domain.name(), "DB missing");
+                    continue;
+                }
+            };
 
+            // Default to submitting one message at a time if there is no batch config
+            let match_batch_size = self.core.settings.chains[dest_domain.name()]
+                .connection
+                .operation_submission_config()
+                .map(|c| c.max_batch_size)
+                .unwrap_or(1);
+            let max_submit_queue_len = self.core.settings.chains[dest_domain.name()]
+                .connection
+                .operation_submission_config()
+                .and_then(|c| c.max_submit_queue_length);
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
                 receive_channel,
                 &sender,
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
-                // Default to submitting one message at a time if there is no batch config
-                self.core.settings.chains[dest_domain.name()]
-                    .connection
-                    .operation_submission_config()
-                    .map(|c| c.max_batch_size)
-                    .unwrap_or(1),
-                self.core.settings.chains[dest_domain.name()]
-                    .connection
-                    .operation_submission_config()
-                    .and_then(|c| c.max_submit_queue_length),
+                match_batch_size,
+                max_submit_queue_len,
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
@@ -613,11 +625,11 @@ impl BaseAgent for Relayer {
 impl Relayer {
     fn record_critical_error(
         origin: &HyperlaneDomain,
+        chain_metrics: &ChainMetrics,
         err: &impl Debug,
         message: &str,
-        chain_metrics: ChainMetrics,
     ) {
-        error!(?err, origin=?origin, "{message}");
+        error!(?err, origin=?origin.name(), "{message}");
         chain_metrics.set_critical_error(origin.name(), true);
     }
 
@@ -675,7 +687,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, &err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -732,7 +744,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, &err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -789,7 +801,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, &err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -837,9 +849,9 @@ impl Relayer {
                     );
                     Self::record_critical_error(
                         origin,
+                        &self.chain_metrics,
                         &ChainCommunicationError::CustomError(err_msg.clone()),
                         &err_msg,
-                        self.chain_metrics.clone(),
                     );
                 }
 
@@ -927,8 +939,12 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building mailbox");
-                    chain_metrics.set_critical_error(origin.name(), true);
+                    Self::record_critical_error(
+                        &origin,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building mailbox",
+                    );
                     None
                 }
             })
@@ -971,12 +987,17 @@ impl Relayer {
             })
             .collect();
         let results = futures::future::join_all(entrypoint_futures).await;
-        results.into_iter()
+        results
+            .into_iter()
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
-                    error!(?err, origin=?chain, "Critical error when building payload dispatcher endpoint");
-                    chain_metrics.set_critical_error(chain.name(), true);
+                    Self::record_critical_error(
+                        &chain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building payload dispatcher endpoint",
+                    );
                     None
                 }
             })
@@ -1025,8 +1046,12 @@ impl Relayer {
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
-                    error!(?err, origin=?chain, "Critical error when building payload dispatcher");
-                    chain_metrics.set_critical_error(chain.name(), true);
+                    Self::record_critical_error(
+                        &chain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building payload dispatcher",
+                    );
                     None
                 }
             })
@@ -1049,8 +1074,12 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building validator announce");
-                    chain_metrics.set_critical_error(origin.name(), true);
+                    Self::record_critical_error(
+                        &origin,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building validator announce",
+                    );
                     None
                 }
             })
@@ -1070,14 +1099,20 @@ impl Relayer {
             .build_application_operation_verifiers(settings.origin_chains.iter(), core_metrics)
             .await
             .into_iter()
-            .filter_map(|(origin, app_context_verifier_res)| match app_context_verifier_res {
-                Ok(app_context_verifier) => Some((origin, app_context_verifier)),
-                Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building application operation verifier");
-                    chain_metrics.set_critical_error(origin.name(), true);
-                    None
-                }
-            })
+            .filter_map(
+                |(origin, app_context_verifier_res)| match app_context_verifier_res {
+                    Ok(app_context_verifier) => Some((origin, app_context_verifier)),
+                    Err(err) => {
+                        Self::record_critical_error(
+                            &origin,
+                            chain_metrics,
+                            &err,
+                            "Critical error when building application operation verifier",
+                        );
+                        None
+                    }
+                },
+            )
             .collect()
     }
 
@@ -1101,8 +1136,12 @@ impl Relayer {
             .filter_map(|(domain, sync)| match sync {
                 Ok(s) => Some((domain, s)),
                 Err(err) => {
-                    error!(?err, domain=?domain.name(), "Critical error when building message contract sync");
-                    chain_metrics.set_critical_error(domain.name(), true);
+                    Self::record_critical_error(
+                        &domain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building message contract sync",
+                    );
                     None
                 }
             })
@@ -1129,8 +1168,12 @@ impl Relayer {
             .filter_map(|(domain, sync)| match sync {
                 Ok(s) => Some((domain, s)),
                 Err(err) => {
-                    error!(?err, domain=?domain.name(), "Critical error when building interchain gas payment contract sync");
-                    chain_metrics.set_critical_error(domain.name(), true);
+                    Self::record_critical_error(
+                        &domain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building interchain gas payment contract sync",
+                    );
                     None
                 }
             })
@@ -1157,8 +1200,12 @@ impl Relayer {
             .filter_map(|(domain, sync)| match sync {
                 Ok(s) => Some((domain, s)),
                 Err(err) => {
-                    error!(?err, domain=?domain.name(), "Critical error when building merkle tree hook contract sync");
-                    chain_metrics.set_critical_error(domain.name(), true);
+                    Self::record_critical_error(
+                        &domain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building merkle tree hook contract sync",
+                    );
                     None
                 }
             })
