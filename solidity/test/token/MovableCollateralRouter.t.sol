@@ -196,4 +196,32 @@ contract MovableCollateralRouterTest is Test {
         router.removeRebalancers(rebalancers);
         assertEq(router.allowedRebalancers(rebalancers[0]), false);
     }
+
+    function testAllDomains() public {
+        router.addRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        uint32[] memory domains = router.allDomains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], destinationDomain);
+    }
+
+    function testAllowedRecipients() public {
+        router.addRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        bytes32 recipient = router.allowedRecipients(destinationDomain);
+        assertEq(recipient, bytes32(uint256(uint160(alice))));
+    }
+
+    function testAllRebalancers() public {
+        router.removeRebalancer(address(this));
+
+        router.addRebalancer(address(1));
+        address[] memory rebalancers = router.allRebalancers();
+        assertEq(rebalancers.length, 1);
+        assertEq(rebalancers[0], address(1));
+    }
 }
