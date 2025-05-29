@@ -1,34 +1,25 @@
 import { expect } from 'chai';
-import * as child_process from 'child_process';
 import sinon from 'sinon';
 
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
-import * as utils from '@hyperlane-xyz/utils';
-
-import * as registryModule from '../config/registry.js';
 import { validateRegistryCommit } from '../scripts/warp-routes/deploy-warp-monitor.js';
 
 describe('validateRegistryCommit', () => {
-  let execSyncStub: sinon.SinonStub;
-  let getRegistryStub: sinon.SinonStub;
-  let rootLoggerInfoStub: sinon.SinonStub;
-  let rootLoggerWarnStub: sinon.SinonStub;
-  let rootLoggerErrorStub: sinon.SinonStub;
+  let mockExecSync: sinon.SinonStub;
   let processExitStub: sinon.SinonStub;
-  let fakeRegistry: FileSystemRegistry;
+  let mockLogger: any;
+
+  const fakeRegistryUri = '/fake/registry/uri';
 
   beforeEach(() => {
-    execSyncStub = sinon.stub(child_process, 'execSync');
-    fakeRegistry = {
-      getUri: sinon.stub().returns('/fake/uri'),
-    } as unknown as FileSystemRegistry;
-    getRegistryStub = sinon
-      .stub(registryModule, 'getRegistry')
-      .returns(fakeRegistry);
-    rootLoggerInfoStub = sinon.stub(utils.rootLogger, 'info');
-    rootLoggerWarnStub = sinon.stub(utils.rootLogger, 'warn');
-    rootLoggerErrorStub = sinon.stub(utils.rootLogger, 'error');
-    processExitStub = sinon.stub(process, 'exit');
+    mockExecSync = sinon.stub();
+    processExitStub = sinon.stub(process, 'exit').callsFake(() => {
+      throw new Error('process.exit called');
+    });
+    mockLogger = {
+      info: sinon.stub(),
+      warn: sinon.stub(),
+      error: sinon.stub(),
+    };
   });
 
   afterEach(() => {
@@ -36,36 +27,99 @@ describe('validateRegistryCommit', () => {
   });
 
   it('returns the commit if fetch succeeds', async () => {
-    execSyncStub.returns(undefined);
-    const result = await validateRegistryCommit('abc123');
+    mockExecSync.returns(undefined);
+    const result = await validateRegistryCommit(
+      'abc123',
+      fakeRegistryUri,
+      mockLogger,
+      mockExecSync,
+    );
     expect(result).to.equal('abc123');
-    expect(execSyncStub.calledWith('cd /fake/uri && git fetch origin abc123'))
-      .to.be.true;
+    expect(
+      mockExecSync.calledWith(
+        `cd ${fakeRegistryUri} && git fetch origin abc123`,
+      ),
+    ).to.be.true;
+    expect(mockLogger.info.calledTwice).to.be.true;
     expect(processExitStub.notCalled).to.be.true;
   });
 
   it('returns main if fetch fails but fallback succeeds', async () => {
-    execSyncStub
+    mockExecSync
       .onFirstCall()
       .throws(new Error('fail'))
       .onSecondCall()
       .returns(undefined);
-    const result = await validateRegistryCommit('abc123');
+    const result = await validateRegistryCommit(
+      'abc123',
+      fakeRegistryUri,
+      mockLogger,
+      mockExecSync,
+    );
     expect(result).to.equal('main');
-    expect(execSyncStub.firstCall.args[0]).to.include(
+    expect(mockExecSync.firstCall.args[0]).to.include(
       'git fetch origin abc123',
     );
-    expect(execSyncStub.secondCall.args[0]).to.include('git fetch origin main');
+    expect(mockExecSync.secondCall.args[0]).to.include('git fetch origin main');
+    expect(mockLogger.warn.calledOnce).to.be.true;
+    expect(mockLogger.info.calledTwice).to.be.true;
     expect(processExitStub.notCalled).to.be.true;
   });
 
   it('calls process.exit(1) if both fetches fail', async () => {
-    execSyncStub
+    mockExecSync
       .onFirstCall()
       .throws(new Error('fail'))
       .onSecondCall()
       .throws(new Error('fail again'));
-    await validateRegistryCommit('abc123');
-    expect(processExitStub.calledOnceWith(1)).to.be.true;
+
+    try {
+      await validateRegistryCommit(
+        'abc123',
+        fakeRegistryUri,
+        mockLogger,
+        mockExecSync,
+      );
+      expect.fail('Expected function to call process.exit');
+    } catch (error: any) {
+      expect(error.message).to.equal('process.exit called');
+    }
+
+    expect(mockLogger.warn.calledOnce).to.be.true;
+    expect(mockLogger.error.calledOnce).to.be.true;
+  });
+
+  it('uses the provided registry URI in git commands', async () => {
+    const customUri = '/custom/registry/path';
+    mockExecSync.returns(undefined);
+    await validateRegistryCommit(
+      'test-commit',
+      customUri,
+      mockLogger,
+      mockExecSync,
+    );
+    expect(
+      mockExecSync.calledWith(
+        `cd ${customUri} && git fetch origin test-commit`,
+      ),
+    ).to.be.true;
+    expect(mockLogger.info.calledTwice).to.be.true;
+  });
+
+  it('logs appropriate messages during execution', async () => {
+    mockExecSync.returns(undefined);
+    await validateRegistryCommit(
+      'abc123',
+      fakeRegistryUri,
+      mockLogger,
+      mockExecSync,
+    );
+
+    expect(mockLogger.info.firstCall.args[0]).to.include(
+      'Attempting to fetch registry commit abc123',
+    );
+    expect(mockLogger.info.secondCall.args[0]).to.include(
+      'Fetch completed successfully',
+    );
   });
 });
