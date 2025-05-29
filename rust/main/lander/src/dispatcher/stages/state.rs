@@ -28,7 +28,7 @@ use crate::{
 
 /// State that is common to all components of the `PayloadDispatcher`
 #[derive(Clone)]
-pub struct PayloadDispatcherState {
+pub struct DispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Arc<dyn AdaptsChain>,
@@ -36,7 +36,7 @@ pub struct PayloadDispatcherState {
     pub(crate) domain: String,
 }
 
-impl PayloadDispatcherState {
+impl DispatcherState {
     pub fn new(
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,

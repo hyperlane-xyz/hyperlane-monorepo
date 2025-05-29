@@ -24,7 +24,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{metrics::DispatcherMetrics, PayloadDispatcherState, TransactionDbLoader};
+use super::{metrics::DispatcherMetrics, DispatcherState, TransactionDbLoader};
 
 const SUBMITTER_CHANNEL_SIZE: usize = 1_000;
 
@@ -47,7 +47,7 @@ pub enum DatabaseOrPath {
 }
 
 pub struct Dispatcher {
-    pub(crate) inner: PayloadDispatcherState,
+    pub(crate) inner: DispatcherState,
     /// the name of the destination chain
     /// used for logging
     pub(crate) domain: String,
@@ -59,7 +59,7 @@ impl Dispatcher {
         domain: String,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
-        let state = PayloadDispatcherState::try_from_settings(settings, metrics).await?;
+        let state = DispatcherState::try_from_settings(settings, metrics).await?;
         Ok(Self {
             inner: state,
             domain,

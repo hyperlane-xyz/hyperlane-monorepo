@@ -26,7 +26,7 @@ use crate::{
 
 use super::{
     building_stage::BuildingStageQueue, utils::call_until_success_or_nonretryable_error,
-    PayloadDispatcherState,
+    DispatcherState,
 };
 
 use pool::FinalityStagePool;
@@ -39,7 +39,7 @@ pub struct FinalityStage {
     pub(crate) pool: FinalityStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
-    state: PayloadDispatcherState,
+    state: DispatcherState,
     domain: String,
 }
 
@@ -47,7 +47,7 @@ impl FinalityStage {
     pub fn new(
         tx_receiver: mpsc::Receiver<Transaction>,
         building_stage_queue: BuildingStageQueue,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Self {
         Self {
@@ -88,7 +88,7 @@ impl FinalityStage {
     async fn receive_txs(
         mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
         loop {
@@ -109,7 +109,7 @@ impl FinalityStage {
     async fn process_txs(
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
         let estimated_block_time = state.adapter.estimated_block_time();
@@ -162,7 +162,7 @@ impl FinalityStage {
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing finality stage transaction");
         let tx_status = call_until_success_or_nonretryable_error(
@@ -219,7 +219,7 @@ impl FinalityStage {
         mut tx: Transaction,
         drop_reason: TxDropReason,
         building_stage_queue: BuildingStageQueue,
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
         pool: FinalityStagePool,
     ) -> Result<(), LanderError> {
         warn!(?tx, ?drop_reason, "Transaction was dropped");
@@ -348,7 +348,7 @@ mod tests {
 
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
-        let state = PayloadDispatcherState::new(
+        let state = DispatcherState::new(
             payload_db.clone(),
             tx_db.clone(),
             Arc::new(mock_adapter),
@@ -498,7 +498,7 @@ mod tests {
 
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
-        let state = PayloadDispatcherState::new(
+        let state = DispatcherState::new(
             payload_db.clone(),
             tx_db.clone(),
             Arc::new(mock_adapter),

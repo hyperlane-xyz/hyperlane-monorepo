@@ -11,7 +11,7 @@ use crate::{
     payload::{FullPayload, PayloadId, PayloadStatus},
 };
 
-use super::{metrics::DispatcherMetrics, DispatcherSettings, PayloadDispatcherState};
+use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
 
 #[async_trait]
 pub trait Entrypoint {
@@ -24,7 +24,7 @@ pub trait Entrypoint {
 }
 
 pub struct DispatcherEntrypoint {
-    pub(crate) inner: PayloadDispatcherState,
+    pub(crate) inner: DispatcherState,
 }
 
 impl DispatcherEntrypoint {
@@ -33,11 +33,11 @@ impl DispatcherEntrypoint {
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
         Ok(Self {
-            inner: PayloadDispatcherState::try_from_settings(settings, metrics).await?,
+            inner: DispatcherState::try_from_settings(settings, metrics).await?,
         })
     }
 
-    fn from_inner(inner: PayloadDispatcherState) -> Self {
+    fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }
 }
@@ -226,7 +226,7 @@ mod tests {
         tx_db: Arc<dyn TransactionDb>,
     ) -> Box<dyn Entrypoint> {
         let adapter = Arc::new(MockAdapter::new()) as Arc<dyn AdaptsChain>;
-        let entrypoint_state = PayloadDispatcherState::new(
+        let entrypoint_state = DispatcherState::new(
             payload_db,
             tx_db,
             adapter,
@@ -299,7 +299,7 @@ mod tests {
             .expect_estimate_gas_limit()
             .returning(move |_| Ok(Some(mock_gas_limit)));
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
-        let entrypoint_state = PayloadDispatcherState::new(
+        let entrypoint_state = DispatcherState::new(
             payload_db,
             tx_db,
             adapter,

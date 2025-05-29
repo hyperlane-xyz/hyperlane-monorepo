@@ -24,7 +24,7 @@ use crate::{
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
-use super::{utils::call_until_success_or_nonretryable_error, PayloadDispatcherState};
+use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
@@ -34,7 +34,7 @@ pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     finality_stage_sender: mpsc::Sender<Transaction>,
-    state: PayloadDispatcherState,
+    state: DispatcherState,
     domain: String,
 }
 
@@ -42,7 +42,7 @@ impl InclusionStage {
     pub fn new(
         tx_receiver: mpsc::Receiver<Transaction>,
         finality_stage_sender: mpsc::Sender<Transaction>,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Self {
         Self {
@@ -83,7 +83,7 @@ impl InclusionStage {
     async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
         loop {
@@ -109,7 +109,7 @@ impl InclusionStage {
     async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
-        state: PayloadDispatcherState,
+        state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
         let estimated_block_time = state.adapter.estimated_block_time();
@@ -149,7 +149,7 @@ impl InclusionStage {
     async fn try_process_tx(
         mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing inclusion stage transaction");
@@ -193,7 +193,7 @@ impl InclusionStage {
     #[instrument(skip_all, name = "InclusionStage::process_pending_tx")]
     async fn process_pending_tx(
         mut tx: Transaction,
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
@@ -263,7 +263,7 @@ impl InclusionStage {
     }
 
     async fn drop_tx(
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
         tx: &mut Transaction,
         reason: TxDropReason,
         pool: &InclusionStagePool,
@@ -402,7 +402,7 @@ mod tests {
         let (building_stage_sender, building_stage_receiver) = mpsc::channel(txs_to_process);
         let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(txs_to_process);
 
-        let state = PayloadDispatcherState::new(
+        let state = DispatcherState::new(
             payload_db.clone(),
             tx_db.clone(),
             Arc::new(mock_adapter),

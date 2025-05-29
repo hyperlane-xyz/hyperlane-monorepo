@@ -7,7 +7,7 @@ use crate::{
     dispatcher::{
         metrics::DispatcherMetrics,
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
-        BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
+        BuildingStageQueue, DispatcherState, PayloadDbLoader,
     },
     Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId,
     PayloadStatus, TransactionStatus,
@@ -29,8 +29,7 @@ async fn test_entrypoint_send_is_detected_by_loader() {
 
     let metrics = DispatcherMetrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
-    let state =
-        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
+    let state = DispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = DispatcherEntrypoint {
         inner: state.clone(),
     };
@@ -221,8 +220,7 @@ async fn mock_entrypoint_and_dispatcher(
 
     let metrics = DispatcherMetrics::dummy_instance();
 
-    let state =
-        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
+    let state = DispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = DispatcherEntrypoint {
         inner: state.clone(),
     };

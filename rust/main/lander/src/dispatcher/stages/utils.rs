@@ -9,12 +9,12 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
-use super::PayloadDispatcherState;
+use super::DispatcherState;
 
 pub async fn call_until_success_or_nonretryable_error<F, T, Fut>(
     f: F,
     action: &str,
-    state: &PayloadDispatcherState,
+    state: &DispatcherState,
 ) -> Result<T, LanderError>
 where
     F: Fn() -> Fut,
@@ -41,7 +41,7 @@ where
 }
 
 pub async fn update_tx_status(
-    state: &PayloadDispatcherState,
+    state: &DispatcherState,
     tx: &mut Transaction,
     new_status: TransactionStatus,
 ) -> Result<(), LanderError> {

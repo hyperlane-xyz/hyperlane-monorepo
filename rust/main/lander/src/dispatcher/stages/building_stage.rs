@@ -15,7 +15,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{state::PayloadDispatcherState, utils::call_until_success_or_nonretryable_error};
+use super::{state::DispatcherState, utils::call_until_success_or_nonretryable_error};
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -27,7 +27,7 @@ pub(crate) struct BuildingStage {
     queue: BuildingStageQueue,
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
-    pub(crate) state: PayloadDispatcherState,
+    pub(crate) state: DispatcherState,
     domain: String,
 }
 
@@ -159,7 +159,7 @@ mod tests {
         dispatcher::{
             metrics::DispatcherMetrics,
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
-            PayloadDb, PayloadDispatcherState, TransactionDb,
+            DispatcherState, PayloadDb, TransactionDb,
         },
         payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         transaction::{Transaction, TransactionStatus},
@@ -315,7 +315,7 @@ mod tests {
         BuildingStageQueue,
     ) {
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
-        let state = PayloadDispatcherState::new(
+        let state = DispatcherState::new(
             payload_db,
             tx_db,
             adapter,
@@ -345,7 +345,7 @@ mod tests {
     }
 
     async fn assert_db_status_for_payloads(
-        state: &PayloadDispatcherState,
+        state: &DispatcherState,
         payloads: &[PayloadDetails],
         expected_status: PayloadStatus,
     ) {
