@@ -655,6 +655,7 @@ export {
   WarpRouteDeployConfigSchemaErrors,
   XERC20TokenMetadata,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
 } from './token/types.js';
 export {
   ChainMap,
