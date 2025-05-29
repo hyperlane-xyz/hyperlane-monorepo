@@ -12,6 +12,7 @@ import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 interface OpL2toL1Service {
     function getWithdrawalProof(
@@ -44,6 +45,10 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     IOptimismPortal public immutable opPortal;
 
     constructor(address _opPortal, string[] memory _urls) {
+        require(
+            Address.isContract(_opPortal),
+            "OPL2ToL1CcipReadIsm: invalid opPortal"
+        );
         opPortal = IOptimismPortal(_opPortal);
         setUrls(_urls);
     }

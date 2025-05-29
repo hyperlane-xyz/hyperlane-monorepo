@@ -13,6 +13,7 @@ contract OwnableMulticall {
     address public immutable owner;
 
     constructor(address _owner) {
+        require(_owner != address(0), "OwnableMulticall: invalid owner");
         owner = _owner;
     }
 
@@ -31,6 +32,8 @@ contract OwnableMulticall {
     mapping(bytes32 commitmentHash => bool isPendingExecution)
         public commitments;
 
+    event CommitmentSet(bytes32 indexed commitmentHash);
+
     /// @notice Sets the commitment value that will be executed next
     /// @param _commitment The new commitment value to be set
     function setCommitment(bytes32 _commitment) external onlyOwner {
@@ -39,6 +42,7 @@ contract OwnableMulticall {
             "ICA: Previous commitment pending execution"
         );
         commitments[_commitment] = true;
+        emit CommitmentSet(_commitment);
     }
 
     /// @dev The calls represented by the commitment can only be executed once per commitment,
