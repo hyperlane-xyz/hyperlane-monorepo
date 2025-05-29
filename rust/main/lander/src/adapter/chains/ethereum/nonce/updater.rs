@@ -95,7 +95,7 @@ impl NonceUpdater {
             .await;
 
         if let Ok(next_nonce) = next_nonce {
-            state.update_upper_nonce(&next_nonce).await;
+            state.update_boundary_nonces(&next_nonce).await;
         }
     }
 }

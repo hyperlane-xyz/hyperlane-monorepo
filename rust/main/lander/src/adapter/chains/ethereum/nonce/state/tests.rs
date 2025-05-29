@@ -3,11 +3,11 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 
 use hyperlane_core::U256;
 
-use super::super::super::EthereumTxPrecursor;
-use super::{NonceAction, NonceManagerState, NonceStatus};
-use crate::adapter::chains::ethereum::transaction::Precursor;
 use crate::transaction::{Transaction, TransactionStatus, VmSpecificTxData};
 use crate::TransactionDropReason;
+
+use super::super::super::{transaction::Precursor, EthereumTxPrecursor};
+use super::{NonceAction, NonceManagerState, NonceStatus};
 
 #[tokio::test]
 async fn test_insert_nonce_status() {
@@ -16,8 +16,9 @@ async fn test_insert_nonce_status() {
 
     state.insert_nonce_status(&nonce, NonceStatus::Free).await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Free));
+    assert_eq!(lowest_nonce, U256::zero());
 
     let upper_nonce = {
         let guard = state.inner.lock().await;
@@ -39,8 +40,9 @@ async fn test_update_nonce_status_pending_inclusion() {
         .update_nonce_status(&tx, &TransactionStatus::PendingInclusion)
         .await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Taken));
+    assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
@@ -56,8 +58,9 @@ async fn test_update_nonce_status_mempool() {
         .update_nonce_status(&tx, &TransactionStatus::Mempool)
         .await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Taken));
+    assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
@@ -73,8 +76,9 @@ async fn test_update_nonce_status_included() {
         .update_nonce_status(&tx, &TransactionStatus::Included)
         .await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Taken));
+    assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
@@ -90,8 +94,9 @@ async fn test_update_nonce_status_finalized() {
         .update_nonce_status(&tx, &TransactionStatus::Finalized)
         .await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Committed));
+    assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
@@ -110,8 +115,9 @@ async fn test_update_nonce_status_dropped() {
         )
         .await;
 
-    let status = state.get_nonce_status(&nonce).await;
+    let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Free));
+    assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
