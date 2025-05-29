@@ -2,9 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
-import {
-  REBALANCER_CONFIG_PATH,
-} from '../../tests/commands/helpers.js';
+import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
 import { ENV } from '../../utils/env.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 import { StrategyOptions } from '../interfaces/IStrategy.js';
@@ -43,7 +41,6 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     extraArgs = {
-      rebalancerKey: ANVIL_KEY,
       checkFrequency: 1000,
       monitorOnly: false,
       withMetrics: false,
@@ -142,7 +139,7 @@ describe('Config', () => {
         target: 0.3,
         type: MinAmountType.Relative,
       },
-    );
+    });
   });
 
   it('should load absolute params without modifications', () => {
@@ -170,7 +167,7 @@ describe('Config', () => {
         target: 140000,
         type: MinAmountType.Absolute,
       },
-    );
+    });
   });
 
   describe('override functionality', () => {
