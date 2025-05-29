@@ -33,8 +33,8 @@ export async function submitMetrics(
     } else {
       resp = (await gateway.pushAdd({ jobName })).resp;
     }
-  } catch (e) {
-    logger.error('Error when pushing metrics', { error: format(e) });
+  } catch (error) {
+    logger.error('Error when pushing metrics', { error: format(error) });
     return;
   }
 

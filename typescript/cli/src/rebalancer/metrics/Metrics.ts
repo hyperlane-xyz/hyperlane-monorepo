@@ -1,4 +1,5 @@
 import { Contract, PopulatedTransaction } from 'ethers';
+import { format } from 'util';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
@@ -380,10 +381,10 @@ export class Metrics implements IMetrics {
     let balance;
     try {
       balance = await erc20tokenAdapter.getBalance(lockboxAddress);
-    } catch (e) {
+    } catch (error) {
       errorRed(
         `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
-        e,
+        format(error),
       );
       return;
     }
