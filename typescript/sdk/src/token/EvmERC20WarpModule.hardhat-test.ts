@@ -34,6 +34,7 @@ import {
   addressToBytes32,
   deepCopy,
   eqAddress,
+  normalizeAddressEvm,
   randomInt,
 } from '@hyperlane-xyz/utils';
 
@@ -170,21 +171,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       [TokenType.native]: {
         ...baseConfig,
         type: TokenType.native,
-      },
-      [TokenType.synthetic]: {
-        ...baseConfig,
-        type: TokenType.synthetic,
-        decimals: TOKEN_DECIMALS,
-        name: TOKEN_NAME,
-        symbol: TOKEN_NAME,
-      },
-      [TokenType.syntheticRebase]: {
-        ...baseConfig,
-        type: TokenType.syntheticRebase,
-        decimals: TOKEN_DECIMALS,
-        name: TOKEN_NAME,
-        symbol: TOKEN_NAME,
-        collateralChainName: chain,
       },
     };
   };
@@ -943,9 +929,17 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it.only(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
-        const config: HypTokenRouterConfig = movableTokenConfigs[tokenType];
+        const domainId = 42069;
+        const config: HypTokenRouterConfig = {
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+        };
 
-        const allowedBridgeToAdd = randomAddress();
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config,
@@ -953,11 +947,15 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const domainId = 42069;
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
+
         const txs = await evmERC20WarpModule.update({
           ...config,
           allowedRebalancingBridges: {
-            42069: [
+            [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
                 approvedTokens: [token.address],
@@ -970,15 +968,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(txs.length).to.equal(2);
         await sendTxs(txs);
 
-        const warpTokenInstance = MovableCollateralRouter__factory.connect(
-          evmERC20WarpModule.serialize().deployedTokenRoute,
-          signer,
-        );
-        const check = await warpTokenInstance.callStatic.allowedBridges(
-          domainId,
-          allowedBridgeToAdd,
-        );
-        expect(check).to.be.true;
+        const check =
+          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        expect(check[0]).to.eql(allowedBridgeToAdd);
 
         const allowance = await token.callStatic.allowance(
           evmERC20WarpModule.serialize().deployedTokenRoute,

@@ -145,7 +145,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         const rebalancers = await MovableCollateralRouter__factory.connect(
           warpRouteAddress,
           this.provider,
-        ).allRebalancers();
+        ).rebalancers();
 
         allowedRebalancers = rebalancers.length ? rebalancers : undefined;
       } catch (error) {

@@ -474,8 +474,6 @@ const isMovableTokenCheckConfigMap: Record<
   [TokenType.collateralVault]: isCollateralTokenConfig,
   [TokenType.collateralVaultRebase]: isCollateralTokenConfig,
   [TokenType.native]: isNativeTokenConfig,
-  [TokenType.synthetic]: isCompliant(SyntheticTokenConfigSchema),
-  [TokenType.syntheticRebase]: isSyntheticRebaseTokenConfig,
 };
 
 export const isMovableCollateralTokenConfig = (config: any): boolean => {

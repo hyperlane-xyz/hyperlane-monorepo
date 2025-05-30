@@ -422,8 +422,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'addBridge(address,uint32)',
-            [bridgeToAdd, domain],
+            'addBridge(uint32,address)',
+            [domain, bridgeToAdd],
           ),
         };
       });
