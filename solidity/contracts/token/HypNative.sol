@@ -32,7 +32,6 @@ contract HypNative is FungibleTokenRouter {
 
     /**
      * @notice Initializes the Hyperlane router
-     * @dev This function uses `reinitializer(2)` because v2 contracts support rebalancing, and v1 contracts do not.
      * @param _hook The post-dispatch hook contract.
      * @param _interchainSecurityModule The interchain security module contract.
      * @param _owner The this contract.
@@ -41,7 +40,7 @@ contract HypNative is FungibleTokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual reinitializer(2) {
+    ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
