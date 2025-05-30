@@ -471,6 +471,10 @@
     "amount": "2284.217593537",
     "decimals": 9
   },
+  "starknet": {
+    "amount": "0.000000145",
+    "decimals": 18
+  },
   "story": {
     "amount": "0.001000406",
     "decimals": 9
