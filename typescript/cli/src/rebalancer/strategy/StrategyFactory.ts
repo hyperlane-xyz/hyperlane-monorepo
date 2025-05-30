@@ -1,7 +1,11 @@
-import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  RebalancerChainConfig,
+  RebalancerStrategyOptions,
+  Token,
+} from '@hyperlane-xyz/sdk';
 
-import type { ChainConfig } from '../config/RebalancerConfig.js';
-import { type IStrategy, StrategyOptions } from '../interfaces/IStrategy.js';
+import { type IStrategy } from '../interfaces/IStrategy.js';
 
 import {
   MinAmountStrategy,
@@ -20,14 +24,14 @@ export class StrategyFactory {
    * @returns A concrete strategy implementation
    */
   static createStrategy(
-    rebalanceStrategy: StrategyOptions,
-    config: ChainMap<ChainConfig>,
+    rebalanceStrategy: RebalancerStrategyOptions,
+    config: ChainMap<RebalancerChainConfig>,
     tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
   ): IStrategy {
-    if (rebalanceStrategy === StrategyOptions.Weighted) {
+    if (rebalanceStrategy === RebalancerStrategyOptions.Weighted) {
       return new WeightedStrategy(config as WeightedStrategyConfig);
-    } else if (rebalanceStrategy === StrategyOptions.MinAmount) {
+    } else if (rebalanceStrategy === RebalancerStrategyOptions.MinAmount) {
       return new MinAmountStrategy(
         config as MinAmountStrategyConfig,
         tokensByChainName,

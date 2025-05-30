@@ -1,15 +1,19 @@
 import { BigNumber } from 'bignumber.js';
 
-import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
+import {
+  type ChainMap,
+  type RebalancerChainConfig,
+  RebalancerMinAmountType,
+  type Token,
+} from '@hyperlane-xyz/sdk';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
-import { type ChainConfig, MinAmountType } from '../config/RebalancerConfig.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
 export type MinAmountStrategyConfig = ChainMap<
-  ChainConfig & Required<Pick<ChainConfig, 'minAmount'>>
+  RebalancerChainConfig & Required<Pick<RebalancerChainConfig, 'minAmount'>>
 >;
 
 /**
@@ -77,7 +81,7 @@ export class MinAmountStrategy extends BaseStrategy {
         let minAmount: bigint;
         let targetAmount: bigint;
 
-        if (config.minAmount.type === MinAmountType.Absolute) {
+        if (config.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
           minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
@@ -127,12 +131,12 @@ export class MinAmountStrategy extends BaseStrategy {
 
   private validateAmounts(
     totalCollateral: bigint,
-    minAmountType: MinAmountType,
+    minAmountType: RebalancerMinAmountType,
     config?: MinAmountStrategyConfig,
   ): void {
     config ??= this.config;
 
-    if (minAmountType === MinAmountType.Absolute) {
+    if (minAmountType === RebalancerMinAmountType.Absolute) {
       let totalTargets = 0n;
       let decimals: number = 0;
 

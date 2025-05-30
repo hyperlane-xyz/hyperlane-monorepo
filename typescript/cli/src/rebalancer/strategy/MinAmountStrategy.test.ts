@@ -4,11 +4,11 @@ import { expect } from 'chai';
 import {
   type ChainMap,
   type ChainName,
+  RebalancerMinAmountType,
   Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 
-import { MinAmountType } from '../config/RebalancerConfig.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
@@ -46,7 +46,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '100',
                   target: '120',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -65,7 +65,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -74,7 +74,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -92,7 +92,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: 0.3,
               target: 0.4,
-              type: MinAmountType.Relative,
+              type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -101,7 +101,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: 0.4,
               target: 0.5,
-              type: MinAmountType.Relative,
+              type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -121,7 +121,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: 100,
                   target: '120',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -130,7 +130,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '-10',
                   target: '120',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -151,7 +151,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '100',
                   target: '80',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -160,7 +160,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '100',
                   target: '120',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -183,7 +183,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: 0.5,
                   target: 0.4,
-                  type: MinAmountType.Relative,
+                  type: RebalancerMinAmountType.Relative,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -192,7 +192,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: 0.3,
                   target: 0.5,
-                  type: MinAmountType.Relative,
+                  type: RebalancerMinAmountType.Relative,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -214,7 +214,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -223,7 +223,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -247,7 +247,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -256,7 +256,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -279,7 +279,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -288,7 +288,7 @@ describe('MinAmountStrategy', () => {
               minAmount: {
                 min: '100',
                 target: '120',
-                type: MinAmountType.Absolute,
+                type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
               bridgeLockTime: 1,
@@ -312,7 +312,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -321,7 +321,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -348,7 +348,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -357,7 +357,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '120',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -390,7 +390,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '80',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -399,7 +399,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '80',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -408,7 +408,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '80',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -449,7 +449,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '100',
                   target: '220',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -458,7 +458,7 @@ describe('MinAmountStrategy', () => {
                 minAmount: {
                   min: '100',
                   target: '120',
-                  type: MinAmountType.Absolute,
+                  type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
                 bridgeLockTime: 1,
@@ -479,7 +479,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -488,7 +488,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -497,7 +497,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -532,7 +532,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -541,7 +541,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: '100',
               target: '100',
-              type: MinAmountType.Absolute,
+              type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -568,7 +568,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: 0.25,
               target: 0.3,
-              type: MinAmountType.Relative,
+              type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,
@@ -577,7 +577,7 @@ describe('MinAmountStrategy', () => {
             minAmount: {
               min: 0.25,
               target: 0.3,
-              type: MinAmountType.Relative,
+              type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
             bridgeLockTime: 1,

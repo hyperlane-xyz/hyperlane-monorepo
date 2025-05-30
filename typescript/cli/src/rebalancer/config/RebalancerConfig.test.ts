@@ -2,16 +2,17 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
+import {
+  RebalancerConfigFileInput,
+  RebalancerMinAmountType,
+  RebalancerStrategyOptions,
+} from '@hyperlane-xyz/sdk';
+
 import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
 import { ENV } from '../../utils/env.js';
 import { writeYamlOrJson } from '../../utils/files.js';
-import { StrategyOptions } from '../interfaces/IStrategy.js';
 
-import {
-  MinAmountType,
-  RebalancerConfig,
-  type RebalancerConfigFileInput,
-} from './RebalancerConfig.js';
+import { RebalancerConfig } from './RebalancerConfig.js';
 
 describe('RebalancerConfig', () => {
   let coingeckoApiKeyBackup: string | undefined;
@@ -23,7 +24,7 @@ describe('RebalancerConfig', () => {
 
     data = {
       warpRouteId: 'warpRouteId',
-      rebalanceStrategy: StrategyOptions.Weighted,
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chain1: {
         weighted: {
           weight: 100,
@@ -76,7 +77,7 @@ describe('RebalancerConfig', () => {
       monitorOnly: extraArgs.monitorOnly,
       withMetrics: extraArgs.withMetrics,
       coingeckoApiKey: ENV.COINGECKO_API_KEY,
-      rebalanceStrategy: StrategyOptions.Weighted,
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         chain1: {
           weighted: {
@@ -121,7 +122,7 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load relative params without modifications', () => {
-    data.rebalanceStrategy = StrategyOptions.MinAmount;
+    data.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
     delete data.chain1.weighted;
 
     data.chain1 = {
@@ -129,7 +130,7 @@ describe('RebalancerConfig', () => {
       minAmount: {
         min: '0.2',
         target: 0.3,
-        type: MinAmountType.Relative,
+        type: RebalancerMinAmountType.Relative,
       },
     };
 
@@ -143,13 +144,13 @@ describe('RebalancerConfig', () => {
       minAmount: {
         min: '0.2',
         target: 0.3,
-        type: MinAmountType.Relative,
+        type: RebalancerMinAmountType.Relative,
       },
     });
   });
 
   it('should load absolute params without modifications', () => {
-    data.rebalanceStrategy = StrategyOptions.MinAmount;
+    data.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
     delete data.chain1.weighted;
 
     data.chain1 = {
@@ -157,7 +158,7 @@ describe('RebalancerConfig', () => {
       minAmount: {
         min: '100000',
         target: 140000,
-        type: MinAmountType.Absolute,
+        type: RebalancerMinAmountType.Absolute,
       },
     };
 
@@ -171,7 +172,7 @@ describe('RebalancerConfig', () => {
       minAmount: {
         min: '100000',
         target: 140000,
-        type: MinAmountType.Absolute,
+        type: RebalancerMinAmountType.Absolute,
       },
     });
   });
@@ -180,12 +181,12 @@ describe('RebalancerConfig', () => {
     it('should parse a config with overrides', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: StrategyOptions.MinAmount,
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
         chain1: {
           minAmount: {
             min: 1000,
             target: 1100,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -199,7 +200,7 @@ describe('RebalancerConfig', () => {
           minAmount: {
             min: 2000,
             target: 2200,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -208,7 +209,7 @@ describe('RebalancerConfig', () => {
           minAmount: {
             min: 3000,
             target: 3300,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -234,12 +235,12 @@ describe('RebalancerConfig', () => {
     it('should throw when an override references a non-existent chain', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: StrategyOptions.MinAmount,
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
         chain1: {
           minAmount: {
             min: 1000,
             target: 1100,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -256,7 +257,7 @@ describe('RebalancerConfig', () => {
           minAmount: {
             min: 2000,
             target: 2200,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -275,12 +276,12 @@ describe('RebalancerConfig', () => {
     it('should throw when an override references itself', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: StrategyOptions.MinAmount,
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
         chain1: {
           minAmount: {
             min: 1000,
             target: 1100,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
@@ -294,7 +295,7 @@ describe('RebalancerConfig', () => {
           minAmount: {
             min: 2000,
             target: 2200,
-            type: MinAmountType.Absolute,
+            type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
           bridgeLockTime: 1,
