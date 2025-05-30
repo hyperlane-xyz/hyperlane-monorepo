@@ -76,6 +76,8 @@ The rebalancer container
     value: {{ .Values.hyperlane.registryCommit }}
   - name: HYP_KEY
     value: $(REBALANCER_KEY)
+  - name: COINGECKO_API_KEY
+    value: $(COINGECKO_API_KEY)
   args:
   - "yarn"
   - "workspace"
@@ -83,18 +85,10 @@ The rebalancer container
   - "hyperlane"
   - "warp"
   - "rebalancer"
-  - "--warpRouteId"
-  - {{ .Values.warpRouteId }}
   - "--checkFrequency"
   - "60000"
   - "--configFile"
   - "{{ .Values.hyperlane.rebalancerConfigFile }}"
-  - "--coingeckoApiKey"
-  -  "$(COINGECKO_API_KEY)"
-  - "--withMetrics"
-  - "true"
-  - "--rebalanceStrategy"
-  - "{{ .Values.hyperlane.rebalanceStrategy }}"
   - "--registry"
   - "/hyperlane-registry"
   envFrom:

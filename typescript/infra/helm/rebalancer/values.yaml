@@ -7,7 +7,6 @@ hyperlane:
   registryCommit: ''
   rebalancerConfigFile: ''
   withMetrics: true
-  rebalanceStrategy: ''
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

@@ -1,10 +1,15 @@
-import fs from 'fs';
 import path from 'path';
+import { fromZodError } from 'zod-validation-error';
+
+import {
+  type RebalancerConfigFileInput,
+  RebalancerConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { HelmManager } from '../utils/helm.js';
-import { getInfraPath } from '../utils/utils.js';
+import { getInfraPath, readYaml } from '../utils/utils.js';
 
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
@@ -34,10 +39,17 @@ export class RebalancerHelmManager extends HelmManager {
     }
 
     const rebalancerConfigFile = path.join(getInfraPath(), localConfigPath);
-    if (!fs.existsSync(rebalancerConfigFile)) {
-      throw new Error(
-        `Rebalancer config file not found: ${rebalancerConfigFile}`,
-      );
+
+    // Validate the rebalancer config file
+    const config: RebalancerConfigFileInput = readYaml(rebalancerConfigFile);
+    const validationResult = RebalancerConfigSchema.safeParse(config);
+    if (!validationResult.success) {
+      throw new Error(fromZodError(validationResult.error).message);
+    }
+
+    const { ...chains } = validationResult.data;
+    if (!Object.keys(chains).length) {
+      throw new Error('No chains configured');
     }
   }
 
@@ -49,9 +61,8 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '0319ac2-20250520-144526',
+        tag: '4d92547-20250530-134110',
       },
-      warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
@@ -59,7 +70,6 @@ export class RebalancerHelmManager extends HelmManager {
         registryCommit: this.registryCommit,
         rebalancerConfigFile: this.rebalancerConfigFile,
         withMetrics: this.withMetrics,
-        rebalanceStrategy: this.rebalanceStrategy,
       },
     };
   }
