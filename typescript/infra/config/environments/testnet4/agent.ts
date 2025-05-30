@@ -79,6 +79,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -89,6 +90,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: true,
     unichaintestnet: true,
@@ -128,6 +130,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -138,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: true,
     unichaintestnet: true,
@@ -177,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nobletestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     rometestnet: true,
@@ -187,6 +192,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: true,
     subtensortestnet: true,
     superpositiontestnet: false,
     unichaintestnet: true,
@@ -222,6 +228,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('nobletestnet'),
         destinationDomain: getDomainId('hyperliquidevmtestnet'),
       },
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
     ],
   },
   {
@@ -392,7 +405,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28e19ad-20250523-012551',
+      tag: 'df49f07-20250528-094039',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -407,7 +420,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0817ec4-20250521-141638',
+      tag: '761d140-20250526-120715',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -416,7 +429,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28e19ad-20250523-012551',
+      tag: '919a01f-20250527-071607',
     },
     resources: scraperResources,
   },
@@ -431,7 +444,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28e19ad-20250523-012551',
+      tag: 'a58a97c-20250527-151125',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -463,33 +476,31 @@ export const kesselRunnerNetworks = [
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '761d140-20250526-120715',
     },
-    whitelist: kesselMatchingList,
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {
       enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
     },
-    resources: {
-      requests: {
-        cpu: '20000m',
-        memory: '32Gi',
-      },
+    resources: relayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
     },
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 

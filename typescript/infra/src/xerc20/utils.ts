@@ -8,12 +8,8 @@ import {
   Ownable__factory,
 } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
-  EvmHypVSXERC20Adapter,
-  EvmHypVSXERC20LockboxAdapter,
   EvmXERC20VSAdapter,
-  IHypVSXERC20Adapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -658,27 +654,6 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
   return new BigNumber(limit.toString())
     .dividedBy(new BigNumber(10).pow(decimals))
     .toString();
-}
-
-function getHypVSXERC20Adapter(
-  chainName: ChainName,
-  multiProtocolProvider: MultiProtocolProvider,
-  addresses: { token: Address },
-  isLockbox: boolean,
-): IHypVSXERC20Adapter<PopulatedTransaction> {
-  if (isLockbox) {
-    return new EvmHypVSXERC20LockboxAdapter(
-      chainName,
-      multiProtocolProvider,
-      addresses,
-    );
-  } else {
-    return new EvmHypVSXERC20Adapter(
-      chainName,
-      multiProtocolProvider,
-      addresses,
-    );
-  }
 }
 
 export function getAndValidateBridgesToUpdate(
