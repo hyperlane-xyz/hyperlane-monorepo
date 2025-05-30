@@ -55,19 +55,29 @@ async function main() {
   };
 
   const warpConfigChains = new Set<ChainName>();
-  const warpIdsToCheck = await Promise.all(
-    Object.keys(warpCoreConfigMap).filter(async (warpRouteId) => {
+  const warpRouteIds = Object.keys(warpCoreConfigMap);
+
+  const filterResults = await Promise.all(
+    warpRouteIds.map(async (warpRouteId) => {
       const warpRouteConfig = warpCoreConfigMap[warpRouteId];
       const isTestnet = await isTestnetRoute(warpRouteConfig);
-      if (!routesToSkip.includes(warpRouteId) && !isTestnet) {
-        Object.keys(warpRouteConfig).forEach((chain) =>
-          warpConfigChains.add(chain),
-        );
-        return true;
-      }
-      return false;
+      const shouldCheck =
+        (environment === 'mainnet3' && !isTestnet) ||
+        (environment === 'testnet4' && isTestnet);
+      return shouldCheck && !routesToSkip.includes(warpRouteId);
     }),
   );
+
+  const warpIdsToCheck = warpRouteIds.filter(
+    (_, index) => filterResults[index],
+  );
+
+  warpIdsToCheck.forEach((warpRouteId) => {
+    const warpRouteConfig = warpCoreConfigMap[warpRouteId];
+    Object.keys(warpRouteConfig).forEach((chain) =>
+      warpConfigChains.add(chain),
+    );
+  });
 
   console.log(
     `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
