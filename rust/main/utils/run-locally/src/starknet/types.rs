@@ -86,6 +86,7 @@ pub struct AgentConfig {
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
     pub contract_address_bytes: usize,
+    pub max_batch_size: u32,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -102,6 +103,7 @@ impl AgentConfig {
             domain_id: network.domain,
             metrics_port: network.metrics_port,
             mailbox: network.deployments.mailbox.clone(),
+            max_batch_size: 10,
             interchain_gas_paymaster: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84".to_string(),
             validator_announce: network.deployments.va.clone(),
             merkle_tree_hook: network.deployments.hook_merkle.clone(),

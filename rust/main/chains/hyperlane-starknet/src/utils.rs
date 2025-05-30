@@ -4,8 +4,7 @@ use std::time::Duration;
 use cainome::cairo_serde::CairoSerde;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
 use starknet::{
@@ -17,6 +16,8 @@ use starknet::{
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
     signers::LocalWallet,
 };
+use tokio::time::sleep;
+use tracing::debug;
 use url::Url;
 
 use crate::contracts::{
@@ -33,32 +34,52 @@ use crate::{
 pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
-) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
-    call_and_retry_n_times(
-        || {
-            let rpc = rpc.clone();
-            Box::pin(async move {
-                let receipt = rpc
-                    .get_transaction_receipt(transaction_hash)
-                    .await
-                    .map_err(HyperlaneStarknetError::from)?;
+) -> ChainResult<TxOutcome> {
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
 
-                match receipt {
-                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                        Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
-                    }
-                    MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+
+    let n = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+
+    for retry_number in 0..n {
+        let receipt = rpc
+            .get_transaction_receipt(transaction_hash)
+            .await
+            .map_err(HyperlaneStarknetError::from);
+
+        if receipt.is_err() {
+            debug!(retry_number, "transaction receipt error: {:?}", receipt);
+            sleep(Duration::from_secs(POLLING_INTERVAL)).await;
+            continue;
+        }
+
+        let receipt = receipt?;
+        match receipt {
+            MaybePendingTransactionReceipt::PendingReceipt(receipt) => {
+                debug!(
+                    retry_number,
+                    "transaction receipt is still pending: {:?}", receipt
+                );
+                sleep(Duration::from_secs(POLLING_INTERVAL)).await;
+                continue;
+            }
+            MaybePendingTransactionReceipt::Receipt(receipt) => {
+                if let TransactionReceipt::Invoke(receipt) = receipt {
+                    return tx_receipt_to_outcome(receipt);
                 }
-            })
-        },
-        8,
-        Some(Duration::from_millis(2000)),
-    )
-    .await
+                // If the receipt is not an Invoke receipt, we return an error
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
+            }
+        }
+    }
+
+    Err(ChainCommunicationError::CustomError(format!(
+        "Starknet transaction receipt not available after {} retries",
+        n
+    )))
 }
 
 /// Creates a single owner account for a given signer and account address.
@@ -329,12 +350,7 @@ pub async fn send_and_confirm(
         .await
         .map_err(HyperlaneStarknetError::from)?;
 
-    let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
-
-    match receipt {
-        TransactionReceipt::Invoke(receipt) => Ok(tx_receipt_to_outcome(receipt)?),
-        _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
-    }
+    get_transaction_receipt(rpc_client, tx.transaction_hash).await
 }
 
 #[cfg(test)]
