@@ -2,10 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
-import {
-  agentKeysToBeCreated,
-  createAgentKeys,
-} from '../../src/agents/key-utils.js';
+import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
@@ -110,50 +107,33 @@ async function main() {
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
-  const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
 
-  if (agentKeysToCreate.length > 0) {
-    const shouldContinue = await confirm({
-      message: chalk.yellow.bold(
-        `Warning: New agent key will be created: ${agentKeysToCreate}. Are you sure you want to continue?`,
-      ),
-      default: false,
-    });
-    if (!shouldContinue) {
-      console.log(chalk.red.bold('Exiting...'));
-      process.exit(1);
-    }
+  await createAgentKeysIfNotExistsWithPrompt(agentConfig);
 
-    console.log(chalk.green.bold('Creating new agent key if needed.'));
-    await createAgentKeys(agentConfig, agentKeysToCreate);
-  } else {
-    console.log(chalk.green.bold('No new agent key will be created.'));
-  }
-
-  // Check if current branch is up-to-date with the main branch
-  const commitsBehind = await getCommitsBehindMain();
-
-  // If the current branch is not up-to-date with origin/main, prompt the user to continue
-  if (commitsBehind > 0) {
-    const shouldContinue = await confirm({
-      message: chalk.yellow.bold(
-        `Warning: Current branch is ${commitsBehind} commit${
-          commitsBehind === 1 ? '' : 's'
-        } behind origin/main. Are you sure you want to continue?`,
-      ),
-      default: false,
-    });
-    if (!shouldContinue) {
-      console.log(chalk.red.bold('Exiting...'));
-      process.exit(1);
-    }
-  } else {
-    console.log(
-      chalk.green.bold('Current branch is up-to-date with origin/main.'),
-    );
-  }
-
-  await new AgentCli().runHelmCommand(HelmCommand.InstallOrUpgrade);
+  // // Check if current branch is up-to-date with the main branch
+  // const commitsBehind = await getCommitsBehindMain();
+  //
+  // // If the current branch is not up-to-date with origin/main, prompt the user to continue
+  // if (commitsBehind > 0) {
+  //   const shouldContinue = await confirm({
+  //     message: chalk.yellow.bold(
+  //       `Warning: Current branch is ${commitsBehind} commit${
+  //         commitsBehind === 1 ? '' : 's'
+  //       } behind origin/main. Are you sure you want to continue?`,
+  //     ),
+  //     default: false,
+  //   });
+  //   if (!shouldContinue) {
+  //     console.log(chalk.red.bold('Exiting...'));
+  //     process.exit(1);
+  //   }
+  // } else {
+  //   console.log(
+  //     chalk.green.bold('Current branch is up-to-date with origin/main.'),
+  //   );
+  // }
+  //
+  // await new AgentCli().runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
 main()

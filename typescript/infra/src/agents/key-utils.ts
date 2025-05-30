@@ -1,3 +1,5 @@
+import { confirm } from '@inquirer/prompts';
+import chalk from 'chalk';
 import { join } from 'path';
 import { Pair } from 'yaml';
 
@@ -347,6 +349,32 @@ export function getValidatorKeysForChain(
 // Functions for managing keys
 // ==================
 
+export async function createAgentKeysIfNotExistsWithPrompt(
+  agentConfig: AgentContextConfig,
+) {
+  const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
+
+  if (agentKeysToCreate.length > 0) {
+    const shouldContinue = await confirm({
+      message: chalk.yellow.bold(
+        `Warning: New agent key will be created: ${agentKeysToCreate}. Are you sure you want to continue?`,
+      ),
+      default: false,
+    });
+    if (!shouldContinue) {
+      console.log(chalk.red.bold('Exiting...'));
+      process.exit(1);
+    }
+
+    console.log(chalk.green.bold('Creating new agent key if needed.'));
+    await createAgentKeys(agentConfig, agentKeysToCreate);
+    return true;
+  } else {
+    console.log(chalk.green.bold('No new agent key will be created.'));
+    return false;
+  }
+}
+
 // We can create or delete keys if they are not Starknet keys.
 function keysToPossiblyCreateOrDelete(
   agentConfig: AgentContextConfig,
@@ -358,7 +386,7 @@ function keysToPossiblyCreateOrDelete(
   );
 }
 
-export async function createAgentKeys(
+async function createAgentKeys(
   agentConfig: AgentContextConfig,
   agentKeysToCreate: string[],
 ) {
@@ -389,7 +417,7 @@ export async function createAgentKeys(
   return;
 }
 
-export async function agentKeysToBeCreated(
+async function agentKeysToBeCreated(
   agentConfig: AgentContextConfig,
 ): Promise<string[]> {
   const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
