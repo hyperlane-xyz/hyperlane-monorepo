@@ -584,7 +584,7 @@ impl BaseAgent for Relayer {
         let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
-            .with_db(dbs)
+            .with_dbs(dbs)
             .router();
 
         let server = self

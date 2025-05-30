@@ -29,6 +29,8 @@ impl<T: Serialize> IntoResponse for ServerSuccessResponse<T> {
             .header(CONTENT_TYPE, "application/json")
             .status(StatusCode::OK)
             .body(body::Body::new(json_body));
+        // Should never fail unless we give it bad header values.
+        // Because the body we give it is serializable
         response.expect("Failed to build response")
     }
 }
@@ -66,6 +68,8 @@ impl IntoResponse for ServerErrorResponse {
             .header(CONTENT_TYPE, "application/json")
             .status(self.status_code)
             .body(body::Body::new(json_body));
+        // Should never fail unless we give it bad header values.
+        // Because the body we give it is serializable
         response.expect("Failed to build response")
     }
 }

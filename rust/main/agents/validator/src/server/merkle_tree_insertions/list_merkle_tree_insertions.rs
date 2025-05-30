@@ -39,11 +39,6 @@ pub struct ResponseBody {
     pub merkle_tree_insertions: Vec<TreeInsertion>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseErrorBody {
-    pub message: String,
-}
-
 /// Fetch merkle tree insertion into the database
 pub async fn handler(
     State(state): State<ServerState>,

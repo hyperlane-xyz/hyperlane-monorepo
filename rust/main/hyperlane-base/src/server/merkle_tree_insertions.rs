@@ -8,6 +8,24 @@ use crate::{
 
 use super::utils::ServerResult;
 
+/// Query params for this endpoint
+#[derive(Clone, Debug, Deserialize)]
+pub struct QueryParams {
+    /// domain_id
+    pub domain_id: u32,
+    /// leaf index to start query
+    pub leaf_index_start: u32,
+    /// leaf index to end query
+    pub leaf_index_end: u32,
+}
+
+/// Response body for this endpoint
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ResponseBody {
+    /// merkle tree insertions returned
+    pub merkle_tree_insertions: Vec<TreeInsertion>,
+}
+
 /// Merkle tree insertion
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TreeInsertion {
@@ -25,7 +43,7 @@ pub async fn fetch_merkle_tree_insertions(
     leaf_index_end: u32,
 ) -> ServerResult<Vec<TreeInsertion>> {
     let mut merkle_tree_insertions =
-        Vec::with_capacity((leaf_index_end + 1 - leaf_index_start) as usize);
+        Vec::with_capacity((leaf_index_end + 1).saturating_sub(leaf_index_start) as usize);
     for leaf_index in leaf_index_start..(leaf_index_end + 1) {
         let retrieve_res = db
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)

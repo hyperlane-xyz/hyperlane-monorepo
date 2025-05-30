@@ -42,7 +42,7 @@ impl Server {
         self
     }
 
-    pub fn with_db(mut self, db: HashMap<u32, HyperlaneRocksDB>) -> Self {
+    pub fn with_dbs(mut self, db: HashMap<u32, HyperlaneRocksDB>) -> Self {
         self.dbs = Some(db);
         self
     }
