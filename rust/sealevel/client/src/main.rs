@@ -1219,11 +1219,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
-                ctx.payer_signer().as_deref(),
-                Some(&sender),
-                Some(&unique_message_account_keypair),
-            ]);
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(
+                &[
+                    ctx.payer_signer().as_deref(),
+                    Some(&sender),
+                    Some(&unique_message_account_keypair),
+                ],
+                &ctx.payer_pubkey,
+            );
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);
         }

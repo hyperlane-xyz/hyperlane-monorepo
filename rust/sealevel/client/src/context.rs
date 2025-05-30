@@ -147,7 +147,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .collect()
     }
 
-    pub(crate) fn pretty_print_transaction(&self) {
+    pub(crate) fn pretty_print_transaction(&self, payer: &Pubkey) {
         println!("\t==== Instructions: ====");
 
         for (i, InstructionWithDescription { description, .. }) in
@@ -160,7 +160,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             );
         }
 
-        let message = Message::new(&self.instructions(), Some(&self.ctx.payer_pubkey));
+        let message = Message::new(&self.instructions(), Some(&payer));
         // Useful for plugging into ledger-friendly tools
         if std::env::var("TX_BINARY").is_ok() {
             println!(
@@ -188,7 +188,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let payer_signer = self.ctx.payer_signer();
-        self.send(&[payer_signer.as_deref()])
+        let payer_pubkey = self.ctx.payer_pubkey;
+        self.send(&[payer_signer.as_deref()], &payer_pubkey)
     }
 
     /// Sends the transaction with a signer for the given pubkey.
@@ -199,12 +200,13 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         pubkey: &Pubkey,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let signer = self.ctx.signer_for_pubkey(pubkey);
-        self.send(&[signer.as_deref()])
+        self.send(&[signer.as_deref()], pubkey)
     }
 
     pub(crate) fn send(
         self,
         maybe_signers: &[Option<&dyn Signer>],
+        payer: &Pubkey,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
@@ -214,7 +216,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         if maybe_signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
-            self.pretty_print_transaction();
+            self.pretty_print_transaction(payer);
 
             wait_for_user_confirmation();
 
@@ -224,7 +226,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         let signers: Vec<&dyn Signer> = maybe_signers.iter().map(|s| s.unwrap()).collect();
 
         // Print the tx as an indication for what's about to happen
-        self.pretty_print_transaction();
+        self.pretty_print_transaction(payer);
 
         if self.ctx.require_tx_approval {
             wait_for_user_confirmation();
@@ -235,7 +237,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         let recent_blockhash = client.get_latest_blockhash().unwrap();
         let txn = Transaction::new_signed_with_payer(
             &self.instructions(),
-            Some(&self.ctx.payer_pubkey),
+            Some(payer),
             &signers,
             recent_blockhash,
         );
