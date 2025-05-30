@@ -112,13 +112,32 @@ export async function hyperlaneWarpApply(
   warpCorePath: string,
   strategyUrl = '',
 ) {
+  return hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+  });
+}
+
+export function hyperlaneWarpApplyRaw({
+  warpDeployPath,
+  warpCorePath,
+  strategyUrl,
+  warpRouteId,
+}: {
+  warpDeployPath?: string;
+  warpCorePath?: string;
+  strategyUrl?: string;
+  warpRouteId?: string;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        --config ${warpDeployPath} \
-        --warp ${warpCorePath} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCorePath ? ['--warp', warpCorePath] : ''} \
+        ${strategyUrl ? ['--strategy', strategyUrl] : ''} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --strategy ${strategyUrl} \
         --yes`;
 }
 
