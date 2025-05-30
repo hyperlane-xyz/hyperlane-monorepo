@@ -1,24 +1,5 @@
 # @hyperlane-xyz/helloworld
 
-## 13.2.0
-
-### Minor Changes
-
-- 9f4c2e8: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
-
-### Patch Changes
-
-- d728435: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
-- Updated dependencies [77bac88]
-- Updated dependencies [36218a4]
-- Updated dependencies [973aa72]
-- Updated dependencies [6229159]
-- Updated dependencies [986f914]
-- Updated dependencies [1ad0893]
-- Updated dependencies [a4af0b8]
-  - @hyperlane-xyz/sdk@13.2.0
-  - @hyperlane-xyz/core@7.1.9
-
 ## 13.1.1
 
 ### Patch Changes

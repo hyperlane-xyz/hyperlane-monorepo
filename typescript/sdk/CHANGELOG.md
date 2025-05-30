@@ -1,24 +1,5 @@
 # @hyperlane-xyz/sdk
 
-## 13.2.0
-
-### Minor Changes
-
-- 77bac88: Add support for address in voyager block explorers
-- 36218a4: Support for zksync on deployments and verifications
-- 973aa72: Check for ZKSync contracts and functionalities support
-- 6229159: Add ZKSync contract verification with custom compiler options and refactor verification classes
-- 1ad0893: Add getTokenCollateral to WarpCore and reuse in isDestinationCollateralSufficient
-- a4af0b8: Update concurrentDeploy default to true for token deployments.
-
-### Patch Changes
-
-- 986f914: Account for zksync in legacy deployer logic.
-  - @hyperlane-xyz/starknet-core@13.2.0
-  - @hyperlane-xyz/cosmos-sdk@13.2.0
-  - @hyperlane-xyz/utils@13.2.0
-  - @hyperlane-xyz/core@7.1.9
-
 ## 13.1.1
 
 ### Patch Changes

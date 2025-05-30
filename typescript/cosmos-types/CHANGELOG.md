@@ -1,7 +1,5 @@
 # @hyperlane-xyz/cosmos-types
 
-## 13.2.0
-
 ## 13.1.1
 
 ### Patch Changes
