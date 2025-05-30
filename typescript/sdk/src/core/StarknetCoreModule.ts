@@ -85,12 +85,12 @@ export class StarknetCoreModule {
   }): Promise<Record<string, string>> {
     const { config, chain } = params;
     assert(
-      typeof config.requiredHook !== 'string',
-      'string required hook is not accepted',
+      typeof config.defaultHook !== 'string',
+      'string default hook is not accepted',
     );
     assert(
-      config.requiredHook.type === HookType.PROTOCOL_FEE,
-      'only protocolFee hook is accepted for required hook',
+      config.defaultHook.type === HookType.PROTOCOL_FEE,
+      'only protocolFee hook is accepted for default hook',
     );
 
     // Deploy core components in sequence:
@@ -101,7 +101,7 @@ export class StarknetCoreModule {
     );
 
     // 2. Default Hook - A basic hook implementation for message processing
-    const defaultHook = await this.deployer.deployContract(
+    const requiredHook = await this.deployer.deployContract(
       StarknetContractName.HOOK,
       [],
     );
@@ -110,9 +110,9 @@ export class StarknetCoreModule {
     const protocolFee = await this.deployer.deployContract(
       StarknetContractName.PROTOCOL_FEE,
       [
-        cairo.uint256(config.requiredHook.maxProtocolFee),
-        cairo.uint256(config.requiredHook.protocolFee),
-        config.requiredHook.beneficiary,
+        cairo.uint256(config.defaultHook.maxProtocolFee),
+        cairo.uint256(config.defaultHook.protocolFee),
+        config.defaultHook.beneficiary,
         config.owner,
         PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
           .denom as MultiType,
@@ -124,12 +124,12 @@ export class StarknetCoreModule {
       chain,
       config.owner,
       noopIsm,
-      defaultHook,
       protocolFee,
+      requiredHook,
     );
 
     // 5. Update the configuration with custom ISM and hooks if specified
-    const { defaultIsm, defaultHook: merkleTreeHook } =
+    const { defaultIsm, requiredHook: merkleTreeHook } =
       await this.updateCoreDeploy(config, mailboxContract.address);
 
     const validatorAnnounce = await this.deployer.deployContract(
@@ -194,10 +194,10 @@ export class StarknetCoreModule {
   async updateCoreDeploy(
     expectedConfig: CoreConfig,
     mailbox: string,
-  ): Promise<{ defaultIsm?: string; defaultHook?: string; owner?: string }> {
+  ): Promise<{ defaultIsm?: string; requiredHook?: string; owner?: string }> {
     const result: {
       defaultIsm?: string;
-      defaultHook?: string;
+      requiredHook?: string;
       owner?: string;
     } = {};
 
@@ -227,7 +227,7 @@ export class StarknetCoreModule {
     }
 
     // Update required hook to MerkleTreeHook if specified
-    if (expectedConfig.defaultHook) {
+    if (expectedConfig.requiredHook) {
       this.logger.info(
         `Deploying MerkleTreeHook with explicit owner (${expectedConfig.owner}). Note: Unlike EVM where deployer automatically becomes owner, ` +
           `in Starknet the owner must be explicitly passed as a constructor parameter.`,
@@ -239,15 +239,15 @@ export class StarknetCoreModule {
       );
 
       this.logger.info(`Updating required hook ${merkleTreeHook}..`);
-      const { transaction_hash: defaultHookUpdateTxHash } =
-        await mailboxContract.invoke('set_default_hook', [merkleTreeHook]);
+      const { transaction_hash: requiredHookUpdateTxHash } =
+        await mailboxContract.invoke('set_required_hook', [merkleTreeHook]);
 
-      await this.signer.waitForTransaction(defaultHookUpdateTxHash);
+      await this.signer.waitForTransaction(requiredHookUpdateTxHash);
       this.logger.info(
-        `Transaction hash for updated default hook: ${defaultHookUpdateTxHash}`,
+        `Transaction hash for updated required hook: ${requiredHookUpdateTxHash}`,
       );
 
-      result.defaultHook = merkleTreeHook;
+      result.requiredHook = merkleTreeHook;
     }
 
     // Update owner if different from current
