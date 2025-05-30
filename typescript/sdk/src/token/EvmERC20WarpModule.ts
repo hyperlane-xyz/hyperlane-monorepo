@@ -385,21 +385,51 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         return Array.from(difference(bridges, actualBridges));
       },
     );
-    return Object.entries(rebalancingBridgesToAddByDomain).flatMap(
-      ([domain, allowedBridgesToAdd]) => {
-        return allowedBridgesToAdd.map((bridgeToAdd) => {
-          return {
-            chainId: this.chainId,
-            annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
-            to: this.args.addresses.deployedTokenRoute,
-            data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-              'addBridge(address,uint32)',
-              [bridgeToAdd, domain],
-            ),
-          };
+
+    const tokensToApprove = Object.values(
+      expectedConfig.allowedRebalancingBridges,
+    ).reduce(
+      (acc, bridgeConfigs) => {
+        bridgeConfigs.forEach((config) => {
+          acc[config.bridge] ??= [];
+          acc[config.bridge].push(...(config.approvedTokens ?? []));
         });
+
+        return acc;
       },
+      {} as Record<string, string[]>,
     );
+
+    const approvalTxs = Object.entries(tokensToApprove).flatMap(
+      ([bridge, tokensToApprove]) =>
+        tokensToApprove.map((tokenToApprove) => ({
+          chainId: this.chainId,
+          annotation: `Adding allowed bridge "${bridge}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'approveTokenForBridge(address,address)',
+            [tokenToApprove, bridge],
+          ),
+        })),
+    );
+
+    const bridgesToAllow = Object.entries(
+      rebalancingBridgesToAddByDomain,
+    ).flatMap(([domain, allowedBridgesToAdd]) => {
+      return allowedBridgesToAdd.map((bridgeToAdd) => {
+        return {
+          chainId: this.chainId,
+          annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'addBridge(address,uint32)',
+            [bridgeToAdd, domain],
+          ),
+        };
+      });
+    });
+
+    return [...bridgesToAllow, ...approvalTxs];
   }
 
   /**

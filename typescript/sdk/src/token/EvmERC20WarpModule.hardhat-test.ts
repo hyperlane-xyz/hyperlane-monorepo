@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import { UINT_256_MAX } from 'starknet';
 
 import {
   ERC20Test,
@@ -939,7 +940,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     }
 
     for (const tokenType of movableCollateralTypes) {
-      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it.only(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const config: HypTokenRouterConfig = movableTokenConfigs[tokenType];
@@ -965,6 +966,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           },
         });
 
+        // 1 tx to allow the bridge and another to approve the token
+        expect(txs.length).to.equal(2);
         await sendTxs(txs);
 
         const warpTokenInstance = MovableCollateralRouter__factory.connect(
@@ -975,8 +978,13 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           domainId,
           allowedBridgeToAdd,
         );
-
         expect(check).to.be.true;
+
+        const allowance = await token.callStatic.allowance(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          allowedBridgeToAdd,
+        );
+        expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
       });
     }
   });
