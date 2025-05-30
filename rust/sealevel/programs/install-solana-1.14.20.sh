@@ -6,12 +6,11 @@
 
 # This script is adapted from https://release.anza.xyz/v1.18.18/install with the following
 # changes:
-# - The version is hardcoded to 1.14.20
+# - The default version is hardcoded to 1.14.20, but can be overwritten with `--version`
 # - The URL is hardcoded to read from the old solana-labs repo
 # - All agave references are replaced with solana
 
 SOLANA_RELEASE=v1.14.20
-SOLANA_INSTALL_INIT_ARGS=v1.14.20
 SOLANA_DOWNLOAD_ROOT=https://github.com/solana-labs/solana/releases/download/
 
 # Copyright 2016 The Rust Project Developers. See the COPYRIGHT
@@ -43,7 +42,7 @@ solana-install-init
 initializes a new installation
 
 USAGE:
-    solana-install-init [FLAGS] [OPTIONS] --data_dir <PATH> --pubkey <PUBKEY>
+    solana-install-init [FLAGS] [OPTIONS] --data_dir <PATH> --pubkey <PUBKEY> --version <CLI-VERSION>
 
 FLAGS:
     -h, --help              Prints help information
@@ -53,6 +52,7 @@ OPTIONS:
     -d, --data-dir <PATH>    Directory to store install data
     -u, --url <URL>          JSON RPC URL for the solana cluster
     -p, --pubkey <PUBKEY>    Public key of the update manifest
+    --version <CLI-VERSION>  Version of the CLI (default: v1.14.20)
 EOF
 }
 
@@ -72,7 +72,23 @@ main() {
           usage
           exit 0
           ;;
+        --version)
+          SOLANA_VERSION_OVERRIDE=1
+          ;;
         *)
+          ;;
+      esac
+    done
+
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --version)
+          shift
+          SOLANA_RELEASE="$1"
+          shift
+          ;;
+        *)
+          shift
           ;;
       esac
     done
@@ -132,7 +148,7 @@ main() {
 
     if [ -z "$1" ]; then
       #shellcheck disable=SC2086
-      ignore "$solana_install_init" $SOLANA_INSTALL_INIT_ARGS
+      ignore "$solana_install_init" $SOLANA_RELEASE
     else
       ignore "$solana_install_init" "$@"
     fi
