@@ -21,6 +21,7 @@ export class ChainResolverFactory {
     [CommandType.SUBMIT, () => MultiChainResolver.forStrategyConfig()],
     [CommandType.RELAYER, () => MultiChainResolver.forRelayer()],
     [CommandType.CORE_APPLY, () => MultiChainResolver.forCoreApply()],
+    [CommandType.CORE_DEPLOY, () => MultiChainResolver.forCoreDeploy()],
   ]);
 
   /**

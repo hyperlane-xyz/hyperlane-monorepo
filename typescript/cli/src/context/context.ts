@@ -11,10 +11,10 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
-import { isSignCommand } from '../commands/signCommands.js';
+import { isSignCommand, isValidKey } from '../commands/signCommands.js';
 import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -33,6 +33,15 @@ import {
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
+
+  // if a key was provided, check if it has a valid format
+  if (argv.key) {
+    assert(
+      isValidKey(argv.key),
+      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
+    );
+  }
+
   const settings: ContextSettings = {
     registryUris: [
       ...argv.registry,
@@ -91,8 +100,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.multiProtocolProvider = multiProtocolProvider;
+  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
   argv.context.multiProtocolSigner = multiProtocolSigner;
 
   return argv;
@@ -120,7 +128,7 @@ export async function getContext({
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
-  if (key) {
+  if (key && typeof key === 'string') {
     let signer: Signer;
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
     signerAddress = await signer.getAddress();
@@ -179,24 +187,31 @@ export async function getDryRunContext(
   let multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
   multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
-    fromAddress,
-    key,
-    skipConfirmation,
-  });
-  multiProvider.setSharedSigner(impersonatedSigner);
 
-  return {
-    registry,
-    chainMetadata: multiProvider.metadata,
-    key: impersonatedKey,
-    signer: impersonatedSigner,
-    multiProvider: multiProvider,
-    multiProtocolProvider: multiProtocolProvider,
-    skipConfirmation: !!skipConfirmation,
-    isDryRun: true,
-    dryRunChain: chain,
-  } as WriteCommandContext;
+  if (typeof key === 'string') {
+    const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner(
+      {
+        fromAddress,
+        key: key as string,
+        skipConfirmation,
+      },
+    );
+    multiProvider.setSharedSigner(impersonatedSigner);
+
+    return {
+      registry,
+      chainMetadata: multiProvider.metadata,
+      key: impersonatedKey,
+      signer: impersonatedSigner,
+      multiProvider: multiProvider,
+      multiProtocolProvider: multiProtocolProvider,
+      skipConfirmation: !!skipConfirmation,
+      isDryRun: true,
+      dryRunChain: chain,
+    } as WriteCommandContext;
+  } else {
+    throw new Error(`dry-run needs --key legacy key flag`);
+  }
 }
 
 /**

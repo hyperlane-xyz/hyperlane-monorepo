@@ -15,7 +15,7 @@ import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSig
 
 export interface ContextSettings {
   registryUris: string[];
-  key?: string;
+  key?: string | ChainMap<string>;
   fromAddress?: string;
   requiresKey?: boolean;
   disableProxy?: boolean;
@@ -42,6 +42,7 @@ export interface WriteCommandContext extends CommandContext {
   multiProtocolSigner?: MultiProtocolSignerManager;
   isDryRun?: boolean;
   dryRunChain?: string;
+  apiKeys?: ChainMap<string>;
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
