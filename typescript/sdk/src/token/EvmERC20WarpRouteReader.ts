@@ -1,4 +1,4 @@
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract, constants, providers } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -380,6 +380,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const config = await deriveFunction(warpRouteAddress);
 
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
+    console.log('DEBUG-VER4-FETCHED:', config.contractVersion);
 
     return HypTokenConfigSchema.parse(config);
   }
@@ -551,9 +552,22 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   }
 
   async fetchPackageVersion(address: Address) {
+    console.log('\n\nFETCHING PACKAGE VERSION');
+    return EvmERC20WarpRouteReader._fetchContractVersion(
+      this.provider,
+      address,
+    );
+  }
+
+  // Boo!
+  static async _fetchContractVersion(
+    provider: providers.Provider,
+    address: Address,
+  ) {
+    console.log('in _fetchContractVersion');
     return PackageVersioned__factory.connect(
       address,
-      this.provider,
+      provider,
     ).PACKAGE_VERSION();
   }
 

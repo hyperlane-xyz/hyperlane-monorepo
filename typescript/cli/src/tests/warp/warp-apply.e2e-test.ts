@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
+import sinon from 'sinon';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  EvmERC20WarpRouteReader,
   HookType,
   HypTokenRouterConfig,
   TokenType,
@@ -80,9 +82,15 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     console.log('DEBUG: warpConfig: ', warpConfig);
 
-    // warpConfig.anvil2.packageVersion = '7.0.0';
+    warpConfig.anvil2.contractVersion = '7.1.5';
     writeYamlOrJson(warpConfigPath, warpConfig);
+    console.debug('\n\n\nDEBUG-VER-IN-TEST-1');
+
+    sinon
+      .stub(EvmERC20WarpRouteReader, '_fetchContractVersion')
+      .resolves('6.0.0');
     await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    console.debug('\n\nDONE WITH TEST');
   });
   it('should burn owner address', async function () {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;

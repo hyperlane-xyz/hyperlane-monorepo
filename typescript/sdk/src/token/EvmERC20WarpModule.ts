@@ -51,6 +51,7 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  CONTRACTS_VERSION,
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
@@ -559,57 +560,78 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     console.log('DEBUG: ACTUAL CONFIG: ', actualConfig);
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    console.log(
+      'DEBUG-VER-1: ',
+      expectedConfig.contractVersion,
+      actualConfig.contractVersion,
+    );
+    console.log('DEBUG-VER2: ', CONTRACTS_VERSION);
+
     assert(
       actualConfig.contractVersion,
       'Actual contract version is undefined',
     );
-    if (
+
+    const shouldUpgrade =
       expectedConfig.contractVersion &&
-      // expected > actual
       compareVersions(
         expectedConfig.contractVersion,
         actualConfig.contractVersion,
-      ) === 1
-    ) {
-      assert(
-        contractVersionMatchesDependency(expectedConfig.contractVersion),
-        VERSION_ERROR_MESSAGE,
-      );
+      ) === 1;
 
-      this.logger.info(
-        `Upgrading Warp Route implementation on ${this.args.chain} from ${actualConfig.contractVersion} to ${expectedConfig.contractVersion}`,
-      );
+    console.log('DEBUG-VER-3: ', shouldUpgrade);
+    console.log(
+      'COMPARE VERSIONS: ',
+      compareVersions(
+        expectedConfig.contractVersion ?? '0',
+        actualConfig.contractVersion,
+      ) === 1,
+    );
 
-      const deployer = new HypERC20Deployer(this.multiProvider);
-      const constructorArgs = await deployer.constructorArgs(
-        this.chainName,
-        expectedConfig,
-      );
-      const implementation = await deployer.deployContract(
-        this.chainName,
-        expectedConfig.type,
-        constructorArgs,
-      );
+    if (!shouldUpgrade) return [];
 
-      const provider = this.multiProvider.getProvider(this.domainId);
-      const proxyAddress = this.args.addresses.deployedTokenRoute;
-      const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+    assert(
+      contractVersionMatchesDependency(
+        expectedConfig.contractVersion as string, // this definitely exists at this point
+      ),
+      VERSION_ERROR_MESSAGE,
+    );
 
-      assert(
-        await isInitialized(provider, proxyAddress),
-        'Proxy is not initialized',
-      );
+    this.logger.info(
+      `Upgrading Warp Route implementation on ${this.args.chain} from ${actualConfig.contractVersion} to ${expectedConfig.contractVersion}`,
+    );
 
-      updateTransactions.push({
-        chainId: this.chainId,
-        annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
-        to: proxyAdminAddress,
-        data: ProxyAdmin__factory.createInterface().encodeFunctionData(
-          'upgrade',
-          [proxyAddress, implementation.address],
-        ),
-      });
-    }
+    const deployer = new HypERC20Deployer(this.multiProvider);
+    const constructorArgs = await deployer.constructorArgs(
+      this.chainName,
+      expectedConfig,
+    );
+    const implementation = await deployer.deployContract(
+      this.chainName,
+      expectedConfig.type,
+      constructorArgs,
+    );
+
+    const provider = this.multiProvider.getProvider(this.domainId);
+    const proxyAddress = this.args.addresses.deployedTokenRoute;
+    const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+
+    console.log('\n\nDEBUG-VER_PROXY: ', { proxyAddress });
+
+    assert(
+      await isInitialized(provider, proxyAddress),
+      'Proxy is not initialized',
+    );
+
+    updateTransactions.push({
+      chainId: this.chainId,
+      annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
+      to: proxyAdminAddress,
+      data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+        'upgrade',
+        [proxyAddress, implementation.address],
+      ),
+    });
 
     return updateTransactions;
   }
