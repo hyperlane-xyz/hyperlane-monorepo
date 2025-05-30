@@ -395,6 +395,16 @@ fn main() -> ExitCode {
         || long_running_processes_exited_check(&mut state),
     );
 
+    sleep(Duration::from_secs(10));
+
+    let resp = ureq::get(&format!(
+        "http://127.0.0.1:{}/metrics",
+        RELAYER_METRICS_PORT
+    ));
+    let resp_string = resp.call().unwrap().into_string().unwrap();
+
+    eprintln!("{resp_string}");
+
     if !test_passed {
         log!("Failure occurred during E2E");
         return report_test_result(test_passed);
@@ -612,7 +622,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     // But there are cases where the validator is behind and hasn't
     // built metadata yet, before relayer restarts.
     // Causing this invariant to be higher than expected
-    assert!(no_metadata_message_count >= ZERO_MERKLE_INSERTION_KATHY_MESSAGES);
+    assert!(no_metadata_message_count == ZERO_MERKLE_INSERTION_KATHY_MESSAGES);
     Ok(true)
 }
 
