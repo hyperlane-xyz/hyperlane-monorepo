@@ -18,7 +18,6 @@ import {
 import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
-import { Pair } from 'yaml';
 
 import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
 import { retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';

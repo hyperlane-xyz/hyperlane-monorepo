@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { Pair } from 'yaml';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
