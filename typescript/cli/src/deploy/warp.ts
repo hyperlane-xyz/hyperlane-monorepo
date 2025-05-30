@@ -200,6 +200,7 @@ async function executeDeploy(
   );
 
   let deployedContracts: ChainMap<Address> = {};
+  const deployments: WarpCoreConfig = { tokens: [] };
 
   // get unique list of protocols
   const protocols = Array.from(
@@ -236,6 +237,17 @@ async function executeDeploy(
             (_, contracts) => getRouter(contracts).address,
           ),
         };
+
+        const { warpCoreConfig } = await getWarpCoreConfig(
+          { context: params.context, warpDeployConfig: protocolSpecificConfig },
+          deployedContracts,
+        );
+
+        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
+        deployments.options = {
+          ...deployments.options,
+          ...warpCoreConfig.options,
+        };
         break;
       }
       case ProtocolType.CosmosNative: {
@@ -259,6 +271,17 @@ async function executeDeploy(
           )),
         };
 
+        const { warpCoreConfig } = await getWarpCoreConfig(
+          { context: params.context, warpDeployConfig: protocolSpecificConfig },
+          deployedContracts,
+        );
+
+        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
+        deployments.options = {
+          ...deployments.options,
+          ...warpCoreConfig.options,
+        };
+
         break;
       }
       default: {
@@ -267,7 +290,7 @@ async function executeDeploy(
     }
   }
 
-  await enrollCrossChainRouters(params, deployedContracts);
+  await enrollCrossChainRouters(params, deployedContracts, deployments);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -1068,6 +1091,7 @@ async function enrollCrossChainRouters(
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
   deployedContracts: ChainMap<Address>,
+  deployments: WarpCoreConfig,
 ) {
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: 0, // TODO: protocol specific gas?,
@@ -1088,31 +1112,111 @@ async function enrollCrossChainRouters(
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
 
-    const remoteRoutes = allRemoteChains.map((c) => ({
-      tokenId: deployedContracts[chain],
-      receiverDomain: context.multiProvider.getDomainId(c),
-      receiverContract: deployedContracts[c],
-      gas: '0', // TODO
-    }));
-
     switch (protocol) {
       case ProtocolType.Ethereum: {
+        const registryAddresses = await context.registry.getAddresses();
+        const {
+          domainRoutingIsmFactory,
+          staticMerkleRootMultisigIsmFactory,
+          staticMessageIdMultisigIsmFactory,
+          staticAggregationIsmFactory,
+          staticAggregationHookFactory,
+          staticMerkleRootWeightedMultisigIsmFactory,
+          staticMessageIdWeightedMultisigIsmFactory,
+        } = registryAddresses[chain];
+
+        const evmWarpModule = new EvmERC20WarpModule(context.multiProvider, {
+          chain,
+          config: configMapToDeploy[chain],
+          addresses: {
+            deployedTokenRoute: deployedContracts[chain],
+            domainRoutingIsmFactory,
+            staticMerkleRootMultisigIsmFactory,
+            staticMessageIdMultisigIsmFactory,
+            staticAggregationIsmFactory,
+            staticAggregationHookFactory,
+            staticMerkleRootWeightedMultisigIsmFactory,
+            staticMessageIdWeightedMultisigIsmFactory,
+          },
+        });
+
+        const actualConfig = await evmWarpModule.read();
+        const expectedConfig = {
+          ...actualConfig,
+          remoteRoutes: allRemoteChains.reduce(
+            (acc, c) => ({
+              ...acc,
+              [context.multiProvider.getDomainId(c).toString()]: {
+                address: deployedContracts[c],
+              },
+            }),
+            {},
+          ),
+        };
+
+        const transactions = await evmWarpModule.update(expectedConfig);
+
+        if (transactions.length) {
+          const chainTransactions = groupBy(transactions, 'chainId');
+          await submitWarpApplyTransactions(
+            {
+              context,
+              warpDeployConfig,
+              warpCoreConfig: deployments,
+              receiptsDir: './generated/transactions',
+            },
+            chainTransactions,
+          );
+        }
+
         break;
       }
       case ProtocolType.CosmosNative: {
         const signer =
           context.multiProtocolSigner!.getCosmosNativeSigner(chain);
+
         const cosmosNativeWarpModule = new CosmosNativeWarpModule(
           context.multiProvider,
           {
             chain,
             config: configMapToDeploy[chain],
-            addresses: {} as any,
+            addresses: {
+              deployedTokenRoute: deployedContracts[chain],
+            },
           },
           signer,
         );
+        const actualConfig = await cosmosNativeWarpModule.read();
+        const expectedConfig = {
+          ...actualConfig,
+          remoteRoutes: allRemoteChains.reduce(
+            (acc, c) => ({
+              ...acc,
+              [context.multiProvider.getDomainId(c).toString()]: {
+                address: deployedContracts[c],
+              },
+            }),
+            {},
+          ),
+        };
 
-        await cosmosNativeWarpModule.enrollRemoteRouters(remoteRoutes);
+        // TODO: also update remote gas
+        const transactions =
+          await cosmosNativeWarpModule.update(expectedConfig);
+
+        if (transactions.length) {
+          const response = await signer.signAndBroadcast(
+            signer.account.address,
+            transactions,
+            2,
+          );
+
+          assert(
+            response.code === 0,
+            `Transactions failed with status code ${response.code}`,
+          );
+        }
+
         break;
       }
       default: {
