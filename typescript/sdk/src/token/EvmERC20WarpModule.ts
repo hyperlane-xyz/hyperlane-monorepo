@@ -133,6 +133,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createAddAllowedBridgesUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -336,6 +337,69 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         ),
       },
     ];
+  }
+
+  createAddAllowedBridgesUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    const formatAllowedBridges = (
+      allowedRebalancingBridgesByDomain: NonNullable<
+        HypTokenRouterConfig['allowedRebalancingBridges']
+      >,
+    ): Record<string, Set<Address>> => {
+      return objMap(
+        allowedRebalancingBridgesByDomain,
+        (_domainId, allowedRebalancingBridges) => {
+          return new Set(
+            allowedRebalancingBridges.map((bridgeConfig) =>
+              normalizeAddressEvm(bridgeConfig.bridge),
+            ),
+          );
+        },
+      );
+    };
+
+    const actualAllowedBridges = formatAllowedBridges(
+      actualConfig.allowedRebalancingBridges ?? {},
+    );
+    const expectedAllowedBridges = formatAllowedBridges(
+      expectedConfig.allowedRebalancingBridges,
+    );
+    const rebalancingBridgesToAddByDomain = objMap(
+      expectedAllowedBridges,
+      (domain, bridges) => {
+        const actualBridges = actualAllowedBridges[domain] ?? new Set();
+
+        return Array.from(difference(bridges, actualBridges));
+      },
+    );
+    return Object.entries(rebalancingBridgesToAddByDomain).flatMap(
+      ([domain, allowedBridgesToAdd]) => {
+        return allowedBridgesToAdd.map((bridgeToAdd) => {
+          return {
+            chainId: this.chainId,
+            annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+            to: this.args.addresses.deployedTokenRoute,
+            data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+              'addBridge(address,uint32)',
+              [bridgeToAdd, domain],
+            ),
+          };
+        });
+      },
+    );
   }
 
   /**

@@ -14,6 +14,7 @@ import {
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
+  MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
@@ -934,6 +935,48 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         });
 
         expect(txs.length).to.equal(0);
+      });
+    }
+
+    for (const tokenType of movableCollateralTypes) {
+      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const config: HypTokenRouterConfig = movableTokenConfigs[tokenType];
+
+        const allowedBridgeToAdd = randomAddress();
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const domainId = 42069;
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancingBridges: {
+            42069: [
+              {
+                bridge: allowedBridgeToAdd,
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        });
+
+        await sendTxs(txs);
+
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
+        const check = await warpTokenInstance.callStatic.allowedBridges(
+          domainId,
+          allowedBridgeToAdd,
+        );
+
+        expect(check).to.be.true;
       });
     }
   });

@@ -29,13 +29,29 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
-export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
-  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+const MovableTokenRebalancingBridgeConfigSchema = z.object({
+  bridge: ZHash,
+  approvedTokens: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
+export const MovableTokenSchema = z.object({
+  allowedRebalancingBridges: z
+    .record(z.array(MovableTokenRebalancingBridgeConfigSchema))
+    .optional(),
   allowedRebalancers: z
     .array(ZHash)
     .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
     .optional(),
 });
+
+export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  ...MovableTokenSchema.shape,
+});
+
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
@@ -76,10 +92,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
-    allowedRebalancers: z
-      .array(ZHash)
-      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-      .optional(),
+    ...MovableTokenSchema.shape,
   },
 );
 
@@ -149,10 +162,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
-  allowedRebalancers: z
-    .array(ZHash)
-    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-    .optional(),
+  ...MovableTokenSchema.shape,
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -161,10 +171,7 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
-    allowedRebalancers: z
-      .array(ZHash)
-      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-      .optional(),
+    ...MovableTokenSchema.shape,
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema
