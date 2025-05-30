@@ -3,11 +3,11 @@ import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
-  ChainMap,
   ChainName,
   ChainSubmissionStrategy,
   MultiProtocolProvider,
   MultiProvider,
+  ProtocolMap,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -22,7 +22,7 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
-  key?: string | ChainMap<string>;
+  key?: string | ProtocolMap<string>;
 }
 
 /**
@@ -146,31 +146,35 @@ export class MultiProtocolSignerManager {
    * @notice Gets private key from strategy
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
-    if (this.options.key && typeof this.options.key === 'object') {
+    const protocol = this.multiProvider.getProtocol(chain);
+
+    if (
+      protocol === ProtocolType.Ethereum &&
+      typeof this.options.key === 'string'
+    ) {
+      this.logger.debug(
+        `Using private key passed via CLI --key flag for chain ${chain}`,
+      );
+      return { privateKey: this.options.key };
+    }
+
+    if (typeof this.options.key === 'object') {
       assert(
-        this.options.key[chain],
-        `Key flag --key.${chain} for chain ${chain} not provided`,
+        this.options.key[protocol],
+        `Key flag --key.${protocol} for chain ${chain} not provided`,
       );
       this.logger.debug(
-        `Using private key passed via CLI --key.${chain} flag for chain ${chain}`,
+        `Using private key passed via CLI --key.${protocol} flag for chain ${chain}`,
       );
-      return { privateKey: this.options.key[chain] };
+      return { privateKey: this.options.key[protocol] };
     }
 
-    if (process.env[`HYP_KEY_${chain.toUpperCase()}`]) {
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
       this.logger.debug(`Using private key from .env for chain ${chain}`);
-      return { privateKey: process.env[`HYP_KEY_${chain.toUpperCase()}`]! };
+      return { privateKey: process.env[`HYP_KEY_${protocol.toUpperCase()}`]! };
     }
 
-    // only use legacy key flag for ethereum
-    if (this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-      if (this.options.key && typeof this.options.key === 'string') {
-        this.logger.debug(
-          `Using private key passed via CLI --key flag for chain ${chain}`,
-        );
-        return { privateKey: this.options.key };
-      }
-
+    if (protocol === ProtocolType.Ethereum) {
       if (ENV.HYP_KEY) {
         this.logger.debug(`Using private key from .env for chain ${chain}`);
         return { privateKey: ENV.HYP_KEY };

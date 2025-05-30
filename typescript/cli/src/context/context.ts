@@ -37,7 +37,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
   if (argv.key) {
     assert(
       isValidKey(argv.key),
-      `Key inputs not valid, make sure to use --key.{chain_name} or the legacy flag --key but not both at the same time`,
+      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
     );
   }
 
