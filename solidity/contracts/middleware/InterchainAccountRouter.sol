@@ -276,7 +276,9 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         // Otherwise, we need to set the ISM to the default ISM
         address _ism;
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
-            _ism = InterchainAccountMessageReveal.ism(_body).bytes32ToAddress();
+            _ism = InterchainAccountMessageReveal
+                .revealIsm(_body)
+                .bytes32ToAddress();
             _ism = _ism == address(0) ? address(CCIP_READ_ISM) : _ism;
         } else {
             _ism = InterchainAccountMessage.ism(_body).bytes32ToAddress();

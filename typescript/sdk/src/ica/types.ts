@@ -4,7 +4,7 @@ import { OffchainLookupIsmConfigSchema } from '../ism/types.js';
 import { RouterConfigSchema } from '../router/types.js';
 
 export const IcaRouterConfigSchema = RouterConfigSchema.extend({
-  commitmentIsm: OffchainLookupIsmConfigSchema.optional(),
+  commitmentIsm: OffchainLookupIsmConfigSchema,
 });
 
 export type IcaRouterConfig = z.infer<typeof IcaRouterConfigSchema>;
