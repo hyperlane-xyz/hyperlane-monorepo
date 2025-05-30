@@ -252,7 +252,7 @@ impl CoreMetrics {
                 "Number of operations processed",
                 const_labels_ref
             ),
-            &["phase", "chain"],
+            &["app_context", "phase", "chain"],
             registry
         )?;
 
