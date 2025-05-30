@@ -1,5 +1,13 @@
 # @hyperlane-xyz/infra
 
+## 13.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@13.3.0
+- @hyperlane-xyz/sdk@13.3.0
+- @hyperlane-xyz/utils@13.3.0
+
 ## 13.2.0
 
 ### Patch Changes
