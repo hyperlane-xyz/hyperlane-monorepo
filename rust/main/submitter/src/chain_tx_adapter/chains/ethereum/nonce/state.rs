@@ -28,6 +28,9 @@ pub(crate) enum NonceAction {
 
 pub struct NonceManagerStateInner {
     nonces: HashMap<U256, NonceStatus>,
+    /// The lowest nonce which is not tracked by the manager and can be assigned.
+    /// This is not the next nonce necessarily since if `nonces` contains a nonce
+    /// with status `Free`, it will be returned as the next available nonce.
     upper_nonce: U256,
 }
 
