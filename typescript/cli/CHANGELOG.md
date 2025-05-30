@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 13.3.0
+
+### Minor Changes
+
+- 0ca8676: Update warp apply to specify a warp route Id to read/write to using --warpRouteId
+
 ## 13.2.0
 
 ### Minor Changes

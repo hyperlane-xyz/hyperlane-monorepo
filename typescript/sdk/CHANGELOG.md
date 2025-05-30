@@ -1,5 +1,14 @@
 # @hyperlane-xyz/sdk
 
+## 13.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@13.3.0
+- @hyperlane-xyz/cosmos-sdk@13.3.0
+- @hyperlane-xyz/utils@13.3.0
+- @hyperlane-xyz/core@7.1.10
+
 ## 13.2.0
 
 ### Minor Changes
