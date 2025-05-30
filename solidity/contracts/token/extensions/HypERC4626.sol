@@ -127,7 +127,7 @@ contract HypERC4626 is HypERC20 {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override(Router, TokenRouter) {
+    ) internal virtual override {
         if (_origin == collateralDomain) {
             (uint256 newExchangeRate, uint32 rateUpdateNonce) = abi.decode(
                 _message.metadata(),

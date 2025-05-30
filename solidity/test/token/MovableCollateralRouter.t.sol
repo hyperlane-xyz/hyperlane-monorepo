@@ -5,13 +5,31 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MovableCollateralRouter, ValueTransferBridge} from "contracts/token/libs/MovableCollateralRouter.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
+import {FungibleTokenRouter} from "contracts/token/libs/FungibleTokenRouter.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract MockMovableCollateralRouter is MovableCollateralRouter {
-    constructor(address _mailbox) Router(_mailbox) {}
+    constructor(address _mailbox) FungibleTokenRouter(1, _mailbox) {}
+
+    function balanceOf(
+        address _account
+    ) external view override returns (uint256) {
+        return 0;
+    }
+
+    function _transferFromSender(
+        uint256 _amount
+    ) internal override returns (bytes memory) {}
+
+    function _transferTo(
+        address _to,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) internal override {}
+
     function _handle(
         uint32 _origin,
         bytes32 _sender,
@@ -53,19 +71,24 @@ contract MovableCollateralRouterTest is Test {
         router = new MockMovableCollateralRouter(address(mailbox));
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
         vtb = new MockValueTransferBridge(token);
-        router.addRebalancer(address(this));
+
+        address remote = vm.addr(10);
+
+        router.enrollRemoteRouter(destinationDomain, remote.addressToBytes32());
     }
 
     function testMovingCollateral() public {
+        router.addRebalancer(address(this));
+
         // Configuration
         // Add the destination domain
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
 
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        router.addBridge(destinationDomain, vtb);
 
         // Setup
         token.mintTo(address(router), 1e18);
@@ -88,21 +111,16 @@ contract MovableCollateralRouterTest is Test {
 
     function testBadBridge() public {
         // Configuration
+        router.addRebalancer(address(this));
 
         // Add the destination domain
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
 
         // We didn't add the bridge
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MovableCollateralRouter.BadBridge.selector,
-                address(this),
-                vtb
-            )
-        );
+        vm.expectRevert("MCR: Not allowed bridge");
         // Execute
         router.rebalance(destinationDomain, 1e18, vtb);
     }
@@ -119,6 +137,24 @@ contract MovableCollateralRouterTest is Test {
         );
     }
 
+    function testAddBridge() public {
+        router.addBridge(destinationDomain, vtb);
+        assertEq(router.allowedBridges(destinationDomain).length, 1);
+        assertEq(router.allowedBridges(destinationDomain)[0], address(vtb));
+    }
+
+    function testRemoveBridge() public {
+        router.addBridge(destinationDomain, vtb);
+        router.removeBridge(destinationDomain, vtb);
+        assertEq(router.allowedBridges(destinationDomain).length, 0);
+    }
+
+    function test_addBridge_NotEnrolled() public {
+        router.unenrollRemoteRouter(destinationDomain);
+        vm.expectRevert(); // router not enrolled
+        router.addBridge(destinationDomain, vtb);
+    }
+
     function testApproveTokenForBridge_NotOwner() public {
         address notAdmin = address(1);
         vm.expectRevert("Ownable: caller is not the owner");
@@ -128,91 +164,48 @@ contract MovableCollateralRouterTest is Test {
         router.approveTokenForBridge(token, vtb);
     }
 
-    function testWeUseTheRouterMapping() public {
-        // TODO: we should inspect the collateral moved event to make sure we sent message to Alice
-        // Add remote router to serve as default recipient
-        router.enrollRemoteRouter(destinationDomain, alice.addressToBytes32());
-
-        //
-        // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
-
-        // Setup
-        token.mintTo(address(router), 1e18);
-        vm.prank(address(router));
-        token.approve(address(vtb), 1e18);
-
-        // Execute
-        router.rebalance(destinationDomain, 1e18, vtb);
-        // Assert
-        assertEq(token.balanceOf(address(router)), 0);
-        assertEq(token.balanceOf(address(vtb)), 1e18);
-    }
-
     function testDefaultRecipient() public {
-        // Skipping adding the recipient to the destination mappings
+        router.addRebalancer(address(this));
 
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
-
-        // Router setup
-        bytes32 remoteRouter = address(10).addressToBytes32();
-        router.enrollRemoteRouter(destinationDomain, remoteRouter);
+        router.addBridge(destinationDomain, vtb);
 
         // Approvals
         token.mintTo(address(router), 1e18);
         vm.prank(address(router));
         token.approve(address(vtb), 1e18);
 
-        // Execute
-        router.rebalance(destinationDomain, 1e18, vtb);
+        bytes32 defaultRecipient = router.routers(destinationDomain);
 
-        // Assert
-        assertEq(vtb.myRecipient(), remoteRouter);
+        // Execute
+        vm.expectEmit(true, true, true, true);
+        emit MovableCollateralRouter.CollateralMoved(
+            destinationDomain,
+            defaultRecipient,
+            1e18,
+            address(this)
+        );
+        router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function testAddRebalancer() public {
-        router.addRebalancer(address(1));
-        assertEq(router.allowedRebalancers(address(1)), true);
+        address rebalancer = address(1);
+        router.addRebalancer(rebalancer);
+        assertEq(router.rebalancers()[0], rebalancer);
     }
 
     function testRemoveRebalancer() public {
         router.addRebalancer(address(1));
         router.removeRebalancer(address(1));
-        assertEq(router.allowedRebalancers(address(1)), false);
+        assertEq(router.rebalancers().length, 0);
     }
 
-    function testAddRebalancers() public {
-        address[] memory rebalancers = new address[](1);
-        rebalancers[0] = address(1);
-        router.addRebalancers(rebalancers);
-        assertEq(router.allowedRebalancers(rebalancers[0]), true);
-    }
-
-    function testRemoveRebalancers() public {
-        address[] memory rebalancers = new address[](1);
-        rebalancers[0] = address(1);
-        router.addRebalancers(rebalancers);
-        router.removeRebalancers(rebalancers);
-        assertEq(router.allowedRebalancers(rebalancers[0]), false);
-    }
-
-    function testAllDomains() public {
-        router.addRecipient(
+    function testAllowedRecipient() public {
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
-        uint32[] memory domains = router.allDomains();
-        assertEq(domains.length, 1);
-        assertEq(domains[0], destinationDomain);
-    }
-
-    function testAllowedRecipients() public {
-        router.addRecipient(
-            destinationDomain,
-            bytes32(uint256(uint160(alice)))
-        );
-        bytes32 recipient = router.allowedRecipients(destinationDomain);
+        bytes32 recipient = router.allowedRecipient(destinationDomain);
         assertEq(recipient, bytes32(uint256(uint160(alice))));
     }
 
@@ -220,7 +213,7 @@ contract MovableCollateralRouterTest is Test {
         router.removeRebalancer(address(this));
 
         router.addRebalancer(address(1));
-        address[] memory rebalancers = router.allRebalancers();
+        address[] memory rebalancers = router.rebalancers();
         assertEq(rebalancers.length, 1);
         assertEq(rebalancers[0], address(1));
     }

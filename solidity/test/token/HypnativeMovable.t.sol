@@ -33,6 +33,10 @@ contract HypNativeMovableTest is Test {
         router = new HypNative(1e18, address(new MockMailbox(uint32(1))));
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(0)))
+        );
         vtb = new MockValueTransferBridgeEth();
     }
 
@@ -41,13 +45,13 @@ contract HypNativeMovableTest is Test {
         router.addRebalancer(address(this));
 
         // Add the destination domain
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
 
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        router.addBridge(destinationDomain, vtb);
 
         // Setup - send ether to router
         deal(address(router), 1 ether);
