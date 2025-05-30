@@ -110,30 +110,30 @@ async function main() {
 
   await createAgentKeysIfNotExistsWithPrompt(agentConfig);
 
-  // // Check if current branch is up-to-date with the main branch
-  // const commitsBehind = await getCommitsBehindMain();
-  //
-  // // If the current branch is not up-to-date with origin/main, prompt the user to continue
-  // if (commitsBehind > 0) {
-  //   const shouldContinue = await confirm({
-  //     message: chalk.yellow.bold(
-  //       `Warning: Current branch is ${commitsBehind} commit${
-  //         commitsBehind === 1 ? '' : 's'
-  //       } behind origin/main. Are you sure you want to continue?`,
-  //     ),
-  //     default: false,
-  //   });
-  //   if (!shouldContinue) {
-  //     console.log(chalk.red.bold('Exiting...'));
-  //     process.exit(1);
-  //   }
-  // } else {
-  //   console.log(
-  //     chalk.green.bold('Current branch is up-to-date with origin/main.'),
-  //   );
-  // }
-  //
-  // await new AgentCli().runHelmCommand(HelmCommand.InstallOrUpgrade);
+  // Check if current branch is up-to-date with the main branch
+  const commitsBehind = await getCommitsBehindMain();
+
+  // If the current branch is not up-to-date with origin/main, prompt the user to continue
+  if (commitsBehind > 0) {
+    const shouldContinue = await confirm({
+      message: chalk.yellow.bold(
+        `Warning: Current branch is ${commitsBehind} commit${
+          commitsBehind === 1 ? '' : 's'
+        } behind origin/main. Are you sure you want to continue?`,
+      ),
+      default: false,
+    });
+    if (!shouldContinue) {
+      console.log(chalk.red.bold('Exiting...'));
+      process.exit(1);
+    }
+  } else {
+    console.log(
+      chalk.green.bold('Current branch is up-to-date with origin/main.'),
+    );
+  }
+
+  await new AgentCli().runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
 main()
