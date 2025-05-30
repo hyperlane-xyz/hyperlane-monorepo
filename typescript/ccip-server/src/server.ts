@@ -1,12 +1,12 @@
 import { Server } from '@chainlink/ccip-read-server';
 
-import { CCTPServiceAbi } from './abis/CCTPServiceAbi';
-import { OPStackServiceAbi } from './abis/OPStackServiceAbi';
-import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
-import * as config from './config';
-import { CCTPService } from './services/CCTPService';
-import { OPStackService } from './services/OPStackService';
-import { ProofsService } from './services/ProofsService';
+import { CCTPServiceAbi } from './abis/CCTPServiceAbi.js';
+import { OPStackServiceAbi } from './abis/OPStackServiceAbi.js';
+import { ProofsServiceAbi } from './abis/ProofsServiceAbi.js';
+import * as config from './config.js';
+import { CCTPService } from './services/CCTPService.js';
+import { OPStackService } from './services/OPStackService.js';
+import { ProofsService } from './services/ProofsService.js';
 
 // Initialize Services
 const proofsService = new ProofsService(

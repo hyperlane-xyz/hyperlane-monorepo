@@ -12,6 +12,9 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  OpL1V1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory,
+  TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
@@ -27,7 +30,10 @@ export const hypERC20contracts = {
   [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
   [TokenType.collateralVault]: 'HypERC4626OwnerCollateral',
   [TokenType.collateralVaultRebase]: 'HypERC4626Collateral',
+  [TokenType.collateralCctp]: 'TokenBridgeCctp',
   [TokenType.native]: 'HypNative',
+  [TokenType.nativeOpL2]: 'OPL2TokenBridgeNative',
+  [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
 };
@@ -36,6 +42,7 @@ export type HypERC20contracts = typeof hypERC20contracts;
 export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
+  [TokenType.collateralCctp]: new TokenBridgeCctp__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
   [TokenType.syntheticRebase]: new HypERC4626__factory(),
@@ -43,6 +50,9 @@ export const hypERC20factories = {
   [TokenType.XERC20]: new HypXERC20__factory(),
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
+  [TokenType.nativeOpL2]: new OpL2NativeTokenBridge__factory(),
+  // assume V1 for now
+  [TokenType.nativeOpL1]: new OpL1V1NativeTokenBridge__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
