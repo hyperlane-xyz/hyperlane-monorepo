@@ -254,17 +254,17 @@ mod tests {
             merkle_tree_insertions: vec![
                 TreeInsertion {
                     leaf_index: 100,
-                    message_id: H256::from_low_u64_be(1000),
+                    message_id: H256::from_low_u64_be(2000),
 
                     chain: domains[0].id(),
-                    insertion_block_number: 100,
+                    insertion_block_number: 200,
                 },
                 TreeInsertion {
                     leaf_index: 100,
-                    message_id: H256::from_low_u64_be(1000),
+                    message_id: H256::from_low_u64_be(2000),
 
                     chain: domains[1].id(),
-                    insertion_block_number: 100,
+                    insertion_block_number: 200,
                 },
             ],
         };
