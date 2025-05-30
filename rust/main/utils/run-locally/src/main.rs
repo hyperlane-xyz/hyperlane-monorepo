@@ -441,8 +441,11 @@ fn main() -> ExitCode {
     );
 
     // test retry request
-    let resp = server::run_retry_request().expect("Failed to process retry request");
+    let resp = server::send_retry_request().expect("Failed to process retry request");
     assert!(resp.matched > 0);
+
+    let resp = server::send_insert_message_request().expect("Failed to insert messages");
+    assert_eq!(resp.count, 2);
 
     report_test_result(test_passed)
 }
