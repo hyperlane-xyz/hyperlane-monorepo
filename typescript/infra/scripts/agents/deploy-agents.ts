@@ -2,7 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
-import { createAgentKeysIfNotExists } from '../../src/agents/key-utils.js';
+import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
   checkAgentImageExists,
@@ -107,7 +107,8 @@ async function main() {
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig);
-  await createAgentKeysIfNotExists(agentConfig);
+
+  await createAgentKeysIfNotExistsWithPrompt(agentConfig);
 
   // Check if current branch is up-to-date with the main branch
   const commitsBehind = await getCommitsBehindMain();

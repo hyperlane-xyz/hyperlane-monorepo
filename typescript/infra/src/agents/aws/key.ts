@@ -128,6 +128,11 @@ export class AgentAwsKey extends CloudAgentKey {
     await this.fetch();
   }
 
+  async exists() {
+    const keyId = await this.getId();
+    return keyId !== undefined;
+  }
+
   async delete() {
     this.logger.debug('Delete operation called, but not implemented');
     throw Error('Not implemented yet');

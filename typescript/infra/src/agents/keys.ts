@@ -55,6 +55,8 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
 
   abstract createIfNotExists(): Promise<void>;
 
+  abstract exists(): Promise<boolean>;
+
   abstract delete(): Promise<void>;
 
   // Returns new address

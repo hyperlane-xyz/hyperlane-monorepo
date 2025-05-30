@@ -1,4 +1,7 @@
+import { confirm } from '@inquirer/prompts';
+import chalk from 'chalk';
 import { join } from 'path';
+import { Pair } from 'yaml';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
@@ -346,46 +349,105 @@ export function getValidatorKeysForChain(
 // Functions for managing keys
 // ==================
 
-export async function createAgentKeysIfNotExists(
+export async function createAgentKeysIfNotExistsWithPrompt(
   agentConfig: AgentContextConfig,
 ) {
+  const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
+
+  if (agentKeysToCreate.length > 0) {
+    const shouldContinue = await confirm({
+      message: chalk.yellow.bold(
+        `Warning: New agent key will be created: ${agentKeysToCreate}. Are you sure you want to continue?`,
+      ),
+      default: false,
+    });
+    if (!shouldContinue) {
+      console.log(chalk.red.bold('Exiting...'));
+      process.exit(1);
+    }
+
+    console.log(chalk.green.bold('Creating new agent key if needed.'));
+    await createAgentKeys(agentConfig, agentKeysToCreate);
+    return true;
+  } else {
+    console.log(chalk.green.bold('No new agent key will be created.'));
+    return false;
+  }
+}
+
+// We can create or delete keys if they are not Starknet keys.
+function keysToPossiblyCreateOrDelete(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey[] {
+  const keys = getAllCloudAgentKeys(agentConfig);
+  // Filter out keys that are already created
+  return keys.filter(
+    (key) => !key.chainName || !isStarknetChain(key.chainName),
+  );
+}
+
+async function createAgentKeys(
+  agentConfig: AgentContextConfig,
+  agentKeysToCreate: string[],
+) {
   debugLog('Creating agent keys if none exist');
+
   const keys = getAllCloudAgentKeys(agentConfig);
 
-  // Filter out keys for Starknet chains - we don't want to create or update them
-  const nonStarknetKeys = keys.filter(
-    (key) => !(key.chainName && isStarknetChain(key.chainName)),
+  const keysToCreate = keys.filter((key) =>
+    agentKeysToCreate.includes(key.identifier),
   );
 
   // Process only non-Starknet keys for creation
   await Promise.all(
-    nonStarknetKeys.map(async (key) => {
+    keysToCreate.map(async (key) => {
       debugLog(`Creating key if not exists: ${key.identifier}`);
       return key.createIfNotExists();
     }),
   );
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, nonStarknetKeys);
+  await persistAddressesLocally(agentConfig, keysToCreate);
   // Key funder expects the serialized addresses in GCP
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
-    nonStarknetKeys.map((key) => key.serializeAsAddress()),
+    keysToCreate.map((key) => key.serializeAsAddress()),
   );
   return;
 }
 
-export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
-  debugLog('Deleting agent keys');
-  const keys = getAllCloudAgentKeys(agentConfig);
+async function agentKeysToBeCreated(
+  agentConfig: AgentContextConfig,
+): Promise<string[]> {
+  const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
 
-  // Filter out Starknet keys - we don't want to delete them
-  const nonStarknetKeys = keys.filter(
-    (key) => key.chainName && !isStarknetChain(key.chainName),
+  const keysToCreateOrNot = await Promise.all(
+    keysToCreateIfNotExist.map(async (key) => {
+      return new Pair(await key.exists(), key.identifier);
+    }),
   );
 
-  await Promise.all(nonStarknetKeys.map((key) => key.delete()));
+  return (
+    keysToCreateOrNot
+      // Filter out keys that already exist
+      .filter((pair) => !pair.key)
+      // Return only key identifiers
+      .map((pair) => pair.value)
+      .filter(
+        (identifier): identifier is string =>
+          identifier !== undefined && identifier !== null,
+      )
+  );
+}
+
+export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
+  debugLog('Deleting agent keys');
+
+  // Filter out Starknet keys - we don't want to delete them
+  const keysToDelete = keysToPossiblyCreateOrDelete(agentConfig);
+
+  await Promise.all(keysToDelete.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
       agentConfig.runEnv,
