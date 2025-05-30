@@ -21,10 +21,9 @@ import {
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
-  HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
-  HYPERLANE_COLLATERAL_TOKEN_PDA_SEEDS,
-  HYPERLANE_NATIVE_TOKEN_PDA_SEEDS,
-  HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
+  HYPERLANE_COLLATERAL_TOKEN_ACCOUNT_PDA_SEEDS,
+  HYPERLANE_NATIVE_TOKEN_ACCOUNT_PDA_SEEDS,
+  HYPERLANE_SYNTHETIC_TOKEN_ACCOUNT_PDA_SEEDS,
   HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
 } from '../../sealevel/pda.js';
 import { ChainNameOrId } from '../../types.js';
@@ -43,6 +42,11 @@ export class SvmSplTokenWarpRouteReader {
 
   protected readonly connection: Connection;
   protected readonly commitment: Commitment = 'finalized';
+  protected readonly deriveTokenConfigMap: Record<
+    TokenType,
+    ((address: PublicKey) => Promise<DerivedTokenRouterConfig>) | null
+  >;
+  protected readonly pdaSeedsByTokenType: Record<TokenType, string[] | null>;
 
   constructor(
     protected readonly chain: ChainNameOrId,
@@ -66,17 +70,27 @@ export class SvmSplTokenWarpRouteReader {
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
     };
-  }
 
-  protected readonly deriveTokenConfigMap!: Record<
-    TokenType,
-    ((address: PublicKey) => Promise<DerivedTokenRouterConfig>) | null
-  >;
+    this.pdaSeedsByTokenType = {
+      [TokenType.native]: HYPERLANE_NATIVE_TOKEN_ACCOUNT_PDA_SEEDS,
+      [TokenType.collateral]: HYPERLANE_COLLATERAL_TOKEN_ACCOUNT_PDA_SEEDS,
+      [TokenType.synthetic]: HYPERLANE_SYNTHETIC_TOKEN_ACCOUNT_PDA_SEEDS,
+      [TokenType.XERC20]: null,
+      [TokenType.XERC20Lockbox]: null,
+      [TokenType.collateralFiat]: null,
+      [TokenType.collateralVault]: null,
+      [TokenType.collateralVaultRebase]: null,
+      [TokenType.syntheticRebase]: null,
+      [TokenType.nativeScaled]: null,
+      [TokenType.collateralUri]: null,
+      [TokenType.syntheticUri]: null,
+    };
+  }
 
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
   ): Promise<DerivedTokenRouterConfig> {
-    this.logger.info(
+    this.logger.debug(
       `Reading warp token at address "${warpRouteAddress}" on chain "${this.chain}"`,
     );
     const programId = new PublicKey(warpRouteAddress);
@@ -96,18 +110,23 @@ export class SvmSplTokenWarpRouteReader {
   protected async getTokenTypeForProgram(
     programId: PublicKey,
   ): Promise<TokenType> {
-    const seedsByTokenType = [
-      HYPERLANE_NATIVE_TOKEN_PDA_SEEDS,
-      HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
-      HYPERLANE_COLLATERAL_TOKEN_PDA_SEEDS,
-    ];
+    for (const [tokenType, seeds] of Object.entries(this.pdaSeedsByTokenType)) {
+      if (!seeds) {
+        continue;
+      }
 
-    for (const seeds of seedsByTokenType) {
+      this.logger.debug(
+        `Checking if token at address "${programId.toString()}" on chain "${this.chain}" is "${tokenType}"`,
+      );
+
       const accountInfo = await this.connection.getAccountInfo(
         BaseSealevelAdapter.derivePda(seeds, programId),
       );
 
       if (!accountInfo) {
+        this.logger.debug(
+          `Token at address "${programId.toString()}" on chain "${this.chain}" is not of type "${tokenType}" because it's PDA does not exist`,
+        );
         continue;
       }
 
@@ -117,7 +136,7 @@ export class SvmSplTokenWarpRouteReader {
       ) {
         const escrowAccount = await this.connection.getAccountInfo(
           BaseSealevelAdapter.derivePda(
-            HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
+            HYPERLANE_COLLATERAL_TOKEN_ACCOUNT_PDA_SEEDS,
             programId,
           ),
         );
@@ -132,13 +151,13 @@ export class SvmSplTokenWarpRouteReader {
     }
 
     throw new Error(
-      `Could not derive token type for address "${programId}" on chain ${this.chain}`,
+      `Could not derive token type for address "${programId.toString()}" on chain ${this.chain}`,
     );
   }
 
   private async getTokenAccountData(
     programId: PublicKey,
-  ): Promise<DerivedTokenRouterConfig> {
+  ): Promise<Omit<DerivedTokenRouterConfig, 'type'>> {
     const tokenData = await getSealevelHypTokenAccountData(
       this.connection,
       BaseSealevelAdapter.derivePda(
@@ -148,7 +167,7 @@ export class SvmSplTokenWarpRouteReader {
     );
 
     return {
-      type: TokenType.native,
+      // TODO: use the overhead igp instead
       hook: tokenData.interchain_gas_paymaster_pubkey
         ? tokenData.interchain_gas_paymaster_pubkey.toString()
         : SystemProgram.programId.toString(),
@@ -182,7 +201,10 @@ export class SvmSplTokenWarpRouteReader {
 
     const chainMetadata = this.multiProvider.tryGetChainMetadata(this.chain);
 
-    assert(chainMetadata?.nativeToken, '');
+    assert(
+      chainMetadata?.nativeToken,
+      `Native token metadata must be defined on chain "${this.chain}"`,
+    );
     const { name, symbol } = chainMetadata.nativeToken;
 
     return {
@@ -198,7 +220,7 @@ export class SvmSplTokenWarpRouteReader {
     programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
     const escrowAccountAddress = BaseSealevelAdapter.derivePda(
-      HYPERLANE_COLLATERAL_TOKEN_ESCROW_ACCOUNT_PDA_SEEDS,
+      HYPERLANE_COLLATERAL_TOKEN_ACCOUNT_PDA_SEEDS,
       programId,
     );
 
@@ -214,7 +236,7 @@ export class SvmSplTokenWarpRouteReader {
     assert(
       escrowAccountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
         escrowAccountInfo.owner.equals(TOKEN_PROGRAM_ID),
-      `Escrow account at "${escrowAccountAddress.toString()}" is not an Associated Token Account`,
+      `Escrow account at "${escrowAccountAddress.toString()}" on chain "${this.chain}" is not an Associated Token Account`,
     );
 
     const escrowAccount = await getAccount(
@@ -235,7 +257,7 @@ export class SvmSplTokenWarpRouteReader {
 
     assert(
       metadata,
-      `Metadata not found for synthetic token on chain "${this.chain}" and address ${programId.toBase58()}`,
+      `Metadata not found for "${TokenType.collateral}" token on chain "${this.chain}" and address ${programId.toBase58()}`,
     );
 
     return {
@@ -252,7 +274,7 @@ export class SvmSplTokenWarpRouteReader {
     programId: PublicKey,
   ): Promise<DerivedTokenRouterConfig> {
     const mintAccountAddress = BaseSealevelAdapter.derivePda(
-      HYPERLANE_SYNTHETIC_TOKEN_PDA_SEEDS,
+      HYPERLANE_SYNTHETIC_TOKEN_ACCOUNT_PDA_SEEDS,
       programId,
     );
 
@@ -268,7 +290,7 @@ export class SvmSplTokenWarpRouteReader {
 
     assert(
       metadata,
-      `Metadata not found for synthetic token on chain "${this.chain}" and address ${programId.toBase58()}`,
+      `Metadata not found for "${TokenType.synthetic}" token on chain "${this.chain}" and address ${programId.toBase58()}`,
     );
 
     return {
