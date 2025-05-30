@@ -7692,10 +7692,12 @@ __metadata:
     eslint-import-resolver-typescript: "npm:^3.6.3"
     eslint-plugin-import: "npm:^2.31.0"
     ethers: "npm:^5.7.2"
+    jest: "npm:^29.7.0"
     latest-version: "npm:^8.0.0"
     mocha: "npm:^11.5.0"
     prettier: "npm:^3.5.3"
     terminal-link: "npm:^3.0.0"
+    testdouble: "npm:^3.20.2"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
@@ -27266,7 +27268,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"is-plain-obj@npm:^1.1.0":
+"is-plain-obj@npm:^1.0.0, is-plain-obj@npm:^1.1.0":
   version: 1.1.0
   resolution: "is-plain-obj@npm:1.1.0"
   checksum: 10/0ee04807797aad50859652a7467481816cbb57e5cc97d813a7dcd8915da8195dc68c436010bf39d195226cde6a2d352f4b815f16f26b7bf486a5754290629931
@@ -27310,6 +27312,13 @@ __metadata:
     call-bind: "npm:^1.0.2"
     has-tostringtag: "npm:^1.0.0"
   checksum: 10/36d9174d16d520b489a5e9001d7d8d8624103b387be300c50f860d9414556d0485d74a612fdafc6ebbd5c89213d947dcc6b6bff6b2312093f71ea03cbb19e564
+  languageName: node
+  linkType: hard
+
+"is-regexp@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "is-regexp@npm:1.0.0"
+  checksum: 10/be692828e24cba479ec33644326fa98959ec68ba77965e0291088c1a741feaea4919d79f8031708f85fd25e39de002b4520622b55460660b9c369e6f7187faef
   languageName: node
   linkType: hard
 
@@ -32936,6 +32945,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"quibble@npm:^0.9.2":
+  version: 0.9.2
+  resolution: "quibble@npm:0.9.2"
+  dependencies:
+    lodash: "npm:^4.17.21"
+    resolve: "npm:^1.22.8"
+  checksum: 10/376c292ee01a2330f97a7388da79dc46aa3d08304c2c4f9a1ef8ef51000708ec8fd3487ba8036401ef7e4265f3c9d7eaaa742a9e2622aa7238cd2c3fc872c321
+  languageName: node
+  linkType: hard
+
 "quick-format-unescaped@npm:^4.0.3":
   version: 4.0.4
   resolution: "quick-format-unescaped@npm:4.0.4"
@@ -36027,6 +36046,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"stringify-object-es5@npm:^2.5.0":
+  version: 2.5.0
+  resolution: "stringify-object-es5@npm:2.5.0"
+  dependencies:
+    is-plain-obj: "npm:^1.0.0"
+    is-regexp: "npm:^1.0.0"
+  checksum: 10/eb81599d625fc49e26f44bf94262855ae6fb56bae44148aed50bd2eb930752942d45183aa3f106e24d7b60c4797c936573bedec5caa4d81d96b399bc4c323c98
+  languageName: node
+  linkType: hard
+
 "strip-ansi-cjs@npm:strip-ansi@^6.0.1, strip-ansi@npm:^6.0.0, strip-ansi@npm:^6.0.1":
   version: 6.0.1
   resolution: "strip-ansi@npm:6.0.1"
@@ -36674,6 +36703,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"testdouble@npm:^3.20.2":
+  version: 3.20.2
+  resolution: "testdouble@npm:3.20.2"
+  dependencies:
+    lodash: "npm:^4.17.21"
+    quibble: "npm:^0.9.2"
+    stringify-object-es5: "npm:^2.5.0"
+    theredoc: "npm:^1.0.0"
+  checksum: 10/cdc27769ba5c0869d1e6172d1dba1aec621c8006a650865d10a340cf56c56fea6b53fd7c59e191aec743c9bdcf2c367a6d82a47b7e0663548738450d88ace024
+  languageName: node
+  linkType: hard
+
 "text-encoding-utf-8@npm:^1.0.2":
   version: 1.0.2
   resolution: "text-encoding-utf-8@npm:1.0.2"
@@ -36722,6 +36763,13 @@ __metadata:
   dependencies:
     any-promise: "npm:^1.0.0"
   checksum: 10/486e1283a867440a904e36741ff1a177faa827cf94d69506f7e3ae4187b9afdf9ec368b3d8da225c192bfe2eb943f3f0080594156bf39f21b57cd1411e2e7f6d
+  languageName: node
+  linkType: hard
+
+"theredoc@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "theredoc@npm:1.0.0"
+  checksum: 10/9c6c2c010bdcf1ccdb22505b5637513e70c3f86838f8035ed7dde38be2f00ea0ff79536dd2f53707872549554b6c4a8d88caa5bf1cbeaf1a2e6b70b07f4349de
   languageName: node
   linkType: hard
 
