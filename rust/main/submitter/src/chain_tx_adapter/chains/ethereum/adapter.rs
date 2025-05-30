@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_base::CoreMetrics;
@@ -49,6 +50,7 @@ impl EthereumTxAdapter {
         conf: ChainConf,
         connection_conf: ConnectionConf,
         raw_conf: RawChainConf,
+        db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
         let locator = ContractLocator {
@@ -64,7 +66,8 @@ impl EthereumTxAdapter {
             )
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new();
+
+        let nonce_manager = NonceManager::new(&conf, db).await?;
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
 
@@ -89,7 +92,7 @@ impl EthereumTxAdapter {
     }
 
     async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        self.nonce_manager.set_nonce(tx, &self.provider).await?;
+        self.nonce_manager.assign_nonce(tx).await?;
         Ok(())
     }
 
@@ -195,6 +198,10 @@ impl AdaptsChain for EthereumTxAdapter {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
+    async fn on_tx_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+        self.nonce_manager.update_nonce_status(tx, tx_status).await;
+    }
+
     async fn reverted_payloads(
         &self,
         tx: &Transaction,
@@ -226,9 +233,5 @@ impl AdaptsChain for EthereumTxAdapter {
 
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
-    }
-
-    async fn set_unfinalized_tx_count(&self, count: usize) {
-        self.nonce_manager.set_tx_in_finality_count(count).await;
     }
 }

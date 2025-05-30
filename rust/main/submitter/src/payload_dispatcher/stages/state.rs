@@ -59,17 +59,18 @@ impl PayloadDispatcherState {
         settings: PayloadDispatcherSettings,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
-        let adapter = ChainTxAdapterFactory::build(
-            &settings.chain_conf,
-            &settings.raw_chain_conf,
-            &settings.metrics,
-        )
-        .await?;
         let db = match settings.db {
             DatabaseOrPath::Database(db) => db,
             DatabaseOrPath::Path(path) => DB::from_path(&path)?,
         };
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
+        let adapter = ChainTxAdapterFactory::build(
+            &settings.chain_conf,
+            &settings.raw_chain_conf,
+            &settings.metrics,
+            rocksdb.clone(),
+        )
+        .await?;
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
         let domain = settings.domain.to_string();
