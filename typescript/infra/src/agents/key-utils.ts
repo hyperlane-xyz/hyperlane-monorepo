@@ -358,34 +358,40 @@ function keysToPossiblyCreateOrDelete(
   );
 }
 
-export async function createAgentKeysIfNotExists(
+export async function createAgentKeys(
   agentConfig: AgentContextConfig,
+  agentKeysToCreate: string[],
 ) {
   debugLog('Creating agent keys if none exist');
 
-  // Filter out keys for Starknet chains - we don't want to create or update them
-  const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
+  const keys = getAllCloudAgentKeys(agentConfig);
+
+  const keysToCreate = keys.filter((key) =>
+    agentKeysToCreate.includes(key.identifier),
+  );
 
   // Process only non-Starknet keys for creation
   await Promise.all(
-    keysToCreateIfNotExist.map(async (key) => {
+    keysToCreate.map(async (key) => {
       debugLog(`Creating key if not exists: ${key.identifier}`);
       return key.createIfNotExists();
     }),
   );
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, keysToCreateIfNotExist);
+  await persistAddressesLocally(agentConfig, keysToCreate);
   // Key funder expects the serialized addresses in GCP
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
-    keysToCreateIfNotExist.map((key) => key.serializeAsAddress()),
+    keysToCreate.map((key) => key.serializeAsAddress()),
   );
   return;
 }
 
-export async function agentKeysToBeCreated(agentConfig: AgentContextConfig) {
+export async function agentKeysToBeCreated(
+  agentConfig: AgentContextConfig,
+): Promise<string[]> {
   const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
 
   const keysToCreateOrNot = await Promise.all(
@@ -400,6 +406,10 @@ export async function agentKeysToBeCreated(agentConfig: AgentContextConfig) {
       .filter((pair) => !pair.key)
       // Return only key identifiers
       .map((pair) => pair.value)
+      .filter(
+        (identifier): identifier is string =>
+          identifier !== undefined && identifier !== null,
+      )
   );
 }
 

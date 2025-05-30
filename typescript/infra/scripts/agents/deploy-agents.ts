@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 
 import {
   agentKeysToBeCreated,
-  createAgentKeysIfNotExists,
+  createAgentKeys,
 } from '../../src/agents/key-utils.js';
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import {
@@ -125,7 +125,7 @@ async function main() {
     }
 
     console.log(chalk.green.bold('Creating new agent key if needed.'));
-    await createAgentKeysIfNotExists(agentConfig);
+    await createAgentKeys(agentConfig, agentKeysToCreate);
   } else {
     console.log(chalk.green.bold('No new agent key will be created.'));
   }

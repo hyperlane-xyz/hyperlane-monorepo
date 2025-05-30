@@ -3,7 +3,7 @@ import chalk from 'chalk';
 
 import {
   agentKeysToBeCreated,
-  createAgentKeysIfNotExists,
+  createAgentKeys,
 } from '../../src/agents/key-utils.js';
 import { getAgentConfigsBasedOnArgs } from '../agent-utils.js';
 
@@ -25,7 +25,7 @@ async function main() {
     }
 
     console.log(chalk.green.bold('Creating new agent key if needed.'));
-    await createAgentKeysIfNotExists(agentConfig);
+    await createAgentKeys(agentConfig, agentKeysToCreate);
     return 'Keys created successfully!';
   } else {
     console.log(chalk.green.bold('No new agent key will be created.'));
