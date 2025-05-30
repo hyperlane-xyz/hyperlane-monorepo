@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
@@ -10,6 +12,8 @@ use hyperlane_core::{AccountAddressType, H256};
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
+
+const AWS_SIGNER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -92,7 +96,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                     region.clone(),
                 );
 
-                let signer = AwsSigner::new(client, id, 0).await?;
+                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
             SignerConf::CosmosKey { .. } => {
