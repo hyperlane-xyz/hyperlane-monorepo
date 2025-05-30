@@ -51,9 +51,8 @@ class OPStackService {
   async getWithdrawalTransactionFromReceipt(
     receipt: providers.TransactionReceipt,
   ): Promise<CoreCrossChainMessage> {
-    const resolved = await this.crossChainMessenger.toCrossChainMessage(
-      receipt,
-    );
+    const resolved =
+      await this.crossChainMessenger.toCrossChainMessage(receipt);
 
     return this.crossChainMessenger.toLowLevelMessage(resolved);
   }
@@ -75,9 +74,8 @@ class OPStackService {
 
     console.info('Found tx @', txHash);
 
-    const receipt = await this.l2RpcService.provider.getTransactionReceipt(
-      txHash,
-    );
+    const receipt =
+      await this.l2RpcService.provider.getTransactionReceipt(txHash);
 
     if (!receipt) {
       throw new Error('Transaction not yet mined');
@@ -96,9 +94,8 @@ class OPStackService {
    */
   async getWithdrawalProof([message]: ethers.utils.Result) {
     console.log('getWithdrawalProof');
-    const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
-      message,
-    );
+    const [withdrawal, proof] =
+      await this.getWithdrawalAndProofFromMessage(message);
 
     const args = [
       [

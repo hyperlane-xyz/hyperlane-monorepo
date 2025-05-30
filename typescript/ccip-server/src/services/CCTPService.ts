@@ -68,9 +68,8 @@ class CCTPService {
 
     console.info('Found tx @', txHash);
 
-    const receipt = await this.rpcService.provider.getTransactionReceipt(
-      txHash,
-    );
+    const receipt =
+      await this.rpcService.provider.getTransactionReceipt(txHash);
 
     const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
