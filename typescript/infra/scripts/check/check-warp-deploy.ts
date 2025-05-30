@@ -56,18 +56,18 @@ async function main() {
 
   const warpConfigChains = new Set<ChainName>();
   const warpIdsToCheck = await Promise.all(
-    Object.keys(warpCoreConfigMap).map(async (warpRouteId) => {
+    Object.keys(warpCoreConfigMap).filter(async (warpRouteId) => {
       const warpRouteConfig = warpCoreConfigMap[warpRouteId];
       const isTestnet = await isTestnetRoute(warpRouteConfig);
       if (!routesToSkip.includes(warpRouteId) && !isTestnet) {
         Object.keys(warpRouteConfig).forEach((chain) =>
           warpConfigChains.add(chain),
         );
-        return warpRouteId;
+        return true;
       }
-      return null;
+      return false;
     }),
-  ).then((results) => results.filter((id) => id !== null));
+  );
 
   console.log(
     `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
