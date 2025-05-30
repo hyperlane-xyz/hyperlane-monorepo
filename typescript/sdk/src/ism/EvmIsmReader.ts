@@ -10,6 +10,7 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IOutbox__factory,
+  InterchainAccountRouter__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
@@ -200,6 +201,24 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
 
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
+
+    // check if its the ICA ISM
+    try {
+      const icaInstance = InterchainAccountRouter__factory.connect(
+        address,
+        this.provider,
+      );
+      await icaInstance.CCIP_READ_ISM();
+      return {
+        address,
+        type: IsmType.ICA,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing CCIP_READ_ISM property, implying this is not an ICA ISM.',
+        address,
+      );
+    }
 
     let owner: Address | undefined;
     const defaultFallbackIsmInstance =

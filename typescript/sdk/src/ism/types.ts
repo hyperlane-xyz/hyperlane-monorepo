@@ -9,6 +9,7 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  InterchainAccountRouter,
   OPStackIsm,
   PausableIsm,
   TestIsm,
@@ -67,6 +68,7 @@ export enum IsmType {
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
+  ICA = 'icaIsm',
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
 }
 
@@ -89,6 +91,18 @@ export const STATIC_ISM_TYPES = [
   IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
   IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
 ];
+
+export const DYNAMICALLY_ROUTED_ISM_TYPES = [
+  IsmType.AMOUNT_ROUTING,
+  IsmType.ICA,
+] as const;
+
+/** Type guard for dynamically routed ISM types */
+export function isDynamicallyRoutedIsmType(
+  type: IsmType,
+): type is (typeof DYNAMICALLY_ROUTED_ISM_TYPES)[number] {
+  return (DYNAMICALLY_ROUTED_ISM_TYPES as readonly IsmType[]).includes(type);
+}
 
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
@@ -121,6 +135,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.ICA:
+      return ModuleType.ROUTING;
   }
 }
 
@@ -146,6 +162,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 >;
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+export type IcaIsmConfig = z.infer<typeof IcaIsmConfigSchema>;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -176,7 +193,10 @@ export type AmountRoutingIsmConfig =
     threshold: number;
   };
 
-export type RoutingIsmConfig = DomainRoutingIsmConfig | AmountRoutingIsmConfig;
+export type RoutingIsmConfig =
+  | DomainRoutingIsmConfig
+  | AmountRoutingIsmConfig
+  | IcaIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -207,6 +227,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.ICA]: InterchainAccountRouter;
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
 };
 
@@ -275,6 +296,10 @@ export const PausableIsmConfigSchema = PausableSchema.and(
   }),
 );
 
+export const IcaIsmConfigSchema = z.object({
+  type: z.literal(IsmType.ICA),
+});
+
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({
     type: z.union([
@@ -340,4 +365,5 @@ export const IsmConfigSchema = z.union([
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
+  IcaIsmConfigSchema,
 ]);
