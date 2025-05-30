@@ -409,10 +409,14 @@ export abstract class HyperlaneDeployer<
       }
     }
 
+    const inputNames = factory.interface.deploy.inputs.map(
+      (input) => input.name,
+    );
+    const namedArgs = inputNames.map(
+      (name, i) => `${name}=${constructorArgs[i]}`,
+    );
     this.logger.info(
-      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
-        ', ',
-      )})...`,
+      `Deploying ${contractName} on ${chain} with constructor args (${namedArgs.join(', ')})...`,
     );
 
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
@@ -438,8 +442,14 @@ export abstract class HyperlaneDeployer<
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
       } else {
-        this.logger.debug(
-          `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+        const inputNames = contract.interface.functions[
+          this.initializeFnSignature(contractName)
+        ].inputs.map((input) => input.name);
+        const namedArgs = inputNames.map(
+          (name, i) => `${name}=${initializeArgs[i]}`,
+        );
+        this.logger.info(
+          `Initializing ${contractName} (${contract.address}) on ${chain} with args (${namedArgs.join(', ')})...`,
         );
 
         const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -644,6 +654,19 @@ export abstract class HyperlaneDeployer<
       proxyAdmin,
       initializeArgs,
     );
+
+    if (initializeArgs) {
+      const inputNames = implementation.interface.functions[
+        this.initializeFnSignature(contractName ?? '')
+      ].inputs.map((input) => input.name);
+      const namedArgs = inputNames.map(
+        (name, i) => `${name}=${initializeArgs[i]}`,
+      );
+      this.logger.info(
+        `Encoding initialize args for proxy deployment (${namedArgs.join(', ')})...`,
+      );
+    }
+
     const proxy = await this.deployContractFromFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
