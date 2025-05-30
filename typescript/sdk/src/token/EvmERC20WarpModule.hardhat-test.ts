@@ -926,7 +926,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     }
 
     for (const tokenType of movableCollateralTypes) {
-      it.only(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const domainId = 42069;
@@ -947,11 +947,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const warpTokenInstance = MovableCollateralRouter__factory.connect(
-          evmERC20WarpModule.serialize().deployedTokenRoute,
-          signer,
-        );
-
         const txs = await evmERC20WarpModule.update({
           ...config,
           allowedRebalancingBridges: {
@@ -968,6 +963,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(txs.length).to.equal(2);
         await sendTxs(txs);
 
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
         const check =
           await warpTokenInstance.callStatic.allowedBridges(domainId);
         expect(check[0]).to.eql(allowedBridgeToAdd);
@@ -977,6 +976,100 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           allowedBridgeToAdd,
         );
         expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
+      });
+
+      it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const domainId = 42069;
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+        const config: HypTokenRouterConfig = {
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+          allowedRebalancingBridges: {
+            [domainId]: [
+              {
+                bridge: allowedBridgeToAdd,
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancingBridges: {
+            [domainId]: [],
+          },
+        });
+
+        // 1 tx to remove the bridge
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
+
+        const allowedBridges =
+          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        expect(allowedBridges).to.be.empty;
+      });
+
+      it(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const domainId = 42069;
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+        const config: HypTokenRouterConfig = {
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+          allowedRebalancingBridges: {
+            [domainId]: [
+              {
+                bridge: allowedBridgeToAdd,
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          allowedRebalancingBridges: {
+            [domainId]: [
+              {
+                bridge: allowedBridgeToAdd.toLowerCase(),
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        });
+
+        expect(txs.length).to.equal(0);
       });
     }
   });
