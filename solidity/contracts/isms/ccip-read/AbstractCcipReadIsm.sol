@@ -37,6 +37,7 @@ abstract contract AbstractCcipReadIsm is
     event UrlsChanged(string[] newUrls);
 
     function setUrls(string[] memory __urls) public onlyOwner {
+        require(__urls.length > 0, "AbstractCcipReadIsm: urls cannot be empty");
         _urls = __urls;
         emit UrlsChanged(__urls);
     }

@@ -11,7 +11,7 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
-import {OpL2NativeTokenBridge, OpL1V1NativeTokenBridge} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
+import {OpL2NativeTokenBridge, OpL1V1NativeTokenBridge, OpL1NativeTokenBridge} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
@@ -23,6 +23,7 @@ import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGas
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
 
 contract OPL2ToL1TokenBridgeNativeTest is Test {
     using TypeCasts for address;
@@ -89,30 +90,28 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(l2implementation),
             ADMIN,
-            abi.encodeWithSelector(
-                HypNative.initialize.selector,
-                address(hook),
-                address(ism),
-                address(this) // owner
+            abi.encodeCall(
+                OpL2NativeTokenBridge.initialize,
+                (address(hook), address(this))
             )
         );
 
         vtbOrigin = OpL2NativeTokenBridge(payable(proxy));
 
+        MockOptimismPortal portal = new MockOptimismPortal();
+        string[] memory urls = new string[](1);
+
         OpL1V1NativeTokenBridge l1implementation = new OpL1V1NativeTokenBridge(
             address(environment.mailboxes(destination)),
-            address(0),
-            new string[](0)
+            address(portal)
         );
 
         proxy = new TransparentUpgradeableProxy(
             address(l1implementation),
             ADMIN,
-            abi.encodeWithSelector(
-                HypNative.initialize.selector,
-                address(0),
-                address(ism),
-                address(this)
+            abi.encodeCall(
+                OpL1NativeTokenBridge.initialize,
+                (address(this), urls)
             )
         );
 
@@ -127,6 +126,25 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             origin,
             address(vtbOrigin).addressToBytes32()
         );
+    }
+
+    function test_initialize_revertsWhenCalledAgain() public {
+        vm.expectRevert(
+            bytes("Initializable: contract is already initialized")
+        );
+        vtbOrigin.initialize(address(hook), address(this));
+
+        vm.expectRevert(
+            bytes("Initializable: contract is already initialized")
+        );
+        vtbDestination.initialize(address(this), new string[](0));
+    }
+
+    function test_constructor_l2BridgeMustBeContract() public {
+        address nonContract = address(0x123);
+        address mailbox = address(environment.mailboxes(origin));
+        vm.expectRevert("L2 bridge must be a contract");
+        new OpL2NativeTokenBridge(mailbox, nonContract);
     }
 
     function _expectGasPayment(uint256 gasLimit) private {

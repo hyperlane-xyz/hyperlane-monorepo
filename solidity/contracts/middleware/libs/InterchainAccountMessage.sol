@@ -5,10 +5,19 @@ import {CallLib} from "./Call.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
- * Format of message:
- * [   0:  32] ICA owner
- * [  32:  64] ICA ISM
- * [  64:????] Calls, abi encoded
+ * Format of CALLS message:
+ * [   0:   1] MessageType.CALLS (uint8)
+ * [   1:  33] ICA owner (bytes32)
+ * [  33:  65] ICA ISM (bytes32)
+ * [  65:  97] User Salt (bytes32)
+ * [  97:????] Calls (CallLib.Call[]), abi encoded
+ *
+ * Format of COMMITMENT message:
+ * [   0:   1] MessageType.COMMITMENT (uint8)
+ * [   1:  33] ICA owner (bytes32)
+ * [  33:  65] ICA ISM (bytes32)
+ * [  65:  97] User Salt (bytes32)
+ * [  97: 129] Commitment (bytes32)
  */
 library InterchainAccountMessage {
     using TypeCasts for bytes32;
@@ -162,12 +171,20 @@ library InterchainAccountMessage {
     }
 }
 
+/**
+ * Format of REVEAL message:
+ * [   0:  1] MessageType.REVEAL (uint8)
+ * [   1: 33] ICA ISM (bytes32)
+ * [  33: 65] Commitment (bytes32)
+ */
 library InterchainAccountMessageReveal {
-    function ism(bytes calldata _message) internal pure returns (bytes32) {
+    function revealIsm(
+        bytes calldata _message
+    ) internal pure returns (bytes32) {
         return bytes32(_message[1:33]);
     }
 
-    function commitment(
+    function revealCommitment(
         bytes calldata _message
     ) internal pure returns (bytes32) {
         return bytes32(_message[33:65]);
