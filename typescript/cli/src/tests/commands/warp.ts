@@ -155,7 +155,7 @@ export function hyperlaneWarpSendRelay(
   destination: string,
   warpCorePath: string,
   relay = true,
-  value = 1,
+  value: number | string = 1,
 ): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : ''} \
@@ -167,6 +167,30 @@ export function hyperlaneWarpSendRelay(
         --verbosity debug \
         --yes \
         --amount ${value}`;
+}
+
+export function hyperlaneWarpRebalancer(
+  checkFrequency: number,
+  config: string,
+  withMetrics: boolean,
+  monitorOnly?: boolean,
+  manual?: boolean,
+  origin?: string,
+  destination?: string,
+  amount?: string,
+): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
+        --registry ${REGISTRY_PATH} \
+        --checkFrequency ${checkFrequency} \
+        --config ${config} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --withMetrics ${withMetrics ? ['true'] : ['false']} \
+        --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
+        ${manual ? ['--manual'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
+        ${amount ? ['--amount', amount] : []}`;
 }
 
 /**
