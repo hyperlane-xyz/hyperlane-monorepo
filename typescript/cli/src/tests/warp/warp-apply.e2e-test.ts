@@ -301,12 +301,11 @@ describe('hyperlane warp apply owner update tests', async function () {
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
       WARP_CORE_CONFIG_PATH_2,
     );
-    const { warpDeployPath: updatedWarpDeployPath } =
-      exportWarpConfigsToFilePaths({
-        warpRouteId,
-        warpConfig,
-        warpCoreConfig,
-      });
+    const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
+      warpRouteId,
+      warpConfig,
+      warpCoreConfig,
+    });
 
     // Apply
     await hyperlaneWarpApplyRaw({
@@ -316,7 +315,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // getDeployedWarpAddress() throws if address does not exist
     const extendAddress = getDeployedWarpAddress(
       CHAIN_NAME_3,
-      updatedWarpDeployPath,
+      updatedWarpCorePath,
     );
     expect(extendAddress).to.be.exist;
     expect(extendAddress).to.not.equal(ethers.constants.AddressZero);
