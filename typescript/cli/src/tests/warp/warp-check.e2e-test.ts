@@ -368,9 +368,17 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpCore: WarpCoreConfig = readYamlOrJson(
         WARP_CORE_CONFIG_PATH_2_3,
       );
+
+      // Find the token for CHAIN_NAME_2 since we're unenrolling it from CHAIN 3
+      const chain2Token = warpCore.tokens.find(
+        (token) => token.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2Token).to.not.be.undefined;
+
       const expectedActualText = `ACTUAL: ""\n`;
-      const expectedDiffText = `      EXPECTED:
-        address: "${addressToBytes32(warpCore.tokens[0].addressOrDenom!)}"`;
+      const expectedDiffTextRegex = new RegExp(
+        `EXPECTED:\\s*address:\\s*"${addressToBytes32(chain2Token!.addressOrDenom!)}"`,
+      );
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
@@ -378,7 +386,7 @@ describe('hyperlane warp check e2e tests', async function () {
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.includes(expectedDiffText);
+      expect(output.text()).to.match(expectedDiffTextRegex);
       expect(output.text()).to.includes(expectedActualText);
     });
 
