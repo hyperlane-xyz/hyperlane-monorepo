@@ -12,7 +12,7 @@ use solana_sdk::{
 
 use hyperlane_core::ChainResult;
 
-use crate::{SealevelProvider, SealevelProviderForSubmitter};
+use crate::{SealevelProvider, SealevelProviderForLander};
 
 /// A trait for submitting transactions to the chain.
 #[async_trait]

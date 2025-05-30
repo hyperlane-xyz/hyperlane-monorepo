@@ -18,11 +18,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_SUBMITTERCOVERAGE_PERCENTAGE: 1
+  MIN_LANDERCOVERAGE_PERCENTAGE: 1
   RUSTC_WRAPPER: sccache
 
 jobs:
-  submitter-coverage:
+  lander-coverage:
     runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
@@ -43,16 +43,16 @@ jobs:
           cargo install cargo-llvm-cov@0.5.39 --locked
           rustup component add llvm-tools-preview
 
-      - name: Generate coverage for submitter package
-        run: cargo llvm-cov --package submitter --json --output-path coverage.json
+      - name: Generate coverage for lander package
+        run: cargo llvm-cov --package lander --json --output-path coverage.json
         working-directory: ./rust/main
 
       - name: Check coverage threshold
         run: |
           COVERAGE=$(cat coverage.json | jq -r '.data[0].totals.lines.percent')
           echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE * 100 < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
-            echo "Code coverage is below minimum threshold of $MIN_SUBMITTERCOVERAGE_PERCENTAGE percent"
+          if (( $(echo "$COVERAGE * 100 < $MIN_LANDERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Code coverage is below minimum threshold of $MIN_LANDERCOVERAGE_PERCENTAGE percent"
             exit 1
           fi
         working-directory: ./rust/main
@@ -61,7 +61,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.json
-          flags: ./rust/main/submitter
+          flags: ./rust/main/lander
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
