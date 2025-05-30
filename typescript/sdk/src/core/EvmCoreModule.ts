@@ -37,7 +37,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -319,6 +319,11 @@ export class EvmCoreModule extends HyperlaneModule<
         config: {
           mailbox: mailbox.address,
           owner: await multiProvider.getSigner(chain).getAddress(),
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            urls: ['https://commitment-read-ism.hyperlane.xyz'],
+            owner: await multiProvider.getSigner(chain).getAddress(),
+          },
         },
         contractVerifier,
       })
