@@ -149,6 +149,17 @@ contract MovableCollateralRouterTest is Test {
         assertEq(router.allowedBridges(destinationDomain).length, 0);
     }
 
+    function test_unenrollRemoteRouter() public {
+        router.addBridge(destinationDomain, vtb);
+        router.setRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.unenrollRemoteRouter(destinationDomain);
+        assertEq(router.allowedBridges(destinationDomain).length, 0);
+        assertEq(router.allowedRecipient(destinationDomain), bytes32(0));
+    }
+
     function test_addBridge_NotEnrolled() public {
         router.unenrollRemoteRouter(destinationDomain);
         vm.expectRevert(); // router not enrolled
