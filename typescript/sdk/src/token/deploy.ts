@@ -61,38 +61,41 @@ import {
   isXERC20TokenConfig,
 } from './types.js';
 
-export const TOKEN_INITIALIZE_SELECTOR = (
+// initialize(address _hook, address _owner)
+const OP_L2_INITIALIZE_SIGNATURE = 'initialize(address,address)';
+// initialize(address _owner, string[] memory _urls)
+const OP_L1_INITIALIZE_SIGNATURE = 'initialize(address,string[])';
+// initialize(address _hook, address _owner, string[] memory __urls)
+const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
+
+export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[TokenType],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':
-      // initialize(address _hook, address _owner)
-      const OpL2FunctionName = 'initialize(address,address)';
       assert(
         OpL2NativeTokenBridge__factory.createInterface().functions[
-          OpL2FunctionName
+          OP_L2_INITIALIZE_SIGNATURE
         ],
         'missing expected initialize function',
       );
-      return OpL2FunctionName;
+      return OP_L2_INITIALIZE_SIGNATURE;
     case 'OpL1TokenBridgeNative':
-      // initialize(address _owner, string[] memory _urls)
-      const OpL1FunctionName = 'initialize(address,string[])';
       assert(
         OpL1V1NativeTokenBridge__factory.createInterface().functions[
-          OpL1FunctionName
+          OP_L1_INITIALIZE_SIGNATURE
         ],
         'missing expected initialize function',
       );
-      return OpL1FunctionName;
+      return OP_L1_INITIALIZE_SIGNATURE;
     case 'TokenBridgeCctp':
-      // initialize(address _hook, address _owner, string[] memory __urls)
-      const CctpFunctionName = 'initialize(address,address,string[])';
       assert(
-        TokenBridgeCctp__factory.createInterface().functions[CctpFunctionName],
+        TokenBridgeCctp__factory.createInterface().functions[
+          CCTP_INITIALIZE_SIGNATURE
+        ],
         'missing expected initialize function',
       );
-      return CctpFunctionName;
+      return CCTP_INITIALIZE_SIGNATURE;
     default:
       return 'initialize';
   }
@@ -154,7 +157,7 @@ abstract class TokenDeployer<
   }
 
   initializeFnSignature(name: string): string {
-    return TOKEN_INITIALIZE_SELECTOR(name as any);
+    return TOKEN_INITIALIZE_SIGNATURE(name as any);
   }
 
   async initializeArgs(
