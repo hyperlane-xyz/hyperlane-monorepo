@@ -1,0 +1,13 @@
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  tag:
+hyperlane:
+  runEnv: 
+  context: hyperlane
+  registryCommit: ''
+  rebalancerConfigFile: ''
+  withMetrics: true
+nameOverride: ''
+fullnameOverride: ''
+externalSecrets:
+  clusterSecretStore:

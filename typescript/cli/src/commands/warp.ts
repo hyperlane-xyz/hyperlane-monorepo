@@ -467,7 +467,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       type: 'number',
       description: 'Frequency to check balances in ms (defaults: 30 seconds)',
       demandOption: false,
-      default: 30000,
+      default: 60000,
     },
     withMetrics: {
       type: 'boolean',

@@ -25,7 +25,8 @@ import {
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
-import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds as Mainnet3WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds as Testnet4WarpRouteIds } from '../config/environments/testnet4/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
 import {
   getChain,
@@ -205,11 +206,18 @@ export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
-    .choices('warpRouteId', Object.values(WarpRouteIds));
+    .choices('warpRouteId', Object.values(Mainnet3WarpRouteIds));
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('metrics', 'metrics')
+    .boolean('metrics')
+    .default('metrics', true);
 }
 
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
@@ -352,9 +360,23 @@ export function withPropose<T>(args: Argv<T>) {
     .default('propose', false);
 }
 
+function getWarpRouteIdsByEnvironment(deployEnvironment: DeployEnvironment) {
+  switch (deployEnvironment) {
+    case 'mainnet3':
+      return Mainnet3WarpRouteIds;
+    case 'testnet4':
+      return Testnet4WarpRouteIds;
+    default:
+      throw new Error(`Unsupported environment: ${deployEnvironment}`);
+  }
+}
 // Interactively gets a single warp route ID
-export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds)
+export async function getWarpRouteIdInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
@@ -367,14 +389,18 @@ export async function getWarpRouteIdInteractive() {
 }
 
 // Interactively gets multiple warp route IDs
-export async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds)
+export async function getWarpRouteIdsInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
     }));
 
-  let selection: WarpRouteIds[] = [];
+  let selection: string[] = [];
 
   while (!selection.length) {
     selection = await checkbox({
