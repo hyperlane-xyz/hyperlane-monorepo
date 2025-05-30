@@ -93,6 +93,15 @@ pub async fn estimate_gas_price(
     if let Some(value) = tx.value() {
         request = request.value(*value);
     }
+    if let Some(nonce) = tx.nonce() {
+        request = request.nonce(*nonce);
+    }
+    if let Some(gas_limit) = tx.gas() {
+        request = request.gas(*gas_limit);
+    }
+    if let Some(chain_id) = tx.chain_id() {
+        request = request.chain_id(chain_id);
+    }
     request = request.max_fee_per_gas(max_fee);
     request = request.max_priority_fee_per_gas(max_priority_fee);
 

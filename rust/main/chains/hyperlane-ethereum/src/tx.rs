@@ -419,22 +419,18 @@ where
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
-    call: ethers::contract::builders::ContractCall<M, T>,
+    call: ContractCall<M, T>,
     provider: &M,
     reorg_period: &ReorgPeriod,
-) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
+) -> ChainResult<ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if !reorg_period.is_none() {
-        let block_id = EthereumReorgPeriod::try_from(reorg_period)?
-            .into_block_id(provider)
-            .await?;
-        Ok(call.block(block_id))
-    } else {
-        Ok(call)
-    }
+    let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+        .into_block_id(provider)
+        .await?;
+    Ok(call.block(block_id))
 }
 
 #[cfg(test)]

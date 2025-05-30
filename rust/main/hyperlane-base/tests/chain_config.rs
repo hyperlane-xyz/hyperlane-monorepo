@@ -79,7 +79,7 @@ fn hyperlane_settings() -> Vec<Settings> {
                 .unwrap_or_else(|e| {
                     panic!("!cfg({}): {:?}: {}", p, e, f);
                 });
-            Settings::from_config(raw, &ConfigPath::default())
+            Settings::from_config(raw, &ConfigPath::default(), "mock_agent")
                 .context("Config parsing error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
                 .ok()
         })

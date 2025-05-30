@@ -70,7 +70,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const tokenSymbol = await token.symbol();
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
 
@@ -141,7 +140,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const tokenSymbol = await token.symbol();
 
       const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_2,
         CHAIN_NAME_3,
       ]);
 
@@ -311,7 +309,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.synthetic}`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
 

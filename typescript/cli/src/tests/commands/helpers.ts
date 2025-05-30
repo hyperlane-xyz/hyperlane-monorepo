@@ -66,7 +66,7 @@ export function getCombinedWarpRoutePath(
 ): string {
   return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains,
+    chains.sort().join('-'),
   )}-config.yaml`;
 }
 
@@ -77,6 +77,8 @@ export enum KeyBoardKeys {
   ARROW_UP = '\x1b[A',
   ENTER = '\n',
   TAB = '\t',
+  ACCEPT = 'y',
+  DECLINE = 'n',
 }
 
 export async function asyncStreamInputWrite(
@@ -132,6 +134,19 @@ export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
   input: KeyBoardKeys.ENTER,
 };
 
+export const SELECT_MAINNET_CHAINS_ANVIL_2_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('--Mainnet Chains--'),
+  // Scroll down through the mainnet chains list and select anvil2
+  input: `${SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER}${KeyBoardKeys.ENTER}`,
+};
+
+export const CONFIRM_CHAIN_SELECTION_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Is this chain selection correct?'),
+  input: `${KeyBoardKeys.ENTER}`,
+};
+
 export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
   [
     {
@@ -148,9 +163,23 @@ export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
 
 export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
   check: (currentOutput: string) =>
-    currentOutput.includes('Detected owner address as'),
+    currentOutput.includes('Using owner address as'),
   input: KeyBoardKeys.ENTER,
 };
+
+export const CONFIRM_DETECTED_PROXY_ADMIN_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Use an existing Proxy Admin contract'),
+  input: `${KeyBoardKeys.DECLINE}${KeyBoardKeys.ENTER}`,
+};
+
+export const CONFIRM_DETECTED_TRUSTED_ISM_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Do you want to use a trusted ISM for warp route?'),
+  input: `${KeyBoardKeys.DECLINE}${KeyBoardKeys.ENTER}`,
+};
+
+//
 
 export const SETUP_CHAIN_SIGNERS_MANUALLY_STEPS: ReadonlyArray<TestPromptAction> =
   [
@@ -374,6 +403,7 @@ export async function deployToken(
   chain: string,
   decimals = 18,
   symbol = 'TOKEN',
+  name = 'token',
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
     registryUris: [REGISTRY_PATH],
@@ -385,12 +415,7 @@ export async function deployToken(
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
-  ).deploy(
-    'token',
-    symbol.toLocaleUpperCase(),
-    '100000000000000000000',
-    decimals,
-  );
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
   await token.deployed();
 
   return token;

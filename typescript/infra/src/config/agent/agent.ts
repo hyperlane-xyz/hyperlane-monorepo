@@ -122,8 +122,15 @@ export type CosmosKeyConfig = {
   type: AgentSignerKeyType.Cosmos;
   prefix: string;
 };
-export type KeyConfig = AwsKeyConfig | HexKeyConfig | CosmosKeyConfig;
-
+// Starknet uses account abstraction, these contacts are either legacy or not.
+export type StarknetKeyConfig = {
+  type: AgentSignerKeyType.Starknet;
+};
+export type KeyConfig =
+  | AwsKeyConfig
+  | HexKeyConfig
+  | CosmosKeyConfig
+  | StarknetKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -235,7 +242,11 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    // For Ethereum and Sealevel, use a hex key
+    // Use starknet key for starknet & paradexsepolia
+    case ProtocolType.Starknet: {
+      return { type: AgentSignerKeyType.Starknet };
+    }
+    // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:
