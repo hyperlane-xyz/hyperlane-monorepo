@@ -53,7 +53,7 @@ pub trait AdaptsChain: Send + Sync {
 
     async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, SubmitterError>;
 
-    async fn on_tx_status_update(&self, _tx: &Transaction, _tx_status: &TransactionStatus) {
+    async fn on_tx_status(&self, _tx: &Transaction, _tx_status: &TransactionStatus) {
         // Default implementation does nothing.
     }
 
@@ -75,7 +75,7 @@ pub trait AdaptsChain: Send + Sync {
         let hash_status_results = join_all(hash_status_futures).await;
         let status = TransactionStatus::classify_tx_status_from_hash_statuses(hash_status_results);
 
-        self.on_tx_status_update(tx, &status).await;
+        self.on_tx_status(tx, &status).await;
 
         Ok(status)
     }

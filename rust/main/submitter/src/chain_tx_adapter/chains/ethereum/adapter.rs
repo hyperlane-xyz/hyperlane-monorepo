@@ -198,7 +198,7 @@ impl AdaptsChain for EthereumTxAdapter {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
-    async fn on_tx_status_update(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+    async fn on_tx_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
         self.nonce_manager.update_nonce_status(tx, tx_status).await;
     }
 
