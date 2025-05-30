@@ -12,8 +12,11 @@ use crate::{SubmitterError, TransactionStatus};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceStatus {
+    /// The nonce which we track, but is not currently assigned to any transaction.
     Free,
+    /// The nonce is currently assigned to a transaction that is not yet finalised.
     Taken,
+    /// The nonce is assigned to a transaction that has been finalised.
     Committed,
 }
 
