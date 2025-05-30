@@ -167,9 +167,8 @@ export class SvmSplTokenWarpRouteReader {
     );
 
     return {
-      // TODO: use the overhead igp instead
-      hook: tokenData.interchain_gas_paymaster_pubkey
-        ? tokenData.interchain_gas_paymaster_pubkey.toString()
+      hook: tokenData.interchain_gas_paymaster_account_pubkey
+        ? tokenData.interchain_gas_paymaster_account_pubkey.toString()
         : SystemProgram.programId.toString(),
       interchainSecurityModule: tokenData.interchain_security_module_pubkey
         ? tokenData.interchain_security_module_pubkey.toString()
