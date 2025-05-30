@@ -35,11 +35,17 @@ contract HypERC20MovableCollateralRouterTest is Test {
         // Grant permissions
         router.addRebalancer(address(this));
 
+        // Enroll the remote router
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+
         // Add the destination domain
-        router.addRecipient(destinationDomain, _recipient);
+        router.setRecipient(destinationDomain, _recipient);
 
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        router.addBridge(destinationDomain, vtb);
     }
 
     function testMovingCollateral() public {
