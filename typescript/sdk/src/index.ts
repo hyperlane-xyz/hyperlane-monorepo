@@ -711,3 +711,20 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export {
+  RebalancerStrategyOptions,
+  RebalancerMinAmountType,
+  RebalancerWeightedChainConfigSchema,
+  RebalancerMinAmountConfigSchema,
+  RebalancerBaseChainConfigSchema,
+  RebalancerChainConfigSchema,
+  RebalancerBaseConfigSchema,
+  RebalancerConfigSchema,
+  RebalancerWeightedChainConfig,
+  RebalancerMinAmountChainConfig,
+  RebalancerChainConfig,
+  RebalancerChainConfigInput,
+  RebalancerBaseConfig,
+  RebalancerBaseConfigInput,
+  RebalancerConfigFileInput,
+} from './rebalancer/types.js';

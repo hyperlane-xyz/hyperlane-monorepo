@@ -1,20 +1,20 @@
 import { log } from '../../logger.js';
-import { Config } from '../config/Config.js';
-import type { IExecutor } from '../interfaces/IExecutor.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
  */
-export class WithSemaphore implements IExecutor {
+export class WithSemaphore implements IRebalancer {
   // Timestamp until which rebalancing should be blocked
   private waitUntil: number = 0;
   // Lock to prevent concurrent rebalance execution
   private executing: boolean = false;
 
   constructor(
-    private readonly config: Config,
-    private readonly executor: IExecutor,
+    private readonly config: RebalancerConfig,
+    private readonly rebalancer: IRebalancer,
   ) {}
 
   /**
@@ -51,7 +51,7 @@ export class WithSemaphore implements IExecutor {
     try {
       // Execute rebalance
       this.executing = true;
-      await this.executor.rebalance(routes);
+      await this.rebalancer.rebalance(routes);
     } finally {
       this.executing = false;
     }

@@ -1,12 +1,11 @@
-import type { ChainMap } from '@hyperlane-xyz/sdk';
+import type { ChainMap, RebalancerChainConfig } from '@hyperlane-xyz/sdk';
 
-import type { ChainConfig } from '../config/Config.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
 export type WeightedStrategyConfig = ChainMap<
-  ChainConfig & Required<Pick<ChainConfig, 'weighted'>>
+  RebalancerChainConfig & Required<Pick<RebalancerChainConfig, 'weighted'>>
 >;
 
 /**

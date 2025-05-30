@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { format } from 'util';
 
 import {
@@ -15,11 +14,11 @@ import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
 import { WrappedError } from '../../utils/errors.js';
-import type { IExecutor } from '../interfaces/IExecutor.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 
-export class Executor implements IExecutor {
+export class Rebalancer implements IRebalancer {
   constructor(
     private readonly bridges: ChainMap<BridgeConfig>,
     private readonly warpCore: WarpCore,

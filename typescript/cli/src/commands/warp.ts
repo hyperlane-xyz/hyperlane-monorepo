@@ -31,9 +31,9 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
-  Config,
   MonitorEventType,
   MonitorPollingError,
+  RebalancerConfig,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
@@ -465,8 +465,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
     checkFrequency: {
       type: 'number',
-      description: 'Frequency to check balances in ms',
-      demandOption: true,
+      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
+      demandOption: false,
+      default: 30000,
     },
     withMetrics: {
       type: 'boolean',
@@ -520,7 +521,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   }) => {
     try {
       // Load rebalancer config from disk
-      const rebalancerConfig = Config.load(config, {
+      const rebalancerConfig = RebalancerConfig.load(config, {
         checkFrequency,
         withMetrics,
         monitorOnly,
@@ -545,10 +546,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
         );
 
         const warpCore = contextFactory.getWarpCore();
-        const executor = contextFactory.createExecutor();
+        const rebalancer = contextFactory.createRebalancer();
         const originToken = warpCore.tokens.find((t) => t.chainName === origin);
 
-        await executor.rebalance([
+        await rebalancer.rebalance([
           {
             origin,
             destination,
@@ -565,9 +566,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Instantiates the strategy that will compute how rebalance routes should be performed
       const strategy = await contextFactory.createStrategy();
 
-      // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor = !rebalancerConfig.monitorOnly
-        ? contextFactory.createExecutor()
+      // Instantiates the rebalancer in charge of executing the rebalancing transactions
+      const rebalancer = !rebalancerConfig.monitorOnly
+        ? contextFactory.createRebalancer()
         : undefined;
 
       if (rebalancerConfig.monitorOnly) {
@@ -607,7 +608,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          executor?.rebalance(rebalancingRoutes).catch((e) => {
+          rebalancer?.rebalance(rebalancingRoutes).catch((e) => {
             errorRed('Error while rebalancing:', format(e));
           });
         })

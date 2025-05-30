@@ -2,29 +2,29 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { Config } from '../config/Config.js';
-import { IExecutor } from '../interfaces/IExecutor.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { IRebalancer } from '../interfaces/IRebalancer.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 import { WithSemaphore } from './WithSemaphore.js';
 
 chai.use(chaiAsPromised);
 
-class MockExecutor implements IExecutor {
+class MockRebalancer implements IRebalancer {
   rebalance(_routes: RebalancingRoute[]): Promise<void> {
     return Promise.resolve();
   }
 }
 
 describe('WithSemaphore', () => {
-  it('should call the underlying executor', async () => {
+  it('should call the underlying rebalancer', async () => {
     const config = {
       chains: {
         chain1: {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -32,9 +32,9 @@ describe('WithSemaphore', () => {
       } as any as RebalancingRoute,
     ];
 
-    const executor = new MockExecutor();
-    const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor);
+    const rebalancer = new MockRebalancer();
+    const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
+    const withSemaphore = new WithSemaphore(config, rebalancer);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
@@ -48,11 +48,11 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
-    const executor = new MockExecutor();
-    const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor);
+    const rebalancer = new MockRebalancer();
+    const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
+    const withSemaphore = new WithSemaphore(config, rebalancer);
     await withSemaphore.rebalance([]);
 
     expect(rebalanceSpy.calledOnce).to.be.false;
@@ -65,7 +65,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -73,9 +73,9 @@ describe('WithSemaphore', () => {
       } as any as RebalancingRoute,
     ];
 
-    const executor = new MockExecutor();
-    const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor);
+    const rebalancer = new MockRebalancer();
+    const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
+    const withSemaphore = new WithSemaphore(config, rebalancer);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
@@ -90,7 +90,7 @@ describe('WithSemaphore', () => {
   it('should throw if a chain is missing', async () => {
     const config = {
       chains: {},
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -98,8 +98,8 @@ describe('WithSemaphore', () => {
       } as any as RebalancingRoute,
     ];
 
-    const executor = new MockExecutor();
-    const withSemaphore = new WithSemaphore(config, executor);
+    const rebalancer = new MockRebalancer();
+    const withSemaphore = new WithSemaphore(config, rebalancer);
 
     await expect(withSemaphore.rebalance(routes)).to.be.rejectedWith(
       "Cannot read properties of undefined (reading 'bridgeLockTime')",
@@ -113,7 +113,7 @@ describe('WithSemaphore', () => {
           bridgeLockTime: 1,
         },
       },
-    } as any as Config;
+    } as any as RebalancerConfig;
 
     const routes = [
       {
@@ -121,9 +121,9 @@ describe('WithSemaphore', () => {
       } as any as RebalancingRoute,
     ];
 
-    const executor = new MockExecutor();
-    const rebalanceSpy = Sinon.spy(executor, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, executor);
+    const rebalancer = new MockRebalancer();
+    const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
+    const withSemaphore = new WithSemaphore(config, rebalancer);
 
     const rebalancePromise1 = withSemaphore.rebalance(routes);
     const rebalancePromise2 = withSemaphore.rebalance(routes);
