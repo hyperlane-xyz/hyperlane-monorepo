@@ -55,6 +55,7 @@ export class AgentGCPKey extends CloudAgentKey {
     role: Role,
     chainName?: ChainName,
     index?: number,
+    private protocol?: ProtocolType,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
     super(environment, context, role, chainName, index);
@@ -95,6 +96,7 @@ export class AgentGCPKey extends CloudAgentKey {
       this.role,
       this.chainName,
       this.index,
+      this.protocol,
     );
   }
 
