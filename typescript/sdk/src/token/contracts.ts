@@ -12,9 +12,13 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  PackageVersioned,
+  PackageVersioned__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
+
+export { PackageVersioned__factory, PackageVersioned };
 
 export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',

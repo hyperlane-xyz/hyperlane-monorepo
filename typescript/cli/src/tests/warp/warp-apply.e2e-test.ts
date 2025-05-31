@@ -4,9 +4,10 @@ import sinon from 'sinon';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  EvmERC20WarpRouteReader,
   HookType,
   HypTokenRouterConfig,
+  PackageVersioned,
+  PackageVersioned__factory,
   TokenType,
   WarpRouteDeployConfig,
   normalizeConfig,
@@ -42,6 +43,7 @@ import {
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
   let chain2Addresses: ChainAddresses = {};
+  let sandbox: sinon.SinonSandbox;
 
   before(async function () {
     console.log('\n\n\nWARP APPLY SETUP');
@@ -73,6 +75,10 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   beforeEach(async function () {
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+    sandbox = sinon.createSandbox();
+  });
+  afterEach(() => {
+    sandbox.restore();
   });
 
   it.only('should upgrade implementation', async function () {
@@ -84,11 +90,14 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     warpConfig.anvil2.contractVersion = '7.1.5';
     writeYamlOrJson(warpConfigPath, warpConfig);
-    console.debug('\n\n\nDEBUG-VER-IN-TEST-1');
 
-    sinon
-      .stub(EvmERC20WarpRouteReader, '_fetchContractVersion')
-      .resolves('6.0.0');
+    // Mocking the PACKAGE_VERSION method
+    const mockContract = {
+      PACKAGE_VERSION: sandbox.stub().resolves('6.0.0'),
+    };
+    sandbox
+      .stub(PackageVersioned__factory, 'connect')
+      .returns(mockContract as unknown as PackageVersioned);
     await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
     console.debug('\n\nDONE WITH TEST');
   });

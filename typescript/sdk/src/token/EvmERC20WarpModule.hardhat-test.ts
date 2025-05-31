@@ -793,25 +793,27 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
         .resolves('6.0.0');
 
-      // We don't have access to the old bytecode, so initialization will fail
-      return;
-
       // In update, we do a check see if the package version is old
-      // If it is, we deploy a new implementation and run upgradeToAndCall
+      // If it is, we deploy a new implementation and run upgradeTo
       await sendTxs(
         await evmERC20WarpModule.update({
           ...config,
+          contractVersion: '7.1.5',
         }),
       );
 
       versionStub.restore();
 
       const updatedConfig = await evmERC20WarpModule.read();
-      console.log('\n\n\n\n\n\nUpdated: ', updatedConfig.contractVersion);
+      console.log('Updated contract: ', updatedConfig.contractVersion);
 
       // Assert
       expect(updatedConfig.contractVersion ?? '0' > '6.0.0');
-      expect(origImpl).to.not.eq(await warpRoute.implementation());
+      const newImpl = await proxyImplementation(
+        multiProvider.getProvider(chain),
+        deployedTokenRoute,
+      );
+      expect(origImpl).to.not.eq(newImpl);
     });
   });
 });

@@ -583,6 +583,8 @@ export {
   hypERC20factories,
   HypERC721Factories,
   TokenFactories,
+  PackageVersioned,
+  PackageVersioned__factory,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';

@@ -23,8 +23,10 @@ export const WarpRouteDeployConfigSchemaErrors = {
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
 };
 
-export const contractVersionMatchesDependency = (version: string) =>
-  compareVersions(version, CONTRACTS_VERSION) === 0;
+export const contractVersionMatchesDependency = (version: string) => {
+  console.log('incoming version: ', version);
+  return compareVersions(version, CONTRACTS_VERSION) === 0;
+};
 
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_VERSION})`;
 
@@ -34,10 +36,7 @@ export const TokenMetadataSchema = z.object({
   decimals: z.number().optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
-  contractVersion: z
-    .string()
-    .refine(contractVersionMatchesDependency, VERSION_ERROR_MESSAGE)
-    .optional(),
+  contractVersion: z.string().optional(),
 });
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
