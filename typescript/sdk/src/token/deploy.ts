@@ -323,7 +323,8 @@ abstract class TokenDeployer<
     const chainsToUpdate = objFilter(
       configMap,
       (_chain, config): config is HypTokenConfig =>
-        isMovableCollateralTokenConfig(config) && !!config.allowedRebalancers,
+        isMovableCollateralTokenConfig(config) &&
+        !!config.allowedRebalancingBridges,
     );
 
     await promiseObjAll(

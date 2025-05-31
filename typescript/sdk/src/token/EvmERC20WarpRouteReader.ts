@@ -23,6 +23,7 @@ import {
   assert,
   getLogLevel,
   isZeroishAddress,
+  objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -173,8 +174,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           ),
         );
 
-        allowedRebalancingBridges = objMap(res, (domain, bridges) =>
-          bridges.map((bridge) => ({ bridge })),
+        allowedRebalancingBridges = objFilter(
+          objMap(res, (_domain, bridges) =>
+            bridges.map((bridge) => ({ bridge })),
+          ),
+          (_domain, bridges): bridges is any => bridges.length !== 0,
         );
       } catch (error) {
         // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
