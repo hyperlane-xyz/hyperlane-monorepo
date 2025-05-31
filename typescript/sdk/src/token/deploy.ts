@@ -316,6 +316,46 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setAllowedBridges(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const chainsToUpdate = objFilter(
+      configMap,
+      (_chain, config): config is HypTokenConfig =>
+        isMovableCollateralTokenConfig(config) &&
+        !!config.allowedRebalancingBridges,
+    );
+
+    await promiseObjAll(
+      objMap(chainsToUpdate, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const bridgesToAllow = Object.entries(
+          config.allowedRebalancingBridges ?? {},
+        ).flatMap(([domain, allowedBridgesToAdd]) => {
+          return allowedBridgesToAdd.map((bridgeToAdd) => {
+            return {
+              domain,
+              bridge: bridgeToAdd.bridge,
+            };
+          });
+        });
+
+        for (const bridgeConfig of bridgesToAllow) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
@@ -339,6 +379,8 @@ abstract class TokenDeployer<
     await this.configureCctpDomains(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
+
+    await this.setAllowedBridges(configMap, deployedContractsMap);
 
     return deployedContractsMap;
   }

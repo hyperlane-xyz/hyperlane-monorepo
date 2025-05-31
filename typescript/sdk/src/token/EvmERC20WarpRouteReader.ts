@@ -23,6 +23,9 @@ import {
   assert,
   getLogLevel,
   isZeroishAddress,
+  objFilter,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -140,12 +143,15 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     let allowedRebalancers: Address[] | undefined;
+    let allowedRebalancingBridges: DerivedTokenRouterConfig['allowedRebalancingBridges'];
     if (isMovableCollateralTokenType(type)) {
+      const movableToken = MovableCollateralRouter__factory.connect(
+        warpRouteAddress,
+        this.provider,
+      );
+
       try {
-        const rebalancers = await MovableCollateralRouter__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        ).allRebalancers();
+        const rebalancers = await movableToken.rebalancers();
 
         allowedRebalancers = rebalancers.length ? rebalancers : undefined;
       } catch (error) {
@@ -155,12 +161,39 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
+
+      try {
+        const knownDomains = await movableToken.domains();
+
+        const allowedRebalancerBridges1 = Object.fromEntries(
+          knownDomains.map((domain) => [domain, []]),
+        );
+        const res = await promiseObjAll(
+          objMap(allowedRebalancerBridges1, (domain) =>
+            movableToken.allowedBridges(domain),
+          ),
+        );
+
+        allowedRebalancingBridges = objFilter(
+          objMap(res, (_domain, bridges) =>
+            bridges.map((bridge) => ({ bridge })),
+          ),
+          (_domain, bridges): bridges is any => bridges.length !== 0,
+        );
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get allowed rebalancer bridges for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
     }
 
     return {
       ...routerConfig,
       ...tokenConfig,
       allowedRebalancers,
+      allowedRebalancingBridges,
       proxyAdmin,
       destinationGas,
     };
