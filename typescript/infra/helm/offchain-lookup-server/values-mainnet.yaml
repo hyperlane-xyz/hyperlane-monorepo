@@ -11,7 +11,7 @@ image:
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be acessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
 secrets:
-  prefix: "hyperlane-mainnet3"
+  prefix: 'hyperlane-mainnet3'
 
 ingress:
   host: offchain-lookup.services.hyperlane.xyz
@@ -20,10 +20,10 @@ ingress:
 
 env:
   - name: ENABLED_MODULES
-    value: "cctp,callCommitments"
+    value: 'cctp,callCommitments'
   - name: HYPERLANE_EXPLORER_URL
-    value: "https://api.hyperlane.xyz/v1/graphql"
+    value: 'https://api.hyperlane.xyz/v1/graphql'
   - name: CCTP_ATTESTATION_URL
-    value: "https://iris-api.circle.com"
+    value: 'https://iris-api.circle.com'
   - name: SERVER_PORT
-    value: "3000"
+    value: '3000'

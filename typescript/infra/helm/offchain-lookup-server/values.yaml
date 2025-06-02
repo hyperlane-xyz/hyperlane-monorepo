@@ -9,7 +9,7 @@ image:
   tag: 0b57705-20250514-150736
 
 secrets:
-  name: "offchain-lookup-server"
+  name: 'offchain-lookup-server'
   # List all secrets which are fetched from the Google Secret Store
   secret_envs:
     - DATABASE_URL
