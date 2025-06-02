@@ -357,7 +357,7 @@ export async function createAgentKeysIfNotExistsWithPrompt(
   if (agentKeysToCreate.length > 0) {
     const shouldContinue = await confirm({
       message: chalk.yellow.bold(
-        `Warning: New agent key will be created: ${agentKeysToCreate}. Are you sure you want to continue?`,
+        `Warning: New agent key will be created: ${agentKeysToCreate.join(', ')}. Are you sure you want to continue?`,
       ),
       default: false,
     });
