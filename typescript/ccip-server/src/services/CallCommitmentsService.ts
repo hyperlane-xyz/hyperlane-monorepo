@@ -186,7 +186,7 @@ export class CallCommitmentsService extends BaseService {
         originDomain,
       },
     });
-    console.log('Stored commitment', commitment);
+    console.log('Stored commitment', { commitment, ...data });
   }
 
   /**
