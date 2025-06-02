@@ -1,0 +1,36 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 8,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "WFRGB49tP8CdKubqCdt5Spo2BdGS4BpgoinNER5TYUm",
+    "owner": ""
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 8,
+    "name": "Wrapped Fragmetric Staked BTC",
+    "symbol": "wfragBTC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/9ce0b51d4d33e3378f13f0824bc2ea8599f19172/deployments/warp_routes/wfragBTC/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": ""
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 8,
+    "name": "Wrapped Fragmetric Staked BTC",
+    "symbol": "wfragBTC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/9ce0b51d4d33e3378f13f0824bc2ea8599f19172/deployments/warp_routes/wfragBTC/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": ""
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 8,
+    "name": "Wrapped Fragmetric Staked BTC",
+    "symbol": "wfragBTC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/9ce0b51d4d33e3378f13f0824bc2ea8599f19172/deployments/warp_routes/wfragBTC/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": ""
+  }
+}
