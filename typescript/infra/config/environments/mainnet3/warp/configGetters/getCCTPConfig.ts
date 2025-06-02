@@ -32,7 +32,7 @@ export const getCCTPWarpConfig = async (
   return Object.fromEntries(
     chains.map((chain) => {
       const config: HypTokenRouterConfig = {
-        owner: chain === 'ethereum' ? awSafes[chain] : awIcas[chain],
+        owner: chain === 'ethereum' ? awSafes[chain] : awIcas[chain] ?? awSafes[chain] ?? DEPLOYER,
         mailbox: routerConfig[chain].mailbox,
         type: TokenType.collateralCctp,
         token: usdcTokenAddresses[chain],
