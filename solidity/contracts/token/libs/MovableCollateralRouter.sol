@@ -41,7 +41,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         _;
     }
 
-    function rebalancers() external view returns (address[] memory) {
+    function allowedRebalancers() external view returns (address[] memory) {
         return _allowedRebalancers.values();
     }
 

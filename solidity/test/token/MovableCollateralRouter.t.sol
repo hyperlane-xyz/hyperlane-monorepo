@@ -202,13 +202,13 @@ contract MovableCollateralRouterTest is Test {
     function testAddRebalancer() public {
         address rebalancer = address(1);
         router.addRebalancer(rebalancer);
-        assertEq(router.rebalancers()[0], rebalancer);
+        assertEq(router.allowedRebalancers()[0], rebalancer);
     }
 
     function testRemoveRebalancer() public {
         router.addRebalancer(address(1));
         router.removeRebalancer(address(1));
-        assertEq(router.rebalancers().length, 0);
+        assertEq(router.allowedRebalancers().length, 0);
     }
 
     function testAllowedRecipient() public {
@@ -224,7 +224,7 @@ contract MovableCollateralRouterTest is Test {
         router.removeRebalancer(address(this));
 
         router.addRebalancer(address(1));
-        address[] memory rebalancers = router.rebalancers();
+        address[] memory rebalancers = router.allowedRebalancers();
         assertEq(rebalancers.length, 1);
         assertEq(rebalancers[0], address(1));
     }
