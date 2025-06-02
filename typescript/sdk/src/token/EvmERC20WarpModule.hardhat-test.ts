@@ -11,7 +11,6 @@ import {
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
-  ITransparentUpgradeableProxy__factory,
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
@@ -777,10 +776,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const { deployedTokenRoute } = evmERC20WarpModule.serialize();
 
       // Get original implementation address
-      const warpRoute = ITransparentUpgradeableProxy__factory.connect(
-        deployedTokenRoute,
-        signer,
-      );
       const origImpl = await proxyImplementation(
         multiProvider.getProvider(chain),
         deployedTokenRoute,
