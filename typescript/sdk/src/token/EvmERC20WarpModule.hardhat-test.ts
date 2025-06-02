@@ -800,10 +800,13 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       versionStub.restore();
 
       const updatedConfig = await evmERC20WarpModule.read();
-      console.log('Updated contract: ', updatedConfig.contractVersion);
+      console.log(
+        'Updated contract to have version: ',
+        updatedConfig.contractVersion,
+      );
 
       // Assert
-      expect(updatedConfig.contractVersion ?? '0' > '6.0.0');
+      expect(updatedConfig.contractVersion).to.eq('7.1.5');
       const newImpl = await proxyImplementation(
         multiProvider.getProvider(chain),
         deployedTokenRoute,
