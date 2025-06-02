@@ -6,7 +6,7 @@
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
     "bignumber.js": "^9.1.1",
-    "ethers": "^5.7.2",
+    "ethers": "^5.8.0",
     "lodash-es": "^4.17.21",
     "pino": "^8.19.0",
     "starknet": "^6.24.1",
