@@ -7647,7 +7647,7 @@ __metadata:
     nodemon: "npm:^3.0.3"
     prettier: "npm:^3.5.3"
     prisma: "npm:^6.8.2"
-    prom-client: "npm:^15.1.3"
+    prom-client: "npm:^14.0.1"
     ts-jest: "npm:^29.1.2"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
@@ -10261,13 +10261,6 @@ __metadata:
     "@openzeppelin/contracts": "npm:4.7.3"
     "@openzeppelin/contracts-upgradeable": "npm:4.7.3"
   checksum: 10/a8cd0cc24103cc42021c452220005efde535ba3596ec2ba5eb6dc299d1f3291c38a3d859621d7983bd7c43c80606d6e7d906e1081a1e499455ddea7ba64ab355
-  languageName: node
-  linkType: hard
-
-"@opentelemetry/api@npm:^1.4.0":
-  version: 1.9.0
-  resolution: "@opentelemetry/api@npm:1.9.0"
-  checksum: 10/a607f0eef971893c4f2ee2a4c2069aade6ec3e84e2a1f5c2aac19f65c5d9eeea41aa72db917c1029faafdd71789a1a040bdc18f40d63690e22ccae5d7070f194
   languageName: node
   linkType: hard
 
@@ -32440,16 +32433,6 @@ __metadata:
   dependencies:
     tdigest: "npm:^0.1.1"
   checksum: 10/19b36201d6b07f8d02e4ee81c2484a169ae69007a18d87e079b5c3b991b4b39b3193dd0c86c9e9a96e555af459692377225a86f4af99cf426354106309127a0c
-  languageName: node
-  linkType: hard
-
-"prom-client@npm:^15.1.3":
-  version: 15.1.3
-  resolution: "prom-client@npm:15.1.3"
-  dependencies:
-    "@opentelemetry/api": "npm:^1.4.0"
-    tdigest: "npm:^0.1.1"
-  checksum: 10/eba75e15ab896845d39359e3a4d6f7913ea05339b3122d8dde8c8c374669ad1a1d1ab2694ab2101c420bd98086a564e4f2a18aa29018fc14a4732e57c1c19aec
   languageName: node
   linkType: hard
 
