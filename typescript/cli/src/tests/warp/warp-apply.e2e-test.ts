@@ -346,8 +346,6 @@ describe('hyperlane warp apply owner update tests', async function () {
         warpConfigPath,
       );
 
-      console.log(updatedWarpDeployConfig);
-
       expect(
         (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
           chain3Metadata.domainId

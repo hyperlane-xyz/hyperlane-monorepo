@@ -356,6 +356,51 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setBridgesTokenApprovals(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const chainsToUpdate = objFilter(
+      configMap,
+      (_chain, config): config is HypTokenConfig =>
+        isMovableCollateralTokenConfig(config) &&
+        !!config.allowedRebalancingBridges,
+    );
+
+    await promiseObjAll(
+      objMap(chainsToUpdate, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const tokenApprovalTxs = Object.values(
+          config.allowedRebalancingBridges ?? {},
+        ).flatMap((allowedBridgesToAdd) => {
+          return allowedBridgesToAdd.flatMap((bridgeToAdd) => {
+            return (bridgeToAdd.approvedTokens ?? []).map((token) => {
+              return {
+                bridge: bridgeToAdd.bridge,
+                token,
+              };
+            });
+          });
+        });
+
+        for (const bridgeConfig of tokenApprovalTxs) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.approveTokenForBridge(
+              bridgeConfig.token,
+              bridgeConfig.bridge,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
@@ -381,6 +426,8 @@ abstract class TokenDeployer<
     await this.setRebalancers(configMap, deployedContractsMap);
 
     await this.setAllowedBridges(configMap, deployedContractsMap);
+
+    await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 
     return deployedContractsMap;
   }
