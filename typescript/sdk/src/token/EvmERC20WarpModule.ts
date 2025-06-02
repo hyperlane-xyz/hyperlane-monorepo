@@ -157,7 +157,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
-      ...this.createRemoveAllowedBridgesUpdateTxs(actualConfig, expectedConfig),
+      ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -479,7 +479,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     return [...bridgesToAllow, ...approvalTxs];
   }
 
-  createRemoveAllowedBridgesUpdateTxs(
+  createRemoveBridgesTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
