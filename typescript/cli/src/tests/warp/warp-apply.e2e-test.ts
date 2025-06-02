@@ -6,8 +6,6 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HookType,
   HypTokenRouterConfig,
-  PackageVersioned,
-  PackageVersioned__factory,
   TokenType,
   WarpRouteDeployConfig,
   normalizeConfig,
@@ -81,26 +79,6 @@ describe('hyperlane warp apply owner update tests', async function () {
     sandbox.restore();
   });
 
-  it.only('should upgrade implementation', async function () {
-    console.log('RUNNING TESTS');
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(warpConfigPath);
-
-    console.log('DEBUG: warpConfig: ', warpConfig);
-
-    warpConfig.anvil2.contractVersion = '7.1.5';
-    writeYamlOrJson(warpConfigPath, warpConfig);
-
-    // Mocking the PACKAGE_VERSION method
-    const mockContract = {
-      PACKAGE_VERSION: sandbox.stub().resolves('6.0.0'),
-    };
-    sandbox
-      .stub(PackageVersioned__factory, 'connect')
-      .returns(mockContract as unknown as PackageVersioned);
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
-    console.debug('\n\nDONE WITH TEST');
-  });
   it('should burn owner address', async function () {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(
