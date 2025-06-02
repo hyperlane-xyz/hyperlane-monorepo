@@ -7,6 +7,7 @@ import {
   StarknetJsProvider,
   getStarknetContract,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytesEvm, bytesToAddressEvm } from '@hyperlane-xyz/utils';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -81,11 +82,14 @@ export class StarknetIsmReader {
       ism.get_threshold(),
     ]);
 
-    const moduleConfigs = await Promise.all(
-      modules.map(async (moduleAddress: any) => {
-        return this.deriveIsmConfig(num.toHex64(moduleAddress.toString()));
-      }),
-    );
+    const moduleConfigs = [];
+
+    for (const moduleAddress of modules) {
+      const config = await this.deriveIsmConfig(
+        num.toHex64(moduleAddress.toString()),
+      );
+      moduleConfigs.push(config);
+    }
 
     return {
       type: IsmType.AGGREGATION,
@@ -113,7 +117,7 @@ export class StarknetIsmReader {
       type: IsmType.MERKLE_ROOT_MULTISIG,
       address,
       validators: validators.map((v: any) =>
-        utils.getAddress(num.toHex(v.toString())),
+        utils.getAddress(bytesToAddressEvm(addressToBytesEvm(v))),
       ),
       threshold: Number(threshold),
     };
@@ -138,7 +142,7 @@ export class StarknetIsmReader {
       address,
       validators: validators.map((v: any) =>
         // checksum address
-        utils.getAddress(num.toHex(v.toString())),
+        utils.getAddress(bytesToAddressEvm(addressToBytesEvm(v))),
       ),
       threshold: Number(threshold),
     };
