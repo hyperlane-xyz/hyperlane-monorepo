@@ -232,7 +232,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // If the current ISM does not have an owner then it is either an ICA Router or Amount Router
+    // If the current ISM does not have an owner then it is an Amount Router
     if (!owner) {
       return this.deriveNonOwnableRoutingConfig(address);
     }
