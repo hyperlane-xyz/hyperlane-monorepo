@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
-import {MovableCollateralRouter, ValueTransferBridge} from "contracts/token/libs/MovableCollateralRouter.sol";
+import {MovableCollateralRouter} from "contracts/token/libs/MovableCollateralRouter.sol";
+import {ValueTransferBridge, Quote} from "contracts/token/interfaces/ValueTransferBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "contracts/token/libs/FungibleTokenRouter.sol";
@@ -53,6 +54,14 @@ contract MockValueTransferBridge is ValueTransferBridge {
         token.transferFrom(msg.sender, address(this), amountOut);
         myRecipient = recipient;
         return recipient;
+    }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut
+    ) public view override returns (Quote[] memory) {
+        return new Quote[](0);
     }
 }
 

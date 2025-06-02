@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
+import {ValueTransferBridge, Quote} from "contracts/token/interfaces/ValueTransferBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -18,6 +18,14 @@ contract MockValueTransferBridgeEth is ValueTransferBridge {
         uint256 amountOut
     ) external payable override returns (bytes32 transferId) {
         return keccak256("fake message");
+    }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut
+    ) external view override returns (Quote[] memory) {
+        return new Quote[](0);
     }
 }
 

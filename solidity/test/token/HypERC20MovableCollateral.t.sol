@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
+import {ValueTransferBridge} from "contracts/token/interfaces/ValueTransferBridge.sol";
 import {MockValueTransferBridge} from "./MovableCollateralRouter.t.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 // import {HypERC20MovableCollateral} from "contracts/token/HypERC20MovableCollateral.sol";
