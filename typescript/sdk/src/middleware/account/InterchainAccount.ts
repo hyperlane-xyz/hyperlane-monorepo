@@ -1,4 +1,5 @@
 import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { z } from 'zod';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
@@ -295,24 +296,32 @@ export function commitmentFromIcaCalls(
   return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
+export const PostCallsSchema = z.object({
+  calls: z
+    .array(
+      z.object({
+        to: z.string(),
+        data: z.string(),
+        value: z.string().optional(),
+      }),
+    )
+    .min(1),
+  relayers: z.array(z.string()),
+  salt: z.string(),
+  commitmentDispatchTx: z.string(),
+  originDomain: z.number(),
+});
+
+export type PostCallsType = z.infer<typeof PostCallsSchema>;
+
 export async function shareCallsWithPrivateRelayer(
-  calls: CallData[],
-  salt: string,
-  relayers: string[],
-  commitmentDispatchTx: string,
   serverUrl: string,
-  originDomain: number,
+  payload: PostCallsType,
 ): Promise<Response> {
   const resp = await fetch(serverUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      commitmentDispatchTx,
-      originDomain,
-      calls,
-      relayers,
-      salt,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!resp.ok) {

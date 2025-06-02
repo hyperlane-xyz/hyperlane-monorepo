@@ -6,9 +6,12 @@ import {
   InterchainAccountRouter__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { encodeIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
+import {
+  PostCallsSchema,
+  PostCallsType,
+  encodeIcaCalls,
+  normalizeCalls,
+} from '@hyperlane-xyz/sdk';
 import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
@@ -27,22 +30,6 @@ import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
-});
-
-const postCallsSchema = z.object({
-  calls: z
-    .array(
-      z.object({
-        to: z.string(),
-        data: z.string(),
-        value: z.string().optional(),
-      }),
-    )
-    .min(1),
-  relayers: z.array(z.string()).min(0),
-  salt: z.string(),
-  commitmentDispatchTx: z.string(),
-  originDomain: z.number(),
 });
 
 // TODO: Authenticate relayer
@@ -146,7 +133,7 @@ export class CallCommitmentsService extends BaseService {
    * Returns parsed data or sends a 400 response and returns null.
    */
   private parseCommitmentBody(body: any, res: Response) {
-    const result = postCallsSchema.safeParse(body);
+    const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       console.log('Invalid request', result.error.flatten().fieldErrors);
       res.status(400).json({ errors: result.error.flatten().fieldErrors });
@@ -160,7 +147,7 @@ export class CallCommitmentsService extends BaseService {
    */
   private async insertCommitmentToDB(
     commitment: string,
-    data: z.infer<typeof postCallsSchema> & {
+    data: PostCallsType & {
       ica: string;
       revealMessageId: string;
     },
@@ -214,7 +201,7 @@ export class CallCommitmentsService extends BaseService {
   // return the ICA address.
   // Throws if validation fails.
   private async validateCommitmentEvents(
-    data: z.infer<typeof postCallsSchema>,
+    data: PostCallsType,
     commitment: string,
   ): Promise<{ ica: string; revealMessageId: string }> {
     const provider = this.multiProvider.getProvider(data.originDomain);

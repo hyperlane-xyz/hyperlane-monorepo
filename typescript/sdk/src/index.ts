@@ -303,6 +303,8 @@ export {
   commitmentFromIcaCalls,
   normalizeCalls,
   shareCallsWithPrivateRelayer,
+  PostCallsSchema,
+  PostCallsType,
 } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
 export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';

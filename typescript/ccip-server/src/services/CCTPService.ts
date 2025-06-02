@@ -3,8 +3,6 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
