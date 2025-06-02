@@ -346,10 +346,6 @@ abstract class TokenDeployer<
         }
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
-        if (rebalancers.length === 0) {
-          return;
-        }
-
         for (const rebalancer of rebalancers) {
           await this.multiProvider.handleTx(
             chain,
