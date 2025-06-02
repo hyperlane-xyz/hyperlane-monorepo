@@ -31,7 +31,7 @@ export function isValidKey(key: string | ProtocolMap<string>): boolean {
     // if key is of type protocol map check if every provided protocol
     // is valid
     return Object.keys(key).every((protocol) =>
-      Object.values(ProtocolType).includes(protocol as ProtocolType),
+      Object.values<string>(ProtocolType).includes(protocol),
     );
   } else {
     return false;
