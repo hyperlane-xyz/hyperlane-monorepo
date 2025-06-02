@@ -36,7 +36,11 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
-import { DestinationGas } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  RemoteRoutersSchema,
+} from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
