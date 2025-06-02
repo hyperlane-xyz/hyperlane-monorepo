@@ -40,6 +40,7 @@ import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/
 import { getBobaBsquaredSoneiumSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
+import { getCCTPWarpConfig as getMainnetCCTPWarpConfig } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -74,7 +75,7 @@ import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGett
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import { getSuperTokenProductionWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
-import { getCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
+import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
 type WarpConfigGetter = (
@@ -141,7 +142,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
-  [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
+  [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
+  [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
