@@ -422,23 +422,13 @@ async function agentKeysToBeCreated(
 ): Promise<string[]> {
   const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
 
-  const keysToCreateOrNot = await Promise.all(
-    keysToCreateIfNotExist.map(async (key) => {
-      return new Pair(await key.exists(), key.identifier);
-    }),
-  );
-
   return (
-    keysToCreateOrNot
-      // Filter out keys that already exist
-      .filter((pair) => !pair.key)
-      // Return only key identifiers
-      .map((pair) => pair.value)
-      .filter(
-        (identifier): identifier is string =>
-          identifier !== undefined && identifier !== null,
-      )
-  );
+    await Promise.all(
+      keysToCreateIfNotExist.map(async (key) =>
+        (await key.exists()) ? null : key.identifier,
+      ),
+    )
+  ).filter((id): id is string => !!id);
 }
 
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
