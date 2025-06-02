@@ -50,7 +50,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
         ethers.constants.AddressZero,
         owner,
         50_000,
-        config.commitmentIsm?.urls ?? [],
+        config.commitmentIsm.urls,
       ],
     );
 
