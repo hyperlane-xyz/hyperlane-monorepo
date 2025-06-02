@@ -366,11 +366,11 @@ export async function createAgentKeysIfNotExistsWithPrompt(
       process.exit(1);
     }
 
-    console.log(chalk.green.bold('Creating new agent key if needed.'));
+    console.log(chalk.blue.bold('Creating new agent key if needed.'));
     await createAgentKeys(agentConfig, agentKeysToCreate);
     return true;
   } else {
-    console.log(chalk.green.bold('No new agent key will be created.'));
+    console.log(chalk.gray.bold('No new agent key will be created.'));
     return false;
   }
 }
