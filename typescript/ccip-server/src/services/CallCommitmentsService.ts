@@ -23,13 +23,10 @@ import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
 import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { BaseService } from './BaseService.js';
+import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
 
 const EnvSchema = z.object({
-  REGISTRY_URI: z
-    .string()
-    .transform((val) => val.split(',').map((s) => s.trim()))
-    .optional(),
+  REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
 
 const postCallsSchema = z.object({
@@ -57,14 +54,7 @@ export class CallCommitmentsService extends BaseService {
 
   static async initialize() {
     const env = EnvSchema.parse(process.env);
-    const registryUris = env.REGISTRY_URI ?? [DEFAULT_GITHUB_REGISTRY];
-    console.log('Using registry URIs', registryUris);
-    const registry = getRegistry({
-      registryUris: registryUris,
-      enableProxy: true,
-    });
-    const metadata = await registry.getMetadata();
-    const multiProvider = new MultiProvider({ ...metadata });
+    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
     return new CallCommitmentsService(multiProvider);
   }
 

@@ -11,52 +11,35 @@ import { parseMessage } from '@hyperlane-xyz/utils';
 import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { BaseService } from './BaseService.js';
+import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.string().url(),
   CCTP_ATTESTATION_URL: z.string().url(),
-  REGISTRY_URI: z.string().url().optional(),
+  REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
 
 class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
-  multiProvider: MultiProvider | undefined;
   public readonly router: Router;
 
-  static initialize(): Promise<BaseService> {
-    return Promise.resolve(new CCTPService());
+  static async initialize(): Promise<BaseService> {
+    const env = EnvSchema.parse(process.env);
+    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
+    return Promise.resolve(new CCTPService(multiProvider));
   }
 
-  constructor() {
+  constructor(private multiProvider: MultiProvider) {
     super();
     const env = EnvSchema.parse(process.env);
     this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
     this.cctpAttestationService = new CCTPAttestationService(
       env.CCTP_ATTESTATION_URL,
     );
-    const registryUris = env.REGISTRY_URI?.split(',') || [
-      DEFAULT_GITHUB_REGISTRY,
-    ];
-    console.log('Using registry URIs', registryUris);
-    const registry = getRegistry({
-      registryUris: registryUris,
-      enableProxy: true,
-    });
-
-    const initializeMultiProvider = async () => {
-      const k = await registry.getMetadata();
-      this.multiProvider = new MultiProvider(k);
-    };
-    initializeMultiProvider()
-      .then(() => console.info('Initialized MultiProvider'))
-      .catch((err) => {
-        console.error('Initializing MultiProvider failed', err);
-      });
 
     this.router = Router();
 

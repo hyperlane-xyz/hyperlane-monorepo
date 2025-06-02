@@ -27,22 +27,27 @@ async function startServer() {
 
   // Dynamically mount only modules listed in the ENABLED_MODULES env var
   for (const name of getEnabledModules()) {
-    const ServiceClass = moduleRegistry[name];
-    if (!ServiceClass) {
-      console.warn(`⚠️  Module '${name}' not found; skipping`);
-      continue;
-    }
-    const service = await ServiceClass.initialize(); // module reads its own ENV config
+    try {
+      const ServiceClass = moduleRegistry[name];
+      if (!ServiceClass) {
+        console.warn(`⚠️  Module '${name}' not found; skipping`);
+        continue;
+      }
+      const service = await ServiceClass.initialize(); // module reads its own ENV config
 
-    app.use(`/${name}`, (req, res, next) => {
-      res.on('finish', () => {
-        PrometheusMetrics.logLookupRequest(name, res.statusCode);
+      app.use(`/${name}`, (req, res, next) => {
+        res.on('finish', () => {
+          PrometheusMetrics.logLookupRequest(name, res.statusCode);
+        });
+        next();
       });
-      next();
-    });
-    app.use(`/${name}`, service.router);
+      app.use(`/${name}`, service.router);
 
-    console.log(`✅  Mounted '${name}' at '/${name}'`);
+      console.log(`✅  Mounted '${name}' at '/${name}'`);
+    } catch (error) {
+      console.error(`Error initializing module ${name}`);
+      throw error;
+    }
   }
 
   // Register Health Service
