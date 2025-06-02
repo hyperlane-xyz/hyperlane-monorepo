@@ -299,8 +299,8 @@ describe('hyperlane warp apply owner update tests', async function () {
       );
 
       assert(
-        updatedWarpDeployConfig.anvil2.type === TokenType.collateral,
-        `Config on chain ${CHAIN_NAME_2} must be a collateral`,
+        updatedWarpDeployConfig.anvil2.type === TokenType.native,
+        `Config on chain ${CHAIN_NAME_2} must be a ${TokenType.native}`,
       );
       expect(
         updatedWarpDeployConfig.anvil2.allowedRebalancers?.length,
