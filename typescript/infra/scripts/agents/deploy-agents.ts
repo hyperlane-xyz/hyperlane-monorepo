@@ -3,6 +3,11 @@ import chalk from 'chalk';
 import { execSync } from 'child_process';
 
 import { createAgentKeysIfNotExists } from '../../src/agents/key-utils.js';
+import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import {
+  checkAgentImageExists,
+  checkMonorepoImageExists,
+} from '../../src/utils/gcloud.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
@@ -47,6 +52,51 @@ async function getCommitsBehindMain(): Promise<number> {
   }
 }
 
+async function checkDockerTagsExist(agentConfig: RootAgentConfig) {
+  const imagesToCheck: { agent: string; tag?: string }[] = [
+    { agent: 'scraper', tag: agentConfig.scraper?.docker.tag },
+    { agent: 'validators', tag: agentConfig.validators?.docker.tag },
+    { agent: 'relayer', tag: agentConfig.relayer?.docker.tag },
+  ];
+
+  let errors = false;
+  for (const { agent, tag } of imagesToCheck) {
+    if (tag) {
+      const agentExists = await checkAgentImageExists(tag);
+      if (!agentExists) {
+        errors = true;
+
+        console.log(
+          chalk.red(
+            `Agent ${chalk.bold(agent)} is configured with an invalid Docker image tag: ${chalk.bold(tag)}.`,
+          ),
+        );
+
+        const monorepoExists = await checkMonorepoImageExists(tag);
+        if (monorepoExists) {
+          console.log(
+            chalk.red(
+              `You have accidentally configured ${chalk.bold(
+                agent,
+              )} with a monorepo image tag.`,
+            ),
+          );
+        }
+      } else {
+        console.log(
+          chalk.green(
+            `Agent ${chalk.bold(agent)} is configured with a valid Docker image tag: ${chalk.bold(tag)}.`,
+          ),
+        );
+      }
+    }
+  }
+
+  if (errors) {
+    process.exit(1);
+  }
+}
+
 async function main() {
   // Note the create-keys script should be ran prior to running this script.
   // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
@@ -56,6 +106,7 @@ async function main() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
   const { agentConfig } = await getConfigsBasedOnArgs();
+  await checkDockerTagsExist(agentConfig);
   await createAgentKeysIfNotExists(agentConfig);
 
   // Check if current branch is up-to-date with the main branch

@@ -416,7 +416,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -571,6 +571,13 @@ jobs:
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
           RUST_BACKTRACE: 'full'
 
   e2e:

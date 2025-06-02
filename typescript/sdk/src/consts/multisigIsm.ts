@@ -1498,11 +1498,27 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   milkyway: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0x55010624d5e239281d0850dc7915b78187e8bc0e',
+        alias: 'Nodes.Guru',
+      },
+      {
+        address: '0x9ecf299947b030f9898faf328e5edbf77b13e974',
+        alias: 'B-Harvest',
+      },
+      {
+        address: '0x56fa9ac314ad49836ffb35918043d6b2dec304fb',
+        alias: 'DSRV',
+      },
+      {
+        address: '0xb69c0d1aacd305edeca88b482b9dd9657f3a8b5c',
+        alias: 'CryptoCrew',
       },
     ],
   },
@@ -1780,6 +1796,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xea483af11c19fa41b16c31d1534c2a486a92bcac',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  paradexsepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -2266,6 +2292,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  starknetsepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xd07272cc3665d6e383a319691dcce5731ecf54a5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
