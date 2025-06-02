@@ -24,7 +24,8 @@ use crate::settings::IndexSettings;
 
 /// Broadcast channel utility, with async interface for `send`
 pub mod broadcast;
-pub(crate) mod cursors;
+/// Cursor types
+pub mod cursors;
 mod eta_calculator;
 mod metrics;
 

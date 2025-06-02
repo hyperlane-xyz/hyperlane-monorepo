@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
+    hash::Hash,
     sync::Arc,
     time::Instant,
 };
@@ -24,16 +25,18 @@ use tracing::{debug, error, info, info_span, warn, Instrument};
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
+    cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::{ChainConf, IndexSettings},
+    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, Mailbox,
-    MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
+    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use submitter::{
@@ -224,12 +227,13 @@ impl BaseAgent for Relayer {
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
 
-        let message_syncs = Self::build_message_contract_syncs(
+        let message_syncs = Self::build_contract_syncs(
             &settings,
             &core_metrics,
             &chain_metrics,
             &contract_sync_metrics,
             stores.clone(),
+            "message",
         )
         .await;
 
@@ -237,12 +241,13 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let interchain_gas_payment_syncs = if settings.igp_indexing_enabled {
-            let igp_syncs = Self::build_interchain_gas_payment_contract_syncs(
+            let igp_syncs = Self::build_contract_syncs(
                 &settings,
                 &core_metrics,
                 &chain_metrics,
                 &contract_sync_metrics,
                 stores.clone(),
+                "interchain gas payments",
             )
             .await;
             Some(igp_syncs)
@@ -252,12 +257,13 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let merkle_tree_hook_syncs = Self::build_merkle_tree_insertion_contract_syncs(
+        let merkle_tree_hook_syncs = Self::build_contract_syncs(
             &settings,
             &core_metrics,
             &chain_metrics,
             &contract_sync_metrics,
             stores.clone(),
+            "merkle tree hook syncs",
         )
         .await;
 
@@ -1116,18 +1122,27 @@ impl Relayer {
             .collect()
     }
 
-    pub async fn build_message_contract_syncs(
+    pub async fn build_contract_syncs<T, S>(
         settings: &RelayerSettings,
         core_metrics: &CoreMetrics,
         chain_metrics: &ChainMetrics,
         contract_sync_metrics: &ContractSyncMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>> {
+        stores: HashMap<HyperlaneDomain, Arc<S>>,
+        data_type: &str,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>
+    where
+        T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
+    {
         settings
             .contract_syncs(
                 core_metrics,
                 contract_sync_metrics,
-                stores.clone(),
+                stores,
                 ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
             )
@@ -1140,71 +1155,7 @@ impl Relayer {
                         &domain,
                         chain_metrics,
                         &err,
-                        "Critical error when building message contract sync",
-                    );
-                    None
-                }
-            })
-            .collect()
-    }
-
-    pub async fn build_interchain_gas_payment_contract_syncs(
-        settings: &RelayerSettings,
-        core_metrics: &CoreMetrics,
-        chain_metrics: &ChainMetrics,
-        contract_sync_metrics: &ContractSyncMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>> {
-        settings
-            .contract_syncs(
-                core_metrics,
-                contract_sync_metrics,
-                stores.clone(),
-                ADVANCED_LOG_META,
-                settings.tx_id_indexing_enabled,
-            )
-            .await
-            .into_iter()
-            .filter_map(|(domain, sync)| match sync {
-                Ok(s) => Some((domain, s)),
-                Err(err) => {
-                    Self::record_critical_error(
-                        &domain,
-                        chain_metrics,
-                        &err,
-                        "Critical error when building interchain gas payment contract sync",
-                    );
-                    None
-                }
-            })
-            .collect()
-    }
-
-    pub async fn build_merkle_tree_insertion_contract_syncs(
-        settings: &RelayerSettings,
-        core_metrics: &CoreMetrics,
-        chain_metrics: &ChainMetrics,
-        contract_sync_metrics: &ContractSyncMetrics,
-        stores: HashMap<HyperlaneDomain, Arc<HyperlaneRocksDB>>,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>> {
-        settings
-            .contract_syncs(
-                core_metrics,
-                contract_sync_metrics,
-                stores.clone(),
-                ADVANCED_LOG_META,
-                settings.tx_id_indexing_enabled,
-            )
-            .await
-            .into_iter()
-            .filter_map(|(domain, sync)| match sync {
-                Ok(s) => Some((domain, s)),
-                Err(err) => {
-                    Self::record_critical_error(
-                        &domain,
-                        chain_metrics,
-                        &err,
-                        "Critical error when building merkle tree hook contract sync",
+                        &format!("Critical error when building {data_type} contract sync"),
                     );
                     None
                 }

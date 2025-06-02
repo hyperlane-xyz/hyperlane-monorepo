@@ -144,7 +144,8 @@ macro_rules! build_chain_conf_fns {
     };
 }
 
-type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
+/// Arc SequenceAwareIndexer
+pub type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
 
 impl Settings {
     build_chain_conf_fns!(build_application_operation_verifier, build_application_operation_verifiers -> dyn ApplicationOperationVerifier);
