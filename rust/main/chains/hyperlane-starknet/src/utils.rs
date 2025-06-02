@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::rpc_clients::call_and_retry_n_times;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
@@ -16,8 +17,6 @@ use starknet::{
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
     signers::LocalWallet,
 };
-use tokio::time::sleep;
-use tracing::debug;
 use url::Url;
 
 use crate::contracts::{
@@ -41,45 +40,32 @@ pub async fn get_transaction_receipt(
     // Polling delay is the total amount of seconds to wait before we call a timeout
     const TIMEOUT_DELAY: u64 = 60;
     const POLLING_INTERVAL: u64 = 2;
+    const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
 
-    let n = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+    call_and_retry_n_times(
+        || {
+            let rpc = rpc.clone();
+            Box::pin(async move {
+                let receipt = rpc
+                    .get_transaction_receipt(transaction_hash)
+                    .await
+                    .map_err(HyperlaneStarknetError::from)?;
 
-    for retry_number in 0..n {
-        let receipt = rpc
-            .get_transaction_receipt(transaction_hash)
-            .await
-            .map_err(HyperlaneStarknetError::from);
-
-        if receipt.is_err() {
-            debug!(retry_number, "transaction receipt error: {:?}", receipt);
-            sleep(Duration::from_secs(POLLING_INTERVAL)).await;
-            continue;
-        }
-
-        let receipt = receipt?;
-        match receipt {
-            MaybePendingTransactionReceipt::PendingReceipt(receipt) => {
-                debug!(
-                    retry_number,
-                    "transaction receipt is still pending: {:?}", receipt
-                );
-                sleep(Duration::from_secs(POLLING_INTERVAL)).await;
-                continue;
-            }
-            MaybePendingTransactionReceipt::Receipt(receipt) => {
-                if let TransactionReceipt::Invoke(receipt) = receipt {
-                    return tx_receipt_to_outcome(receipt);
+                match receipt {
+                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
+                        Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
+                    }
+                    MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(
+                        receipt,
+                    )) => tx_receipt_to_outcome(receipt),
+                    _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
                 }
-                // If the receipt is not an Invoke receipt, we return an error
-                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
-            }
-        }
-    }
-
-    Err(ChainCommunicationError::CustomError(format!(
-        "Starknet transaction receipt not available after {} retries",
-        n
-    )))
+            })
+        },
+        N,
+        Some(Duration::from_secs(POLLING_INTERVAL)),
+    )
+    .await
 }
 
 /// Creates a single owner account for a given signer and account address.
