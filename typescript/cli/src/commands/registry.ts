@@ -2,7 +2,6 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { CommandModule } from 'yargs';
 import { $ } from 'zx';
 
-// import { resetFork } from '@hyperlane-xyz/sdk';
 import { retryAsync } from '@hyperlane-xyz/utils';
 
 import { createAgentConfig } from '../config/agent.js';

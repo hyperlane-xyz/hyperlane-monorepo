@@ -25,7 +25,6 @@ export const WarpRouteDeployConfigSchemaErrors = {
 };
 
 export const contractVersionMatchesDependency = (version: string) => {
-  console.log('incoming version: ', version);
   return compareVersions(version, CONTRACTS_VERSION) === 0;
 };
 

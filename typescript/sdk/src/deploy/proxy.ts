@@ -39,7 +39,6 @@ export async function isInitialized(
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
   const storageValue = await provider.getStorageAt(contract, '0x0');
-  console.log('storage Value: ', storageValue);
   return ethers.BigNumber.from(storageValue).gte(1);
 }
 

@@ -256,7 +256,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(Object.keys(remoteRouters!).length).to.equal(numOfRouters);
   });
 
-  describe.only('Update', async () => {
+  describe('Update', async () => {
     const owner = randomAddress();
     const ismConfigToUpdate: IsmConfig[] = [
       {
@@ -751,7 +751,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
       expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
-    it.only('Should deploy and upgrade a new warp route', async () => {
+    it('Should deploy and upgrade a new warp route', async () => {
       const domain = 3;
       const config: HypTokenRouterConfig = {
         ...baseConfig,

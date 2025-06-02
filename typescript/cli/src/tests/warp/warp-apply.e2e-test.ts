@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
-import sinon from 'sinon';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -41,7 +40,6 @@ import {
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
   let chain2Addresses: ChainAddresses = {};
-  let sandbox: sinon.SinonSandbox;
 
   before(async function () {
     console.log('\n\n\nWARP APPLY SETUP');
@@ -73,10 +71,6 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   beforeEach(async function () {
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
-    sandbox = sinon.createSandbox();
-  });
-  afterEach(() => {
-    sandbox.restore();
   });
 
   it('should burn owner address', async function () {

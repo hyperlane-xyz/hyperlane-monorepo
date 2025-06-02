@@ -145,7 +145,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-      ...(await this.createWarpRouteImplementationTx(
+      ...(await this.upgradeWarpRouteImplementationTx(
         actualConfig,
         expectedConfig,
       )),
@@ -552,20 +552,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected configuration
    * @returns An array of transactions to upgrade the implementation if needed
    */
-  async createWarpRouteImplementationTx(
+  async upgradeWarpRouteImplementationTx(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    console.log('\n\nCREATE WARP ROUTE TXS');
-    console.log('DEBUG: ACTUAL CONFIG: ', actualConfig);
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    console.log(
-      'DEBUG-VER-1: ',
-      expectedConfig.contractVersion,
-      actualConfig.contractVersion,
-    );
-    console.log('DEBUG-VER2: ', CONTRACTS_VERSION);
 
     assert(
       actualConfig.contractVersion,
@@ -578,15 +569,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig.contractVersion,
         actualConfig.contractVersion,
       ) === 1;
-
-    console.log('DEBUG-VER-3: ', shouldUpgrade);
-    console.log(
-      'COMPARE VERSIONS: ',
-      compareVersions(
-        expectedConfig.contractVersion ?? '0',
-        actualConfig.contractVersion,
-      ) === 1,
-    );
 
     if (!shouldUpgrade) return [];
 
@@ -615,8 +597,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const provider = this.multiProvider.getProvider(this.domainId);
     const proxyAddress = this.args.addresses.deployedTokenRoute;
     const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
-
-    console.log('\n\nDEBUG-VER_PROXY: ', { proxyAddress });
 
     assert(
       await isInitialized(provider, proxyAddress),

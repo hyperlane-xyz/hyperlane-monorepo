@@ -587,28 +587,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   }
 
   async fetchPackageVersion(address: Address) {
-    console.log('DEBUG-fetchPackageVersion');
     const contract = PackageVersioned__factory.connect(address, this.provider);
-    console.log('DEBUG-fetchPackageVersion-contract', contract);
     return contract.PACKAGE_VERSION();
-  }
-
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const warpRoute = TokenRouter__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    const domains = await warpRoute.domains();
-
-    const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [domain, { address: await warpRoute.routers(domain) }];
-        }),
-      ),
-    );
-
-    return RemoteRoutersSchema.parse(routers);
   }
 
   async fetchProxyAdminConfig(
