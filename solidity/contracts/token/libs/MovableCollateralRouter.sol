@@ -13,11 +13,16 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// @notice Mapping of domain to allowed rebalance recipient.
+    /// @dev Keys constrained to a subset of Router.domains()
     mapping(uint32 routerDomain => bytes32 recipient) public allowedRecipient;
+
+    /// @notice Mapping of domain to allowed rebalance bridges.
+    /// @dev Keys constrained to a subset of Router.domains()
     mapping(uint32 routerDomain => EnumerableSet.AddressSet)
         internal _allowedBridges;
 
-    /// @notice Mapping of address to true if the address is a rebalancer.
+    /// @notice Set of addresses that are allowed to rebalance.
     EnumerableSet.AddressSet internal _allowedRebalancers;
 
     event CollateralMoved(
@@ -52,6 +57,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     }
 
     function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+        // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         allowedRecipient[domain] = recipient;
     }
@@ -64,6 +70,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint32 domain,
         ValueTransferBridge bridge
     ) external onlyOwner {
+        // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         _allowedBridges[domain].add(address(bridge));
     }
@@ -96,6 +103,14 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         _allowedRebalancers.remove(rebalancer);
     }
 
+    /**
+     * @notice Rebalances the collateral between router domains.
+     * @param domain The domain to rebalance to.
+     * @param amount The amount of collateral to rebalance.
+     * @param bridge The bridge to use for the rebalance.
+     * @dev The caller must be an allowed rebalancer and the bridge must be an allowed bridge for the domain.
+     * @dev The recipient is the enrolled router if no recipient is set for the domain.
+     */
     function rebalance(
         uint32 domain,
         uint256 amount,
@@ -117,7 +132,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         });
     }
 
-    /// @dev Ensures that Router.domains() matches the domains that have a recipient or bridge.
+    /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
         delete allowedRecipient[domain];
         delete _allowedBridges[domain];
