@@ -346,8 +346,6 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const config = await deriveFunction(warpRouteAddress);
 
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
-    console.log('DEBUG-VER4-FETCHED:', config.contractVersion);
-
     return HypTokenConfigSchema.parse(config);
   }
 
