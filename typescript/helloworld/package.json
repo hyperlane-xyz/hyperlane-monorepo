@@ -25,7 +25,7 @@
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
     "ethereum-waffle": "^4.0.10",
-    "hardhat": "^2.22.2",
+    "hardhat": "2.22.5",
     "hardhat-gas-reporter": "^1.0.9",
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "^1.4.2",
@@ -62,7 +62,7 @@
     "lint": "yarn lint:sol && yarn lint:ts",
     "lint:sol": "solhint contracts/**/*.sol",
     "lint:ts": "eslint -c ./eslint.config.mjs",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-esm": "npx hardhat --config hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "yarn hardhat-esm test ./src/test/**/*.test.ts",
     "test:ci": "yarn test"

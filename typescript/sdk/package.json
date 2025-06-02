@@ -46,7 +46,7 @@
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
     "ethereum-waffle": "^4.0.10",
-    "hardhat": "^2.22.2",
+    "hardhat": "2.22.5",
     "mocha": "^10.2.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
@@ -87,7 +87,7 @@
     "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
     "test:ci": "yarn test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "npx hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {
