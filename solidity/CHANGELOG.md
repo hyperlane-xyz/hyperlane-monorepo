@@ -1,5 +1,19 @@
 # @hyperlane-xyz/core
 
+## 7.1.10
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+
+## 7.1.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@13.2.0
+
 ## 7.1.8
 
 ### Patch Changes

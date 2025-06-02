@@ -659,6 +659,7 @@ export {
 } from './token/types.js';
 export {
   ChainMap,
+  ProtocolMap,
   ChainName,
   ChainNameOrId,
   Connection,
