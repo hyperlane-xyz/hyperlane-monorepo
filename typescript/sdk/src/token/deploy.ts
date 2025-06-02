@@ -7,6 +7,8 @@ import {
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  OpL1V1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory,
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -32,6 +34,7 @@ import { ChainMap, ChainName } from '../types.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
+  HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   hypERC20contracts,
@@ -57,6 +60,46 @@ import {
   isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
+
+// initialize(address _hook, address _owner)
+const OP_L2_INITIALIZE_SIGNATURE = 'initialize(address,address)';
+// initialize(address _owner, string[] memory _urls)
+const OP_L1_INITIALIZE_SIGNATURE = 'initialize(address,string[])';
+// initialize(address _hook, address _owner, string[] memory __urls)
+const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
+
+export const TOKEN_INITIALIZE_SIGNATURE = (
+  contractName: HypERC20contracts[TokenType],
+) => {
+  switch (contractName) {
+    case 'OPL2TokenBridgeNative':
+      assert(
+        OpL2NativeTokenBridge__factory.createInterface().functions[
+          OP_L2_INITIALIZE_SIGNATURE
+        ],
+        'missing expected initialize function',
+      );
+      return OP_L2_INITIALIZE_SIGNATURE;
+    case 'OpL1TokenBridgeNative':
+      assert(
+        OpL1V1NativeTokenBridge__factory.createInterface().functions[
+          OP_L1_INITIALIZE_SIGNATURE
+        ],
+        'missing expected initialize function',
+      );
+      return OP_L1_INITIALIZE_SIGNATURE;
+    case 'TokenBridgeCctp':
+      assert(
+        TokenBridgeCctp__factory.createInterface().functions[
+          CCTP_INITIALIZE_SIGNATURE
+        ],
+        'missing expected initialize function',
+      );
+      return CCTP_INITIALIZE_SIGNATURE;
+    default:
+      return 'initialize';
+  }
+};
 
 abstract class TokenDeployer<
   Factories extends TokenFactories,
@@ -91,7 +134,7 @@ abstract class TokenDeployer<
     } else if (isOpL2TokenConfig(config)) {
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
-      return [config.mailbox, config.portal, config.urls];
+      return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];
@@ -114,9 +157,7 @@ abstract class TokenDeployer<
   }
 
   initializeFnSignature(name: string): string {
-    return name === 'TokenBridgeCctp'
-      ? 'initialize(address,address,string[])'
-      : 'initialize';
+    return TOKEN_INITIALIZE_SIGNATURE(name as any);
   }
 
   async initializeArgs(
@@ -136,6 +177,10 @@ abstract class TokenDeployer<
       isNativeTokenConfig(config)
     ) {
       return defaultArgs;
+    } else if (isOpL2TokenConfig(config)) {
+      return [config.hook ?? constants.AddressZero, config.owner];
+    } else if (isOpL1TokenConfig(config)) {
+      return [config.owner, config.urls];
     } else if (isCctpTokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner, config.urls];
     } else if (isSyntheticTokenConfig(config)) {

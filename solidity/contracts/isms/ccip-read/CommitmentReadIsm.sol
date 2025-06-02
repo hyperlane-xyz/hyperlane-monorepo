@@ -55,7 +55,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
     ) external returns (bool) {
         // This is hash(salt, calls). The ica address is excluded
         bytes32 revealedHash = keccak256(_metadata[20:]);
-        bytes32 msgCommitment = _message.body().commitment();
+        bytes32 msgCommitment = _message.body().revealCommitment();
         require(
             revealedHash == msgCommitment,
             "Commitment ISM: Revealed Hash Invalid"
