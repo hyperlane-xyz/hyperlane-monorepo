@@ -8,11 +8,14 @@ import {
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { DEPLOYER } from '../../owners.js';
 import {
   messageTransmitterAddresses,
   tokenMessengerAddresses,
   usdcTokenAddresses,
 } from '../cctp.js';
+
+const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
 const chains = [
   'ethereum',
@@ -38,7 +41,7 @@ export const getCCTPWarpConfig = async (
         token: usdcTokenAddresses[chain],
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
-        urls: ['https://offchain-lookup.services.hyperlane.xyz'],
+        urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
       };
       return [chain, config];
     }),
