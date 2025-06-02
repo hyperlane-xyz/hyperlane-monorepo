@@ -600,7 +600,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         destinationDomain: getDomainId('solanamainnet'),
       },
       { originDomain: getDomainId('starknet') },
-      { destinationDomain: getDomainId('starknet') },
     ],
   },
   {
