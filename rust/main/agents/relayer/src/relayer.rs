@@ -1221,76 +1221,76 @@ mod test {
 
     use super::Relayer;
 
-    /// Builds a test RelayerSetting
-    fn generate_test_relayer_settings(db_path: &Path) -> RelayerSettings {
-        let chains = [(
-            "arbitrum".to_string(),
-            ChainConf {
-                domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                signer: None,
-                submitter: Default::default(),
-                estimated_block_time: Duration::from_secs_f64(1.1),
-                reorg_period: ReorgPeriod::None,
-                addresses: CoreContractAddresses {
-                    mailbox: H256::from_slice(
-                        hex::decode(
-                            "000000000000000000000000598facE78a4302f11E3de0bee1894Da0b2Cb71F8",
-                        )
-                        .unwrap()
-                        .as_slice(),
-                    ),
-                    interchain_gas_paymaster: H256::from_slice(
-                        hex::decode(
-                            "000000000000000000000000c756cFc1b7d0d4646589EDf10eD54b201237F5e8",
-                        )
-                        .unwrap()
-                        .as_slice(),
-                    ),
-                    validator_announce: H256::from_slice(
-                        hex::decode(
-                            "0000000000000000000000001b33611fCc073aB0737011d5512EF673Bff74962",
-                        )
-                        .unwrap()
-                        .as_slice(),
-                    ),
-                    merkle_tree_hook: H256::from_slice(
-                        hex::decode(
-                            "000000000000000000000000AD34A66Bf6dB18E858F6B686557075568c6E031C",
-                        )
-                        .unwrap()
-                        .as_slice(),
-                    ),
-                },
-                connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
-                    rpc_connection: h_eth::RpcConnectionConf::Http {
-                        url: Url::parse("https://sepolia-rollup.arbitrum.io/rpc").unwrap(),
-                    },
-                    transaction_overrides: h_eth::TransactionOverrides {
-                        gas_price: None,
-                        gas_limit: None,
-                        max_fee_per_gas: None,
-                        max_priority_fee_per_gas: None,
-                        ..Default::default()
-                    },
-                    op_submission_config: OpSubmissionConfig {
-                        batch_contract_address: None,
-                        max_batch_size: 1,
-                        ..Default::default()
-                    },
-                }),
-                metrics_conf: PrometheusMiddlewareConf {
-                    contracts: HashMap::new(),
-                    chain: None,
-                },
-                index: IndexSettings {
-                    from: 0,
-                    chunk_size: 1,
-                    mode: IndexMode::Block,
-                },
-                ignore_reorg_reports: false,
-            },
-        )];
+    fn generate_test_core_contract_addresses() -> CoreContractAddresses {
+        CoreContractAddresses {
+            mailbox: H256::from_slice(
+                hex::decode("000000000000000000000000598facE78a4302f11E3de0bee1894Da0b2Cb71F8")
+                    .unwrap()
+                    .as_slice(),
+            ),
+            interchain_gas_paymaster: H256::from_slice(
+                hex::decode("000000000000000000000000c756cFc1b7d0d4646589EDf10eD54b201237F5e8")
+                    .unwrap()
+                    .as_slice(),
+            ),
+            validator_announce: H256::from_slice(
+                hex::decode("0000000000000000000000001b33611fCc073aB0737011d5512EF673Bff74962")
+                    .unwrap()
+                    .as_slice(),
+            ),
+            merkle_tree_hook: H256::from_slice(
+                hex::decode("000000000000000000000000AD34A66Bf6dB18E858F6B686557075568c6E031C")
+                    .unwrap()
+                    .as_slice(),
+            ),
+        }
+    }
 
+    fn generate_test_chain_conf(domain: HyperlaneDomain, rpc: &str) -> ChainConf {
+        ChainConf {
+            domain,
+            signer: None,
+            submitter: Default::default(),
+            estimated_block_time: Duration::from_secs_f64(1.1),
+            reorg_period: ReorgPeriod::None,
+            addresses: generate_test_core_contract_addresses(),
+            connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
+                rpc_connection: h_eth::RpcConnectionConf::Http {
+                    url: Url::parse(rpc).unwrap(),
+                },
+                transaction_overrides: h_eth::TransactionOverrides {
+                    gas_price: None,
+                    gas_limit: None,
+                    max_fee_per_gas: None,
+                    max_priority_fee_per_gas: None,
+                    ..Default::default()
+                },
+                op_submission_config: OpSubmissionConfig {
+                    batch_contract_address: None,
+                    max_batch_size: 1,
+                    ..Default::default()
+                },
+            }),
+            metrics_conf: PrometheusMiddlewareConf {
+                contracts: HashMap::new(),
+                chain: None,
+            },
+            index: IndexSettings {
+                from: 0,
+                chunk_size: 1,
+                mode: IndexMode::Block,
+            },
+            ignore_reorg_reports: false,
+        }
+    }
+
+    /// Builds a test RelayerSetting
+    fn generate_test_relayer_settings(
+        db_path: &Path,
+        chains: Vec<(String, ChainConf)>,
+        origin_chains: &[HyperlaneDomain],
+        destination_chains: &[HyperlaneDomain],
+    ) -> RelayerSettings {
         RelayerSettings {
             base: Settings {
                 chains: chains.into_iter().collect(),
@@ -1298,20 +1298,8 @@ mod test {
                 tracing: TracingConfig::default(),
             },
             db: db_path.to_path_buf(),
-            origin_chains: [
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-            ]
-            .into_iter()
-            .collect(),
-            destination_chains: [
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-            ]
-            .into_iter()
-            .collect(),
+            origin_chains: origin_chains.iter().cloned().collect(),
+            destination_chains: destination_chains.iter().cloned().collect(),
             gas_payment_enforcement: Vec::new(),
             whitelist: MatchingList::default(),
             blacklist: MatchingList::default(),
@@ -1328,20 +1316,175 @@ mod test {
         }
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
-    async fn test_from_settings() {
+    async fn test_from_settings_happy_path() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let settings = generate_test_relayer_settings(temp_dir.path());
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
         let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-        let core_settings: &Settings = settings.as_ref();
 
         let metrics = settings.as_ref().metrics("relayer").unwrap();
         let task_monitor = tokio_metrics::TaskMonitor::new();
-        let tokio_server = core_settings.tracing.start_tracing(&metrics).unwrap();
         let agent_metrics = AgentMetrics::new(&metrics).unwrap();
         let chain_metrics = ChainMetrics::new(&metrics).unwrap();
         let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_missing_chain_configs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_bad_rpc() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+
+        let chains = vec![(
+            KnownHyperlaneDomain::Arbitrum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                "http://localhost:9999/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_less_destinations() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+
+        let chains = vec![
+            (
+                KnownHyperlaneDomain::Arbitrum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+            (
+                KnownHyperlaneDomain::Ethereum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+        ];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
 
         Relayer::from_settings(
             agent_metadata,
@@ -1360,7 +1503,36 @@ mod test {
     #[tracing_test::traced_test]
     async fn test_failed_build_mailboxes() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let settings = generate_test_relayer_settings(temp_dir.path());
+        let db_path = temp_dir.path();
+
+        let chains = vec![
+            (
+                KnownHyperlaneDomain::Arbitrum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+            (
+                KnownHyperlaneDomain::Ethereum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+        ];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
@@ -1409,7 +1581,27 @@ mod test {
     #[tracing_test::traced_test]
     async fn test_failed_build_validator_announces() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let settings = generate_test_relayer_settings(temp_dir.path());
+        let db_path = temp_dir.path();
+
+        let chains = vec![(
+            KnownHyperlaneDomain::Arbitrum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
