@@ -122,8 +122,12 @@ contract HypNative is MovableCollateralRouter {
         uint256 amount,
         ValueTransferBridge bridge
     ) internal override {
-        uint fee = msg.value;
-        bridge.transferRemote{value: fee + amount}({
+        uint fee = msg.value + amount;
+        require(
+            address(this).balance >= fee,
+            "Native: rebalance amount exceeds balance"
+        );
+        bridge.transferRemote{value: fee}({
             destinationDomain: domain,
             recipient: recipient,
             amountOut: amount
