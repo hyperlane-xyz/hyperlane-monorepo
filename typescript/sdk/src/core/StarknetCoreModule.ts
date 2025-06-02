@@ -100,13 +100,7 @@ export class StarknetCoreModule {
       [],
     );
 
-    // 2. Default Hook - A basic hook implementation for message processing
-    const requiredHook = await this.deployer.deployContract(
-      StarknetContractName.HOOK,
-      [],
-    );
-
-    // 3. Protocol Fee Hook - Handles fee collection for cross-chain messages
+    // 2. Protocol Fee as Default Hook - Handles fee collection for cross-chain messages
     const protocolFee = await this.deployer.deployContract(
       StarknetContractName.PROTOCOL_FEE,
       [
@@ -117,6 +111,12 @@ export class StarknetCoreModule {
         PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
           .denom as MultiType,
       ],
+    );
+
+    // 3. Required Hook - A basic hook implementation for message processing
+    const requiredHook = await this.deployer.deployContract(
+      StarknetContractName.HOOK,
+      [],
     );
 
     // 4. Deploy Mailbox with initial configuration
