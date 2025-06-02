@@ -1,5 +1,3 @@
-import { format } from 'util';
-
 import {
   type ChainMap,
   type ChainMetadata,
@@ -10,7 +8,7 @@ import {
   type TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { stringifyObject, toWei } from '@hyperlane-xyz/utils';
+import { toWei } from '@hyperlane-xyz/utils';
 
 import { errorRed, log } from '../../logger.js';
 import { WrappedError } from '../../utils/errors.js';
@@ -28,7 +26,7 @@ export class Rebalancer implements IRebalancer {
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
-    log(`Rebalance initiated with ${routes.length} route(s)`);
+    log('Rebalance initiated', { numberOfRoutes: routes.length });
 
     if (routes.length === 0) {
       log('No routes to execute');
@@ -66,9 +64,12 @@ export class Rebalancer implements IRebalancer {
       const originTokenAmount = originToken.amount(amount);
       const decimalFormatAmount = originTokenAmount.getDecimalFormattedAmount();
 
-      log(
-        `Preparing transaction: from ${origin} to ${destination}, amount: ${decimalFormatAmount} ${originToken.name}`,
-      );
+      log('Preparing transaction', {
+        origin,
+        destination,
+        amount: decimalFormatAmount,
+        tokenName: originToken.name,
+      });
 
       const originHypAdapter = originToken.getHypAdapter(
         warpCore.multiProvider,
@@ -116,16 +117,24 @@ export class Rebalancer implements IRebalancer {
         toWei(bridgeMinAcceptedAmount, originTokenAmount.token.decimals),
       );
       if (minAccepted > amount) {
-        log(
-          `Route ${origin} → ${destination} skipped: amount ${decimalFormatAmount} ${originToken.name} below minimum threshold ${bridgeMinAcceptedAmount}`,
-        );
+        log('Route skipped due to minimum threshold', {
+          origin,
+          destination,
+          amount: amount.toString(),
+          tokenName: originToken.name,
+          configuredMinAcceptedAmount: bridgeMinAcceptedAmount.toString(),
+          effectiveMinAcceptedWei: minAccepted.toString(),
+        });
 
         continue;
       }
 
-      log(
-        `Getting rebalance quotes: domain=${domain}, amount=${decimalFormatAmount} ${originToken.name}, bridge=${bridge}`,
-      );
+      log('Getting rebalance quotes', {
+        domain,
+        amount: decimalFormatAmount,
+        tokenName: originToken.name,
+        bridge,
+      });
 
       let quotes: InterchainGasQuote[];
 
@@ -144,9 +153,12 @@ export class Rebalancer implements IRebalancer {
         );
       }
 
-      log(
-        `Populating rebalance transaction: domain=${domain}, amount=${decimalFormatAmount} ${originToken.name}, bridge=${bridge}`,
-      );
+      log('Populating rebalance transaction', {
+        domain,
+        amount: decimalFormatAmount,
+        tokenName: originToken.name,
+        bridge,
+      });
 
       const populatedTx = await originHypAdapter.populateRebalanceTx(
         domain,
@@ -165,12 +177,14 @@ export class Rebalancer implements IRebalancer {
     // Early return if no valid routes were found to rebalance.
     // This happens when all potential routes were skipped (e.g., due to minimum amounts)
     if (transactions.length === 0) {
-      log('Rebalance skipped: No routes to execute');
+      log('Rebalance skipped: No routes to execute after filtering');
 
       return;
     }
 
-    log('Estimating gas for all transactions');
+    log('Estimating gas for all transactions', {
+      numTransactions: transactions.length,
+    });
 
     // Estimate gas before sending transactions.
     // This is mainly to check that the transaction will not fail before sending them.
@@ -178,17 +192,20 @@ export class Rebalancer implements IRebalancer {
       transactions.map(async ({ populatedTx, route, originTokenAmount }) => {
         try {
           await this.multiProvider.estimateGas(route.origin, populatedTx);
-          log(
-            `Gas estimation succeeded for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-          );
+          log('Gas estimation succeeded for route', {
+            origin: route.origin,
+            destination: route.destination,
+            amount: originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: originTokenAmount.token.name,
+          });
         } catch (error) {
-          log(
-            `❌ Could not estimate gas for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-          );
+          log('Gas estimation failed for route (attempt details)', {
+            origin: route.origin,
+            destination: route.destination,
+            amount: originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: originTokenAmount.token.name,
+            err: error,
+          });
           throw error;
         }
       }),
@@ -198,42 +215,49 @@ export class Rebalancer implements IRebalancer {
       estimateGasResults.forEach((tx, index) => {
         if (tx.status === 'rejected') {
           const { route, originTokenAmount } = transactions[index];
-          errorRed(
-            `❌ Could not estimate gas for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-          );
+          errorRed('Could not estimate gas for route', {
+            origin: route.origin,
+            destination: route.destination,
+            amount: originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: originTokenAmount.token.name,
+            reason: tx.reason,
+          });
         }
       });
 
       throw new Error('❌ Could not estimate gas for some routes');
     }
 
-    log('Sending transactions');
+    log('Sending transactions', { numTransactions: transactions.length });
     const results = await Promise.allSettled(
       transactions.map(async ({ populatedTx, route, originTokenAmount }) => {
-        log(
-          `Sending transaction for route from ${route.origin} to ${
-            route.destination
-          } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-        );
+        log('Sending transaction for route', {
+          origin: route.origin,
+          destination: route.destination,
+          amount: originTokenAmount.getDecimalFormattedAmount(),
+          tokenName: originTokenAmount.token.name,
+        });
         try {
           const receipt = await this.multiProvider.sendTransaction(
             route.origin,
             populatedTx,
           );
-          log(
-            `Transaction confirmed for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${receipt.transactionHash}`,
-          );
+          log('Transaction confirmed for route', {
+            origin: route.origin,
+            destination: route.destination,
+            amount: originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: originTokenAmount.token.name,
+            txHash: receipt.transactionHash,
+          });
           return receipt;
         } catch (error) {
-          errorRed(
-            `Transaction failed for route from ${route.origin} to ${
-              route.destination
-            } for ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}, tx hash: ${error}`,
-          );
+          errorRed('Transaction failed for route', {
+            origin: route.origin,
+            destination: route.destination,
+            amount: originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: originTokenAmount.token.name,
+            err: error,
+          });
           throw error;
         }
       }),
@@ -243,16 +267,26 @@ export class Rebalancer implements IRebalancer {
       const result = results[i];
       const { route, originTokenAmount } = transactions[i];
 
-      log(
-        `Route result - Origin: ${route.origin}, Destination: ${
-          route.destination
-        }, Amount: ${originTokenAmount.getDecimalFormattedAmount()} ${originTokenAmount.token.name}`,
-      );
+      log('Route result summary', {
+        origin: route.origin,
+        destination: route.destination,
+        amount: originTokenAmount.getDecimalFormattedAmount(),
+        tokenName: originTokenAmount.token.name,
+        status: result.status,
+      });
 
       if (result.status === 'fulfilled') {
-        log(`Transaction receipt: ${stringifyObject(result.value)}`);
+        log('Transaction receipt details', {
+          origin: route.origin,
+          destination: route.destination,
+          receipt: result.value,
+        });
       } else {
-        errorRed(format(result.reason));
+        errorRed('Route processing failed', {
+          origin: route.origin,
+          destination: route.destination,
+          err: result.reason,
+        });
       }
     }
 

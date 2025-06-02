@@ -119,9 +119,10 @@ export class Metrics implements IMetrics {
       );
 
       if (!this.warpDeployConfig) {
-        warnYellow(
-          `Can't read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
-        );
+        warnYellow("Can't read warp deploy config, skipping extra lockboxes", {
+          tokenSymbol: token.symbol,
+          chain: token.chainName,
+        });
         return;
       }
 
@@ -132,7 +133,12 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.type !== TokenType.XERC20 &&
         currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
       ) {
-        errorRed('Token is xERC20 but token deploy config is not');
+        errorRed('Token type mismatch in deploy config for xERC20 token', {
+          tokenSymbol: token.symbol,
+          chain: token.chainName,
+          expectedType: [TokenType.XERC20, TokenType.XERC20Lockbox],
+          actualType: currentTokenDeployConfig.type,
+        });
         return;
       }
 
@@ -192,7 +198,11 @@ export class Metrics implements IMetrics {
     bridgedSupply?: bigint,
   ): Promise<WarpRouteBalance | undefined> {
     if (!token.isHypToken()) {
-      warnYellow('Cannot get bridged balance for a non-Hyperlane token', token);
+      warnYellow('Cannot get bridged balance for a non-Hyperlane token', {
+        tokenChain: token.chainName,
+        tokenSymbol: token.symbol,
+        tokenAddress: token.addressOrDenom,
+      });
       return undefined;
     }
 
@@ -200,7 +210,11 @@ export class Metrics implements IMetrics {
     let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
 
     if (bridgedSupply === undefined) {
-      warnYellow('Bridged supply not found for token', token);
+      warnYellow('Bridged supply not found for token', {
+        tokenChain: token.chainName,
+        tokenSymbol: token.symbol,
+        tokenAddress: token.addressOrDenom,
+      });
       return undefined;
     }
 

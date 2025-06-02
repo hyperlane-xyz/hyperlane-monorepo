@@ -45,7 +45,11 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const coinGeckoId = token.coinGeckoId;
 
     if (!coinGeckoId) {
-      warnYellow('CoinGecko ID missing for token', token.symbol);
+      warnYellow('CoinGecko ID missing for token', {
+        tokenSymbol: token.symbol,
+        chain: token.chainName,
+        tokenAddress: token.addressOrDenom,
+      });
       return undefined;
     }
 

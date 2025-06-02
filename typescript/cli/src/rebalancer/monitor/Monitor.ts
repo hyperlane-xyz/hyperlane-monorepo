@@ -51,7 +51,7 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-      logDebug(`Monitor started, polling every ${this.checkFrequency} ms...`);
+      logDebug('Monitor started', { checkFrequency: this.checkFrequency });
       this.emitter.emit(MonitorEventType.Start);
 
       while (this.isMonitorRunning) {
@@ -62,7 +62,11 @@ export class Monitor implements IMonitor {
           };
 
           for (const token of this.warpCore.tokens) {
-            logDebug(`Checking token: ${token.chainName}`);
+            logDebug('Checking token', {
+              chain: token.chainName,
+              tokenSymbol: token.symbol,
+              tokenAddress: token.addressOrDenom,
+            });
             const bridgedSupply = await this.getTokenBridgedSupply(token);
 
             event.tokensInfo.push({
@@ -102,9 +106,11 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      warnYellow(
-        `Cannot get bridged balance for a non-Hyperlane token: ${token.chainName}`,
-      );
+      warnYellow('Cannot get bridged balance for a non-Hyperlane token', {
+        chain: token.chainName,
+        tokenSymbol: token.symbol,
+        tokenAddress: token.addressOrDenom,
+      });
       return;
     }
 
@@ -112,7 +118,11 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      warnYellow(`Bridged supply not found for token: ${token.chainName}`);
+      warnYellow('Bridged supply not found for token', {
+        chain: token.chainName,
+        tokenSymbol: token.symbol,
+        tokenAddress: token.addressOrDenom,
+      });
     }
 
     return bridgedSupply;

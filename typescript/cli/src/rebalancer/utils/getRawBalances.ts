@@ -22,16 +22,25 @@ export function getRawBalances(
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
-      logDebug(
-        `[${getRawBalances.name}] Skipping token on chain ${token.chainName} that is not in chains list`,
-      );
+      logDebug('Skipping token: not in configured chains list', {
+        context: getRawBalances.name,
+        chain: token.chainName,
+        tokenSymbol: token.symbol,
+        tokenAddress: token.addressOrDenom,
+      });
       return acc;
     }
 
     // Ignore tokens that are not collateralized
     if (!isCollateralizedTokenEligibleForRebalancing(token)) {
       logDebug(
-        `[${getRawBalances.name}] Skipping token on chain ${token.chainName} that is not collateralized`,
+        'Skipping token: not collateralized or ineligible for rebalancing',
+        {
+          context: getRawBalances.name,
+          chain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
       );
       return acc;
     }

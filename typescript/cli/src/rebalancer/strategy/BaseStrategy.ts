@@ -27,15 +27,26 @@ export abstract class BaseStrategy implements IStrategy {
    * Main method to get rebalancing routes
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
-    logDebug(`[${this.constructor.name}] Input rawBalances:`, rawBalances);
-    logGray(`Calculating rebalancing routes using ${this.constructor.name}...`);
+    logDebug('Input rawBalances', {
+      context: this.constructor.name,
+      rawBalances,
+    });
+    logGray('Calculating rebalancing routes', {
+      context: this.constructor.name,
+    });
     this.validateRawBalances(rawBalances);
 
     // Get balances categorized by surplus and deficit
     const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
 
-    logDebug(`[${this.constructor.name}] Surpluses:`, surpluses);
-    logDebug(`[${this.constructor.name}] Deficits:`, deficits);
+    logDebug('Surpluses calculated', {
+      context: this.constructor.name,
+      surpluses,
+    });
+    logDebug('Deficits calculated', {
+      context: this.constructor.name,
+      deficits,
+    });
 
     // Calculate sums of surpluses and deficits
     const totalSurplus = surpluses.reduce(
@@ -47,15 +58,23 @@ export abstract class BaseStrategy implements IStrategy {
       0n,
     );
 
-    logDebug(`[${this.constructor.name}] Total surplus: ${totalSurplus}`);
-    logDebug(`[${this.constructor.name}] Total deficit: ${totalDeficit}`);
+    logDebug('Total surplus calculated', {
+      context: this.constructor.name,
+      totalSurplus: totalSurplus.toString(),
+    });
+    logDebug('Total deficit calculated', {
+      context: this.constructor.name,
+      totalDeficit: totalDeficit.toString(),
+    });
 
     // If total surplus is less than total deficit, scale down deficits proportionally
     // TODO: consider how to handle sum of targets > sum of collateral balances i.e throw or raise an alert
     if (totalSurplus < totalDeficit) {
-      warnYellow(
-        `[${this.constructor.name}] Deficits are greater than surpluses. Scaling deficits...`,
-      );
+      warnYellow('Deficits are greater than surpluses. Scaling deficits', {
+        context: this.constructor.name,
+        totalSurplus: totalSurplus.toString(),
+        totalDeficit: totalDeficit.toString(),
+      });
 
       for (const deficit of deficits) {
         const newAmount = (deficit.amount * totalSurplus) / totalDeficit;
@@ -63,7 +82,10 @@ export abstract class BaseStrategy implements IStrategy {
         deficit.amount = newAmount;
       }
 
-      logDebug(`[${this.constructor.name}] Scaled deficits:`, deficits);
+      logDebug('Scaled deficits', {
+        context: this.constructor.name,
+        deficits,
+      });
     }
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
@@ -104,10 +126,14 @@ export abstract class BaseStrategy implements IStrategy {
       }
     }
 
-    logDebug(`[${this.constructor.name}] Generated routes:`, routes);
-    logGray(
-      `Found ${routes.length} rebalancing route(s) using ${this.constructor.name}.`,
-    );
+    logDebug('Generated routes', {
+      context: this.constructor.name,
+      routes,
+    });
+    logGray(`Found rebalancing routes`, {
+      context: this.constructor.name,
+      numberOfRoutes: routes.length,
+    });
     return routes;
   }
 

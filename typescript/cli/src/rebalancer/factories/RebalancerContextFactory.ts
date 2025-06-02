@@ -44,7 +44,9 @@ export class RebalancerContextFactory {
     config: RebalancerConfig,
     context: WriteCommandContext,
   ): Promise<RebalancerContextFactory> {
-    logDebug('Creating RebalancerContextFactory');
+    logDebug('Creating RebalancerContextFactory', {
+      warpRouteId: config.warpRouteId,
+    });
     const { registry } = context;
     const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
@@ -64,7 +66,9 @@ export class RebalancerContextFactory {
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
 
-    logDebug('RebalancerContextFactory created successfully');
+    logDebug('RebalancerContextFactory created successfully', {
+      warpRouteId: config.warpRouteId,
+    });
     return new RebalancerContextFactory(
       config,
       metadata,
@@ -79,7 +83,7 @@ export class RebalancerContextFactory {
   }
 
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
-    logDebug('Creating Metrics');
+    logDebug('Creating Metrics', { warpRouteId: this.config.warpRouteId });
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
@@ -97,12 +101,18 @@ export class RebalancerContextFactory {
   }
 
   public createMonitor(): Monitor {
-    logDebug('Creating Monitor');
+    logDebug('Creating Monitor', {
+      warpRouteId: this.config.warpRouteId,
+      checkFrequency: this.config.checkFrequency,
+    });
     return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
   public async createStrategy(): Promise<IStrategy> {
-    logDebug('Creating Strategy');
+    logDebug('Creating Strategy', {
+      warpRouteId: this.config.warpRouteId,
+      strategyType: this.config.rebalanceStrategy,
+    });
     return StrategyFactory.createStrategy(
       this.config.rebalanceStrategy,
       this.config.chains,
@@ -112,7 +122,7 @@ export class RebalancerContextFactory {
   }
 
   public createRebalancer(): IRebalancer {
-    logDebug('Creating Rebalancer');
+    logDebug('Creating Rebalancer', { warpRouteId: this.config.warpRouteId });
     const rebalancer = new Rebalancer(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
