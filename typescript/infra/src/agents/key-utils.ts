@@ -380,7 +380,6 @@ function keysToPossiblyCreateOrDelete(
   agentConfig: AgentContextConfig,
 ): CloudAgentKey[] {
   const keys = getAllCloudAgentKeys(agentConfig);
-  // Filter out keys that are already created
   return keys.filter(
     (key) => !key.chainName || !isStarknetChain(key.chainName),
   );
