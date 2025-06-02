@@ -376,9 +376,7 @@ export async function createAgentKeysIfNotExistsWithPrompt(
 }
 
 // We can create or delete keys if they are not Starknet keys.
-function keysToPossiblyCreateOrDelete(
-  agentConfig: AgentContextConfig,
-): CloudAgentKey[] {
+function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
   const keys = getAllCloudAgentKeys(agentConfig);
   return keys.filter(
     (key) => !key.chainName || !isStarknetChain(key.chainName),
@@ -419,7 +417,7 @@ async function createAgentKeys(
 async function agentKeysToBeCreated(
   agentConfig: AgentContextConfig,
 ): Promise<string[]> {
-  const keysToCreateIfNotExist = keysToPossiblyCreateOrDelete(agentConfig);
+  const keysToCreateIfNotExist = getModifiableKeys(agentConfig);
 
   return (
     await Promise.all(
@@ -434,7 +432,7 @@ export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
   debugLog('Deleting agent keys');
 
   // Filter out Starknet keys - we don't want to delete them
-  const keysToDelete = keysToPossiblyCreateOrDelete(agentConfig);
+  const keysToDelete = getModifiableKeys(agentConfig);
 
   await Promise.all(keysToDelete.map((key) => key.delete()));
   await execCmd(
