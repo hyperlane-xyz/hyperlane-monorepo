@@ -58,8 +58,28 @@ export const renzoTokenPrices: ChainMap<string> = {
   worldchain: '1599.53',
 };
 export function getProtocolFee(chain: ChainName) {
-  return (0.5 / Number(renzoTokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
+  const price = renzoTokenPrices[chain];
+  assert(price, `No price for chain ${chain}`);
+  return (0.5 / Number(price)).toFixed(10).toString(); // ~$0.50 USD
 }
+
+const chainProtocolFee: Record<ChainName, string> = {
+  arbitrum: '400000000000000',
+  base: '400000000000000',
+  blast: '129871800000000',
+  bsc: '1400000000000000',
+  ethereum: '400000000000000',
+  fraxtal: '400000000000000',
+  linea: '400000000000000',
+  mode: '400000000000000',
+  optimism: '400000000000000',
+  sei: '798889224400000000',
+  swell: '129871800000000',
+  taiko: '400000000000000',
+  unichain: '400000000000000',
+  worldchain: '400000000000000',
+  zircuit: '400000000000000',
+};
 
 export function getRenzoHook(
   defaultHook: Address,
@@ -74,7 +94,11 @@ export function getRenzoHook(
         type: HookType.PROTOCOL_FEE,
         owner: owner,
         beneficiary: owner,
-        protocolFee: parseEther(getProtocolFee(chain)).toString(),
+
+        // Use hardcoded, actual onchain fees, or fallback to fee calculation
+        protocolFee:
+          chainProtocolFee[chain] ??
+          parseEther(getProtocolFee(chain)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
       },
     ],
