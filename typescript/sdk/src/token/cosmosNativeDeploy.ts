@@ -1,13 +1,7 @@
 import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import {
-  Address,
-  objFilter,
-  objMap,
-  objMerge,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -27,7 +21,6 @@ export class CosmosNativeDeployer {
 
   async deploy(
     configMap: WarpRouteDeployConfigMailboxRequired,
-    nonCosmosNativeConfigMap: WarpRouteDeployConfigMailboxRequired,
   ): Promise<ChainMap<Address>> {
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       gas: gasOverhead(config.type),
@@ -35,15 +28,10 @@ export class CosmosNativeDeployer {
     }));
 
     let result: ChainMap<Address> = {};
-    let token_id = '';
 
     const configMapToDeploy = objFilter(
       resolvedConfigMap,
       (_, config: any): config is any => !config.foreignDeployment,
-    );
-
-    const allChains = Object.keys(
-      objMerge(configMap, nonCosmosNativeConfigMap),
     );
 
     for (const chain of Object.keys(configMapToDeploy)) {
@@ -60,7 +48,6 @@ export class CosmosNativeDeployer {
             origin_mailbox: config.mailbox,
             origin_denom: config.token,
           });
-          token_id = collateralToken.id;
           result[chain] = collateralToken.id;
           break;
         }
@@ -70,46 +57,12 @@ export class CosmosNativeDeployer {
           ].createSyntheticToken({
             origin_mailbox: config.mailbox,
           });
-          token_id = syntheticToken.id;
           result[chain] = syntheticToken.id;
           break;
         }
         default: {
           throw new Error(`Token type ${config.type} not supported`);
         }
-      }
-
-      const allRemoteChains = this.multiProvider
-        .getRemoteChains(chain)
-        .filter((c) => allChains.includes(c));
-
-      const { remote_routers } = await this.signersMap[
-        chain
-      ].query.warp.RemoteRouters({ id: token_id });
-
-      for (const remote of allRemoteChains) {
-        const remoteDomain = this.multiProvider.getDomainId(remote);
-        const isRouteAlreadyDeployed = remote_routers.some(
-          (r) => r.receiver_domain === remoteDomain,
-        );
-
-        // only enroll routes which are not enrolled yet
-        if (isRouteAlreadyDeployed) {
-          this.logger.info(
-            `Router for remote domain already enrolled ${remoteDomain}`,
-          );
-          continue;
-        }
-
-        this.logger.info(`Enrolling remote router for domain ${remoteDomain}`);
-        await this.signersMap[chain].enrollRemoteRouter({
-          token_id,
-          remote_router: {
-            receiver_domain: remoteDomain,
-            receiver_contract: token_id,
-            gas: '0',
-          },
-        });
       }
     }
 

@@ -104,7 +104,10 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-      ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createSetDestinationGasUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
     );
 
@@ -220,10 +223,10 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with Cosmos transactions that need to be executed to update the destination gas
    */
-  createSetDestinationGasUpdateTxs(
+  async createSetDestinationGasUpdateTxs(
     actualConfig: HypTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedCosmJsNativeTransaction[] {
+  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
@@ -240,6 +243,17 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     const { destinationGas: expectedDestinationGas } = expectedConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
+    // refetch after routes have been previously enrolled without the "actualConfig"
+    // updating
+    const { remote_routers: actualRemoteRouters } =
+      await this.signer.query.warp.RemoteRouters({
+        id: this.args.addresses.deployedTokenRoute,
+      });
+
+    const alreadyEnrolledDomains = actualRemoteRouters.map(
+      (router) => router.receiver_domain,
+    );
+
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: string; gas: string }[] = [];
@@ -250,9 +264,21 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
         });
       });
 
-      // in cosmos updating the gas config is done with the MsgEnrollRemoteRouter
-      // transaction which updates the gas property on chain
+      // in cosmos updating the gas config is done by unenrolling the router and then
+      // enrolling it with the updating value again
       gasRouterConfigs.forEach(({ domain, gas }) => {
+        if (alreadyEnrolledDomains.includes(parseInt(domain))) {
+          updateTransactions.push({
+            annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+            typeUrl: R.MsgUnrollRemoteRouter.proto.type,
+            value: R.MsgUnrollRemoteRouter.proto.converter.create({
+              owner: actualConfig.owner,
+              token_id: this.args.addresses.deployedTokenRoute,
+              receiver_domain: parseInt(domain),
+            }),
+          });
+        }
+
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
           typeUrl: R.MsgEnrollRemoteRouter.proto.type,

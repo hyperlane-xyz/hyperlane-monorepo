@@ -256,19 +256,10 @@ async function executeDeploy(
           (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
         );
 
-        const nonCosmosNativeConfig = objFilter(
-          modifiedConfig,
-          (chain, _): _ is any =>
-            multiProvider.getProtocol(chain) !== ProtocolType.CosmosNative,
-        );
-
         const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
         deployedContracts = {
           ...deployedContracts,
-          ...(await deployer.deploy(
-            protocolSpecificConfig,
-            nonCosmosNativeConfig,
-          )),
+          ...(await deployer.deploy(protocolSpecificConfig)),
         };
 
         const { warpCoreConfig } = await getWarpCoreConfig(
