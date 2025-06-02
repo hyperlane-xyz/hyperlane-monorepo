@@ -19,7 +19,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
 
     /// @notice Mapping of domain to allowed rebalance bridges.
     /// @dev Keys constrained to a subset of Router.domains()
-    mapping(uint32 routerDomain => EnumerableSet.AddressSet)
+    mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges)
         internal _allowedBridges;
 
     /// @notice Set of addresses that are allowed to rebalance.
