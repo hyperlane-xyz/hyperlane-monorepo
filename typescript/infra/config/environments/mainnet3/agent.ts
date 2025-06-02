@@ -599,6 +599,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('infinityvmmainnet'),
         destinationDomain: getDomainId('solanamainnet'),
       },
+      { originDomain: getDomainId('starknet') },
+      { destinationDomain: getDomainId('starknet') },
     ],
   },
   {
