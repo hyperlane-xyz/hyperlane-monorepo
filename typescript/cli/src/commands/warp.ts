@@ -31,11 +31,16 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
+  IRebalancer,
+  IStrategy,
   MonitorEventType,
   MonitorPollingError,
+  MonitorStartError,
   RebalancerConfig,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
+import { Metrics } from '../rebalancer/metrics/Metrics.js';
+import { Monitor } from '../rebalancer/monitor/Monitor.js';
 import { getRawBalances } from '../rebalancer/utils/getRawBalances.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -519,9 +524,15 @@ export const rebalancer: CommandModuleWithWriteContext<{
     destination,
     amount,
   }) => {
+    let monitor: Monitor;
+    let strategy: IStrategy;
+    let rebalancer: IRebalancer | undefined;
+    let metrics: Metrics | undefined;
+    let rebalancerConfig: RebalancerConfig;
+
     try {
       // Load rebalancer config from disk
-      const rebalancerConfig = RebalancerConfig.load(config, {
+      rebalancerConfig = RebalancerConfig.load(config, {
         checkFrequency,
         withMetrics,
         monitorOnly,
@@ -536,7 +547,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       if (manual) {
         // These values will be enforced when manual is true given the 'implies' option in the builder.
-        // This will probably never fail, but allows the type to be infered as not undefined.
+        // This will probably never fail, but allows the type to be inferred as not undefined.
         assert(origin, '--origin is required');
         assert(destination, '--destination is required');
         assert(amount, '--amount is required');
@@ -549,25 +560,35 @@ export const rebalancer: CommandModuleWithWriteContext<{
         const rebalancer = contextFactory.createRebalancer();
         const originToken = warpCore.tokens.find((t) => t.chainName === origin);
 
-        await rebalancer.rebalance([
-          {
-            origin,
-            destination,
-            amount: BigInt(toWei(amount, originToken!.decimals)),
-          },
-        ]);
-
-        process.exit(0);
+        try {
+          await rebalancer.rebalance([
+            {
+              origin,
+              destination,
+              amount: BigInt(toWei(amount, originToken!.decimals)),
+            },
+          ]);
+          logGreen(
+            `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
+          );
+          process.exit(0);
+        } catch (e) {
+          errorRed(
+            `Error during manual rebalance attempt from ${origin} to ${destination}:`,
+            format(e),
+          );
+          process.exit(1);
+        }
       }
 
       // Instantiates the monitor that will observe the warp route
-      const monitor = contextFactory.createMonitor();
+      monitor = contextFactory.createMonitor();
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
-      const strategy = await contextFactory.createStrategy();
+      strategy = await contextFactory.createStrategy();
 
       // Instantiates the rebalancer in charge of executing the rebalancing transactions
-      const rebalancer = !rebalancerConfig.monitorOnly
+      rebalancer = !rebalancerConfig.monitorOnly
         ? contextFactory.createRebalancer()
         : undefined;
 
@@ -578,17 +599,22 @@ export const rebalancer: CommandModuleWithWriteContext<{
       }
 
       // Instantiates the metrics that will publish stats from the monitored data
-      const metrics = withMetrics
-        ? await contextFactory.createMetrics()
-        : undefined;
+      metrics = withMetrics ? await contextFactory.createMetrics() : undefined;
 
       if (withMetrics) {
         warnYellow(
           'Metrics collection has been enabled and will be gathered during execution',
         );
       }
+    } catch (e) {
+      errorRed('Rebalancer startup error:', format(e));
+      process.exit(1);
+    }
 
-      await monitor
+    try {
+      // Setup monitor event listeners before starting it.
+      // These handlers deal with events and errors occurring *after* the monitor has successfully started.
+      monitor
         // Observe balances events and process rebalancing routes
         .on(MonitorEventType.TokenInfo, (event) => {
           if (metrics) {
@@ -609,7 +635,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
           rebalancer?.rebalance(rebalancingRoutes).catch((e) => {
-            errorRed('Error while rebalancing:', format(e));
+            // This is an operational error during a specific rebalance execution attempt
+            errorRed('Error during rebalance execution:', format(e));
           });
         })
         // Observe monitor errors and exit
@@ -624,11 +651,16 @@ export const rebalancer: CommandModuleWithWriteContext<{
         // Observe monitor start and log success
         .on(MonitorEventType.Start, () => {
           logGreen('Rebalancer started successfully 🚀');
-        })
-        // Finally, starts the monitor to begin polling balances.
-        .start();
+        });
+
+      // Finally, starts the monitor to begin polling balances.
+      await monitor.start();
     } catch (e) {
-      errorRed('Rebalancer error:', format(e));
+      if (e instanceof MonitorStartError) {
+        errorRed('Rebalancer startup error:', format(e));
+      } else {
+        errorRed('Unexpected error:', format(e));
+      }
       process.exit(1);
     }
   },

@@ -1621,8 +1621,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
             'Rebalance initiated with 1 route(s)',
             `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=${manualRebalanceAmount} token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
-            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount} token`,
-            '✅ Rebalance successful',
+            `✅ Manual rebalance from ${CHAIN_NAME_2} to ${CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
           ],
           {
             timeout: 30000,
