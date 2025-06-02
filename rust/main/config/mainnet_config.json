@@ -7230,7 +7230,7 @@
       },
       "displayName": "Starknet",
       "domainId": 358974494,
-      "gasCurrencyCoinGeckoId": "ethereum",
+      "gasCurrencyCoinGeckoId": "starknet",
       "name": "starknet",
       "nativeToken": {
         "decimals": 18,
@@ -7245,7 +7245,7 @@
         },
         {
           "http": "https://rpc.starknet.lava.build:443"
-        }, 
+        },
         {
           "http": "https://starknet.api.onfinality.io/public"
         },
@@ -7265,7 +7265,18 @@
       "index": {
         "from": 804854,
         "chunk": 999
-      }
+      },
+      "technicalStack": "other",
+      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainAccountIsm": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainAccountRouter": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "proxyAdmin": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000"
     },
     "telos": {
       "blockExplorers": [
