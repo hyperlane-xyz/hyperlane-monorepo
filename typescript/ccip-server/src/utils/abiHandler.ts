@@ -12,6 +12,7 @@ import type { Request, Response } from 'express';
  * @param abi           ABI fragment or array of fragments describing the function
  * @param functionName  The name of the function to decode
  * @param serviceMethod A method that takes the decoded arguments and returns a Promise of the result
+ * @param skipResultEncoding If true, skips ABI-encoding the result and returns it as-is
  */
 export function createAbiHandler<F extends string>(
   abi: Readonly<JsonFragment[]>,
