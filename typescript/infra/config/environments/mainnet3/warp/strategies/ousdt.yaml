@@ -60,7 +60,8 @@ metis:
   submitter:
     chain: metis
     safeAddress: '0xf6B817Cf8b4440F38951851cf1160969039966A2'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 mode:
   submitter:
     chain: mode
@@ -80,7 +81,8 @@ soneium:
   submitter:
     chain: soneium
     safeAddress: '0x31Bf112F33556A0F1dc76881cfA8A36Bc2134A57'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 sonic:
   submitter:
     chain: sonic
@@ -90,7 +92,8 @@ superseed:
   submitter:
     chain: superseed
     safeAddress: '0x0731a8e0DC88Df79d9643BD6C1f26cfe6fa53382'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 unichain:
   submitter:
     chain: unichain

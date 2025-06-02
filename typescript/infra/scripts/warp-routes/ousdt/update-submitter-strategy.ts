@@ -47,13 +47,29 @@ async function main() {
   for (const [chain, config] of Object.entries(parsed.data)) {
     const { ownerType } = await determineGovernanceType(chain, config.owner);
     if (ownerType === Owner.SAFE) {
-      chainSubmissionStrategy[chain] = {
-        submitter: {
-          chain,
-          type: TxSubmitterType.GNOSIS_SAFE,
-          safeAddress: config.owner,
-        },
-      };
+      switch (chain) {
+        case 'metis':
+        case 'soneium':
+        case 'superseed':
+          chainSubmissionStrategy[chain] = {
+            submitter: {
+              chain,
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              version: '1.0',
+              safeAddress: config.owner,
+            },
+          };
+          break;
+        default:
+          chainSubmissionStrategy[chain] = {
+            submitter: {
+              chain,
+              type: TxSubmitterType.GNOSIS_SAFE,
+              safeAddress: config.owner,
+            },
+          };
+          break;
+      }
     } else {
       chainSubmissionStrategy[chain] = {
         submitter: {
