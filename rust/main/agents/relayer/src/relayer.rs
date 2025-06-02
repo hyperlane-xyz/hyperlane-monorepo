@@ -1320,235 +1320,6 @@ mod test {
         }
     }
 
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_from_settings_happy_path() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let db_path = temp_dir.path();
-        let chains = vec![(
-            "arbitrum".to_string(),
-            generate_test_chain_conf(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                None,
-                "https://sepolia-rollup.arbitrum.io/rpc",
-            ),
-        )];
-        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
-
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
-    }
-
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_from_settings_missing_chain_configs() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let db_path = temp_dir.path();
-        let chains = vec![(
-            "arbitrum".to_string(),
-            generate_test_chain_conf(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                None,
-                "https://sepolia-rollup.arbitrum.io/rpc",
-            ),
-        )];
-        let origin_chains = &[
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-        ];
-        let destination_chains = &[
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-        ];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
-
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
-    }
-
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_from_settings_bad_rpc() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let db_path = temp_dir.path();
-
-        let chains = vec![(
-            KnownHyperlaneDomain::Arbitrum.to_string(),
-            generate_test_chain_conf(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                None,
-                "http://localhost:9999/rpc",
-            ),
-        )];
-        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
-
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
-    }
-
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_from_settings_less_destinations() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let db_path = temp_dir.path();
-
-        let chains = vec![
-            (
-                KnownHyperlaneDomain::Arbitrum.to_string(),
-                generate_test_chain_conf(
-                    HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                    None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
-                ),
-            ),
-            (
-                KnownHyperlaneDomain::Ethereum.to_string(),
-                generate_test_chain_conf(
-                    HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-                    None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
-                ),
-            ),
-        ];
-        let origin_chains = &[
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-        ];
-        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
-
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
-    }
-
-    #[tracing_test::traced_test]
-    #[tokio::test]
-    async fn test_from_settings_bad_signer() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let db_path = temp_dir.path();
-        let chains = vec![(
-            "arbitrum".to_string(),
-            generate_test_chain_conf(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-                Some(SignerConf::HexKey { key: H256::zero() }),
-                "https://sepolia-rollup.arbitrum.io/rpc",
-            ),
-        )];
-        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
-
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
-    }
-
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn test_failed_build_mailboxes() {
@@ -1698,5 +1469,260 @@ mod test {
             .get_metric_with_label_values(&["optimism"])
             .unwrap();
         assert_eq!(metric.get(), 1);
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_and_run_happy_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        let agent = Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+
+        let future = agent.run();
+        assert!(tokio::time::timeout(Duration::from_secs(50), future)
+            .await
+            .is_err());
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_and_run_missing_chain_configs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        let agent = Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+
+        let future = agent.run();
+        assert!(tokio::time::timeout(Duration::from_secs(50), future)
+            .await
+            .is_err());
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_and_run_bad_rpc() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+
+        let chains = vec![(
+            KnownHyperlaneDomain::Arbitrum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
+                "http://localhost:9999/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        let agent = Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+
+        let future = agent.run();
+
+        assert!(tokio::time::timeout(Duration::from_secs(50), future)
+            .await
+            .is_err());
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_and_run_less_destinations() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+
+        let chains = vec![
+            (
+                KnownHyperlaneDomain::Arbitrum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    None,
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+            (
+                KnownHyperlaneDomain::Ethereum.to_string(),
+                generate_test_chain_conf(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                    None,
+                    "https://sepolia-rollup.arbitrum.io/rpc",
+                ),
+            ),
+        ];
+        let origin_chains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        let agent = Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+
+        let future = agent.run();
+        assert!(tokio::time::timeout(Duration::from_secs(50), future)
+            .await
+            .is_err());
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_and_run_bad_signer() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                Some(SignerConf::HexKey { key: H256::zero() }),
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        let agent = Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+
+        let future = agent.run();
+        assert!(tokio::time::timeout(Duration::from_secs(50), future)
+            .await
+            .is_err());
     }
 }
