@@ -325,7 +325,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return rebalancersToRemove.map((rebalancerToRemove) => ({
       chainId: this.chainId,
-      annotation: `Removing rebalancer role from "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+      annotation: `Removing rebalancer role from "${rebalancerToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
       to: this.args.addresses.deployedTokenRoute,
       data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
         'removeRebalancer(address)',
