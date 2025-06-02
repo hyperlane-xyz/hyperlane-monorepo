@@ -1,8 +1,8 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { logDebug } from '../../logger.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { RawBalances } from '../interfaces/IStrategy.js';
+import { rebalancerLogger } from '../utils/logger.js';
 
 import { isCollateralizedTokenEligibleForRebalancing } from './isCollateralizedTokenEligibleForRebalancing.js';
 
@@ -22,25 +22,28 @@ export function getRawBalances(
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
-      logDebug('Skipping token: not in configured chains list', {
-        context: getRawBalances.name,
-        chain: token.chainName,
-        tokenSymbol: token.symbol,
-        tokenAddress: token.addressOrDenom,
-      });
-      return acc;
-    }
-
-    // Ignore tokens that are not collateralized
-    if (!isCollateralizedTokenEligibleForRebalancing(token)) {
-      logDebug(
-        'Skipping token: not collateralized or ineligible for rebalancing',
+      rebalancerLogger.debug(
         {
           context: getRawBalances.name,
           chain: token.chainName,
           tokenSymbol: token.symbol,
           tokenAddress: token.addressOrDenom,
         },
+        'Skipping token: not in configured chains list',
+      );
+      return acc;
+    }
+
+    // Ignore tokens that are not collateralized
+    if (!isCollateralizedTokenEligibleForRebalancing(token)) {
+      rebalancerLogger.debug(
+        {
+          context: getRawBalances.name,
+          chain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
+        'Skipping token: not collateralized or ineligible for rebalancing',
       );
       return acc;
     }

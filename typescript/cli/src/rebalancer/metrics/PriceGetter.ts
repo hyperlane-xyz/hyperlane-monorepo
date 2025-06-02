@@ -5,7 +5,7 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { warnYellow } from '../../logger.js';
+import { monitorLogger } from '../utils/logger.js';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private constructor({
@@ -45,11 +45,14 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const coinGeckoId = token.coinGeckoId;
 
     if (!coinGeckoId) {
-      warnYellow('CoinGecko ID missing for token', {
-        tokenSymbol: token.symbol,
-        chain: token.chainName,
-        tokenAddress: token.addressOrDenom,
-      });
+      monitorLogger.warn(
+        {
+          tokenSymbol: token.symbol,
+          chain: token.chainName,
+          tokenAddress: token.addressOrDenom,
+        },
+        'CoinGecko ID missing for token',
+      );
       return undefined;
     }
 

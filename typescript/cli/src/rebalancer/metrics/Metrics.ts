@@ -1,5 +1,4 @@
 import { Contract, PopulatedTransaction } from 'ethers';
-import { format } from 'util';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
@@ -17,10 +16,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { errorRed, warnYellow } from '../../logger.js';
 import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { formatBigInt } from '../utils/formatBigInt.js';
+import { monitorLogger } from '../utils/logger.js';
 import { tryFn } from '../utils/tryFn.js';
 
 import { PriceGetter } from './PriceGetter.js';
@@ -165,10 +164,13 @@ export class Metrics implements IMetrics {
       );
 
       if (!this.warpDeployConfig) {
-        warnYellow("Can't read warp deploy config, skipping extra lockboxes", {
-          tokenSymbol: token.symbol,
-          chain: token.chainName,
-        });
+        monitorLogger.warn(
+          {
+            tokenSymbol: token.symbol,
+            chain: token.chainName,
+          },
+          "Can't read warp deploy config, skipping extra lockboxes",
+        );
         return;
       }
 
@@ -179,12 +181,15 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.type !== TokenType.XERC20 &&
         currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
       ) {
-        errorRed('Token type mismatch in deploy config for xERC20 token', {
-          tokenSymbol: token.symbol,
-          chain: token.chainName,
-          expectedType: [TokenType.XERC20, TokenType.XERC20Lockbox],
-          actualType: currentTokenDeployConfig.type,
-        });
+        monitorLogger.error(
+          {
+            tokenSymbol: token.symbol,
+            chain: token.chainName,
+            expectedType: [TokenType.XERC20, TokenType.XERC20Lockbox],
+            actualType: currentTokenDeployConfig.type,
+          },
+          'Token type mismatch in deploy config for xERC20 token',
+        );
         return;
       }
 
@@ -244,11 +249,14 @@ export class Metrics implements IMetrics {
     bridgedSupply?: bigint,
   ): Promise<WarpRouteBalance | undefined> {
     if (!token.isHypToken()) {
-      warnYellow('Cannot get bridged balance for a non-Hyperlane token', {
-        tokenChain: token.chainName,
-        tokenSymbol: token.symbol,
-        tokenAddress: token.addressOrDenom,
-      });
+      monitorLogger.warn(
+        {
+          tokenChain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
+        'Cannot get bridged balance for a non-Hyperlane token',
+      );
       return undefined;
     }
 
@@ -256,11 +264,14 @@ export class Metrics implements IMetrics {
     let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
 
     if (bridgedSupply === undefined) {
-      warnYellow('Bridged supply not found for token', {
-        tokenChain: token.chainName,
-        tokenSymbol: token.symbol,
-        tokenAddress: token.addressOrDenom,
-      });
+      monitorLogger.warn(
+        {
+          tokenChain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
+        'Bridged supply not found for token',
+      );
       return undefined;
     }
 
@@ -442,9 +453,14 @@ export class Metrics implements IMetrics {
     try {
       balance = await erc20tokenAdapter.getBalance(lockboxAddress);
     } catch (error) {
-      errorRed(
-        `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
-        format(error),
+      monitorLogger.error(
+        {
+          lockboxAddress,
+          chain: warpToken.chainName,
+          erc20TokenAddress,
+          error: error as Error,
+        },
+        'Error getting balance for contract at lockbox',
       );
       return;
     }
