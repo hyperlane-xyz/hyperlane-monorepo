@@ -61,6 +61,23 @@ import {
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
 };
+
+const getAllowedRebalancingBridgesByDomain = (
+  allowedRebalancingBridgesByDomain: NonNullable<
+    MovableTokenConfig['allowedRebalancingBridges']
+  >,
+): Record<string, Set<Address>> => {
+  return objMap(
+    allowedRebalancingBridgesByDomain,
+    (_domainId, allowedRebalancingBridges) => {
+      return new Set(
+        allowedRebalancingBridges.map((bridgeConfig) =>
+          normalizeAddressEvm(bridgeConfig.bridge),
+        ),
+      );
+    },
+  );
+};
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
@@ -357,22 +374,23 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const tokensToApprove = Object.values(
+    const tokensToApproveByAllowedBridge = Object.values(
       expectedConfig.allowedRebalancingBridges,
     ).reduce(
-      (acc, bridgeConfigs) => {
-        bridgeConfigs.forEach((config) => {
-          acc[config.bridge] ??= [];
-          acc[config.bridge].push(...(config.approvedTokens ?? []));
+      (acc, allowedBridgesConfigs) => {
+        allowedBridgesConfigs.forEach((bridgeConfig) => {
+          acc[bridgeConfig.bridge] ??= [];
+          acc[bridgeConfig.bridge].push(...(bridgeConfig.approvedTokens ?? []));
         });
 
         return acc;
       },
-      {} as Record<string, string[]>,
+      // allowed bridge -> tokens to approve
+      {} as Record<Address, Address[]>,
     );
 
-    const filteredTokensToApprove = await promiseObjAll(
-      objMap(tokensToApprove, async (bridge, tokens) => {
+    const filteredTokensToApproveByAllowedBridge = await promiseObjAll(
+      objMap(tokensToApproveByAllowedBridge, async (bridge, tokens) => {
         const filteredApprovals = [];
         for (const token of tokens) {
           const instance = IERC20__factory.connect(
@@ -394,11 +412,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       }),
     );
 
-    return Object.entries(filteredTokensToApprove).flatMap(
+    return Object.entries(filteredTokensToApproveByAllowedBridge).flatMap(
       ([bridge, tokensToApprove]) =>
         tokensToApprove.map((tokenToApprove) => ({
           chainId: this.chainId,
-          annotation: `Adding allowed bridge "${bridge}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
             'approveTokenForBridge(address,address)',
@@ -423,27 +441,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const formatAllowedBridges = (
-      allowedRebalancingBridgesByDomain: NonNullable<
-        MovableTokenConfig['allowedRebalancingBridges']
-      >,
-    ): Record<string, Set<Address>> => {
-      return objMap(
-        allowedRebalancingBridgesByDomain,
-        (_domainId, allowedRebalancingBridges) => {
-          return new Set(
-            allowedRebalancingBridges.map((bridgeConfig) =>
-              normalizeAddressEvm(bridgeConfig.bridge),
-            ),
-          );
-        },
-      );
-    };
-
-    const actualAllowedBridges = formatAllowedBridges(
+    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
       actualConfig.allowedRebalancingBridges ?? {},
     );
-    const expectedAllowedBridges = formatAllowedBridges(
+    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
       expectedConfig.allowedRebalancingBridges,
     );
     const rebalancingBridgesToAddByDomain = objMap(
@@ -493,27 +494,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const formatAllowedBridges = (
-      allowedRebalancingBridgesByDomain: NonNullable<
-        MovableTokenConfig['allowedRebalancingBridges']
-      >,
-    ): Record<string, Set<Address>> => {
-      return objMap(
-        allowedRebalancingBridgesByDomain,
-        (_domainId, allowedRebalancingBridges) => {
-          return new Set(
-            allowedRebalancingBridges.map((bridgeConfig) =>
-              normalizeAddressEvm(bridgeConfig.bridge),
-            ),
-          );
-        },
-      );
-    };
-
-    const actualAllowedBridges = formatAllowedBridges(
+    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
       actualConfig.allowedRebalancingBridges ?? {},
     );
-    const expectedAllowedBridges = formatAllowedBridges(
+    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
       expectedConfig.allowedRebalancingBridges,
     );
     const rebalancingBridgesToAddByDomain = objMap(

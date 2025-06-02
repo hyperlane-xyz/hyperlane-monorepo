@@ -20,6 +20,7 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  arrayToObject,
   assert,
   getLogLevel,
   isZeroishAddress,
@@ -165,20 +166,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
       try {
         const knownDomains = await movableToken.domains();
-
-        const allowedRebalancerBridges1 = Object.fromEntries(
-          knownDomains.map((domain) => [domain, []]),
-        );
-        const res = await promiseObjAll(
-          objMap(allowedRebalancerBridges1, (domain) =>
-            movableToken.allowedBridges(domain),
+        const allowedBridgesByDomain = await promiseObjAll(
+          objMap(
+            arrayToObject(knownDomains.map((domain) => domain.toString())),
+            (domain) => movableToken.allowedBridges(domain),
           ),
         );
 
         allowedRebalancingBridges = objFilter(
-          objMap(res, (_domain, bridges) =>
+          objMap(allowedBridgesByDomain, (_domain, bridges) =>
             bridges.map((bridge) => ({ bridge })),
           ),
+          // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
         );
       } catch (error) {
