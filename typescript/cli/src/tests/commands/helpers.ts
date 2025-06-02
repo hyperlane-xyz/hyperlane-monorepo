@@ -207,24 +207,11 @@ export const CONFIRM_DETECTED_TRUSTED_ISM_STEP: Readonly<TestPromptAction> = {
 
 //
 
-export const SETUP_CHAIN_SIGNERS_MANUALLY_STEPS: ReadonlyArray<TestPromptAction> =
-  [
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-  ];
+export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput) =>
+    currentOutput.includes('Please enter the private key for chain'),
+  input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+};
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
