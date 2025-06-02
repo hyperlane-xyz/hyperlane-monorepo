@@ -6,16 +6,16 @@ struct Quote {
     uint256 amount;
 }
 
-abstract contract ValueTransferBridge {
+interface ValueTransferBridge {
     function quoteTransferRemote(
         uint32 destinationDomain,
         bytes32 recipient,
         uint amountOut
-    ) public view virtual returns (Quote[] memory) {}
+    ) external view returns (Quote[] memory);
 
     function transferRemote(
         uint32 destinationDomain,
         bytes32 recipient,
         uint256 amountOut
-    ) external payable virtual returns (bytes32 transferId) {}
+    ) external payable returns (bytes32 transferId);
 }

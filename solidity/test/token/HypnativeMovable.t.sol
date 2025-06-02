@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
+import {ValueTransferBridge, Quote} from "contracts/token/interfaces/ValueTransferBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -19,6 +19,14 @@ contract MockValueTransferBridgeEth is ValueTransferBridge {
     ) external payable override returns (bytes32 transferId) {
         return keccak256("fake message");
     }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut
+    ) external view override returns (Quote[] memory) {
+        return new Quote[](0);
+    }
 }
 
 contract HypNativeMovableTest is Test {
@@ -33,6 +41,10 @@ contract HypNativeMovableTest is Test {
         router = new HypNative(1e18, address(new MockMailbox(uint32(1))));
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(0)))
+        );
         vtb = new MockValueTransferBridgeEth();
     }
 
@@ -41,13 +53,13 @@ contract HypNativeMovableTest is Test {
         router.addRebalancer(address(this));
 
         // Add the destination domain
-        router.addRecipient(
+        router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
 
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        router.addBridge(destinationDomain, vtb);
 
         // Setup - send ether to router
         deal(address(router), 1 ether);
@@ -57,5 +69,16 @@ contract HypNativeMovableTest is Test {
         // Assert
         assertEq(address(router).balance, 0);
         assertEq(address(vtb).balance, 1 ether);
+    }
+
+    function test_rebalance_NotEnoughBalance() public {
+        router.addRebalancer(address(this));
+        router.setRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.addBridge(destinationDomain, vtb);
+        vm.expectRevert("Native: rebalance amount exceeds balance");
+        router.rebalance(destinationDomain, 1 ether, vtb);
     }
 }
