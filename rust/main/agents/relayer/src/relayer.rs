@@ -327,31 +327,38 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
 
         // only iterate through destination chains that were successfully instantiated
-        let ccip_signer_futures = mailboxes
-            .keys()
-            .map(|destination| {
-                let destination_chain_setup =
-                    core.settings.chain_setup(destination).unwrap().clone();
-                let signer = destination_chain_setup.signer.clone();
-                async move {
-                    if !matches!(destination.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
-                        return (destination, None);
-                    }
-                    let signer = if let Some(builder) = signer {
-                        match builder.build::<hyperlane_ethereum::Signers>().await {
-                            Ok(signer) => Some(signer),
-                            Err(err) => {
-                                warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
-                                None
-                            }
-                        }
-                    } else {
-                        None
-                    };
-                    (destination, signer)
+        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(mailboxes.len());
+        for destination in mailboxes.keys() {
+            let destination_chain_setup = match core.settings.chain_setup(destination) {
+                Ok(setup) => setup.clone(),
+                Err(err) => {
+                    tracing::error!(?destination, ?err, "Destination chain setup failed");
+                    continue;
                 }
-            })
-            .collect::<Vec<_>>();
+            };
+            let signer = destination_chain_setup.signer.clone();
+            let future = async move {
+                if !matches!(
+                    destination.domain_protocol(),
+                    HyperlaneDomainProtocol::Ethereum
+                ) {
+                    return (destination, None);
+                }
+                let signer = if let Some(builder) = signer {
+                    match builder.build::<hyperlane_ethereum::Signers>().await {
+                        Ok(signer) => Some(signer),
+                        Err(err) => {
+                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                (destination, signer)
+            };
+            ccip_signer_futures.push(future);
+        }
         let ccip_signers = join_all(ccip_signer_futures)
             .await
             .into_iter()
@@ -971,7 +978,13 @@ impl Relayer {
         let entrypoint_futures: Vec<_> = settings
             .destination_chains
             .iter()
-            .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
+            .filter(|chain| {
+                settings
+                    .chains
+                    .get(&chain.to_string())
+                    .map(|chain| chain.submitter == SubmitterType::Lander)
+                    .unwrap_or(false)
+            })
             .map(|chain| {
                 (
                     chain.clone(),
@@ -1024,7 +1037,13 @@ impl Relayer {
         let dispatcher_futures: Vec<_> = settings
             .destination_chains
             .iter()
-            .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
+            .filter(|chain| {
+                settings
+                    .chains
+                    .get(&chain.to_string())
+                    .map(|chain| chain.submitter == SubmitterType::Lander)
+                    .unwrap_or(false)
+            })
             .map(|chain| {
                 (
                     chain.clone(),
@@ -1175,7 +1194,7 @@ impl Relayer {
 mod test {
     use std::{
         collections::{HashMap, HashSet},
-        path::PathBuf,
+        path::Path,
         time::Duration,
     };
 
@@ -1189,8 +1208,8 @@ mod test {
             ChainConf, ChainConnectionConf, CoreContractAddresses, IndexSettings, Settings,
             TracingConfig,
         },
-        ChainMetrics, CoreMetrics, BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP,
-        CRITICAL_ERROR_LABELS,
+        AgentMetadata, AgentMetrics, BaseAgent, ChainMetrics, CoreMetrics, RuntimeMetrics,
+        BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
         config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod,
@@ -1203,7 +1222,7 @@ mod test {
     use super::Relayer;
 
     /// Builds a test RelayerSetting
-    fn generate_test_relayer_settings() -> RelayerSettings {
+    fn generate_test_relayer_settings(db_path: &Path) -> RelayerSettings {
         let chains = [(
             "arbitrum".to_string(),
             ChainConf {
@@ -1278,7 +1297,7 @@ mod test {
                 metrics_port: 5000,
                 tracing: TracingConfig::default(),
             },
-            db: PathBuf::new(),
+            db: db_path.to_path_buf(),
             origin_chains: [
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
@@ -1310,9 +1329,38 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_from_settings() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings = generate_test_relayer_settings(temp_dir.path());
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+        let core_settings: &Settings = settings.as_ref();
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let tokio_server = core_settings.tracing.start_tracing(&metrics).unwrap();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+    }
+
+    #[tokio::test]
     #[tracing_test::traced_test]
     async fn test_failed_build_mailboxes() {
-        let settings = generate_test_relayer_settings();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings = generate_test_relayer_settings(temp_dir.path());
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
@@ -1360,7 +1408,8 @@ mod test {
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn test_failed_build_validator_announces() {
-        let settings = generate_test_relayer_settings();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings = generate_test_relayer_settings(temp_dir.path());
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
