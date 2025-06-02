@@ -5,7 +5,7 @@ use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 use hyperlane_base::{
-    db::{HyperlaneDb, HyperlaneRocksDB},
+    db::HyperlaneRocksDB,
     server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
 use hyperlane_core::HyperlaneMessage;
@@ -57,7 +57,17 @@ pub async fn handler(
         let dispatched_block_number = message.dispatched_block_number;
         match state.dbs.get(&message.message.origin) {
             Some(db) => {
-                store_message(db, &message.message, dispatched_block_number)?;
+                db.upsert_message(&message.message, dispatched_block_number)
+                    .map_err(|err| {
+                        let error_msg = "Failed to upsert message";
+                        tracing::debug!(message_id=?message.message.id(), ?err, "{error_msg}");
+                        ServerErrorResponse::new(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            ServerErrorBody {
+                                message: error_msg.to_string(),
+                            },
+                        )
+                    })?;
                 insertion_count += 1;
             }
             None => {
@@ -72,50 +82,6 @@ pub async fn handler(
         skipped,
     };
     Ok(ServerSuccessResponse::new(resp))
-}
-
-fn store_message(
-    db: &HyperlaneRocksDB,
-    message: &HyperlaneMessage,
-    dispatched_block_number: u64,
-) -> ServerResult<()> {
-    let id = message.id();
-    tracing::debug!(hyp_message=?message, "Storing new message in db");
-
-    db.store_message_by_id(&id, message).map_err(|err| {
-        let error_msg = "Failed to store message by id";
-        tracing::debug!(message_id=?id, ?err, "{error_msg}");
-        ServerErrorResponse::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            ServerErrorBody {
-                message: error_msg.to_string(),
-            },
-        )
-    })?;
-    db.store_message_id_by_nonce(&message.nonce, &id)
-        .map_err(|err| {
-            let error_msg = "Failed to store message id by nonce";
-            tracing::debug!(message_id=?id, ?err, "{error_msg}");
-            ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ServerErrorBody {
-                    message: error_msg.to_string(),
-                },
-            )
-        })?;
-    db.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)
-        .map_err(|err| {
-            let error_msg = "Failed to store message dispatched block number by nonce";
-            tracing::debug!(message_id=?id, ?err, "{error_msg}");
-            ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ServerErrorBody {
-                    message: error_msg.to_string(),
-                },
-            )
-        })?;
-
-    Ok(())
 }
 
 #[cfg(test)]
