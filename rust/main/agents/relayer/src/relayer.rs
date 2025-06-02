@@ -356,7 +356,7 @@ impl BaseAgent for Relayer {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
-                    tracing::error!(?destination, ?err, "chain_setup() failed");
+                    tracing::error!(?destination, ?err, "Destination chain setup failed");
                     continue;
                 }
             };
