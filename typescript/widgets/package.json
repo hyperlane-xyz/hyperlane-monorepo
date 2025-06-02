@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "13.1.1",
+  "version": "13.2.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
@@ -10,9 +10,9 @@
     "@cosmjs/stargate": "^0.32.4",
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
-    "@hyperlane-xyz/cosmos-sdk": "13.1.1",
-    "@hyperlane-xyz/sdk": "13.1.1",
-    "@hyperlane-xyz/utils": "13.1.1",
+    "@hyperlane-xyz/cosmos-sdk": "13.2.0",
+    "@hyperlane-xyz/sdk": "13.2.0",
+    "@hyperlane-xyz/utils": "13.2.0",
     "@interchain-ui/react": "^1.23.28",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@solana/wallet-adapter-react": "^0.15.32",
@@ -31,7 +31,7 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@eslint/js": "^9.15.0",
-    "@hyperlane-xyz/registry": "15.7.0",
+    "@hyperlane-xyz/registry": "16.0.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@storybook/addon-essentials": "^7.6.14",
     "@storybook/addon-interactions": "^7.6.14",

@@ -2051,6 +2051,7 @@
       "gasCurrencyCoinGeckoId": "moonbeam",
       "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.moonbeam.network",
       "index": {
+        "chunk": 1024,
         "from": 4719713
       },
       "interchainAccountIsm": "0x79b3730CE3685f65802aF1771319992bA960EB9D",
