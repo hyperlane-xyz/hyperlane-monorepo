@@ -211,13 +211,31 @@ contract MovableCollateralRouterTest is Test {
         assertEq(router.allowedRebalancers().length, 0);
     }
 
-    function testAllowedRecipient() public {
+    function testSetRecipient() public {
         router.setRecipient(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
         bytes32 recipient = router.allowedRecipient(destinationDomain);
         assertEq(recipient, bytes32(uint256(uint160(alice))));
+    }
+
+    function testSetRecipient_NotEnrolled() public {
+        router.unenrollRemoteRouter(destinationDomain);
+        vm.expectRevert(); // router not enrolled
+        router.setRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+    }
+
+    function testRemoveRecipient() public {
+        router.setRecipient(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.removeRecipient(destinationDomain);
+        assertEq(router.allowedRecipient(destinationDomain), bytes32(0));
     }
 
     function testAllRebalancers() public {
