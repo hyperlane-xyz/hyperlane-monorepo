@@ -97,6 +97,7 @@ export class RebalancerContextFactory {
       collateralTokenSymbol,
       warpDeployConfig,
       this.warpCore,
+      this.config.warpRouteId,
     );
   }
 

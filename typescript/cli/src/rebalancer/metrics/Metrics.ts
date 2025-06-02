@@ -26,6 +26,11 @@ import { tryFn } from '../utils/tryFn.js';
 import { PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
+  rebalancerConsecutiveExecutionFailures,
+  rebalancerExecutionErrorsTotal,
+  rebalancerExecutionTotal,
+  rebalancerLastExecutionStatus,
+  rebalancerPollingErrorsTotal,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
@@ -50,8 +55,49 @@ export class Metrics implements IMetrics {
     private readonly collateralTokenSymbol: string,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
     private readonly warpCore: WarpCore,
+    private readonly warpRouteId: string,
   ) {
     startMetricsServer(metricsRegister);
+  }
+
+  initializeRebalancerMetrics() {
+    rebalancerLastExecutionStatus
+      .labels({ warp_route_id: this.warpRouteId })
+      .set(0);
+    rebalancerConsecutiveExecutionFailures
+      .labels({ warp_route_id: this.warpRouteId })
+      .set(0);
+  }
+
+  recordRebalancerAttempt() {
+    rebalancerExecutionTotal.labels({ warp_route_id: this.warpRouteId }).inc();
+  }
+
+  recordRebalancerSuccess() {
+    rebalancerLastExecutionStatus
+      .labels({ warp_route_id: this.warpRouteId })
+      .set(0);
+    rebalancerConsecutiveExecutionFailures
+      .labels({ warp_route_id: this.warpRouteId })
+      .set(0);
+  }
+
+  recordRebalancerFailure() {
+    rebalancerExecutionErrorsTotal
+      .labels({ warp_route_id: this.warpRouteId })
+      .inc();
+    rebalancerLastExecutionStatus
+      .labels({ warp_route_id: this.warpRouteId })
+      .set(1);
+    rebalancerConsecutiveExecutionFailures
+      .labels({ warp_route_id: this.warpRouteId })
+      .inc();
+  }
+
+  recordPollingError() {
+    rebalancerPollingErrorsTotal
+      .labels({ warp_route_id: this.warpRouteId })
+      .inc();
   }
 
   async processToken({

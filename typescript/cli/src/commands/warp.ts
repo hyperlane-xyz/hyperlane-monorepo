@@ -574,9 +574,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
           process.exit(0);
         } catch (e) {
           errorRed(
-            `Error during manual rebalance attempt from ${origin} to ${destination}:`,
-            format(e),
+            `❌ Manual rebalance from ${origin} to ${destination} failed.`,
           );
+          errorRed(format(e));
           process.exit(1);
         }
       }
@@ -605,6 +605,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
         warnYellow(
           'Metrics collection has been enabled and will be gathered during execution',
         );
+
+        // Initialize execution status metrics, if metrics are enabled
+        metrics?.initializeRebalancerMetrics();
       }
     } catch (e) {
       errorRed('Rebalancer startup error:', format(e));
@@ -634,15 +637,27 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          rebalancer?.rebalance(rebalancingRoutes).catch((e) => {
-            // This is an operational error during a specific rebalance execution attempt
-            errorRed('Error during rebalance execution:', format(e));
-          });
+          if (rebalancingRoutes.length > 0) {
+            metrics?.recordRebalancerAttempt();
+            rebalancer
+              ?.rebalance(rebalancingRoutes)
+              .then(() => {
+                // On successful rebalance attempt by monitor
+                metrics?.recordRebalancerSuccess();
+                logGreen('Rebalancer completed a cycle successfully.');
+              })
+              .catch((e) => {
+                metrics?.recordRebalancerFailure();
+                // This is an operational error, log it but don't stop the monitor.
+                errorRed('Error while rebalancing:', format(e));
+              });
+          }
         })
         // Observe monitor errors and exit
         .on(MonitorEventType.Error, (e) => {
           if (e instanceof MonitorPollingError) {
             errorRed(e);
+            metrics?.recordPollingError();
           } else {
             // This will catch `MonitorStartError` and generic errors
             throw e;

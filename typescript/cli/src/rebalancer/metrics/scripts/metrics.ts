@@ -1,4 +1,4 @@
-import { Gauge, Registry } from 'prom-client';
+import { Counter, Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
@@ -76,6 +76,41 @@ const warpRouteValueAtRisk = new Gauge({
   help: 'Value at risk on chain for a given Warp Route',
   registers: [metricsRegister],
   labelNames: warpRouteValueAtRiskLabels,
+});
+
+export const rebalancerExecutionTotal = new Counter({
+  name: 'hyperlane_rebalancer_execution_total',
+  help: 'Total number of rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerExecutionErrorsTotal = new Counter({
+  name: 'hyperlane_rebalancer_execution_errors_total',
+  help: 'Total number of errors during rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerPollingErrorsTotal = new Counter({
+  name: 'hyperlane_rebalancer_polling_errors_total',
+  help: 'Total number of errors during the monitor polling phase.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerLastExecutionStatus = new Gauge({
+  name: 'hyperlane_rebalancer_last_execution_status',
+  help: 'Status of the last rebalance execution attempt (0 for success, 1 for failure).',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerConsecutiveExecutionFailures = new Gauge({
+  name: 'hyperlane_rebalancer_consecutive_execution_failures',
+  help: 'Number of consecutive failed rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
 });
 
 const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
