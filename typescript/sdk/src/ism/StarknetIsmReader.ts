@@ -82,11 +82,14 @@ export class StarknetIsmReader {
       ism.get_threshold(),
     ]);
 
-    const moduleConfigs = await Promise.all(
-      modules.map(async (moduleAddress: any) => {
-        return this.deriveIsmConfig(num.toHex64(moduleAddress.toString()));
-      }),
-    );
+    const moduleConfigs = [];
+
+    for (const moduleAddress of modules) {
+      const config = await this.deriveIsmConfig(
+        num.toHex64(moduleAddress.toString()),
+      );
+      moduleConfigs.push(config);
+    }
 
     return {
       type: IsmType.AGGREGATION,
