@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
+import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
 import {Quote} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -14,7 +14,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter {
+contract HypNative is MovableCollateralRouter {
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
 
@@ -122,8 +122,12 @@ contract HypNative is FungibleTokenRouter {
         uint256 amount,
         ValueTransferBridge bridge
     ) internal override {
-        uint fee = msg.value;
-        bridge.transferRemote{value: fee + amount}({
+        uint fee = msg.value + amount;
+        require(
+            address(this).balance >= fee,
+            "Native: rebalance amount exceeds balance"
+        );
+        bridge.transferRemote{value: fee}({
             destinationDomain: domain,
             recipient: recipient,
             amountOut: amount

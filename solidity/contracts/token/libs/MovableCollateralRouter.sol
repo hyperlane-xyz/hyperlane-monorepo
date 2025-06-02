@@ -2,53 +2,28 @@
 pragma solidity >=0.8.0;
 
 import {Router} from "contracts/client/Router.sol";
-import {ValueTransferBridge} from "./ValueTransferBridge.sol";
+import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
+import {ValueTransferBridge} from "../interfaces/ValueTransferBridge.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {EnumerableMapExtended, EnumerableMap} from "contracts/libs/EnumerableMapExtended.sol";
-
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract MovableCollateralRouter is Router {
+abstract contract MovableCollateralRouter is FungibleTokenRouter {
     using SafeERC20 for IERC20;
-    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice Mapping of domains to allowed recipients => router. For a given domain we have one router we send/receive messages from.
-    /// @dev mapping(uint32 destinationDomain => bytes32 recipient)
-    EnumerableMapExtended.UintToBytes32Map internal _allowedRecipients;
+    /// @notice Mapping of domain to allowed rebalance recipient.
+    /// @dev Keys constrained to a subset of Router.domains()
+    mapping(uint32 routerDomain => bytes32 recipient) public allowedRecipient;
 
-    /// @notice Returns all domains that have a recipient.
-    function allDomains() external view returns (uint32[] memory) {
-        return _allowedRecipients.uint32Keys();
-    }
+    /// @notice Mapping of domain to allowed rebalance bridges.
+    /// @dev Keys constrained to a subset of Router.domains()
+    mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges)
+        internal _allowedBridges;
 
-    /// @notice Returns recipient for a given domain.
-    function allowedRecipients(uint32 domain) external view returns (bytes32) {
-        (, bytes32 recipient) = _allowedRecipients.tryGet(domain);
-        return recipient;
-    }
-
-    mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
-        public allowedBridges;
-
-    /// @notice Mapping of address to true if the address is a rebalancer.
-    /// @dev mapping(address user => bool isRebalancer)
-    EnumerableMap.AddressToUintMap internal _allowedRebalancers;
-
-    /// @notice All rebalancers.
-    function allRebalancers() external view returns (address[] memory) {
-        return _allowedRebalancers.keys();
-    }
-
-    /// @notice Returns true if a given address is a rebalancer.
-    function allowedRebalancers(
-        address rebalancer
-    ) external view returns (bool) {
-        return _allowedRebalancers.contains(rebalancer);
-    }
+    /// @notice Set of addresses that are allowed to rebalance.
+    EnumerableSet.AddressSet internal _allowedRebalancers;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -56,8 +31,6 @@ abstract contract MovableCollateralRouter is Router {
         uint256 amount,
         address indexed rebalancer
     );
-
-    error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
     modifier onlyRebalancer() {
         require(
@@ -67,75 +40,46 @@ abstract contract MovableCollateralRouter is Router {
         _;
     }
 
-    function addRebalancer(address rebalancer) external onlyOwner {
-        _allowedRebalancers.set(rebalancer, 1);
+    modifier onlyAllowedBridge(uint32 domain, ValueTransferBridge bridge) {
+        EnumerableSet.AddressSet storage bridges = _allowedBridges[domain];
+        require(bridges.contains(address(bridge)), "MCR: Not allowed bridge");
+        _;
     }
 
-    function removeRebalancer(address rebalancer) external onlyOwner {
-        _allowedRebalancers.remove(rebalancer);
+    function allowedRebalancers() external view returns (address[] memory) {
+        return _allowedRebalancers.values();
     }
 
-    function addRebalancers(address[] calldata rebalancers) external onlyOwner {
-        for (uint256 i = 0; i < rebalancers.length; i++) {
-            _allowedRebalancers.set(rebalancers[i], 1);
-        }
+    function allowedBridges(
+        uint32 domain
+    ) external view returns (address[] memory) {
+        return _allowedBridges[domain].values();
     }
 
-    function removeRebalancers(
-        address[] calldata rebalancers
-    ) external onlyOwner {
-        for (uint256 i = 0; i < rebalancers.length; i++) {
-            _allowedRebalancers.remove(rebalancers[i]);
-        }
+    function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+        // constrain to a subset of Router.domains()
+        _mustHaveRemoteRouter(domain);
+        allowedRecipient[domain] = recipient;
     }
 
-    function rebalance(
-        uint32 domain,
-        uint256 amount,
-        ValueTransferBridge bridge
-    ) external payable onlyRebalancer {
-        address rebalancer = _msgSender();
-
-        (, bytes32 recipient) = _allowedRecipients.tryGet(domain);
-        if (recipient == bytes32(0)) {
-            recipient = _mustHaveRemoteRouter(domain);
-        }
-
-        if (!(allowedBridges[domain][bridge])) {
-            revert BadBridge({rebalancer: rebalancer, bridge: bridge});
-        }
-
-        _rebalance(domain, recipient, amount, bridge);
-        emit CollateralMoved({
-            domain: domain,
-            recipient: recipient,
-            amount: amount,
-            rebalancer: rebalancer
-        });
-    }
-
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ValueTransferBridge bridge
-    ) internal virtual {
-        bridge.transferRemote{value: msg.value}({
-            destinationDomain: domain,
-            recipient: recipient,
-            amountOut: amount
-        });
-    }
-
-    function addRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
-        _allowedRecipients.set(domain, recipient);
+    function removeRecipient(uint32 domain) external onlyOwner {
+        delete allowedRecipient[domain];
     }
 
     function addBridge(
-        ValueTransferBridge bridge,
-        uint32 destinationDomain
+        uint32 domain,
+        ValueTransferBridge bridge
     ) external onlyOwner {
-        allowedBridges[destinationDomain][bridge] = true;
+        // constrain to a subset of Router.domains()
+        _mustHaveRemoteRouter(domain);
+        _allowedBridges[domain].add(address(bridge));
+    }
+
+    function removeBridge(
+        uint32 domain,
+        ValueTransferBridge bridge
+    ) external onlyOwner {
+        _allowedBridges[domain].remove(address(bridge));
     }
 
     /**
@@ -149,5 +93,62 @@ abstract contract MovableCollateralRouter is Router {
         ValueTransferBridge bridge
     ) external onlyOwner {
         token.safeApprove(address(bridge), type(uint256).max);
+    }
+
+    function addRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.add(rebalancer);
+    }
+
+    function removeRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.remove(rebalancer);
+    }
+
+    /**
+     * @notice Rebalances the collateral between router domains.
+     * @param domain The domain to rebalance to.
+     * @param amount The amount of collateral to rebalance.
+     * @param bridge The bridge to use for the rebalance.
+     * @dev The caller must be an allowed rebalancer and the bridge must be an allowed bridge for the domain.
+     * @dev The recipient is the enrolled router if no recipient is set for the domain.
+     */
+    function rebalance(
+        uint32 domain,
+        uint256 amount,
+        ValueTransferBridge bridge
+    ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
+        address rebalancer = _msgSender();
+
+        bytes32 recipient = allowedRecipient[domain];
+        if (recipient == bytes32(0)) {
+            recipient = _mustHaveRemoteRouter(domain);
+        }
+
+        _rebalance(domain, recipient, amount, bridge);
+        emit CollateralMoved({
+            domain: domain,
+            recipient: recipient,
+            amount: amount,
+            rebalancer: rebalancer
+        });
+    }
+
+    /// @dev Constrains keys of rebalance mappings to Router.domains()
+    function _unenrollRemoteRouter(uint32 domain) internal override {
+        delete allowedRecipient[domain];
+        delete _allowedBridges[domain];
+        Router._unenrollRemoteRouter(domain);
+    }
+
+    function _rebalance(
+        uint32 domain,
+        bytes32 recipient,
+        uint256 amount,
+        ValueTransferBridge bridge
+    ) internal virtual {
+        bridge.transferRemote{value: msg.value}({
+            destinationDomain: domain,
+            recipient: recipient,
+            amountOut: amount
+        });
     }
 }
