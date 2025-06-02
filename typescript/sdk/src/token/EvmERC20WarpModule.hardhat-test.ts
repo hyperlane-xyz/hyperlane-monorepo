@@ -781,8 +781,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         deployedTokenRoute,
       );
 
-      console.log({ origImpl });
-
       // I need package_VERSION to return an old version in the `read` call performed in update
       const versionStub = sinon
         .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
@@ -800,11 +798,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       versionStub.restore();
 
       const updatedConfig = await evmERC20WarpModule.read();
-      console.log(
-        'Updated contract to have version: ',
-        updatedConfig.contractVersion,
-      );
-
       // Assert
       expect(updatedConfig.contractVersion).to.eq('7.1.5');
       const newImpl = await proxyImplementation(
