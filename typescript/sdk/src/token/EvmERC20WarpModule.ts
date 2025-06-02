@@ -51,7 +51,6 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
-  CONTRACTS_VERSION,
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
