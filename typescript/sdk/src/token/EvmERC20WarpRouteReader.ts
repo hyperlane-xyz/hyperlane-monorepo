@@ -40,11 +40,7 @@ import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
-import {
-  NON_ZERO_SENDER_ADDRESS,
-  TokenType,
-  isMovableCollateralTokenType,
-} from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
@@ -56,6 +52,7 @@ import {
   OpL2TokenConfig,
   TokenMetadata,
   XERC20TokenMetadata,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -140,12 +137,12 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     let allowedRebalancers: Address[] | undefined;
-    if (isMovableCollateralTokenType(type)) {
+    if (isMovableCollateralTokenConfig(tokenConfig)) {
       try {
         const rebalancers = await MovableCollateralRouter__factory.connect(
           warpRouteAddress,
           this.provider,
-        ).allRebalancers();
+        ).allowedRebalancers();
 
         allowedRebalancers = rebalancers.length ? rebalancers : undefined;
       } catch (error) {
@@ -155,12 +152,19 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
+
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+        allowedRebalancers,
+        proxyAdmin,
+        destinationGas,
+      };
     }
 
     return {
       ...routerConfig,
       ...tokenConfig,
-      allowedRebalancers,
       proxyAdmin,
       destinationGas,
     };

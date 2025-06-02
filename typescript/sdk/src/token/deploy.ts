@@ -333,30 +333,29 @@ abstract class TokenDeployer<
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
   ): Promise<void> {
-    const chainsToUpdate = objFilter(
-      configMap,
-      (_chain, config): config is HypTokenConfig =>
-        isMovableCollateralTokenConfig(config) && !!config.allowedRebalancers,
-    );
-
     await promiseObjAll(
-      objMap(chainsToUpdate, async (chain, config) => {
+      objMap(configMap, async (chain, config) => {
         const router = this.router(deployedContractsMap[chain]).address;
-
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
         if (rebalancers.length === 0) {
           return;
         }
 
-        await this.multiProvider.handleTx(
-          chain,
-          movableToken.addRebalancers(rebalancers),
-        );
+        for (const rebalancer of rebalancers) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addRebalancer(rebalancer),
+          );
+        }
       }),
     );
   }

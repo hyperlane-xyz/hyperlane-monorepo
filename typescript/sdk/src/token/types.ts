@@ -13,7 +13,7 @@ import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
-import { MovableTokenType, TokenType } from './config.js';
+import { TokenType } from './config.js';
 
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
@@ -149,10 +149,6 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
-  allowedRebalancers: z
-    .array(ZHash)
-    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-    .optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -459,24 +455,5 @@ function extractCCIPIsmMap(
   }
 }
 
-const isMovableTokenCheckConfigMap: Record<
-  MovableTokenType,
-  (config: any) => boolean
-> = {
-  [TokenType.collateral]: isCollateralTokenConfig,
-  [TokenType.collateralVault]: isCollateralTokenConfig,
-  [TokenType.collateralVaultRebase]: isCollateralTokenConfig,
-  [TokenType.native]: isNativeTokenConfig,
-  [TokenType.synthetic]: isCompliant(SyntheticTokenConfigSchema),
-  [TokenType.syntheticRebase]: isSyntheticRebaseTokenConfig,
-};
-
-export const isMovableCollateralTokenConfig = (config: any): boolean => {
-  if (!config.type) {
-    return false;
-  }
-
-  const checkFunction =
-    isMovableTokenCheckConfigMap[config.type as MovableTokenType];
-  return checkFunction ? checkFunction(config) : false;
-};
+export const isMovableCollateralTokenConfig = (config: unknown) =>
+  isCollateralTokenConfig(config) || isNativeTokenConfig(config);

@@ -29,6 +29,7 @@ import {
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   addressToBytes32,
   deepCopy,
   eqAddress,
@@ -53,7 +54,11 @@ import {
   TokenType,
   isMovableCollateralTokenType,
 } from './config.js';
-import { HypTokenRouterConfig, derivedHookAddress } from './types.js';
+import {
+  HypTokenRouterConfig,
+  derivedHookAddress,
+  isMovableCollateralTokenConfig,
+} from './types.js';
 
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
@@ -134,55 +139,51 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expectedRebalancers: string[],
   ) => {
     const currentConfig = await evmERC20WarpModule.read();
-    const currentRebalancers = Array.from(
-      currentConfig.allowedRebalancers ?? [],
-    );
 
-    expect(currentRebalancers.length).to.equal(expectedRebalancers.length);
-    currentRebalancers.forEach(
-      (rebalancer, idx) =>
-        expect(eqAddress(rebalancer, expectedRebalancers[idx])).to.be.true,
-    );
+    if (isMovableCollateralTokenConfig(currentConfig)) {
+      const currentRebalancers = Array.from(
+        currentConfig.allowedRebalancers ?? [],
+      );
+
+      expect(currentRebalancers.length).to.equal(expectedRebalancers.length);
+      currentRebalancers.forEach(
+        (rebalancer, idx) =>
+          expect(eqAddress(rebalancer, expectedRebalancers[idx])).to.be.true,
+      );
+    }
   };
 
-  const getMovableTokenConfig = (): Record<
-    MovableTokenType,
-    HypTokenRouterConfig
-  > => {
+  const getMovableTokenConfig = (
+    allowedRebalancers: Address[] = [],
+  ): Record<MovableTokenType, HypTokenRouterConfig> => {
     return {
       [TokenType.collateral]: {
         ...baseConfig,
         type: TokenType.collateral,
         token: token.address,
+        allowedRebalancers,
       },
       [TokenType.collateralVault]: {
         ...baseConfig,
         type: TokenType.collateralVault,
         token: vault.address,
+        allowedRebalancers,
       },
       [TokenType.collateralVaultRebase]: {
         ...baseConfig,
         type: TokenType.collateralVaultRebase,
         token: vault.address,
+        allowedRebalancers,
       },
       [TokenType.native]: {
         ...baseConfig,
         type: TokenType.native,
+        allowedRebalancers,
       },
-      [TokenType.synthetic]: {
+      [TokenType.nativeScaled]: {
         ...baseConfig,
-        type: TokenType.synthetic,
-        decimals: TOKEN_DECIMALS,
-        name: TOKEN_NAME,
-        symbol: TOKEN_NAME,
-      },
-      [TokenType.syntheticRebase]: {
-        ...baseConfig,
-        type: TokenType.syntheticRebase,
-        decimals: TOKEN_DECIMALS,
-        name: TOKEN_NAME,
-        symbol: TOKEN_NAME,
-        collateralChainName: chain,
+        type: TokenType.nativeScaled,
+        allowedRebalancers,
       },
     };
   };
@@ -327,20 +328,15 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   for (const tokenType of movableCollateralTypes) {
     it(`should deploy the token with rebalancers when the token is of type "${tokenType}"`, async () => {
-      const movableTokenConfigs = getMovableTokenConfig();
-
-      const config: HypTokenRouterConfig = deepCopy(
-        movableTokenConfigs[tokenType],
-      );
-
       const rebalancers = new Set([randomAddress(), randomAddress()]);
       const expectedRebalancers = Array.from(rebalancers);
+      const config = deepCopy(
+        getMovableTokenConfig(expectedRebalancers)[tokenType],
+      );
+
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
-        config: {
-          ...config,
-          allowedRebalancers: Array.from(rebalancers),
-        },
+        config,
         multiProvider,
         proxyFactoryFactories: ismFactoryAddresses,
       });
@@ -847,18 +843,13 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     for (const tokenType of movableCollateralTypes) {
       it(`should add a new rebalancer on the deployed token if it is of type "${tokenType}"`, async () => {
-        const movableTokenConfigs = getMovableTokenConfig();
-
-        const config: HypTokenRouterConfig = deepCopy(
-          movableTokenConfigs[tokenType],
-        );
         const initialRebalancer = randomAddress();
+        const config = deepCopy(
+          getMovableTokenConfig([initialRebalancer])[tokenType],
+        );
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config: {
-            ...config,
-            allowedRebalancers: [initialRebalancer],
-          },
+          config,
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });
@@ -878,28 +869,23 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     for (const tokenType of movableCollateralTypes) {
       it(`should remove a rebalancer on the deployed token if the token is of type "${tokenType}"`, async () => {
-        const movableTokenConfigs = getMovableTokenConfig();
-
-        const config: HypTokenRouterConfig = deepCopy(
-          movableTokenConfigs[tokenType],
-        );
-
         const rebalancerToKeep = randomAddress();
         const expectedRebalancers = [rebalancerToKeep];
+
         const rebalancers = new Set([rebalancerToKeep, randomAddress()]);
+        const config = deepCopy(
+          getMovableTokenConfig(Array.from(rebalancers))[tokenType],
+        );
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config: {
-            ...config,
-            allowedRebalancers: Array.from(rebalancers),
-          },
+          config,
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
         const txs = await evmERC20WarpModule.update({
           ...config,
-          allowedRebalancers: [rebalancerToKeep],
+          allowedRebalancers: expectedRebalancers,
         });
 
         expect(txs.length).to.equal(1);
@@ -911,19 +897,14 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     for (const tokenType of movableCollateralTypes) {
       it(`should not generate rebalancer update transactions if the address is in a different casing when token is of type "${tokenType}"`, async () => {
-        const movableTokenConfigs = getMovableTokenConfig();
-
-        const config: HypTokenRouterConfig = deepCopy(
-          movableTokenConfigs[tokenType],
+        const rebalancerToKeep = randomAddress();
+        const config = deepCopy(
+          getMovableTokenConfig([rebalancerToKeep.toLowerCase()])[tokenType],
         );
 
-        const rebalancerToKeep = randomAddress();
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config: {
-            ...config,
-            allowedRebalancers: [rebalancerToKeep.toLowerCase()],
-          },
+          config,
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });

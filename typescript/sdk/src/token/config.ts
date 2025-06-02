@@ -31,9 +31,9 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.native]: true,
   [TokenType.nativeOpL1]: false,
   [TokenType.nativeOpL2]: false,
-  [TokenType.nativeScaled]: false,
-  [TokenType.synthetic]: true,
-  [TokenType.syntheticRebase]: true,
+  [TokenType.nativeScaled]: true,
+  [TokenType.synthetic]: false,
+  [TokenType.syntheticRebase]: false,
   [TokenType.syntheticUri]: false,
 } as const;
 
