@@ -1,9 +1,10 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import { readFileAtPath } from '@hyperlane-xyz/cli/dist/src/utils/files.js';
-import { TokenStandard } from '@hyperlane-xyz/sdk';
+import { HypTokenConfig, TokenStandard } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistry } from '../../config/registry.js';
@@ -16,17 +17,26 @@ async function main() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
 
-  const configFileName = resolve(
+  const configDir = resolve(
     __dirname,
     `../../../../rust/sealevel/environments/mainnet3/warp-routes/${warpRouteId?.replace(/\//g, '-')}`,
   );
 
-  const tokenConfig = JSON.parse(
-    readFileAtPath(configFileName + '/token-config.json'),
+  const tokenConfigPath = resolve(configDir, 'token-config.json');
+  const programIdsPath = resolve(configDir, 'program-ids.json');
+
+  if (!existsSync(tokenConfigPath)) {
+    throw new Error(`Token config file not found: ${tokenConfigPath}`);
+  }
+  if (!existsSync(programIdsPath)) {
+    throw new Error(`Program IDs file not found: ${programIdsPath}`);
+  }
+
+  const tokenConfig: HypTokenConfig = JSON.parse(
+    readFileAtPath(tokenConfigPath),
   );
-  const programIds = JSON.parse(
-    readFileAtPath(configFileName + '/program-ids.json'),
-  );
+  const programIds: Record<string, { hex: string; base58: string }> =
+    JSON.parse(readFileAtPath(programIdsPath));
 
   const names = [
     ...new Set(
@@ -133,4 +143,4 @@ export function queryMintAuthority(rpcUrl: string, programId: string): string {
   return match[1];
 }
 
-main().catch((err) => rootLogger.error('Error:', err));
+main().catch((err) => rootLogger.error(`Error: ${err.message}`));
