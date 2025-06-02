@@ -10,7 +10,19 @@ async function main() {
     console.log(`Generating Warp config for ${warpRouteId}`, warpConfig);
 
     for (const chain of Object.keys(warpConfig)) {
-      const { ownerOverrides, owner, proxyAdmin } = warpConfig[chain];
+      const { ownerOverrides, owner, proxyAdmin, interchainSecurityModule } =
+        warpConfig[chain];
+      if (
+        interchainSecurityModule ===
+        '0x0000000000000000000000000000000000000000'
+      ) {
+        delete warpConfig[chain].interchainSecurityModule;
+        console.log(
+          `Removed 'interchainSecurityModule' for ${warpRouteId} on ${chain}:`,
+          warpConfig[chain],
+        );
+      }
+
       if (proxyAdmin && proxyAdmin.owner === owner) {
         delete warpConfig[chain].proxyAdmin;
         console.log(
@@ -32,7 +44,7 @@ async function main() {
       }
     }
 
-    registry.updateWarpRouteConfig(warpConfig, { warpRouteId });
+    registry.addWarpRouteConfig(warpConfig, { warpRouteId });
   }
   console.log('Successfully simplified warp configs');
 }
