@@ -339,15 +339,21 @@ abstract class TokenDeployer<
       throw err;
     }
 
-    const resolvedConfigMap = objMap(configMap, (_, config) => ({
-      ...tokenMetadata,
-      gas: gasOverhead(config.type),
-      ...config,
-    }));
+    const resolvedConfigMap = await promiseObjAll(
+      objMap(configMap, async (chain, config) => ({
+        ...tokenMetadata,
+        gas: gasOverhead(config.type),
+        ...config,
+        // override intermediate owner to the signer
+        owner: await this.multiProvider.getSigner(chain).getAddress(),
+      })),
+    );
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    await super.transferOwnership(deployedContractsMap, configMap);
 
     return deployedContractsMap;
   }
