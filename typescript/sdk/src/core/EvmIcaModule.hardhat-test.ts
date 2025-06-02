@@ -6,6 +6,7 @@ import hre from 'hardhat';
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
+import { IcaRouterConfig } from '../ica/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -30,6 +31,11 @@ describe('EvmIcaModule', async () => {
         config: {
           mailbox: mailbox.address,
           owner: signer.address,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            urls: ['https://commitment-read-ism.hyperlane.xyz'],
+            owner: signer.address,
+          },
         },
         multiProvider,
       });
@@ -41,17 +47,15 @@ describe('EvmIcaModule', async () => {
     });
 
     it('should configure commitment ISM', async () => {
-      const urls = ['https://example.com'];
-
-      const config = {
+      const config: IcaRouterConfig = {
         mailbox: mailbox.address,
         owner: signer.address,
         commitmentIsm: {
           owner: signer.address,
           type: IsmType.OFFCHAIN_LOOKUP,
-          urls,
+          urls: ['https://example.com'],
         },
-      } as const;
+      };
 
       const evmIcaModule = await EvmIcaModule.create({
         chain: TestChainName.test1,

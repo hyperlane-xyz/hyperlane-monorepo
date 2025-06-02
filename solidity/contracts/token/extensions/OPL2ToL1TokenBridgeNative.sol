@@ -19,6 +19,7 @@ contract OpL2NativeTokenBridge is HypNative {
     using TypeCasts for bytes32;
     using StandardHookMetadata for bytes;
     using Address for address payable;
+    using Address for address;
 
     uint256 internal constant PROVE_WITHDRAWAL_GAS_LIMIT = 500_000;
     uint256 internal constant FINALIZE_WITHDRAWAL_GAS_LIMIT = 300_000;
@@ -31,7 +32,16 @@ contract OpL2NativeTokenBridge is HypNative {
         address _mailbox,
         address _l2Bridge
     ) HypNative(SCALE, _mailbox) {
+        require(_l2Bridge.isContract(), "L2 bridge must be a contract");
         l2Bridge = IStandardBridge(payable(_l2Bridge));
+    }
+
+    function initialize(
+        address _hook,
+        address _owner
+    ) public virtual initializer {
+        // ISM should not be set (contract does not receive messages currently)
+        _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
     function quoteTransferRemote(
@@ -144,6 +154,17 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
     using Message for bytes;
     using TokenMessage for bytes;
 
+    function initialize(
+        address _owner,
+        string[] memory _urls
+    ) public virtual initializer {
+        __Ownable_init();
+        setUrls(_urls);
+        // ISM should not be set (this contract uses itself as ISM)
+        // hook should not be set (this contract does not send messages)
+        _MailboxClient_initialize(address(0), address(0), _owner);
+    }
+
     function _transferRemote(
         uint32,
         bytes32,
@@ -186,9 +207,8 @@ contract OpL1V1NativeTokenBridge is
 {
     constructor(
         address _mailbox,
-        address _opPortal,
-        string[] memory _urls
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
+        address _opPortal
+    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -197,7 +217,6 @@ contract OpL1V2NativeTokenBridge is
 {
     constructor(
         address _mailbox,
-        address _opPortal,
-        string[] memory _urls
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal, _urls) {}
+        address _opPortal
+    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }

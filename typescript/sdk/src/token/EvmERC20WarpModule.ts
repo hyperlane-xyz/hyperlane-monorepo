@@ -52,6 +52,7 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  MovableTokenConfig,
   derivedHookAddress,
   derivedIsmAddress,
   isMovableCollateralTokenConfig,
@@ -288,17 +289,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    return [
-      {
-        chainId: this.chainId,
-        annotation: `Adding rebalancer role to "${rebalancersToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
-        to: this.args.addresses.deployedTokenRoute,
-        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-          'addRebalancers',
-          [rebalancersToAdd],
-        ),
-      },
-    ];
+    return rebalancersToAdd.map((rebalancerToAdd) => ({
+      chainId: this.chainId,
+      annotation: `Adding rebalancer role to "${rebalancerToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+      to: this.args.addresses.deployedTokenRoute,
+      data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+        'addRebalancer(address)',
+        [rebalancerToAdd],
+      ),
+    }));
   }
 
   createRemoveRebalancersUpdateTxs(
@@ -332,17 +331,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    return [
-      {
-        chainId: this.chainId,
-        annotation: `Removing rebalancer role from "${rebalancersToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
-        to: this.args.addresses.deployedTokenRoute,
-        data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-          'removeRebalancers',
-          [rebalancersToRemove],
-        ),
-      },
-    ];
+    return rebalancersToRemove.map((rebalancerToRemove) => ({
+      chainId: this.chainId,
+      annotation: `Removing rebalancer role from "${rebalancerToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+      to: this.args.addresses.deployedTokenRoute,
+      data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+        'removeRebalancer(address)',
+        [rebalancerToRemove],
+      ),
+    }));
   }
 
   async getAllowedBridgesApprovalTxs(
@@ -428,7 +425,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const formatAllowedBridges = (
       allowedRebalancingBridgesByDomain: NonNullable<
-        HypTokenRouterConfig['allowedRebalancingBridges']
+        MovableTokenConfig['allowedRebalancingBridges']
       >,
     ): Record<string, Set<Address>> => {
       return objMap(
@@ -498,7 +495,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const formatAllowedBridges = (
       allowedRebalancingBridgesByDomain: NonNullable<
-        HypTokenRouterConfig['allowedRebalancingBridges']
+        MovableTokenConfig['allowedRebalancingBridges']
       >,
     ): Record<string, Set<Address>> => {
       return objMap(
@@ -884,17 +881,23 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
 
-    if (config.allowedRebalancers && config.allowedRebalancers.length !== 0) {
+    if (
+      isMovableCollateralTokenConfig(config) &&
+      config.allowedRebalancers &&
+      config.allowedRebalancers.length !== 0
+    ) {
       const addRebalancerTxs = await warpModule.createAddRebalancersUpdateTxs(
         actualConfig,
         config,
       ); // @TODO Remove when EvmERC20WarpModule.create can be used
 
-      const onlyTxIndex = 0;
-      await multiProvider.sendTransaction(chain, addRebalancerTxs[onlyTxIndex]);
+      for (const tx of addRebalancerTxs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
     }
 
     if (
+      isMovableCollateralTokenConfig(config) &&
       config.allowedRebalancingBridges &&
       !isObjEmpty(config.allowedRebalancingBridges)
     ) {

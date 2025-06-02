@@ -43,11 +43,7 @@ import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
-import {
-  NON_ZERO_SENDER_ADDRESS,
-  TokenType,
-  isMovableCollateralTokenType,
-} from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
@@ -55,10 +51,12 @@ import {
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
+  MovableTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
   TokenMetadata,
   XERC20TokenMetadata,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -143,15 +141,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     let allowedRebalancers: Address[] | undefined;
-    let allowedRebalancingBridges: DerivedTokenRouterConfig['allowedRebalancingBridges'];
-    if (isMovableCollateralTokenType(type)) {
+    let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    if (isMovableCollateralTokenConfig(tokenConfig)) {
       const movableToken = MovableCollateralRouter__factory.connect(
         warpRouteAddress,
         this.provider,
       );
 
       try {
-        const rebalancers = await movableToken.rebalancers();
+        const rebalancers = await MovableCollateralRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ).allowedRebalancers();
 
         allowedRebalancers = rebalancers.length ? rebalancers : undefined;
       } catch (error) {
@@ -187,13 +188,19 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+        allowedRebalancers,
+        allowedRebalancingBridges,
+        proxyAdmin,
+        destinationGas,
+      } as DerivedTokenRouterConfig;
     }
 
     return {
       ...routerConfig,
       ...tokenConfig,
-      allowedRebalancers,
-      allowedRebalancingBridges,
       proxyAdmin,
       destinationGas,
     };

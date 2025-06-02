@@ -543,7 +543,11 @@ describe('hyperlane warp check e2e tests', async function () {
   }
 
   it('should successfully check allowedRebalancers', async () => {
-    warpConfig[CHAIN_NAME_3].allowedRebalancers = [randomAddress()];
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
     await deployAndExportWarpRoute();
 
     const output = await hyperlaneWarpCheckRaw({
@@ -558,10 +562,14 @@ describe('hyperlane warp check e2e tests', async function () {
   });
 
   it('should report a violation if no rebalancers are in the config but are set on chain', async () => {
-    warpConfig[CHAIN_NAME_3].allowedRebalancers = [randomAddress()];
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
     await deployAndExportWarpRoute();
 
-    warpConfig[CHAIN_NAME_3].allowedRebalancers = undefined;
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = undefined;
     const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
       '-config.yaml',
       '-deploy.yaml',
@@ -579,6 +587,10 @@ describe('hyperlane warp check e2e tests', async function () {
   });
 
   it('should successfully check the allowed rebalancing bridges', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
     warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
       [chain3DomainId]: [{ bridge: randomAddress() }],
     };
@@ -596,6 +608,10 @@ describe('hyperlane warp check e2e tests', async function () {
   });
 
   it('should report a violation if no allowed bridges are in the config but are set on chain', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
     warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
       [chain3DomainId]: [{ bridge: randomAddress() }],
     };
