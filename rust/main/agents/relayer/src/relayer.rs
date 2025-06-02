@@ -1206,7 +1206,7 @@ mod test {
     use hyperlane_base::{
         settings::{
             ChainConf, ChainConnectionConf, CoreContractAddresses, IndexSettings, Settings,
-            TracingConfig,
+            SignerConf, TracingConfig,
         },
         AgentMetadata, AgentMetrics, BaseAgent, ChainMetrics, CoreMetrics, RuntimeMetrics,
         BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
@@ -1246,10 +1246,14 @@ mod test {
         }
     }
 
-    fn generate_test_chain_conf(domain: HyperlaneDomain, rpc: &str) -> ChainConf {
+    fn generate_test_chain_conf(
+        domain: HyperlaneDomain,
+        signer: Option<SignerConf>,
+        rpc: &str,
+    ) -> ChainConf {
         ChainConf {
             domain,
-            signer: None,
+            signer,
             submitter: Default::default(),
             estimated_block_time: Duration::from_secs_f64(1.1),
             reorg_period: ReorgPeriod::None,
@@ -1325,6 +1329,7 @@ mod test {
             "arbitrum".to_string(),
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
                 "https://sepolia-rollup.arbitrum.io/rpc",
             ),
         )];
@@ -1365,6 +1370,7 @@ mod test {
             "arbitrum".to_string(),
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
                 "https://sepolia-rollup.arbitrum.io/rpc",
             ),
         )];
@@ -1414,6 +1420,7 @@ mod test {
             KnownHyperlaneDomain::Arbitrum.to_string(),
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
                 "http://localhost:9999/rpc",
             ),
         )];
@@ -1456,6 +1463,7 @@ mod test {
                 KnownHyperlaneDomain::Arbitrum.to_string(),
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    None,
                     "https://sepolia-rollup.arbitrum.io/rpc",
                 ),
             ),
@@ -1463,6 +1471,7 @@ mod test {
                 KnownHyperlaneDomain::Ethereum.to_string(),
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                    None,
                     "https://sepolia-rollup.arbitrum.io/rpc",
                 ),
             ),
@@ -1472,6 +1481,47 @@ mod test {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
+        let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+        let settings =
+            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer").unwrap();
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
+        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+        .expect("Failed to build relayer");
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_from_settings_bad_signer() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path();
+        let chains = vec![(
+            "arbitrum".to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                Some(SignerConf::HexKey { key: H256::zero() }),
+                "https://sepolia-rollup.arbitrum.io/rpc",
+            ),
+        )];
+        let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
@@ -1510,6 +1560,7 @@ mod test {
                 KnownHyperlaneDomain::Arbitrum.to_string(),
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    None,
                     "https://sepolia-rollup.arbitrum.io/rpc",
                 ),
             ),
@@ -1517,6 +1568,7 @@ mod test {
                 KnownHyperlaneDomain::Ethereum.to_string(),
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                    None,
                     "https://sepolia-rollup.arbitrum.io/rpc",
                 ),
             ),
@@ -1587,6 +1639,7 @@ mod test {
             KnownHyperlaneDomain::Arbitrum.to_string(),
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
                 "https://sepolia-rollup.arbitrum.io/rpc",
             ),
         )];
