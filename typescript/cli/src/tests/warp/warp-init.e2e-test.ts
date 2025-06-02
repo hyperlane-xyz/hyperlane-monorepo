@@ -77,7 +77,7 @@ describe('hyperlane warp init e2e tests', async function () {
       assertWarpConfig(warpConfig, CHAIN_NAME_2);
     });
 
-    it('it should generate a warp deploy config with a 2 chains warp route (native->native)', async function () {
+    it('should generate a warp deploy config with a 2 chains warp route (native->native)', async function () {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         ...SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
@@ -107,7 +107,7 @@ describe('hyperlane warp init e2e tests', async function () {
       );
     });
 
-    it('it should generate a warp deploy config with a 2 chains warp route (collateral->synthetic)', async function () {
+    it('should generate a warp deploy config with a 2 chains warp route (collateral->synthetic)', async function () {
       const erc20Token = await deployToken(ANVIL_KEY, CHAIN_NAME_2, 6);
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
