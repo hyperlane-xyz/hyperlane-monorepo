@@ -63,6 +63,7 @@ export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(price)).toFixed(10).toString(); // ~$0.50 USD
 }
 
+// Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
 const chainProtocolFee: Record<ChainName, string> = {
   arbitrum: '400000000000000',
   base: '400000000000000',
