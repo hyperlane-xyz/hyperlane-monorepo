@@ -34,7 +34,7 @@ contract HypNative is FungibleTokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public initializer {
+    ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
