@@ -1,6 +1,3 @@
-import { confirm } from '@inquirer/prompts';
-import chalk from 'chalk';
-
 import { createAgentKeysIfNotExistsWithPrompt } from '../../src/agents/key-utils.js';
 import { getAgentConfigsBasedOnArgs } from '../agent-utils.js';
 
