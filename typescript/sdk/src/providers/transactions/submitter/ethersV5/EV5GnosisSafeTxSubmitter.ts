@@ -1,4 +1,7 @@
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import {
+  OperationType,
+  SafeTransaction,
+} from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -63,39 +66,43 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
-  public async createSafeTransaction({
-    to,
-    data,
-    value,
-    chainId,
-  }: AnnotatedEV5Transaction): Promise<SafeTransaction> {
+  public async createSafeTransaction(
+    ...transactions: AnnotatedEV5Transaction[]
+  ): Promise<SafeTransaction> {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
-    assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
-    assert(
-      chainId === submitterChainId,
-      `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
+
+    const safeTransactionData = transactions.map(
+      ({ to, data, value, chainId }) => {
+        assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
+        assert(
+          chainId === submitterChainId,
+          `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
+        );
+        return { to, data, value: value?.toString() ?? '0' };
+      },
     );
-    return this.safe.createTransaction({
-      safeTransactionData: [{ to, data, value: value?.toString() ?? '0' }],
-      options: { nonce: nextNonce },
+
+    const isMultiSend = transactions.length > 1;
+    const safeTransaction = await this.safe.createTransaction({
+      safeTransactionData,
+      onlyCalls: isMultiSend,
+      options: {
+        nonce: nextNonce,
+        operation: isMultiSend
+          ? OperationType.DelegateCall
+          : OperationType.Call,
+      },
     });
+
+    return safeTransaction;
   }
 
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
-    return this.proposeIndividualTransactions(txs);
-  }
-
-  private async proposeIndividualTransactions(txs: AnnotatedEV5Transaction[]) {
-    const safeTransactions: SafeTransaction[] = [];
-    for (const tx of txs) {
-      const safeTransaction = await this.createSafeTransaction(tx);
-      await this.proposeSafeTransaction(safeTransaction);
-      safeTransactions.push(safeTransaction);
-    }
-    return safeTransactions;
+    const safeTransaction = await this.createSafeTransaction(...txs);
+    return this.proposeSafeTransaction(safeTransaction);
   }
 
   private async proposeSafeTransaction(
