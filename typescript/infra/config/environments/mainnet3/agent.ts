@@ -485,7 +485,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    starknet: false,
+    starknet: true,
     story: true,
     stride: true,
     subtensor: true,
@@ -816,7 +816,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'e6409be-20250530-171730',
+      tag: '2903fe1-20250602-134907',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -827,7 +827,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '2903fe1-20250602-134907',
     },
     resources: scraperResources,
   },
@@ -842,7 +842,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '2903fe1-20250602-134907',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
