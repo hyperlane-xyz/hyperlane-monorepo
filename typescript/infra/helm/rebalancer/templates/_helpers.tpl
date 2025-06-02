@@ -70,8 +70,8 @@ The rebalancer container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
-  - name: LOG_LEVEL
-    value: pretty
+  - name: LOG_FORMAT
+    value: json
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
   - name: HYP_KEY
