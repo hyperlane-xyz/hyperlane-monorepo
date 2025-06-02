@@ -7,6 +7,7 @@ import {
   StarknetJsProvider,
   getStarknetContract,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytesEvm, bytesToAddressEvm } from '@hyperlane-xyz/utils';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -113,7 +114,7 @@ export class StarknetIsmReader {
       type: IsmType.MERKLE_ROOT_MULTISIG,
       address,
       validators: validators.map((v: any) =>
-        utils.getAddress(num.toHex(v.toString())),
+        utils.getAddress(bytesToAddressEvm(addressToBytesEvm(v))),
       ),
       threshold: Number(threshold),
     };
@@ -138,7 +139,7 @@ export class StarknetIsmReader {
       address,
       validators: validators.map((v: any) =>
         // checksum address
-        utils.getAddress(num.toHex(v.toString())),
+        utils.getAddress(bytesToAddressEvm(addressToBytesEvm(v))),
       ),
       threshold: Number(threshold),
     };
