@@ -978,8 +978,8 @@
       "chainId": "0x534e5f5345504f4c4941",
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 5,
-        "reorgPeriod": 0
+        "estimateBlockTime": 30,
+        "reorgPeriod": 1
       },
       "blockExplorers": [
         {
@@ -1013,7 +1013,7 @@
       "protocolFee": "0x04d853a59c0dcf6126f1d6dc5066def49398a0e0a78ef451d8e25e099fe81088",
       "testRecipient": "0x075107ea1d4bd44e24c8da9105161953f7d6e19b13d248ed760522bb788c9eb9",
       "validatorAnnounce": "0x06587686d7270349bf233976265fa6bd53d73c9f13b5fc916f541ad9b297dce8",
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "index": {
         "from": 715709,
         "chunk": 999
@@ -2130,8 +2130,8 @@
       "chainId": "0x505249564154455f534e5f504f54435f5345504f4c4941",
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 4,
-        "reorgPeriod": 0
+        "estimateBlockTime": 30,
+        "reorgPeriod": 1
       },
       "blockExplorers": [
         {
@@ -2165,7 +2165,7 @@
       "protocolFee": "0x0440d66a29cbbde0fe45371903cebc736b148b1e8c7c56b2335d599dda352b0f",
       "testRecipient": "0x0488b721d2632ba3fa11019170cdbb76b12d970b32b03b60081c85947bc4923c",
       "validatorAnnounce": "0x03606e11cfdec0745e8c49cf3179df9b4c37528baf0131ae1ec079055a7cab0b",
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "index": {
         "from": 224346,
         "chunk": 999
@@ -2830,7 +2830,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "0.001"
+        "amount": "2.0"
       },
       "index": {
         "chunk": 10,
@@ -2956,7 +2956,7 @@
       "domainId": 1162171030,
       "gasPrice": {
         "denom": "umilk",
-        "amount": "0.001"
+        "amount": "0.0"
       },
       "grpcUrls": [
         {
@@ -3212,7 +3212,7 @@
       "domainId": 1196573006,
       "gasPrice": {
         "denom": "uusdn",
-        "amount": "0.001"
+        "amount": "0.1"
       },
       "index": {
         "chunk": 10,
