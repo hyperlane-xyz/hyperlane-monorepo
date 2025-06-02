@@ -29,12 +29,16 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
-export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
-  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+export const BaseMovableTokenConfigSchema = z.object({
   allowedRebalancers: z
     .array(ZHash)
     .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
     .optional(),
+});
+
+export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  ...BaseMovableTokenConfigSchema.shape,
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -76,10 +80,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
-    allowedRebalancers: z
-      .array(ZHash)
-      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-      .optional(),
+    ...BaseMovableTokenConfigSchema.shape,
   },
 );
 
@@ -157,10 +158,6 @@ export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
     collateralChainName: z.string(),
-    allowedRebalancers: z
-      .array(ZHash)
-      .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
-      .optional(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
   typeof SyntheticRebaseTokenConfigSchema
@@ -455,5 +452,10 @@ function extractCCIPIsmMap(
   }
 }
 
-export const isMovableCollateralTokenConfig = (config: unknown) =>
-  isCollateralTokenConfig(config) || isNativeTokenConfig(config);
+const MovableTokenSchema = z.discriminatedUnion('type', [
+  CollateralTokenConfigSchema,
+  NativeTokenConfigSchema,
+]);
+export type MovableTokenConfigType = z.infer<typeof MovableTokenSchema>;
+
+export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);

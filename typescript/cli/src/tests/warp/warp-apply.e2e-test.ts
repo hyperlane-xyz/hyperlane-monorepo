@@ -10,7 +10,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import { assert, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -285,8 +285,9 @@ describe('hyperlane warp apply owner update tests', async function () {
     );
 
     for (const rebalancer of allowedRebalancers) {
-      warpConfig.anvil1.allowedRebalancers = [rebalancer];
-      const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
+      const anvil2Config = {
+        anvil2: { ...warpConfig.anvil1, allowedRebalancers: [rebalancer] },
+      };
       writeYamlOrJson(warpConfigPath, anvil2Config);
 
       await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
@@ -297,6 +298,10 @@ describe('hyperlane warp apply owner update tests', async function () {
         warpConfigPath,
       );
 
+      assert(
+        updatedWarpDeployConfig.anvil2.type === TokenType.collateral,
+        `Config on chain ${CHAIN_NAME_2} must be a collateral`,
+      );
       expect(
         updatedWarpDeployConfig.anvil2.allowedRebalancers?.length,
       ).to.equal(1);

@@ -159,7 +159,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         allowedRebalancers,
         proxyAdmin,
         destinationGas,
-      };
+      } as DerivedTokenRouterConfig;
     }
 
     return {
