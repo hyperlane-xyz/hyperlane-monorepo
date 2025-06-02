@@ -14,6 +14,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   ERC20__factory,
+  HypXERC20Lockbox__factory,
   IXERC20VS__factory,
   IXERC20__factory,
   Ownable__factory,
@@ -126,6 +127,8 @@ export class GovernTransactionReader {
   readonly multiSendDeployments: Address[] = [];
   readonly xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>> = {};
 
+  private rawWarpRouteConfigMap: Record<string, WarpCoreConfig>;
+
   static async create(
     environment: DeployEnvironment,
     governanceType: GovernanceType,
@@ -141,7 +144,7 @@ export class GovernTransactionReader {
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
 
-    return new GovernTransactionReader(
+    const txReaderInstance = new GovernTransactionReader(
       environment,
       multiProvider,
       chainAddresses,
@@ -150,6 +153,8 @@ export class GovernTransactionReader {
       safes,
       icas,
     );
+    await txReaderInstance.init();
+    return txReaderInstance;
   }
 
   constructor(
@@ -161,8 +166,11 @@ export class GovernTransactionReader {
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
   ) {
-    // Populate maps with warp route addresses and additional token details
-    for (const warpRoute of Object.values(warpRoutes)) {
+    this.rawWarpRouteConfigMap = warpRoutes;
+  }
+
+  async init() {
+    for (const warpRoute of Object.values(this.rawWarpRouteConfigMap)) {
       for (const token of Object.values(warpRoute.tokens)) {
         const address = token.addressOrDenom?.toLowerCase() ?? '';
         if (!this.warpRouteIndex[token.chainName]) {
@@ -170,20 +178,47 @@ export class GovernTransactionReader {
         }
         this.warpRouteIndex[token.chainName][address] = token;
 
-        if (
-          token.standard == TokenStandard.EvmHypXERC20 ||
-          token.standard == TokenStandard.EvmHypVSXERC20
-        ) {
+        const updateXerc20Deployments = async (
+          address: string,
+          type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20,
+        ) => {
           this.xerc20Deployments[token.chainName] ??= {};
-          assert(token.collateralAddressOrDenom, 'No collateral address');
-          this.xerc20Deployments[token.chainName][
-            token.collateralAddressOrDenom.toLowerCase()
-          ] = {
-            type: token.standard,
+          this.xerc20Deployments[token.chainName][address.toLowerCase()] = {
+            type,
             symbol: token.symbol,
             name: token.name,
             decimals: token.decimals,
           };
+        };
+
+        if (
+          token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+          token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+        ) {
+          const provider = this.multiProvider.getProvider(token.chainName);
+          const lockbox = HypXERC20Lockbox__factory.connect(
+            token.addressOrDenom!,
+            provider,
+          );
+          const xerc20 = await lockbox.xERC20();
+          assert(xerc20, 'No xerc20 address');
+          await updateXerc20Deployments(
+            xerc20,
+            token.standard === TokenStandard.EvmHypXERC20Lockbox
+              ? TokenStandard.EvmHypXERC20
+              : TokenStandard.EvmHypVSXERC20,
+          );
+        }
+
+        if (
+          token.standard == TokenStandard.EvmHypXERC20 ||
+          token.standard == TokenStandard.EvmHypVSXERC20
+        ) {
+          assert(token.collateralAddressOrDenom, 'No collateral address');
+          await updateXerc20Deployments(
+            token.collateralAddressOrDenom,
+            token.standard,
+          );
         }
       }
     }
