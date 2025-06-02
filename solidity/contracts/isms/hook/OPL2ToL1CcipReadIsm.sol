@@ -12,6 +12,7 @@ import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 interface OpL2toL1Service {
     function getWithdrawalProof(
@@ -36,47 +37,26 @@ interface OpL2toL1Service {
  * ISM because OP Stack expects the prover and the finalizer to
  * be the same caller
  */
-contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
+abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     using Message for bytes;
     using TypeCasts for address;
-
-    uint32 internal constant OP_PORTAL_VERSION_1 = 1;
-    uint32 internal constant OP_PORTAL_VERSION_2 = 2;
-
-    // OP Portal version
-    uint32 immutable opPortalVersion;
 
     // the OP Portal contract on L1
     IOptimismPortal public immutable opPortal;
 
-    event ReceivedMessage(
-        uint32 indexed origin,
-        bytes32 indexed sender,
-        uint256 indexed value,
-        bytes message
-    );
-
-    constructor(
-        string[] memory _urls,
-        address _opPortal,
-        uint32 _opPortalVersion
-    ) {
+    constructor(address _opPortal) {
         require(
-            _opPortalVersion == OP_PORTAL_VERSION_1 ||
-                _opPortalVersion == OP_PORTAL_VERSION_2,
-            "Unsupported OP portal version"
+            Address.isContract(_opPortal),
+            "OPL2ToL1CcipReadIsm: invalid opPortal"
         );
-        opPortalVersion = _opPortalVersion;
         opPortal = IOptimismPortal(_opPortal);
-        _transferOwnership(msg.sender);
-        setUrls(_urls);
     }
 
     function _offchainLookupCalldata(
         bytes calldata _message
     ) internal view override returns (bytes memory) {
         return
-            _areWeMessageRecipient(_message)
+            _isProve(_message)
                 ? abi.encodeCall(OpL2toL1Service.getWithdrawalProof, (_message))
                 : abi.encodeCall(
                     OpL2toL1Service.getFinalizeWithdrawalTx,
@@ -88,41 +68,20 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         bytes calldata _metadata,
         bytes calldata _message
     ) external override returns (bool) {
-        if (_areWeMessageRecipient(_message)) {
-            _proveWithdrawal(_metadata, _message);
+        if (_isProve(_message)) {
+            _proveWithdrawal(_metadata);
         } else {
-            _finalizeWithdrawal(_metadata, _message);
+            _finalizeWithdrawal(_metadata);
         }
 
         return true;
     }
 
-    function handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes calldata _messageBody
-    ) external payable {
-        emit ReceivedMessage(_origin, _sender, msg.value, _messageBody);
-    }
-
-    function interchainSecurityModule()
-        external
-        view
-        returns (IInterchainSecurityModule)
-    {
-        return IInterchainSecurityModule(address(this));
-    }
-
-    function _areWeMessageRecipient(
+    function _isProve(
         bytes calldata _message
-    ) internal view returns (bool) {
-        return _message.recipientAddress() == address(this);
-    }
+    ) internal view virtual returns (bool);
 
-    function _proveWithdrawal(
-        bytes calldata _metadata,
-        bytes calldata /* _message */
-    ) internal {
+    function _proveWithdrawal(bytes calldata _metadata) internal {
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -152,30 +111,11 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         }
     }
 
-    /// @dev we handle the access to the provenWithdrawal mapping
-    /// for OptimismPortal version 1 and version 2
     function _isWithdrawalProvenAlready(
         bytes32 _withdrawalHash
-    ) internal view returns (bool) {
-        if (opPortalVersion == OP_PORTAL_VERSION_1) {
-            IOptimismPortal.ProvenWithdrawal memory provenWithdrawal = opPortal
-                .provenWithdrawals(_withdrawalHash);
-            return provenWithdrawal.timestamp > 0;
-        } else if (opPortalVersion == OP_PORTAL_VERSION_2) {
-            IOptimismPortal2.ProvenWithdrawal
-                memory provenWithdrawal = IOptimismPortal2(address(opPortal))
-                    .provenWithdrawals(_withdrawalHash, address(this));
-            return provenWithdrawal.timestamp > 0;
-        }
+    ) internal view virtual returns (bool);
 
-        // Can't reach here because contract can't be
-        // created with other versions values
-    }
-
-    function _finalizeWithdrawal(
-        bytes calldata _metadata,
-        bytes calldata /* _message */
-    ) internal {
+    function _finalizeWithdrawal(bytes calldata _metadata) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
             _metadata,
             (IOptimismPortal.WithdrawalTransaction)
@@ -186,5 +126,26 @@ contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         if (!opPortal.finalizedWithdrawals(withdrawalHash)) {
             opPortal.finalizeWithdrawalTransaction(_tx);
         }
+    }
+}
+
+abstract contract OPL2ToL1V1CcipReadIsm is OPL2ToL1CcipReadIsm {
+    function _isWithdrawalProvenAlready(
+        bytes32 _withdrawalHash
+    ) internal view override returns (bool) {
+        IOptimismPortal.ProvenWithdrawal memory provenWithdrawal = opPortal
+            .provenWithdrawals(_withdrawalHash);
+        return provenWithdrawal.timestamp > 0;
+    }
+}
+
+abstract contract OPL2ToL1V2CcipReadIsm is OPL2ToL1CcipReadIsm {
+    function _isWithdrawalProvenAlready(
+        bytes32 _withdrawalHash
+    ) internal view override returns (bool) {
+        IOptimismPortal2.ProvenWithdrawal
+            memory provenWithdrawal = IOptimismPortal2(address(opPortal))
+                .provenWithdrawals(_withdrawalHash, address(this));
+        return provenWithdrawal.timestamp > 0;
     }
 }

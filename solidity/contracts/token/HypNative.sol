@@ -14,7 +14,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
+contract HypNative is FungibleTokenRouter {
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
 
@@ -32,7 +32,6 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
 
     /**
      * @notice Initializes the Hyperlane router
-     * @dev This function uses `reinitializer(2)` because v2 contracts support rebalancing, and v1 contracts do not.
      * @param _hook The post-dispatch hook contract.
      * @param _interchainSecurityModule The interchain security module contract.
      * @param _owner The this contract.
@@ -41,16 +40,15 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual reinitializer(2) {
+    ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _MovableCollateralRouter_initialize(_owner);
     }
 
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    ) external view virtual override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote({
             token: address(0),

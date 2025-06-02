@@ -65,9 +65,13 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
   implementation: C,
   proxyAdmin: string,
   initializeArgs?: Parameters<C['initialize']>,
+  initializeFnSignature = 'initialize',
 ): [string, string, string] {
   const initData = initializeArgs
-    ? implementation.interface.encodeFunctionData('initialize', initializeArgs)
+    ? implementation.interface.encodeFunctionData(
+        initializeFnSignature,
+        initializeArgs,
+      )
     : '0x';
   return [implementation.address, proxyAdmin, initData];
 }
