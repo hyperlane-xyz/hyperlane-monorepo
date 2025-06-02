@@ -1,5 +1,25 @@
 # @hyperlane-xyz/widgets
 
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+
+### Patch Changes
+
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+  - @hyperlane-xyz/sdk@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+
 ## 13.1.1
 
 ### Patch Changes

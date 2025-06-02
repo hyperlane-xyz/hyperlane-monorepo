@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+- 0ca8676: Update warp apply to specify a warp route Id to read/write to using --warpRouteId
+- 4d66b73: Add support for zksync based networks
+
+### Patch Changes
+
+- 4d66b73: Reuse existing signer in CLI warp transfer instead of connecting a new signer from the multiprovider.
+- 4d66b73: Only prompt for API key for etherscan explorer type.
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+
 ## 13.1.1
 
 ### Patch Changes
