@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 import {
   Address,
   HexString,
+  Numberish,
   ProtocolType,
   assert,
   convertDecimalsToIntegerString,
@@ -27,7 +28,10 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import {
+  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypXERC20LockboxAdapter,
+} from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -223,6 +227,11 @@ export class WarpCore {
       interchainFee,
     });
 
+    // Starknet does not support gas estimation without starknet account
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
+
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
       try {
@@ -329,16 +338,42 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
-    if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
-      this.logger.info(`Approval required for transfer of ${token.symbol}`);
+    const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+      this.isApproveRequired({
+        originTokenAmount,
+        owner: sender,
+      }),
+      hypAdapter.isRevokeApprovalRequired(
+        sender,
+        originTokenAmount.token.addressOrDenom,
+      ),
+    ]);
+
+    const preTransferRemoteTxs: [Numberish, WarpTxCategory][] = [];
+    // if the approval is required and the current allowance is not 0 we reset
+    // the allowance before setting the right approval as some tokens don't allow
+    // to override an already existing allowance. USDT is one of these tokens
+    // see: https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7#code#L205
+    if (isApproveRequired && isRevokeApprovalRequired) {
+      preTransferRemoteTxs.push([0, WarpTxCategory.Revoke]);
+    }
+
+    if (isApproveRequired) {
+      preTransferRemoteTxs.push([amount.toString(), WarpTxCategory.Approval]);
+    }
+
+    for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
+      this.logger.info(
+        `${txCategory} required for transfer of ${token.symbol}`,
+      );
       const approveTxReq = await hypAdapter.populateApproveTx({
-        weiAmountOrId: amount.toString(),
+        weiAmountOrId: approveAmount,
         recipient: token.addressOrDenom,
       });
-      this.logger.debug(`Approval tx for ${token.symbol} populated`);
+      this.logger.debug(`${txCategory} tx for ${token.symbol} populated`);
 
       const approveTx = {
-        category: WarpTxCategory.Approval,
+        category: txCategory,
         type: providerType,
         transaction: approveTxReq,
       } as WarpTypedTransaction;
@@ -476,27 +511,25 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (
-      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
-      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
-    ) {
+    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
       this.logger.debug(
         `${destinationToken.symbol} is not collateralized, skipping`,
       );
       return true;
     }
 
-    let destinationBalance: bigint;
+    let destinationBalance: bigint = 0n;
 
-    const adapter = destinationToken.getAdapter(this.multiProvider);
     if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
     ) {
-      destinationBalance = await (
-        adapter as IHypXERC20Adapter<unknown>
-      ).getMintLimit();
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypXERC20LockboxAdapter;
+      destinationBalance = await adapter.getBridgedSupply();
     } else {
+      const adapter = destinationToken.getAdapter(this.multiProvider);
       destinationBalance = await adapter.getBalance(
         destinationToken.addressOrDenom,
       );
@@ -574,15 +607,20 @@ export class WarpCore {
     );
     if (amountError) return amountError;
 
+    const destinationRateLimitError = await this.validateDestinationRateLimit(
+      originTokenAmount,
+      destination,
+    );
+    if (destinationRateLimitError) return destinationRateLimitError;
+
     const destinationCollateralError = await this.validateDestinationCollateral(
       originTokenAmount,
       destination,
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError = await this.validateOriginCollateral(
-      originTokenAmount,
-    );
+    const originCollateralError =
+      await this.validateOriginCollateral(originTokenAmount);
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -638,7 +676,10 @@ export class WarpCore {
       return { recipient: 'Invalid recipient' };
 
     // Also ensure the address denom is correct if the dest protocol is Cosmos
-    if (protocol === ProtocolType.Cosmos) {
+    if (
+      protocol === ProtocolType.Cosmos ||
+      protocol === ProtocolType.CosmosNative
+    ) {
       if (!bech32Prefix) {
         this.logger.error(`No bech32 prefix found for chain ${destination}`);
         return { destination: 'Invalid chain data' };
@@ -773,8 +814,73 @@ export class WarpCore {
       originTokenAmount,
       destination,
     });
-    if (!valid) return { amount: 'Insufficient collateral on destination' };
 
+    if (!valid) {
+      return { amount: 'Insufficient collateral on destination' };
+    }
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for minting
+   */
+  protected async validateDestinationRateLimit(
+    originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+  ): Promise<Record<string, string> | null> {
+    const { token: originToken, amount } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationToken =
+      originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+
+    if (!MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
+      this.logger.debug(
+        `${destinationToken.symbol} does not have rate limit constraint, skipping`,
+      );
+      return null;
+    }
+
+    let destinationMintLimit: bigint = 0n;
+    if (
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as IHypXERC20Adapter<unknown>;
+      destinationMintLimit = await adapter.getMintLimit();
+
+      if (
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      ) {
+        const bufferCap = await adapter.getMintMaxLimit();
+        const max = bufferCap / 2n;
+        if (destinationMintLimit > max) {
+          this.logger.debug(
+            `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
+          );
+          destinationMintLimit = max;
+        }
+      }
+    }
+
+    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
+      destinationToken.decimals,
+      originToken.decimals,
+      destinationMintLimit.toString(),
+    );
+
+    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
+    this.logger.debug(
+      `${originTokenAmount.token.symbol} to ${destination} has ${
+        isSufficient ? 'sufficient' : 'INSUFFICIENT'
+      } rate limits`,
+    );
+    if (!isSufficient) return { amount: 'Rate limit exceeded on destination' };
     return null;
   }
 

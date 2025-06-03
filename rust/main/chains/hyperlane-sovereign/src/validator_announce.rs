@@ -65,6 +65,7 @@ impl ValidatorAnnounce for SovereignValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
+        _chain_signer: H256,
     ) -> Option<U256> {
         // Caller performs `unwrap_or_default()` on the response. Modify return type if Sovereign changes upstream.
         None

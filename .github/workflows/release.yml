@@ -10,20 +10,88 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release:
+  # This job prepares the release by creating or updating a release PR.
+  # Notice the omission of the `publish` flag in the changesets action.
+  prepare-release:
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     permissions:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-            # check out full history
-            fetch-depth: 0
-            submodules: recursive
+          # check out full history
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Create Release PR
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: yarn version:prepare
+        env:
+          NPM_CONFIG_PROVENANCE: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # The release PR removes individual changesets to prepare for a release.
+  # This means that once the release PR is merged, there are no changesets left.
+  # When there are no changesets left, we can run the cli-install-cross-platform-release-test
+  # workflow to verify that the CLI installs correctly on all platforms.
+  # In all other cases, we already have a barebones `cli-install` test on the default CI platform
+  # which will catch most issues before any offending PR is merged.
+  cli-install-cross-platform-release-test:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.hasChangesets == 'false'
+    strategy:
+      matrix:
+        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022]
+        node-version: [18, 19, 20, 21, 22, 23]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.sha }}
+          cache-provider: github
+
+      - name: Test run the CLI
+        run: hyperlane --version
+
+  # This job publishes the release to NPM.
+  publish-release:
+    needs: cli-install-cross-platform-release-test
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          # check out full history
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Node.js 18.x
         uses: actions/setup-node@v4
@@ -33,7 +101,7 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
-      - name: Create Release PR or Publish to NPM
+      - name: Publish Release to NPM
         id: changesets
         uses: changesets/action@v1
         with:

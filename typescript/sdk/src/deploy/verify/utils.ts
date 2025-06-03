@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
+import { tryGetContractDeploymentTransaction } from '../../block-explorer/etherscan.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -147,16 +148,10 @@ export async function getEtherscanConstructorArgs({
   const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
     multiProvider.getExplorerApi(chainName);
 
-  const url = new URL(blockExplorerApiUrl);
-  url.searchParams.append('module', 'contract');
-  url.searchParams.append('action', 'getcontractcreation');
-  url.searchParams.append('contractaddresses', contractAddress);
-
-  if (blockExplorerApiKey)
-    url.searchParams.append('apikey', blockExplorerApiKey);
-
-  const explorerResp = await fetch(url);
-  const creationTx = (await explorerResp.json()).result[0].txHash;
+  const creationTx = await tryGetContractDeploymentTransaction(
+    { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey },
+    { contractAddress },
+  );
 
   // Fetch deployment bytecode (includes constructor args)
   assert(creationTx, 'Contract creation transaction not found!');
@@ -170,7 +165,7 @@ export async function getEtherscanConstructorArgs({
     },
     body: JSON.stringify({
       method: 'eth_getTransactionByHash',
-      params: [creationTx],
+      params: [creationTx.txHash],
       id: 1,
       jsonrpc: '2.0',
     }),

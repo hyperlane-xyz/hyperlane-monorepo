@@ -9,7 +9,8 @@ import {
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
-import { HelmCommand, HelmManager } from '../../src/utils/helm.js';
+import { HelmCommand } from '../../src/utils/helm.js';
+import { K8sResourceType, refreshK8sResources } from '../../src/utils/k8s.js';
 import {
   assertCorrectKubeContext,
   getArgs,
@@ -29,36 +30,19 @@ export class AgentCli {
   chains?: string[];
   concurrency = 1;
 
+  public async restartAgents() {
+    await this.init();
+    const managers = this.managers();
+    await refreshK8sResources(
+      Object.values(managers),
+      K8sResourceType.POD,
+      this.envConfig.environment,
+    );
+  }
+
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
-    // use keys to ensure uniqueness
-    const managers: Record<string, AgentHelmManager> = {};
-    // make all the managers first to ensure config validity
-    for (const role of this.roles) {
-      switch (role) {
-        case Role.Validator: {
-          const contextChainNames = this.agentConfig.contextChainNames[role];
-          const validatorChains = !this.chains
-            ? contextChainNames
-            : contextChainNames.filter((chain: string) =>
-                this.chains!.includes(chain),
-              );
-          for (const chain of validatorChains) {
-            const key = `${role}-${chain}`;
-            managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
-          }
-          break;
-        }
-        case Role.Relayer:
-          managers[role] = new RelayerHelmManager(this.agentConfig);
-          break;
-        case Role.Scraper:
-          managers[role] = new ScraperHelmManager(this.agentConfig);
-          break;
-        default:
-          throw new Error(`Invalid role ${role}`);
-      }
-    }
+    const managers = this.managers();
 
     if (this.dryRun) {
       const values = await Promise.all(
@@ -102,5 +86,37 @@ export class AgentCli {
     this.initialized = true;
     this.chains = argv.chains;
     this.concurrency = argv.concurrency;
+  }
+
+  private managers(): Record<string, AgentHelmManager> {
+    // use keys to ensure uniqueness
+    const managers: Record<string, AgentHelmManager> = {};
+    // make all the managers first to ensure config validity
+    for (const role of this.roles) {
+      switch (role) {
+        case Role.Validator: {
+          const contextChainNames = this.agentConfig.contextChainNames[role];
+          const validatorChains = !this.chains
+            ? contextChainNames
+            : contextChainNames.filter((chain: string) =>
+                this.chains!.includes(chain),
+              );
+          for (const chain of validatorChains) {
+            const key = `${role}-${chain}`;
+            managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
+          }
+          break;
+        }
+        case Role.Relayer:
+          managers[role] = new RelayerHelmManager(this.agentConfig);
+          break;
+        case Role.Scraper:
+          managers[role] = new ScraperHelmManager(this.agentConfig);
+          break;
+        default:
+          throw new Error(`Invalid role ${role}`);
+      }
+    }
+    return managers;
   }
 }

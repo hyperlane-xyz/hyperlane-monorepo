@@ -227,48 +227,6 @@
       }
     ]
   },
-  "berabartio": {
-    "blockExplorers": [
-      {
-        "apiUrl": "https://api.routescan.io/v2/network/testnet/evm/80084/etherscan/api/",
-        "family": "routescan",
-        "name": "Bartio Testnet Explorer",
-        "url": "https://bartio.beratrail.io/"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "estimateBlockTime": 3,
-      "reorgPeriod": 1
-    },
-    "chainId": 80084,
-    "deployer": {
-      "name": "Abacus Works",
-      "url": "https://www.hyperlane.xyz"
-    },
-    "displayName": "Berachain bArtio",
-    "domainId": 80084,
-    "gasCurrencyCoinGeckoId": "berachain",
-    "isTestnet": true,
-    "name": "berabartio",
-    "nativeToken": {
-      "decimals": 18,
-      "name": "BERA",
-      "symbol": "BERA"
-    },
-    "protocol": "ethereum",
-    "rpcUrls": [
-      {
-        "http": "https://bartio.rpc.berachain.com/"
-      },
-      {
-        "http": "https://bartio.drpc.org"
-      },
-      {
-        "http": "https://bera-testnet.nodeinfra.com"
-      }
-    ]
-  },
   "bsctestnet": {
     "blockExplorers": [
       {
@@ -311,41 +269,83 @@
       "gasPrice": 8000000000
     }
   },
-  "camptestnet": {
+  "carrchaintestnet": {
     "blockExplorers": [
       {
-        "apiUrl": "https://camp-network-testnet.blockscout.com/api",
-        "family": "blockscout",
-        "name": "Camp Network Testnet Explorer",
-        "url": "https://camp-network-testnet.blockscout.com"
+        "apiUrl": "https://testnet.carrscan.io/api/v1",
+        "family": "etherscan",
+        "name": "CarrScan Testnet",
+        "url": "https://testnet.carrscan.io"
       }
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "estimateBlockTime": 1,
+      "reorgPeriod": 0
     },
-    "chainId": 325000,
+    "chainId": 76672,
     "deployer": {
       "name": "Abacus Works",
       "url": "https://www.hyperlane.xyz"
     },
-    "displayName": "Camp Network Testnet V2",
-    "domainId": 325000,
-    "gasCurrencyCoinGeckoId": "ethereum",
+    "displayName": "CarrChain Testnet",
+    "domainId": 76672,
+    "index": {
+      "from": 117
+    },
     "isTestnet": true,
-    "name": "camptestnet",
+    "name": "carrchaintestnet",
     "nativeToken": {
       "decimals": 18,
-      "name": "Ether",
-      "symbol": "ETH"
+      "name": "CARR",
+      "symbol": "CARR"
     },
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://rpc-campnetwork.xyz"
+        "http": "https://rpc-testnet.carrchain.io"
       }
-    ]
+    ],
+    "technicalStack": "arbitrumnitro"
+  },
+  "chronicleyellowstone": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://yellowstone-explorer.litprotocol.com/api",
+        "family": "blockscout",
+        "name": "Yellowstone Explorer",
+        "url": "https://yellowstone-explorer.litprotocol.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 0
+    },
+    "chainId": 175188,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Chronicle Yellowstone",
+    "domainId": 175188,
+    "index": {
+      "from": 2339059
+    },
+    "isTestnet": true,
+    "name": "chronicleyellowstone",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Test LPX",
+      "symbol": "tstLPX"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://yellowstone-rpc.litprotocol.com"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
   },
   "citreatestnet": {
     "blockExplorers": [
@@ -487,6 +487,44 @@
       }
     ]
   },
+  "flametestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.flame.dawn-1.astria.org/api",
+        "family": "blockscout",
+        "name": "Astria Flame Explorer",
+        "url": "https://explorer.flame.dawn-1.astria.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 16604737732183,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Flame Dawn-1 Testnet",
+    "displayNameShort": "Flame Testnet",
+    "domainId": 1660473773,
+    "gasCurrencyCoinGeckoId": "celestia",
+    "isTestnet": true,
+    "name": "flametestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Celestia",
+      "symbol": "TIA"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.flame.dawn-1.astria.org"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "formtestnet": {
     "blockExplorers": [
       {
@@ -598,6 +636,73 @@
       }
     ]
   },
+  "hyperliquidevmtestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.hyperlend.finance/api",
+        "family": "blockscout",
+        "name": "Hyperliquid EVM Testnet Explorer",
+        "url": "https://explorer.hyperlend.finance"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 998,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Hyperliquid EVM Testnet",
+    "domainId": 998,
+    "gasCurrencyCoinGeckoId": "hyperliquid",
+    "isTestnet": true,
+    "name": "hyperliquidevmtestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Hyperliquid",
+      "symbol": "HYPE"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://api.hyperliquid-testnet.xyz/evm"
+      }
+    ]
+  },
+  "infinityvmmonza": {
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 96025,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Infinity VM Monza Testnet",
+    "domainId": 96025,
+    "index": {
+      "from": 338182
+    },
+    "isTestnet": true,
+    "name": "infinityvmmonza",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "INF",
+      "symbol": "INF"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.monza.infinityvm.xyz"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "inksepolia": {
     "blockExplorers": [
       {
@@ -633,6 +738,42 @@
       }
     ],
     "technicalStack": "opstack"
+  },
+  "monadtestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.monad-testnet.category.xyz/api",
+        "family": "blockscout",
+        "name": "Monad Testnet Explorer",
+        "url": "https://explorer.monad-testnet.category.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 10143,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Monad Testnet",
+    "domainId": 10143,
+    "isTestnet": true,
+    "name": "monadtestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "MON",
+      "symbol": "MON"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://testnet-rpc.monad.xyz"
+      }
+    ],
+    "technicalStack": "other"
   },
   "odysseytestnet": {
     "blockExplorers": [
@@ -861,7 +1002,7 @@
       "url": "https://www.hyperlane.xyz"
     },
     "displayName": "Solana Testnet",
-    "displayNameShort": "Sol Testnet",
+    "displayNameShort": "Solana Testnet",
     "domainId": 1399811150,
     "gasCurrencyCoinGeckoId": "solana",
     "isTestnet": true,
@@ -877,6 +1018,42 @@
         "http": "https://api.testnet.solana.com"
       }
     ]
+  },
+  "somniatestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://shannon-explorer.somnia.network/api",
+        "family": "blockscout",
+        "name": "https://shannon-explorer.somnia.network",
+        "url": "https://shannon-explorer.somnia.network"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 50312,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Somnia Testnet",
+    "domainId": 50312,
+    "isTestnet": true,
+    "name": "somniatestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "STT",
+      "symbol": "STT"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://vsf-rpc.somnia.network"
+      }
+    ],
+    "technicalStack": "other"
   },
   "soneiumtestnet": {
     "blockExplorers": [
@@ -911,6 +1088,45 @@
     "rpcUrls": [
       {
         "http": "https://rpc.minato.soneium.org"
+      }
+    ]
+  },
+  "sonicblaze": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-testnet.sonicscan.org/api",
+        "family": "etherscan",
+        "name": "Sonic Blaze Testnet Explorer",
+        "url": "https://testnet.sonicscan.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 57054,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Sonic Blaze Testnet",
+    "displayNameShort": "Sonic Blaze",
+    "domainId": 57054,
+    "isTestnet": true,
+    "name": "sonicblaze",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Sonic",
+      "symbol": "S"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.blaze.soniclabs.com"
+      },
+      {
+        "http": "https://rpc.ankr.com/sonic_blaze_testnet"
       }
     ]
   },
@@ -986,6 +1202,35 @@
       }
     ]
   },
+  "subtensortestnet": {
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 1
+    },
+    "chainId": 945,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Subtensor Testnet",
+    "domainId": 945,
+    "gasCurrencyCoinGeckoId": "bittensor",
+    "isTestnet": true,
+    "name": "subtensortestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Bittensor",
+      "symbol": "TAO"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://test.finney.opentensor.ai"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "superpositiontestnet": {
     "blockExplorers": [
       {
@@ -1026,43 +1271,6 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
-  "treasuretopaz": {
-    "blockExplorers": [
-      {
-        "apiUrl": "https://rpc-explorer-verify.topaz.treasure.lol/contract_verification",
-        "family": "etherscan",
-        "name": "Treasure Topaz Block Explorer",
-        "url": "https://topaz.treasurescan.io"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "estimateBlockTime": 1,
-      "reorgPeriod": 0
-    },
-    "chainId": 978658,
-    "deployer": {
-      "name": "Abacus Works",
-      "url": "https://www.hyperlane.xyz"
-    },
-    "displayName": "Treasure Topaz Testnet",
-    "displayNameShort": "Treasure Testnet",
-    "domainId": 978658,
-    "isTestnet": true,
-    "name": "treasuretopaz",
-    "nativeToken": {
-      "decimals": 18,
-      "name": "MAGIC",
-      "symbol": "MAGIC"
-    },
-    "protocol": "ethereum",
-    "rpcUrls": [
-      {
-        "http": "https://rpc.topaz.treasure.lol"
-      }
-    ],
-    "technicalStack": "zksync"
-  },
   "unichaintestnet": {
     "blockExplorers": [
       {
@@ -1097,5 +1305,41 @@
         "http": "https://sepolia.unichain.org"
       }
     ]
+  },
+  "weavevmtestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.wvm.dev/api",
+        "family": "blockscout",
+        "name": "WeaveVM Testnet Explorer",
+        "url": "https://explorer.wvm.dev"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 9496,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Weave VM Testnet",
+    "domainId": 9496,
+    "isTestnet": true,
+    "name": "weavevmtestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "tWVM",
+      "symbol": "tWVM"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://testnet-rpc.wvm.dev"
+      }
+    ],
+    "technicalStack": "other"
   }
 }

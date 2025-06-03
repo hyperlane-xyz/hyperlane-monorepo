@@ -1,7 +1,10 @@
 import { ethers } from 'ethers';
 
 import {
+  AmountRoutingHook__factory,
   ArbL2ToL1Hook__factory,
+  CCIPHook__factory,
+  DefaultHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -22,6 +25,8 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -33,12 +38,16 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
+  CCIPHookConfig,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
   IgpHookConfig,
+  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   OnchainHookType,
   OpStackHookConfig,
@@ -47,10 +56,8 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
-
 export interface HookReader {
-  deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
+  deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>>;
@@ -76,6 +83,8 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
+  deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
+  deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
   assertHookType(
     hookType: OnchainHookType,
     expectedType: OnchainHookType,
@@ -102,7 +111,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     super(multiProvider, chain);
   }
 
-  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
+  async deriveHookConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedHookConfig> {
     this.logger.debug('Deriving HookConfig:', { address });
 
     const cachedValue = this._cache.get(address);
@@ -151,13 +162,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         case OnchainHookType.PROTOCOL_FEE:
           derivedHookConfig = await this.deriveProtocolFeeConfig(address);
           break;
-        // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
-        // For now assume it's OP_STACK
         case OnchainHookType.ID_AUTH_ISM:
-          derivedHookConfig = await this.deriveOpStackConfig(address);
+          derivedHookConfig = await this.deriveIdAuthIsmConfig(address);
           break;
         case OnchainHookType.ARB_L2_TO_L1:
           derivedHookConfig = await this.deriveArbL2ToL1Config(address);
+          break;
+        case OnchainHookType.AMOUNT_ROUTING:
+          derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
+          break;
+        case OnchainHookType.MAILBOX_DEFAULT_HOOK:
+          derivedHookConfig =
+            await this.deriveMailboxDefaultHookConfig(address);
           break;
         default:
           throw new Error(
@@ -183,6 +199,116 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  /**
+   *  Recursively resolves the HookConfigs as addresses, e.g.
+   *  hook:
+   *     type: aggregationHook
+   *     hooks:
+   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         maxProtocolFee: "100000000000000000000"
+   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         protocolFee: "50000000000000000"
+   *         type: protocolFee
+   *
+   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
+   */
+  public async deriveHookConfig(
+    config: HookConfig,
+  ): Promise<DerivedHookConfig> {
+    if (typeof config === 'string')
+      return this.deriveHookConfigFromAddress(config);
+
+    // Extend the inner hooks
+    switch (config.type) {
+      case HookType.FALLBACK_ROUTING:
+      case HookType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, hook) =>
+            this.deriveHookConfig(hook),
+          ),
+        );
+
+        if (config.type === HookType.FALLBACK_ROUTING)
+          config.fallback = await this.deriveHookConfig(config.fallback);
+        break;
+      case HookType.AGGREGATION:
+        config.hooks = await Promise.all(
+          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
+        );
+        break;
+      case HookType.AMOUNT_ROUTING:
+        [config.lowerHook, config.upperHook] = await Promise.all([
+          this.deriveHookConfig(config.lowerHook),
+          this.deriveHookConfig(config.upperHook),
+        ]);
+        break;
+    }
+    return config as DerivedHookConfig;
+  }
+
+  async deriveMailboxDefaultHookConfig(
+    address: Address,
+  ): Promise<WithAddress<MailboxDefaultHookConfig>> {
+    const hook = DefaultHook__factory.connect(address, this.provider);
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.MAILBOX_DEFAULT_HOOK,
+    );
+
+    const config: WithAddress<MailboxDefaultHookConfig> = {
+      address,
+      type: HookType.MAILBOX_DEFAULT,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
+    // First check if it's a CCIP hook
+    try {
+      const ccipHook = CCIPHook__factory.connect(address, this.provider);
+      // This method only exists on CCIPHook
+      await ccipHook.ccipDestination();
+      return this.deriveCcipConfig(address);
+    } catch {
+      // Not a CCIP hook, try OPStack
+      try {
+        const opStackHook = OPStackHook__factory.connect(
+          address,
+          this.provider,
+        );
+        // This method only exists on OPStackHook
+        await opStackHook.l1Messenger();
+        return this.deriveOpStackConfig(address);
+      } catch {
+        throw new Error(
+          `Could not determine hook type - neither CCIP nor OPStack methods found`,
+        );
+      }
+    }
+  }
+
+  async deriveCcipConfig(
+    address: Address,
+  ): Promise<WithAddress<CCIPHookConfig>> {
+    const ccipHook = CCIPHook__factory.connect(address, this.provider);
+    const destinationDomain = await ccipHook.destinationDomain();
+    const destinationChain = this.multiProvider.getChainName(destinationDomain);
+
+    const config: WithAddress<CCIPHookConfig> = {
+      address,
+      type: HookType.CCIP,
+      destinationChain,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveMerkleTreeConfig(
@@ -225,6 +351,23 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config;
   }
 
+  possibleDomainIds(): number[] {
+    const isTestnet = !!this.multiProvider.getChainMetadata(this.chain)
+      .isTestnet;
+
+    return this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : // filter to only domains that are the same testnet/mainnet
+        this.multiProvider
+          .getKnownChainNames()
+          .filter(
+            (chainName) =>
+              !!this.multiProvider.getChainMetadata(chainName).isTestnet ===
+              isTestnet,
+          )
+          .map((chainName) => this.multiProvider.getDomainId(chainName));
+  }
+
   async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
     const hook = InterchainGasPaymaster__factory.connect(
       address,
@@ -243,13 +386,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     let oracleKey: string | undefined;
 
-    const domainIds = this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : this.multiProvider.getKnownDomainIds();
-
     const allKeys = await concurrentMap(
       this.concurrency,
-      domainIds,
+      this.possibleDomainIds(),
       async (domainId) => {
         const { name: chainName, nativeToken } =
           this.multiProvider.getChainMetadata(domainId);
@@ -441,26 +580,26 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   private async fetchDomainHooks(
     hook: DomainRoutingHook | FallbackDomainRoutingHook,
   ): Promise<RoutingHookConfig['domains']> {
-    const domainIds = this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : this.multiProvider.getKnownDomainIds();
-
     const domainHooks: RoutingHookConfig['domains'] = {};
-    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.getChainName(domainId);
-      try {
-        const domainHook = await hook.hooks(domainId);
-        if (domainHook !== ethers.constants.AddressZero) {
-          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+    await concurrentMap(
+      this.concurrency,
+      this.possibleDomainIds(),
+      async (domainId) => {
+        const chainName = this.multiProvider.getChainName(domainId);
+        try {
+          const domainHook = await hook.hooks(domainId);
+          if (domainHook !== ethers.constants.AddressZero) {
+            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+          }
+        } catch {
+          this.logger.debug(
+            `Domain not configured on ${hook.constructor.name}`,
+            domainId,
+            chainName,
+          );
         }
-      } catch {
-        this.logger.debug(
-          `Domain not configured on ${hook.constructor.name}`,
-          domainId,
-          chainName,
-        );
-      }
-    });
+      },
+    );
 
     return domainHooks;
   }
@@ -478,6 +617,31 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       paused,
       type: HookType.PAUSABLE,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  private async deriveAmountRoutingHookConfig(
+    address: Address,
+  ): Promise<WithAddress<AmountRoutingHookConfig>> {
+    const hook = AmountRoutingHook__factory.connect(address, this.provider);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AMOUNT_ROUTING);
+
+    const [threshold, lowerHook, upperHook] = await Promise.all([
+      hook.threshold(),
+      hook.lower(),
+      hook.upper(),
+    ]);
+
+    const config: WithAddress<AmountRoutingHookConfig> = {
+      address,
+      type: HookType.AMOUNT_ROUTING,
+      threshold: threshold.toNumber(),
+      lowerHook: await this.deriveHookConfig(lowerHook),
+      upperHook: await this.deriveHookConfig(upperHook),
     };
 
     this._cache.set(address, config);

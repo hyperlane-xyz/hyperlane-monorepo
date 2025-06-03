@@ -1,22 +1,28 @@
 [workspace]
 members = [
-  "agents/relayer",
-  "agents/scraper",
-  "agents/validator",
-  "chains/hyperlane-cosmos",
-  "chains/hyperlane-ethereum",
-  "chains/hyperlane-fuel",
-  "chains/hyperlane-sealevel",
-  "chains/hyperlane-sovereign",
-  "ethers-prometheus",
-  "hyperlane-base",
-  "hyperlane-core",
-  "hyperlane-test",
-  "utils/abigen",
-  "utils/backtrace-oneline",
-  "utils/crypto",
-  "utils/hex",
-  "utils/run-locally",
+    "agents/relayer",
+    "agents/scraper",
+    "agents/validator",
+    "applications/hyperlane-application",
+    "applications/hyperlane-operation-verifier",
+    "applications/hyperlane-warp-route",
+    "chains/hyperlane-cosmos",
+    "chains/hyperlane-cosmos-native",
+    "chains/hyperlane-ethereum",
+    "chains/hyperlane-fuel",
+    "chains/hyperlane-sealevel",
+    "chains/hyperlane-sovereign",
+    "ethers-prometheus",
+    "hyperlane-base",
+    "hyperlane-core",
+    "hyperlane-metric",
+    "hyperlane-test",
+    "submitter",
+    "utils/abigen",
+    "utils/backtrace-oneline",
+    "utils/crypto",
+    "utils/hex",
+    "utils/run-locally",
 ]
 resolver = "2"
 
@@ -34,8 +40,15 @@ anyhow = "1.0"
 async-trait = "0.1"
 async-rwlock = "1.3"
 auto_impl = "1.0"
-axum = "0.6.1"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+# AWS deps are pinned to be compatible with rustc 1.80.1
+aws-sdk-s3 = "=1.65.0"
+aws-sdk-sso = "=1.50.0"
+aws-sdk-ssooidc = "=1.50.0"
+aws-sdk-sts = "=1.50.0"
+axum = "0.8.4"
 backtrace = "0.3"
+cc = "1.2.2"
 base64 = "0.21.2"
 bigdecimal = "0.4.2"
 bincode = "1.3"
@@ -49,15 +62,16 @@ config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
 cosmrs = { version = "0.21.0", default-features = false, features = [
-  "cosmwasm",
-  "rpc",
-  "tokio",
-  "grpc",
+    "cosmwasm",
+    "rpc",
+    "tokio",
+    "grpc",
 ] }
 cosmwasm-std = "*"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
+dashmap = "5"
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
@@ -76,14 +90,16 @@ elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
 http = "1.2.0"
+http-body-util = "0.1"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 ibc-proto = "0.51.1"
 injective-protobuf = "0.2.2"
+moka = "0.12.8"
 injective-std = "1.13.6"
 itertools = "*"
-jobserver = "=0.1.26"
+jobserver = "0.1.32"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
 lazy_static = "1.5.0"
@@ -99,6 +115,7 @@ num-traits = "0.2"
 once_cell = "1.18.0"
 parking_lot = "0.12"
 paste = "1.0"
+pin-project = "1.1.9"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
 prometheus = "0.13"
@@ -108,17 +125,18 @@ regex = "1.5"
 reqwest = { version = "0.11", features = ["json"] }
 ripemd = "0.1.3"
 rlp = "=0.5.2"
-rocksdb = "0.22.0"
-sea-orm = { version = "0.11.1", features = [
-  "sqlx-postgres",
-  "runtime-tokio-native-tls",
-  "with-bigdecimal",
-  "with-time",
-  "macros",
+rocksdb = "0.21.0"
+rstest = "0.25.0"
+sea-orm = { version = "1.1.10", features = [
+    "sqlx-postgres",
+    "runtime-tokio-native-tls",
+    "with-bigdecimal",
+    "with-time",
+    "macros",
 ] }
-sea-orm-migration = { version = "0.11.1", features = [
-  "sqlx-postgres",
-  "runtime-tokio-native-tls",
+sea-orm-migration = { version = "1.1.10", features = [
+    "sqlx-postgres",
+    "runtime-tokio-native-tls",
 ] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -143,10 +161,11 @@ thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
 tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
-tokio-metrics = { version = "0.3.1", default-features = false }
+tokio-metrics = { version = "0.4.0" }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
 tonic = "0.12.3"
+tower = "*"
 tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
@@ -156,7 +175,7 @@ typetag = "0.2"
 uint = "0.9.5"
 ureq = { version = "2.4", default-features = false }
 url = "2.3"
-uuid = { version = "1.12.0", features = ["v4"] }
+uuid = { version = "=1.11.0", features = ["v4"] }
 walkdir = "2"
 warp = "0.3"
 which = "4.3"
@@ -202,27 +221,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-05-07"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-05-07"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-05-07"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-05-07"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-05-07"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -241,42 +260,42 @@ version = "=0.5.2"
 
 [patch.crates-io.solana-account-decoder]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-clap-utils]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-cli-config]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-client]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-program]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-transaction-status]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-zk-token-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.spl-associated-token-account]

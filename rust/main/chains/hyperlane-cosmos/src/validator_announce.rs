@@ -27,18 +27,7 @@ pub struct CosmosValidatorAnnounce {
 
 impl CosmosValidatorAnnounce {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
@@ -111,7 +100,11 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         Ok(tx_response_to_outcome(response)?)
     }
 
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        _chain_signer: H256,
+    ) -> Option<U256> {
         // TODO: check user balance. For now, just try announcing and
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())

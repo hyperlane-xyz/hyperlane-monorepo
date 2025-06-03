@@ -14,7 +14,7 @@ contract ProtocolFeeTest is Test {
 
     ProtocolFee internal fees;
 
-    address internal alice = address(0x1); // alice the user
+    address internal alice = address(address(this)); // alice the user
     address internal bob = address(0x2); // bob the beneficiary
     address internal charlie = address(0x3); // charlie the crock
 
@@ -122,8 +122,8 @@ contract ProtocolFeeTest is Test {
 
         fees.setProtocolFee(feeRequired);
         uint256 aliceBalanceBefore = alice.balance;
-        vm.prank(alice);
 
+        vm.prank(alice);
         fees.postDispatch{value: feeSent}("", testMessage);
 
         assertEq(alice.balance, aliceBalanceBefore - feeRequired);

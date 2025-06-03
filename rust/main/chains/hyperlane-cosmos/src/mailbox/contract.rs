@@ -1,4 +1,3 @@
-use std::num::NonZeroU64;
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -18,7 +17,7 @@ use crate::payloads::mailbox::{
 };
 use crate::types::tx_response_to_outcome;
 use crate::utils::get_block_height_for_reorg_period;
-use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider, Signer};
+use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider};
 
 #[derive(Clone, Debug)]
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -33,17 +32,10 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
     pub fn new(
+        provider: CosmosProvider,
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
         Ok(Self {
             config: conf,
             domain: locator.domain.clone(),
@@ -206,8 +198,16 @@ impl Mailbox for CosmosMailbox {
         Ok(result)
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         todo!() // not required
+    }
+
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
     }
 }
 

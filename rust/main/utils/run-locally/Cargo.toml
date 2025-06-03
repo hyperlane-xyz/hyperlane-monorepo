@@ -11,6 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-cosmos-native = { path = "../../chains/hyperlane-cosmos-native" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -44,3 +45,5 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
 cosmos = []
+cosmosnative = []
+sealevel = []

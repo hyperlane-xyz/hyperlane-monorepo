@@ -7,9 +7,16 @@ use tokio::sync::{broadcast::Sender, mpsc};
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
 #[derive(Clone, Debug, new)]
-pub struct MessageRetryApi {
+pub struct ServerState {
     retry_request_transmitter: Sender<MessageRetryRequest>,
     destination_chains: usize,
+}
+impl ServerState {
+    pub fn router(self) -> Router {
+        Router::new()
+            .route(MESSAGE_RETRY_API_BASE, routing::post(handler))
+            .with_state(self)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -37,14 +44,14 @@ pub struct MessageRetryResponse {
     pub matched: u64,
 }
 
-async fn retry_message(
-    State(state): State<MessageRetryApi>,
-    Json(retry_req_payload): Json<MatchingList>,
+async fn handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<MatchingList>,
 ) -> Result<Json<MessageRetryResponse>, String> {
     let uuid = uuid::Uuid::new_v4();
     let uuid_string = uuid.to_string();
 
-    tracing::debug!(?retry_req_payload);
+    tracing::debug!(?payload);
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
     // Create a channel that can hold each chain's SerialSubmitter
@@ -56,7 +63,7 @@ async fn retry_message(
         .retry_request_transmitter
         .send(MessageRetryRequest {
             uuid: uuid_string.clone(),
-            pattern: retry_req_payload,
+            pattern: payload,
             transmitter,
         })
         .map_err(|err| {
@@ -86,56 +93,39 @@ async fn retry_message(
     Ok(Json(resp))
 }
 
-impl MessageRetryApi {
-    pub fn router(&self) -> Router {
-        Router::new()
-            .route("/", routing::post(retry_message))
-            .with_state(self.clone())
-    }
-
-    pub fn get_route(&self) -> (&'static str, Router) {
-        (MESSAGE_RETRY_API_BASE, self.router())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::{msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+    use axum::{
+        body::Body,
+        http::{header::CONTENT_TYPE, Method, Request, Response, StatusCode},
+    };
+    use hyperlane_core::{HyperlaneMessage, QueueOperation};
+    use serde_json::json;
+    use tokio::sync::broadcast::{Receiver, Sender};
+    use tower::ServiceExt;
+
+    use crate::{
+        msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
+        test_utils::request::parse_body_to_json,
+    };
 
     use super::*;
-    use axum::http::StatusCode;
-    use hyperlane_core::{HyperlaneMessage, QueueOperation};
-    use serde::de::DeserializeOwned;
-    use serde_json::json;
-    use std::net::SocketAddr;
-    use tokio::sync::broadcast::{Receiver, Sender};
 
     #[derive(Debug)]
     struct TestServerSetup {
-        pub socket_address: SocketAddr,
+        pub app: Router,
         pub retry_req_rx: Receiver<MessageRetryRequest>,
     }
 
     fn setup_test_server() -> TestServerSetup {
         let broadcast_tx = Sender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
-        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone(), 10);
-        let (path, retry_router) = message_retry_api.get_route();
-
-        let app = Router::new().nest(path, retry_router);
-
-        // Running the app in the background using a test server
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        tokio::spawn(server);
-
+        let message_retry_api = ServerState::new(broadcast_tx.clone(), 10);
         let retry_req_rx = broadcast_tx.subscribe();
 
-        TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-        }
+        let app = message_retry_api.router();
+
+        TestServerSetup { app, retry_req_rx }
     }
 
     async fn send_retry_responses_future(
@@ -146,41 +136,33 @@ mod tests {
         if let Ok(req) = retry_request_receiver.recv().await {
             for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
                 // Check that the list received by the server matches the pending operation
-                assert!(req.pattern.op_matches(&op));
+                assert!(req.pattern.op_matches(op));
                 let resp = MessageRetryQueueResponse { evaluated, matched };
                 req.transmitter.send(resp).await.unwrap();
             }
         }
     }
 
-    async fn parse_response_to_json<T: DeserializeOwned>(response: reqwest::Response) -> T {
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-        let resp_json: T =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        resp_json
+    async fn send_retry_request(app: Router, body: &serde_json::Value) -> Response<Body> {
+        let api_url = MESSAGE_RETRY_API_BASE;
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::POST)
+            .header(CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(body).expect("Failed to serialize body"))
+            .expect("Failed to build request");
+        let response = app.oneshot(request).await.expect("Failed to send request");
+        response
     }
 
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_message_id_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         // Create a random message with a random message ID
         let message = HyperlaneMessage::default();
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
-            {
-                "messageid": message.id()
-            }
-        ]);
 
         // spawn a task to respond to message retry request
         let respond_task = send_retry_responses_future(
@@ -188,44 +170,35 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
+            {
+                "messageid": message.id()
+            }
+        ]);
 
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
+        let response = send_retry_request(app, &body).await;
 
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
     async fn test_destination_domain_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         let message = HyperlaneMessage {
             // Use a random destination domain
             destination: 42,
             ..Default::default()
         };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
-            {
-                "destinationdomain": message.destination
-            }
-        ]);
 
         // spawn a task to respond to message retry request
         let respond_task = send_retry_responses_future(
@@ -233,44 +206,35 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
+            {
+                "destinationdomain": message.destination
+            }
+        ]);
 
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
+        let response = send_retry_request(app, &body).await;
 
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
     async fn test_origin_domain_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         let message = HyperlaneMessage {
             // Use a random origin domain
             origin: 42,
             ..Default::default()
         };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
-            {
-                "origindomain": message.origin
-            }
-        ]);
 
         // spawn a task to respond to message retry request
         let respond_task = send_retry_responses_future(
@@ -278,41 +242,31 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
+            {
+                "origindomain": message.origin
+            }
+        ]);
 
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
-
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
+        let response = send_retry_request(app, &body).await;
 
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
     async fn test_sender_address_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         let message = HyperlaneMessage::default();
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
-            {
-                "senderaddress": message.sender
-            }
-        ]);
 
         // spawn a task to respond to message retry request
         let respond_task = send_retry_responses_future(
@@ -320,40 +274,31 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
+            {
+                "senderaddress": message.sender
+            }
+        ]);
 
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
+        let response = send_retry_request(app, &body).await;
 
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
     async fn test_recipient_address_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         let message = HyperlaneMessage::default();
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
-            {
-                "recipientaddress": message.recipient
-            }
-        ]);
 
         // spawn a task to respond to message retry request
         let respond_task = send_retry_responses_future(
@@ -361,40 +306,45 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
+            {
+                "recipientaddress": message.recipient
+            }
+        ]);
 
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
+        let response = send_retry_request(app, &body).await;
 
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
     async fn test_multiple_retry() {
-        let TestServerSetup {
-            socket_address: addr,
-            retry_req_rx,
-            ..
-        } = setup_test_server();
+        let TestServerSetup { app, retry_req_rx } = setup_test_server();
 
-        let client = reqwest::Client::new();
         let message = HyperlaneMessage {
             // Use a random origin domain
             origin: 42,
             ..Default::default()
         };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
-        let matching_list_body = json!([
+
+        // spawn a task to respond to message retry request
+        let respond_task = send_retry_responses_future(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(1, 1)],
+        );
+        tokio::task::spawn(async { respond_task.await });
+
+        let body = json!([
             {
                 "origindomain": message.origin
             },
@@ -406,26 +356,13 @@ mod tests {
             }
         ]);
 
-        // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_future(
-            retry_req_rx,
-            vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(1, 1)],
-        );
-
         // Send a POST request to the server
-        let response = client
-            .post(format!("http://{}{}", addr, MESSAGE_RETRY_API_BASE))
-            .json(&matching_list_body) // Set the request body
-            .send();
+        let response = send_retry_request(app, &body).await;
 
-        let (_t1, response_res) = tokio::join!(respond_task, response);
-
-        let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
+        let resp_json: MessageRetryResponse = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_json.evaluated, 1);
         assert_eq!(resp_json.matched, 1);
     }

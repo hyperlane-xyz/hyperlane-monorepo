@@ -8,11 +8,15 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  inCIMode,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -27,10 +31,10 @@ export const chainsToSkip: ChainName[] = [
   'zklink',
   'treasure',
   'abstract',
+  'sophon',
 
   // testnets
   'abstracttestnet',
-  'treasuretopaz',
 
   // Oct 16 batch
   'lumia',

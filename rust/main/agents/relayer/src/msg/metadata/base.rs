@@ -2,67 +2,95 @@
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     fmt::Debug,
-    ops::Deref,
-    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crate::{
-    merkle_tree::builder::MerkleTreeBuilder,
-    msg::metadata::{
-        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
-        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
-        RoutingIsmMetadataBuilder,
-    },
-    settings::matching_list::MatchingList,
-};
-use async_trait::async_trait;
 use derive_new::new;
-use eyre::{Context, Result};
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
-use hyperlane_base::{
-    settings::{ChainConf, CheckpointSyncerConf},
-    CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
-};
+use eyre::Result;
+use num_traits::cast::FromPrimitive;
+use serde::{Deserialize, Deserializer};
+use tokio::sync::{Mutex, RwLock};
+
 use hyperlane_core::{
-    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256,
 };
 
-use tokio::sync::RwLock;
-use tracing::{debug, info, instrument, warn};
+use crate::settings::matching_list::MatchingList;
 
-#[derive(Debug, thiserror::Error)]
-pub enum MetadataBuilderError {
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum MetadataBuildError {
+    #[error("An external error causes the build to fail ({0})")]
+    FailedToBuild(String),
+    /// While building metadata, encountered something that should
+    /// prohibit all metadata for the message from being built.
+    /// Provides the reason for the refusal.
+    #[error("Refused")]
+    Refused(String),
+    /// Unable to fetch metadata, but no error occurred
+    #[error("Could not fetch metadata")]
+    CouldNotFetch,
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
-    MaxDepthExceeded(u32),
+    MaxIsmDepthExceeded(u32),
+    #[error("Exceeded max count when building metadata ({0})")]
+    MaxIsmCountReached(u32),
+    #[error("Exceeded max validator count when building metadata ({0})")]
+    MaxValidatorCountReached(u32),
+    #[error("Aggregation threshold not met ({0})")]
+    AggregationThresholdNotMet(u32),
+    #[error("Fast path error ({0})")]
+    FastPathError(String),
+}
+
+#[derive(Clone, Debug, new)]
+pub struct Metadata(Vec<u8>);
+
+impl Metadata {
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.clone()
+    }
+}
+
+#[async_trait::async_trait]
+pub trait MetadataBuilder: Send + Sync {
+    /// Given a message, build it's ISM metadata
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> Result<Metadata, MetadataBuildError>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MessageMetadataBuildParams {
+    /// current ISM depth.
+    /// ISMs can be structured recursively. We keep track of the depth
+    /// of the recursion to avoid infinite loops.
+    /// This value is local to each recursion when doing a .clone()
+    pub ism_depth: u32,
+    /// current ISM count.
+    /// This value is global and is shared when doing a .clone()
+    /// in order to track all recursion branches
+    pub ism_count: Arc<Mutex<u32>>,
 }
 
 #[derive(Debug)]
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
-    pub metadata: Option<Vec<u8>>,
-    pub module_type: ModuleType,
-}
-
-#[async_trait]
-pub trait MetadataBuilder: Send + Sync {
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
-        -> Result<Option<Vec<u8>>>;
+    pub metadata: Metadata,
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time
 /// to avoid fetching it all the time.
 /// TODO: make this generic
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DefaultIsmCache {
-    value: RwLock<Option<(H256, Instant)>>,
+    value: Arc<RwLock<Option<(H256, Instant)>>>,
     mailbox: Arc<dyn Mailbox>,
 }
 
@@ -72,7 +100,7 @@ impl DefaultIsmCache {
 
     pub fn new(mailbox: Arc<dyn Mailbox>) -> Self {
         Self {
-            value: RwLock::new(None),
+            value: Arc::new(RwLock::new(None)),
             mailbox,
         }
     }
@@ -109,17 +137,17 @@ impl DefaultIsmCache {
 
 #[derive(Debug)]
 pub struct IsmAwareAppContextClassifier {
-    default_ism: DefaultIsmCache,
+    default_ism_getter: DefaultIsmCache,
     app_context_classifier: AppContextClassifier,
 }
 
 impl IsmAwareAppContextClassifier {
     pub fn new(
-        destination_mailbox: Arc<dyn Mailbox>,
+        default_ism_getter: DefaultIsmCache,
         app_matching_lists: Vec<(MatchingList, String)>,
     ) -> Self {
         Self {
-            default_ism: DefaultIsmCache::new(destination_mailbox),
+            default_ism_getter,
             app_context_classifier: AppContextClassifier::new(app_matching_lists),
         }
     }
@@ -133,7 +161,7 @@ impl IsmAwareAppContextClassifier {
             return Ok(Some(app_context));
         }
 
-        if root_ism == self.default_ism.get().await? {
+        if root_ism == self.default_ism_getter.get().await? {
             return Ok(Some("default_ism".to_string()));
         }
 
@@ -169,279 +197,358 @@ impl AppContextClassifier {
     }
 }
 
-/// Builds metadata for a message.
-#[derive(Debug, Clone)]
-pub struct MessageMetadataBuilder {
-    pub base: Arc<BaseMetadataBuilder>,
-    /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinite loops.
-    pub depth: u32,
-    pub app_context: Option<String>,
+/// An ISM caching policy.
+#[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IsmCachePolicy {
+    /// Default cache policy, includes the message in the cache key
+    /// when querying config that may be message-specific.
+    /// This is the default because it makes the fewest assumptions
+    /// about the mutability of an ISM's config.
+    #[default]
+    MessageSpecific,
+    /// Even if an ISM's config interface is message-specific, we
+    /// ignore the message and use the same config for all messages.
+    IsmSpecific,
 }
 
-impl Deref for MessageMetadataBuilder {
-    type Target = BaseMetadataBuilder;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum IsmCacheSelector {
+    #[default]
+    DefaultIsm,
+    AppContext {
+        context: String,
+    },
 }
 
-#[async_trait]
-impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()))]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<Vec<u8>>> {
-        self.build_ism_and_metadata(ism_address, message)
-            .await
-            .map(|ism_with_metadata| ism_with_metadata.metadata)
-    }
+/// Configuration for ISM caching behavior.
+/// Fields are renamed to be all lowercase / without underscores to match
+/// the format expected by the settings parsing.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct IsmCacheConfig {
+    selector: IsmCacheSelector,
+    #[serde(deserialize_with = "deserialize_module_types", rename = "moduletypes")]
+    module_types: HashSet<ModuleType>,
+    chains: Option<HashSet<String>>,
+    #[serde(default, rename = "cachepolicy")]
+    cache_policy: IsmCachePolicy,
 }
 
-impl MessageMetadataBuilder {
-    pub async fn new(
-        ism_address: H256,
-        message: &HyperlaneMessage,
-        base: Arc<BaseMetadataBuilder>,
-    ) -> Result<Self> {
-        let app_context = base
-            .app_context_classifier
-            .get_app_context(message, ism_address)
-            .await?;
-        Ok(Self {
-            base,
-            depth: 0,
-            app_context,
-        })
+/// To deserialize the module types from a list of numbers
+/// into a set of `ModuleType` enums.
+fn deserialize_module_types<'de, D>(deserializer: D) -> Result<HashSet<ModuleType>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let nums: Vec<u8> = Vec::deserialize(deserializer)?;
+    let mut set = HashSet::new();
+    for num in nums {
+        let module = ModuleType::from_u8(num).ok_or_else(|| {
+            serde::de::Error::custom(format!("Invalid module type value: {}", num))
+        })?;
+        set.insert(module);
     }
+    Ok(set)
+}
 
-    fn clone_with_incremented_depth(&self) -> Result<MessageMetadataBuilder> {
-        let mut cloned = self.clone();
-        cloned.depth += 1;
-        if cloned.depth > cloned.max_depth {
-            Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
+impl IsmCacheConfig {
+    fn matches_chain(&self, domain_name: &str) -> bool {
+        if let Some(chains) = &self.chains {
+            chains.contains(domain_name)
         } else {
-            Ok(cloned)
+            // If no domains are specified, match all domains
+            true
         }
     }
 
-    #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()), ret)]
-    pub async fn build_ism_and_metadata(
+    fn matches_module_type(&self, module_type: ModuleType) -> bool {
+        self.module_types.contains(&module_type)
+    }
+}
+
+/// Classifies messages into an ISM cache policy based on the
+/// default ISM and the configured cache policy.
+#[derive(Debug, new)]
+pub struct IsmCachePolicyClassifier {
+    default_ism_getter: DefaultIsmCache,
+    ism_cache_configs: Vec<IsmCacheConfig>,
+}
+
+impl IsmCachePolicyClassifier {
+    /// Returns the cache policy for the given app context.
+    pub async fn get_cache_policy(
         &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<IsmWithMetadataAndType> {
-        let ism: Box<dyn InterchainSecurityModule> = self
-            .build_ism(ism_address)
-            .await
-            .context("When building ISM")?;
+        root_ism: H256,
+        domain: &HyperlaneDomain,
+        ism_module_type: ModuleType,
+        app_context: Option<&String>,
+    ) -> IsmCachePolicy {
+        for config in &self.ism_cache_configs {
+            let matches_module = match &config.selector {
+                IsmCacheSelector::DefaultIsm => {
+                    let default_ism = match self.default_ism_getter.get().await {
+                        Ok(default_ism) => default_ism,
+                        Err(err) => {
+                            tracing::warn!(?err, "Error fetching default ISM for ISM cache policy, attempting next config");
+                            continue;
+                        }
+                    };
+                    root_ism == default_ism
+                }
+                IsmCacheSelector::AppContext {
+                    context: selector_app_context,
+                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
+            };
 
-        let module_type = ism
-            .module_type()
-            .await
-            .context("When fetching module type")?;
-        let cloned = self.clone_with_incremented_depth()?;
+            if matches_module
+                && config.matches_chain(domain.name())
+                && config.matches_module_type(ism_module_type)
+            {
+                tracing::trace!(
+                    ?domain,
+                    ism_cache_config =? config,
+                    "Using configured default ISM cache policy"
+                );
+                return config.cache_policy;
+            }
+        }
 
-        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
-            ModuleType::MerkleRootMultisig => {
-                Box::new(MerkleRootMultisigMetadataBuilder::new(cloned))
-            }
-            ModuleType::MessageIdMultisig => {
-                Box::new(MessageIdMultisigMetadataBuilder::new(cloned))
-            }
-            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(cloned)),
-            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(cloned)),
-            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(cloned)),
-            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
+        IsmCachePolicy::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_test::mocks::MockMailboxContract;
+
+    #[test]
+    fn test_ism_cache_config() {
+        let config = IsmCacheConfig {
+            selector: IsmCacheSelector::DefaultIsm,
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
         };
-        let meta = metadata_builder
-            .build(ism_address, message)
-            .await
-            .context("When building metadata");
-        Ok(IsmWithMetadataAndType {
-            ism,
-            metadata: meta?,
-            module_type,
-        })
-    }
-}
 
-/// Base metadata builder with types used by higher level metadata builders.
-#[allow(clippy::too_many_arguments)]
-#[derive(new)]
-pub struct BaseMetadataBuilder {
-    origin_domain: HyperlaneDomain,
-    destination_chain_setup: ChainConf,
-    origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
-    allow_local_checkpoint_syncers: bool,
-    metrics: Arc<CoreMetrics>,
-    db: HyperlaneRocksDB,
-    app_context_classifier: IsmAwareAppContextClassifier,
-    #[new(value = "7")]
-    max_depth: u32,
-}
+        assert_eq!(config.matches_chain("foochain"), true);
+        assert_eq!(config.matches_chain("barchain"), false);
 
-impl Debug for BaseMetadataBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "BaseMetadataBuilder {{ origin_domain: {:?} destination_chain_setup: {:?}, validator_announce: {:?} }}",
-            self.origin_domain, self.destination_chain_setup, self.origin_validator_announce
-        )
-    }
-}
-
-impl BaseMetadataBuilder {
-    pub fn origin_domain(&self) -> &HyperlaneDomain {
-        &self.origin_domain
+        assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
+        assert_eq!(config.matches_module_type(ModuleType::Routing), false);
     }
 
-    pub fn destination_domain(&self) -> &HyperlaneDomain {
-        &self.destination_chain_setup.domain
-    }
-
-    pub async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> Result<Proof> {
-        const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
-            .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
-
-        if proof.root() != checkpoint.root {
-            info!(
-                ?checkpoint,
-                canonical_root = ?proof.root(),
-                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-            );
+    #[test]
+    fn test_ism_cache_config_deserialize() {
+        // Module type 2 is the numeric version of ModuleType::Aggregation
+        let json = r#"
+        {
+            "selector": {
+                "type": "defaultIsm"
+            },
+            "moduletypes": [2],
+            "chains": ["foochain"],
+            "cachepolicy": "ismSpecific"
         }
-        Ok(proof)
-    }
+        "#;
+        let config: IsmCacheConfig = serde_json::from_str(json).unwrap();
 
-    pub async fn highest_known_leaf_index(&self) -> Option<u32> {
-        self.origin_prover_sync.read().await.count().checked_sub(1)
-    }
+        assert_eq!(config.selector, IsmCacheSelector::DefaultIsm);
+        assert_eq!(
+            config.module_types,
+            HashSet::from([ModuleType::Aggregation])
+        );
+        assert_eq!(config.chains, Some(HashSet::from(["foochain".to_owned()])));
+        assert_eq!(config.cache_policy, IsmCachePolicy::IsmSpecific);
 
-    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
-        let merkle_leaf = self
-            .db
-            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
-        Ok(merkle_leaf)
-    }
-
-    pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
-        self.destination_chain_setup
-            .build_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
-        self.destination_chain_setup
-            .build_routing_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
-        self.destination_chain_setup
-            .build_multisig_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_aggregation_ism(&self, address: H256) -> Result<Box<dyn AggregationIsm>> {
-        self.destination_chain_setup
-            .build_aggregation_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_ccip_read_ism(&self, address: H256) -> Result<Box<dyn CcipReadIsm>> {
-        self.destination_chain_setup
-            .build_ccip_read_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_checkpoint_syncer(
-        &self,
-        message: &HyperlaneMessage,
-        validators: &[H256],
-        app_context: Option<String>,
-    ) -> Result<MultisigCheckpointSyncer> {
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
-            .await?;
-
-        debug!(
-            hyp_message=?message,
-            ?validators,
-            validators_len = ?validators.len(),
-            ?storage_locations,
-            storage_locations_len = ?storage_locations.len(),
-            "List of validators and their storage locations for message");
-
-        // Only use the most recently announced location for now.
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
-        for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
-            debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
-            for storage_location in validator_storage_locations.iter().rev() {
-                let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                    debug!(
-                        ?validator,
-                        ?storage_location,
-                        "Could not parse checkpoint syncer config for validator"
-                    );
-                    continue;
-                };
-
-                // If this is a LocalStorage based checkpoint syncer and it's not
-                // allowed, ignore it
-                if !self.allow_local_checkpoint_syncers
-                    && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
-                {
-                    debug!(
-                        ?config,
-                        "Ignoring disallowed LocalStorage based checkpoint syncer"
-                    );
-                    continue;
-                }
-
-                match config.build_and_validate(None).await {
-                    Ok(checkpoint_syncer) => {
-                        // found the syncer for this validator
-                        checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
-                        break;
-                    }
-                    Err(err) => {
-                        debug!(
-                            error=%err,
-                            ?config,
-                            ?validator,
-                            "Error when loading checkpoint syncer; will attempt to use the next config"
-                        );
-                    }
-                }
-            }
-            if checkpoint_syncers.get(&validator.into()).is_none() {
-                if validator_storage_locations.is_empty() {
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
-                } else {
-                    warn!(
-                        ?validator,
-                        ?validator_storage_locations,
-                        "No valid checkpoint syncer configs for validator"
-                    );
-                }
-            }
+        let json = r#"
+        {
+            "selector": {
+                "type": "appContext",
+                "context": "foo"
+            },
+            "moduletypes": [2],
+            "chains": ["foochain"],
+            "cachepolicy": "ismSpecific"
         }
-        Ok(MultisigCheckpointSyncer::new(
-            checkpoint_syncers,
-            self.metrics.clone(),
-            app_context,
-        ))
+        "#;
+        let config: IsmCacheConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.selector,
+            IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ism_cache_policy_classifier_default_ism() {
+        let default_ism = H256::zero();
+
+        let mock_mailbox = MockMailboxContract::new_with_default_ism(default_ism);
+        let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+
+        let default_ism_getter = DefaultIsmCache::new(mailbox);
+        let default_ism_cache_config = IsmCacheConfig {
+            selector: IsmCacheSelector::DefaultIsm,
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        let classifier =
+            IsmCachePolicyClassifier::new(default_ism_getter, vec![default_ism_cache_config]);
+
+        // We meet the criteria for the cache policy
+        let domain = HyperlaneDomain::new_test_domain("foochain");
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Aggregation, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::IsmSpecific);
+
+        // Different ISM module type, should not match
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Routing, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // ISM not default ISM, should not match
+        let cache_policy = classifier
+            .get_cache_policy(H256::repeat_byte(0xfe), &domain, ModuleType::Routing, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // Different domain, should not match
+        let domain = HyperlaneDomain::new_test_domain("barchain");
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Routing, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+    }
+
+    #[tokio::test]
+    async fn test_ism_cache_policy_classifier_app_context() {
+        let default_ism = H256::zero();
+        let mock_mailbox = MockMailboxContract::new_with_default_ism(default_ism);
+        let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+        // Unused for this test
+        let default_ism_getter = DefaultIsmCache::new(mailbox);
+
+        let app_context_cache_config = IsmCacheConfig {
+            selector: IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        let classifier =
+            IsmCachePolicyClassifier::new(default_ism_getter, vec![app_context_cache_config]);
+
+        // We meet the criteria for the cache policy
+        let domain = HyperlaneDomain::new_test_domain("foochain");
+        let cache_policy = classifier
+            .get_cache_policy(
+                // To make extra sure we're testing the app context match,
+                // let's use a different ISM address
+                H256::repeat_byte(0xfe),
+                &domain,
+                ModuleType::Aggregation,
+                Some(&"foo".to_string()),
+            )
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::IsmSpecific);
+
+        // Different app context, should not match
+        let cache_policy = classifier
+            .get_cache_policy(
+                default_ism,
+                &domain,
+                ModuleType::Routing,
+                Some(&"bar".to_string()),
+            )
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // No app context, should not match
+        let cache_policy = classifier
+            .get_cache_policy(H256::repeat_byte(0xfe), &domain, ModuleType::Routing, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // Different domain, should not match
+        let domain = HyperlaneDomain::new_test_domain("barchain");
+        let cache_policy = classifier
+            .get_cache_policy(
+                default_ism,
+                &domain,
+                ModuleType::Routing,
+                Some(&"foo".to_string()),
+            )
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+    }
+
+    #[tokio::test]
+    async fn test_ism_cache_policy_classifier_multiple_policies() {
+        let default_ism = H256::zero();
+        let mock_mailbox = MockMailboxContract::new_with_default_ism(default_ism);
+        let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+        // Unused for this test
+        let default_ism_getter = DefaultIsmCache::new(mailbox);
+
+        let app_context_cache_config = IsmCacheConfig {
+            selector: IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        let default_ism_cache_config = IsmCacheConfig {
+            selector: IsmCacheSelector::DefaultIsm,
+            module_types: HashSet::from([ModuleType::Routing]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        let classifier = IsmCachePolicyClassifier::new(
+            default_ism_getter,
+            vec![app_context_cache_config, default_ism_cache_config],
+        );
+
+        // We meet the criteria for the app context cache policy
+        let domain = HyperlaneDomain::new_test_domain("foochain");
+        let cache_policy = classifier
+            .get_cache_policy(
+                // To make extra sure we're testing the app context match,
+                // let's use a different ISM address
+                H256::repeat_byte(0xfe),
+                &domain,
+                ModuleType::Aggregation,
+                Some(&"foo".to_string()),
+            )
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::IsmSpecific);
+
+        // We meet the criteria for the default ISM cache policy
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Routing, None)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::IsmSpecific);
+
+        // Different app context and not default ISM, should not match
+        let cache_policy = classifier
+            .get_cache_policy(
+                H256::repeat_byte(0xfe),
+                &domain,
+                ModuleType::Routing,
+                Some(&"bar".to_string()),
+            )
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
     }
 }

@@ -1,14 +1,22 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use lazy_static::lazy_static;
+use base64::Engine;
+use borsh::{BorshDeserialize, BorshSerialize};
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+use solana_client::rpc_client::SerializableTransaction;
+use solana_client::rpc_response::Response;
+use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
+use solana_sdk::instruction::{AccountMeta, Instruction};
+use solana_sdk::message::Message;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
+use solana_sdk::signer::Signer;
+use solana_sdk::transaction::Transaction;
 use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
-    UiInstruction, UiMessage, UiParsedInstruction, UiParsedMessage, UiTransaction,
+    option_serializer::OptionSerializer, EncodedTransactionWithStatusMeta, UiTransaction,
     UiTransactionStatusMeta,
 };
+use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding};
 use tracing::warn;
 
 use hyperlane_core::{
@@ -18,46 +26,312 @@ use hyperlane_core::{
 };
 
 use crate::error::HyperlaneSealevelError;
+use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
+use crate::priority_fee::PriorityFeeOracle;
+use crate::provider::recipient::RecipientProvider;
+use crate::provider::transaction::{parsed_message, txn};
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::{ConnectionConf, SealevelRpcClient};
+use crate::{ConnectionConf, SealevelKeypair, TransactionSubmitter};
 
-lazy_static! {
-    static ref NATIVE_PROGRAMS: HashSet<String> = HashSet::from([
-        solana_sdk::bpf_loader_upgradeable::ID.to_string(),
-        solana_sdk::compute_budget::ID.to_string(),
-        solana_sdk::config::program::ID.to_string(),
-        solana_sdk::ed25519_program::ID.to_string(),
-        solana_sdk::secp256k1_program::ID.to_string(),
-        solana_sdk::stake::program::ID.to_string(),
-        solana_sdk::system_program::ID.to_string(),
-        solana_sdk::vote::program::ID.to_string(),
-    ]);
+mod recipient;
+mod transaction;
+
+const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
+const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
+const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
+
+/// The max amount of compute units for a transaction.
+const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+
+/// Transaction cost estimate
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq)]
+pub struct SealevelTxCostEstimate {
+    /// Compute units estimate
+    pub compute_units: u32,
+    /// Compute unit price estimate
+    pub compute_unit_price_micro_lamports: u64,
+}
+
+impl Default for SealevelTxCostEstimate {
+    fn default() -> Self {
+        Self {
+            compute_units: MAX_COMPUTE_UNITS,
+            compute_unit_price_micro_lamports: 0,
+        }
+    }
+}
+
+/// Methods of provider which are used in submitter
+#[async_trait]
+pub trait SealevelProviderForSubmitter: Send + Sync {
+    /// Creates Sealevel transaction for instruction
+    async fn create_transaction_for_instruction(
+        &self,
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        sign: bool,
+    ) -> ChainResult<Transaction>;
+
+    /// Estimates cost for Sealevel instruction
+    async fn get_estimated_costs_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<SealevelTxCostEstimate>;
+
+    /// Waits for Sealevel transaction confirmation with processed commitment level
+    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
+        -> ChainResult<()>;
+
+    /// Confirm transaction
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SealevelProvider {
+    rpc_client: SealevelFallbackRpcClient,
     domain: HyperlaneDomain,
-    rpc_client: Arc<SealevelRpcClient>,
     native_token: NativeToken,
+    recipient_provider: RecipientProvider,
+}
+
+#[async_trait]
+impl SealevelProviderForSubmitter for SealevelProvider {
+    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
+    /// If `sign` is true, the transaction will be signed.
+    async fn create_transaction_for_instruction(
+        &self,
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        sign: bool,
+    ) -> ChainResult<Transaction> {
+        let instructions = vec![
+            // Set the compute unit limit.
+            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
+            // Set the priority fee / tip
+            tx_submitter.get_priority_fee_instruction(
+                compute_unit_price_micro_lamports,
+                compute_unit_limit.into(),
+                &payer.pubkey(),
+            ),
+            instruction,
+        ];
+
+        let tx = if sign {
+            // Getting the finalized blockhash eliminates the chance the blockhash
+            // gets reorged out, causing the tx to be invalid. The tradeoff is this
+            // will cause the tx to expire in about 47 seconds (instead of the typical 60).
+            let recent_blockhash = self
+                .rpc_client()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+
+            Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&payer.pubkey()),
+                &[payer.keypair()],
+                recent_blockhash,
+            )
+        } else {
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
+        };
+
+        Ok(tx)
+    }
+
+    /// Gets the estimated costs for a given instruction.
+    /// The return value is `Some(SealevelTxCostEstimate)` if the instruction was successfully simulated,
+    /// `None` if the simulation failed.
+    async fn get_estimated_costs_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        // Build a transaction that sets the max compute units and a dummy compute unit price.
+        // This is used for simulation to get the actual compute unit limit. We set dummy values
+        // for the compute unit limit and price because we want to include the instructions that
+        // set these in the cost estimate.
+        let simulation_tx = self
+            .create_transaction_for_instruction(
+                MAX_COMPUTE_UNITS,
+                0,
+                instruction,
+                payer,
+                tx_submitter,
+                false,
+            )
+            .await?;
+
+        let simulation_result = self
+            .rpc_client()
+            .simulate_transaction(&simulation_tx)
+            .await?;
+
+        // If there was an error in the simulation result, return an error.
+        if simulation_result.err.is_some() {
+            tracing::error!(?simulation_result, "Got simulation result for transaction");
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
+        } else {
+            tracing::debug!(?simulation_result, "Got simulation result for transaction");
+        }
+
+        // Get the compute units used in the simulation result, requiring
+        // that it is greater than 0.
+        let simulation_compute_units: u32 = simulation_result
+            .units_consumed
+            .unwrap_or_default()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+        if simulation_compute_units == 0 {
+            return Err(ChainCommunicationError::from_other_str(
+                "Empty or zero compute units returned in simulation result",
+            ));
+        }
+
+        // Bump the compute units to be conservative
+        let simulation_compute_units = MAX_COMPUTE_UNITS.min(
+            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
+                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
+        );
+
+        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
+            let max_priority_fee = max_priority_fee.parse()?;
+            if priority_fee > max_priority_fee {
+                tracing::info!(
+                    priority_fee,
+                    max_priority_fee,
+                    "Estimated priority fee is very high, capping to a max",
+                );
+                priority_fee = max_priority_fee;
+            }
+        }
+
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
+        // Bump the priority fee to be conservative
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
+
+        Ok(SealevelTxCostEstimate {
+            compute_units: simulation_compute_units,
+            compute_unit_price_micro_lamports: priority_fee,
+        })
+    }
+
+    /// Polls the RPC until the transaction is confirmed or the blockhash
+    /// expires.
+    /// Standalone logic stolen from Solana's non-blocking client,
+    /// decoupled from the sending of a transaction.
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        let signature = transaction.get_signature();
+
+        const GET_STATUS_RETRIES: usize = usize::MAX;
+
+        let recent_blockhash = if transaction.uses_durable_nonce() {
+            self.rpc_client()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .await?
+        } else {
+            *transaction.get_recent_blockhash()
+        };
+
+        for status_retry in 0..GET_STATUS_RETRIES {
+            let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
+                .rpc_client()
+                .get_signature_statuses(&[*signature])
+                .await?;
+            let signature_status = signature_statuses.value.first().cloned().flatten();
+            match signature_status {
+                Some(_) => return Ok(()),
+                None => {
+                    if !self
+                        .rpc_client()
+                        .is_blockhash_valid(recent_blockhash)
+                        .await?
+                    {
+                        // Block hash is not found by some reason
+                        break;
+                    } else if cfg!(not(test))
+                        // Ignore sleep at last step.
+                        && status_retry < GET_STATUS_RETRIES
+                    {
+                        // Retry twice a second
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        Err(ChainCommunicationError::from_other(
+            solana_client::rpc_request::RpcError::ForUser(
+                "unable to confirm transaction. \
+                This can happen in situations such as transaction expiration \
+                and insufficient fee-payer funds"
+                    .to_string(),
+            ),
+        ))
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.rpc_client()
+            .confirm_transaction_with_commitment(signature, commitment)
+            .await
+    }
 }
 
 impl SealevelProvider {
-    /// Create a new Sealevel provider.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
+    /// constructor
+    pub fn new(
+        rpc_client: SealevelFallbackRpcClient,
+        domain: HyperlaneDomain,
+        contract_addresses: &[H256],
+        conf: &ConnectionConf,
+    ) -> Self {
         let native_token = conf.native_token.clone();
-
+        let recipient_provider = RecipientProvider::new(contract_addresses);
         Self {
-            domain,
             rpc_client,
+            domain,
             native_token,
+            recipient_provider,
         }
     }
 
     /// Get an rpc client
-    pub fn rpc(&self) -> &SealevelRpcClient {
+    pub fn rpc_client(&self) -> &SealevelFallbackRpcClient {
         &self.rpc_client
     }
 
@@ -65,7 +339,7 @@ impl SealevelProvider {
         let received_signature = txn
             .signatures
             .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(Box::new(*hash)))?;
         let received_hash = decode_h512(received_signature)?;
 
         if &received_hash != hash {
@@ -80,48 +354,15 @@ impl SealevelProvider {
     }
 
     fn sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = Self::parsed_message(txn)?;
+        let message = parsed_message(txn)?;
 
         let signer = message
             .account_keys
             .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(Box::new(*hash)))?;
         let pubkey = decode_pubkey(&signer.pubkey)?;
         let sender = H256::from_slice(&pubkey.to_bytes());
         Ok(sender)
-    }
-
-    fn recipient(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = Self::parsed_message(txn)?;
-
-        let programs = message
-            .instructions
-            .iter()
-            .filter_map(|ii| {
-                if let UiInstruction::Parsed(iii) = ii {
-                    Some(iii)
-                } else {
-                    None
-                }
-            })
-            .map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => &iii.program_id,
-                UiParsedInstruction::PartiallyDecoded(iii) => &iii.program_id,
-            })
-            .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
-            .collect::<Vec<&String>>();
-
-        if programs.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyNonNativePrograms(*hash))?;
-        }
-
-        let program_id = programs
-            .first()
-            .ok_or(HyperlaneSealevelError::NoNonNativePrograms(*hash))?;
-
-        let pubkey = decode_pubkey(program_id)?;
-        let recipient = H256::from_slice(&pubkey.to_bytes());
-        Ok(recipient)
     }
 
     fn gas(meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
@@ -153,13 +394,46 @@ impl SealevelProvider {
         Ok(meta)
     }
 
-    fn parsed_message(txn: &UiTransaction) -> ChainResult<&UiParsedMessage> {
-        Ok(match &txn.message {
-            UiMessage::Parsed(m) => m,
-            m => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
-            ))?,
-        })
+    /// Builds a transaction with estimated costs for a given instruction.
+    pub async fn build_estimated_tx_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<Transaction> {
+        // Get the estimated costs for the instruction.
+        let SealevelTxCostEstimate {
+            compute_units,
+            compute_unit_price_micro_lamports,
+        } = self
+            .get_estimated_costs_for_instruction(
+                instruction.clone(),
+                payer,
+                tx_submitter,
+                priority_fee_oracle,
+            )
+            .await?;
+
+        tracing::info!(
+            ?compute_units,
+            ?compute_unit_price_micro_lamports,
+            "Got compute units and compute unit price / priority fee for transaction"
+        );
+
+        // Build the final transaction with the correct compute unit limit and price.
+        let tx = self
+            .create_transaction_for_instruction(
+                compute_units,
+                compute_unit_price_micro_lamports,
+                instruction,
+                payer,
+                tx_submitter,
+                true,
+            )
+            .await?;
+
+        Ok(tx)
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {
@@ -178,6 +452,68 @@ impl SealevelProvider {
         };
         Ok(block_info)
     }
+
+    /// Simulates an Instruction that will return a list of AccountMetas.
+    pub async fn get_account_metas(
+        &self,
+        payer: &SealevelKeypair,
+        instruction: Instruction,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        // If there's no data at all, default to an empty vec.
+        let account_metas = self
+            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+                &payer.pubkey(),
+                instruction,
+            )
+            .await?
+            .map(|serializable_account_metas| {
+                serializable_account_metas
+                    .return_data
+                    .into_iter()
+                    .map(|serializable_account_meta| serializable_account_meta.into())
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new);
+
+        Ok(account_metas)
+    }
+
+    /// Simulates an instruction, and attempts to deserialize it into a T.
+    /// If no return data at all was returned, returns Ok(None).
+    /// If some return data was returned but deserialization was unsuccessful,
+    /// an Err is returned.
+    pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
+        &self,
+        pubkey: &Pubkey,
+        instruction: Instruction,
+    ) -> ChainResult<Option<T>> {
+        let commitment = CommitmentConfig::finalized();
+        let recent_blockhash = self
+            .rpc_client()
+            .get_latest_blockhash_with_commitment(commitment)
+            .await?;
+        let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
+            &[instruction],
+            Some(pubkey),
+            &recent_blockhash,
+        ));
+        let simulation = self.rpc_client().simulate_transaction(&transaction).await?;
+
+        if let Some(return_data) = simulation.return_data {
+            let bytes = match return_data.data.1 {
+                UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
+                    .decode(return_data.data.0)
+                    .map_err(ChainCommunicationError::from_other)?,
+            };
+
+            let decoded_data =
+                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
+
+            return Ok(Some(decoded_data));
+        }
+
+        Ok(None)
+    }
 }
 
 impl HyperlaneChain for SealevelProvider {
@@ -186,11 +522,7 @@ impl HyperlaneChain for SealevelProvider {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider {
-            domain: self.domain.clone(),
-            rpc_client: self.rpc_client.clone(),
-            native_token: self.native_token.clone(),
-        })
+        Box::new(self.clone())
     }
 }
 
@@ -210,19 +542,14 @@ impl HyperlaneProvider for SealevelProvider {
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let signature = Signature::new(hash.as_bytes());
 
-        let txn_confirmed = self.rpc_client.get_transaction(&signature).await?;
+        let txn_confirmed = self.rpc_client.get_transaction(signature).await?;
         let txn_with_meta = &txn_confirmed.transaction;
 
-        let txn = match &txn_with_meta.transaction {
-            EncodedTransaction::Json(t) => t,
-            t => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedTransactionEncoding(t.clone()),
-            ))?,
-        };
+        let txn = txn(txn_with_meta)?;
 
         Self::validate_transaction(hash, txn)?;
         let sender = Self::sender(hash, txn)?;
-        let recipient = Self::recipient(hash, txn)?;
+        let recipient = self.recipient_provider.recipient(hash, txn)?;
         let meta = Self::meta(txn_with_meta)?;
         let gas_used = Self::gas(meta)?;
         let fee = self.fee(meta)?;
@@ -260,7 +587,7 @@ impl HyperlaneProvider for SealevelProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let pubkey = decode_pubkey(&address)?;
-        self.rpc_client.get_balance(&pubkey).await
+        self.rpc_client.get_balance(pubkey).await
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {

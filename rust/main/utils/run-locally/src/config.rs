@@ -1,13 +1,12 @@
 use std::env;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub is_ci_env: bool,
     pub ci_mode: bool,
     pub ci_mode_timeout: u64,
     pub kathy_messages: u64,
-    pub sealevel_enabled: bool,
     // TODO: Include count of sealevel messages in a field separate from `kathy_messages`?
 }
 
@@ -28,9 +27,6 @@ impl Config {
                     .map(|r| r.parse::<u64>().unwrap());
                 r.unwrap_or(16)
             },
-            sealevel_enabled: env::var("SEALEVEL_ENABLED")
-                .map(|k| k.parse::<bool>().unwrap())
-                .unwrap_or(true),
         })
     }
 }

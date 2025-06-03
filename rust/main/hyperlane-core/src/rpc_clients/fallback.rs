@@ -13,7 +13,7 @@ use std::{
 use tokio;
 use tracing::{info, trace, warn_span};
 
-use crate::ChainCommunicationError;
+use crate::ChainResult;
 
 use super::RpcClientError;
 
@@ -21,7 +21,7 @@ use super::RpcClientError;
 #[async_trait]
 pub trait BlockNumberGetter: Send + Sync + Debug {
     /// Latest block number getter
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError>;
+    async fn get_block_number(&self) -> ChainResult<u64>;
 }
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
@@ -65,6 +65,18 @@ pub struct FallbackProvider<T, B> {
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
     _phantom: PhantomData<B>,
+}
+
+impl<T, B> FallbackProvider<T, B> {
+    /// Get how many providers this fallback provider has
+    pub fn len(&self) -> usize {
+        self.inner.providers.len()
+    }
+
+    /// Check if this provider has any fallback providers
+    pub fn is_empty(&self) -> bool {
+        self.inner.providers.is_empty()
+    }
 }
 
 impl<T, B> Clone for FallbackProvider<T, B> {
@@ -169,8 +181,8 @@ where
     /// If all providers fail, return an error.
     pub async fn call<V>(
         &self,
-        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = Result<V, ChainCommunicationError>> + Send>>,
-    ) -> Result<V, ChainCommunicationError> {
+        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = ChainResult<V>> + Send>>,
+    ) -> ChainResult<V> {
         let mut errors = vec![];
         // make sure we do at least 4 total retries.
         while errors.len() <= 3 {

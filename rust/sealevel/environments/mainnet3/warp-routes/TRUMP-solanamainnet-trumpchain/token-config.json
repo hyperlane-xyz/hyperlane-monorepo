@@ -4,8 +4,7 @@
     "decimals": 6,
     "remoteDecimals": 18,
     "token": "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "splTokenProgram": "token"
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
   },
   "trumpchain": {
     "type": "native",

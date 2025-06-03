@@ -28,6 +28,7 @@ impl CosmosAddress {
         account_address_type: &AccountAddressType,
     ) -> ChainResult<Self> {
         let pubkey = SigningKey::from_slice(priv_key)
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?
             .public_key();
         Self::from_pubkey(pubkey, prefix, account_address_type)
@@ -60,8 +61,9 @@ impl CosmosAddress {
         let bytes = &untruncated_bytes[remainder_bytes_start..];
 
         // Bech32 encode it
-        let account_id =
-            AccountId::new(prefix, bytes).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let account_id = AccountId::new(prefix, bytes)
+            .map_err(Box::new)
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(CosmosAddress::new(account_id, digest))
     }
 
@@ -100,7 +102,9 @@ impl FromStr for CosmosAddress {
     type Err = ChainCommunicationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let account_id = AccountId::from_str(s).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let account_id = AccountId::from_str(s)
+            .map_err(Box::new)
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
         let digest = CosmosAccountId::new(&account_id).try_into()?;
         Ok(Self::new(account_id, digest))
     }

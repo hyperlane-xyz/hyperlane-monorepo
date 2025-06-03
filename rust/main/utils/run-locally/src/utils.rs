@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::process::Child;
+use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -146,4 +146,49 @@ pub fn get_matching_lines<'a>(
         });
     }
     matches
+}
+
+/// Returns absolute path to rust workspace
+/// `/<...>/hyperlane-monorepo/rust/main`.
+/// This allows us to have a more reliable way of generating
+/// relative paths such path to sealevel directory
+pub fn get_workspace_path() -> PathBuf {
+    let output = Command::new(env!("CARGO"))
+        .arg("locate-project")
+        .arg("--workspace")
+        .arg("--message-format=plain")
+        .output()
+        .expect("Failed to get workspace path")
+        .stdout;
+    let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
+    let mut workspace_path = PathBuf::from(path_str);
+    // pop Cargo.toml from path
+    workspace_path.pop();
+    workspace_path
+}
+
+/// Returns absolute path to sealevel directory
+/// `/<...>/hyperlane-monorepo/rust/sealevel`
+#[cfg(feature = "sealevel")]
+pub fn get_sealevel_path(workspace_path: &Path) -> PathBuf {
+    concat_path(
+        workspace_path
+            .parent()
+            .expect("workspace path has no parent"),
+        "sealevel",
+    )
+}
+
+/// Returns absolute path to typescript infra directory
+/// `/<...>/hyperlane-monorepo/typescript/infra`
+pub fn get_ts_infra_path() -> PathBuf {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--show-toplevel")
+        .output()
+        .expect("Failed to get git workspace path")
+        .stdout;
+    let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
+    let git_workspace_path = PathBuf::from(path_str.trim());
+    concat_path(git_workspace_path, "typescript/infra")
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ReorgPeriod, H256};
 
 /// Details about a detected chain reorg, from an agent's perspective
-#[derive(Debug, Clone, Serialize, Deserialize, new)]
+#[derive(Debug, Clone, Serialize, Deserialize, new, PartialEq, Default)]
 pub struct ReorgEvent {
     /// the merkle root built from this agent's indexed events
     pub local_merkle_root: H256,

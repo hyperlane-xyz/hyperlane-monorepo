@@ -15,6 +15,7 @@ import {
 import {
   Address,
   ProtocolType,
+  inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
@@ -51,7 +52,6 @@ import {
   assertRole,
   filterRemoteDomainMetadata,
   getInfraPath,
-  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
@@ -72,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -199,15 +201,30 @@ export function withOutputFile<T>(args: Argv<T>) {
     .alias('o', 'outFile');
 }
 
-export function withWarpRouteId<T>(args: Argv<T>) {
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
     .choices('warpRouteId', Object.values(WarpRouteIds));
 }
 
+export function withWarpRouteId<T>(args: Argv<T>) {
+  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
   return withWarpRouteId(args).demandOption('warpRouteId');
+}
+
+export function withDryRun<T>(args: Argv<T>) {
+  return args
+    .describe('dryRun', 'Dry run')
+    .boolean('dryRun')
+    .default('dryRun', false);
+}
+
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -321,11 +338,27 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
+export function withSkipReview<T>(args: Argv<T>) {
+  return args
+    .describe('skipReview', 'Skip review')
+    .boolean('skipReview')
+    .default('skipReview', false);
+}
+
+export function withPropose<T>(args: Argv<T>) {
+  return args
+    .describe('propose', 'Propose')
+    .boolean('propose')
+    .default('propose', false);
+}
+
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
   return select({
     message: 'Select Warp Route ID',
     choices,
@@ -350,7 +383,7 @@ export async function getWarpRouteIdsInteractive() {
       pageSize: 30,
     });
     if (!selection.length) {
-      console.log('Please select at least one Warp Route ID');
+      rootLogger.info('Please select at least one Warp Route ID');
     }
   }
 
@@ -591,15 +624,28 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
+export function getAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  chains?: ChainName[],
+) {
+  let addresses;
   if (isRegistryModule(environment, module)) {
-    const allAddresses = getChainAddresses();
-    const envChains = getEnvChains(environment);
-    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
-      return envChains.includes(chain);
+    addresses = getChainAddresses();
+  } else {
+    addresses = readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+
+  // Filter by chains if specified, otherwise use environment chains
+  if (chains && chains.length > 0) {
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return chains.includes(chain);
     });
   } else {
-    return readJSONAtPath(getInfraLandfillPath(environment, module));
+    const envChains = getEnvChains(environment);
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
   }
 }
 
@@ -636,7 +682,7 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     const cluster = coreConfig.infra.kubernetes.clusterName;
-    console.error(
+    rootLogger.error(
       `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
       `Want clusterName ${cluster}`,
       `Run gcloud container clusters get-credentials ${cluster} --zone us-east1-c`,

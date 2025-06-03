@@ -22,6 +22,9 @@ where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
 {
+    let now = chrono::Utc::now();
+    println!("Loading settings: {:?}", now);
+
     let root_path = ConfigPath::default();
 
     let mut base_config_sources = vec![];
@@ -38,11 +41,14 @@ where
             continue;
         }
 
-        let fname = entry.file_name();
-        let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+        let entry_path = entry.path();
+        let ext = entry_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
         if ext == "json" {
-            base_config_sources.push(format!("{:?}", entry.path()));
-            builder = builder.add_source(CaseAdapter::new(File::from(entry.path()), Case::Flat));
+            base_config_sources.push(format!("{:?}", entry_path));
+            builder = builder.add_source(CaseAdapter::new(File::from(entry_path), Case::Flat));
         }
     }
 
@@ -125,5 +131,9 @@ where
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }
+
+    let now = chrono::Utc::now();
+    println!("Loaded settings: {:?}", now);
+
     res
 }

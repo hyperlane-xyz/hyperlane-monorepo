@@ -101,13 +101,12 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   private async proposeSafeTransaction(
     safeTransaction: SafeTransaction,
   ): Promise<void> {
-    const safeTxHash: string = await this.safe.getTransactionHash(
-      safeTransaction,
-    );
+    const safeTxHash: string =
+      await this.safe.getTransactionHash(safeTransaction);
     const senderAddress: Address = await this.multiProvider.getSignerAddress(
       this.props.chain,
     );
-    const safeSignature: any = await this.safe.signTransactionHash(safeTxHash);
+    const safeSignature: any = await this.safe.signTypedData(safeTransaction);
     const senderSignature: string = safeSignature.data;
 
     this.logger.info(

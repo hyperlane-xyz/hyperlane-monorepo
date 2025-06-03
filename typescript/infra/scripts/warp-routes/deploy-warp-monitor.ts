@@ -43,6 +43,8 @@ async function validateRegistryCommit(commit: string) {
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
 
   let warpRouteIds;
   if (warpRouteId) {
@@ -67,6 +69,7 @@ async function main() {
       agentConfig.environmentChainNames,
       registryCommit,
     );
+    await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 

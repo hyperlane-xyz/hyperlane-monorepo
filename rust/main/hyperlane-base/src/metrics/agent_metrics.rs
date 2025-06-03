@@ -15,7 +15,7 @@ use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tracing::info_span;
-use tracing::{debug, instrument::Instrumented, trace, warn, Instrument};
+use tracing::{debug, trace, warn, Instrument};
 
 use crate::settings::ChainConf;
 use crate::CoreMetrics;
@@ -149,14 +149,14 @@ pub struct AgentMetricsConf {
 }
 
 /// Utility struct to update various metrics using a standalone tokio task
-pub struct MetricsUpdater {
+pub struct ChainSpecificMetricsUpdater {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     conf: AgentMetricsConf,
     provider: Box<dyn HyperlaneProvider>,
 }
 
-impl MetricsUpdater {
+impl ChainSpecificMetricsUpdater {
     /// Creates a new instance of the `MetricsUpdater`
     pub async fn new(
         chain_conf: &ChainConf,
@@ -180,7 +180,7 @@ impl MetricsUpdater {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
         };
-        let wallet_name = self.conf.name.clone();
+        let agent_name = self.conf.name.clone();
         let Some(wallet_balance_metric) = self.agent_metrics.wallet_balance.clone() else {
             return;
         };
@@ -189,24 +189,33 @@ impl MetricsUpdater {
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
                 let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
-                trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
+                trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                 .with(&hashmap! {
                     "chain" => chain,
                     "wallet_address" => wallet_addr.as_str(),
-                    "wallet_name" => wallet_name.as_str(),
+                    "wallet_name" => agent_name.as_str(),
                     "token_address" => "none",
                     // Note: Whatever this `chain`'s native currency is
                     "token_symbol" => "Native",
                     "token_name" => "Native"
                 }).set(balance)
             },
-            Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
+            Err(e) => warn!("Metric update failed for wallet {agent_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
         }
     }
 
     async fn update_block_details(&self) {
-        if let HyperlaneDomain::Unknown { .. } = self.conf.domain {
+        if let HyperlaneDomain::Unknown {
+            domain_id,
+            domain_name,
+            ..
+        } = &self.conf.domain
+        {
+            debug!(
+                domain_id,
+                domain_name, "Unknown domain, skipping chain metrics"
+            );
             return;
         };
         let chain = self.conf.domain.name();
@@ -218,7 +227,7 @@ impl MetricsUpdater {
                 return;
             }
             _ => {
-                trace!(chain, "No chain metrics available");
+                debug!(chain, "No chain metrics available");
                 return;
             }
         };
@@ -226,6 +235,7 @@ impl MetricsUpdater {
         let height = chain_metrics.latest_block.number as i64;
         trace!(chain, height, "Fetched block height for metrics");
         self.chain_metrics.set_block_height(chain, height);
+
         if self.chain_metrics.gas_price.is_some() {
             let protocol = self.conf.domain.domain_protocol();
             let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());
@@ -252,11 +262,17 @@ impl MetricsUpdater {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
-        tokio::spawn(async move {
-            self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                .await;
-        })
-        .instrument(info_span!("MetricsUpdater"))
+    pub fn spawn(self) -> JoinHandle<()> {
+        let name = format!("metrics::agent::{}", self.conf.domain.name());
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("MetricsUpdater")),
+            )
+            .expect("spawning tokio task from Builder is infallible")
     }
 }

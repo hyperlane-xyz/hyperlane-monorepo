@@ -14,7 +14,10 @@ mod settings;
 mod submit;
 mod validator;
 
-#[tokio::main(flavor = "current_thread")]
+#[cfg(test)]
+mod test_utils;
+
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
     println!("Validator starting up...");

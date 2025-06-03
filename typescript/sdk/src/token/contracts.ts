@@ -1,6 +1,4 @@
 import {
-  FastHypERC20Collateral__factory,
-  FastHypERC20__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
@@ -11,7 +9,6 @@ import {
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypFiatToken__factory,
-  HypNativeScaled__factory,
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
@@ -20,24 +17,23 @@ import {
 import { TokenType } from './config.js';
 
 export const hypERC20contracts = {
-  [TokenType.fastCollateral]: 'FastHypERC20Collateral',
-  [TokenType.fastSynthetic]: 'FastHypERC20',
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.syntheticRebase]: 'HypERC4626',
+  [TokenType.syntheticUri]: 'HypERC721',
   [TokenType.collateral]: 'HypERC20Collateral',
   [TokenType.collateralFiat]: 'HypFiatToken',
+  [TokenType.collateralUri]: 'HypERC721Collateral',
   [TokenType.XERC20]: 'HypXERC20',
   [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
   [TokenType.collateralVault]: 'HypERC4626OwnerCollateral',
   [TokenType.collateralVaultRebase]: 'HypERC4626Collateral',
   [TokenType.native]: 'HypNative',
-  [TokenType.nativeScaled]: 'HypNativeScaled',
+  // uses same contract as native
+  [TokenType.nativeScaled]: 'HypNative',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
 export const hypERC20factories = {
-  [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
-  [TokenType.fastSynthetic]: new FastHypERC20__factory(),
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
@@ -47,7 +43,7 @@ export const hypERC20factories = {
   [TokenType.XERC20]: new HypXERC20__factory(),
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
-  [TokenType.nativeScaled]: new HypNativeScaled__factory(),
+  [TokenType.nativeScaled]: new HypNative__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 

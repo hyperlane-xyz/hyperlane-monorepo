@@ -20,7 +20,6 @@ export const getEthereumVictionETHWarpConfig = async (
     name: 'ETH',
     symbol: 'ETH',
     decimals: 18,
-    totalSupply: 0,
     gas: 50_000,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
@@ -31,6 +30,7 @@ export const getEthereumVictionETHWarpConfig = async (
     type: TokenType.native,
     gas: 65_000,
     interchainSecurityModule: ethers.constants.AddressZero,
+    hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
   };
 
   return {

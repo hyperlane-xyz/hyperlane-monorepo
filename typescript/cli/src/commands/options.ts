@@ -8,6 +8,8 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const DEFAULT_LOCAL_REGISTRY = `${os.homedir()}/.hyperlane`;
+
 export const demandOption = (option: Options): Options => ({
   ...option,
   demandOption: true,
@@ -25,17 +27,27 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
-export const registryUriCommandOption: Options = {
-  type: 'string',
-  description: 'Registry URI, such as a Github repo URL or a local file path',
+export const registryUrisCommandOption: Options = {
+  type: 'array',
+  string: true,
+  description:
+    'List of Github or local path registries, later registry takes priority over previous',
   alias: 'r',
-  default: DEFAULT_GITHUB_REGISTRY,
+  default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
+};
+
+export const githubAuthTokenOption: Options = {
+  type: 'string',
+  description: 'Github auth token for accessing registry repository',
+  default: ENV.GH_AUTH_TOKEN,
+  defaultDescription: 'process.env.GH_AUTH_TOKEN',
 };
 
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: `${os.homedir()}/.hyperlane`,
+  default: '',
+  hidden: true,
 };
 
 export const skipConfirmationOption: Options = {
@@ -101,7 +113,7 @@ export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+  demandOption: false,
   alias: 'wd',
 };
 
@@ -252,4 +264,10 @@ export const avsChainCommandOption: Options = {
   description: 'Chain to interact with the AVS on',
   demandOption: true,
   choices: ['holesky', 'ethereum'],
+};
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
 };

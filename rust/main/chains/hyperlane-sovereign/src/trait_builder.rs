@@ -1,4 +1,4 @@
-pub use hyperlane_core::config::OperationBatchConfig;
+pub use hyperlane_core::config::OpSubmissionConfig;
 use url::Url;
 
 /// Sovereign connection configuration.
@@ -7,7 +7,7 @@ pub struct ConnectionConf {
     /// Chain id of sovereign rollup
     pub chain_id: u64,
     /// Operation batching configuration.
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
     /// Endpoint address.
     pub url: Url,
 }

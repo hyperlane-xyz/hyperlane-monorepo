@@ -19,20 +19,28 @@
     "amount": "0.000000008",
     "decimals": 9
   },
-  "basesepolia": {
-    "amount": "0.001000305",
+  "auroratestnet": {
+    "amount": "0.07",
     "decimals": 9
   },
-  "berabartio": {
-    "amount": "0.001000032",
+  "basecamptestnet": {
+    "amount": "10.000000007",
+    "decimals": 9
+  },
+  "basesepolia": {
+    "amount": "0.001000422",
+    "decimals": 9
+  },
+  "bepolia": {
+    "amount": "40.000000007",
     "decimals": 9
   },
   "bsctestnet": {
     "amount": "1.0",
     "decimals": 9
   },
-  "camptestnet": {
-    "amount": "0.001000253",
+  "carrchaintestnet": {
+    "amount": "0.001",
     "decimals": 9
   },
   "chronicleyellowstone": {
@@ -45,6 +53,10 @@
   },
   "connextsepolia": {
     "amount": "0.1",
+    "decimals": 9
+  },
+  "cotitestnet": {
+    "amount": "1.500000003",
     "decimals": 9
   },
   "ecotestnet": {
@@ -64,44 +76,80 @@
     "decimals": 9
   },
   "fuji": {
-    "amount": "1.000000001",
+    "amount": "0.000000002",
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.001000017",
+    "amount": "0.000470476",
     "decimals": 9
   },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
     "decimals": 9
   },
+  "infinityvmmonza": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "inksepolia": {
     "amount": "0.001000252",
     "decimals": 9
   },
+  "kyvetestnet": {
+    "amount": "0.001",
+    "decimals": 1
+  },
+  "megaethtestnet": {
+    "amount": "0.001",
+    "decimals": 9
+  },
+  "milkywaytestnet": {
+    "amount": "0.001",
+    "decimals": 1
+  },
+  "modetestnet": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "monadtestnet": {
+    "amount": "52.0",
+    "decimals": 9
+  },
+  "nobletestnet": {
+    "amount": "0.001",
+    "decimals": 1
+  },
   "odysseytestnet": {
-    "amount": "1.500000252",
+    "amount": "1.000000252",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000271",
+    "amount": "0.687270693",
+    "decimals": 9
+  },
+  "plumetestnet2": {
+    "amount": "0.01",
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "500.000000015",
+    "amount": "45.000000018",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.040189606",
+    "amount": "0.016203984",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "5.591570191",
+    "amount": "16.264909839",
     "decimals": 9
   },
   "solanatestnet": {
     "amount": "0.01",
     "decimals": 1
+  },
+  "somniatestnet": {
+    "amount": "30.0",
+    "decimals": 9
   },
   "soneiumtestnet": {
     "amount": "0.001000252",
@@ -116,7 +164,7 @@
     "decimals": 1
   },
   "suavetoliman": {
-    "amount": "10.0",
+    "amount": "1.0",
     "decimals": 9
   },
   "subtensortestnet": {
@@ -127,12 +175,12 @@
     "amount": "0.01",
     "decimals": 9
   },
-  "treasuretopaz": {
-    "amount": "0.495709489",
+  "unichaintestnet": {
+    "amount": "0.001000253",
     "decimals": 9
   },
-  "unichaintestnet": {
-    "amount": "0.001000268",
+  "weavevmtestnet": {
+    "amount": "1.2",
     "decimals": 9
   }
 }

@@ -5,12 +5,15 @@ edition.workspace = true
 
 [dependencies]
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 
 anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bech32.workspace = true
 bytes.workspace = true
+derive-new.workspace = true
 ethers.workspace = true
 futures.workspace = true
 k256.workspace = true
