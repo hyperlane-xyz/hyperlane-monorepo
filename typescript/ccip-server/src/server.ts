@@ -7,7 +7,6 @@ import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
-import { ProofsService } from './services/ProofsService.js';
 import {
   PrometheusMetrics,
   startPrometheusServer,
@@ -15,7 +14,6 @@ import {
 
 export const moduleRegistry: Record<string, typeof BaseService> = {
   callCommitments: CallCommitmentsService,
-  proofs: ProofsService,
   cctp: CCTPService,
   opstack: OPStackService,
 };
