@@ -357,7 +357,7 @@ export async function createAgentKeysIfNotExistsWithPrompt(
   if (agentKeysToCreate.length > 0) {
     const shouldContinue = await confirm({
       message: chalk.yellow.bold(
-        `Warning: New agent key will be created: ${agentKeysToCreate.join(', ')}. Are you sure you want to continue?`,
+        `Warning: New agent keys will be created: ${agentKeysToCreate.join(', ')}. Are you sure you want to continue?`,
       ),
       default: false,
     });
@@ -366,11 +366,11 @@ export async function createAgentKeysIfNotExistsWithPrompt(
       process.exit(1);
     }
 
-    console.log(chalk.blue.bold('Creating new agent key if needed.'));
+    console.log(chalk.blue.bold('Creating new agent keys if needed.'));
     await createAgentKeys(agentConfig, agentKeysToCreate);
     return true;
   } else {
-    console.log(chalk.gray.bold('No new agent key will be created.'));
+    console.log(chalk.gray.bold('No new agent keys will be created.'));
     return false;
   }
 }
