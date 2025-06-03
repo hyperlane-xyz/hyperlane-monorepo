@@ -87,6 +87,8 @@ The rebalancer container
   - "rebalancer"
   - "--checkFrequency"
   - "60000"
+  - "--withMetrics"
+  - "true"
   - "--configFile"
   - "{{ .Values.hyperlane.rebalancerConfigFile }}"
   - "--registry"

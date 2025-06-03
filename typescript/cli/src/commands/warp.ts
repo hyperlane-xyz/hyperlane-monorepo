@@ -478,7 +478,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       type: 'boolean',
       description: 'Enable metrics (default: true)',
       demandOption: false,
-      default: true,
+      default: false,
     },
     monitorOnly: {
       type: 'boolean',
