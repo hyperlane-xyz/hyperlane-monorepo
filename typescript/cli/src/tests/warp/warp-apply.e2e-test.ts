@@ -42,7 +42,26 @@ import {
   readWarpConfig,
 } from '../commands/warp.js';
 
-describe('hyperlane warp apply owner update tests', async function () {
+/**
+ * Test Flow Overview:
+ * - These tests run against local Anvil forks that are reset to a clean snapshot
+ *   with only a warp route and the core protocol functionality deployed.
+ * - The reset logic is in the beforeEach each hook which will:
+ *    - reset the global warpConfig variable to the initial state
+ *    - reset the config files in the test registry
+ *    - reset the anvil fork to the initial state after the before hook runs
+ *
+ * Adding Your Own Tests:
+ * - The warpConfig can be modified as needed as it will be reset to the expected initial state
+ *   after the test runs
+ * - Before calling warp apply use `writeYamlOrJson(...)` to persist any deploy config
+ *   changes and be sure to supply the correct path to the command to read the deploy config.
+ * - If a test that was working starts to fail, probably an incorrect deploy config is being
+ *   used either because the path is wrong or the original config is not being reset in memory
+ *   or on disk when read from the registry. Be sure to add any new path that might be used in
+ *   new test to the reset logic to avoid test failing because of a previous test run
+ */
+describe('hyperlane warp apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain3Addresses: ChainAddresses = {};
@@ -60,6 +79,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     warpConfig = {
       [CHAIN_NAME_2]: { ...rawWarpConfig.anvil1 },
     };
+
     writeYamlOrJson(WARP_CONFIG_PATH_2, warpConfig);
   }
 
@@ -82,7 +102,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   beforeEach(async function () {
     resetWarpConfig();
 
-    [deployAnvilStateId] = await resetAnvilFork(
+    deployAnvilStateId = await resetAnvilFork(
       chain2Provider,
       deployAnvilStateId,
     );
