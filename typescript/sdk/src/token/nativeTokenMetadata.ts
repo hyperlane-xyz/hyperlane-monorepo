@@ -1,6 +1,7 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { NativeToken } from '../metadata/chainMetadataTypes.js';
+import { ChainName } from '../types.js';
 
 export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
   ProtocolType,
@@ -34,4 +35,19 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Starknet Token',
     symbol: 'STRK',
   },
+};
+
+const starknetChainSpecificOverrides: Record<ChainName, NativeToken> = {
+  paradex: {
+    decimals: 6,
+    denom: '0x07348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
+    name: 'USDC',
+    symbol: 'USDC',
+  },
+};
+
+export const starknetNativeTokenMetadataOverrides = (
+  chainName: ChainName,
+): NativeToken => {
+  return starknetChainSpecificOverrides[chainName] ?? PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet];
 };

@@ -150,6 +150,8 @@ export class StarknetDeployer {
           this.account,
         );
         const domains = ismConfig.domains;
+        const domainIds = [];
+        const routes = [];
         for (const domain of Object.keys(domains)) {
           const route = await this.deployIsm({
             chain,
@@ -157,13 +159,14 @@ export class StarknetDeployer {
             mailbox,
           });
           const domainId = this.multiProvider.getDomainId(domain);
-          const tx = await routingContract.invoke('set', [
-            BigInt(domainId),
-            route,
-          ]);
-          await this.account.waitForTransaction(tx.transaction_hash);
-          this.logger.info(`ISM ${route} set for domain ${domain}`);
+          domainIds.push(domainId);
+          routes.push(route);
+          this.logger.info(`ISM ${route} deployed for domain ${domainId}`);
         }
+        // setting the routes in a single transaction
+        const tx = await routingContract.invoke('set', [domainIds, routes]);
+        await this.account.waitForTransaction(tx.transaction_hash);
+        this.logger.info(`ISM ${routes} set for domains ${domainIds}`);
 
         return ismAddress;
       }
