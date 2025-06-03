@@ -26,4 +26,5 @@ export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: rezEthAddresses,
   xERC20Lockbox: rezProductionLockbox,
   tokenPrices: rezEthTokenPrices,
+  useLegacyRoutingHook: true,
 });
