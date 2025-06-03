@@ -1,5 +1,31 @@
 # @hyperlane-xyz/core
 
+## 8.0.0-next.0
+
+### Major Changes
+
+- e61bd2f97: Refactor MailboxClient and AbstractCCIPReadIsm
+- 45441207c: Update ICA router event emission with salt and commitment
+- 119a1a896: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+### Minor Changes
+
+- db1943523: Add Rebalancing Multi-Collateral Warp Routes
+- 7a3165fec: Allow users to pass salts in ICA derivation
+- 88fe35f15: Add Rebalancing Warp Route for Native Tokens
+- 3327a6ec7: Add MovableCollateralRouter, a router whose collateral can be removed to a remote chain
+
+### Patch Changes
+
+- fd3bb398b: Use SafeERC20.safeApprove instead of IERC20.approve in HypXERC20Lockbox.approveLockbox()
+  - @hyperlane-xyz/utils@12.6.1-next.0
+
 ## 7.1.5
 
 ### Patch Changes

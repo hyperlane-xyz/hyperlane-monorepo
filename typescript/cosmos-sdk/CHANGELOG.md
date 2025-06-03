@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 12.6.1-next.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@12.6.1-next.0
+
 ## 12.6.0
 
 ### Minor Changes
