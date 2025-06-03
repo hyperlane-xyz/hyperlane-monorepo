@@ -4,7 +4,8 @@ import { BytesLike, ethers, providers } from 'ethers';
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { OPStackServiceAbi } from '../abis/OPStackServiceAbi.js';
+import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
+
 import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService } from './BaseService.js';
@@ -80,7 +81,7 @@ export class OPStackService extends BaseService {
     this.router.get(
       '/getWithdrawalProof/:sender/:callData.json',
       createAbiHandler(
-        OPStackServiceAbi,
+        OpL2toL1Service__factory,
         'getWithdrawalProof',
         this.getWithdrawalProof.bind(this),
       ),
@@ -90,7 +91,7 @@ export class OPStackService extends BaseService {
     this.router.post(
       '/getWithdrawalProof',
       createAbiHandler(
-        OPStackServiceAbi,
+        OpL2toL1Service__factory,
         'getWithdrawalProof',
         this.getWithdrawalProof.bind(this),
       ),
@@ -100,7 +101,7 @@ export class OPStackService extends BaseService {
     this.router.get(
       '/getFinalizeWithdrawalTx/:sender/:callData.json',
       createAbiHandler(
-        OPStackServiceAbi,
+        OpL2toL1Service__factory,
         'getFinalizeWithdrawalTx',
         this.getFinalizeWithdrawalTx.bind(this),
       ),
@@ -110,7 +111,7 @@ export class OPStackService extends BaseService {
     this.router.post(
       '/getFinalizeWithdrawalTx',
       createAbiHandler(
-        OPStackServiceAbi,
+        OpL2toL1Service__factory,
         'getFinalizeWithdrawalTx',
         this.getFinalizeWithdrawalTx.bind(this),
       ),

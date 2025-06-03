@@ -2,11 +2,13 @@ import { ethers } from 'ethers';
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
+import {
+  CctpService__factory,
+  IMessageTransmitter__factory,
+} from '@hyperlane-xyz/core';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
-import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
@@ -45,7 +47,7 @@ class CCTPService extends BaseService {
     this.router.get(
       '/getCctpAttestation/:sender/:callData.json',
       createAbiHandler(
-        CCTPServiceAbi,
+        CctpService__factory,
         'getCCTPAttestation',
         this.getCCTPAttestation.bind(this),
       ),
@@ -55,7 +57,7 @@ class CCTPService extends BaseService {
     this.router.post(
       '/getCctpAttestation',
       createAbiHandler(
-        CCTPServiceAbi,
+        CctpService__factory,
         'getCCTPAttestation',
         this.getCCTPAttestation.bind(this),
       ),

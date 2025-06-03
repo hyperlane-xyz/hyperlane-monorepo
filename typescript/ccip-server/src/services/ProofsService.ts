@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
 
-import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
+import { CommitmentReadIsmService__factory } from '@hyperlane-xyz/core';
+
 import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
@@ -89,8 +90,8 @@ class ProofsService extends BaseService {
       createAbiHandler(
         // TODO: Use the correct ABI for the endpoint
         // Currently using CallCommitmentsAbi as a placeholder
-        CallCommitmentsAbi,
-        'getProofs',
+        CommitmentReadIsmService__factory,
+        'getCallsFromRevealMessage',
         this.getProofs.bind(this),
       ),
     );
@@ -101,8 +102,8 @@ class ProofsService extends BaseService {
       createAbiHandler(
         // TODO: Use the correct ABI for the endpoint
         // Currently using CallCommitmentsAbi as a placeholder
-        CallCommitmentsAbi,
-        'getProofs',
+        CommitmentReadIsmService__factory,
+        'getCallsFromRevealMessage',
         this.getProofs.bind(this),
       ),
     );

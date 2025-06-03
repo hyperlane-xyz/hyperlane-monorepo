@@ -3,6 +3,7 @@ import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
 import {
+  CommitmentReadIsmService__factory,
   InterchainAccountRouter__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
@@ -22,7 +23,6 @@ import {
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
-import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
 import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
@@ -291,7 +291,7 @@ export class CallCommitmentsService extends BaseService {
     router.post(
       '/getCallsFromRevealMessage',
       createAbiHandler(
-        CallCommitmentsAbi,
+        CommitmentReadIsmService__factory,
         'getCallsFromRevealMessage',
         this.handleFetchCommitment.bind(this),
         true, // Skip ABI encoding of the result
