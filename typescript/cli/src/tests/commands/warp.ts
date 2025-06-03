@@ -179,7 +179,7 @@ export function hyperlaneWarpRebalancer(
   destination?: string,
   amount?: string,
 ): ProcessPromise {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
+  return $`LOG_LEVEL=debug yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \

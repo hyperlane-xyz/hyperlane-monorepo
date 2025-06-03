@@ -1,11 +1,12 @@
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
-import { logDebug, logGray, warnYellow } from '../../logger.js';
 import type {
   IStrategy,
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
+import { strategyLogger } from '../utils/logger.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 
@@ -14,28 +15,53 @@ export type Delta = { chain: ChainName; amount: bigint };
  */
 export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
+  protected readonly metrics?: Metrics;
 
-  constructor(chains: ChainName[]) {
+  constructor(chains: ChainName[], metrics?: Metrics) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
       throw new Error('At least two chains must be configured');
     }
     this.chains = chains;
+    this.metrics = metrics;
   }
 
   /**
    * Main method to get rebalancing routes
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
-    logDebug(`[${this.constructor.name}] Input rawBalances:`, rawBalances);
-    logGray(`Calculating rebalancing routes using ${this.constructor.name}...`);
+    strategyLogger.info(
+      {
+        context: this.constructor.name,
+        rawBalances,
+      },
+      'Input rawBalances',
+    );
+    strategyLogger.info(
+      {
+        context: this.constructor.name,
+      },
+      'Calculating rebalancing routes',
+    );
     this.validateRawBalances(rawBalances);
 
     // Get balances categorized by surplus and deficit
     const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
 
-    logDebug(`[${this.constructor.name}] Surpluses:`, surpluses);
-    logDebug(`[${this.constructor.name}] Deficits:`, deficits);
+    strategyLogger.debug(
+      {
+        context: this.constructor.name,
+        surpluses,
+      },
+      'Surpluses calculated',
+    );
+    strategyLogger.debug(
+      {
+        context: this.constructor.name,
+        deficits,
+      },
+      'Deficits calculated',
+    );
 
     // Calculate sums of surpluses and deficits
     const totalSurplus = surpluses.reduce(
@@ -47,15 +73,35 @@ export abstract class BaseStrategy implements IStrategy {
       0n,
     );
 
-    logDebug(`[${this.constructor.name}] Total surplus: ${totalSurplus}`);
-    logDebug(`[${this.constructor.name}] Total deficit: ${totalDeficit}`);
+    strategyLogger.debug(
+      {
+        context: this.constructor.name,
+        totalSurplus: totalSurplus.toString(),
+      },
+      'Total surplus calculated',
+    );
+    strategyLogger.debug(
+      {
+        context: this.constructor.name,
+        totalDeficit: totalDeficit.toString(),
+      },
+      'Total deficit calculated',
+    );
 
     // If total surplus is less than total deficit, scale down deficits proportionally
-    // TODO: consider how to handle sum of targets > sum of collateral balances i.e throw or raise an alert
     if (totalSurplus < totalDeficit) {
-      warnYellow(
-        `[${this.constructor.name}] Deficits are greater than surpluses. Scaling deficits...`,
+      strategyLogger.warn(
+        {
+          context: this.constructor.name,
+          totalSurplus: totalSurplus.toString(),
+          totalDeficit: totalDeficit.toString(),
+        },
+        'Deficits are greater than surpluses. Scaling deficits',
       );
+
+      // we consider this a failure because we cannot rebalance the route completely
+      // however we can still transfer some amount of the deficit to reduce the imbalances
+      this.metrics?.recordRebalancerFailure();
 
       for (const deficit of deficits) {
         const newAmount = (deficit.amount * totalSurplus) / totalDeficit;
@@ -63,7 +109,13 @@ export abstract class BaseStrategy implements IStrategy {
         deficit.amount = newAmount;
       }
 
-      logDebug(`[${this.constructor.name}] Scaled deficits:`, deficits);
+      strategyLogger.debug(
+        {
+          context: this.constructor.name,
+          deficits,
+        },
+        'Scaled deficits',
+      );
     }
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
@@ -104,9 +156,19 @@ export abstract class BaseStrategy implements IStrategy {
       }
     }
 
-    logDebug(`[${this.constructor.name}] Generated routes:`, routes);
-    logGray(
-      `Found ${routes.length} rebalancing route(s) using ${this.constructor.name}.`,
+    strategyLogger.debug(
+      {
+        context: this.constructor.name,
+        routes,
+      },
+      'Generated routes',
+    );
+    strategyLogger.info(
+      {
+        context: this.constructor.name,
+        numberOfRoutes: routes.length,
+      },
+      'Found rebalancing routes',
     );
     return routes;
   }

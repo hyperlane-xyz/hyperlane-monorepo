@@ -1,9 +1,12 @@
-import { logger } from './logger.js';
+import { monitorLogger } from './logger.js';
 
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {
     await fn();
   } catch (error) {
-    logger.error(`Error in ${context}`, error);
+    monitorLogger.error(
+      { context, err: error as Error },
+      `Error in ${context}`,
+    );
   }
 }

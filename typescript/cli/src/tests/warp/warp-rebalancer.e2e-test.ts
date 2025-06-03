@@ -382,7 +382,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type"`,
+      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type`,
     );
   });
 
@@ -520,7 +520,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `[getRawBalances] Skipping token on chain anvil4 that is not in chains list`,
+      `Skipping token: not in configured chains list`,
     );
   });
 
@@ -555,7 +555,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `[getRawBalances] Skipping token on chain anvil4 that is not collateralized`,
+      `Skipping token: not collateralized or ineligible for rebalancing`,
     );
   });
 
@@ -676,11 +676,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} (${
+      `Error while rebalancing: Error: Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} (${
         chain2Metadata.name
-      }) is not allowed. From ${warpCoreConfig.tokens[0].addressOrDenom} at ${
+      }) is not allowed. From ${warpCoreConfig.tokens[1].addressOrDenom} at ${
         chain3Metadata.name
-      }. To ${warpCoreConfig.tokens[1].addressOrDenom} at ${chain2Metadata.name}.`,
+      }. To ${warpCoreConfig.tokens[0].addressOrDenom} at ${chain2Metadata.name}.`,
     );
   });
 
@@ -795,7 +795,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer error: Error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
+      `Rebalancer startup error: Error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
     );
   });
 
@@ -1313,10 +1313,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       await startRebalancerAndExpectLog(
         [
           'Rebalancer started successfully 🚀',
-          'Found 1 rebalancing route(s) using WeightedStrategy',
-          `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=5 token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
+          `{ context: 'WeightedStrategy', numberOfRoutes: 1 } Found rebalancing routes`,
+          `} Populating rebalance transaction`,
           '✅ Rebalance successful',
-          'Found 0 rebalancing route(s) using WeightedStrategy.',
+          `{ context: 'WeightedStrategy', numberOfRoutes: 0 } Found rebalancing routes`,
           'No routes to execute',
         ],
         { timeout: 30000, checkFrequency: 1000 },
@@ -1608,8 +1608,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       try {
         await startRebalancerAndExpectLog(
           [
-            'Calculating rebalancing routes using WeightedStrategy...',
-            'Found 1 rebalancing route(s) using WeightedStrategy.',
+            `{ context: 'WeightedStrategy' } Calculating rebalancing routes`,
+            `{ context: 'WeightedStrategy', numberOfRoutes: 1 } Found rebalancing routes`,
           ],
           { monitorOnly: true },
         );
@@ -1619,10 +1619,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         await startRebalancerAndExpectLog(
           [
             `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
-            'Rebalance initiated with 1 route(s)',
-            `Populating rebalance transaction: domain=${chain3Metadata.domainId}, amount=${manualRebalanceAmount} token, bridge=${otherWarpCoreConfig.tokens[0].addressOrDenom}`,
-            `Route result - Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount} token`,
-            '✅ Rebalance successful',
+            '{ numberOfRoutes: 1 } Rebalance initiated',
+            `} Populating rebalance transaction`,
+            `✅ Manual rebalance from ${CHAIN_NAME_2} to ${CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
           ],
           {
             timeout: 30000,
@@ -1635,8 +1634,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
         await startRebalancerAndExpectLog(
           [
-            'Calculating rebalancing routes using WeightedStrategy...',
-            'Found 0 rebalancing route(s) using WeightedStrategy.',
+            `{ context: 'WeightedStrategy' } Calculating rebalancing routes`,
+            `{ context: 'WeightedStrategy', numberOfRoutes: 0 } Found rebalancing routes`,
           ],
           { timeout: 90000, monitorOnly: true },
         );

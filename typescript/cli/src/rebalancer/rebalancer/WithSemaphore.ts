@@ -1,7 +1,7 @@
-import { log } from '../../logger.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { rebalancerLogger } from '../utils/logger.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
@@ -23,15 +23,15 @@ export class WithSemaphore implements IRebalancer {
    */
   async rebalance(routes: RebalancingRoute[]) {
     if (this.executing) {
-      log(`Currently executing rebalance. Skipping.`);
+      rebalancerLogger.info('Currently executing rebalance. Skipping.');
 
       return;
     }
 
     // No routes mean the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
-      log(
-        `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+      rebalancerLogger.info(
+        'No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.',
       );
 
       this.waitUntil = 0;
@@ -40,7 +40,7 @@ export class WithSemaphore implements IRebalancer {
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
-      log(`Still in waiting period. Skipping rebalance.`);
+      rebalancerLogger.info('Still in waiting period. Skipping rebalance.');
 
       return;
     }
@@ -59,10 +59,12 @@ export class WithSemaphore implements IRebalancer {
     // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;
 
-    log(
-      `Rebalance semaphore locked for ${
-        highestTolerance
-      }ms. Releasing at timestamp ${new Date(this.waitUntil).toISOString()} (${this.waitUntil}).`,
+    rebalancerLogger.info(
+      {
+        highestTolerance,
+        waitUntil: this.waitUntil,
+      },
+      'Rebalance semaphore locked',
     );
   }
 

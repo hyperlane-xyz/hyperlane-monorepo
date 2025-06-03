@@ -3,7 +3,6 @@ import EventEmitter from 'events';
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
-import { log, logDebug, warnYellow } from '../../logger.js';
 import {
   type IMonitor,
   type MonitorEvent,
@@ -11,6 +10,7 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
+import { monitorLogger } from '../utils/logger.js';
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
@@ -51,18 +51,28 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-      logDebug(`Monitor started, polling every ${this.checkFrequency} ms...`);
+      monitorLogger.debug(
+        { checkFrequency: this.checkFrequency },
+        'Monitor started',
+      );
       this.emitter.emit(MonitorEventType.Start);
 
       while (this.isMonitorRunning) {
         try {
-          logDebug('Polling cycle started');
+          monitorLogger.debug('Polling cycle started');
           const event: MonitorEvent = {
             tokensInfo: [],
           };
 
           for (const token of this.warpCore.tokens) {
-            logDebug(`Checking token: ${token.chainName}`);
+            monitorLogger.debug(
+              {
+                chain: token.chainName,
+                tokenSymbol: token.symbol,
+                tokenAddress: token.addressOrDenom,
+              },
+              'Checking token',
+            );
             const bridgedSupply = await this.getTokenBridgedSupply(token);
 
             event.tokensInfo.push({
@@ -73,7 +83,7 @@ export class Monitor implements IMonitor {
 
           // Emit the event warp routes info
           this.emitter.emit(MonitorEventType.TokenInfo, event);
-          logDebug('Polling cycle completed');
+          monitorLogger.debug('Polling cycle completed');
         } catch (error) {
           this.emitter.emit(
             MonitorEventType.Error,
@@ -102,8 +112,13 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      warnYellow(
-        `Cannot get bridged balance for a non-Hyperlane token: ${token.chainName}`,
+      monitorLogger.warn(
+        {
+          chain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
+        'Cannot get bridged balance for a non-Hyperlane token',
       );
       return;
     }
@@ -112,7 +127,14 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      warnYellow(`Bridged supply not found for token: ${token.chainName}`);
+      monitorLogger.warn(
+        {
+          chain: token.chainName,
+          tokenSymbol: token.symbol,
+          tokenAddress: token.addressOrDenom,
+        },
+        'Bridged supply not found for token',
+      );
     }
 
     return bridgedSupply;
@@ -120,7 +142,7 @@ export class Monitor implements IMonitor {
 
   stop() {
     this.isMonitorRunning = false;
-    log('Monitor stopped');
+    monitorLogger.info('Monitor stopped');
     this.emitter.removeAllListeners();
   }
 }

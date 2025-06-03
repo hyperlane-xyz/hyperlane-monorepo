@@ -1,4 +1,9 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-// TODO: this is to keep the same logging structure as in the monitor, but we may need change the module name
-export const logger = rootLogger.child({ module: 'warp-balance-monitor' });
+export const monitorLogger = rootLogger.child({ module: 'rebalancer-monitor' });
+export const rebalancerLogger = rootLogger.child({
+  module: 'rebalancer',
+});
+export const strategyLogger = rootLogger.child({
+  module: 'rebalancer-strategy',
+});

@@ -1,10 +1,10 @@
-import { Gauge, Registry } from 'prom-client';
+import { Counter, Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { logger } from '../../utils/logger.js';
+import { monitorLogger } from '../../utils/logger.js';
 import {
   NativeWalletBalance,
   WarpRouteBalance,
@@ -78,6 +78,41 @@ const warpRouteValueAtRisk = new Gauge({
   labelNames: warpRouteValueAtRiskLabels,
 });
 
+export const rebalancerExecutionTotal = new Counter({
+  name: 'hyperlane_rebalancer_execution_total',
+  help: 'Total number of rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerExecutionErrorsTotal = new Counter({
+  name: 'hyperlane_rebalancer_execution_errors_total',
+  help: 'Total number of errors during rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerPollingErrorsTotal = new Counter({
+  name: 'hyperlane_rebalancer_polling_errors_total',
+  help: 'Total number of errors during the monitor polling phase.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerLastExecutionStatus = new Gauge({
+  name: 'hyperlane_rebalancer_last_execution_status',
+  help: 'Status of the last rebalance execution attempt (0 for success, 1 for failure).',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
+export const rebalancerConsecutiveExecutionFailures = new Gauge({
+  name: 'hyperlane_rebalancer_consecutive_execution_failures',
+  help: 'Number of consecutive failed rebalance execution attempts.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id'],
+});
+
 const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
 
 const xERC20LimitsGauge = new Gauge({
@@ -128,7 +163,7 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.info(
+  monitorLogger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -139,7 +174,7 @@ export function updateTokenBalanceMetrics(
   if (balanceInfo.valueUSD) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.info(
+    monitorLogger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -158,7 +193,7 @@ export function updateTokenBalanceMetrics(
       };
 
       warpRouteValueAtRisk.labels(labels).set(balanceInfo.valueUSD);
-      logger.info(
+      monitorLogger.info(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,
@@ -197,7 +232,7 @@ export function updateManagedLockboxBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.info(
+  monitorLogger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -207,7 +242,7 @@ export function updateManagedLockboxBalanceMetrics(
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.info(
+    monitorLogger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -227,9 +262,12 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
       token_name: 'Native',
     })
     .set(balance.balance);
-  logger.info('Native wallet balance updated', {
-    balanceInfo: balance,
-  });
+  monitorLogger.info(
+    {
+      balanceInfo: balance,
+    },
+    'Native wallet balance updated',
+  );
 }
 
 export function updateXERC20LimitsMetrics(
@@ -256,7 +294,7 @@ export function updateXERC20LimitsMetrics(
       .set(limit);
   }
 
-  logger.info(
+  monitorLogger.info(
     {
       ...labels,
       limits,

@@ -8,7 +8,6 @@ import {
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
-import { logDebug } from '../../logger.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -19,6 +18,7 @@ import { Rebalancer } from '../rebalancer/Rebalancer.js';
 import { WithSemaphore } from '../rebalancer/WithSemaphore.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
+import { rebalancerLogger } from '../utils/logger.js';
 
 export class RebalancerContextFactory {
   /**
@@ -44,7 +44,12 @@ export class RebalancerContextFactory {
     config: RebalancerConfig,
     context: WriteCommandContext,
   ): Promise<RebalancerContextFactory> {
-    logDebug('Creating RebalancerContextFactory');
+    rebalancerLogger.debug(
+      {
+        warpRouteId: config.warpRouteId,
+      },
+      'Creating RebalancerContextFactory',
+    );
     const { registry } = context;
     const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
@@ -64,7 +69,12 @@ export class RebalancerContextFactory {
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
 
-    logDebug('RebalancerContextFactory created successfully');
+    rebalancerLogger.debug(
+      {
+        warpRouteId: config.warpRouteId,
+      },
+      'RebalancerContextFactory created successfully',
+    );
     return new RebalancerContextFactory(
       config,
       metadata,
@@ -79,7 +89,10 @@ export class RebalancerContextFactory {
   }
 
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
-    logDebug('Creating Metrics');
+    rebalancerLogger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating Metrics',
+    );
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
@@ -93,26 +106,43 @@ export class RebalancerContextFactory {
       collateralTokenSymbol,
       warpDeployConfig,
       this.warpCore,
+      this.config.warpRouteId,
     );
   }
 
   public createMonitor(): Monitor {
-    logDebug('Creating Monitor');
+    rebalancerLogger.debug(
+      {
+        warpRouteId: this.config.warpRouteId,
+        checkFrequency: this.config.checkFrequency,
+      },
+      'Creating Monitor',
+    );
     return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
-  public async createStrategy(): Promise<IStrategy> {
-    logDebug('Creating Strategy');
+  public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
+    rebalancerLogger.debug(
+      {
+        warpRouteId: this.config.warpRouteId,
+        strategyType: this.config.rebalanceStrategy,
+      },
+      'Creating Strategy',
+    );
     return StrategyFactory.createStrategy(
       this.config.rebalanceStrategy,
       this.config.chains,
       this.tokensByChainName,
       await this.getInitialTotalCollateral(),
+      metrics,
     );
   }
 
-  public createRebalancer(): IRebalancer {
-    logDebug('Creating Rebalancer');
+  public createRebalancer(metrics?: Metrics): IRebalancer {
+    rebalancerLogger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating Rebalancer',
+    );
     const rebalancer = new Rebalancer(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
@@ -124,6 +154,7 @@ export class RebalancerContextFactory {
       this.metadata,
       this.tokensByChainName,
       this.context.multiProvider,
+      metrics,
     );
 
     return new WithSemaphore(this.config, rebalancer);
