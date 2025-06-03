@@ -21,11 +21,11 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
+  REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
-  getCombinedWarpRoutePath,
   sendWarpRouteMessageRoundTrip,
 } from '../commands/helpers.js';
 import { generateWarpConfigs, hyperlaneWarpDeploy } from '../commands/warp.js';
@@ -63,7 +63,17 @@ export async function runWarpBridgeTests(
     );
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    const symbol = getTokenSymbolFromDeployment(
+      warpConfig,
+      config.tokenVaultChain2Symbol,
+      config.tokenChain2Symbol,
+      config.tokenVaultChain3Symbol,
+      config.tokenChain3Symbol,
+    );
+    const warpRouteId = `${symbol}/hyperlane`;
+    const routeConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-config.yaml`;
+
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpRouteId);
 
     let startChain, targetChain: string;
     if (!warpConfig[CHAIN_NAME_2].type.match(/.*synthetic.*/i)) {
@@ -73,19 +83,6 @@ export async function runWarpBridgeTests(
       startChain = CHAIN_NAME_3;
       targetChain = CHAIN_NAME_2;
     }
-
-    const symbol = getTokenSymbolFromDeployment(
-      warpConfig,
-      config.tokenVaultChain2Symbol,
-      config.tokenChain2Symbol,
-      config.tokenVaultChain3Symbol,
-      config.tokenChain3Symbol,
-    );
-
-    const routeConfigPath = getCombinedWarpRoutePath(symbol, [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
 
     await collateralizeWarpTokens(routeConfigPath, warpConfig, {
       [CHAIN_NAME_2]: {
@@ -206,6 +203,8 @@ export function getTokenSymbolFromDeployment(
   let symbol: string;
   if (warpConfig[CHAIN_NAME_2].type.match(/.*vault.*/i)) {
     symbol = tokenVaultChain2Symbol;
+  } else if (warpConfig[CHAIN_NAME_3].type.match(/.*native.*/i)) {
+    symbol = 'ETH';
   } else if (warpConfig[CHAIN_NAME_2].type.match(/.*collateral.*/i)) {
     symbol = tokenChain2Symbol;
   } else if (warpConfig[CHAIN_NAME_3].type.match(/.*vault.*/i)) {

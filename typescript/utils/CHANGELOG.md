@@ -1,5 +1,31 @@
 # @hyperlane-xyz/utils
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- f41f766: Add sort-yaml-arrays eslint rule
+
+## 13.0.0
+
+### Minor Changes
+
+- 0de63e0: Add Starknet address and tx utils
+
 ## 12.6.0
 
 ### Minor Changes

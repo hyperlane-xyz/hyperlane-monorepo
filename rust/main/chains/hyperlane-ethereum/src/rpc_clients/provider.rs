@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::types::{Block, H256 as EthersH256};
+use ethers::types::{Block, H160, H256 as EthersH256};
 use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use ethers_core::abi::Function;
@@ -134,7 +134,7 @@ pub trait EvmProviderForSubmitter: Send + Sync {
     ) -> ChainResult<ZksyncEstimateFeeResponse>;
 
     /// Get default sender
-    fn default_sender(&self) -> Option<Address>;
+    fn get_signer(&self) -> Option<H160>;
 }
 
 #[async_trait]
@@ -231,7 +231,7 @@ where
             .map_err(ChainCommunicationError::from_other)
     }
 
-    fn default_sender(&self) -> Option<Address> {
+    fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
     }
 }
@@ -350,7 +350,7 @@ where
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?
         else {
-            tracing::trace!(domain=?self.domain, "Latest block not found");
+            tracing::trace!(domain=?self.domain.name(), "Latest block not found");
             return Ok(None);
         };
 

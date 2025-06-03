@@ -171,20 +171,14 @@ impl SerialSubmitter {
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
-        let prepare_task = match &entrypoint {
-            None => self.create_classic_prepare_task(),
-            Some(entrypoint) => self.create_lander_prepare_task(entrypoint.clone()),
-        };
+        let prepare_task = self.create_classic_prepare_task();
 
         let submit_task = match &entrypoint {
             None => self.create_classic_submit_task(),
             Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = match &entrypoint {
-            None => self.create_classic_confirm_task(),
-            Some(entrypoint) => self.create_lander_confirm_task(entrypoint.clone()),
-        };
+        let confirm_task = self.create_classic_confirm_task();
 
         let tasks = [
             self.create_receive_task(rx_prepare),
@@ -196,7 +190,7 @@ impl SerialSubmitter {
         if let Err(err) = try_join_all(tasks).await {
             error!(
                 error=?err,
-                domain=?self.domain,
+                domain=?self.domain.name(),
                 "SerialSubmitter task panicked for domain"
             );
         }
@@ -270,6 +264,7 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    #[allow(unused)]
     fn create_lander_prepare_task(
         &self,
         entrypoint: Arc<PayloadDispatcherEntrypoint>,
@@ -317,6 +312,7 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    #[allow(unused)]
     fn create_lander_confirm_task(
         &self,
         entrypoint: Arc<PayloadDispatcherEntrypoint>,
