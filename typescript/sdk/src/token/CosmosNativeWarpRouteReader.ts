@@ -137,8 +137,10 @@ export class CosmosNativeWarpRouteReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    // TODO: implement
-    return {} as HypTokenConfig;
+    return {
+      type,
+      token: warpRouteAddress,
+    } as HypTokenConfig;
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {

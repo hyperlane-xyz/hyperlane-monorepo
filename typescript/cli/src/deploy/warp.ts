@@ -238,16 +238,6 @@ async function executeDeploy(
           ),
         };
 
-        const { warpCoreConfig } = await getWarpCoreConfig(
-          { context: params.context, warpDeployConfig: protocolSpecificConfig },
-          deployedContracts,
-        );
-
-        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
-        deployments.options = {
-          ...deployments.options,
-          ...warpCoreConfig.options,
-        };
         break;
       }
       case ProtocolType.CosmosNative: {
@@ -262,17 +252,6 @@ async function executeDeploy(
           ...(await deployer.deploy(protocolSpecificConfig)),
         };
 
-        const { warpCoreConfig } = await getWarpCoreConfig(
-          { context: params.context, warpDeployConfig: protocolSpecificConfig },
-          deployedContracts,
-        );
-
-        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
-        deployments.options = {
-          ...deployments.options,
-          ...warpCoreConfig.options,
-        };
-
         break;
       }
       default: {
@@ -280,6 +259,17 @@ async function executeDeploy(
       }
     }
   }
+
+  const { warpCoreConfig } = await getWarpCoreConfig(
+    { context: params.context, warpDeployConfig: modifiedConfig },
+    deployedContracts,
+  );
+
+  deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
+  deployments.options = {
+    ...deployments.options,
+    ...warpCoreConfig.options,
+  };
 
   await enrollCrossChainRouters(params, deployedContracts, deployments);
 
@@ -1105,6 +1095,7 @@ async function enrollCrossChainRouters(
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
+        continue;
         const registryAddresses = await context.registry.getAddresses();
         const {
           domainRoutingIsmFactory,
@@ -1131,7 +1122,10 @@ async function enrollCrossChainRouters(
           },
         });
 
+        console.log('evmWarpModule');
+
         const actualConfig = await evmWarpModule.read();
+        console.log('actualConfig', actualConfig);
         const expectedConfig = {
           ...actualConfig,
           remoteRoutes: allRemoteChains.reduce(
@@ -1146,6 +1140,7 @@ async function enrollCrossChainRouters(
         };
 
         const transactions = await evmWarpModule.update(expectedConfig);
+        console.log('transactions', transactions);
 
         if (transactions.length) {
           const chainTransactions = groupBy(transactions, 'chainId');
@@ -1180,7 +1175,7 @@ async function enrollCrossChainRouters(
         const actualConfig = await cosmosNativeWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
-          remoteRoutes: allRemoteChains.reduce(
+          remoteRouters: allRemoteChains.reduce(
             (acc, c) => ({
               ...acc,
               [context.multiProvider.getDomainId(c).toString()]: {
@@ -1191,7 +1186,6 @@ async function enrollCrossChainRouters(
           ),
         };
 
-        // TODO: also update remote gas
         const transactions =
           await cosmosNativeWarpModule.update(expectedConfig);
 

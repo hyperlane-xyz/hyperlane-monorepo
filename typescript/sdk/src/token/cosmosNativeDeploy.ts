@@ -42,6 +42,7 @@ export class CosmosNativeDeployer {
 
       switch (config.type) {
         case TokenType.collateral: {
+          this.logger.info(`Deploying collateral token to ${chain}`);
           const { response: collateralToken } = await this.signersMap[
             chain
           ].createCollateralToken({
@@ -52,6 +53,7 @@ export class CosmosNativeDeployer {
           break;
         }
         case TokenType.synthetic: {
+          this.logger.info(`Deploying synthetic token to ${chain}`);
           const { response: syntheticToken } = await this.signersMap[
             chain
           ].createSyntheticToken({
@@ -64,6 +66,8 @@ export class CosmosNativeDeployer {
           throw new Error(`Token type ${config.type} not supported`);
         }
       }
+
+      this.logger.info(`Successfully deployed contracts on ${chain}`);
     }
 
     return result;
