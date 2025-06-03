@@ -45,7 +45,11 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
-import { HypTokenRouterConfig, derivedHookAddress } from './types.js';
+import {
+  CONTRACTS_VERSION,
+  HypTokenRouterConfig,
+  derivedHookAddress,
+} from './types.js';
 
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
@@ -791,7 +795,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       await sendTxs(
         await evmERC20WarpModule.update({
           ...config,
-          contractVersion: '7.1.5',
+          contractVersion: CONTRACTS_VERSION,
         }),
       );
 
@@ -799,7 +803,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
       const updatedConfig = await evmERC20WarpModule.read();
       // Assert
-      expect(updatedConfig.contractVersion).to.eq('7.1.5');
+      expect(updatedConfig.contractVersion).to.eq(CONTRACTS_VERSION);
       const newImpl = await proxyImplementation(
         multiProvider.getProvider(chain),
         deployedTokenRoute,
