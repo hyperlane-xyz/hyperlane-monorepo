@@ -617,11 +617,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     await startRebalancerAndExpectLog(
       `Destination ${warpCoreConfig.tokens[0].addressOrDenom!} for domain ${
@@ -663,14 +659,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     // Allow destination
-    await chain3CollateralContract.addRecipient(
+    await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
     );
@@ -715,22 +707,18 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     // Allow destination
-    await chain3CollateralContract.addRecipient(
+    await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
     );
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
-      ethers.constants.AddressZero,
       chain2Metadata.domainId,
+      ethers.constants.AddressZero,
     );
 
     await startRebalancerAndExpectLog(
@@ -748,14 +736,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     // Allow destination
-    await chain3CollateralContract.addRecipient(
+    await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
     );
@@ -767,8 +751,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
-      bridgeContract.address,
       chain2Metadata.domainId,
+      bridgeContract.address,
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
@@ -809,14 +793,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     // Allow destination
-    await chain3CollateralContract.addRecipient(
+    await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
     );
@@ -828,8 +808,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
-      bridgeContract.address,
       chain2Metadata.domainId,
+      bridgeContract.address,
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
@@ -866,14 +846,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpCoreConfig.tokens[1].addressOrDenom!,
       chain3Signer,
     );
-    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
-    await chain3CollateralContract.grantRole(
-      rebalancerRole,
-      chain3Signer.address,
-    );
+    await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
     // Allow destination
-    await chain3CollateralContract.addRecipient(
+    await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
     );
@@ -885,8 +861,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
-      bridgeContract.address,
       chain2Metadata.domainId,
+      bridgeContract.address,
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
@@ -949,12 +925,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       originContractAddress,
       originSigner,
     );
-    const rebalancerRole = await originContract.REBALANCER_ROLE();
-    await originContract.grantRole(rebalancerRole, originSigner.address);
+    await originContract.addRebalancer(originSigner.address);
 
     // Allow destination
     // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
-    await originContract.addRecipient(
+    await originContract.setRecipient(
       destDomain,
       addressToBytes32(destContractAddress),
     );
@@ -968,7 +943,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
-    await originContract.addBridge(bridgeContract.address, destDomain);
+    await originContract.addBridge(destDomain, bridgeContract.address);
 
     // Configure rebalancer
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
@@ -1081,12 +1056,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       originContractAddress,
       originSigner,
     );
-    const rebalancerRole = await originContract.REBALANCER_ROLE();
-    await originContract.grantRole(rebalancerRole, originSigner.address);
+    await originContract.addRebalancer(originSigner.address);
 
     // --- Allow destination ---
 
-    await originContract.addRecipient(
+    await originContract.setRecipient(
       destDomain,
       addressToBytes32(destContractAddress),
     );
@@ -1099,7 +1073,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // --- Allow bridge ---
 
-    await originContract.addBridge(bridgeContract.address, destDomain);
+    await originContract.addBridge(destDomain, bridgeContract.address);
 
     // --- Configure rebalancer ---
 
@@ -1242,14 +1216,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // --- Grant rebalancer role ---
 
-    await chain2Contract.grantRole(
-      await chain2Contract.REBALANCER_ROLE(),
-      chain2Signer.address,
-    );
+    await chain2Contract.addRebalancer(chain2Signer.address);
 
     // --- Allow destination ---
 
-    await chain2Contract.addRecipient(
+    await chain2Contract.setRecipient(
       chain3Metadata.domainId,
       addressToBytes32(warpCoreConfig.tokens[1].addressOrDenom!),
     );
@@ -1257,8 +1228,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // --- Allow bridge ---
 
     await chain2Contract.addBridge(
-      otherWarpCoreConfig.tokens[0].addressOrDenom!,
       chain3Metadata.domainId,
+      otherWarpCoreConfig.tokens[0].addressOrDenom!,
     );
 
     // --- Fund warp route bridge collaterals ---
@@ -1360,12 +1331,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         originContractAddress,
         originSigner,
       );
-      const rebalancerRole = await originContract.REBALANCER_ROLE();
-      await originContract.grantRole(rebalancerRole, originSigner.address);
+      await originContract.addRebalancer(originSigner.address);
 
       // Allow destination
       // We have to allow for a particular domain (chain 2) that the destination contract is able to receive the tokens
-      await originContract.addRecipient(
+      await originContract.setRecipient(
         destDomain,
         addressToBytes32(destContractAddress),
       );
@@ -1379,7 +1349,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
-      await originContract.addBridge(bridgeContract.address, destDomain);
+      await originContract.addBridge(destDomain, bridgeContract.address);
 
       // Configure rebalancer
       // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
@@ -1538,14 +1508,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // --- Grant rebalancer role ---
 
-      await chain2Contract.grantRole(
-        await chain2Contract.REBALANCER_ROLE(),
-        chain2Signer.address,
-      );
+      await chain2Contract.addRebalancer(chain2Signer.address);
 
       // --- Allow destination ---
 
-      await chain2Contract.addRecipient(
+      await chain2Contract.setRecipient(
         chain3Metadata.domainId,
         addressToBytes32(warpCoreConfig.tokens[1].addressOrDenom!),
       );
@@ -1553,8 +1520,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // --- Allow bridge ---
 
       await chain2Contract.addBridge(
-        otherWarpCoreConfig.tokens[0].addressOrDenom!,
         chain3Metadata.domainId,
+        otherWarpCoreConfig.tokens[0].addressOrDenom!,
       );
 
       // --- Fund warp route bridge collaterals ---
@@ -1620,7 +1587,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           [
             `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
             '{ numberOfRoutes: 1 } Rebalance initiated',
-            `} Populating rebalance transaction`,
+            `Populating rebalance transaction`,
             `✅ Manual rebalance from ${CHAIN_NAME_2} to ${CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
           ],
           {

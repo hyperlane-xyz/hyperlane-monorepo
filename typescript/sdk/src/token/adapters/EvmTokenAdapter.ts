@@ -353,20 +353,22 @@ export class EvmHypCollateralAdapter
   }
 
   async isRebalancer(account: Address): Promise<boolean> {
-    const role = await this.collateralContract.REBALANCER_ROLE();
+    const rebalancers = await this.collateralContract.allowedRebalancers();
 
-    return this.collateralContract.hasRole(role, account);
+    return rebalancers.includes(account);
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
     const allowedDestinationBytes32 =
-      await this.collateralContract.allowedDestinations(domain);
+      await this.collateralContract.allowedRecipient(domain);
 
     return bytes32ToAddress(allowedDestinationBytes32);
   }
 
-  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
-    return this.collateralContract.allowedBridges(domain, bridge);
+  async isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
+    const allowedBridges = await this.collateralContract.allowedBridges(domain);
+
+    return allowedBridges.includes(bridge);
   }
 
   async getRebalanceQuotes(
