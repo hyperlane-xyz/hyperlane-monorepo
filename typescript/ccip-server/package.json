@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "13.2.0",
+  "version": "13.2.1",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -37,6 +37,6 @@
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
     "dotenv-flow": "^4.1.0",
-    "ethers": "^5.7.2"
+    "ethers": "^5.8.0"
   }
 }
