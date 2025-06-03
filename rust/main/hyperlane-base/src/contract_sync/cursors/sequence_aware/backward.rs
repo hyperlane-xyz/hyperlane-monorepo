@@ -141,9 +141,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // lowest block height, we don't want to index anything below the lowest block height.
             info!(
                 current_indexing_snapshot=?current_indexing_snapshot,
-                lowest_sequence=self.lowest_block_height_or_sequence,
-                "Current indexing snapshot's block height is less than or equal to the lowest sequence, \
-                not indexing anything below the lowest sequence"
+                lowest_block_height=self.lowest_block_height_or_sequence,
+                "Current indexing snapshot's block height is less than or equal to the lowest block height, \
+                not indexing anything below the lowest block height"
             );
             return None;
         }
