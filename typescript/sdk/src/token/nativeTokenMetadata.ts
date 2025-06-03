@@ -49,8 +49,5 @@ const starknetChainSpecificOverrides: Record<ChainName, NativeToken> = {
 export const starknetNativeTokenMetadataOverrides = (
   chainName: ChainName,
 ): NativeToken => {
-  if (starknetChainSpecificOverrides[chainName]) {
-    return starknetChainSpecificOverrides[chainName];
-  }
-  return PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet];
+  return starknetChainSpecificOverrides[chainName] ?? PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet];
 };
