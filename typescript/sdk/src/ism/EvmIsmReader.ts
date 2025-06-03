@@ -54,7 +54,7 @@ export interface IsmReader {
   deriveOffchainLookupConfig(
     address: string,
   ): Promise<WithAddress<OffchainLookupIsmConfig>>;
-  deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
+  deriveRoutingConfig(address: Address): Promise<WithAddress<DerivedIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>>;
@@ -197,7 +197,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
   async deriveRoutingConfig(
     address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
+  ): Promise<WithAddress<DerivedIsmConfig>> {
     const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
 
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
@@ -209,6 +209,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         this.provider,
       );
       await icaInstance.CCIP_READ_ISM();
+      if (this.messageContext) {
+        // Route via the message context to get routed ISM
+        const routedIsm = await icaInstance.route(this.messageContext.message);
+        return this.deriveIsmConfig(routedIsm);
+      }
+      // If no message context, just return this ICA ISM placeholder
       return {
         address,
         type: IsmType.ICA,
