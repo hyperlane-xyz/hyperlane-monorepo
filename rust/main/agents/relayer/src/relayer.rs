@@ -1504,6 +1504,29 @@ mod test {
         assert_eq!(metric.get(), 1);
     }
 
+    async fn build_relayer(settings: RelayerSettings) -> eyre::Result<Relayer> {
+        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
+
+        let metrics = settings.as_ref().metrics("relayer")?;
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        let agent_metrics = AgentMetrics::new(&metrics)?;
+        let chain_metrics = ChainMetrics::new(&metrics)?;
+        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor)?;
+
+        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
+
+        Relayer::from_settings(
+            agent_metadata,
+            settings,
+            metrics,
+            agent_metrics,
+            chain_metrics,
+            runtime_metrics,
+            tokio_server,
+        )
+        .await
+    }
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_from_settings_and_run_happy_path() {
@@ -1522,27 +1545,9 @@ mod test {
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        let agent = Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
+        let agent = build_relayer(settings)
+            .await
+            .expect("Failed to build relayer");
 
         let future = agent.run();
         assert!(tokio::time::timeout(Duration::from_secs(50), future)
@@ -1576,27 +1581,9 @@ mod test {
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        let agent = Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
+        let agent = build_relayer(settings)
+            .await
+            .expect("Failed to build relayer");
 
         let future = agent.run();
         assert!(tokio::time::timeout(Duration::from_secs(50), future)
@@ -1623,27 +1610,9 @@ mod test {
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        let agent = Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
+        let agent = build_relayer(settings)
+            .await
+            .expect("Failed to build relayer");
 
         let future = agent.run();
 
@@ -1685,27 +1654,9 @@ mod test {
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        let agent = Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
+        let agent = build_relayer(settings)
+            .await
+            .expect("Failed to build relayer");
 
         let future = agent.run();
         assert!(tokio::time::timeout(Duration::from_secs(50), future)
@@ -1731,27 +1682,9 @@ mod test {
         let settings =
             generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
 
-        let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
-
-        let metrics = settings.as_ref().metrics("relayer").unwrap();
-        let task_monitor = tokio_metrics::TaskMonitor::new();
-        let agent_metrics = AgentMetrics::new(&metrics).unwrap();
-        let chain_metrics = ChainMetrics::new(&metrics).unwrap();
-        let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor).unwrap();
-
-        let (_, tokio_server) = console_subscriber::ConsoleLayer::new();
-
-        let agent = Relayer::from_settings(
-            agent_metadata,
-            settings,
-            metrics,
-            agent_metrics,
-            chain_metrics,
-            runtime_metrics,
-            tokio_server,
-        )
-        .await
-        .expect("Failed to build relayer");
+        let agent = build_relayer(settings)
+            .await
+            .expect("Failed to build relayer");
 
         let future = agent.run();
         assert!(tokio::time::timeout(Duration::from_secs(50), future)
