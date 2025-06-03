@@ -1095,7 +1095,6 @@ async function enrollCrossChainRouters(
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
-        continue;
         const registryAddresses = await context.registry.getAddresses();
         const {
           domainRoutingIsmFactory,
@@ -1122,13 +1121,10 @@ async function enrollCrossChainRouters(
           },
         });
 
-        console.log('evmWarpModule');
-
         const actualConfig = await evmWarpModule.read();
-        console.log('actualConfig', actualConfig);
         const expectedConfig = {
           ...actualConfig,
-          remoteRoutes: allRemoteChains.reduce(
+          remoteRouters: allRemoteChains.reduce(
             (acc, c) => ({
               ...acc,
               [context.multiProvider.getDomainId(c).toString()]: {
@@ -1140,7 +1136,6 @@ async function enrollCrossChainRouters(
         };
 
         const transactions = await evmWarpModule.update(expectedConfig);
-        console.log('transactions', transactions);
 
         if (transactions.length) {
           const chainTransactions = groupBy(transactions, 'chainId');
