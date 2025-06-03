@@ -1,11 +1,12 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HookType,
   HypTokenRouterConfig,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
@@ -25,13 +26,16 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
+  exportWarpConfigsToFilePaths,
   extendWarpConfig,
   getCombinedWarpRoutePath,
+  getDeployedWarpAddress,
   getDomainId,
   updateOwner,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
+  hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
 } from '../commands/warp.js';
@@ -39,7 +43,6 @@ import {
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
   let chain2Addresses: ChainAddresses = {};
-
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
 
@@ -269,5 +272,93 @@ describe('hyperlane warp apply owner update tests', async function () {
       updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
     );
     expect(remoteRouterKeys2).to.include(chain1Id);
+  });
+
+  it('should extend a warp route with a custom warp route id', async () => {
+    // Read existing config
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    // Extend with new config
+    const config: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      type: TokenType.native,
+    };
+
+    warpConfig.anvil3 = config;
+
+    // Copy over the warp deploy AND core to custom warp route id filepath
+    // This simulates the user updating the warp route id in the registry
+    const warpRouteId = 'ETH/custom-warp-route-id-2';
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    );
+    const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
+      warpRouteId,
+      warpConfig,
+      warpCoreConfig,
+    });
+
+    // Apply
+    await hyperlaneWarpApplyRaw({
+      warpRouteId,
+    });
+
+    // getDeployedWarpAddress() throws if address does not exist
+    const extendAddress = getDeployedWarpAddress(
+      CHAIN_NAME_3,
+      updatedWarpCorePath,
+    );
+    expect(extendAddress).to.be.exist;
+    expect(extendAddress).to.not.equal(ethers.constants.AddressZero);
+  });
+
+  it('should apply changes to a warp route with a custom warp route id', async () => {
+    // Read existing config
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    // Update the existing warp route config
+    warpConfig.anvil2.owner = E2E_TEST_BURN_ADDRESS;
+
+    // Copy over the warp deploy AND core to custom warp route id filepath
+    // This simulates the user updating the warp route id in the registry
+    const warpRouteId = 'ETH/custom-warp-route-id-2';
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    );
+    const {
+      warpDeployPath: updatedWarpDeployPath,
+      warpCorePath: updatedWarpCorePath,
+    } = exportWarpConfigsToFilePaths({
+      warpRouteId,
+      warpCoreConfig,
+      warpConfig,
+    });
+
+    // Apply
+    await hyperlaneWarpApplyRaw({
+      warpRouteId,
+    });
+
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      updatedWarpCorePath,
+      updatedWarpDeployPath,
+    );
+
+    expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
   });
 });
