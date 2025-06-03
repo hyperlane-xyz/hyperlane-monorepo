@@ -8,7 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::Result;
+use eyre::{eyre, Result};
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use tokio::{
@@ -520,15 +520,29 @@ impl BaseAgent for Relayer {
             };
 
             // Default to submitting one message at a time if there is no batch config
-            let match_batch_size = self.core.settings.chains[dest_domain.name()]
-                .connection
-                .operation_submission_config()
-                .map(|c| c.max_batch_size)
+            let match_batch_size = self
+                .core
+                .settings
+                .chains
+                .get(dest_domain.name())
+                .and_then(|chain| {
+                    chain
+                        .connection
+                        .operation_submission_config()
+                        .map(|c| c.max_batch_size)
+                })
                 .unwrap_or(1);
-            let max_submit_queue_len = self.core.settings.chains[dest_domain.name()]
-                .connection
-                .operation_submission_config()
-                .and_then(|c| c.max_submit_queue_length);
+            let max_submit_queue_len =
+                self.core
+                    .settings
+                    .chains
+                    .get(dest_domain.name())
+                    .and_then(|chain| {
+                        chain
+                            .connection
+                            .operation_submission_config()
+                            .and_then(|c| c.max_submit_queue_length)
+                    });
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
                 receive_channel,
@@ -573,7 +587,21 @@ impl BaseAgent for Relayer {
                 .message_syncs
                 .get(origin)
                 .and_then(|sync| sync.get_broadcaster());
-            tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
+
+            let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        origin,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run message sync",
+                    );
+                    continue;
+                }
+            };
+            tasks.push(message_sync);
+
             if let Some(interchain_gas_payment_syncs) = &self.interchain_gas_payment_syncs {
                 tasks.push(
                     self.run_interchain_gas_payment_sync(
@@ -669,14 +697,18 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> Result<JoinHandle<()>> {
         let origin = origin.clone();
-        let contract_sync = self.message_syncs.get(&origin).unwrap().clone();
+        let contract_sync = self
+            .message_syncs
+            .get(&origin)
+            .cloned()
+            .ok_or_else(|| eyre!("Missing message sync"))?;
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin.name());
-        tokio::task::Builder::new()
+        let task = tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
@@ -686,7 +718,8 @@ impl Relayer {
                 }
                 .instrument(info_span!("MessageSync")),
             ))
-            .expect("spawning tokio task from Builder is infallible")
+            .expect("spawning tokio task from Builder is infallible");
+        Ok(task)
     }
 
     async fn message_sync_task(
