@@ -298,10 +298,7 @@ export {
 } from './middleware/account/contracts.js';
 export { InterchainAccount } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
-export {
-  InterchainAccountConfig,
-  InterchainAccountDeployer,
-} from './middleware/account/InterchainAccountDeployer.js';
+export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';
 export {
   AccountConfig,
   AccountConfigSchema,
@@ -473,8 +470,8 @@ export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
+  IcaRouterConfig as InterchainAccountConfig,
   IcaRouterConfigSchema,
-  RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
@@ -637,6 +634,8 @@ export {
   SyntheticRebaseTokenConfigSchema,
   SyntheticTokenConfig,
   SyntheticTokenConfigSchema,
+  CctpTokenConfig,
+  CctpTokenConfigSchema,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,

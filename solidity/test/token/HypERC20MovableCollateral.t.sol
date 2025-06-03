@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
+import {ValueTransferBridge} from "contracts/token/interfaces/ValueTransferBridge.sol";
 import {MockValueTransferBridge} from "./MovableCollateralRouter.t.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 // import {HypERC20MovableCollateral} from "contracts/token/HypERC20MovableCollateral.sol";
@@ -31,19 +31,26 @@ contract HypERC20MovableCollateralRouterTest is Test {
         vtb = new MockValueTransferBridge(token);
     }
 
-    function testMovingCollateral() public {
-        // Configuration
+    function _configure(bytes32 _recipient) internal {
         // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
+        router.addRebalancer(address(this));
 
-        // Add the destination domain
-        router.addRecipient(
+        // Enroll the remote router
+        router.enrollRemoteRouter(
             destinationDomain,
             bytes32(uint256(uint160(alice)))
         );
 
+        // Add the destination domain
+        router.setRecipient(destinationDomain, _recipient);
+
         // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        router.addBridge(destinationDomain, vtb);
+    }
+
+    function testMovingCollateral() public {
+        // Configuration
+        _configure(bytes32(uint256(uint160(alice))));
 
         // Setup - approvals happen automatically
         token.mintTo(address(router), 1e18);
@@ -62,14 +69,8 @@ contract HypERC20MovableCollateralRouterTest is Test {
         vm.assume(recipient != bytes32(0));
 
         // Configuration
-        // Grant permissions
-        router.grantRole(router.REBALANCER_ROLE(), address(this));
 
-        // Add the destination domain
-        router.addRecipient(destinationDomain, recipient);
-
-        // Add the given bridge
-        router.addBridge(vtb, destinationDomain);
+        _configure(recipient);
 
         // Setup - approvals happen automatically
         token.mintTo(address(router), amount);

@@ -16,20 +16,17 @@ import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { DerivedIcaRouterConfig } from '../ica/types.js';
+import { InterchainAccountConfig } from '../index.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ProxiedRouterConfig } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
-
-export type InterchainAccountConfig = ProxiedRouterConfig &
-  Partial<Pick<DerivedIcaRouterConfig, 'remoteIcaRouters'>>;
 
 export class EvmIcaModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -50,7 +47,8 @@ export class EvmIcaModule extends HyperlaneModule<
   ) {
     super(args);
     this.icaRouterReader = new EvmIcaRouterReader(
-      multiProvider.getProvider(this.args.chain),
+      multiProvider,
+      this.args.chain,
     );
     this.domainId = multiProvider.getDomainId(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);
@@ -69,8 +67,8 @@ export class EvmIcaModule extends HyperlaneModule<
 
     const transactions: AnnotatedEV5Transaction[] = [
       ...(await this.updateRemoteRoutersEnrollment(
-        actualConfig.remoteIcaRouters,
-        expectedConfig.remoteIcaRouters,
+        actualConfig.remoteRouters,
+        expectedConfig.remoteRouters,
       )),
     ];
 
@@ -78,27 +76,25 @@ export class EvmIcaModule extends HyperlaneModule<
   }
 
   private async updateRemoteRoutersEnrollment(
-    actualConfig: DerivedIcaRouterConfig['remoteIcaRouters'],
-    expectedConfig: InterchainAccountConfig['remoteIcaRouters'] = {},
+    actualConfig: DerivedIcaRouterConfig['remoteRouters'],
+    expectedConfig: InterchainAccountConfig['remoteRouters'] = {},
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [
-      ...(await this.getEnrollRemoteIcaRoutersTxs(
-        actualConfig,
-        expectedConfig,
-      )),
-      ...(await this.getUnenrollRemoteIcaRoutersTxs(
-        actualConfig,
-        expectedConfig,
-      )),
+      ...(await this.getEnrollRemoteRoutersTxs(actualConfig, expectedConfig)),
+      ...(await this.getUnenrollRemoteRoutersTxs(actualConfig, expectedConfig)),
     ];
 
     return transactions;
   }
 
-  private async getEnrollRemoteIcaRoutersTxs(
-    actualConfig: Readonly<DerivedIcaRouterConfig['remoteIcaRouters']>,
-    expectedConfig: Readonly<InterchainAccountConfig['remoteIcaRouters']> = {},
+  private async getEnrollRemoteRoutersTxs(
+    actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
+    expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
   ): Promise<AnnotatedEV5Transaction[]> {
+    if (!actualConfig) {
+      return [];
+    }
+
     const transactions: AnnotatedEV5Transaction[] = [];
 
     const routesToEnroll = Array.from(
@@ -119,11 +115,7 @@ export class EvmIcaModule extends HyperlaneModule<
     for (const domainId of routesToEnroll) {
       domainsToEnroll.push(domainId);
       remoteDomainIca.push(addressToBytes32(expectedConfig[domainId].address));
-      remoteIsm.push(
-        expectedConfig[domainId].interchainSecurityModule
-          ? addressToBytes32(expectedConfig[domainId].interchainSecurityModule!)
-          : ethers.utils.hexZeroPad('0x', 32),
-      );
+      remoteIsm.push(ethers.utils.hexZeroPad('0x', 32));
     }
 
     const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
@@ -156,10 +148,14 @@ export class EvmIcaModule extends HyperlaneModule<
     return transactions;
   }
 
-  private async getUnenrollRemoteIcaRoutersTxs(
-    actualConfig: Readonly<DerivedIcaRouterConfig['remoteIcaRouters']>,
-    expectedConfig: Readonly<InterchainAccountConfig['remoteIcaRouters']> = {},
+  private async getUnenrollRemoteRoutersTxs(
+    actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
+    expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
   ): Promise<AnnotatedEV5Transaction[]> {
+    if (!actualConfig) {
+      return [];
+    }
+
     const transactions: AnnotatedEV5Transaction[] = [];
 
     const routesToUnenroll = Array.from(

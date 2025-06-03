@@ -18,7 +18,7 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
+import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -32,7 +32,7 @@ import {Quote} from "../interfaces/ITokenBridge.sol";
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is FungibleTokenRouter, MovableCollateralRouter {
+contract HypERC20Collateral is MovableCollateralRouter {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -54,9 +54,8 @@ contract HypERC20Collateral is FungibleTokenRouter, MovableCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual reinitializer(2) {
+    ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _MovableCollateralRouter_initialize(_owner);
     }
 
     function balanceOf(

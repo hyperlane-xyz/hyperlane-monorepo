@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {ValueTransferBridge} from "./ValueTransferBridge.sol";
+import {ValueTransferBridge} from "../interfaces/ValueTransferBridge.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract MovableCollateralRouter is AccessControlUpgradeable {
+abstract contract MovableCollateralRouter is FungibleTokenRouter {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    function _MovableCollateralRouter_initialize(address admin) internal {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-    }
+    /// @notice Mapping of domain to allowed rebalance recipient.
+    /// @dev Keys constrained to a subset of Router.domains()
+    mapping(uint32 routerDomain => bytes32 recipient) public allowedRecipient;
 
-    bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    /// @notice Mapping of domain to allowed rebalance bridges.
+    /// @dev Keys constrained to a subset of Router.domains()
+    mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges)
+        internal _allowedBridges;
 
-    mapping(uint32 destinationDomain => bytes32 recipient)
-        public allowedDestinations;
-    mapping(uint32 destinationDomain => mapping(ValueTransferBridge bridge => bool isValidBridge))
-        public allowedBridges;
+    /// @notice Set of addresses that are allowed to rebalance.
+    EnumerableSet.AddressSet internal _allowedRebalancers;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -31,22 +32,95 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
         address indexed rebalancer
     );
 
-    error BadDestination(address rebalancer, uint32 domain);
-    error BadBridge(address rebalancer, ValueTransferBridge bridge);
+    modifier onlyRebalancer() {
+        require(
+            _allowedRebalancers.contains(_msgSender()),
+            "MCR: Only Rebalancer"
+        );
+        _;
+    }
 
+    modifier onlyAllowedBridge(uint32 domain, ValueTransferBridge bridge) {
+        EnumerableSet.AddressSet storage bridges = _allowedBridges[domain];
+        require(bridges.contains(address(bridge)), "MCR: Not allowed bridge");
+        _;
+    }
+
+    function allowedRebalancers() external view returns (address[] memory) {
+        return _allowedRebalancers.values();
+    }
+
+    function allowedBridges(
+        uint32 domain
+    ) external view returns (address[] memory) {
+        return _allowedBridges[domain].values();
+    }
+
+    function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
+        // constrain to a subset of Router.domains()
+        _mustHaveRemoteRouter(domain);
+        allowedRecipient[domain] = recipient;
+    }
+
+    function removeRecipient(uint32 domain) external onlyOwner {
+        delete allowedRecipient[domain];
+    }
+
+    function addBridge(
+        uint32 domain,
+        ValueTransferBridge bridge
+    ) external onlyOwner {
+        // constrain to a subset of Router.domains()
+        _mustHaveRemoteRouter(domain);
+        _allowedBridges[domain].add(address(bridge));
+    }
+
+    function removeBridge(
+        uint32 domain,
+        ValueTransferBridge bridge
+    ) external onlyOwner {
+        _allowedBridges[domain].remove(address(bridge));
+    }
+
+    /**
+     * @notice Approves the token for the bridge.
+     * @param token The token to approve.
+     * @param bridge The bridge to approve the token for.
+     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     */
+    function approveTokenForBridge(
+        IERC20 token,
+        ValueTransferBridge bridge
+    ) external onlyOwner {
+        token.safeApprove(address(bridge), type(uint256).max);
+    }
+
+    function addRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.add(rebalancer);
+    }
+
+    function removeRebalancer(address rebalancer) external onlyOwner {
+        _allowedRebalancers.remove(rebalancer);
+    }
+
+    /**
+     * @notice Rebalances the collateral between router domains.
+     * @param domain The domain to rebalance to.
+     * @param amount The amount of collateral to rebalance.
+     * @param bridge The bridge to use for the rebalance.
+     * @dev The caller must be an allowed rebalancer and the bridge must be an allowed bridge for the domain.
+     * @dev The recipient is the enrolled router if no recipient is set for the domain.
+     */
     function rebalance(
         uint32 domain,
         uint256 amount,
         ValueTransferBridge bridge
-    ) external payable onlyRole(REBALANCER_ROLE) {
+    ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
         address rebalancer = _msgSender();
-        bytes32 recipient = allowedDestinations[domain];
-        if (recipient == bytes32(0)) {
-            revert BadDestination({rebalancer: rebalancer, domain: domain});
-        }
 
-        if (!(allowedBridges[domain][bridge])) {
-            revert BadBridge({rebalancer: rebalancer, bridge: bridge});
+        bytes32 recipient = allowedRecipient[domain];
+        if (recipient == bytes32(0)) {
+            recipient = _mustHaveRemoteRouter(domain);
         }
 
         _rebalance(domain, recipient, amount, bridge);
@@ -56,6 +130,13 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
             amount: amount,
             rebalancer: rebalancer
         });
+    }
+
+    /// @dev Constrains keys of rebalance mappings to Router.domains()
+    function _unenrollRemoteRouter(uint32 domain) internal override {
+        delete allowedRecipient[domain];
+        delete _allowedBridges[domain];
+        Router._unenrollRemoteRouter(domain);
     }
 
     function _rebalance(
@@ -69,32 +150,5 @@ abstract contract MovableCollateralRouter is AccessControlUpgradeable {
             recipient: recipient,
             amountOut: amount
         });
-    }
-
-    function addRecipient(
-        uint32 domain,
-        bytes32 recipient
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        allowedDestinations[domain] = recipient;
-    }
-
-    function addBridge(
-        ValueTransferBridge bridge,
-        uint32 destinationDomain
-    ) external onlyRole((DEFAULT_ADMIN_ROLE)) {
-        allowedBridges[destinationDomain][bridge] = true;
-    }
-
-    /**
-     * @notice Approves the token for the bridge.
-     * @param token The token to approve.
-     * @param bridge The bridge to approve the token for.
-     * @dev We need this to support bridges that charge fees in ERC20 tokens.
-     */
-    function approveTokenForBridge(
-        IERC20 token,
-        ValueTransferBridge bridge
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        token.safeApprove(address(bridge), type(uint256).max);
     }
 }

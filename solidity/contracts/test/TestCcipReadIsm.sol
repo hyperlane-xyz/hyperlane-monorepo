@@ -20,6 +20,11 @@ contract TestCcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         bytes message
     );
 
+    constructor(string[] memory _urls) {
+        _transferOwnership(msg.sender);
+        setUrls(_urls);
+    }
+
     function _offchainLookupCalldata(
         bytes calldata /*_message*/
     ) internal pure override returns (bytes memory) {
