@@ -100,7 +100,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     return safeTransaction;
   }
 
-  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
+  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<void> {
     const safeTransaction = await this.createSafeTransaction(...txs);
     return this.proposeSafeTransaction(safeTransaction);
   }
