@@ -66,6 +66,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -225,7 +226,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
-                false,
+                ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
             )
             .await?
@@ -245,8 +246,8 @@ impl BaseAgent for Relayer {
                         dbs.iter()
                             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                             .collect(),
+                        ADVANCED_LOG_META,
                         false,
-                        settings.tx_id_indexing_enabled,
                     )
                     .await?
                     .into_iter()
@@ -267,8 +268,8 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                ADVANCED_LOG_META,
                 false,
-                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
@@ -375,6 +376,7 @@ impl BaseAgent for Relayer {
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
@@ -394,6 +396,7 @@ impl BaseAgent for Relayer {
                         settings.ism_cache_configs.clone(),
                     ),
                     ccip_signers.get(destination).cloned().flatten(),
+                    origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
@@ -1181,6 +1184,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 

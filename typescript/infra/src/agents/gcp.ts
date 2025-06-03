@@ -1,7 +1,8 @@
 import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
-import { Wallet, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { Logger } from 'pino';
+import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger, strip0x } from '@hyperlane-xyz/utils';
@@ -70,6 +71,15 @@ export class AgentGCPKey extends CloudAgentKey {
     } catch (err) {
       this.logger.debug('Key does not exist, creating new key');
       await this.create();
+    }
+  }
+
+  async exists() {
+    try {
+      await this.fetch();
+      return true;
+    } catch (err) {
+      return false;
     }
   }
 
@@ -207,15 +217,14 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug('Key deleted successfully');
   }
 
-  async getSigner(
-    provider?: ethers.providers.Provider,
-  ): Promise<ethers.Signer> {
+  async getSigner(provider?: ZkProvider): Promise<ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key not fetched, fetching now');
       await this.fetch();
     }
-    return new Wallet(this.privateKey, provider);
+
+    return new ZkWallet(this.privateKey, provider);
   }
 
   private requireFetched() {
@@ -228,7 +237,7 @@ export class AgentGCPKey extends CloudAgentKey {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
     this.logger.debug(`Creating key with rotation: ${rotate}`);
-    const wallet = Wallet.createRandom();
+    const wallet = ZkWallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
 

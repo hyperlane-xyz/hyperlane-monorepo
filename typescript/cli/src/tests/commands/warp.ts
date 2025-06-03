@@ -64,33 +64,43 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
  */
 export function hyperlaneWarpDeployRaw({
   warpCorePath,
+  warpDeployPath,
   hypKey,
   skipConfirmationPrompts,
   privateKey,
+  warpRouteId,
 }: {
   warpCorePath?: string;
+  warpDeployPath?: string;
   hypKey?: string;
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${
     hypKey ? ['HYP_KEY=' + hypKey] : ''
   } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--config', warpCorePath] : ''} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCorePath ? ['--warp', warpCorePath] : ''} \
         ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         ${skipConfirmationPrompts ? ['--yes'] : ''}`;
 }
 
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export function hyperlaneWarpDeploy(warpCorePath: string): ProcessPromise {
+export function hyperlaneWarpDeploy(
+  warpDeployPath: string,
+  warpRouteId?: string,
+): ProcessPromise {
   return hyperlaneWarpDeployRaw({
     privateKey: ANVIL_KEY,
-    warpCorePath: warpCorePath,
+    warpDeployPath,
     skipConfirmationPrompts: true,
+    warpRouteId,
   });
 }
 
@@ -102,13 +112,32 @@ export async function hyperlaneWarpApply(
   warpCorePath: string,
   strategyUrl = '',
 ) {
+  return hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+  });
+}
+
+export function hyperlaneWarpApplyRaw({
+  warpDeployPath,
+  warpCorePath,
+  strategyUrl,
+  warpRouteId,
+}: {
+  warpDeployPath?: string;
+  warpCorePath?: string;
+  strategyUrl?: string;
+  warpRouteId?: string;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        --config ${warpDeployPath} \
-        --warp ${warpCorePath} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCorePath ? ['--warp', warpCorePath] : ''} \
+        ${strategyUrl ? ['--strategy', strategyUrl] : ''} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --strategy ${strategyUrl} \
         --yes`;
 }
 
