@@ -47,6 +47,13 @@ contract CommitmentReadIsmTest is Test {
         ism.setUrls(newUrls);
     }
 
+    function test_setUrls_revertsWhen_empty() public {
+        string[] memory emptyUrls = new string[](0);
+        vm.prank(alice);
+        vm.expectRevert("AbstractCcipReadIsm: urls cannot be empty");
+        ism.setUrls(emptyUrls);
+    }
+
     /**
      * We don't need to test `verify` since it's well tested in InterchainAccountRouter.t.sol
      * when we test the message processing flow for commit/reveal messages.

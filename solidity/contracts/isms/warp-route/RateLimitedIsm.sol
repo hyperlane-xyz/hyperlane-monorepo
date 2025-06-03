@@ -61,7 +61,7 @@ contract RateLimitedIsm is
         require(_isDelivered(_message.id()), "InvalidDeliveredMessage");
 
         uint256 newAmount = _message.body().amount();
-        validateAndConsumeFilledLevel(newAmount);
+        _validateAndConsumeFilledLevel(newAmount);
 
         return true;
     }

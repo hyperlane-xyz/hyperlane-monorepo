@@ -24,7 +24,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
-    "mocha": "^10.2.0",
+    "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
     "typescript": "5.3.3"
