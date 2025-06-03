@@ -56,7 +56,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external returns (bool) {
         require(
-            _metadata.cmCommitment() == _message.body().commitment(),
+            _metadata.cmCommitment() == _message.body().revealCommitment(),
             "Commitment ISM: Revealed Hash Invalid"
         );
 
