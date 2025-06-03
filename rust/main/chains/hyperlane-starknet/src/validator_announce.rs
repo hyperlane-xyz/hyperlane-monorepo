@@ -7,12 +7,12 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, TxOutcome, H256, U256,
 };
-use starknet::accounts::{ExecutionV3, SingleOwnerAccount};
+use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
@@ -161,11 +161,33 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     #[instrument(ret, skip(self))]
     async fn announce_tokens_needed(
         &self,
-        _announcement: SignedType<Announcement>,
+        announcement: SignedType<Announcement>,
         _chain_signer: H256, // TODO: use chain signer instead of contract address
     ) -> Option<U256> {
-        // we just gonna assume that the announce_tokens_needed is always 0
-        return Some(U256::zero());
+        let Ok(tx) = self.announce_contract_call(announcement).await else {
+            warn!("Unable to get announce contract call");
+            return None;
+        };
+        let Ok(estimate) = tx.estimate_fee().await else {
+            warn!("Unable to estimate announce contract call");
+            return None;
+        };
+
+        let Ok(balance) = self
+            .provider
+            .get_balance(self.contract.account.address().to_string())
+            .await
+        else {
+            warn!("Unable to query balance");
+            return None;
+        };
+
+        Some(
+            estimate
+                .overall_fee
+                .saturating_sub(balance.as_u128())
+                .into(),
+        )
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {

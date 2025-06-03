@@ -32,7 +32,7 @@ impl StarknetProvider {
         let provider =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
 
-        // Hardcoded Ethereum address for the fee token - which is somehwat consistent across Starknet chains
+        // Hardcoded Ethereum address for the fee token - which is somewhat consistent across Starknet chains
         // More information: https://docs.starknet.io/resources/chain-info/#tokens
         let eth_address =
             felt!("0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7");
