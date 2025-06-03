@@ -1,0 +1,27 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "7.1.5",
+    "@hyperlane-xyz/ccip-server": "12.6.0",
+    "@hyperlane-xyz/cli": "12.6.0",
+    "@hyperlane-xyz/cosmos-sdk": "12.6.0",
+    "@hyperlane-xyz/cosmos-types": "12.6.0",
+    "@hyperlane-xyz/github-proxy": "12.6.0",
+    "@hyperlane-xyz/helloworld": "12.6.0",
+    "@hyperlane-xyz/infra": "12.6.0",
+    "@hyperlane-xyz/sdk": "12.6.0",
+    "@hyperlane-xyz/utils": "12.6.0",
+    "@hyperlane-xyz/widgets": "12.6.0"
+  },
+  "changesets": [
+    "beige-falcons-brake",
+    "clean-months-march",
+    "early-cooks-wink",
+    "fifty-news-taste",
+    "lovely-jars-buy",
+    "short-suns-shop",
+    "ten-doors-shout",
+    "ten-lies-chew"
+  ]
+}
