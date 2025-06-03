@@ -69,7 +69,7 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
       this.logger.debug('Key already exists');
     } catch (err) {
-      this.logger.debug('Key does not exist, creating new key');
+      this.logger.warn('Key does not exist, creating new key');
       await this.create();
     }
   }
