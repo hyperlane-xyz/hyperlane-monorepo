@@ -47,4 +47,5 @@ export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Lockbox: pzEthProductionLockbox,
   tokenPrices: pzEthTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
+  useLegacyRoutingHook: true,
 });

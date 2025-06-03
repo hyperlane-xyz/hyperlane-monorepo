@@ -35,6 +35,7 @@ export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: rezStagingAddresses,
   xERC20Lockbox: rezStagingLockbox,
   tokenPrices: rezEthTokenPrices,
+  useLegacyRoutingHook: true,
 });
 
 export const getRezStagingGnosisSafeBuilderStrategyConfig =
