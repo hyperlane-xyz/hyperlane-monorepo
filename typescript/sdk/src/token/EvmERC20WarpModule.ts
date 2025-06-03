@@ -459,13 +459,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.hook, 'No hook config');
     if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
-      return this.deployNewHook(expectedConfig);
+      return this.deployNewHook(expectedConfig, actualConfig);
     }
 
     return this.updateExistingHook(expectedConfig, actualConfig);
   }
 
-  async deployNewHook(expectedConfig: HypTokenRouterConfig): Promise<{
+  async deployNewHook(
+    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
+  ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
@@ -473,11 +476,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       `No hook deployed for warp route, deploying new hook on ${this.args.chain} chain`,
     );
 
+    const proxyAdminAddress =
+      expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
     assert(expectedConfig.hook, 'Hook is undefined');
-    assert(
-      expectedConfig.proxyAdmin?.address,
-      'ProxyAdmin address is undefined',
-    );
+    assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
 
     const hookModule = await EvmHookModule.create({
       chain: this.args.chain,
@@ -487,7 +489,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ),
       coreAddresses: {
         mailbox: expectedConfig.mailbox,
-        proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
+        proxyAdmin: proxyAdminAddress, // Assume that a proxyAdmin is always deployed with a WarpRoute
       },
       contractVerifier: this.contractVerifier,
       multiProvider: this.multiProvider,

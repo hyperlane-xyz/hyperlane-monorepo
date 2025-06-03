@@ -21,7 +21,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
+import { inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { CommandContext } from '../../context/types.js';
@@ -30,7 +30,6 @@ import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
 import {
-  hyperlaneWarpApply,
   hyperlaneWarpApplyRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
@@ -221,39 +220,6 @@ export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
   WarpCoreConfigSchema.parse(warpCoreConfig);
   return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
     .addressOrDenom;
-}
-
-/**
- * Updates the owner of the Warp route deployment config, and then output to a file
- */
-export async function updateWarpOwnerConfig(
-  chain: string,
-  owner: Address,
-  warpCorePath: string,
-  warpDeployPath: string,
-): Promise<string> {
-  const warpDeployConfig = await readWarpConfig(
-    chain,
-    warpCorePath,
-    warpDeployPath,
-  );
-  warpDeployConfig[chain].owner = owner;
-  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-
-  return warpDeployPath;
-}
-
-/**
- * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
- */
-export async function updateOwner(
-  owner: Address,
-  chain: string,
-  warpConfigPath: string,
-  warpCoreConfigPath: string,
-) {
-  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
-  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
 }
 
 /**
