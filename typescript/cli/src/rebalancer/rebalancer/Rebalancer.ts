@@ -13,6 +13,7 @@ import { toWei } from '@hyperlane-xyz/utils';
 import { WrappedError } from '../../utils/errors.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
 import { rebalancerLogger } from '../utils/logger.js';
 
@@ -23,6 +24,7 @@ export class Rebalancer implements IRebalancer {
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly metrics: Metrics | undefined,
   ) {}
 
   async rebalance(routes: RebalancingRoute[]) {
@@ -35,6 +37,8 @@ export class Rebalancer implements IRebalancer {
       rebalancerLogger.info('No routes to execute');
       return;
     }
+
+    this.metrics?.recordRebalancerAttempt();
 
     const { warpCore, chainMetadata, tokensByChainName } = this;
 
@@ -172,7 +176,7 @@ export class Rebalancer implements IRebalancer {
           tokenName: originToken.name,
           bridge,
         },
-        'Getting rebalance quotes',
+        'Populating rebalance transaction',
       );
 
       const populatedTx = await originHypAdapter.populateRebalanceTx(

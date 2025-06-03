@@ -137,7 +137,7 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(): IRebalancer {
+  public createRebalancer(metrics?: Metrics): IRebalancer {
     rebalancerLogger.debug(
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
@@ -153,6 +153,7 @@ export class RebalancerContextFactory {
       this.metadata,
       this.tokensByChainName,
       this.context.multiProvider,
+      metrics,
     );
 
     return new WithSemaphore(this.config, rebalancer);

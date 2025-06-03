@@ -587,9 +587,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Instantiates the strategy that will compute how rebalance routes should be performed
       strategy = await contextFactory.createStrategy();
 
+      // Instantiates the metrics that will publish stats from the monitored data
+      metrics = withMetrics ? await contextFactory.createMetrics() : undefined;
+
       // Instantiates the rebalancer in charge of executing the rebalancing transactions
       rebalancer = !rebalancerConfig.monitorOnly
-        ? contextFactory.createRebalancer()
+        ? contextFactory.createRebalancer(metrics)
         : undefined;
 
       if (rebalancerConfig.monitorOnly) {
@@ -597,9 +600,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
           'Running in monitorOnly mode: no transactions will be executed.',
         );
       }
-
-      // Instantiates the metrics that will publish stats from the monitored data
-      metrics = withMetrics ? await contextFactory.createMetrics() : undefined;
 
       if (withMetrics) {
         warnYellow(
@@ -637,21 +637,18 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          if (rebalancingRoutes.length > 0) {
-            metrics?.recordRebalancerAttempt();
-            rebalancer
-              ?.rebalance(rebalancingRoutes)
-              .then(() => {
-                // On successful rebalance attempt by monitor
-                metrics?.recordRebalancerSuccess();
-                logGreen('Rebalancer completed a cycle successfully.');
-              })
-              .catch((e) => {
-                metrics?.recordRebalancerFailure();
-                // This is an operational error, log it but don't stop the monitor.
-                errorRed('Error while rebalancing:', format(e));
-              });
-          }
+          rebalancer
+            ?.rebalance(rebalancingRoutes)
+            .then(() => {
+              // On successful rebalance attempt by monitor
+              metrics?.recordRebalancerSuccess();
+              logGreen('Rebalancer completed a cycle successfully.');
+            })
+            .catch((e) => {
+              metrics?.recordRebalancerFailure();
+              // This is an operational error, log it but don't stop the monitor.
+              errorRed('Error while rebalancing:', format(e));
+            });
         })
         // Observe monitor errors and exit
         .on(MonitorEventType.Error, (e) => {
