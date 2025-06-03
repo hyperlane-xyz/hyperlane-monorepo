@@ -1249,6 +1249,7 @@ mod test {
         H256,
     };
     use hyperlane_ethereum as h_eth;
+    use tokio::time::error::Elapsed;
 
     use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
@@ -1527,6 +1528,12 @@ mod test {
         .await
     }
 
+    /// Run relayer for 50s to ensure it doesn't crash
+    async fn test_run_relayer(agent: Relayer) -> Result<(), Elapsed> {
+        let future = agent.run();
+        tokio::time::timeout(Duration::from_secs(50), future).await
+    }
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_from_settings_and_run_happy_path() {
@@ -1549,10 +1556,7 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        let future = agent.run();
-        assert!(tokio::time::timeout(Duration::from_secs(50), future)
-            .await
-            .is_err());
+        assert!(test_run_relayer(agent).await.is_err());
     }
 
     #[tracing_test::traced_test]
@@ -1585,10 +1589,7 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        let future = agent.run();
-        assert!(tokio::time::timeout(Duration::from_secs(50), future)
-            .await
-            .is_err());
+        assert!(test_run_relayer(agent).await.is_err());
     }
 
     #[tracing_test::traced_test]
@@ -1614,11 +1615,7 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        let future = agent.run();
-
-        assert!(tokio::time::timeout(Duration::from_secs(50), future)
-            .await
-            .is_err());
+        assert!(test_run_relayer(agent).await.is_err());
     }
 
     #[tracing_test::traced_test]
@@ -1658,10 +1655,7 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        let future = agent.run();
-        assert!(tokio::time::timeout(Duration::from_secs(50), future)
-            .await
-            .is_err());
+        assert!(test_run_relayer(agent).await.is_err());
     }
 
     #[tracing_test::traced_test]
@@ -1686,9 +1680,6 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        let future = agent.run();
-        assert!(tokio::time::timeout(Duration::from_secs(50), future)
-            .await
-            .is_err());
+        assert!(test_run_relayer(agent).await.is_err());
     }
 }
