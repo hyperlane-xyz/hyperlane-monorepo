@@ -246,14 +246,15 @@ export class CallCommitmentsService extends BaseService {
       throw new Error('CommitRevealDispatched event not found');
     }
 
-    const matched = revealLogs
-      .map((l: any) => iface.parseLog(l))
-      .some((parsed: any) => parsed.args.commitment === commitment);
+    const foundCommitments = revealLogs.map(
+      (l: any) => iface.parseLog(l).args.commitment,
+    );
+
+    const matched = foundCommitments.some(
+      (parsed: any) => parsed.args.commitment === commitment,
+    );
 
     if (!matched) {
-      const foundCommitments = revealLogs.map(
-        (l: any) => iface.parseLog(l).args.commitment,
-      );
       throw new Error(
         `No matching CommitRevealDispatched for this commitment: ${commitment}. Found commitments: ${foundCommitments.join(', ')}`,
       );
