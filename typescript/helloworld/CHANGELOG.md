@@ -1,5 +1,14 @@
 # @hyperlane-xyz/helloworld
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/sdk@13.2.1
+  - @hyperlane-xyz/core@7.1.10
+
 ## 13.2.0
 
 ### Minor Changes
