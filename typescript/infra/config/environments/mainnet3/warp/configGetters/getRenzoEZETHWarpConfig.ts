@@ -2,6 +2,7 @@ import { parseEther } from 'ethers/lib/utils.js';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
+  AggregationIsmConfig,
   ChainMap,
   ChainName,
   HookConfig,
@@ -9,6 +10,7 @@ import {
   HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
+  RoutingIsmConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -143,6 +145,41 @@ export function getRenzoHook(params: {
           chainProtocolFee[origin] ??
           parseEther(getProtocolFee(origin)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
+      },
+    ],
+  };
+}
+
+function getRenzoIsmConfig(params: {
+  origin: ChainName;
+  chainsToDeploy: ChainName[];
+  safes: ChainMap<Address>;
+  validators: ChainMap<MultisigConfig>;
+}): AggregationIsmConfig | RoutingIsmConfig {
+  const { origin, safes, chainsToDeploy, validators } = params;
+
+  if (origin === 'blast') {
+    // If origin is blast, use routing ism without domains (restricts inbound from all chains).
+    return {
+      type: IsmType.ROUTING,
+      owner: safes[origin],
+      domains: {},
+    };
+  }
+
+  return {
+    type: IsmType.AGGREGATION,
+    threshold: 2,
+    modules: [
+      {
+        type: IsmType.ROUTING,
+        owner: safes[origin],
+        domains: buildAggregationIsmConfigs(origin, chainsToDeploy, validators),
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        domains: {},
+        owner: safes[origin],
       },
     ],
   };
@@ -504,26 +541,12 @@ export function getRenzoWarpConfigGenerator(params: {
                 owner: safes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox,
-                interchainSecurityModule: {
-                  type: IsmType.AGGREGATION,
-                  threshold: 2,
-                  modules: [
-                    {
-                      type: IsmType.ROUTING,
-                      owner: safes[chain],
-                      domains: buildAggregationIsmConfigs(
-                        chain,
-                        chainsToDeploy,
-                        validators,
-                      ),
-                    },
-                    {
-                      type: IsmType.FALLBACK_ROUTING,
-                      domains: {},
-                      owner: safes[chain],
-                    },
-                  ],
-                },
+                interchainSecurityModule: getRenzoIsmConfig({
+                  origin: chain,
+                  safes,
+                  chainsToDeploy,
+                  validators,
+                }),
                 hook: getRenzoHook({
                   defaultHook,
                   origin: chain,
