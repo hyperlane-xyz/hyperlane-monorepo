@@ -121,7 +121,7 @@ export class RebalancerContextFactory {
     return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
-  public async createStrategy(): Promise<IStrategy> {
+  public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
     rebalancerLogger.debug(
       {
         warpRouteId: this.config.warpRouteId,
@@ -134,6 +134,7 @@ export class RebalancerContextFactory {
       this.config.chains,
       this.tokensByChainName,
       await this.getInitialTotalCollateral(),
+      metrics,
     );
   }
 

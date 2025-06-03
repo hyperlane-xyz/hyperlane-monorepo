@@ -5,6 +5,7 @@ import type {
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 import { strategyLogger } from '../utils/logger.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
@@ -14,13 +15,15 @@ export type Delta = { chain: ChainName; amount: bigint };
  */
 export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
+  protected readonly metrics?: Metrics;
 
-  constructor(chains: ChainName[]) {
+  constructor(chains: ChainName[], metrics?: Metrics) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
       throw new Error('At least two chains must be configured');
     }
     this.chains = chains;
+    this.metrics = metrics;
   }
 
   /**
@@ -86,7 +89,6 @@ export abstract class BaseStrategy implements IStrategy {
     );
 
     // If total surplus is less than total deficit, scale down deficits proportionally
-    // TODO: consider how to handle sum of targets > sum of collateral balances i.e throw or raise an alert
     if (totalSurplus < totalDeficit) {
       strategyLogger.warn(
         {
@@ -96,6 +98,10 @@ export abstract class BaseStrategy implements IStrategy {
         },
         'Deficits are greater than surpluses. Scaling deficits',
       );
+
+      // we consider this a failure because we cannot rebalance the route completely
+      // however we can still transfer some amount of the deficit to reduce the imbalances
+      this.metrics?.recordRebalancerFailure();
 
       for (const deficit of deficits) {
         const newAmount = (deficit.amount * totalSurplus) / totalDeficit;

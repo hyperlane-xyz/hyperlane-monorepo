@@ -1,6 +1,7 @@
 import type { ChainMap, RebalancerChainConfig } from '@hyperlane-xyz/sdk';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -16,9 +17,9 @@ export class WeightedStrategy extends BaseStrategy {
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
 
-  constructor(config: WeightedStrategyConfig) {
+  constructor(config: WeightedStrategyConfig, metrics?: Metrics) {
     const chains = Object.keys(config);
-    super(chains);
+    super(chains, metrics);
 
     let totalWeight = 0n;
 

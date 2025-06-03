@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { type IStrategy } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 
 import {
   MinAmountStrategy,
@@ -28,14 +29,16 @@ export class StrategyFactory {
     config: ChainMap<RebalancerChainConfig>,
     tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
+    metrics?: Metrics,
   ): IStrategy {
     if (rebalanceStrategy === RebalancerStrategyOptions.Weighted) {
-      return new WeightedStrategy(config as WeightedStrategyConfig);
+      return new WeightedStrategy(config as WeightedStrategyConfig, metrics);
     } else if (rebalanceStrategy === RebalancerStrategyOptions.MinAmount) {
       return new MinAmountStrategy(
         config as MinAmountStrategyConfig,
         tokensByChainName,
         initialTotalCollateral,
+        metrics,
       );
     } else {
       throw new Error(`Unsupported strategy type: ${rebalanceStrategy}`);

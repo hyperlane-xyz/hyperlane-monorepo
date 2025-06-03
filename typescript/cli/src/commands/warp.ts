@@ -584,11 +584,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       // Instantiates the monitor that will observe the warp route
       monitor = contextFactory.createMonitor();
 
-      // Instantiates the strategy that will compute how rebalance routes should be performed
-      strategy = await contextFactory.createStrategy();
-
       // Instantiates the metrics that will publish stats from the monitored data
       metrics = withMetrics ? await contextFactory.createMetrics() : undefined;
+
+      // Instantiates the strategy that will compute how rebalance routes should be performed
+      strategy = await contextFactory.createStrategy(metrics);
 
       // Instantiates the rebalancer in charge of executing the rebalancing transactions
       rebalancer = !rebalancerConfig.monitorOnly

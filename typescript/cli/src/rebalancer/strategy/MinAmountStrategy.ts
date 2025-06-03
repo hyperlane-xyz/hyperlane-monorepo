@@ -9,6 +9,7 @@ import {
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -27,9 +28,10 @@ export class MinAmountStrategy extends BaseStrategy {
     config: MinAmountStrategyConfig,
     private readonly tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
+    metrics?: Metrics,
   ) {
     const chains = Object.keys(config);
-    super(chains);
+    super(chains, metrics);
 
     const minAmountType = config[chains[0]].minAmount.type;
     this.validateAmounts(initialTotalCollateral, minAmountType, config);
