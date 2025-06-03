@@ -2,7 +2,7 @@ image:
   repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   tag:
 hyperlane:
-  runEnv: 
+  runEnv:
   context: hyperlane
   registryCommit: ''
   rebalancerConfigFile: ''
