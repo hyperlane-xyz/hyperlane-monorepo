@@ -1,5 +1,6 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { Signer, Wallet } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import {
@@ -39,6 +40,7 @@ import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -47,6 +49,7 @@ import {
   deployOrUseExistingCore,
   deployToken,
   getCombinedWarpRoutePath,
+  resetAnvilForksBatch,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
@@ -58,54 +61,37 @@ describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: Signer;
+  let chain2Provider: JsonRpcProvider;
+  let chain3Provider: JsonRpcProvider;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
   let combinedWarpCoreConfigPath: string;
-  let warpConfig: WarpRouteDeployConfig;
-
-  before(async function () {
-    [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
-
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-
-    const provider = new ethers.providers.JsonRpcProvider(
-      chainMetadata.rpcUrls[0].http,
-    );
-
-    signer = new Wallet(ANVIL_KEY).connect(provider);
-
-    token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
-    tokenSymbol = await token.symbol();
-
-    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_3,
-    ]);
-  });
+  let warpDeployConfig: WarpRouteDeployConfig;
+  // it will be replaced at the first deployment
+  let warpCoreConfig: WarpCoreConfig = { tokens: [] };
+  let deployedAnvilStateIdChain2: string;
+  let deployedAnvilStateIdChain3: string;
 
   async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
     // currently warp deploy is not writing the deploy config to the registry
     // should remove this once the deploy config is written to the registry
     writeYamlOrJson(
       combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-      warpConfig,
+      warpDeployConfig,
     );
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
-    return warpConfig;
+    return warpDeployConfig;
   }
 
-  // Reset config before each test to avoid test changes intertwining
-  beforeEach(async function () {
+  function resetWarpConfig() {
     ownerAddress = new Wallet(ANVIL_KEY).address;
-    warpConfig = {
+    warpDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: token.address,
@@ -118,14 +104,59 @@ describe('hyperlane warp check e2e tests', async function () {
         owner: ownerAddress,
       },
     };
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+    writeYamlOrJson(combinedWarpCoreConfigPath, warpCoreConfig);
+    writeYamlOrJson(
+      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+      warpDeployConfig,
+    );
+  }
+
+  before(async function () {
+    [chain2Addresses, chain3Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
+
+    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+
+    chain2Provider = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    chain3Provider = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);
+
+    signer = new Wallet(ANVIL_KEY).connect(chain2Provider);
+
+    token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenSymbol = await token.symbol();
+
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
+      CHAIN_NAME_3,
+    ]);
+
+    resetWarpConfig();
+    await deployAndExportWarpRoute();
+    warpCoreConfig = readYamlOrJson(combinedWarpCoreConfigPath);
+
+    deployedAnvilStateIdChain2 = await chain2Provider.send('evm_snapshot', []);
+    deployedAnvilStateIdChain3 = await chain3Provider.send('evm_snapshot', []);
+  });
+
+  // Reset config before each test to avoid test changes intertwining
+  beforeEach(async function () {
+    resetWarpConfig();
+
+    [deployedAnvilStateIdChain2, deployedAnvilStateIdChain3] =
+      await resetAnvilForksBatch([
+        [chain2Provider, deployedAnvilStateIdChain2],
+        [chain3Provider, deployedAnvilStateIdChain3],
+      ]);
   });
 
   describe('hyperlane warp check --config ... and hyperlane warp check --warp ...', () => {
     const expectedError =
       'Both --config/-wd and --warp/-wc must be provided together when using individual file paths';
     it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
-      await deployAndExportWarpRoute();
-
       const output1 = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
@@ -147,8 +178,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --symbol ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
       // only one route exists for this token so no need to interact with prompts
       const output = await hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
@@ -163,8 +192,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --warpRouteId ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
       const output = await hyperlaneWarpCheckRaw({
         warpRouteId: createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3),
       })
@@ -246,8 +273,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --config ... --warp ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
         warpCoreConfigPath: combinedWarpCoreConfigPath,
@@ -258,14 +283,12 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     describe('when using a custom ISM', () => {
-      before(async function () {
-        warpConfig[CHAIN_NAME_3].interchainSecurityModule = {
+      it(`should not find any differences between the on chain config and the local one`, async function () {
+        warpDeployConfig[CHAIN_NAME_3].interchainSecurityModule = {
           type: IsmType.TRUSTED_RELAYER,
           relayer: ownerAddress,
         };
-      });
 
-      it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
         const output = await hyperlaneWarpCheckRaw({
@@ -279,17 +302,15 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     describe('when using a custom hook', () => {
-      before(async function () {
-        warpConfig[CHAIN_NAME_3].hook = {
+      it(`should not find any differences between the on chain config and the local one`, async function () {
+        warpDeployConfig[CHAIN_NAME_3].hook = {
           type: HookType.PROTOCOL_FEE,
           protocolFee: '1',
           maxProtocolFee: '1',
           owner: ownerAddress,
           beneficiary: ownerAddress,
         };
-      });
 
-      it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
         const output = await hyperlaneWarpCheckRaw({
@@ -303,7 +324,6 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences between the local config and the on chain config in the ism`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
       warpDeployConfig[CHAIN_NAME_3].interchainSecurityModule = {
         type: IsmType.TRUSTED_RELAYER,
         relayer: ownerAddress,
@@ -325,8 +345,6 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences between the local config and the on chain config`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
-
       const wrongOwner = randomAddress();
       warpDeployConfig[CHAIN_NAME_3].owner = wrongOwner;
 
@@ -346,8 +364,6 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences in the remoteRouters config between the local and on chain config`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
-
       const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
         CHAIN_NAME_3,
       ]);
@@ -391,7 +407,7 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences in the hook config between the local and on chain config if it needs to be expanded`, async function () {
-      warpConfig[CHAIN_NAME_2].hook = {
+      warpDeployConfig[CHAIN_NAME_2].hook = {
         type: HookType.MERKLE_TREE,
       };
 
@@ -401,13 +417,12 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       const hookAddress = await mailboxInstance.callStatic.defaultHook();
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
       writeYamlOrJson(
         combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-        warpConfig,
+        warpDeployConfig,
       );
 
-      const warpDeployConfig = warpConfig;
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       const expectedOwner = (await signer.getAddress()).toLowerCase();
@@ -448,12 +463,10 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
+
       const hookAddress = (
         await mailboxInstance.callStatic.defaultHook()
       ).toLowerCase();
-
-      const warpDeployConfig = await deployAndExportWarpRoute();
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       warpDeployConfig[CHAIN_NAME_2].hook = hookAddress;
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
@@ -474,10 +487,10 @@ describe('hyperlane warp check e2e tests', async function () {
 
   for (const hookType of MUTABLE_HOOK_TYPE) {
     it(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
-      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
+      warpDeployConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
       await deployAndExportWarpRoute();
 
-      const mutatedWarpConfig = deepCopy(warpConfig);
+      const mutatedWarpConfig = deepCopy(warpDeployConfig);
 
       const hookConfig: Extract<
         HookConfig,
@@ -505,7 +518,7 @@ describe('hyperlane warp check e2e tests', async function () {
   for (const ismType of MUTABLE_ISM_TYPE) {
     it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
       // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
-      warpConfig[CHAIN_NAME_3].interchainSecurityModule =
+      warpDeployConfig[CHAIN_NAME_3].interchainSecurityModule =
         ismType === IsmType.PAUSABLE
           ? {
               type: IsmType.PAUSABLE,
@@ -515,7 +528,7 @@ describe('hyperlane warp check e2e tests', async function () {
           : randomIsmConfig(0, 2, ismType);
       await deployAndExportWarpRoute();
 
-      const mutatedWarpConfig = deepCopy(warpConfig);
+      const mutatedWarpConfig = deepCopy(warpDeployConfig);
 
       const ismConfig: Extract<
         IsmConfig,

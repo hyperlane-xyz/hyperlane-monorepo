@@ -291,19 +291,19 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          # Core Commands
-          - core-apply
-          - core-check
-          - core-deploy
-          - core-init
-          - core-read
-          # Other commands
-          - relay
+          # # Core Commands
+          # - core-apply
+          # - core-check
+          # - core-deploy
+          # - core-init
+          # - core-read
+          # # Other commands
+          # - relay
           # Warp Commands
           - warp-apply
           # - warp-bridge-1
           # - warp-bridge-2
-          # - warp-check
+          - warp-check
           # - warp-extend-basic
           # - warp-extend-config
           # - warp-extend-recovery

@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { Wallet, ethers } from 'ethers';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
@@ -262,6 +263,24 @@ export async function extendWarpConfig(params: {
   });
 
   return warpDeployPath;
+}
+
+export async function resetAnvilFork(
+  provider: JsonRpcProvider,
+  stateId: string,
+): Promise<string> {
+  await provider.send('evm_revert', [stateId]);
+  const newStateId = await provider.send('evm_snapshot', []);
+
+  return newStateId;
+}
+
+export async function resetAnvilForksBatch(
+  configs: [JsonRpcProvider, string][],
+): Promise<string[]> {
+  return Promise.all(
+    configs.map(([provider, stateId]) => resetAnvilFork(provider, stateId)),
+  );
 }
 
 /**

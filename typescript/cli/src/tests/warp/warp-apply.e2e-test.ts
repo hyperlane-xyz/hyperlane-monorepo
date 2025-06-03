@@ -33,6 +33,7 @@ import {
   getCombinedWarpRoutePath,
   getDeployedWarpAddress,
   getDomainId,
+  resetAnvilFork,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
@@ -81,8 +82,10 @@ describe('hyperlane warp apply owner update tests', async function () {
   beforeEach(async function () {
     resetWarpConfig();
 
-    await chain2Provider.send('evm_revert', [deployAnvilStateId]);
-    deployAnvilStateId = await chain2Provider.send('evm_snapshot', []);
+    [deployAnvilStateId] = await resetAnvilFork(
+      chain2Provider,
+      deployAnvilStateId,
+    );
   });
 
   it('should burn owner address', async function () {
