@@ -10,7 +10,7 @@ use hyperlane_core::{
     H256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
+use starknet::core::types::Felt;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -53,9 +53,7 @@ impl StarknetMerkleTreeHook {
             build_single_owner_account(&conn.url, signer.local_wallet(), &signer.address, false)
                 .await?;
 
-        let hook_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+        let hook_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetMerkleTreeHookInternal::new(hook_address, account);
 
