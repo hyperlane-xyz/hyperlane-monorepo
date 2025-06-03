@@ -251,7 +251,7 @@ export class CallCommitmentsService extends BaseService {
     );
 
     const matched = foundCommitments.some(
-      (parsed: any) => parsed.args.commitment === commitment,
+      (parsed: any) => parsed === commitment,
     );
 
     if (!matched) {
