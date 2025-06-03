@@ -105,15 +105,20 @@ export class CallCommitmentsService extends BaseService {
    * Extract the reveal message ID from the transaction receipt.
    * Finds the second DispatchId event after the CommitRevealDispatched event.
    */
-  private extractRevealMessageId(receipt: TransactionReceipt): string {
+  private extractRevealMessageIdAndValidateDispatchedCommitment(
+    receipt: TransactionReceipt,
+    commitment: string,
+  ): string {
     const iface = InterchainAccountRouter__factory.createInterface();
     const dispatchIdTopic =
       Mailbox__factory.createInterface().getEventTopic('DispatchId');
     const revealDispatchedTopic = iface.getEventTopic('CommitRevealDispatched');
 
-    // Find the index of the CommitRevealDispatched log
+    // Find the index of the CommitRevealDispatched log with the given commitment
     const revealIndex = receipt.logs.findIndex(
-      (log) => log.topics[0] === revealDispatchedTopic,
+      (log) =>
+        log.topics[0] === revealDispatchedTopic &&
+        iface.parseLog(log).args.commitment === commitment,
     );
     if (revealIndex === -1) {
       throw new Error('CommitRevealDispatched event not found in logs');
@@ -219,46 +224,19 @@ export class CallCommitmentsService extends BaseService {
         `Transaction not found: ${data.commitmentDispatchTx} on domain ${data.originDomain}`,
       );
 
-    // 2) Verify reveal event
-    this.ensureCommitmentDispatched(receipt, commitment);
+    // 2) Extract reveal message ID
+    const revealMessageId =
+      this.extractRevealMessageIdAndValidateDispatchedCommitment(
+        receipt,
+        commitment,
+      );
 
-    // 3) Extract reveal message ID
-    const revealMessageId = this.extractRevealMessageId(receipt);
-
-    // 4) Derive ICA from RemoteCallDispatched
+    // 3) Derive ICA from RemoteCallDispatched
     const ica = await this.deriveIcaFromRemoteCallDispatched(
       receipt,
       data.originDomain,
     );
     return { ica, revealMessageId };
-  }
-
-  /**
-   * Ensure a CommitRevealDispatched event matching the commitment exists.
-   */
-  private ensureCommitmentDispatched(receipt: any, commitment: string): void {
-    const iface = InterchainAccountRouter__factory.createInterface();
-    const revealTopic = iface.getEventTopic('CommitRevealDispatched');
-    const revealLogs = receipt.logs.filter(
-      (l: any) => l.topics[0] === revealTopic,
-    );
-    if (revealLogs.length === 0) {
-      throw new Error('CommitRevealDispatched event not found');
-    }
-
-    const foundCommitments = revealLogs.map(
-      (l: any) => iface.parseLog(l).args.commitment,
-    );
-
-    const matched = foundCommitments.some(
-      (parsed: any) => parsed === commitment,
-    );
-
-    if (!matched) {
-      throw new Error(
-        `No matching CommitRevealDispatched for this commitment: ${commitment}. Found commitments: ${foundCommitments.join(', ')}`,
-      );
-    }
   }
 
   /**
