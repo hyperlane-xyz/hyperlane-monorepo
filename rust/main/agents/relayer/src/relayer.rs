@@ -520,7 +520,7 @@ impl BaseAgent for Relayer {
             };
 
             // Default to submitting one message at a time if there is no batch config
-            let match_batch_size = self
+            let max_batch_size = self
                 .core
                 .settings
                 .chains
@@ -548,7 +548,7 @@ impl BaseAgent for Relayer {
                 receive_channel,
                 &sender,
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
-                match_batch_size,
+                max_batch_size,
                 max_submit_queue_len,
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
