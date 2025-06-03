@@ -32,6 +32,13 @@ const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
 });
 
+// Zod schema for retrieving a commitment record, reusing PostCallsSchema for common fields
+const CommitmentRecordSchema = PostCallsSchema.extend({
+  commitment: z.string(),
+  revealMessageId: z.string(),
+  ica: z.string(),
+});
+
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
   constructor(private multiProvider: MultiProvider) {
@@ -84,9 +91,7 @@ export class CallCommitmentsService extends BaseService {
       );
       const encoded =
         record.ica +
-        encodeIcaCalls(normalizeCalls(record.calls as any), record.salt).slice(
-          2,
-        );
+        encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
       console.log('Serving calls for commitment', commitment);
       return encoded;
     } catch (error: any) {
@@ -192,7 +197,8 @@ export class CallCommitmentsService extends BaseService {
       console.log('Commitment not found in DB', commitment, revealMessageId);
       throw new Error('Commitment not found');
     }
-    return record;
+    const parsed = CommitmentRecordSchema.parse(record);
+    return parsed;
   }
 
   // Validate the commitment events by checking the transaction receipt
