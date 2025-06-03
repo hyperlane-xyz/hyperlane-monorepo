@@ -102,10 +102,9 @@ export class StarknetERC20WarpModule {
           addresses[chain] = tokenAddress;
           break;
         }
-
-        case TokenType.collateral: {
+        case TokenType.collateralDex: {
           const tokenAddress = await deployer.deployContract(
-            StarknetContractName.HYP_ERC20_COLLATERAL,
+            StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
             {
               mailbox: mailbox!,
               // @ts-ignore
