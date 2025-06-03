@@ -51,6 +51,10 @@
     "amount": "11.25",
     "decimals": 9
   },
+  "botanix": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "flame": {
     "amount": "14.520921871",
     "decimals": 9
@@ -253,6 +257,10 @@
   },
   "kaia": {
     "amount": "27.5",
+    "decimals": 9
+  },
+  "katana": {
+    "amount": "0.001000251",
     "decimals": 9
   },
   "kroma": {

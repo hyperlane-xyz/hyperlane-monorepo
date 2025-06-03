@@ -1807,5 +1807,26 @@ export const validatorChainConfig = (
         'kyve',
       ),
     },
+
+    botanix: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('botanix'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc944176bc4d4e5c7b0598884478a27a2b1904664'],
+        },
+        'botanix',
+      ),
+    },
+    katana: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('katana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b'],
+        },
+        'katana',
+      ),
+    },
   };
 };

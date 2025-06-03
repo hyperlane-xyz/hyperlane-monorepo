@@ -2,6 +2,9 @@
   "abstract": {
     "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
   },
+  "zoramainnet": {
+    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -410,9 +413,6 @@
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
   },
-  "starknet": {
-    "validators": ["0x61204c987d1121175a74e04d5045ab708aa1489f"]
-  },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
   },
@@ -488,7 +488,10 @@
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
   },
-  "zoramainnet": {
-    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  "botanix": {
+    "validators": ["0xc944176bc4d4e5c7b0598884478a27a2b1904664"]
+  },
+  "katana": {
+    "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
   }
 }
