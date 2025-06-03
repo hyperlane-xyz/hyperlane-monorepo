@@ -1,6 +1,6 @@
 apiVersion: v2
 name: offchain-lookup-server
-description: Offchain Lookup Server to provide proofs to validators using the CCIP-read ISM.
+description: Offchain Lookup Server to provide proofs to relayers using the CCIP-read ISM.  
 
 # A chart can be either an 'application' or a 'library' chart.
 #
