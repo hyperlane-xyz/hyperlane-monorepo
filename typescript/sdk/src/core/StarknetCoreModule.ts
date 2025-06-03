@@ -3,7 +3,6 @@ import { Account, MultiType, cairo } from 'starknet';
 import {
   ChainId,
   Domain,
-  ProtocolType,
   assert,
   eqAddress,
   rootLogger,
@@ -20,7 +19,7 @@ import {
   AnnotatedStarknetTransaction,
   StarknetJsTransaction,
 } from '../providers/ProviderType.js';
-import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
+import { starknetNativeTokenMetadataOverrides } from '../token/nativeTokenMetadata.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import {
   StarknetContractName,
@@ -108,7 +107,7 @@ export class StarknetCoreModule {
         cairo.uint256(config.defaultHook.protocolFee),
         config.defaultHook.beneficiary,
         config.owner,
-        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
+        starknetNativeTokenMetadataOverrides(this.chainName)!
           .denom as MultiType,
       ],
     );
