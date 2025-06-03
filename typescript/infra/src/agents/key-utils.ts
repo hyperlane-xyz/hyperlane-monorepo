@@ -378,8 +378,9 @@ export async function createAgentKeysIfNotExistsWithPrompt(
 // We can create or delete keys if they are not Starknet keys.
 function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
   const keys = getAllCloudAgentKeys(agentConfig);
+  // if the key has a chainName and it is a Starknet chain, filter it out
   return keys.filter(
-    (key) => !key.chainName || !isStarknetChain(key.chainName),
+    (key) => !(key.chainName && isStarknetChain(key.chainName)),
   );
 }
 
