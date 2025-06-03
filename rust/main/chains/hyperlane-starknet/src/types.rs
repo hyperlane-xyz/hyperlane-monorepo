@@ -11,9 +11,9 @@ impl From<Felt> for HyH256 {
     }
 }
 
-impl Into<Felt> for HyH256 {
-    fn into(self) -> Felt {
-        Felt::from_bytes_be(&self.0.to_fixed_bytes())
+impl From<HyH256> for Felt {
+    fn from(value: HyH256) -> Self {
+        Felt::from_bytes_be(&value.0.to_fixed_bytes())
     }
 }
 

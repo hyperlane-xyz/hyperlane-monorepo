@@ -52,7 +52,7 @@ pub async fn get_transaction_receipt(
                     return Err(HyperlaneStarknetError::PendingBlock.into());
                 }
 
-                return Ok(tx.receipt);
+                Ok(tx.receipt)
             })
         },
         8,
