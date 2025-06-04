@@ -144,7 +144,8 @@ macro_rules! build_chain_conf_fns {
     };
 }
 
-type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
+/// Arc SequenceAwareIndexer
+pub type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
 
 impl Settings {
     build_chain_conf_fns!(build_application_operation_verifier, build_application_operation_verifiers -> dyn ApplicationOperationVerifier);
@@ -215,13 +216,12 @@ impl Settings {
     /// watermark trait bounds
     pub async fn contract_syncs<T, S>(
         &self,
-        domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
+    ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -231,26 +231,21 @@ impl Settings {
             + 'static,
     {
         // TODO: parallelize these calls again
-        let mut syncs = vec![];
-        for domain in domains {
-            let store = stores.get(domain).unwrap().clone();
+        let mut syncs = HashMap::new();
+        for (domain, store) in stores {
             let sync = self
                 .contract_sync(
-                    domain,
+                    &domain,
                     metrics,
                     sync_metrics,
                     store,
                     advanced_log_meta,
                     broadcast_sender_enabled,
                 )
-                .await?;
-            syncs.push(sync);
+                .await;
+            syncs.insert(domain, sync);
         }
-
         syncs
-            .into_iter()
-            .map(|i| Ok((i.domain().clone(), i)))
-            .collect()
     }
 
     /// Build single contract sync.
