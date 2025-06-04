@@ -404,7 +404,14 @@ where
         // It should be used with care since it can lead to missing events.
         let from = index_settings.from;
         let from = watermark
-            .map(|w| if w <= from { from } else { w })
+            .map(|w| if w <= from {
+                warn!(
+                    ?w,
+                    ?from,
+                    "Watermark from database is lower than the configured lowest block height, using the configured block height"
+                );
+                from
+            } else { w })
             .unwrap_or(from);
         let index_settings = IndexSettings {
             from,
