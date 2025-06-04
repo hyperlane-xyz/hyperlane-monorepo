@@ -1632,6 +1632,9 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f'],
+          [Contexts.ReleaseCandidate]: [
+            '0x95b460edc770f53981c9aa82aa2a297af619cabf',
+          ],
         },
         'hyperevm',
       ),
