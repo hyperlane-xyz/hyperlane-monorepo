@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
+import { UINT_256_MAX } from 'starknet';
 
 import {
   ERC20Test,
@@ -15,6 +16,7 @@ import {
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
+  MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
@@ -35,6 +37,7 @@ import {
   addressToBytes32,
   deepCopy,
   eqAddress,
+  normalizeAddressEvm,
   randomInt,
 } from '@hyperlane-xyz/utils';
 
@@ -59,6 +62,7 @@ import {
 import {
   CONTRACTS_VERSION,
   HypTokenRouterConfig,
+  HypTokenRouterConfigSchema,
   derivedHookAddress,
   isMovableCollateralTokenConfig,
 } from './types.js';
@@ -916,6 +920,158 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           ...config,
           allowedRebalancers: [rebalancerToKeep],
         });
+
+        expect(txs.length).to.equal(0);
+      });
+    }
+
+    for (const tokenType of movableCollateralTypes) {
+      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const domainId = 42069;
+        const config: HypTokenRouterConfig = {
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+        };
+
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(
+          HypTokenRouterConfigSchema.parse({
+            ...config,
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridgeToAdd,
+                  approvedTokens: [token.address],
+                },
+              ],
+            },
+          }),
+        );
+
+        // 1 tx to allow the bridge and another to approve the token
+        expect(txs.length).to.equal(2);
+        await sendTxs(txs);
+
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
+        const check =
+          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        expect(check[0]).to.eql(allowedBridgeToAdd);
+
+        const allowance = await token.callStatic.allowance(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          allowedBridgeToAdd,
+        );
+        expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
+      });
+
+      it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+        const domainId = 42069;
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+        const config = HypTokenRouterConfigSchema.parse({
+          ...getMovableTokenConfig()[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+          allowedRebalancingBridges: {
+            [domainId]: [
+              {
+                bridge: allowedBridgeToAdd,
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        });
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(
+          HypTokenRouterConfigSchema.parse({
+            ...config,
+            allowedRebalancingBridges: {
+              [domainId]: [],
+            },
+          }),
+        );
+
+        // 1 tx to remove the bridge
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const warpTokenInstance = MovableCollateralRouter__factory.connect(
+          evmERC20WarpModule.serialize().deployedTokenRoute,
+          signer,
+        );
+
+        const allowedBridges =
+          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        expect(allowedBridges).to.be.empty;
+      });
+
+      it(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
+        const movableTokenConfigs = getMovableTokenConfig();
+
+        const domainId = 42069;
+        const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
+        const config = HypTokenRouterConfigSchema.parse({
+          ...movableTokenConfigs[tokenType],
+          remoteRouters: {
+            [domainId]: {
+              address: randomAddress(),
+            },
+          },
+          allowedRebalancingBridges: {
+            [domainId]: [
+              {
+                bridge: allowedBridgeToAdd,
+                approvedTokens: [token.address],
+              },
+            ],
+          },
+        });
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(
+          HypTokenRouterConfigSchema.parse({
+            ...config,
+            allowedRebalancingBridges: {
+              [domainId]: [
+                {
+                  bridge: allowedBridgeToAdd.toLowerCase(),
+                  approvedTokens: [token.address],
+                },
+              ],
+            },
+          }),
+        );
 
         expect(txs.length).to.equal(0);
       });
