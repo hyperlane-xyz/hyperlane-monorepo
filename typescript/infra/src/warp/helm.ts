@@ -81,6 +81,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       hyperlane: {
         chains: this.environmentChainNames,
         registryCommit: this.registryCommit,
+        registryFallbackEnabled: true,
       },
     };
   }
