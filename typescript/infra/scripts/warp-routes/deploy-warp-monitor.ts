@@ -23,7 +23,7 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-async function validateRegistryCommit(
+export async function validateRegistryCommit(
   commit: string,
   registryUri: string,
   logger: Logger,
@@ -38,26 +38,11 @@ async function validateRegistryCommit(
     });
     logger.info(chalk.grey.italic('Fetch completed successfully.'));
   } catch (error) {
-    logger.warn(
-      chalk.yellow(
-        `Unable to fetch registry commit ${commit}. Falling back to main branch...`,
-      ),
-    );
-    try {
-      execSyncFn(`cd ${registryUri} && git fetch origin main`, {
-        stdio: 'inherit',
-      });
-      logger.info(chalk.grey.italic('Successfully fetched main branch.'));
-      return 'main';
-    } catch (fallbackError) {
-      logger.error(chalk.red('Failed to fetch main branch as fallback.'));
-      process.exit(1);
-    }
+    logger.error(chalk.red('Failed to fetch registry commit.'));
+    process.exit(1);
   }
   return commit;
 }
-
-export { validateRegistryCommit };
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);

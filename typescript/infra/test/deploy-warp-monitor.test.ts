@@ -38,40 +38,15 @@ describe('validateRegistryCommit', () => {
     expect(
       mockExecSync.calledWith(
         `cd ${fakeRegistryUri} && git fetch origin abc123`,
+        { stdio: 'inherit' },
       ),
     ).to.be.true;
     expect(mockLogger.info.calledTwice).to.be.true;
     expect(processExitStub.notCalled).to.be.true;
   });
 
-  it('returns main if fetch fails but fallback succeeds', async () => {
-    mockExecSync
-      .onFirstCall()
-      .throws(new Error('fail'))
-      .onSecondCall()
-      .returns(undefined);
-    const result = await validateRegistryCommit(
-      'abc123',
-      fakeRegistryUri,
-      mockLogger,
-      mockExecSync,
-    );
-    expect(result).to.equal('main');
-    expect(mockExecSync.firstCall.args[0]).to.include(
-      'git fetch origin abc123',
-    );
-    expect(mockExecSync.secondCall.args[0]).to.include('git fetch origin main');
-    expect(mockLogger.warn.calledOnce).to.be.true;
-    expect(mockLogger.info.calledTwice).to.be.true;
-    expect(processExitStub.notCalled).to.be.true;
-  });
-
-  it('calls process.exit(1) if both fetches fail', async () => {
-    mockExecSync
-      .onFirstCall()
-      .throws(new Error('fail'))
-      .onSecondCall()
-      .throws(new Error('fail again'));
+  it('calls process.exit(1) if fetch fails', async () => {
+    mockExecSync.throws(new Error('fetch failed'));
 
     try {
       await validateRegistryCommit(
@@ -85,8 +60,10 @@ describe('validateRegistryCommit', () => {
       expect(error.message).to.equal('process.exit called');
     }
 
-    expect(mockLogger.warn.calledOnce).to.be.true;
+    expect(mockExecSync.calledOnce).to.be.true;
+    expect(mockLogger.info.calledOnce).to.be.true;
     expect(mockLogger.error.calledOnce).to.be.true;
+    expect(processExitStub.calledWith(1)).to.be.true;
   });
 
   it('uses the provided registry URI in git commands', async () => {
@@ -101,6 +78,7 @@ describe('validateRegistryCommit', () => {
     expect(
       mockExecSync.calledWith(
         `cd ${customUri} && git fetch origin test-commit`,
+        { stdio: 'inherit' },
       ),
     ).to.be.true;
     expect(mockLogger.info.calledTwice).to.be.true;
@@ -120,6 +98,26 @@ describe('validateRegistryCommit', () => {
     );
     expect(mockLogger.info.secondCall.args[0]).to.include(
       'Fetch completed successfully',
+    );
+  });
+
+  it('logs error message when fetch fails', async () => {
+    mockExecSync.throws(new Error('fetch failed'));
+
+    try {
+      await validateRegistryCommit(
+        'abc123',
+        fakeRegistryUri,
+        mockLogger,
+        mockExecSync,
+      );
+    } catch (error: any) {
+      // Expected to throw due to process.exit mock
+    }
+
+    expect(mockLogger.error.calledOnce).to.be.true;
+    expect(mockLogger.error.firstCall.args[0]).to.include(
+      'Failed to fetch registry commit',
     );
   });
 });
