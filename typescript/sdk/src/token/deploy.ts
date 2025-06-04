@@ -7,6 +7,7 @@ import {
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctp__factory,
@@ -52,6 +53,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -327,6 +329,112 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setRebalancers(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const rebalancers = Array.from(config.allowedRebalancers ?? []);
+        for (const rebalancer of rebalancers) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addRebalancer(rebalancer),
+          );
+        }
+      }),
+    );
+  }
+
+  protected async setAllowedBridges(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const bridgesToAllow = Object.entries(
+          config.allowedRebalancingBridges ?? {},
+        ).flatMap(([domain, allowedBridgesToAdd]) => {
+          return allowedBridgesToAdd.map((bridgeToAdd) => {
+            return {
+              domain,
+              bridge: bridgeToAdd.bridge,
+            };
+          });
+        });
+
+        for (const bridgeConfig of bridgesToAllow) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
+          );
+        }
+      }),
+    );
+  }
+
+  protected async setBridgesTokenApprovals(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const tokenApprovalTxs = Object.values(
+          config.allowedRebalancingBridges ?? {},
+        ).flatMap((allowedBridgesToAdd) => {
+          return allowedBridgesToAdd.flatMap((bridgeToAdd) => {
+            return (bridgeToAdd.approvedTokens ?? []).map((token) => {
+              return {
+                bridge: bridgeToAdd.bridge,
+                token,
+              };
+            });
+          });
+        });
+
+        for (const bridgeConfig of tokenApprovalTxs) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.approveTokenForBridge(
+              bridgeConfig.token,
+              bridgeConfig.bridge,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
@@ -352,6 +460,12 @@ abstract class TokenDeployer<
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    await this.setRebalancers(configMap, deployedContractsMap);
+
+    await this.setAllowedBridges(configMap, deployedContractsMap);
+
+    await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 
