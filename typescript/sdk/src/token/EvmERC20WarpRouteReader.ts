@@ -10,6 +10,7 @@ import {
   HypXERC20__factory,
   IFiatToken__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
@@ -20,9 +21,13 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  arrayToObject,
   assert,
   getLogLevel,
   isZeroishAddress,
+  objFilter,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -48,10 +53,12 @@ import {
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
+  MovableTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
   TokenMetadata,
   XERC20TokenMetadata,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
@@ -134,6 +141,62 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+
+    let allowedRebalancers: Address[] | undefined;
+    let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    if (isMovableCollateralTokenConfig(tokenConfig)) {
+      const movableToken = MovableCollateralRouter__factory.connect(
+        warpRouteAddress,
+        this.provider,
+      );
+
+      try {
+        const rebalancers = await MovableCollateralRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ).allowedRebalancers();
+
+        allowedRebalancers = rebalancers.length ? rebalancers : undefined;
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get configured rebalancers for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
+
+      try {
+        const knownDomains = await movableToken.domains();
+        const allowedBridgesByDomain = await promiseObjAll(
+          objMap(
+            arrayToObject(knownDomains.map((domain) => domain.toString())),
+            (domain) => movableToken.allowedBridges(domain),
+          ),
+        );
+
+        allowedRebalancingBridges = objFilter(
+          objMap(allowedBridgesByDomain, (_domain, bridges) =>
+            bridges.map((bridge) => ({ bridge })),
+          ),
+          // Remove domains that do not have allowed bridges
+          (_domain, bridges): bridges is any => bridges.length !== 0,
+        );
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get allowed rebalancer bridges for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+        allowedRebalancers,
+        allowedRebalancingBridges,
+        proxyAdmin,
+        destinationGas,
+      } as DerivedTokenRouterConfig;
+    }
 
     return {
       ...routerConfig,
