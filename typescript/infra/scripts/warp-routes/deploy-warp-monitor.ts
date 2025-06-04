@@ -38,7 +38,7 @@ export async function validateRegistryCommit(
     });
     logger.info(chalk.grey.italic('Fetch completed successfully.'));
   } catch (error) {
-    logger.error(chalk.red('Failed to fetch registry commit.'));
+    logger.error(chalk.red(`Failed to fetch registry commit ${commit}.`));
     process.exit(1);
   }
   return commit;
