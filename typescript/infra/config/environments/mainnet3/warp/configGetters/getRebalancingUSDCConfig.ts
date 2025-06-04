@@ -18,7 +18,10 @@ import { CCTP_CHAINS } from './getCCTPConfig.js';
 
 const syntheticChain = 'bsc';
 
-const chains = [...CCTP_CHAINS, syntheticChain] as const;
+const chains = [
+  ...CCTP_CHAINS.filter((chain) => chain !== 'polygon'),
+  syntheticChain,
+] as const;
 
 export const getRebalancingUSDCConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -68,8 +71,6 @@ export const getRebalancingUSDCConfig = async (
         mailbox: routerConfig[chain].mailbox,
         type: TokenType.collateral,
         token: usdcTokenAddresses[chain],
-        // from prerelease branch
-        contractVersion: ' 8.0.0-next.0',
         allowedRebalancers: [DEPLOYER],
         allowedRebalancingBridges,
       };
