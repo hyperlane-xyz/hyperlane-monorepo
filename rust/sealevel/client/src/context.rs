@@ -194,7 +194,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
     /// Sends the transaction with a signer for the given pubkey.
     /// Note that a pubkey may not have an associated keypair, in which case
-    /// a `NullSigner` will be used.
+    /// this function will return None and transactions will be printed to stdout
+    /// for user confirmation & manual submission.
     pub(crate) fn send_with_pubkey_signer(
         self,
         pubkey: &Pubkey,
