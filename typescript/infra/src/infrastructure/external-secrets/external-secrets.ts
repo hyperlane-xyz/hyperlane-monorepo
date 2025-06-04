@@ -117,10 +117,14 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
   // CRD resources to be deleted!
   let installCrds = false;
   if (!(await isExternalSecretsReleaseInstalled(infraConfig))) {
-    await confirm({
+    const shouldProceed = await confirm({
       message:
         '⚠️ WARNING ⚠️\nThe external-secrets CRDs are not installed. This will install them, which may delete and recreate existing external-secrets CRDs. Do not do this unless this is a fresh cluster or you are sure you want to do this.\nContinue?',
     });
+
+    if (!shouldProceed) {
+      throw new Error('User cancelled external-secrets CRD installation');
+    }
     console.log(
       'Installing external-secrets release with CRDs, as it is not already installed.',
     );
