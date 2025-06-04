@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import { expect } from 'chai';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -50,6 +51,9 @@ import {
   HypTokenRouterConfig,
   derivedHookAddress,
 } from './types.js';
+
+chai.use(chaiAsPromised);
+const { expect } = chai;
 
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
@@ -800,8 +804,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       );
 
       versionStub.restore();
-
       const updatedConfig = await evmERC20WarpModule.read();
+
       // Assert
       expect(updatedConfig.contractVersion).to.eq(CONTRACTS_VERSION);
       const newImpl = await proxyImplementation(
@@ -809,6 +813,52 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         deployedTokenRoute,
       );
       expect(origImpl).to.not.eq(newImpl);
+    });
+
+    it('Should not upgrade if the contract version is lower than the actual version', async () => {
+      const domain = 3;
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        remoteRouters: {
+          [domain]: {
+            address: randomAddress(),
+          },
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      // Return a really high version
+      const reallyHighVersion = '10000.0.0';
+      const versionStub = sinon
+        .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+        .resolves(reallyHighVersion);
+
+      // This will throw an error
+      await expect(
+        evmERC20WarpModule.update({
+          ...config,
+          contractVersion: CONTRACTS_VERSION,
+        }),
+      ).to.be.rejectedWith(
+        `Expected contract version ${CONTRACTS_VERSION} is lower than actual contract version ${reallyHighVersion}`,
+      );
+
+      versionStub.restore();
+      const updatedConfig = await evmERC20WarpModule.read();
+
+      // Assert
+      expect(updatedConfig.contractVersion).to.eq(CONTRACTS_VERSION);
     });
   });
 });
