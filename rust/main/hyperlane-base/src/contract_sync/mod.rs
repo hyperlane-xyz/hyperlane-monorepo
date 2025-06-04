@@ -397,9 +397,17 @@ where
         &self,
         index_settings: IndexSettings,
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
-        let watermark = self.store.retrieve_high_watermark().await.unwrap();
+        let watermark: Option<u32> = self.store.retrieve_high_watermark().await.unwrap();
+        // Use `index_settings.from` as lowest allowed block height for indexing so that
+        // we can configure the cursor to start from a specific block height, if
+        // RPC provider does not provide historical blocks.
+        // It should be used with care since it can lead to missing events.
+        let from = index_settings.from;
+        let from = watermark
+            .map(|w| if w <= from { from } else { w })
+            .unwrap_or(from);
         let index_settings = IndexSettings {
-            from: watermark.unwrap_or(index_settings.from),
+            from,
             chunk_size: index_settings.chunk_size,
             mode: index_settings.mode,
         };
