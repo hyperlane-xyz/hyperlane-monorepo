@@ -26,6 +26,8 @@ solidity/artifacts
 .yarn/cache
 yarn-error.log
 
+.turbo
+
 .idea
 **/*.ignore
 

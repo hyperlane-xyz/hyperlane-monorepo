@@ -87,12 +87,21 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   milkyway: {
     owner: 'TODO: configure milkyway owner',
   },
+  kyve: {
+    owner: 'TODO: configure kyve owner',
+  },
   soon: {
     // Squads vault
     owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
   },
   sonicsvm: {
     // Will move to a Squads once it's live
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
+  starknet: {
+    owner: '0x06aE465e0c05735820a75500c40CB4dAbBe46eBF1F1665f9ba3f9a7Dcc78a6D1',
+  },
+  svmbnb: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
 };

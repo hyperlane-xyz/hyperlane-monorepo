@@ -52,7 +52,7 @@
     "decimals": 9
   },
   "flame": {
-    "amount": "12.1",
+    "amount": "14.520921871",
     "decimals": 9
   },
   "avalanche": {
@@ -64,7 +64,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.002765126",
+    "amount": "0.003242484",
     "decimals": 9
   },
   "berachain": {
@@ -76,7 +76,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.001000252",
+    "amount": "0.0019828",
     "decimals": 9
   },
   "bob": {
@@ -156,7 +156,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "1.867802855",
+    "amount": "10.0",
     "decimals": 9
   },
   "everclear": {
@@ -192,7 +192,7 @@
     "decimals": 9
   },
   "fusemainnet": {
-    "amount": "12.1",
+    "amount": "20.0",
     "decimals": 9
   },
   "game7": {
@@ -259,6 +259,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "kyve": {
+    "amount": "3.0",
+    "decimals": 1
+  },
   "linea": {
     "amount": "0.332044669",
     "decimals": 9
@@ -309,6 +313,10 @@
   },
   "mint": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "miraclechain": {
+    "amount": "0.01",
     "decimals": 9
   },
   "mode": {
@@ -412,7 +420,7 @@
     "decimals": 9
   },
   "ronin": {
-    "amount": "21.0",
+    "amount": "22.482889422",
     "decimals": 9
   },
   "rootstockmainnet": {
@@ -432,7 +440,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "2.403592498",
+    "amount": "2.954830514",
     "decimals": 9
   },
   "snaxchain": {
@@ -460,8 +468,12 @@
     "decimals": 1
   },
   "sophon": {
-    "amount": "2159.824777033",
+    "amount": "2284.217593537",
     "decimals": 9
+  },
+  "starknet": {
+    "amount": "0.000000145",
+    "decimals": 18
   },
   "story": {
     "amount": "0.001000406",
@@ -483,6 +495,10 @@
     "amount": "0.2",
     "decimals": 9
   },
+  "svmbnb": {
+    "amount": "0.0000001",
+    "decimals": 1
+  },
   "swell": {
     "amount": "0.001000251",
     "decimals": 9
@@ -496,7 +512,7 @@
     "decimals": 9
   },
   "telos": {
-    "amount": "527.745263691",
+    "amount": "531.562896801",
     "decimals": 9
   },
   "torus": {
@@ -504,7 +520,7 @@
     "decimals": 9
   },
   "treasure": {
-    "amount": "477.327909088",
+    "amount": "772.211242042",
     "decimals": 9
   },
   "trumpchain": {
@@ -512,7 +528,7 @@
     "decimals": 9
   },
   "unichain": {
-    "amount": "0.001000252",
+    "amount": "0.00139807",
     "decimals": 9
   },
   "unitzero": {

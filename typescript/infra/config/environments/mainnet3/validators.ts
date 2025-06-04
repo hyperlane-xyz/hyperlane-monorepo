@@ -1595,6 +1595,16 @@ export const validatorChainConfig = (
         'sophon',
       ),
     },
+    starknet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('starknet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x61204c987d1121175a74e04d5045ab708aa1489f'],
+        },
+        'starknet',
+      ),
+    },
     story: {
       interval: 5,
       reorgPeriod: getReorgPeriod('story'),
@@ -1763,6 +1773,38 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49'],
         },
         'peaq',
+      ),
+    },
+
+    svmbnb: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('svmbnb'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xabcd4dac2d06ae30c011d25b0c2c193873116a14'],
+        },
+        'svmbnb',
+      ),
+    },
+
+    miraclechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('miraclechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x8fc655174e99194399822ce2d3a0f71d9fc2de7b'],
+        },
+        'miraclechain',
+      ),
+    },
+    kyve: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kyve'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x8576ddc0cd96325f85528e53f333357afb8bf044'],
+        },
+        'kyve',
       ),
     },
   };

@@ -1,11 +1,21 @@
+import { confirm } from '@inquirer/prompts';
+import chalk from 'chalk';
 import { join } from 'path';
+import { Pair } from 'yaml';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { Address, deepEquals, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  deepEquals,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
+import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json';
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
@@ -248,10 +258,15 @@ export function getRelayerKeyForChain(
   // If AWS is enabled and the chain is an Ethereum-based chain, we want to use
   // an AWS key.
   if (agentConfig.aws && isEthereumProtocolChain(chainName)) {
-    return new AgentAwsKey(agentConfig, Role.Relayer);
+    return new AgentAwsKey(agentConfig, Role.Relayer, chainName);
   }
 
-  return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Relayer);
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    agentConfig.context,
+    Role.Relayer,
+    chainName,
+  );
 }
 
 // Gets the kathy key used for signing txs to the provided chain.
@@ -277,6 +292,12 @@ export function getKathyKeyForChain(
 export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   debugLog('Retrieving deployer key');
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+}
+
+// Helper function to determine if a chain is Starknet
+function isStarknetChain(chainName: ChainName): boolean {
+  const metadata = getChain(chainName);
+  return metadata?.protocol === ProtocolType.Starknet;
 }
 
 // Returns the validator signer key and the chain signer key for the given validator for
@@ -328,32 +349,92 @@ export function getValidatorKeysForChain(
 // Functions for managing keys
 // ==================
 
-export async function createAgentKeysIfNotExists(
+export async function createAgentKeysIfNotExistsWithPrompt(
   agentConfig: AgentContextConfig,
 ) {
+  const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
+
+  if (agentKeysToCreate.length > 0) {
+    const shouldContinue = await confirm({
+      message: chalk.yellow.bold(
+        `Warning: New agent keys will be created: ${agentKeysToCreate.join(', ')}. Are you sure you want to continue?`,
+      ),
+      default: false,
+    });
+    if (!shouldContinue) {
+      console.log(chalk.red.bold('Exiting...'));
+      process.exit(1);
+    }
+
+    console.log(chalk.blue.bold('Creating new agent keys if needed.'));
+    await createAgentKeys(agentConfig, agentKeysToCreate);
+    return true;
+  } else {
+    console.log(chalk.gray.bold('No new agent keys will be created.'));
+    return false;
+  }
+}
+
+// We can create or delete keys if they are not Starknet keys.
+function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
+  const keys = getAllCloudAgentKeys(agentConfig);
+  return keys.filter(
+    (key) => !key.chainName || !isStarknetChain(key.chainName),
+  );
+}
+
+async function createAgentKeys(
+  agentConfig: AgentContextConfig,
+  agentKeysToCreate: string[],
+) {
   debugLog('Creating agent keys if none exist');
+
   const keys = getAllCloudAgentKeys(agentConfig);
 
+  const keysToCreate = keys.filter((key) =>
+    agentKeysToCreate.includes(key.identifier),
+  );
+
+  // Process only non-Starknet keys for creation
   await Promise.all(
-    keys.map(async (key) => {
+    keysToCreate.map(async (key) => {
+      debugLog(`Creating key if not exists: ${key.identifier}`);
       return key.createIfNotExists();
     }),
   );
 
-  await persistAddressesLocally(agentConfig, keys);
+  // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
+  await persistAddressesLocally(agentConfig, keysToCreate);
   // Key funder expects the serialized addresses in GCP
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
+    keysToCreate.map((key) => key.serializeAsAddress()),
   );
   return;
 }
 
+async function agentKeysToBeCreated(
+  agentConfig: AgentContextConfig,
+): Promise<string[]> {
+  const keysToCreateIfNotExist = getModifiableKeys(agentConfig);
+
+  return (
+    await Promise.all(
+      keysToCreateIfNotExist.map(async (key) =>
+        (await key.exists()) ? null : key.identifier,
+      ),
+    )
+  ).filter((id): id is string => !!id);
+}
+
 export async function deleteAgentKeys(agentConfig: AgentContextConfig) {
   debugLog('Deleting agent keys');
-  const keys = getAllCloudAgentKeys(agentConfig);
-  await Promise.all(keys.map((key) => key.delete()));
+
+  // Filter out Starknet keys - we don't want to delete them
+  const keysToDelete = getModifiableKeys(agentConfig);
+
+  await Promise.all(keysToDelete.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
       agentConfig.runEnv,

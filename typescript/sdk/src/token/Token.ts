@@ -65,6 +65,11 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
+import {
+  StarknetHypCollateralAdapter,
+  StarknetHypNativeAdapter,
+  StarknetHypSyntheticAdapter,
+} from './adapters/StarknetTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
@@ -302,6 +307,18 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
       return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypNative) {
+      return new StarknetHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypSynthetic) {
+      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypCollateral) {
+      return new StarknetHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
       });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
