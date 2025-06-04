@@ -1,0 +1,47 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-token-native-memo"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+spl-noop.workspace = true
+thiserror.workspace = true
+
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+hyperlane-warp-route = { path = "../../../main/applications/hyperlane-warp-route" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+hyperlane-sealevel-token-native = { path = "../hyperlane-sealevel-token-native" }
+
+[dev-dependencies]
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
+    "no-entrypoint",
+] }
+# Unfortunately required for some functions in `solana-program-test`, and is not
+# re-exported
+tarpc = "~0.29"
+
+[lib]
+crate-type = ["cdylib", "lib"]

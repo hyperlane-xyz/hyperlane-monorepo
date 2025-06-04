@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../schema.json
+chainId: 31337
+displayName: Anvil0
+domainId: 31337
+isTestnet: true
+name: anvil0
+nativeToken:
+  decimals: 18
+  name: Ether
+  symbol: ETH
+protocol: ethereum
+rpcUrls:
+  - http: http://localhost:8545
+technicalStack: other

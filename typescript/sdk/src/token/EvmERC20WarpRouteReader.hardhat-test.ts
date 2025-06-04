@@ -91,9 +91,12 @@ describe('ERC20WarpRouterReader', async () => {
   it('should derive a token type from contract', async () => {
     const typesToDerive = [
       TokenType.collateral,
+      TokenType.collateralMemo,
       TokenType.collateralVault,
       TokenType.synthetic,
+      TokenType.syntheticMemo,
       TokenType.native,
+      TokenType.nativeMemo,
     ] as const;
 
     await Promise.all(

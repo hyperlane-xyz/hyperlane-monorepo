@@ -1,0 +1,12 @@
+{
+  "sealeveltest1": {
+    "type": "native",
+    "decimals": 9
+  },
+  "sealeveltest2": {
+    "type": "syntheticMemo",
+    "decimals": 9,
+    "name": "Solana",
+    "symbol": "SOL"
+  }
+}

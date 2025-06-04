@@ -34,11 +34,17 @@ import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
+  [TokenType.syntheticMemo]:
+    'A new ERC20 with remote transfer functionality, with outbound memo support',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
+  [TokenType.collateralMemo]:
+    'Extends an existing ERC20 with remote transfer functionality, with outbound memo support',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
+  [TokenType.nativeMemo]:
+    'Extends the native token with remote transfer functionality, with outbound memo support',
   [TokenType.collateralVault]:
     'Extends an existing ERC4626 with remote transfer functionality. Yields are manually claimed by owner.',
   [TokenType.collateralVaultRebase]:
@@ -168,6 +174,7 @@ export async function createWarpRouteDeployConfig({
 
     switch (type) {
       case TokenType.collateral:
+      case TokenType.collateralMemo:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:

@@ -1,0 +1,28 @@
+{
+    "metricsPort": 9093,
+    "chains": {
+        "sealeveltest1": {
+            "domain": 13375,
+            "connection": {
+                "type": "solana",
+                "urls": [
+                ]
+            },
+            "index": {
+            },
+            "addresses": {
+                "mailbox": "0x77d43342b39f48f997dd7ad41df004f56f4c43d782b7872f69968484c7767ef3",
+                "interchainGasPaymaster": "0x556a615e0ce375b627c626d7439a2688a14d37f37bf88f10385fd9d9921e60a1",
+                "validatorAnnounce": "0x651268d47874bd59d9b15a7d40e7259c67ac9b64e71454d3f8554660d0d9693c",
+                "merkleTreeHook": "0x6f01e5a23c9e7138658371a691e634654107b4094136d1a6f1d71880f512e378"
+            }
+        }
+    },
+    "chainsToScrape": [
+        "sealeveltest1"
+    ],
+    "tracing": {
+        "level": "info",
+        "fmt": "pretty"
+    }
+}

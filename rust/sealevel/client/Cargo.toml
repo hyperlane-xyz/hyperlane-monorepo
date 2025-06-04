@@ -35,6 +35,9 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-memo = { path = "../programs/hyperlane-sealevel-token-memo", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-igp = { path = "../programs/hyperlane-sealevel-igp", features = [
     "no-entrypoint",
     "serde",
@@ -42,8 +45,14 @@ hyperlane-sealevel-igp = { path = "../programs/hyperlane-sealevel-igp", features
 hyperlane-sealevel-token-collateral = { path = "../programs/hyperlane-sealevel-token-collateral", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-collateral-memo = { path = "../programs/hyperlane-sealevel-token-collateral-memo", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" }
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-token-native-memo = { path = "../programs/hyperlane-sealevel-token-native-memo", features = [
     "no-entrypoint",
 ] }
 hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce", features = [

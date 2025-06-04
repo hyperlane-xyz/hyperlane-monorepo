@@ -107,6 +107,8 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
+        info!("foo encoded_message: {:?}", hyperlane_message);
+
         let log_meta = if self.advanced_log_meta {
             self.dispatch_message_log_meta(
                 U256::from(nonce),

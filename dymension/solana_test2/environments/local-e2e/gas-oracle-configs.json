@@ -1,0 +1,22 @@
+{
+  "sealeveltest1": {
+    "sealeveltest2": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1000000000000000000",
+        "gasPrice": "1",
+        "tokenDecimals": 9
+      },
+      "overhead": 100000
+    }
+  },
+  "sealeveltest2": {
+    "sealeveltest1": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1000000000000000000",
+        "gasPrice": "1",
+        "tokenDecimals": 9
+      },
+      "overhead": 100000
+    }
+  }
+}

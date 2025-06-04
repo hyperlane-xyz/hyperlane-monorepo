@@ -2457,8 +2457,11 @@ dependencies = [
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-collateral-memo",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-memo",
  "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-token-native-memo",
  "hyperlane-sealevel-validator-announce",
  "pretty_env_logger",
  "serde",
@@ -2722,6 +2725,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-collateral-memo"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
+ "hyperlane-warp-route",
+ "num-derive 0.4.2",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token-lib"
 version = "0.1.0"
 dependencies = [
@@ -2746,6 +2778,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-memo"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
+ "hyperlane-warp-route",
+ "num-derive 0.4.2",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token-native"
 version = "0.1.0"
 dependencies = [
@@ -2758,6 +2818,33 @@ dependencies = [
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
+ "hyperlane-warp-route",
+ "num-derive 0.4.2",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-noop",
+ "tarpc",
+ "thiserror",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-native-memo"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
  "num-derive 0.4.2",

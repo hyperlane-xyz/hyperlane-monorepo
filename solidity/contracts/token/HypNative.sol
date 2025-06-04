@@ -46,7 +46,7 @@ contract HypNative is FungibleTokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external payable virtual override returns (bytes32 messageId) {
+    ) public payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 _hookPayment = msg.value - _amount;
         return _transferRemote(_destination, _recipient, _amount, _hookPayment);
@@ -89,7 +89,7 @@ contract HypNative is FungibleTokenRouter {
      */
     function _transferFromSender(
         uint256
-    ) internal pure override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         return bytes(""); // no metadata
     }
 

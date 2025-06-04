@@ -190,12 +190,16 @@ export class Token implements IToken {
       `Token chain ${chainName} not found in multiProvider`,
     );
 
-    if (standard === TokenStandard.EvmHypNative) {
+    if (
+      standard === TokenStandard.EvmHypNative ||
+      standard === TokenStandard.EvmHypNativeMemo
+    ) {
       return new EvmHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
+      standard === TokenStandard.EvmHypCollateralMemo ||
       standard === TokenStandard.EvmHypOwnerCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
@@ -209,7 +213,10 @@ export class Token implements IToken {
       return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypSynthetic) {
+    } else if (
+      standard === TokenStandard.EvmHypSynthetic ||
+      standard === TokenStandard.EvmHypSyntheticMemo
+    ) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });

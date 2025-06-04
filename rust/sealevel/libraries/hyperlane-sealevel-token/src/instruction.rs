@@ -42,6 +42,29 @@ impl DiscriminatorData for Instruction {
     const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
 }
 
+// ~~~~~~~~~~~~~~~~ DYMENSION ~~~~~~~~~~~~~~~~~~
+
+/// Instruction data for transferring `amount_or_id` token to `recipient`
+/// on `destination` domain, including a memo.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub struct TransferRemoteMemo {
+    /// Base transfer instruction.
+    pub base: TransferRemote,
+    /// Arbitrary metadata.
+    pub memo: Vec<u8>,
+}
+
+/// Instructions specifically for this token program
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+pub enum DymInstruction {
+    /// Transfer tokens to a remote recipient, including a memo.
+    TransferRemoteMemo(TransferRemoteMemo),
+}
+
+impl DiscriminatorData for DymInstruction {
+    const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
+}
+
 /// Instruction data for initializing the program.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct Init {
