@@ -82,7 +82,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -133,7 +134,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -184,7 +186,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
