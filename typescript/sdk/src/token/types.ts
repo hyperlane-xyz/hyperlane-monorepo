@@ -481,5 +481,4 @@ const MovableTokenSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
 ]);
 export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;
-
 export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);
