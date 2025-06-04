@@ -1,11 +1,9 @@
+use cainome::cairo_serde::ValueOutOfRangeError;
 use hyperlane_core::ChainCommunicationError;
 use starknet::{
     accounts::AccountError,
     core::{
-        types::{
-            FromByteArrayError, FromByteSliceError, FromStrError, PendingTransactionReceipt,
-            ValueOutOfRangeError,
-        },
+        types::FromStrError,
         utils::{CairoShortStringToFeltError, ParseCairoShortStringError},
     },
 };
@@ -26,12 +24,6 @@ pub enum HyperlaneStarknetError {
     /// String parsing error
     #[error(transparent)]
     StringParsingError(#[from] ParseCairoShortStringError),
-    /// Error during bytes conversion
-    #[error(transparent)]
-    BytesConversionError(#[from] FromByteArrayError),
-    /// Error during bytes slice conversion
-    #[error(transparent)]
-    BytesSliceConversionError(#[from] FromByteSliceError),
     /// Out of range value
     #[error(transparent)]
     ValueOutOfRangeError(#[from] ValueOutOfRangeError),
@@ -41,9 +33,9 @@ pub enum HyperlaneStarknetError {
     /// Transaction receipt is invalid
     #[error("Invalid transaction receipt")]
     InvalidTransactionReceipt,
-    /// Pending Transaction receipt
-    #[error("Pending transaction receipt")]
-    PendingTransaction(Box<PendingTransactionReceipt>),
+    /// Pending Block
+    #[error("Pending block")]
+    PendingBlock,
     /// Block is invalid
     #[error("Invalid block")]
     InvalidBlock,

@@ -3,7 +3,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
     LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, U256,
 };
-use starknet::core::types::{BlockId, EventFilter, FieldElement};
+use starknet::core::types::{BlockId, EventFilter, Felt};
 use starknet::core::utils::get_selector_from_name;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
@@ -38,7 +38,7 @@ impl StarknetMailboxIndexer {
         let rpc_client =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
         let contract = StarknetMailboxReader::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,
         );
 
@@ -152,7 +152,7 @@ impl StarknetMerkleTreeHookIndexer {
         let rpc_client =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
         let contract = StarknetMerkleTreeHookReader::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,
         );
 
@@ -185,8 +185,9 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
                     .into());
                 }
                 let leaf_index: u32 = event.data[2]
+                    .to_biguint()
                     .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)?;
+                    .map_err(HyperlaneStarknetError::from_other)?;
                 let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -255,7 +256,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for StarknetInterchainGasPaymast
 async fn fetch_logs_in_range<T>(
     provider: &AnyProvider,
     range: RangeInclusive<u32>,
-    address: FieldElement,
+    address: Felt,
     key: &str,
     parse: fn(&starknet::core::types::EmittedEvent) -> ChainResult<Indexed<T>>,
 ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>

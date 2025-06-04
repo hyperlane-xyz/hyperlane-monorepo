@@ -1,52 +1,48 @@
-use cainome::cairo_serde::U256 as StarknetU256;
+use cainome::cairo_serde::{ValueOutOfRangeError, U256 as StarknetU256};
 use hyperlane_core::{ChainResult, TxOutcome, H256, U256};
-use starknet::core::types::{
-    ExecutionResult, FieldElement, FromByteArrayError, FromStrError, InvokeTransactionReceipt,
-    ValueOutOfRangeError,
-};
+use starknet::core::types::{ExecutionResult, Felt, FromStrError, InvokeTransactionReceipt};
 
 pub struct HyH256(pub H256);
 pub struct HyU256(pub U256);
 
-impl From<FieldElement> for HyH256 {
-    fn from(val: FieldElement) -> Self {
+impl From<Felt> for HyH256 {
+    fn from(val: Felt) -> Self {
         HyH256(H256::from_slice(val.to_bytes_be().as_slice()))
     }
 }
 
-impl TryInto<FieldElement> for HyH256 {
-    type Error = FromByteArrayError;
-    fn try_into(self) -> Result<FieldElement, Self::Error> {
-        FieldElement::from_bytes_be(&self.0.to_fixed_bytes())
+impl From<HyH256> for Felt {
+    fn from(value: HyH256) -> Self {
+        Felt::from_bytes_be(&value.0.to_fixed_bytes())
     }
 }
 
-impl TryFrom<(FieldElement, FieldElement)> for HyH256 {
+impl TryFrom<(Felt, Felt)> for HyH256 {
     type Error = ValueOutOfRangeError;
-    fn try_from(val: (FieldElement, FieldElement)) -> Result<HyH256, Self::Error> {
+    fn try_from(val: (Felt, Felt)) -> Result<HyH256, Self::Error> {
         let value: StarknetU256 = val.try_into()?;
         Ok(HyH256(H256::from_slice(value.to_bytes_be().as_slice())))
     }
 }
 
-impl From<FieldElement> for HyU256 {
-    fn from(val: FieldElement) -> Self {
+impl From<Felt> for HyU256 {
+    fn from(val: Felt) -> Self {
         HyU256(U256::from_big_endian(val.to_bytes_be().as_slice()))
     }
 }
 
-impl TryFrom<(FieldElement, FieldElement)> for HyU256 {
+impl TryFrom<(Felt, Felt)> for HyU256 {
     type Error = ValueOutOfRangeError;
-    fn try_from(val: (FieldElement, FieldElement)) -> Result<HyU256, Self::Error> {
+    fn try_from(val: (Felt, Felt)) -> Result<HyU256, Self::Error> {
         let value: StarknetU256 = val.try_into()?;
         Ok(HyU256(U256::from_big_endian(&value.to_bytes_be())))
     }
 }
 
-impl TryInto<FieldElement> for HyU256 {
+impl TryInto<Felt> for HyU256 {
     type Error = FromStrError;
-    fn try_into(self) -> Result<FieldElement, Self::Error> {
-        FieldElement::from_dec_str(&self.0.to_string())
+    fn try_into(self) -> Result<Felt, Self::Error> {
+        Felt::from_dec_str(&self.0.to_string())
     }
 }
 
