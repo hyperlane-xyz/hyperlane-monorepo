@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
 
-use crate::server::{MessageRetryQueueResponse, MessageRetryRequest};
+use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -381,6 +381,10 @@ pub mod test {
         }
 
         async fn payload(&self) -> ChainResult<Vec<u8>> {
+            todo!()
+        }
+
+        fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
             todo!()
         }
 

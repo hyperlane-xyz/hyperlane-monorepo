@@ -1,5 +1,86 @@
 # @hyperlane-xyz/helloworld
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/sdk@13.2.1
+  - @hyperlane-xyz/core@7.1.10
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+
+### Patch Changes
+
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+  - @hyperlane-xyz/sdk@13.2.0
+  - @hyperlane-xyz/core@7.1.9
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+
+## 13.1.0
+
+### Patch Changes
+
+- Updated dependencies [6e86efa]
+- Updated dependencies [c42ea09]
+  - @hyperlane-xyz/sdk@13.1.0
+  - @hyperlane-xyz/core@7.1.7
+
+## 13.0.0
+
+### Patch Changes
+
+- Updated dependencies [72b90f8]
+- Updated dependencies [bc58283]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/sdk@13.0.0
+  - @hyperlane-xyz/core@7.1.6
+
+## 12.6.0
+
+### Minor Changes
+
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [2ae0f72]
+- Updated dependencies [672d6d1]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [6a70b8d]
+- Updated dependencies [d182d7d]
+- Updated dependencies [248d2e1]
+- Updated dependencies [e2a4727]
+- Updated dependencies [b360802]
+- Updated dependencies [f6ed6ad]
+- Updated dependencies [31ee1c6]
+- Updated dependencies [a36d5c1]
+  - @hyperlane-xyz/sdk@12.6.0
+  - @hyperlane-xyz/core@7.1.5
+
 ## 12.5.0
 
 ### Patch Changes

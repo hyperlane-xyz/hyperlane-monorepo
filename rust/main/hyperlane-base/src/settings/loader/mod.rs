@@ -17,11 +17,14 @@ mod case_adapter;
 mod environment;
 
 /// Deserialize a settings object from the configs.
-pub fn load_settings<T, R>() -> ConfigResult<R>
+pub fn load_settings<T, R>(agent_name: &str) -> ConfigResult<R>
 where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
 {
+    let now = chrono::Utc::now();
+    println!("Loading settings: {:?}", now);
+
     let root_path = ConfigPath::default();
 
     let mut base_config_sources = vec![];
@@ -124,9 +127,13 @@ where
         })
         .into_config_result(|| root_path.clone())?;
 
-    let res = raw_config.parse_config(&root_path);
+    let res = raw_config.parse_config(&root_path, agent_name);
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }
+
+    let now = chrono::Utc::now();
+    println!("Loaded settings: {:?}", now);
+
     res
 }

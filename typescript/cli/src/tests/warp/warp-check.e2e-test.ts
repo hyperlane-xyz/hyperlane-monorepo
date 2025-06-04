@@ -2,7 +2,11 @@ import { expect } from 'chai';
 import { Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ERC20Test, HypERC20Collateral__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  HypERC20Collateral__factory,
+  Mailbox__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -80,7 +84,6 @@ describe('hyperlane warp check e2e tests', async function () {
     tokenSymbol = await token.symbol();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
   });
@@ -163,10 +166,7 @@ describe('hyperlane warp check e2e tests', async function () {
       await deployAndExportWarpRoute();
 
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(tokenSymbol, [
-          CHAIN_NAME_2,
-          CHAIN_NAME_3,
-        ]),
+        warpRouteId: createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3),
       })
         .stdio('pipe')
         .nothrow();
@@ -234,7 +234,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       // Finally run warp check
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(symbol, [CHAIN_NAME_2]),
+        warpRouteId: createWarpRouteConfigId(symbol, CHAIN_NAME_2),
       })
         .stdio('pipe')
         .nothrow();
@@ -349,7 +349,6 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpDeployConfig = await deployAndExportWarpRoute();
 
       const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_2,
         CHAIN_NAME_3,
       ]);
 
@@ -369,9 +368,98 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpCore: WarpCoreConfig = readYamlOrJson(
         WARP_CORE_CONFIG_PATH_2_3,
       );
+
+      // Find the token for CHAIN_NAME_2 since we're unenrolling it from CHAIN 3
+      const chain2Token = warpCore.tokens.find(
+        (token) => token.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2Token).to.not.be.undefined;
+
       const expectedActualText = `ACTUAL: ""\n`;
-      const expectedDiffText = `      EXPECTED:
-        address: "${addressToBytes32(warpCore.tokens[0].addressOrDenom!)}"`;
+      const expectedDiffTextRegex = new RegExp(
+        `EXPECTED:\\s*address:\\s*"${addressToBytes32(chain2Token!.addressOrDenom!)}"`,
+      );
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.match(expectedDiffTextRegex);
+      expect(output.text()).to.includes(expectedActualText);
+    });
+
+    it(`should find differences in the hook config between the local and on chain config if it needs to be expanded`, async function () {
+      warpConfig[CHAIN_NAME_2].hook = {
+        type: HookType.MERKLE_TREE,
+      };
+
+      const mailboxInstance = Mailbox__factory.connect(
+        chain2Addresses.mailbox,
+        signer,
+      );
+      const hookAddress = await mailboxInstance.callStatic.defaultHook();
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      writeYamlOrJson(
+        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+        warpConfig,
+      );
+
+      const warpDeployConfig = warpConfig;
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const expectedOwner = (await signer.getAddress()).toLowerCase();
+      warpDeployConfig[CHAIN_NAME_2].hook = {
+        type: HookType.FALLBACK_ROUTING,
+        domains: {},
+        fallback: hookAddress,
+        owner: expectedOwner,
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+      const expectedActualText = `ACTUAL: ${HookType.MERKLE_TREE}\n`;
+      const expectedDiffText = `EXPECTED: ${HookType.FALLBACK_ROUTING}`;
+
+      const expectedFallbackDiff = `    fallback:
+      ACTUAL: ""
+      EXPECTED:
+        owner: "${expectedOwner}"
+        type: protocolFee
+        maxProtocolFee: "1000000000000000000"
+        protocolFee: "200000000000000"
+        beneficiary: "${expectedOwner}"`;
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(expectedDiffText);
+      expect(output.text()).to.includes(expectedActualText);
+      expect(output.text()).to.includes(expectedFallbackDiff);
+    });
+
+    it(`should find differences in the hook config between the local and on chain config if it compares the hook addresses`, async function () {
+      const mailboxInstance = Mailbox__factory.connect(
+        chain2Addresses.mailbox,
+        signer,
+      );
+      const hookAddress = (
+        await mailboxInstance.callStatic.defaultHook()
+      ).toLowerCase();
+
+      const warpDeployConfig = await deployAndExportWarpRoute();
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      warpDeployConfig[CHAIN_NAME_2].hook = hookAddress;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+      const expectedActualText = `ACTUAL: "${zeroAddress}"\n`;
+      const expectedDiffText = `EXPECTED: "${hookAddress}"`;
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,

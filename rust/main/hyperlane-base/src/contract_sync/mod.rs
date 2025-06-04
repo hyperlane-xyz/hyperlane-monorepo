@@ -3,30 +3,33 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;
 use eyre::Result;
+use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
+use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
+use tokio::time::sleep;
+use tracing::{debug, info, instrument, trace, warn};
+
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer,
 };
 use hyperlane_core::{Indexed, LogMeta, H512};
-pub use metrics::ContractSyncMetrics;
-use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
-use tokio::sync::mpsc::{error::TryRecvError, Receiver as MpscReceiver};
-use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn};
 
 use crate::settings::IndexSettings;
 
 /// Broadcast channel utility, with async interface for `send`
 pub mod broadcast;
-pub(crate) mod cursors;
+/// Cursor types
+pub mod cursors;
 mod eta_calculator;
 mod metrics;
+
+pub use metrics::ContractSyncMetrics;
 
 use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
@@ -81,8 +84,8 @@ impl<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, S, I>
 impl<T, S, I> ContractSync<T, S, I>
 where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
-    S: HyperlaneLogStore<T>,
-    I: Indexer<T> + 'static,
+    S: HyperlaneLogStore<T> + Clone + 'static,
+    I: Indexer<T> + Clone + 'static,
 {
     /// The domain that this ContractSync is running on
     pub fn domain(&self) -> &HyperlaneDomain {
@@ -95,7 +98,7 @@ where
 
     /// Sync logs and write them to the LogStore
     #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
-    pub async fn sync(&self, label: &'static str, mut opts: SyncOptions<T>) {
+    pub async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
         let chain_name = self.domain.as_ref();
         let indexed_height_metric = self
             .metrics
@@ -105,31 +108,74 @@ where
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
-        let liveness_metric = self
-            .metrics
-            .liveness_metrics
-            .with_label_values(&[label, chain_name]);
 
-        loop {
-            Self::update_liveness_metric(&liveness_metric);
-            if let Some(rx) = opts.tx_id_receiver.as_mut() {
-                self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
-            }
-            if let Some(cursor) = opts.cursor.as_mut() {
-                self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
+        // need to put this behind an Arc Mutex because we might
+        // index the same event twice now. Which causes e2e to fail
+        let shared_store = Arc::new(Mutex::new(self.store.clone()));
+
+        // transaction id task for fetching events via transaction id
+        let tx_id_task = match opts.tx_id_receiver {
+            Some(rx) => {
+                let liveness_metric = self.metrics.liveness_metrics.with_label_values(&[
+                    label,
+                    chain_name,
+                    "tx_id_task",
+                ]);
+                let domain_clone = self.domain.clone();
+                let indexer_clone = self.indexer.clone();
+                let store_clone = shared_store.clone();
+                let stored_logs_metric = stored_logs_metric.clone();
+                tokio::task::spawn(async move {
+                    Self::tx_id_indexer_task(
+                        domain_clone,
+                        indexer_clone,
+                        store_clone,
+                        rx,
+                        stored_logs_metric,
+                        liveness_metric,
+                    )
                     .await;
+                })
             }
+            None => tokio::task::spawn(async {}),
+        };
 
-            // Added so that we confuse compiler that it is an infinite loop
-            if false {
-                break;
+        // cursor task for fetching events via range querying
+        let cursor_task = match opts.cursor {
+            Some(cursor) => {
+                let liveness_metric = self.metrics.liveness_metrics.with_label_values(&[
+                    label,
+                    chain_name,
+                    "cursor_task",
+                ]);
+                let domain_clone = self.domain.clone();
+                let indexer_clone = self.indexer.clone();
+                let store_clone = shared_store.clone();
+                let broadcast_sender = self.broadcast_sender.clone();
+
+                let stored_logs_metric = stored_logs_metric.clone();
+
+                tokio::task::spawn(async {
+                    Self::cursor_indexer_task(
+                        domain_clone,
+                        indexer_clone,
+                        store_clone,
+                        cursor,
+                        broadcast_sender,
+                        stored_logs_metric,
+                        indexed_height_metric,
+                        liveness_metric,
+                    )
+                    .await;
+                })
             }
-        }
+            None => tokio::task::spawn(async {}),
+        };
 
-        // Although the above loop should never end (unless by panicking),
-        // we put log here to make sure that we see when this method returns normally.
-        // Hopefully, compiler will not optimise this code out.
-        info!(chain = chain_name, label, "contract sync loop exit");
+        let res = tokio::join!(tx_id_task, cursor_task);
+
+        // we should never reach this because the 2 tasks should never end
+        tracing::error!(chain = chain_name, label, ?res, "contract sync loop exit");
     }
 
     fn update_liveness_metric(liveness_metric: &GenericGauge<AtomicI64>) {
@@ -141,120 +187,133 @@ where
         );
     }
 
-    #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]
-    async fn fetch_logs_from_receiver(
-        &self,
-        recv: &mut MpscReceiver<H512>,
-        stored_logs_metric: &GenericCounter<AtomicU64>,
+    #[instrument(fields(domain=domain.name()), skip(indexer, store, recv, stored_logs_metric, liveness_metric))]
+    async fn tx_id_indexer_task(
+        domain: HyperlaneDomain,
+        indexer: I,
+        store: Arc<Mutex<S>>,
+        mut recv: MpscReceiver<H512>,
+        stored_logs_metric: GenericCounter<AtomicU64>,
+        liveness_metric: GenericGauge<AtomicI64>,
     ) {
         loop {
-            match recv.try_recv() {
-                Ok(tx_id) => {
-                    let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
-                        Ok(logs) => logs,
-                        Err(err) => {
-                            warn!(?err, ?tx_id, "Error fetching logs for tx id");
-                            continue;
-                        }
-                    };
-                    let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-                    let num_logs = logs.len() as u64;
-                    info!(
-                        num_logs,
-                        ?tx_id,
-                        sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
-                        pending_ids = ?recv.len(),
-                        "Found log(s) for tx id"
-                    );
-                }
-                Err(TryRecvError::Empty) => {
-                    trace!("No tx id received");
+            Self::update_liveness_metric(&liveness_metric);
+            let tx_id = match recv.recv().await {
+                Some(tx_id) => tx_id,
+                None => {
+                    tracing::error!("Error: channel has closed");
                     break;
                 }
+            };
+
+            let logs = match indexer.fetch_logs_by_tx_hash(tx_id).await {
+                Ok(logs) => logs,
                 Err(err) => {
-                    warn!(?err, "Error receiving tx id from channel");
-                    break;
+                    warn!(?err, ?tx_id, "Error fetching logs for tx id");
+                    continue;
                 }
-            }
+            };
+
+            let logs = {
+                let store = store.lock().await;
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
+            let num_logs = logs.len() as u64;
+            info!(
+                num_logs,
+                ?tx_id,
+                sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                pending_ids = ?recv.len(),
+                "Found log(s) for tx id"
+            );
         }
     }
 
-    #[instrument(fields(domain=self.domain().name()), skip(self, stored_logs_metric, indexed_height_metric))]
-    async fn fetch_logs_with_cursor(
-        &self,
-        cursor: &mut Box<dyn ContractSyncCursor<T>>,
-        stored_logs_metric: &GenericCounter<AtomicU64>,
-        indexed_height_metric: &GenericGauge<AtomicI64>,
+    #[allow(clippy::too_many_arguments)]
+    #[instrument(fields(domain=domain.name()), skip(indexer, store, stored_logs_metric, indexed_height_metric, liveness_metric))]
+    async fn cursor_indexer_task(
+        domain: HyperlaneDomain,
+        indexer: I,
+        store: Arc<Mutex<S>>,
+        mut cursor: Box<dyn ContractSyncCursor<T>>,
+        broadcast_sender: Option<BroadcastMpscSender<H512>>,
+        stored_logs_metric: GenericCounter<AtomicU64>,
+        indexed_height_metric: GenericGauge<AtomicI64>,
+        liveness_metric: GenericGauge<AtomicI64>,
     ) {
-        indexed_height_metric.set(cursor.latest_queried_block() as i64);
-        let (action, eta) = match cursor.next_action().await {
-            Ok((action, eta)) => (action, eta),
-            Err(err) => {
-                warn!(?err, "Error getting next action");
-                sleep(SLEEP_DURATION).await;
-                return;
-            }
-        };
-        let sleep_duration = match action {
-            // Use `loop` but always break - this allows for returning a value
-            // from the loop (the sleep duration)
-            #[allow(clippy::never_loop)]
-            CursorAction::Query(range) => loop {
-                debug!(?range, "Looking for events in index range");
+        loop {
+            Self::update_liveness_metric(&liveness_metric);
+            indexed_height_metric.set(cursor.latest_queried_block() as i64);
 
-                let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
-                    Ok(logs) => logs,
-                    Err(err) => {
-                        warn!(?err, ?range, "Error fetching logs in range");
-                        break Some(SLEEP_DURATION);
-                    }
-                };
+            let (action, eta) = match cursor.next_action().await {
+                Ok((action, eta)) => (action, eta),
+                Err(err) => {
+                    warn!(?err, "Error getting next action");
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
+            };
 
-                let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-                let logs_found = logs.len() as u64;
-                info!(
-                    ?range,
-                    num_logs = logs_found,
-                    estimated_time_to_sync = fmt_sync_time(eta),
-                    sequences = ?logs.iter().map(|(log, meta)| IndexedTxIdAndSequence::new(meta.transaction_id, log.sequence)).collect::<Vec<_>>(),
-                    cursor = ?cursor,
-                    "Found log(s) in index range"
-                );
+            let range = match action {
+                CursorAction::Sleep(duration) => {
+                    debug!(
+                        cursor = ?cursor,
+                        sleep_duration = ?duration,
+                        "Cursor can't make progress, sleeping",
+                    );
+                    sleep(duration).await;
+                    continue;
+                }
+                CursorAction::Query(range) => range,
+            };
+            debug!(?range, "Looking for events in index range");
 
-                if let Some(tx) = self.broadcast_sender.as_ref() {
-                    // If multiple logs occur in the same transaction they'll have the same transaction_id.
-                    // Deduplicate their txids to avoid doing wasteful queries in txid indexer
-                    let unique_txids: HashSet<_> =
-                        logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+            let logs = match indexer.fetch_logs_in_range(range.clone()).await {
+                Ok(logs) => logs,
+                Err(err) => {
+                    warn!(?err, ?range, "Error fetching logs in range");
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
+            };
 
-                    for tx_id in unique_txids {
-                        if let Err(err) = tx.send(tx_id).await {
-                            trace!(?err, "Error sending txid to receiver");
-                        }
+            let logs = {
+                let store = store.lock().await;
+                Self::dedupe_and_store_logs(&domain, &store, logs, &stored_logs_metric).await
+            };
+            let logs_found = logs.len() as u64;
+            info!(
+                ?range,
+                num_logs = logs_found,
+                estimated_time_to_sync = fmt_sync_time(eta),
+                sequences = ?logs.iter().map(|(log, meta)| IndexedTxIdAndSequence::new(meta.transaction_id, log.sequence)).collect::<Vec<_>>(),
+                cursor = ?cursor,
+                "Found log(s) in index range"
+            );
+
+            if let Some(tx) = broadcast_sender.as_ref() {
+                // If multiple logs occur in the same transaction they'll have the same transaction_id.
+                // Deduplicate their txids to avoid doing wasteful queries in txid indexer
+                let unique_txids: HashSet<_> =
+                    logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+
+                for tx_id in unique_txids {
+                    if let Err(err) = tx.send(tx_id).await {
+                        trace!(?err, "Error sending txid to receiver");
                     }
                 }
+            }
 
-                // Update cursor
-                if let Err(err) = cursor.update(logs, range).await {
-                    warn!(?err, "Error updating cursor");
-                    break Some(SLEEP_DURATION);
-                };
-                break None;
-            },
-            CursorAction::Sleep(duration) => Some(duration),
-        };
-        if let Some(sleep_duration) = sleep_duration {
-            debug!(
-                cursor = ?cursor,
-                ?sleep_duration,
-                "Cursor can't make progress, sleeping",
-            );
-            sleep(sleep_duration).await
+            // Update cursor
+            if let Err(err) = cursor.update(logs, range).await {
+                warn!(?err, "Error updating cursor");
+            };
         }
     }
 
     async fn dedupe_and_store_logs(
-        &self,
+        domain: &HyperlaneDomain,
+        store: &S,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
     ) -> Vec<(Indexed<T>, LogMeta)> {
@@ -262,7 +321,7 @@ where
         let logs = Vec::from_iter(deduped_logs);
 
         // Store deliveries
-        let stored = match self.store.store_logs(&logs).await {
+        let stored = match store.store_logs(&logs).await {
             Ok(stored) => stored,
             Err(err) => {
                 warn!(?err, "Error storing logs in db");
@@ -271,7 +330,7 @@ where
         };
         if stored > 0 {
             debug!(
-                domain = self.domain.as_ref(),
+                domain = domain.name(),
                 count = stored,
                 sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
                 "Stored logs in db",
@@ -395,6 +454,7 @@ where
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
+                index_settings.from,
                 index_settings.mode,
             )
             .await?,
