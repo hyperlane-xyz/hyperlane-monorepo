@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import sinon from 'sinon';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -28,6 +29,7 @@ import {
   RouterConfig,
   TestChainName,
   proxyAdmin,
+  proxyImplementation,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -58,6 +60,7 @@ import {
   isMovableCollateralTokenType,
 } from './config.js';
 import {
+  CONTRACTS_VERSION,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
@@ -1073,5 +1076,61 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(txs.length).to.equal(0);
       });
     }
+
+    it('Should deploy and upgrade a new warp route', async () => {
+      const domain = 3;
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        remoteRouters: {
+          [domain]: {
+            address: randomAddress(),
+          },
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const { deployedTokenRoute } = evmERC20WarpModule.serialize();
+
+      // Get original implementation address
+      const origImpl = await proxyImplementation(
+        multiProvider.getProvider(chain),
+        deployedTokenRoute,
+      );
+
+      // I need package_VERSION to return an old version in the `read` call performed in update
+      const versionStub = sinon
+        .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+        .resolves('6.0.0');
+
+      // In update, we do a check see if the package version is old
+      // If it is, we deploy a new implementation and run upgradeTo
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          contractVersion: CONTRACTS_VERSION,
+        }),
+      );
+
+      versionStub.restore();
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      // Assert
+      expect(updatedConfig.contractVersion).to.eq(CONTRACTS_VERSION);
+      const newImpl = await proxyImplementation(
+        multiProvider.getProvider(chain),
+        deployedTokenRoute,
+      );
+      expect(origImpl).to.not.eq(newImpl);
+    });
   });
 });

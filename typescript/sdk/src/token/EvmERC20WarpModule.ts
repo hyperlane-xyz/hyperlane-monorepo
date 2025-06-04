@@ -1,3 +1,5 @@
+// import { expect } from 'chai';
+import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
@@ -7,6 +9,7 @@ import {
   IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
+  ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -35,7 +38,11 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
+import {
+  isInitialized,
+  proxyAdmin,
+  proxyAdminUpdateTxs,
+} from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
@@ -53,6 +60,8 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
+  VERSION_ERROR_MESSAGE,
+  contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
   isMovableCollateralTokenConfig,
@@ -143,6 +152,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
     transactions.push(
+      ...(await this.upgradeWarpRouteImplementationTx(
+        actualConfig,
+        expectedConfig,
+      )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
@@ -810,6 +823,77 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { deployedHook } = hookModule.serialize();
 
     return { deployedHook, updateTransactions };
+  }
+
+  /**
+   * Creates a transaction to upgrade the Warp Route implementation if the package version is below specified version.
+   *
+   * @param actualConfig - The current on-chain configuration
+   * @param expectedConfig - The expected configuration
+   * @returns An array of transactions to upgrade the implementation if needed
+   */
+  async upgradeWarpRouteImplementationTx(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    assert(
+      actualConfig.contractVersion,
+      'Actual contract version is undefined',
+    );
+
+    const shouldUpgrade =
+      expectedConfig.contractVersion &&
+      compareVersions(
+        expectedConfig.contractVersion,
+        actualConfig.contractVersion,
+      ) === 1;
+
+    if (!shouldUpgrade) return [];
+
+    assert(
+      contractVersionMatchesDependency(
+        expectedConfig.contractVersion as string, // this definitely exists at this point
+      ),
+      VERSION_ERROR_MESSAGE,
+    );
+
+    this.logger.info(
+      `Upgrading Warp Route implementation on ${this.args.chain} from ${actualConfig.contractVersion} to ${expectedConfig.contractVersion}`,
+    );
+
+    const deployer = new HypERC20Deployer(this.multiProvider);
+    const constructorArgs = await deployer.constructorArgs(
+      this.chainName,
+      expectedConfig,
+    );
+    const implementation = await deployer.deployContract(
+      this.chainName,
+      expectedConfig.type,
+      constructorArgs,
+    );
+
+    const provider = this.multiProvider.getProvider(this.domainId);
+    const proxyAddress = this.args.addresses.deployedTokenRoute;
+    const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+
+    assert(
+      await isInitialized(provider, proxyAddress),
+      'Proxy is not initialized',
+    );
+
+    updateTransactions.push({
+      chainId: this.chainId,
+      annotation: `Upgrading Warp Route implementation on ${this.args.chain}`,
+      to: proxyAdminAddress,
+      data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+        'upgrade',
+        [proxyAddress, implementation.address],
+      ),
+    });
+
+    return updateTransactions;
   }
 
   /**
