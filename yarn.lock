@@ -7686,7 +7686,7 @@ __metadata:
     asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
-    chai-as-promised: "npm:^8.0.0"
+    chai-as-promised: "npm:^8.0.1"
     chalk: "npm:^5.3.0"
     eslint: "npm:^9.15.0"
     eslint-config-prettier: "npm:^9.1.0"
@@ -20349,17 +20349,6 @@ __metadata:
     preact: "npm:^10.16.0"
     sha.js: "npm:^2.4.11"
   checksum: 10/3bc3f0edad8ea46cb7a127993373093d95b6fef03d2a6a40bae7983a1d9a20a114faa8e7bf1230efd380ffb67b42dae405c6617cd6fad6d278bf9b9e021a0280
-  languageName: node
-  linkType: hard
-
-"chai-as-promised@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "chai-as-promised@npm:8.0.0"
-  dependencies:
-    check-error: "npm:^2.0.0"
-  peerDependencies:
-    chai: ">= 2.1.2 < 6"
-  checksum: 10/91d6a49caac7965440b8f8af421ebe6f060a3b5523599ae143816d08fc19d9a971ea2bc5401f82ce88d15d8bc7b64d356bf3e53542ace9e2f25cc454164d3247
   languageName: node
   linkType: hard
 
