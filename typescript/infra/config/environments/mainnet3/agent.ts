@@ -86,6 +86,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -131,6 +132,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -236,6 +238,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -281,6 +284,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -386,6 +390,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -431,6 +436,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     injective: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -520,6 +526,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
   forma: true,
+  edgenchain: true,
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
@@ -817,7 +824,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '3a58caa-20250604-135609',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -828,7 +835,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2903fe1-20250602-134907',
+      tag: '3a58caa-20250604-135609',
     },
     resources: scraperResources,
   },
@@ -843,7 +850,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '3a58caa-20250604-135609',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

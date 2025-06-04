@@ -1,4 +1,7 @@
 {
+  "zoramainnet": {
+    "validators": []
+  },
   "ancient8": {
     "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
   },
