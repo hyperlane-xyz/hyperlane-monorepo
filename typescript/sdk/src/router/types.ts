@@ -14,6 +14,7 @@ import { CheckerViolation } from '../deploy/types.js';
 import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
 export type RouterAddress = {
@@ -96,6 +97,24 @@ export const MailboxClientConfigSchema = OwnableSchema.extend({
 export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
+
+export const RemoteRouterDomainOrChainNameSchema = z.string().or(z.number());
+export type RemoteRouterDomainOrChainName = z.infer<
+  typeof RemoteRouterDomainOrChainNameSchema
+>;
+
+export function resolveRouterMapConfig<T>(
+  multiProvider: MultiProvider,
+  routerMap: Record<RemoteRouterDomainOrChainName, T>,
+): Record<number, T> {
+  return Object.fromEntries(
+    Object.entries(routerMap).map(([domainIdOrChainName, value]) => {
+      const meta = multiProvider.getChainMetadata(domainIdOrChainName);
+
+      return [meta.domainId, value];
+    }),
+  );
+}
 
 export const RemoteRouterDomain = z.string();
 export const RemoteRouterRouter = z.object({

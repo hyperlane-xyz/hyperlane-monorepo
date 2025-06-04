@@ -49,7 +49,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters } from '../router/types.js';
+import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
@@ -455,10 +455,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      actualConfig.allowedRebalancingBridges ?? {},
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.allowedRebalancingBridges ?? {},
+      ),
     );
+
     const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      expectedConfig.allowedRebalancingBridges,
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
     );
     const rebalancingBridgesToAddByDomain = objMap(
       expectedAllowedBridges,
@@ -508,10 +515,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      actualConfig.allowedRebalancingBridges ?? {},
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.allowedRebalancingBridges ?? {},
+      ),
     );
     const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      expectedConfig.allowedRebalancingBridges,
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
     );
     const rebalancingBridgesToAddByDomain = objMap(
       actualAllowedBridges,
