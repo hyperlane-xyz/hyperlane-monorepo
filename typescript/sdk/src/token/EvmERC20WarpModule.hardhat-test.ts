@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import {
   ERC20Test,
@@ -25,6 +26,7 @@ import {
   RouterConfig,
   TestChainName,
   proxyAdmin,
+  proxyImplementation,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
@@ -43,7 +45,11 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
-import { HypTokenRouterConfig, derivedHookAddress } from './types.js';
+import {
+  CONTRACTS_VERSION,
+  HypTokenRouterConfig,
+  derivedHookAddress,
+} from './types.js';
 
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
@@ -748,6 +754,61 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const updatedConfig = await evmERC20WarpModule.read();
       expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
       expect(updatedConfig.destinationGas![domain]).to.equal('5000');
+    });
+    it('Should deploy and upgrade a new warp route', async () => {
+      const domain = 3;
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        remoteRouters: {
+          [domain]: {
+            address: randomAddress(),
+          },
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const { deployedTokenRoute } = evmERC20WarpModule.serialize();
+
+      // Get original implementation address
+      const origImpl = await proxyImplementation(
+        multiProvider.getProvider(chain),
+        deployedTokenRoute,
+      );
+
+      // I need package_VERSION to return an old version in the `read` call performed in update
+      const versionStub = sinon
+        .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
+        .resolves('6.0.0');
+
+      // In update, we do a check see if the package version is old
+      // If it is, we deploy a new implementation and run upgradeTo
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          contractVersion: CONTRACTS_VERSION,
+        }),
+      );
+
+      versionStub.restore();
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      // Assert
+      expect(updatedConfig.contractVersion).to.eq(CONTRACTS_VERSION);
+      const newImpl = await proxyImplementation(
+        multiProvider.getProvider(chain),
+        deployedTokenRoute,
+      );
+      expect(origImpl).to.not.eq(newImpl);
     });
   });
 });
