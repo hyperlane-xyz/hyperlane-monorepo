@@ -1,0 +1,122 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+TEST 1: ROL <-> ETH https://www.notion.so/dymension/IBC-Extended-Interop-1e0a4a51f86a8042934cef9adbdb56be with ETH COLLATERAL / FULFILL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Gist:
+Setup local Anvil + Hub + Rol. Deploy core contracts to Anvil + Hub. Deploy synthetic warp route to Hub. Deploy collateral warp route to Anvil. Configure remote router objects. 
+Setup and configure local validator and relayer.
+Send transfer Anvil → Hub LP addr without memo.
+Send transfer Anvil → Rol addr with forward memo.
+Send transfer Rol addr → Anvil addr (requires fulfillment using LP on Hub).
+~~~~~~~~~~~~
+Instructions how to do https://www.notion.so/dymension/IBC-Extended-Interop-1e0a4a51f86a8042934cef9adbdb56be Rol<->ETH
+
+Tools needed
+    Hub danwt/hyperlane-pfm
+    Rollapp (e.g. evm, latest)
+    Ability to run local Eth node (https://book.getfoundry.sh/anvil/)
+    Ability to deploy solidity contracts to eth node (https://book.getfoundry.sh/forge/)
+    Hyperlane cli (require nodejs typescript installer)
+        https://github.com/dymensionxyz/hyperlane-monorepo/blob/a4a8aaafca880f379b581454b4595495de2dfc45/dymension/dymension.readme.txt#L38-L45
+    Rust
+
+Detailed steps
+    Phase 1, setup
+        1. Setup anvil + hub + rol
+            For Hub + Rol, do normal steps
+            Make sure Rol genesis bridge is open and that there is a channel on the Hub to send to the Rol over IBC
+            For anvil, see https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L2
+
+        2. Follow steps to deploy hyperlane to ethereum
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L6-L10
+
+        3. Follow steps to deploy hyperlane to Hub
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/ethereum_test/commands.sh#L56-L73
+
+        4. Deploy the warp route to Hub: (create a DYM SYTHETIC token on the hub)
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L14-L16
+
+        5. Update the local config in ~/.hyperlane
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L18-L24
+            Make sure to use strings!! (Quotes needed)
+
+        6. Make sure the warp deployment config is configured with the right addresses
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L25-L28 
+
+        7. Deploy an ERC20 Foo token to Ethereum 
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L29-L31
+
+        8. Put the address of the ERC20 Foo token in the warp-route-deployment.yaml anvil0 token field
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/configs/warp-route-deployment.yaml#L5
+
+        9. Deploy the warp route to anvil: (create a FOO COLLATERAL token on the ethereum instance)
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L34
+
+        10. Now the Hub is able to reference the Ethereum contract, so we need to enroll a remote router
+            https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L39-L41
+
+    Phase 2, testing the transfers
+         11. Setup a rust relayer 
+                https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L41-L48
+                https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/ethereum_test/commands.sh#L135-L151
+
+         12. Testing
+            a. Send transfer FOO token on Ethereum -> hyperlane/0x..0 on Hub (without memo)
+                https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L64
+                dymd q bank balances $HUB_RECEIVER_ADDR_NATIVE
+            b. Same, but with a MEMO to make the funds end up on rollapp
+                dymd q forward memo-hl-to-ibc "channel-0" ethm1a30y0h95a7p38plnv5s02lzrgcy0m0xumq0ymn 5m
+                https://github.com/dymensionxyz/dymension/blob/cbf14115f86454a79cad92523b11049018eb07c4/x/forward/cli/util.go#L225
+                https://github.com/dymensionxyz/hyperlane-monorepo/blob/a82893b6642f6f457d7e79ff0dca5ffb134fe79e/dymension/foo_test/commands.sh#L65
+                rol q bank balances $ROL_RECEIVER_ADDR
+            c. Now the other direction, from the rollapp back to Ethereum, via the Hub
+                i. Make sure there is an EIBC fulfiller on the HUB for the token (.e.g the recipient of test (a))
+                ii. Build a memo to include in the ibc-transfer tx to the rol
+                    https://github.com/dymensionxyz/dymension/blob/cbf14115f86454a79cad92523b11049018eb07c4/x/forward/cli/util.go#L53
+
+                    MEMO=dymd q forward memo-eibc-to-hl $EIBC_FEE $HUB_HYPERLANE_TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT $MAX_HL_FEE
+
+                iii. Send a transfer
+                    BRIDGE_FEE_MUL=dymd q delayedack params -o json | jq '.params.bridging_fee' -r
+                    IBC_TRANSFER_AMT=dymd q forward amt-eibc-to-hl $AMT $MAX_HL_FEE $EIBC_FEE $BRIDGE_FEE_MUL
+                    HUB_RECOVERY_ADDR= <arbitrary hub address>
+                    ROL_DENOM=<whatever is the ibc token for the HL token>
+                    rol tx ibc-transfer transfer transfer channel-0 $RECOVERY_ADDR "$IBC_TRANSFER_AMT"$ROL_DENOM --memo $MEMO ...
+                iv. Ensure relayed and check balance on Ethereum
+                    cast call $ETH_FOO_CONTRACT_ADDR "balanceOf(address)(uint256)" $ETH_RECIPIENT --rpc-url http://localhost:8545
+                    check it makes sense
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+TEST 2: ROL <-> SOL https://www.notion.so/dymension/IBC-Extended-Interop-1e0a4a51f86a8042934cef9adbdb56be with SOL SYNTHETIC / FINALIZE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tools needed:
+    Hub (latest)
+    Rollapp (e.g. evm, latest)
+    Rust
+    Solana tooling: NOTE!! Seperate solana cli versions are required to be used for different stages of the setup
+        See https://github.com/dymensionxyz/hyperlane-monorepo/blob/986fe8825d827d52c76b7f5f7849d854c4754492/dymension/dymension.readme.txt#L53-L62
+        Building programs requires v1.14.20
+        Launching a node requires v2
+        Deploying contracts requires v.18
+
+~~~~~~~~~~~~
+
+Gist:
+
+It's like a mirror of the test you did for ethereum, except
+    - now its solana
+    - use collateral on hub and synthetic on solana
+    - the transfer goes first from rol->sol and then from sol->rol
+    - there is no need to deploy erc20
+    - do not fulfill eibc but rather just wait for it to finalize
+
+so the steps are
+    - Setup local Solana test node + Hub + Rol
+    - Deploy core contracts to Solana + Hub. Deploy collateral warp route to Hub. Deploy synthetic warp route to Solana. Configure remote router objects
+    - Setup and configure local 
+    TODO: finish writing these instructions after configuring relayer steps
+
+

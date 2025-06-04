@@ -3,7 +3,7 @@ export BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo"
 #########################################################################################
 #########################################################################################
 # Q: WHAT IS THIS?
-# A: SAME AS solana_test but it uses synthetic memo instead of native memo for testing
+# A: It's not a script, but rather some commands, which should be copy pasted as appropriate per the instructions, while in the right directories.
 #########################################################################################
 
 ###########################
@@ -20,16 +20,16 @@ cd rust/sealevel/programs
 
 # first set up some environment variables (needed in every terminal)
 
-export SOL_ENV_DIR="$BASE_PATH/dymension/solana_test2/environments"
+export SOL_ENV_DIR="$BASE_PATH/dymension/solana_native_memo_test/environments"
 export SOL_PROG_DIR="$BASE_PATH/rust/sealevel/target/deploy"
-export SOL_KEY_PATH="$BASE_PATH/dymension/solana_test2/key.json"
+export SOL_KEY_PATH="$BASE_PATH/dymension/solana_native_memo_test/key.json"
 export SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
 export SOL_ENVIR="local-e2e"
 export IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
 export PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
 export DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
 export HUB_DOMAIN=1260813472 
-export ETH_DOMAIN=31337 # solana is 1399811149 https://docs.hyperlane.xyz/docs/reference/domains
+export ETH_DOMAIN=31337
 
 # MUST USE SOLANA v2
 solana-test-validator --reset # launch
@@ -62,7 +62,7 @@ HYP_CHAINSTOSCRAPE="sealeveltest1" \
 
 # in another tab, shell into the db to be able to run queries
 docker exec -it scraper-testnet-postgres psql -U postgres
-\dt # list tables for debugging/checking
+\dt # list tables
 
 ###########################
 # STEP: DEPLOY CONTRACTS
@@ -92,7 +92,7 @@ cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     --program-id $IGP_PROG_ID \
     --chain sealeveltest1
 
-# warp route. This is configured for our token synthetic memo (different than upstream!)
+# warp route. This is configured for our token nativeMemo (different than upstream!)
 cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     warp-route deploy \
     --environment $SOL_ENVIR \
@@ -127,4 +127,4 @@ select msg_body from message;
 # it should have a long body with a 000...00064 part (amt=100) and then a long memo part afterwards
 
 # sanity check other cli cmds
-cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH token query synthetic-memo
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH token query native-memo

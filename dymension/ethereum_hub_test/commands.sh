@@ -40,9 +40,9 @@ COLLAT_TOKEN_CONTRACT="0x00000000000000000000000084eA74d481Ee0A5332c457a4d796187
 
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $COLLAT_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 
-trash /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/foo_test/tmp/
-mkdir /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/foo_test/tmp/
-RELAYER_DB=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/foo_test/tmp/hyperlane_db_relayer
+trash /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_hub_test/tmp/
+mkdir /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_hub_test/tmp/
+RELAYER_DB=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_hub_test/tmp/hyperlane_db_relayer
 
 # start relayer according to dymension/ethereum_test/commands.sh
 export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_test/configs/agent-config.json
