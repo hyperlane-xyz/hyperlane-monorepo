@@ -1,4 +1,4 @@
-import { concurrentMap, sleep } from '@hyperlane-xyz/utils';
+import { concurrentMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentHelmManager,
