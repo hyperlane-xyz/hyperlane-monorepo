@@ -10,6 +10,7 @@ import {
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
@@ -41,8 +42,16 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+export const BaseMovableTokenConfigSchema = z.object({
+  allowedRebalancers: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  ...BaseMovableTokenConfigSchema.shape,
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -84,6 +93,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
+    ...BaseMovableTokenConfigSchema.shape,
   },
 );
 
@@ -454,3 +464,11 @@ function extractCCIPIsmMap(
       break;
   }
 }
+
+const MovableTokenSchema = z.discriminatedUnion('type', [
+  CollateralTokenConfigSchema,
+  NativeTokenConfigSchema,
+]);
+export type MovableTokenConfigType = z.infer<typeof MovableTokenSchema>;
+
+export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);
