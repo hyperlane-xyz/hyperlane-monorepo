@@ -170,7 +170,7 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
   ): ConstructorParameters<typeof StarknetAccount>[4] {
     if (versionFromEnv === 'V2') return constants.TRANSACTION_VERSION.V2;
     if (versionFromEnv === 'V3') return constants.TRANSACTION_VERSION.V3;
-    return undefined;
+    return constants.TRANSACTION_VERSION.V3;
   }
 
   async getSigner({
