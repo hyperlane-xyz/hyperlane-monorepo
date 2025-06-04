@@ -1,18 +1,18 @@
 {
+  "eclipsemainnet": {
+    "hex": "0x376def17508752be173d8b43f570e6014f843595c4631948fd82b1ede55b076c",
+    "base58": "4jNefyyMeCuJNrhhZX1ryWPGojiuxHCfNAosNAZb9gX5"
+  },
   "sonicsvm": {
     "hex": "0x9dce6a83d2591eec7d50cdc6d38aeefc1bad0be836517a0309f9ef5a0d4320e3",
     "base58": "Bd1ZiCTGwG9WF9KJEAYvA4QejhjQL8quQuEmmcCuugwk"
-  },
-  "soon": {
-    "hex": "0x71a62e4a38c1ab2e7cc33bbe40e01c8f6a0c8090ae0990ab6de5cc44cc621c83",
-    "base58": "8ee3Nwu4zGSDJvEhTDzCeZukdyi6Hn8KR2G9aMGs3z1p"
   },
   "solanamainnet": {
     "hex": "0xfa6bae469aea7f2ba6fb935b5f4c5f8fab43740bdc0b0e13ea52243c9cabd037",
     "base58": "HrYAA2LAeqWf197FfNh2BVaqsDJFBhatpru9p2UnfwQA"
   },
-  "eclipsemainnet": {
-    "hex": "0x376def17508752be173d8b43f570e6014f843595c4631948fd82b1ede55b076c",
-    "base58": "4jNefyyMeCuJNrhhZX1ryWPGojiuxHCfNAosNAZb9gX5"
+  "soon": {
+    "hex": "0x71a62e4a38c1ab2e7cc33bbe40e01c8f6a0c8090ae0990ab6de5cc44cc621c83",
+    "base58": "8ee3Nwu4zGSDJvEhTDzCeZukdyi6Hn8KR2G9aMGs3z1p"
   }
 }
