@@ -7686,7 +7686,7 @@ __metadata:
     asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
-    chai-as-promised: "npm:^8.0.0"
+    chai-as-promised: "npm:^8.0.1"
     chalk: "npm:^5.3.0"
     eslint: "npm:^9.15.0"
     eslint-config-prettier: "npm:^9.1.0"
@@ -7964,6 +7964,7 @@ __metadata:
     "@safe-global/safe-deployments": "npm:1.37.23"
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.95.4"
+    "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
     "@types/sinon": "npm:^17.0.1"
@@ -7973,6 +7974,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^8.1.6"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
+    chai-as-promised: "npm:^8.0.1"
     compare-versions: "npm:^6.1.1"
     cosmjs-types: "npm:^0.9.0"
     cross-fetch: "npm:^3.1.5"
@@ -20350,14 +20352,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chai-as-promised@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "chai-as-promised@npm:8.0.0"
+"chai-as-promised@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "chai-as-promised@npm:8.0.1"
   dependencies:
     check-error: "npm:^2.0.0"
   peerDependencies:
     chai: ">= 2.1.2 < 6"
-  checksum: 10/91d6a49caac7965440b8f8af421ebe6f060a3b5523599ae143816d08fc19d9a971ea2bc5401f82ce88d15d8bc7b64d356bf3e53542ace9e2f25cc454164d3247
+  checksum: 10/1938d9f00b1ae197b47c01a9ff8455d3719bc4638103fa5ad254a32e27bc663ba8530fecfa840309e254c2a52ef171c194b7fb25615f8c5d33022d64456f07f9
   languageName: node
   linkType: hard
 

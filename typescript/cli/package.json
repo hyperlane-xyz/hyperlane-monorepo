@@ -28,7 +28,7 @@
     "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",
     "chai": "^4.5.0",
-    "chai-as-promised": "^8.0.0",
+    "chai-as-promised": "^8.0.1",
     "chalk": "^5.3.0",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
