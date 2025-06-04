@@ -1632,6 +1632,9 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f'],
+          [Contexts.ReleaseCandidate]: [
+            '0x95b460edc770f53981c9aa82aa2a297af619cabf',
+          ],
         },
         'hyperevm',
       ),
@@ -1805,6 +1808,27 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x8576ddc0cd96325f85528e53f333357afb8bf044'],
         },
         'kyve',
+      ),
+    },
+
+    botanix: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('botanix'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc944176bc4d4e5c7b0598884478a27a2b1904664'],
+        },
+        'botanix',
+      ),
+    },
+    katana: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('katana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b'],
+        },
+        'katana',
       ),
     },
   };
