@@ -1,5 +1,9 @@
 # @hyperlane-xyz/github-proxy
 
+## 13.2.1
+
+## 13.2.0
+
 ## 13.1.1
 
 ### Patch Changes

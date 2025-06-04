@@ -1595,6 +1595,16 @@ export const validatorChainConfig = (
         'sophon',
       ),
     },
+    starknet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('starknet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x61204c987d1121175a74e04d5045ab708aa1489f'],
+        },
+        'starknet',
+      ),
+    },
     story: {
       interval: 5,
       reorgPeriod: getReorgPeriod('story'),

@@ -350,7 +350,7 @@ where
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?
         else {
-            tracing::trace!(domain=?self.domain, "Latest block not found");
+            tracing::trace!(domain=?self.domain.name(), "Latest block not found");
             return Ok(None);
         };
 

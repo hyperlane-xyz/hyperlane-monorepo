@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
 ## 13.1.1
 
 ### Patch Changes

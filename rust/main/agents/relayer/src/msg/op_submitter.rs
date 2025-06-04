@@ -190,7 +190,7 @@ impl SerialSubmitter {
         if let Err(err) = try_join_all(tasks).await {
             error!(
                 error=?err,
-                domain=?self.domain,
+                domain=?self.domain.name(),
                 "SerialSubmitter task panicked for domain"
             );
         }
