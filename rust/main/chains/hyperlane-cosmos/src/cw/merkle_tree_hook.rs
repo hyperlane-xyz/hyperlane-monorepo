@@ -8,9 +8,10 @@ use tracing::{debug, info, instrument};
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use super::payloads::{general, merkle_tree_hook};
@@ -65,7 +66,7 @@ impl MerkleTreeHook for CwMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let payload = merkle_tree_hook::MerkleTreeRequest {
             tree: general::EmptyStruct {},
         };
@@ -79,7 +80,7 @@ impl MerkleTreeHook for CwMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                block_height,
+                Some(block_height),
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeResponse = serde_json::from_slice(&data)?;
@@ -95,7 +96,11 @@ impl MerkleTreeHook for CwMerkleTreeHook {
             ChainCommunicationError::from_other_str("Failed to build merkle branch array")
         })?;
 
-        Ok(IncrementalMerkle::new(branch_res, response.count as usize))
+        let tree = IncrementalMerkle::new(branch_res, response.count as usize);
+        Ok(IncrementalMerkleAtBlock {
+            tree,
+            block_height: Some(block_height),
+        })
     }
 
     /// Gets the current leaf count of the merkle tree
@@ -107,13 +112,19 @@ impl MerkleTreeHook for CwMerkleTreeHook {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        let block_height = self.provider.reorg_to_height(reorg_period).await?;
+        self.latest_checkpoint_at_block(block_height).await
+    }
+
+    /// Get the latest checkpoint at a specific block height.
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let payload = merkle_tree_hook::CheckPointRequest {
             check_point: general::EmptyStruct {},
         };
-
-        let block_height = self.provider.reorg_to_height(reorg_period).await?;
-
         let data = self
             .provider
             .query()
@@ -121,23 +132,26 @@ impl MerkleTreeHook for CwMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                block_height,
+                Some(height),
             )
             .await?;
         let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
 
-        Ok(Checkpoint {
-            merkle_tree_hook_address: self.address,
-            mailbox_domain: self.domain.id(),
-            root: response.root.parse()?,
-            index: response.count,
+        Ok(CheckpointAtBlock {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: self.address,
+                mailbox_domain: self.domain.id(),
+                root: response.root.parse()?,
+                index: response.count,
+            },
+            block_height: Some(height),
         })
     }
 }
 
 impl CwMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+    async fn count_at_block(&self, block_height: u64) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
         };
@@ -149,7 +163,7 @@ impl CwMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                block_height,
+                Some(block_height),
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
@@ -341,10 +355,7 @@ impl Indexer<MerkleTreeInsertion> for CwMerkleTreeHookIndexer {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CwMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
-        let sequence = self
-            .merkle_tree_hook
-            .count_at_block(Some(tip.into()))
-            .await?;
+        let sequence = self.merkle_tree_hook.count_at_block(tip.into()).await?;
 
         Ok((Some(sequence), tip))
     }

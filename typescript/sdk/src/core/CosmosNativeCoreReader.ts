@@ -23,7 +23,7 @@ export class CosmosNativeCoreReader {
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
   ) {
-    this.ismReader = new CosmosNativeIsmReader(this.signer);
+    this.ismReader = new CosmosNativeIsmReader(this.multiProvider, this.signer);
     this.hookReader = new CosmosNativeHookReader(
       this.multiProvider,
       this.signer,

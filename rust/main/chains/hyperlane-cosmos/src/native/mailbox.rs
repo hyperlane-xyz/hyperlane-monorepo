@@ -87,7 +87,7 @@ impl Mailbox for CosmosNativeMailbox {
         let mailbox = self
             .provider
             .query()
-            .mailbox(self.address.encode_hex(), height)
+            .mailbox(self.address.encode_hex(), Some(height))
             .await?;
         Ok(mailbox.mailbox.map(|m| m.message_sent).unwrap_or(0))
     }

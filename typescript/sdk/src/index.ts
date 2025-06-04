@@ -112,6 +112,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -222,10 +223,12 @@ export {
 } from './ism/types.js';
 export {
   collectValidators,
-  moduleCanCertainlyVerify,
-  isStaticDeploymentSupported,
   isIsmCompatible,
+  isStaticDeploymentSupported,
+  isStaticIsm,
+  moduleCanCertainlyVerify,
 } from './ism/utils.js';
+export { isHookCompatible } from './hook/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
@@ -655,6 +658,7 @@ export {
 } from './token/types.js';
 export {
   ChainMap,
+  ProtocolMap,
   ChainName,
   ChainNameOrId,
   Connection,
@@ -719,7 +723,7 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-
+export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   StarknetContractName,
   getStarknetContract,

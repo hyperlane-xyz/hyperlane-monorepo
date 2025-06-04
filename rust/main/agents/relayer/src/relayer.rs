@@ -8,6 +8,7 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
+use futures::future::join_all;
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{
@@ -31,8 +32,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
-    QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, Mailbox,
+    MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use submitter::{
@@ -65,6 +66,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -224,7 +226,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
-                false,
+                ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
             )
             .await?
@@ -244,8 +246,8 @@ impl BaseAgent for Relayer {
                         dbs.iter()
                             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                             .collect(),
+                        ADVANCED_LOG_META,
                         false,
-                        settings.tx_id_indexing_enabled,
                     )
                     .await?
                     .into_iter()
@@ -266,8 +268,8 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                ADVANCED_LOG_META,
                 false,
-                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
@@ -329,6 +331,35 @@ impl BaseAgent for Relayer {
 
         // only iterate through destination chains that were successfully instantiated
         start_entity_init = Instant::now();
+        let ccip_signer_futures = mailboxes
+            .keys()
+            .map(|destination| {
+                let destination_chain_setup =
+                    core.settings.chain_setup(destination).unwrap().clone();
+                let signer = destination_chain_setup.signer.clone();
+                async move {
+                    if  !matches!(destination.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+                        return (destination, None);
+                    }
+                    let signer = if let Some(builder) = signer {
+                        match builder.build::<hyperlane_ethereum::Signers>().await {
+                            Ok(signer) => Some(signer),
+                            Err(err) => {
+                                warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    (destination, signer)
+                }
+            })
+            .collect::<Vec<_>>();
+        let ccip_signers = join_all(ccip_signer_futures)
+            .await
+            .into_iter()
+            .collect::<HashMap<_, _>>();
         for (destination, dest_mailbox) in mailboxes.iter() {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
             destination_chains.insert(destination.clone(), destination_chain_setup.clone());
@@ -345,20 +376,8 @@ impl BaseAgent for Relayer {
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
                 // Extract optional Ethereum signer for CCIP-read authentication
-                let eth_signer: Option<hyperlane_ethereum::Signers> = if let Some(builder) =
-                    &destination_chain_setup.signer
-                {
-                    match builder.build().await {
-                        Ok(s) => Some(s),
-                        Err(err) => {
-                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -376,7 +395,8 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    eth_signer,
+                    ccip_signers.get(destination).cloned().flatten(),
+                    origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
@@ -613,6 +633,7 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
+            None,
         )
         .await
     }
@@ -1163,6 +1184,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 

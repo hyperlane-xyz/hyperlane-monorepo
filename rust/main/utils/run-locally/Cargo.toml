@@ -11,6 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -19,6 +20,7 @@ ripemd.workspace = true
 sha2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+starknet.workspace = true
 hex.workspace = true
 ctrlc.workspace = true
 eyre.workspace = true
@@ -44,5 +46,6 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
 cosmos = []
+starknet = []
 cosmosnative = []
 sealevel = []

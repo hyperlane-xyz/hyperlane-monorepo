@@ -156,7 +156,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CwMailboxDispatchIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
-        let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
+        let sequence = self.mailbox.nonce_at_block(tip.into()).await?;
 
         Ok((Some(sequence), tip))
     }

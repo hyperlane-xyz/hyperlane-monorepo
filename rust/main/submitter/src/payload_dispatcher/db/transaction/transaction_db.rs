@@ -11,8 +11,6 @@ use crate::transaction::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
-const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
-
 const TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX: &str = "tx_index_by_id_";
 const TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX: &str = "tx_id_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
@@ -103,6 +101,21 @@ impl TransactionDb for HyperlaneRocksDB {
         self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, tx_id, &index)
     }
 
+    async fn retrieve_transaction_id_by_index(
+        &self,
+        index: u32,
+    ) -> DbResult<Option<TransactionId>> {
+        self.retrieve_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index)
+    }
+
+    async fn store_transaction_id_by_index(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index, tx_id)
+    }
+
     async fn store_highest_index(&self, index: u32) -> DbResult<()> {
         // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
         self.store_value_by_key(
@@ -116,21 +129,6 @@ impl TransactionDb for HyperlaneRocksDB {
         // return the default value (0) if no index has been stored yet
         self.retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())
             .map(|index| index.unwrap_or_default())
-    }
-
-    async fn store_transaction_id_by_index(
-        &self,
-        index: u32,
-        tx_id: &TransactionId,
-    ) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index, tx_id)
-    }
-
-    async fn retrieve_transaction_id_by_index(
-        &self,
-        index: u32,
-    ) -> DbResult<Option<TransactionId>> {
-        self.retrieve_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index)
     }
 }
 

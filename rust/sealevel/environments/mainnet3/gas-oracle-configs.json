@@ -48,6 +48,14 @@
       },
       "overhead": 166887
     },
+    "subtensor": {
+      "oracleConfig": {
+        "tokenExchangeRate": "37301141202520865270",
+        "gasPrice": "10000000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "bsc": {
       "oracleConfig": {
         "tokenExchangeRate": "62110871980005554012",

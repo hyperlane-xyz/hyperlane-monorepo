@@ -86,14 +86,12 @@ impl<QueryClient: BuildableQueryClient> CosmosProvider<QueryClient> {
     }
 
     /// Get the block number according to the reorg period
-    pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<Option<u64>> {
+    pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u64> {
+        let height = self.rpc.get_block_number().await?;
         match reorg {
-            ReorgPeriod::None => Ok(None),
+            ReorgPeriod::None => Ok(height),
             // height has to be at least 1 -> block 0 does not exist in cosmos
-            ReorgPeriod::Blocks(blocks) => {
-                let height = self.rpc.get_block_number().await?;
-                Ok(Some(height.checked_sub(blocks.get() as u64).unwrap_or(1)))
-            }
+            ReorgPeriod::Blocks(blocks) => Ok(height.checked_sub(blocks.get() as u64).unwrap_or(1)),
             ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),
         }
     }
@@ -274,6 +272,9 @@ impl<T: BuildableQueryClient> HyperlaneProvider for CosmosProvider<T> {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        if hash.is_zero() {
+            return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
+        }
         let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 

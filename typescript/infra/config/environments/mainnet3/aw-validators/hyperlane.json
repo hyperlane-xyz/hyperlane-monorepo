@@ -30,9 +30,6 @@
   "artela": {
     "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
   },
-  "arthera": {
-    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
-  },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
@@ -412,6 +409,9 @@
   },
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
+  },
+  "starknet": {
+    "validators": ["0x61204c987d1121175a74e04d5045ab708aa1489f"]
   },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
