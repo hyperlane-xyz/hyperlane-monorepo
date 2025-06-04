@@ -123,8 +123,8 @@ export class StarknetDeployer {
       ].includes(ismType)
     ) {
       this.logger.info(
-        `Deploying ${ismType} with deployer (${this.account.address}) as initial owner. ` +
-          'Note: Unlike EVM, this ISM type is ownable on Starknet and ownership can be transferred later.',
+        `Deploying ${ismType} with deployer and burning ownership. ` +
+          'Note: Unlike EVM, this ISM type is ownable on Starknet.',
       );
     }
 
@@ -132,7 +132,7 @@ export class StarknetDeployer {
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
         constructorArgs = [
-          this.account.address,
+          '0x0000000000000000000000000000000000000000000000000000000000000001', // burn ownership but 0x0 fails zero address check in transfer_ownership
           ismConfig.validators,
           ismConfig.threshold,
         ];
@@ -150,8 +150,6 @@ export class StarknetDeployer {
           this.account,
         );
         const domains = ismConfig.domains;
-        const domainIds = [];
-        const routes = [];
         for (const domain of Object.keys(domains)) {
           const route = await this.deployIsm({
             chain,
@@ -159,16 +157,14 @@ export class StarknetDeployer {
             mailbox,
           });
           const domainId = this.multiProvider.getDomainId(domain);
-          domainIds.push(domainId);
-          routes.push(route);
-          this.logger.info(`ISM ${route} deployed for domain ${domainId}`);
-        }
-        // setting the routes in a single transaction
-        const tx = await routingContract.invoke('set', [domainIds, routes]);
-        await this.account.waitForTransaction(tx.transaction_hash);
-        this.logger.info(`ISM ${routes} set for domains ${domainIds}`);
 
-        return ismAddress;
+          this.logger.info(`ISM ${route} deployed for domain ${domainId}`);
+
+          const tx = await routingContract.invoke('set', [domainId, route]);
+          await this.account.waitForTransaction(tx.transaction_hash);
+          this.logger.info(`ISM ${route} set for domain ${domainId}`);
+        }
+        return routingContract.address;
       }
       case IsmType.PAUSABLE:
         constructorArgs = [ismConfig.owner];
@@ -185,7 +181,7 @@ export class StarknetDeployer {
           addresses.push(submodule);
         }
         constructorArgs = [
-          this.account.address,
+          '0x0000000000000000000000000000000000000000000000000000000000000001', // burn ownership but 0x0 fails zero address check in transfer_ownership
           addresses,
           ismConfig.threshold,
         ];
