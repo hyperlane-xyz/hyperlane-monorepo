@@ -160,7 +160,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             );
         }
 
-        let message = Message::new(&self.instructions(), Some(&payer));
+        let message = Message::new(&self.instructions(), Some(payer));
         // Useful for plugging into ledger-friendly tools
         if std::env::var("TX_BINARY").is_ok() {
             println!(
