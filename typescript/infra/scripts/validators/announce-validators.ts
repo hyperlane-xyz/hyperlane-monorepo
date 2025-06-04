@@ -116,7 +116,12 @@ async function main() {
     try {
       const { storageLocation, announcement } = announcements[i];
       if (!announcement) {
-        console.info(`No announcement for storageLocation ${storageLocation}`);
+        console.warn(
+          chalk.yellow(
+            `No announcement for storageLocation ${storageLocation}`,
+          ),
+        );
+        continue;
       }
       const contracts = core.getContracts(chain);
       const validatorAnnounce = contracts.validatorAnnounce;
