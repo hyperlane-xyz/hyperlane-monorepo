@@ -29,7 +29,7 @@ jobs:
 
             # Checks are grouped with ssh to prevent access errors with sovereign-sdk-wip dependency
             cd rust/main
-            cargo clippy --bin relayer --bin validator -- -D warnings
+            RUSTFLAGS="--cfg tokio_unstable" cargo clippy --bin relayer --bin validator -- -D warnings
             cargo fmt --check
             cd chains/hyperlane-sovereign
             cargo test
