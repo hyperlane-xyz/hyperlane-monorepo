@@ -48,7 +48,7 @@
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.22.2",
-    "mocha": "^10.2.0",
+    "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
