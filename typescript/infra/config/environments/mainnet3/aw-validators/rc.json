@@ -90,6 +90,9 @@
       "0x2111141b7f985d305f392c502ad52dd74ef9c569"
     ]
   },
+  "hyperevm": {
+    "validators": ["0x95b460edc770f53981c9aa82aa2a297af619cabf"]
+  },
   "inevm": {
     "validators": [
       "0x52a0376903294c796c091c785a66c62943d99aa8",
