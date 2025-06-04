@@ -70,7 +70,7 @@ impl Entrypoint for DispatcherEntrypoint {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
@@ -91,13 +91,13 @@ mod tests {
         transaction::*,
     };
 
-    struct MockDb {
+    pub struct MockDb {
         // need arcmutex for interior mutability
         payloads: Arc<Mutex<HashMap<PayloadId, FullPayload>>>,
     }
 
     impl MockDb {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 payloads: Arc::new(Mutex::new(HashMap::new())),
             }

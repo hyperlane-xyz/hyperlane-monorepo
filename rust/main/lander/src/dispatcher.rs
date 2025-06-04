@@ -3,7 +3,7 @@
 
 mod core;
 mod db;
-mod entrypoint;
+pub mod entrypoint;
 mod metrics;
 mod stages;
 #[cfg(test)]
