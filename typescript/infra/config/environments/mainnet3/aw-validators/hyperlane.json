@@ -71,6 +71,9 @@
   "boba": {
     "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
   },
+  "botanix": {
+    "validators": ["0xc944176bc4d4e5c7b0598884478a27a2b1904664"]
+  },
   "bouncebit": {
     "validators": ["0xaf38612d1e79ec67320d21c5f7e92419427cd154"]
   },
@@ -222,6 +225,9 @@
   },
   "kaia": {
     "validators": ["0x9de0b3abb221d19719882fa4d61f769fdc2be9a4"]
+  },
+  "katana": {
+    "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
   },
   "kroma": {
     "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
@@ -487,11 +493,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "botanix": {
-    "validators": ["0xc944176bc4d4e5c7b0598884478a27a2b1904664"]
-  },
-  "katana": {
-    "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
   }
 }
