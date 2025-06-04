@@ -36,9 +36,8 @@ use hyperlane_core::{
     MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use submitter::{
-    DatabaseOrPath, DispatcherMetrics, PayloadDispatcher, PayloadDispatcherEntrypoint,
-    PayloadDispatcherSettings,
+use lander::{
+    DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
 use crate::{
@@ -66,6 +65,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -107,8 +107,8 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
-    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>,
-    payload_dispatchers: HashMap<HyperlaneDomain, PayloadDispatcher>,
+    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
+    payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
 }
 
 impl Debug for Relayer {
@@ -225,7 +225,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
-                false,
+                ADVANCED_LOG_META,
                 settings.tx_id_indexing_enabled,
             )
             .await?
@@ -245,8 +245,8 @@ impl BaseAgent for Relayer {
                         dbs.iter()
                             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                             .collect(),
+                        ADVANCED_LOG_META,
                         false,
-                        settings.tx_id_indexing_enabled,
                     )
                     .await?
                     .into_iter()
@@ -267,8 +267,8 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                ADVANCED_LOG_META,
                 false,
-                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
@@ -942,7 +942,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
-    ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
+    ) -> HashMap<HyperlaneDomain, DispatcherEntrypoint> {
         let entrypoint_futures: Vec<_> = settings
             .destination_chains
             .iter()
@@ -950,7 +950,7 @@ impl Relayer {
             .map(|chain| {
                 (
                     chain.clone(),
-                    PayloadDispatcherSettings {
+                    DispatcherSettings {
                         chain_conf: settings.chains[&chain.to_string()].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
@@ -962,8 +962,7 @@ impl Relayer {
             .map(|(chain, s)| async {
                 (
                     chain,
-                    PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())
-                        .await,
+                    DispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone()).await,
                 )
             })
             .collect();
@@ -990,7 +989,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
-    ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
+    ) -> HashMap<HyperlaneDomain, Dispatcher> {
         let dispatcher_futures: Vec<_> = settings
             .destination_chains
             .iter()
@@ -998,7 +997,7 @@ impl Relayer {
             .map(|chain| {
                 (
                     chain.clone(),
-                    PayloadDispatcherSettings {
+                    DispatcherSettings {
                         chain_conf: settings.chains[&chain.to_string()].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
@@ -1011,8 +1010,7 @@ impl Relayer {
                 let chain_name = chain.to_string();
                 (
                     chain,
-                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone())
-                        .await,
+                    Dispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()).await,
                 )
             })
             .collect();

@@ -410,6 +410,9 @@
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
   },
+  "starknet": {
+    "validators": ["0x61204c987d1121175a74e04d5045ab708aa1489f"]
+  },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
   },

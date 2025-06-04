@@ -3,7 +3,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
@@ -15,11 +14,9 @@ import {
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import { requestAndSaveApiKeys } from '../context/context.js';
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -46,34 +43,12 @@ interface ApplyParams extends DeployParams {
  */
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
-  let chain = params.chain;
-  const {
-    isDryRun,
-    chainMetadata,
-    dryRunChain,
-    registry,
-    skipConfirmation,
-    multiProvider,
-    multiProtocolSigner,
-  } = context;
-
-  // Select a dry-run chain if it's not supplied
-  if (dryRunChain) {
-    chain = dryRunChain;
-  } else if (!chain) {
-    if (skipConfirmation) throw new Error('No chain provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to connect:',
-    );
-  }
+  const chain = params.chain;
+  const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
+    context;
 
   // Validate ISM compatibility
   validateCoreIsmCompatibility(chain, config, context);
-
-  let apiKeys: ChainMap<string> = {};
-  if (!skipConfirmation)
-    apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
   const deploymentParams: DeployParams = {
     context: { ...context },
@@ -102,7 +77,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
         const contractVerifier = new ContractVerifier(
           multiProvider,
-          apiKeys,
+          apiKeys!,
           coreBuildArtifact,
           ExplorerLicenseType.MIT,
         );
@@ -124,6 +99,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.CosmosNative:
       {
+        await multiProtocolSigner?.initSigner(chain);
         const signer =
           multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
         assert(signer, 'Cosmos Native signer failed!');
@@ -189,6 +165,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     case ProtocolType.CosmosNative: {
+      await multiProtocolSigner?.initSigner(chain);
       const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
       assert(signer, 'Cosmos Native signer failed!');
 

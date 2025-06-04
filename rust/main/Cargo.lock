@@ -3706,7 +3706,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -3720,7 +3720,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -3731,7 +3731,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -3749,7 +3749,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -3773,7 +3773,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -3787,7 +3787,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3817,7 +3817,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3833,7 +3833,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3884,7 +3884,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3920,7 +3920,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -3935,6 +3935,7 @@ dependencies = [
  "sha2 0.10.8",
  "spki 0.6.0",
  "thiserror 1.0.63",
+ "tokio",
  "tracing",
 ]
 
@@ -6259,6 +6260,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "lander"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "derive-new",
+ "ethers",
+ "ethers-core",
+ "eyre",
+ "futures-util",
+ "hyperlane-base",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-sealevel",
+ "mockall",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "solana-client",
+ "solana-sdk",
+ "solana-transaction-status",
+ "tempfile",
+ "thiserror 1.0.63",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-test",
+ "uuid 1.11.0",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8331,6 +8363,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-test",
  "itertools 0.12.1",
+ "lander",
  "maplit",
  "mockall",
  "num-derive 0.4.2",
@@ -8344,7 +8377,6 @@ dependencies = [
  "serde_json",
  "sha3 0.10.8",
  "strum 0.26.3",
- "submitter",
  "tempfile",
  "thiserror 1.0.63",
  "tokio",
@@ -11001,37 +11033,6 @@ dependencies = [
  "quote 1.0.37",
  "rustversion",
  "syn 2.0.98",
-]
-
-[[package]]
-name = "submitter"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "derive-new",
- "ethers",
- "ethers-core",
- "eyre",
- "futures-util",
- "hyperlane-base",
- "hyperlane-core",
- "hyperlane-ethereum",
- "hyperlane-sealevel",
- "mockall",
- "prometheus",
- "serde",
- "serde_json",
- "solana-client",
- "solana-sdk",
- "solana-transaction-status",
- "tempfile",
- "thiserror 1.0.63",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "tracing-test",
- "uuid 1.11.0",
 ]
 
 [[package]]
