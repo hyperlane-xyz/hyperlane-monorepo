@@ -4,62 +4,104 @@
 
 use std::sync::Arc;
 
+use ethers::signers::Signer;
+use ethers_core::types::Address;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use hyperlane_ethereum::EvmProviderForLander;
+use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::settings::{ChainConf, SignerConf};
+use hyperlane_core::U256;
+use hyperlane_ethereum::Signers;
 
-use crate::{transaction::Transaction, LanderError};
+use crate::transaction::{Transaction, TransactionId};
+use crate::{LanderError, TransactionStatus};
 
 use super::super::transaction::Precursor;
+use super::db::NonceDb;
+use super::state::{NonceAction, NonceManagerState, NonceStatus};
 
 pub struct NonceManager {
-    tx_in_finality_count: Arc<Mutex<usize>>,
+    address: Address,
+    db: Arc<dyn NonceDb>,
+    state: NonceManagerState,
 }
 
 impl NonceManager {
-    pub fn new() -> Self {
-        Self {
-            tx_in_finality_count: Arc::new(Mutex::new(0usize)),
-        }
+    pub async fn new(chain_conf: &ChainConf, db: Arc<HyperlaneRocksDB>) -> eyre::Result<Self> {
+        let address = Self::address(chain_conf).await?;
+        let db = db as Arc<dyn NonceDb>;
+        let state = NonceManagerState::new();
+
+        Ok(Self { address, db, state })
     }
 
-    pub async fn set_nonce(
-        &self,
-        tx: &mut Transaction,
-        provider: &Box<dyn EvmProviderForLander>,
-    ) -> Result<(), LanderError> {
-        let tx_id = tx.id.to_string();
+    pub async fn update_nonce_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
+        self.state.update_nonce_status(tx, tx_status).await;
+    }
+
+    async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
+        let signer_conf = chain_conf
+            .signer
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("Signer configuration is missing"))?;
+        let signer: Signers = signer_conf.build().await?;
+        let address = signer.address();
+        Ok(address)
+    }
+
+    pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        let tx_id = tx.id.clone();
+
         let precursor = tx.precursor_mut();
 
-        if precursor.tx.nonce().is_some() {
-            return Ok(());
-        }
-
-        let address = *precursor.tx.from().ok_or(LanderError::TxSubmissionError(
+        let from = *precursor.tx.from().ok_or(LanderError::TxSubmissionError(
             "Transaction missing address".to_string(),
         ))?;
-        let nonce = provider.get_next_nonce_on_finalized_block(&address).await?;
 
-        let next_nonce = nonce + self.get_tx_in_finality_count().await as u64;
+        if from != self.address {
+            return Err(LanderError::TxSubmissionError(
+                "Transaction from address does not match nonce manager address".to_string(),
+            ));
+        }
+
+        if let Some(nonce) = precursor.tx.nonce() {
+            let nonce: U256 = nonce.into();
+            let action = self.state.validate_assigned_nonce(&nonce).await;
+            if matches!(action, NonceAction::Noop) {
+                let assigned_tx_id = self
+                    .db
+                    .retrieve_tx_id_by_nonce_and_signer_address(&nonce, &self.address.to_string())
+                    .await?;
+
+                if let Some(assigned_tx_id) = assigned_tx_id {
+                    if assigned_tx_id == tx_id {
+                        return Ok(());
+                    }
+                }
+            };
+        }
+
+        let next_nonce = self.state.identify_next_nonce().await;
+
+        self.db
+            .store_tx_id_by_nonce_and_signer_address(&next_nonce, &self.address.to_string(), &tx_id)
+            .await?;
+
+        self.state
+            .insert_nonce_status(&next_nonce, NonceStatus::Taken)
+            .await;
 
         precursor.tx.set_nonce(next_nonce);
+
         info!(
             nonce = next_nonce.to_string(),
-            address = ?address,
+            address = ?from,
             ?tx_id,
             precursor = ?precursor,
             "Set nonce for transaction"
         );
 
         Ok(())
-    }
-
-    pub async fn set_tx_in_finality_count(&self, count: usize) {
-        *self.tx_in_finality_count.lock().await = count;
-    }
-
-    async fn get_tx_in_finality_count(&self) -> usize {
-        *self.tx_in_finality_count.lock().await
     }
 }

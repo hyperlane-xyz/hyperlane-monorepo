@@ -6,6 +6,7 @@ use std::sync::Arc;
 use eyre::Result;
 
 use hyperlane_base::{
+    db::HyperlaneRocksDB,
     settings::{ChainConf, ChainConnectionConf, RawChainConf},
     CoreMetrics,
 };
@@ -22,10 +23,11 @@ impl AdapterFactory {
         conf: &ChainConf,
         raw_conf: &RawChainConf,
         metrics: &CoreMetrics,
+        db: Arc<HyperlaneRocksDB>,
     ) -> Result<Arc<dyn AdaptsChain>> {
         let adapter: Arc<dyn AdaptsChain> = match conf.connection.clone() {
             ChainConnectionConf::Ethereum(connection_conf) => Arc::new(
-                EthereumAdapter::new(conf.clone(), connection_conf, raw_conf.clone(), metrics)
+                EthereumAdapter::new(conf.clone(), connection_conf, raw_conf.clone(), db, metrics)
                     .await?,
             ),
             ChainConnectionConf::Fuel(_) => todo!(),
