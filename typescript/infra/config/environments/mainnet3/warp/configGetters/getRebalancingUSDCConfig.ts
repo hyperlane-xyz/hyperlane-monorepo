@@ -7,7 +7,7 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getRegistry as getMainnet3Registry } from '../../chains.js';
+import { getRegistry } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { DEPLOYER } from '../../owners.js';
@@ -25,11 +25,12 @@ export const getRebalancingUSDCConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const registry = await getMainnet3Registry();
-  const mainnetCCTP = await registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
+  const registry = getRegistry();
+  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
+
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
-  const metadata = await registry.getMetadata();
+  const metadata = registry.getMetadata();
 
   const cctpBridges = Object.fromEntries(
     mainnetCCTP.tokens.map(({ chainName, addressOrDenom }) => [
