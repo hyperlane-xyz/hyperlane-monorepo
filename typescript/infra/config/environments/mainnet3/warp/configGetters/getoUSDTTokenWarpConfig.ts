@@ -11,9 +11,10 @@ import {
   XERC20LimitConfig,
   XERC20TokenExtraBridgesLimits,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { ousdtSafes } from '../../governance/safe/ousdt.js';
 import { DEPLOYER } from '../../owners.js';
@@ -106,11 +107,12 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   hashkey: lowerRateLimitPerSecond,
 };
 
-const DEPLOYER_OWNED_CHAINS: oUSDTTokenChainName[] = ['bob', 'hashkey'];
+const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = ['bob', 'hashkey'];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
-    if (DEPLOYER_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
-      acc[chain] = DEPLOYER;
+    if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
+      assert(awIcas[chain], `ICA for ${chain} not found`);
+      acc[chain] = awIcas[chain];
     } else {
       acc[chain] = ousdtSafes[chain] ?? awSafes[chain] ?? DEPLOYER;
     }
