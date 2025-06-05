@@ -83,13 +83,6 @@ function verifyDecimalsAndScale(
     Record<string, Partial<HypTokenRouterVirtualConfig>>,
 ): boolean {
   let valid = true;
-  Object.entries(warpRouteConfig).forEach(([chain, config]) => {
-    if (config.decimals !== undefined && config.decimals === 0) {
-      logRed(`Decimals, if defined, must not be zero for ${chain}`);
-      valid = false;
-    }
-  });
-
   if (!verifyScale(warpRouteConfig)) {
     logRed(`Found invalid or missing scale for inconsistent decimals`);
     valid = false;
