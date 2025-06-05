@@ -16,7 +16,7 @@ members = [
   "hyperlane-core",
   "hyperlane-metric",
   "hyperlane-test",
-  "submitter",
+  "lander",
   "utils/abigen",
   "utils/backtrace-oneline",
   "utils/crypto",
