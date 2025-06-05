@@ -162,6 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -314,6 +315,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -466,6 +468,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -607,6 +610,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         destinationDomain: getDomainId('solanamainnet'),
       },
       { originDomain: getDomainId('starknet') },
+      { originDomain: getDomainId('paradex') },
     ],
   },
   {
@@ -824,7 +828,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '3a58caa-20250604-135609',
+      tag: '76fbe71-20250605-134618',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -835,7 +839,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6e9f822-20250604-173142',
+      tag: '76fbe71-20250605-134618',
     },
     resources: scraperResources,
   },
@@ -850,7 +854,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6e9f822-20250604-173142',
+      tag: '76fbe71-20250605-134618',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
