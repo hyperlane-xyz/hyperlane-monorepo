@@ -14,7 +14,6 @@ use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
 
 use super::super::transaction::Precursor;
-use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState, NonceStatus};
 use super::updater::NonceUpdater;
 
@@ -50,6 +49,9 @@ impl NonceManager {
     }
 
     pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        use NonceAction::{AssignNew, FreeAndAssignNew, Noop};
+        use NonceStatus::{Committed, Free, Taken};
+
         let tx_uuid = tx.uuid.clone();
 
         let precursor = tx.precursor_mut();
@@ -69,13 +71,11 @@ impl NonceManager {
             let action = self.state.validate_assigned_nonce(&nonce, &tx_uuid).await;
 
             match action {
-                NonceAction::Noop => return Ok(()),
-                NonceAction::AssignNew => {}
-                NonceAction::FreeAndAssignNew => {
+                Noop => return Ok(()),
+                AssignNew => {}
+                FreeAndAssignNew => {
                     // If we need to free the nonce, we do so.
-                    self.state
-                        .insert_nonce_status(&nonce, NonceStatus::Free)
-                        .await;
+                    self.state.insert_nonce_status(nonce, Free).await;
                 }
             }
         }
@@ -83,7 +83,7 @@ impl NonceManager {
         let next_nonce = self.state.identify_next_nonce().await;
 
         self.state
-            .insert_nonce_status(&next_nonce, NonceStatus::Taken(tx_uuid.clone()))
+            .insert_nonce_status(next_nonce, Taken(tx_uuid.clone()))
             .await;
 
         precursor.tx.set_nonce(next_nonce);
@@ -104,7 +104,32 @@ impl NonceManager {
         tx: &Transaction,
         tx_status: &TransactionStatus,
     ) {
-        self.state.update_nonce_status(tx, tx_status).await;
+        let tx_uuid = &tx.uuid;
+        let precursor = tx.precursor();
+
+        let Some(nonce) = precursor.tx.nonce().map(Into::into) else {
+            return;
+        };
+
+        let nonce_status = Self::calculate_nonce_status(tx_uuid.clone(), tx_status);
+
+        self.state
+            .update_nonce_status(nonce, nonce_status, tx_uuid)
+            .await;
+    }
+
+    fn calculate_nonce_status(
+        tx_uuid: TransactionUuid,
+        tx_status: &TransactionStatus,
+    ) -> NonceStatus {
+        use NonceStatus::{Committed, Free, Taken};
+        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
+
+        match tx_status {
+            PendingInclusion | Mempool | Included => Taken(tx_uuid),
+            Finalized => Committed(tx_uuid),
+            Dropped(_) => Free,
+        }
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
@@ -117,3 +142,6 @@ impl NonceManager {
         Ok(address)
     }
 }
+
+#[cfg(test)]
+mod tests;
