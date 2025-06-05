@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/core": major
+"@hyperlane-xyz/core": minor
 ---
 
 Add call commitments (shielded calls) to ICA Router

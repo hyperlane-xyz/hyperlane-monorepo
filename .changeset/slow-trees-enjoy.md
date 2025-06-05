@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/core": major
+"@hyperlane-xyz/core": minor
 ---
 
 Add multiple TokenBridge contracts
