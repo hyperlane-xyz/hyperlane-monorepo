@@ -685,10 +685,11 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        let contract_call = self.contract.process(
+        let mut contract_call = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
+        contract_call.tx.set_chain_id(self.domain.id());
         let data = (contract_call.tx, contract_call.function);
         serde_json::to_vec(&data).map_err(Into::into)
     }

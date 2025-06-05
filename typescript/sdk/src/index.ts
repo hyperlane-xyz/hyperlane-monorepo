@@ -60,6 +60,7 @@ export {
 export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
+export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
 export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
@@ -120,6 +121,7 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { executeWarpDeploy } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
@@ -180,8 +182,9 @@ export {
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
 } from './hook/types.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
 export { decodeIsmMetadata } from './ism/metadata/decode.js';
@@ -220,9 +223,10 @@ export {
 } from './ism/types.js';
 export {
   collectValidators,
-  moduleCanCertainlyVerify,
-  isStaticDeploymentSupported,
   isIsmCompatible,
+  isStaticDeploymentSupported,
+  isStaticIsm,
+  moduleCanCertainlyVerify,
 } from './ism/utils.js';
 export {
   AgentChainMetadata,
@@ -362,6 +366,10 @@ export {
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   SolanaWeb3TransactionReceipt,
+  StarknetJsContract,
+  StarknetJsProvider,
+  StarknetJsTransaction,
+  StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
@@ -439,14 +447,24 @@ export {
   EV5InterchainAccountTxTransformerPropsSchema,
 } from './providers/transactions/transformer/ethersV5/types.js';
 
-export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export {
+  HyperlaneCCIPDeployer,
+  HyperlaneCCIPDeployer,
+} from './ccip/HyperlaneCCIPDeployer.js';
 export {
   CCIPContractCache,
+  CCIPContractCache,
+  getCCIPChains,
   getCCIPChains,
   getCCIPChainSelector,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
+  getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
+export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
+export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -463,18 +481,18 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { EvmHookModule } from './hook/EvmHookModule.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
+export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
-  IcaRouterConfig as InterchainAccountConfig,
   IcaRouterConfigSchema,
+  IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
+export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,
@@ -568,8 +586,8 @@ export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
-  expandWarpDeployConfig,
   expandVirtualWarpDeployConfig,
+  expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
@@ -597,6 +615,7 @@ export {
   TokenConnectionConfigSchema,
   TokenConnectionType,
 } from './token/TokenConnection.js';
+export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
@@ -612,15 +631,22 @@ export {
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
+  CctpTokenConfig,
+  CctpTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,
   CollateralTokenConfig,
   CollateralTokenConfigSchema,
+  derivedHookAddress,
+  derivedIsmAddress,
+  DerivedTokenRouterConfig,
+  DerivedWarpRouteDeployConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterConfig,
-  HypTokenRouterConfigSchema,
   HypTokenRouterConfigMailboxOptional,
   HypTokenRouterConfigMailboxOptionalSchema,
+  HypTokenRouterConfigSchema,
+  HypTokenRouterVirtualConfig,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
@@ -634,19 +660,12 @@ export {
   SyntheticRebaseTokenConfigSchema,
   SyntheticTokenConfig,
   SyntheticTokenConfigSchema,
-  CctpTokenConfig,
-  CctpTokenConfigSchema,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
-  derivedHookAddress,
-  derivedIsmAddress,
-  DerivedTokenRouterConfig,
-  DerivedWarpRouteDeployConfig,
-  HypTokenRouterVirtualConfig,
-  WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
+  WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   XERC20LimitConfig,
   XERC20TokenMetadata,
@@ -665,6 +684,7 @@ export {
   OwnableSchema,
   PausableConfig,
   PausableSchema,
+  ProtocolMap,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
@@ -681,7 +701,6 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
@@ -696,6 +715,14 @@ export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
 } from './utils/sealevelSerialization.js';
+export {
+  getStarknetContract,
+  getStarknetEtherContract,
+  getStarknetHypERC20CollateralContract,
+  getStarknetHypERC20Contract,
+  getStarknetMailboxContract,
+  StarknetContractName,
+} from './utils/starknet.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
 export {
   getValidatorFromStorageLocation,

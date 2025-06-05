@@ -21,12 +21,12 @@ use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason,
 };
-use submitter::{
-    Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId, PayloadStatus, SubmitterError,
+use lander::{
+    DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId, PayloadStatus,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::message_retry::MessageRetryRequest;
+use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
@@ -100,7 +100,7 @@ pub struct SerialSubmitter {
     prepare_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
-    payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+    payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
 }
 
@@ -114,7 +114,7 @@ impl SerialSubmitter {
         max_batch_size: u32,
         max_submit_queue_len: Option<u32>,
         task_monitor: TaskMonitor,
-        payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+        payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
         db: HyperlaneRocksDB,
     ) -> Self {
         let prepare_queue = OpQueue::new(
@@ -171,20 +171,14 @@ impl SerialSubmitter {
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
-        let prepare_task = match &entrypoint {
-            None => self.create_classic_prepare_task(),
-            Some(entrypoint) => self.create_lander_prepare_task(entrypoint.clone()),
-        };
+        let prepare_task = self.create_classic_prepare_task();
 
         let submit_task = match &entrypoint {
             None => self.create_classic_submit_task(),
             Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = match &entrypoint {
-            None => self.create_classic_confirm_task(),
-            Some(entrypoint) => self.create_lander_confirm_task(entrypoint.clone()),
-        };
+        let confirm_task = self.create_classic_confirm_task();
 
         let tasks = [
             self.create_receive_task(rx_prepare),
@@ -196,7 +190,7 @@ impl SerialSubmitter {
         if let Err(err) = try_join_all(tasks).await {
             error!(
                 error=?err,
-                domain=?self.domain,
+                domain=?self.domain.name(),
                 "SerialSubmitter task panicked for domain"
             );
         }
@@ -270,10 +264,8 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_prepare_task(
-        &self,
-        entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    ) -> JoinHandle<()> {
+    #[allow(unused)]
+    fn create_lander_prepare_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
         let name = Self::task_name("prepare_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -294,10 +286,7 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_submit_task(
-        &self,
-        entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    ) -> JoinHandle<()> {
+    fn create_lander_submit_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
         let name = Self::task_name("submit_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -317,10 +306,8 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_confirm_task(
-        &self,
-        entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    ) -> JoinHandle<()> {
+    #[allow(unused)]
+    fn create_lander_confirm_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
         let name = Self::task_name("confirm_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -397,7 +384,7 @@ async fn prepare_classic_task(
 #[instrument(skip_all, fields(%domain))]
 #[allow(clippy::too_many_arguments)]
 async fn prepare_lander_task(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
     submit_queue: OpQueue,
@@ -442,7 +429,7 @@ async fn prepare_lander_task(
 /// If the payload is not dropped, the operation is pushed to the confirmation queue.
 /// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
 async fn confirm_already_submitted_operations(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
@@ -463,7 +450,7 @@ async fn confirm_already_submitted_operations(
 }
 
 async fn has_operation_been_submitted(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> bool {
@@ -617,7 +604,7 @@ async fn submit_classic_task(
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(domain=%_domain))]
 async fn submit_lander_task(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -645,7 +632,7 @@ async fn submit_lander_task(
 
 async fn submit_via_lander(
     op: QueueOperation,
-    entrypoint: &Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: &Arc<DispatcherEntrypoint>,
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
@@ -824,7 +811,7 @@ async fn confirm_classic_task(
 
 #[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
@@ -945,7 +932,7 @@ async fn confirm_lander_task(
 }
 
 fn filter_status_results(
-    status_results: Vec<(PayloadId, Result<PayloadStatus, SubmitterError>)>,
+    status_results: Vec<(PayloadId, Result<PayloadStatus, LanderError>)>,
 ) -> Vec<(PayloadId, PayloadStatus)> {
     status_results
         .into_iter()

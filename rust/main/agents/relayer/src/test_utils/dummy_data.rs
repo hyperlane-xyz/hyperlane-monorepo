@@ -42,6 +42,7 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
         }),
         metrics_conf: Default::default(),
         index: Default::default(),
+        ignore_reorg_reports: false,
     }
 }
 
@@ -76,6 +77,8 @@ pub fn dummy_metadata_builder(
         db.clone(),
         IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+        None,
+        false,
     )
 }
 
