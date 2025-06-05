@@ -26,7 +26,6 @@ env:
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
   YARN_ENABLE_GLOBAL_CACHE: false
-  YARN_ENABLE_SCRIPTS: false
   YARN_NODE_LINKER: pnp
 
 jobs:
