@@ -264,8 +264,8 @@ impl BaseAgent for Validator {
                     }
                     break;
                 }
-                Err(e) => {
-                    error!(?e, "Error getting merkle tree hook count");
+                Err(err) => {
+                    error!(?err, "Error getting merkle tree hook count");
                     sleep(self.interval).await;
                 }
             }
