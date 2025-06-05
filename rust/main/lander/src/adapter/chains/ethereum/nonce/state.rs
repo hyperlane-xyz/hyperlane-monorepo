@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 
 use hyperlane_core::U256;
 
-use crate::transaction::Transaction;
+use crate::transaction::{Transaction, TransactionUuid};
 use crate::TransactionStatus;
 
 use super::super::transaction::Precursor;
@@ -15,9 +15,9 @@ pub(crate) enum NonceStatus {
     /// The nonce which we track, but is not currently assigned to any transaction.
     Free,
     /// The nonce is currently assigned to a transaction that is not yet finalised.
-    Taken,
+    Taken(TransactionUuid),
     /// The nonce is assigned to a transaction that has been finalised.
-    Committed,
+    Committed(TransactionUuid),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -87,15 +87,19 @@ impl NonceManagerState {
         let nonce = precursor.tx.nonce();
         if let Some(nonce) = nonce {
             let nonce_status = match tx_status {
-                PendingInclusion | Mempool | Included => Taken,
-                Finalized => Committed,
+                PendingInclusion | Mempool | Included => Taken(tx.uuid.clone()),
+                Finalized => Committed(tx.uuid.clone()),
                 Dropped(_) => Free,
             };
             self.insert_nonce_status(&nonce.into(), nonce_status).await;
         }
     }
 
-    pub(crate) async fn validate_assigned_nonce(&self, nonce: &U256) -> NonceAction {
+    pub(crate) async fn validate_assigned_nonce(
+        &self,
+        nonce: &U256,
+        tx_uuid: &TransactionUuid,
+    ) -> NonceAction {
         use NonceAction::{Noop, Reassign};
         use NonceStatus::{Committed, Free, Taken};
 
@@ -105,8 +109,9 @@ impl NonceManagerState {
         if let Some(status) = nonce_status {
             match status {
                 Free => Reassign,
-                Taken if nonce < &lowest_nonce => Reassign,
-                Taken | Committed => Noop,
+                Taken(_) if nonce < &lowest_nonce => Reassign,
+                Taken(uuid) | Committed(uuid) if &uuid != tx_uuid => Reassign,
+                Taken(_) | Committed(_) => Noop,
             }
         } else {
             Reassign

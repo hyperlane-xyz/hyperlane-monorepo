@@ -70,7 +70,7 @@ impl NonceManager {
 
         if let Some(nonce) = precursor.tx.nonce() {
             let nonce: U256 = nonce.into();
-            let action = self.state.validate_assigned_nonce(&nonce).await;
+            let action = self.state.validate_assigned_nonce(&nonce, &tx_uuid).await;
             if matches!(action, NonceAction::Noop) {
                 let assigned_tx_uuid = self
                     .db
@@ -96,7 +96,7 @@ impl NonceManager {
             .await?;
 
         self.state
-            .insert_nonce_status(&next_nonce, NonceStatus::Taken)
+            .insert_nonce_status(&next_nonce, NonceStatus::Taken(tx_uuid.clone()))
             .await;
 
         precursor.tx.set_nonce(next_nonce);
