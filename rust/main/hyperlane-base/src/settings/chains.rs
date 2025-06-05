@@ -998,13 +998,8 @@ impl ChainConf {
                     Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::Sovereign(conf) => {
-                info!("Build Sov R-ISM");
-                let signer = self.sovereign_signer().await.context(ctx)?;
-                let routing_ism =
-                    h_sovereign::SovereignRoutingIsm::new(&conf.clone(), locator.clone(), signer)
-                        .await?;
-                Ok(Box::new(routing_ism) as Box<dyn RoutingIsm>)
+            ChainConnectionConf::Sovereign(_) => {
+                Err(eyre!("Sovereign does not support routing ISM")).context(ctx)
             }
         }
         .context(ctx)
