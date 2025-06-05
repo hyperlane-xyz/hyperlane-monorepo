@@ -29,8 +29,8 @@ impl SovereignMailboxIndexer {
         locator: ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let mailbox = SovereignMailbox::new(&conf, locator.clone(), signer).await?;
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await?;
+        let mailbox = SovereignMailbox::new(&conf, locator.clone(), signer.clone()).await?;
+        let provider = SovereignProvider::new(locator.domain.clone(), &conf, signer).await?;
 
         Ok(SovereignMailboxIndexer {
             _mailbox: mailbox,

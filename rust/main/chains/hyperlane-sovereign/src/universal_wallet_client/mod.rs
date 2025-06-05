@@ -12,12 +12,13 @@ use serde_json::{json, Value};
 use sov_universal_wallet::schema::{RollupRoots, Schema};
 use tokio::time::{timeout_at, Instant};
 
-mod crypto;
 mod tx_state;
 mod types;
 pub mod utils;
 
 use types::TxStatus;
+
+use crate::Signer;
 
 /// A `UnversalClient` for interacting with the Universal Wallet.
 #[derive(Clone, Debug)]
@@ -26,14 +27,12 @@ pub struct UniversalClient {
     chain_hash: [u8; 32],
     chain_id: u64,
     http_client: Client,
-    crypto: crypto::Crypto,
-    #[allow(dead_code)]
-    address: String,
+    signer: Signer,
 }
 
 impl UniversalClient {
     /// Create a new `UniversalClient`.
-    async fn new(api_url: &str, crypto: crypto::Crypto, chain_id: u64) -> anyhow::Result<Self> {
+    pub async fn new(api_url: &str, signer: Signer, chain_id: u64) -> anyhow::Result<Self> {
         let http_client = ClientBuilder::default().build()?;
         let mut schema = Self::fetch_schema(api_url, &http_client).await?;
 
@@ -42,8 +41,7 @@ impl UniversalClient {
             chain_hash: schema.chain_hash()?,
             chain_id,
             http_client,
-            address: crypto.address()?,
-            crypto,
+            signer,
         })
     }
 
@@ -117,14 +115,17 @@ impl UniversalClient {
             utx_bytes.extend_from_slice(&self.chain_hash);
         }
 
-        let signature = self.crypto.sign(&utx_bytes);
+        let signature = self.signer.sign(&utx_bytes);
 
         if let Some(obj) = utx_json.as_object_mut() {
-            obj.insert("signature".to_string(), json!({"msg_sig": signature}));
+            obj.insert(
+                "signature".to_string(),
+                json!({ "msg_sig": signature.to_bytes().to_vec() }),
+            );
             obj.insert(
                 "pub_key".to_string(),
                 json!({
-                    "pub_key": self.crypto.public_key()
+                    "pub_key": self.signer.public_key().to_bytes()
                 }),
             );
         }

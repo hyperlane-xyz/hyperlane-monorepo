@@ -16,19 +16,17 @@ use serde::Deserialize;
 /// Struct that retrieves event data for a Sovereign Mailbox contract.
 #[derive(Debug, Clone)]
 pub struct SovereignMerkleTreeHookIndexer {
-    provider: Box<SovereignProvider>,
+    provider: SovereignProvider,
 }
 
 impl SovereignMerkleTreeHookIndexer {
     pub async fn new(
         conf: ConnectionConf,
         locator: ContractLocator<'_>,
-        _signer: Option<Signer>,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await?;
-        Ok(SovereignMerkleTreeHookIndexer {
-            provider: Box::new(provider),
-        })
+        let provider = SovereignProvider::new(locator.domain.clone(), &conf, signer).await?;
+        Ok(SovereignMerkleTreeHookIndexer { provider })
     }
 }
 

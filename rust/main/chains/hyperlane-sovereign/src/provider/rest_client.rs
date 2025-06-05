@@ -1,5 +1,5 @@
 use crate::universal_wallet_client::{utils, UniversalClient};
-use crate::ConnectionConf;
+use crate::{ConnectionConf, Signer};
 use bech32::{Bech32m, Hrp};
 use bytes::Bytes;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -172,24 +172,15 @@ impl SovereignRestClient {
     }
 
     /// Create a new Rest client for the Sovereign Hyperlane chain.
-    pub async fn new(conf: &ConnectionConf) -> ChainResult<Self> {
+    pub async fn new(conf: &ConnectionConf, signer: Signer) -> ChainResult<Self> {
         let universal_wallet_client =
-            utils::get_universal_client(conf.url.as_str(), conf.chain_id).await?;
-        Ok(SovereignRestClient {
-            url: conf.url.clone(),
-            client: Client::new(),
-            universal_wallet_client,
-        })
-    }
-
-    /// Create a new Rest client for the Sovereign Hyperlane chain.
-    pub async fn new_with_key(
-        conf: &ConnectionConf,
-        chain_id: u64,
-        key_bytes: [u8; 32],
-    ) -> ChainResult<Self> {
-        let universal_wallet_client =
-            utils::get_universal_client_with_key(conf.url.as_str(), chain_id, key_bytes).await?;
+            UniversalClient::new(conf.url.as_str(), signer, conf.chain_id)
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to create Universal Client: {e:?}"
+                    ))
+                })?;
         Ok(SovereignRestClient {
             url: conf.url.clone(),
             client: Client::new(),

@@ -1,8 +1,3 @@
-use crate::{
-    indexer::SovIndexer,
-    rest_client::{SovereignRestClient, TxEvent},
-    ConnectionConf, Signer, SovereignProvider,
-};
 use async_trait::async_trait;
 use core::ops::RangeInclusive;
 use hyperlane_core::{
@@ -12,20 +7,26 @@ use hyperlane_core::{
 };
 use serde::Deserialize;
 
+use crate::indexer::SovIndexer;
+use crate::rest_client::{SovereignRestClient, TxEvent};
+use crate::{ConnectionConf, Signer, SovereignProvider};
+
 /// A reference to a `InterchainGasPaymasterIndexer` contract on some Sovereign chain
 #[derive(Debug, Clone)]
 pub struct SovereignInterchainGasPaymasterIndexer {
-    provider: Box<SovereignProvider>,
+    provider: SovereignProvider,
 }
 
 impl SovereignInterchainGasPaymasterIndexer {
     /// Create a new `SovereignInterchainGasPaymasterIndexer`.
-    pub async fn new(conf: ConnectionConf, locator: ContractLocator<'_>) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await?;
+    pub async fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator<'_>,
+        signer: Option<Signer>,
+    ) -> ChainResult<Self> {
+        let provider = SovereignProvider::new(locator.domain.clone(), &conf, signer).await?;
 
-        Ok(SovereignInterchainGasPaymasterIndexer {
-            provider: Box::new(provider),
-        })
+        Ok(SovereignInterchainGasPaymasterIndexer { provider })
     }
 }
 

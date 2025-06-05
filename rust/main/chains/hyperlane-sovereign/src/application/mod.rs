@@ -7,8 +7,9 @@ use hyperlane_operation_verifier::{
 use hyperlane_warp_route::TokenMessage;
 use std::io::Cursor;
 
+use crate::signers::SOV_HEX_ADDRESS_LEADING_ZEROS;
+
 const WARP_ROUTE_MARKER: &str = "/";
-const SOV_ADDRESS_LEADING_ZEROS_COUNT: usize = 4;
 
 /// Application operation verifier for Sovereign
 #[derive(new)]
@@ -61,6 +62,6 @@ fn has_enough_leading_zeroes(address: H256) -> bool {
     address
         .as_bytes()
         .iter()
-        .take(SOV_ADDRESS_LEADING_ZEROS_COUNT)
+        .take(SOV_HEX_ADDRESS_LEADING_ZEROS)
         .all(|b| *b == 0)
 }

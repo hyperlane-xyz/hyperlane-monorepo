@@ -1,55 +1,9 @@
-use crate::universal_wallet_client::{crypto, UniversalClient};
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, Encode, HyperlaneMessage, SignedType, H256,
 };
 use serde_json::{json, Value};
-use std::env;
-use tokio::fs;
 
-async fn key_from_key_file(key_file_path: &str) -> ChainResult<[u8; 32]> {
-    let data = fs::read_to_string(key_file_path).await.map_err(|e| {
-        ChainCommunicationError::CustomError(format!(
-            "Failed to read file at {key_file_path}: {e:?}"
-        ))
-    })?;
-    let outer_value: serde_json::Value = serde_json::from_str(&data)?;
-    let inner_value = outer_value["private_key"]["key_pair"].clone();
-    let bytes: [u8; 32] = serde_json::from_value(inner_value)?;
-    Ok(bytes)
-}
-
-pub async fn get_universal_client(api_url: &str, chain_id: u64) -> ChainResult<UniversalClient> {
-    let key = "TOKEN_KEY_FILE";
-    let key_file = env::var(key).map_err(|e| {
-        ChainCommunicationError::CustomError(format!(
-            "Environment variable {key} does not exist: {e:?}"
-        ))
-    })?;
-    let key_bytes = key_from_key_file(&key_file).await?;
-    get_universal_client_with_key(api_url, chain_id, key_bytes).await
-}
-
-pub async fn get_universal_client_with_key(
-    api_url: &str,
-    chain_id: u64,
-    key_bytes: [u8; 32],
-) -> ChainResult<UniversalClient> {
-    let crypto = crypto::Crypto {
-        private_key: crypto::PrivateKey::Ed25519(key_bytes.into()),
-        hasher: crypto::Hasher::Sha256,
-        address_type: crypto::Address::Bech32m {
-            size_bytes: 28,
-            hrp: bech32::Hrp::parse("sov").unwrap(),
-        },
-    };
-    UniversalClient::new(api_url, crypto.clone(), chain_id)
-        .await
-        .map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Failed to create Universal Client: {e:?}"
-            ))
-        })
-}
+use crate::universal_wallet_client::UniversalClient;
 
 pub async fn get_simulate_json_query(
     message: &HyperlaneMessage,

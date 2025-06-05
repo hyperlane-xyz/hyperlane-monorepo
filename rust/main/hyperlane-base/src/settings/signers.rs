@@ -205,6 +205,30 @@ impl ChainSigner for hyperlane_cosmos_native::Signer {
     }
 }
 
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_sovereign::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        // TODO: delete this, see `get_key_override` for more info
+        if let Some(private_key) = hyperlane_sovereign::Signer::get_key_override().await? {
+            Ok(hyperlane_sovereign::Signer::new(&private_key)?)
+        } else if let SignerConf::HexKey { key } = conf {
+            Ok(hyperlane_sovereign::Signer::new(key)?)
+        } else {
+            bail!("{conf:?} key is not supported by Sovereign");
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_sovereign::Signer {
+    fn address_string(&self) -> String {
+        self.address().to_owned()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.h256_address()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ethers::{signers::LocalWallet, utils::hex};
@@ -326,31 +350,5 @@ mod tests {
                 .as_slice(),
         );
         assert_eq!(chain_signer.address_h256(), address_h256);
-    }
-}
-
-#[async_trait]
-impl BuildableWithSignerConf for hyperlane_sovereign::Signer {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            Ok(hyperlane_sovereign::Signer::new(key)?)
-        } else {
-            bail!("{conf:?} key is not supported by Sovereign");
-        }
-    }
-}
-
-impl ChainSigner for hyperlane_sovereign::Signer {
-    fn address_string(&self) -> String {
-        self.address.clone()
-    }
-
-    fn address_h256(&self) -> H256 {
-        let address_bytes =
-            ethers::utils::hex::decode(self.address.strip_prefix("0x").unwrap_or(&self.address))
-                .expect("Failed to decode address from hex");
-        let mut out = [0u8; 32];
-        out[12..].copy_from_slice(&address_bytes);
-        H256::from_slice(&out)
     }
 }

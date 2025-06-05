@@ -303,8 +303,10 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await?;
                 let provider =
-                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, None).await?;
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -703,8 +705,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Sovereign(conf) => {
                 info!("build_interchain_gas_payment_indexer( &self, metrics: &CoreMetrics)");
+                let signer = self.sovereign_signer().await?;
                 let indexer = Box::new(
-                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(conf.clone(), locator)
+                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(conf.clone(), locator, signer)
                         .await?,
                 );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
@@ -1138,6 +1141,12 @@ impl ChainConf {
     }
 
     async fn sovereign_signer(&self) -> Result<Option<h_sovereign::Signer>> {
+        // TODO: delete this, see `get_key_override` for more info
+        if let Some(private_key) = h_sovereign::Signer::get_key_override().await? {
+            let signer = h_sovereign::Signer::new(&private_key)?;
+            return Ok(Some(signer));
+        }
+
         self.signer().await
     }
 

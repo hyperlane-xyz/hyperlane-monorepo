@@ -12,8 +12,6 @@ pub mod rest_client;
 pub struct SovereignProvider {
     domain: HyperlaneDomain,
     client: rest_client::SovereignRestClient,
-    #[allow(dead_code)]
-    signer: Option<Signer>,
 }
 
 impl SovereignProvider {
@@ -23,13 +21,10 @@ impl SovereignProvider {
         conf: &ConnectionConf,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let client = rest_client::SovereignRestClient::new(conf).await?;
+        let signer = signer.ok_or(ChainCommunicationError::SignerUnavailable)?;
+        let client = rest_client::SovereignRestClient::new(conf, signer).await?;
 
-        Ok(Self {
-            domain,
-            client,
-            signer,
-        })
+        Ok(Self { domain, client })
     }
 
     /// Get a rest client.
