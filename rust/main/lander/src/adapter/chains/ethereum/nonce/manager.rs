@@ -20,22 +20,19 @@ use super::updater::NonceUpdater;
 
 pub struct NonceManager {
     pub address: Address,
-    pub db: Arc<dyn NonceDb>,
     pub state: Arc<NonceManagerState>,
-    pub nonce_updater: NonceUpdater,
+    pub _nonce_updater: NonceUpdater,
 }
 
 impl NonceManager {
     pub async fn new(
         chain_conf: &ChainConf,
-        db: Arc<HyperlaneRocksDB>,
         provider: Arc<dyn EvmProviderForLander>,
     ) -> eyre::Result<Self> {
         let address = Self::address(chain_conf).await?;
         let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
         let block_time = chain_conf.estimated_block_time;
 
-        let db = db as Arc<dyn NonceDb>;
         let state = Arc::new(NonceManagerState::new());
 
         let mut nonce_updater =
@@ -45,9 +42,8 @@ impl NonceManager {
 
         let manager = Self {
             address,
-            db,
             state,
-            nonce_updater,
+            _nonce_updater: nonce_updater,
         };
 
         Ok(manager)
@@ -71,29 +67,20 @@ impl NonceManager {
         if let Some(nonce) = precursor.tx.nonce() {
             let nonce: U256 = nonce.into();
             let action = self.state.validate_assigned_nonce(&nonce, &tx_uuid).await;
-            if matches!(action, NonceAction::Noop) {
-                let assigned_tx_uuid = self
-                    .db
-                    .retrieve_tx_uuid_by_nonce_and_signer_address(&nonce, &self.address.to_string())
-                    .await?;
 
-                if let Some(assigned_tx_uuid) = assigned_tx_uuid {
-                    if assigned_tx_uuid == tx_uuid {
-                        return Ok(());
-                    }
+            match action {
+                NonceAction::Noop => return Ok(()),
+                NonceAction::AssignNew => {}
+                NonceAction::FreeAndAssignNew => {
+                    // If we need to free the nonce, we do so.
+                    self.state
+                        .insert_nonce_status(&nonce, NonceStatus::Free)
+                        .await;
                 }
-            };
+            }
         }
 
         let next_nonce = self.state.identify_next_nonce().await;
-
-        self.db
-            .store_tx_uuid_by_nonce_and_signer_address(
-                &next_nonce,
-                &self.address.to_string(),
-                &tx_uuid,
-            )
-            .await?;
 
         self.state
             .insert_nonce_status(&next_nonce, NonceStatus::Taken(tx_uuid.clone()))
@@ -102,7 +89,7 @@ impl NonceManager {
         precursor.tx.set_nonce(next_nonce);
 
         info!(
-            nonce = next_nonce.to_string(),
+            nonce = ?next_nonce,
             address = ?from,
             ?tx_uuid,
             precursor = ?precursor,
