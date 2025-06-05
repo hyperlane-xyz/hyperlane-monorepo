@@ -11,11 +11,11 @@ use tracing::debug;
 
 use crate::{
     payload::{self, FullPayload, PayloadId, PayloadStatus},
-    transaction::TransactionId,
+    transaction::TransactionUuid,
 };
 
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
-const TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX: &str = "transaction_id_by_payload_id_";
+const TRANSACTION_UUID_BY_PAYLOAD_ID_STORAGE_PREFIX: &str = "transaction_uuid_by_payload_id_";
 const PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX: &str = "payload_index_by_id_";
 const PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX: &str = "payload_id_by_index_";
 const HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX: &str = "highest_payload_index_";
@@ -74,16 +74,16 @@ pub trait PayloadDb: Send + Sync {
         Ok(())
     }
 
-    async fn store_tx_id_by_payload_id(
+    async fn store_tx_uuid_by_payload_id(
         &self,
         payload_id: &PayloadId,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 
-    async fn retrieve_tx_id_by_payload_id(
+    async fn retrieve_tx_uuid_by_payload_id(
         &self,
         payload_id: &PayloadId,
-    ) -> DbResult<Option<TransactionId>>;
+    ) -> DbResult<Option<TransactionUuid>>;
 }
 
 #[async_trait]
@@ -119,23 +119,23 @@ impl PayloadDb for HyperlaneRocksDB {
         self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), payload)
     }
 
-    async fn store_tx_id_by_payload_id(
+    async fn store_tx_uuid_by_payload_id(
         &self,
         payload_id: &PayloadId,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()> {
         self.store_value_by_key(
-            TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX,
+            TRANSACTION_UUID_BY_PAYLOAD_ID_STORAGE_PREFIX,
             payload_id,
-            tx_id,
+            tx_uuid,
         )
     }
 
-    async fn retrieve_tx_id_by_payload_id(
+    async fn retrieve_tx_uuid_by_payload_id(
         &self,
         payload_id: &PayloadId,
-    ) -> DbResult<Option<TransactionId>> {
-        self.retrieve_value_by_key(TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX, payload_id)
+    ) -> DbResult<Option<TransactionUuid>> {
+        self.retrieve_value_by_key(TRANSACTION_UUID_BY_PAYLOAD_ID_STORAGE_PREFIX, payload_id)
     }
 
     async fn retrieve_payload_index_by_id(&self, id: &PayloadId) -> DbResult<Option<u32>> {

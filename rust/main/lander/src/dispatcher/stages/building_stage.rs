@@ -74,7 +74,7 @@ impl BuildingStage {
         name = "BuildingStage::handle_tx_building_result",
         fields(
             payloads = ?tx_building_result.payloads,
-            tx_ids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.id.to_string()),
+            tx_uuids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.uuid.to_string()),
         )
     )]
     async fn handle_tx_building_result(

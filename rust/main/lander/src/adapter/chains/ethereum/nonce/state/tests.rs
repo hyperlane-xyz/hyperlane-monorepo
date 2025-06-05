@@ -201,7 +201,7 @@ fn dummy_tx() -> Transaction {
     };
 
     Transaction {
-        id: Default::default(),
+        uuid: Default::default(),
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::Evm(precursor),
         payload_details: vec![],

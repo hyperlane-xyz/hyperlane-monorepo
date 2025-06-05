@@ -115,7 +115,7 @@ impl DispatcherState {
     }
 
     pub(crate) async fn store_tx(&self, tx: &Transaction) {
-        if let Err(err) = self.tx_db.store_transaction_by_id(tx).await {
+        if let Err(err) = self.tx_db.store_transaction_by_uuid(tx).await {
             error!(
                 ?err,
                 payload_details = ?tx.payload_details,
@@ -130,13 +130,13 @@ impl DispatcherState {
         for payload_detail in &tx.payload_details {
             if let Err(err) = self
                 .payload_db
-                .store_tx_id_by_payload_id(&payload_detail.id, &tx.id)
+                .store_tx_uuid_by_payload_id(&payload_detail.id, &tx.uuid)
                 .await
             {
                 error!(
                     ?err,
                     payload_details = ?tx.payload_details,
-                    "Error storing to the payload_id to tx_id mapping in the database"
+                    "Error storing to the payload_id to tx_uuid mapping in the database"
                 );
             }
         }

@@ -7,49 +7,56 @@ use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 
-use crate::transaction::{Transaction, TransactionId};
+use crate::transaction::{Transaction, TransactionUuid};
 
-const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
+const TRANSACTION_BY_UUID_STORAGE_PREFIX: &str = "transaction_by_uuid_";
 
-const TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX: &str = "tx_index_by_id_";
-const TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX: &str = "tx_id_by_index_";
+const TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX: &str = "tx_index_by_uuid_";
+const TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX: &str = "tx_uuid_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
 
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
     /// Retrieve a transaction by its unique ID
-    async fn retrieve_transaction_by_id(&self, id: &TransactionId)
-        -> DbResult<Option<Transaction>>;
+    async fn retrieve_transaction_by_uuid(
+        &self,
+        tx_uuid: &TransactionUuid,
+    ) -> DbResult<Option<Transaction>>;
 
     /// Store a transaction by its unique ID
-    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
+    async fn store_transaction_by_uuid(&self, tx: &Transaction) -> DbResult<()>;
 
     /// Retrieve a transaction's index by its unique ID
-    async fn retrieve_transaction_index_by_id(&self, id: &TransactionId) -> DbResult<Option<u32>>;
+    async fn retrieve_transaction_index_by_uuid(
+        &self,
+        tx_uuid: &TransactionUuid,
+    ) -> DbResult<Option<u32>>;
 
     /// Store a transaction's index by its unique ID
-    async fn store_transaction_index_by_id(
+    async fn store_transaction_index_by_uuid(
         &self,
         index: u32,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 
     /// Retrieve a transaction's unique ID by its index
-    async fn retrieve_transaction_id_by_index(&self, index: u32)
-        -> DbResult<Option<TransactionId>>;
-
-    /// Store a transaction's unique ID by its index
-    async fn store_transaction_id_by_index(
+    async fn retrieve_transaction_uuid_by_index(
         &self,
         index: u32,
-        tx_id: &TransactionId,
+    ) -> DbResult<Option<TransactionUuid>>;
+
+    /// Store a transaction's unique ID by its index
+    async fn store_transaction_uuid_by_index(
+        &self,
+        index: u32,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 
     /// Retrieve a transaction by its index
     async fn retrieve_transaction_by_index(&self, index: u32) -> DbResult<Option<Transaction>> {
-        let id = self.retrieve_transaction_id_by_index(index).await?;
+        let id = self.retrieve_transaction_uuid_by_index(index).await?;
         if let Some(id) = id {
-            self.retrieve_transaction_by_id(&id).await
+            self.retrieve_transaction_by_uuid(&id).await
         } else {
             Ok(None)
         }
@@ -64,56 +71,58 @@ pub trait TransactionDb: Send + Sync {
 
 #[async_trait]
 impl TransactionDb for HyperlaneRocksDB {
-    async fn retrieve_transaction_by_id(
+    async fn retrieve_transaction_by_uuid(
         &self,
-        id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<Option<Transaction>> {
-        self.retrieve_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, id)
+        self.retrieve_value_by_key(TRANSACTION_BY_UUID_STORAGE_PREFIX, tx_uuid)
     }
 
-    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()> {
+    async fn store_transaction_by_uuid(&self, tx: &Transaction) -> DbResult<()> {
         if self
-            .retrieve_transaction_index_by_id(&tx.id)
+            .retrieve_transaction_index_by_uuid(&tx.uuid)
             .await?
             .is_none()
         {
             let highest_index = self.retrieve_highest_index().await?;
             let tx_index = highest_index + 1;
             self.store_highest_index(tx_index).await?;
-            self.store_transaction_index_by_id(tx_index, &tx.id).await?;
-            self.store_transaction_id_by_index(tx_index, &tx.id).await?;
+            self.store_transaction_index_by_uuid(tx_index, &tx.uuid)
+                .await?;
+            self.store_transaction_uuid_by_index(tx_index, &tx.uuid)
+                .await?;
         }
-        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, &tx.id, tx)
+        self.store_value_by_key(TRANSACTION_BY_UUID_STORAGE_PREFIX, &tx.uuid, tx)
     }
 
-    async fn retrieve_transaction_index_by_id(
+    async fn retrieve_transaction_index_by_uuid(
         &self,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, tx_id)
+        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, tx_uuid)
     }
 
-    async fn store_transaction_index_by_id(
+    async fn store_transaction_index_by_uuid(
         &self,
         index: u32,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, tx_id, &index)
+        self.store_value_by_key(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, tx_uuid, &index)
     }
 
-    async fn retrieve_transaction_id_by_index(
+    async fn retrieve_transaction_uuid_by_index(
         &self,
         index: u32,
-    ) -> DbResult<Option<TransactionId>> {
-        self.retrieve_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index)
+    ) -> DbResult<Option<TransactionUuid>> {
+        self.retrieve_value_by_key(TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX, &index)
     }
 
-    async fn store_transaction_id_by_index(
+    async fn store_transaction_uuid_by_index(
         &self,
         index: u32,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index, tx_id)
+        self.store_value_by_key(TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX, &index, tx_uuid)
     }
 
     async fn store_highest_index(&self, index: u32) -> DbResult<()> {
@@ -191,7 +200,7 @@ mod tests {
             let mut tx = dummy_tx(vec![payload.clone()], TransactionStatus::Pending);
 
             // storing to this new tx ID for the first time should create a new
-            db.store_transaction_by_id(&tx).await.unwrap();
+            db.store_transaction_by_uuid(&tx).await.unwrap();
             let expected_index = i + 1;
             let retrieved_tx = db
                 .retrieve_transaction_by_index(expected_index as u32)
@@ -205,7 +214,7 @@ mod tests {
             // storing to this new tx ID again should not create a new
             // highest index
             tx.status = TransactionStatus::Included;
-            db.store_transaction_by_id(&tx).await.unwrap();
+            db.store_transaction_by_uuid(&tx).await.unwrap();
             let retrieved_tx = db
                 .retrieve_transaction_by_index(expected_index as u32)
                 .await

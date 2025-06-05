@@ -21,7 +21,7 @@ use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
     payload::{DropReason, FullPayload, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
 use super::{
@@ -149,7 +149,7 @@ impl FinalityStage {
         skip(tx, pool, building_stage_queue, state),
         name = "FinalityStage::try_process_tx"
         fields(
-            tx_id = ?tx.id,
+            tx_uuid = ?tx.uuid,
             tx_status = ?tx.status,
             payloads = ?tx.payload_details
     ))]
@@ -187,9 +187,9 @@ impl FinalityStage {
             TransactionStatus::Finalized => {
                 // update tx status in db
                 update_tx_status(state, &mut tx, tx_status).await?;
-                let tx_id = tx.id.clone();
-                info!(?tx_id, "Transaction is finalized");
-                let _ = pool.remove(&tx_id).await;
+                let tx_uuid = tx.uuid.clone();
+                info!(?tx_uuid, "Transaction is finalized");
+                let _ = pool.remove(&tx_uuid).await;
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
@@ -240,7 +240,7 @@ impl FinalityStage {
                 // just link the payload to the null tx id
                 state
                     .payload_db
-                    .store_tx_id_by_payload_id(&payload.id, &TransactionId::default())
+                    .store_tx_uuid_by_payload_id(&payload.id, &TransactionUuid::default())
                     .await?;
                 info!(
                     ?payload,
@@ -249,7 +249,7 @@ impl FinalityStage {
                 building_stage_queue.lock().await.push_front(full_payload);
             }
         }
-        let _ = pool.remove(&tx.id).await;
+        let _ = pool.remove(&tx.uuid).await;
         Ok(())
     }
 }
@@ -268,7 +268,7 @@ mod tests {
             PayloadDb, TransactionDb,
         },
         payload::{PayloadDetails, PayloadId},
-        transaction::{Transaction, TransactionId},
+        transaction::{Transaction, TransactionUuid},
     };
     use eyre::Result;
     use std::sync::Arc;
@@ -556,7 +556,7 @@ mod tests {
         // check that the payload and tx dbs were updated
         for tx in txs {
             let tx_from_db = tx_db
-                .retrieve_transaction_by_id(&tx.id)
+                .retrieve_transaction_by_uuid(&tx.uuid)
                 .await
                 .unwrap()
                 .unwrap();

@@ -118,18 +118,18 @@ mod tests {
             Ok(())
         }
 
-        async fn store_tx_id_by_payload_id(
+        async fn store_tx_uuid_by_payload_id(
             &self,
             _payload_id: &PayloadId,
-            _tx_id: &TransactionId,
+            _tx_uuid: &TransactionUuid,
         ) -> DbResult<()> {
             todo!()
         }
 
-        async fn retrieve_tx_id_by_payload_id(
+        async fn retrieve_tx_uuid_by_payload_id(
             &self,
             _payload_id: &PayloadId,
-        ) -> DbResult<Option<TransactionId>> {
+        ) -> DbResult<Option<TransactionUuid>> {
             todo!()
         }
 
@@ -171,21 +171,21 @@ mod tests {
 
     #[async_trait]
     impl TransactionDb for MockDb {
-        async fn retrieve_transaction_by_id(
+        async fn retrieve_transaction_by_uuid(
             &self,
-            _id: &TransactionId,
+            _tx_uuid: &TransactionUuid,
         ) -> DbResult<Option<Transaction>> {
             unimplemented!()
         }
 
-        async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
+        async fn store_transaction_by_uuid(&self, _tx: &Transaction) -> DbResult<()> {
             unimplemented!()
         }
 
-        async fn retrieve_transaction_id_by_index(
+        async fn retrieve_transaction_uuid_by_index(
             &self,
             _index: u32,
-        ) -> DbResult<Option<TransactionId>> {
+        ) -> DbResult<Option<TransactionUuid>> {
             todo!()
         }
 
@@ -197,25 +197,25 @@ mod tests {
             todo!()
         }
 
-        async fn store_transaction_id_by_index(
+        async fn store_transaction_uuid_by_index(
             &self,
             _index: u32,
-            _tx_id: &TransactionId,
+            _tx_uuid: &TransactionUuid,
         ) -> DbResult<()> {
             todo!()
         }
 
-        async fn retrieve_transaction_index_by_id(
+        async fn retrieve_transaction_index_by_uuid(
             &self,
-            _id: &TransactionId,
+            _tx_uuid: &TransactionUuid,
         ) -> DbResult<Option<u32>> {
             todo!()
         }
 
-        async fn store_transaction_index_by_id(
+        async fn store_transaction_index_by_uuid(
             &self,
             _index: u32,
-            _tx_id: &TransactionId,
+            _tx_uuid: &TransactionUuid,
         ) -> DbResult<()> {
             todo!()
         }
