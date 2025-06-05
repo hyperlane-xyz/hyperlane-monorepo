@@ -25,6 +25,9 @@ env:
   TURBO_API: https://cache.depot.dev
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  YARN_ENABLE_GLOBAL_CACHE: false
+  YARN_ENABLE_SCRIPTS: false
+  YARN_NODE_LINKER: pnp
 
 jobs:
   yarn-install:
@@ -39,25 +42,31 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: buildjet/cache@v4
+      - name: Enable corepack
+        run: |
+          corepack enable
+
+      - name: Cache Corepack Yarn installation
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/node/corepack
+          key: corepack-yarn-${{ runner.os }}-${{ hashFiles('**/.yarnrc.yml', '**/package.json') }}
+          restore-keys: |
+            corepack-yarn-${{ runner.os }}-
+
+      - name: Cache yarn packages
+        uses: actions/cache@v4
         with:
           path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+            .yarn/cache
+            .yarn/releases
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1-cache-
+            ${{ runner.os }}-yarn
 
       - name: yarn-install
         run: |
-          yarn install
-          CHANGES=$(git status -s --ignore-submodules)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+          yarn install --immutable
 
       # Check for mismatched dep versions across the monorepo
       - name: syncpack
@@ -79,7 +88,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: lint
         run: yarn lint
@@ -192,7 +200,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
@@ -239,7 +246,6 @@ jobs:
         if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
@@ -325,7 +331,6 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -362,7 +367,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Cosmos SDK e2e tests
         run: yarn --cwd typescript/cosmos-sdk test:e2e
@@ -395,7 +399,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -518,7 +521,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -625,7 +627,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -666,6 +667,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: buildjet
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
