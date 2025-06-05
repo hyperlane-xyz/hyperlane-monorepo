@@ -5,6 +5,7 @@ import {
   ChainMap,
   DeployedOwnableConfig,
   HypERC20Deployer,
+  HypTokenRouterConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -15,6 +16,8 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
+  isCollateralRebaseTokenConfig,
+  resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -115,6 +118,30 @@ export async function readWarpRouteDeployConfig({
   assert(config, `No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
+
+  config = objMap(
+    config as any,
+    (_chain, chainConfig: HypTokenRouterConfig) => {
+      if (!isCollateralRebaseTokenConfig(chainConfig)) {
+        return chainConfig;
+      }
+
+      chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.allowedRebalancingBridges ?? {},
+      );
+      chainConfig.destinationGas = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.destinationGas ?? {},
+      );
+      chainConfig.remoteRouters = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.remoteRouters ?? {},
+      );
+
+      return chainConfig;
+    },
+  );
 
   //fillDefaults would have added a mailbox to the config if it was missing
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);

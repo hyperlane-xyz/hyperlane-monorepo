@@ -43,7 +43,6 @@ import {
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
   let chain2Addresses: ChainAddresses = {};
-  let chain3Metadata: ChainMetadata;
 
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
@@ -53,8 +52,6 @@ describe('hyperlane warp apply owner update tests', async function () {
       CORE_CONFIG_PATH,
       ANVIL_KEY,
     );
-
-    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
     // Create a new warp config using the example
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
@@ -318,56 +315,70 @@ describe('hyperlane warp apply owner update tests', async function () {
     }
   });
 
-  it('should add a new allowed bridge and remove an existing one', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+  const addAndRemoveBridgeTestCases = () => {
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
+    return [
+      [chain3Metadata.domainId, chain3Metadata.domainId],
+      [chain3Metadata.domainId, chain3Metadata.name],
+    ];
+  };
 
-    // Add the first address as rebalancer and then remove it and add the second one
-    const allowedRebalancerBridges = [randomAddress(), randomAddress()].map(
-      normalizeAddressEvm,
-    );
+  for (const [
+    chain3DomainId,
+    domainIdOrChainName,
+  ] of addAndRemoveBridgeTestCases()) {
+    it(`should add a new allowed bridge and remove an existing one for domain ${domainIdOrChainName}`, async () => {
+      const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
 
-    for (const rebalancer of allowedRebalancerBridges) {
-      const anvil2Config: WarpRouteDeployConfig = {
-        anvil2: HypTokenRouterConfigMailboxOptionalSchema.parse({
-          ...warpConfig.anvil1,
-          owner: ANVIL_DEPLOYER_ADDRESS,
-          remoteRouters: {
-            [chain3Metadata.domainId]: { address: randomAddress() },
-          },
-          allowedRebalancingBridges: {
-            [chain3Metadata.domainId]: [{ bridge: rebalancer }],
-          },
-        }),
-      };
-      writeYamlOrJson(warpConfigPath, anvil2Config);
-
-      await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
-
-      const updatedWarpDeployConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2,
-        warpConfigPath,
+      const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_CONFIG_PATH_EXAMPLE,
       );
 
-      assert(
-        updatedWarpDeployConfig.anvil2.type === TokenType.native,
-        `Config on chain ${CHAIN_NAME_2} must be a ${TokenType.native}`,
+      // Add the first address as rebalancer and then remove it and add the second one
+      const allowedRebalancerBridges = [randomAddress(), randomAddress()].map(
+        normalizeAddressEvm,
       );
-      expect(
-        (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
-          chain3Metadata.domainId
-        ].length,
-      ).to.equal(1);
 
-      const [currentRebalancer] =
-        (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
-          chain3Metadata.domainId
-        ] ?? [];
-      expect(currentRebalancer.bridge).to.equal(rebalancer);
-    }
-  });
+      for (const rebalancer of allowedRebalancerBridges) {
+        const anvil2Config: WarpRouteDeployConfig = {
+          anvil2: HypTokenRouterConfigMailboxOptionalSchema.parse({
+            ...warpConfig.anvil1,
+            owner: ANVIL_DEPLOYER_ADDRESS,
+            remoteRouters: {
+              [chain3DomainId]: { address: randomAddress() },
+            },
+            allowedRebalancingBridges: {
+              [domainIdOrChainName]: [{ bridge: rebalancer }],
+            },
+          }),
+        };
+        writeYamlOrJson(warpConfigPath, anvil2Config);
+
+        await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+        const updatedWarpDeployConfig = await readWarpConfig(
+          CHAIN_NAME_2,
+          WARP_CORE_CONFIG_PATH_2,
+          warpConfigPath,
+        );
+
+        assert(
+          updatedWarpDeployConfig.anvil2.type === TokenType.native,
+          `Config on chain ${CHAIN_NAME_2} must be a ${TokenType.native}`,
+        );
+        expect(
+          (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
+            chain3DomainId
+          ].length,
+        ).to.equal(1);
+
+        const [currentRebalancer] =
+          (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
+            chain3DomainId
+          ] ?? [];
+        expect(currentRebalancer.bridge).to.equal(rebalancer);
+      }
+    });
+  }
 });
