@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../isms/libs/AggregationIsmMetadata.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "../../contracts/PackageVersioned.sol";
 
 /**
  * @title StaticAggregationIsm
