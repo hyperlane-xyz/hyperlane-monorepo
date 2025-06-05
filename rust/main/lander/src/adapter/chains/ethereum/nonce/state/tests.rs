@@ -36,7 +36,7 @@ async fn test_update_nonce_status_pending_inclusion() {
     precursor.tx.set_nonce(nonce);
 
     state
-        .update_nonce_status(&tx, &TransactionStatus::PendingInclusion)
+        .update_nonce_status(&tx, &TransactionStatus::Pending)
         .await;
 
     let status = state.get_nonce_status(&nonce).await;
@@ -121,7 +121,7 @@ async fn test_update_nonce_status_no_nonce() {
     let tx = dummy_tx(); // Transaction without an assigned nonce
 
     state
-        .update_nonce_status(&tx, &TransactionStatus::PendingInclusion)
+        .update_nonce_status(&tx, &TransactionStatus::Pending)
         .await;
 
     // Ensure no status is updated since the transaction has no nonce

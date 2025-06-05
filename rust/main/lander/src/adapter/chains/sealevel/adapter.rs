@@ -259,7 +259,7 @@ impl SealevelAdapter {
         {
             Ok(_) => {
                 info!("transaction pending inclusion");
-                return Ok(TransactionStatus::PendingInclusion);
+                return Ok(TransactionStatus::Pending);
             }
             Err(err) => {
                 warn!(?err, "Failed to get transaction status by hash");

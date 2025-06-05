@@ -189,7 +189,7 @@ mod tests {
             assert_db_status_for_payloads(
                 &building_stage.state,
                 &payload_details_received,
-                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+                PayloadStatus::InTransaction(TransactionStatus::Pending),
             )
             .await;
         }
@@ -223,7 +223,7 @@ mod tests {
         assert_db_status_for_payloads(
             &building_stage.state,
             &payload_details_received,
-            PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+            PayloadStatus::InTransaction(TransactionStatus::Pending),
         )
         .await;
         assert_eq!(queue.lock().await.len(), 0);
@@ -336,7 +336,7 @@ mod tests {
             .map(|payload| payload.details)
             .collect();
         let maybe_transaction = if success {
-            Some(dummy_tx(payloads, TransactionStatus::PendingInclusion))
+            Some(dummy_tx(payloads, TransactionStatus::Pending))
         } else {
             None
         };

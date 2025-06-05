@@ -201,7 +201,7 @@ impl FinalityStage {
                 )
                 .await?;
             }
-            TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
+            TransactionStatus::Pending | TransactionStatus::Mempool => {
                 error!(?tx, "Transaction should not be in the finality stage.");
             }
         }

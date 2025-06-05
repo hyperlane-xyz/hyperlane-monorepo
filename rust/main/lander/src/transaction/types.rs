@@ -42,7 +42,7 @@ pub struct Transaction {
 pub enum TransactionStatus {
     /// default state. If the tx appears dropped from the mempool, it goes back to this state
     #[default]
-    PendingInclusion,
+    Pending,
     /// accepted by node, pending inclusion
     Mempool,
     /// in an unfinalized block
@@ -70,16 +70,14 @@ impl TransactionStatus {
         let included_count = status_counts
             .get(&TransactionStatus::Included)
             .unwrap_or(&0);
-        let pending_count = status_counts
-            .get(&TransactionStatus::PendingInclusion)
-            .unwrap_or(&0);
+        let pending_count = status_counts.get(&TransactionStatus::Pending).unwrap_or(&0);
         let mempool_count = status_counts.get(&TransactionStatus::Mempool).unwrap_or(&0);
         if *finalized_count > 0 {
             return TransactionStatus::Finalized;
         } else if *included_count > 0 {
             return TransactionStatus::Included;
         } else if *pending_count > 0 {
-            return TransactionStatus::PendingInclusion;
+            return TransactionStatus::Pending;
         } else if *mempool_count > 0 {
             return TransactionStatus::Mempool;
         } else if !status_counts.is_empty() {
@@ -89,7 +87,7 @@ impl TransactionStatus {
         }
 
         // otherwise, return `PendingInclusion`, assuming the rpc is down temporarily and returns errors
-        TransactionStatus::PendingInclusion
+        TransactionStatus::Pending
     }
 }
 
@@ -119,7 +117,7 @@ mod tests {
         let statuses = vec![
             Ok(TransactionStatus::Included),
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
-            Ok(TransactionStatus::PendingInclusion),
+            Ok(TransactionStatus::Pending),
             Err(LanderError::NetworkError("Network error".to_string())),
             Ok(TransactionStatus::Finalized),
         ];
@@ -136,7 +134,7 @@ mod tests {
         let statuses = vec![
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
             Ok(TransactionStatus::Included),
-            Ok(TransactionStatus::PendingInclusion),
+            Ok(TransactionStatus::Pending),
             Err(LanderError::NetworkError("Network error".to_string())),
         ];
 
@@ -157,7 +155,7 @@ mod tests {
         ];
 
         let classified_status = TransactionStatus::classify_tx_status_from_hash_statuses(statuses);
-        assert_eq!(classified_status, TransactionStatus::PendingInclusion);
+        assert_eq!(classified_status, TransactionStatus::Pending);
     }
 
     #[test]
@@ -186,12 +184,12 @@ mod tests {
         let statuses = vec![
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
             Ok(TransactionStatus::Mempool),
-            Ok(TransactionStatus::PendingInclusion),
+            Ok(TransactionStatus::Pending),
             Err(LanderError::NetworkError("Network error".to_string())),
         ];
 
         let classified_status = TransactionStatus::classify_tx_status_from_hash_statuses(statuses);
-        assert_eq!(classified_status, TransactionStatus::PendingInclusion);
+        assert_eq!(classified_status, TransactionStatus::Pending);
     }
 
     #[test]

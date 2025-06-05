@@ -15,7 +15,7 @@ impl TransactionFactory {
             tx_hashes: vec![],
             vm_specific_data: VmSpecificTxData::Svm(precursor),
             payload_details: vec![payload.details.clone()],
-            status: TransactionStatus::PendingInclusion,
+            status: TransactionStatus::Pending,
             submission_attempts: 0,
             creation_timestamp: chrono::Utc::now(),
             last_submission_attempt: None,
