@@ -1,0 +1,20 @@
+defaultHook:
+  beneficiary: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  oracleConfig:
+    hyp:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+  oracleKey: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  overhead:
+    hyp: 200000
+  owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  type: interchainGasPaymaster
+defaultIsm:
+  threshold: 1
+  type: merkleRootMultisigIsm
+  validators:
+    - '0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'
+owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+requiredHook:
+  type: merkleTreeHook
