@@ -98,6 +98,7 @@ export const mainnet3SupportedChainNames = [
   'optimism',
   'orderly',
   'osmosis',
+  'paradex',
   'peaq',
   'plume',
   'polygon',

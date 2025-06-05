@@ -379,6 +379,10 @@
     "amount": "0.025",
     "decimals": 1
   },
+  "paradex": {
+    "amount": "0.000000001",
+    "decimals": 18
+  },
   "peaq": {
     "amount": "100.0",
     "decimals": 9
