@@ -23,6 +23,7 @@ runs:
       run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
 
     - name: Enable corepack
+      shell: bash
       run: |
         corepack enable
 
