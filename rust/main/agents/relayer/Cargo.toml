@@ -25,6 +25,7 @@ eyre.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
+maplit.workspace = true
 num-derive.workspace = true
 num-traits.workspace = true
 prometheus.workspace = true
@@ -53,18 +54,24 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "async",
 ] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+submitter = { path = "../../submitter" }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["macros"] }
+http-body-util.workspace = true
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
+tower.workspace = true
 tracing-test.workspace = true
+tracing-subscriber.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+tempfile.workspace = true
 
 [features]
 default = ["color-eyre", "oneline-errors"]

@@ -10,6 +10,7 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+aws-config.workspace = true
 axum.workspace = true
 chrono.workspace = true
 config.workspace = true
@@ -27,6 +28,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
+itertools.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
@@ -36,9 +38,14 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 
+# Dependency version is determined by ethers
+rusoto_core = '*'
+
 [dev-dependencies]
+http-body-util.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
+tower.workspace = true
 reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true

@@ -37,7 +37,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -79,7 +79,6 @@ export class EvmCoreModule extends HyperlaneModule<
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
         addresses: {
-          interchainAccountIsm: args.addresses.interchainAccountIsm,
           interchainAccountRouter: args.addresses.interchainAccountRouter,
         },
         config: args.config.interchainAccountRouter,
@@ -313,13 +312,18 @@ export class EvmCoreModule extends HyperlaneModule<
     });
 
     // Deploy ICA ISM and Router
-    const { interchainAccountRouter, interchainAccountIsm } = (
+    const { interchainAccountRouter } = (
       await EvmIcaModule.create({
         chain: chainName,
         multiProvider: multiProvider,
         config: {
           mailbox: mailbox.address,
           owner: await multiProvider.getSigner(chain).getAddress(),
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            urls: ['https://commitment-read-ism.hyperlane.xyz'],
+            owner: await multiProvider.getSigner(chain).getAddress(),
+          },
         },
         contractVerifier,
       })
@@ -379,7 +383,6 @@ export class EvmCoreModule extends HyperlaneModule<
       proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
-      interchainAccountIsm,
       validatorAnnounce,
       timelockController,
       testRecipient,

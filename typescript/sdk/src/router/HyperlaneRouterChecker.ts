@@ -21,6 +21,7 @@ import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
+  MissingEnrolledRouterViolation,
   MissingRouterViolation,
   RouterConfig,
   RouterViolation,
@@ -83,6 +84,9 @@ export class HyperlaneRouterChecker<
 
     const actualIsmAddress = await router.interchainSecurityModule();
 
+    // If the router is its own ism (e.g. the ICA router, skip checking configs)
+    if (actualIsmAddress == router.address) return;
+
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
@@ -125,13 +129,19 @@ export class HyperlaneRouterChecker<
     }
   }
 
-  async checkEnrolledRouters(chain: ChainName): Promise<void> {
+  async checkEnrolledRouters(
+    chain: ChainName,
+    expectedRemoteChains: ChainName[] = [],
+  ): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const actualRemoteChains = await this.app.remoteChains(chain);
 
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
 
+    const missingRemoteChains = expectedRemoteChains
+      .filter((chn) => !actualRemoteChains.includes(chn))
+      .sort();
     const misconfiguredRouterDiff: ChainMap<{
       actual: AddressBytes32;
       expected: AddressBytes32;
@@ -167,6 +177,19 @@ export class HyperlaneRouterChecker<
     const expectedRouterChains = actualRemoteChains.filter(
       (chain) => !missingRouterDomains.includes(chain),
     );
+
+    if (missingRemoteChains.length > 0) {
+      const violation: MissingEnrolledRouterViolation = {
+        chain,
+        type: RouterViolationType.MissingEnrolledRouter,
+        contract: router,
+        actual: actualRemoteChains.join(', '),
+        expected: expectedRemoteChains.join(),
+        missingChains: missingRemoteChains,
+        description: `Routers for some domains are missing from the router`,
+      };
+      this.addViolation(violation);
+    }
 
     if (Object.keys(misconfiguredRouterDiff).length > 0) {
       const violation: RouterViolation = {

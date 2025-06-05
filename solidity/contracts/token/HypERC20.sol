@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {Quote} from "../interfaces/ITokenBridge.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -64,7 +65,7 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
      */
     function _transferFromSender(
         uint256 _amount
-    ) internal override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         _burn(msg.sender, _amount);
         return bytes(""); // no metadata
     }

@@ -41,9 +41,10 @@ struct ChainScraper {
 impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
+    type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: AgentMetadata,
+        _agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -272,6 +273,7 @@ impl Scraper {
                 &contract_sync_metrics.clone(),
                 store.into(),
                 true,
+                true,
             )
             .await
             .map_err(|err| {
@@ -307,6 +309,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -345,6 +348,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -386,7 +390,7 @@ mod test {
         BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
+        config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
     };
     use hyperlane_ethereum as h_eth;
 
@@ -398,6 +402,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                submitter: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
@@ -439,10 +444,12 @@ mod test {
                         gas_limit: None,
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
+                        ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
+                        ..Default::default()
                     },
                 }),
                 metrics_conf: PrometheusMiddlewareConf {

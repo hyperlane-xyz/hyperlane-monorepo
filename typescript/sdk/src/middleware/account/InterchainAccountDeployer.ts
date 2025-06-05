@@ -4,17 +4,15 @@ import { Router } from '@hyperlane-xyz/core';
 
 import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer.js';
-import { RouterConfig } from '../../router/types.js';
 import { ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
-
-export type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
   InterchainAccountConfig,
@@ -43,12 +41,6 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
 
-    const interchainAccountIsm = await this.deployContract(
-      chain,
-      'interchainAccountIsm',
-      [config.mailbox],
-    );
-
     const owner = await this.multiProvider.getSignerAddress(chain);
     const interchainAccountRouter = await this.deployContract(
       chain,
@@ -56,14 +48,14 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       [
         config.mailbox,
         ethers.constants.AddressZero,
-        interchainAccountIsm.address,
         owner,
+        50_000,
+        config.commitmentIsm.urls,
       ],
     );
 
     return {
       interchainAccountRouter,
-      interchainAccountIsm,
     };
   }
 }

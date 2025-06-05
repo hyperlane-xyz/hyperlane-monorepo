@@ -15,13 +15,19 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
-import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
+import {InterchainAccountMessage, InterchainAccountMessageReveal} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Router} from "../client/Router.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
+import {Mailbox} from "../Mailbox.sol";
+import {Message} from "../libs/Message.sol";
+import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -31,19 +37,24 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  */
-contract InterchainAccountRouter is Router {
+contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     // ============ Libraries ============
 
     using TypeCasts for address;
     using TypeCasts for bytes32;
+    using InterchainAccountMessage for bytes;
+    using Message for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Constants ============
 
     address public immutable implementation;
     bytes32 public immutable bytecodeHash;
+    CommitmentReadIsm public immutable CCIP_READ_ISM;
+    uint public immutable COMMIT_TX_GAS_USAGE;
 
     // ============ Public Storage ============
-    mapping(uint32 => bytes32) public isms;
+    mapping(uint32 destinationDomain => bytes32 ism) public isms;
 
     // ============ Upgrade Gap ============
 
@@ -64,13 +75,21 @@ contract InterchainAccountRouter is Router {
      * @param owner The local owner of the remote ICA
      * @param router The address of the remote router
      * @param ism The address of the remote ISM
+     * @param salt The salt used to derive the interchain account
      */
     event RemoteCallDispatched(
         uint32 indexed destination,
         address indexed owner,
         bytes32 router,
-        bytes32 ism
+        bytes32 ism,
+        bytes32 salt
     );
+
+    /**
+     * @notice Emitted when a commit-reveal interchain call is dispatched to a remote domain
+     * @param commitment The commitment that was dispatched
+     */
+    event CommitRevealDispatched(bytes32 indexed commitment);
 
     /**
      * @notice Emitted when an interchain account contract is deployed
@@ -94,16 +113,28 @@ contract InterchainAccountRouter is Router {
     constructor(
         address _mailbox,
         address _hook,
-        address _interchainSecurityModule,
-        address _owner
+        address _owner,
+        uint _commit_tx_gas_usage,
+        string[] memory _commitment_urls
     ) Router(_mailbox) {
         setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
         _transferOwnership(_owner);
 
         bytes memory bytecode = _implementationBytecode(address(this));
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
+
+        CCIP_READ_ISM = new CommitmentReadIsm(_owner, _commitment_urls);
+        COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
+    }
+
+    function interchainSecurityModule()
+        external
+        view
+        override
+        returns (IInterchainSecurityModule)
+    {
+        return IInterchainSecurityModule(address(this));
     }
 
     /**
@@ -145,73 +176,6 @@ contract InterchainAccountRouter is Router {
 
     // ============ External Functions ============
     /**
-     * @notice Dispatches a single remote call to be made by an owner's
-     * interchain account on the destination domain
-     * @dev Uses the default router and ISM addresses for the destination
-     * domain, reverting if none have been configured
-     * @param _destination The remote domain of the chain to make calls on
-     * @param _to The address of the contract to call
-     * @param _value The value to include in the call
-     * @param _data The calldata
-     * @return The Hyperlane message ID
-     */
-    function callRemote(
-        uint32 _destination,
-        address _to,
-        uint256 _value,
-        bytes memory _data
-    ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _to,
-            _value,
-            _data
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
-    }
-
-    /**
-     * @notice Dispatches a single remote call to be made by an owner's
-     * interchain account on the destination domain
-     * @dev Uses the default router and ISM addresses for the destination
-     * domain, reverting if none have been configured
-     * @param _destination The remote domain of the chain to make calls on
-     * @param _to The address of the contract to call
-     * @param _value The value to include in the call
-     * @param _data The calldata
-     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
-     * @return The Hyperlane message ID
-     */
-    function callRemote(
-        uint32 _destination,
-        address _to,
-        uint256 _value,
-        bytes memory _data,
-        bytes memory _hookMetadata
-    ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _to,
-            _value,
-            _data
-        );
-        return
-            _dispatchMessageWithMetadata(
-                _destination,
-                _router,
-                _ism,
-                _body,
-                _hookMetadata
-            );
-    }
-
-    /**
      * @notice Dispatches a sequence of remote calls to be made by an owner's
      * interchain account on the destination domain
      * @dev Uses the default router and ISM addresses for the destination
@@ -224,16 +188,8 @@ contract InterchainAccountRouter is Router {
     function callRemote(
         uint32 _destination,
         CallLib.Call[] calldata _calls
-    ) external payable returns (bytes32) {
-        bytes32 _router = routers(_destination);
-        bytes32 _ism = isms[_destination];
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
-
-        return _dispatchMessage(_destination, _router, _ism, _body);
+    ) public payable returns (bytes32) {
+        return callRemote(_destination, _calls, bytes(""));
     }
 
     /**
@@ -250,8 +206,8 @@ contract InterchainAccountRouter is Router {
     function callRemote(
         uint32 _destination,
         CallLib.Call[] calldata _calls,
-        bytes calldata _hookMetadata
-    ) external payable returns (bytes32) {
+        bytes memory _hookMetadata
+    ) public payable returns (bytes32) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
         return
@@ -278,21 +234,58 @@ contract InterchainAccountRouter is Router {
         bytes32 _sender,
         bytes calldata _message
     ) external payable override onlyMailbox {
-        (
-            bytes32 _owner,
-            bytes32 _ism,
-            CallLib.Call[] memory _calls,
-            bytes32 _salt
-        ) = InterchainAccountMessage.decode(_message);
+        InterchainAccountMessage.MessageType _messageType = _message
+            .messageType();
+        if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            // If the message is a reveal,
+            // the commitment should have been executed in the `verify` method of the ISM
+            // that verified this message. The commitment is deleted in `revealAndExecute`.
+            // Simply return.
+            return;
+        }
 
-        OwnableMulticall _interchainAccount = getDeployedInterchainAccount(
+        bytes32 _owner = _message.owner();
+        bytes32 _salt = _message.salt();
+        bytes32 _ism = _message.ism();
+
+        OwnableMulticall ica = getDeployedInterchainAccount(
             _origin,
             _owner,
             _sender,
             _ism.bytes32ToAddress(),
             _salt
         );
-        _interchainAccount.multicall{value: msg.value}(_calls);
+
+        if (_messageType == InterchainAccountMessage.MessageType.CALLS) {
+            CallLib.Call[] memory calls = _message.calls();
+            ica.multicall{value: msg.value}(calls);
+        } else {
+            // This is definitely a message of type COMMITMENT
+            ica.setCommitment(_message.commitment());
+        }
+    }
+
+    function route(
+        bytes calldata _message
+    ) public view override returns (IInterchainSecurityModule) {
+        bytes calldata _body = _message.body();
+        InterchainAccountMessage.MessageType _messageType = _body.messageType();
+
+        // If the ISM is not set, we need to check if the message is a reveal
+        // If it is, we need to set the ISM to the CCIP read ISM
+        // Otherwise, we need to set the ISM to the default ISM
+        address _ism;
+        if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            _ism = InterchainAccountMessageReveal
+                .revealIsm(_body)
+                .bytes32ToAddress();
+            _ism = _ism == address(0) ? address(CCIP_READ_ISM) : _ism;
+        } else {
+            _ism = InterchainAccountMessage.ism(_body).bytes32ToAddress();
+            _ism = _ism == address(0) ? address(mailbox.defaultIsm()) : _ism;
+        }
+
+        return IInterchainSecurityModule(_ism);
     }
 
     /**
@@ -703,6 +696,13 @@ contract InterchainAccountRouter is Router {
         bytes32 _salt,
         IPostDispatchHook _hook
     ) public payable returns (bytes32) {
+        emit RemoteCallDispatched(
+            _destination,
+            msg.sender,
+            _router,
+            _ism,
+            _salt
+        );
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
@@ -713,10 +713,134 @@ contract InterchainAccountRouter is Router {
             _dispatchMessageWithHook(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 _hookMetadata,
                 _hook
+            );
+    }
+
+    // refunds from the commit dispatch call used to fund reveal dispatch call
+    receive() external payable {}
+
+    /**
+     * @notice Dispatches a commitment and reveal message to the destination domain.
+     *  Useful for when we want to keep calldata secret (e.g. when executing a swap
+     * @dev The commitment message is dispatched first, followed by the reveal message.
+     * To find the calladata, the user must fetch the calldata from the url provided by the OffChainLookupIsm
+     * specified in the _ccipReadIsm parameter.
+     * The revealed calladata is executed by the `revealAndExecute` function, which will be called the OffChainLookupIsm in its `verify` function.
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _salt Salt which allows control over account derivation.
+     * @param _hook The hook to use after sending our message to the mailbox
+     * @param _commitment The commitment to dispatch
+     * @return _commitmentMsgId The Hyperlane message ID of the commitment message
+     * @return _revealMsgId The Hyperlane message ID of the reveal message
+     */
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes32 _ccipReadIsm,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes memory _commitmentMsg = InterchainAccountMessage
+            .encodeCommitment({
+                _owner: msg.sender.addressToBytes32(),
+                _ism: _ism,
+                _commitment: _commitment,
+                _userSalt: _salt
+            });
+
+        emit RemoteCallDispatched(
+            _destination,
+            msg.sender,
+            _router,
+            _ism,
+            _salt
+        );
+        emit CommitRevealDispatched(_commitment);
+
+        _commitmentMsgId = _dispatchMessageWithValue(
+            _destination,
+            _router,
+            _commitmentMsg,
+            StandardHookMetadata.formatMetadata(
+                0,
+                COMMIT_TX_GAS_USAGE,
+                address(this),
+                bytes("")
+            ),
+            _hook,
+            msg.value
+        );
+
+        bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
+            _ism: _ccipReadIsm,
+            _commitment: _commitment
+        });
+        _revealMsgId = _dispatchMessageWithValue(
+            _destination,
+            _router,
+            _revealMsg,
+            _hookMetadata,
+            _hook,
+            address(this).balance
+        );
+    }
+
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                _hookMetadata,
+                _hook,
+                _salt,
+                _commitment
+            );
+    }
+
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _commitment,
+        uint _gasLimit
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
+            0,
+            _gasLimit,
+            msg.sender,
+            bytes("")
+        );
+
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                hookMetadata,
+                hook,
+                InterchainAccountMessage.EMPTY_SALT,
+                _commitment
             );
     }
 
@@ -798,20 +922,17 @@ contract InterchainAccountRouter is Router {
      * @notice Dispatches an InterchainAccountMessage to the remote router
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      */
     function _dispatchMessage(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body
     ) private returns (bytes32) {
         return
             _dispatchMessageWithMetadata(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 bytes("")
             );
@@ -821,14 +942,12 @@ contract InterchainAccountRouter is Router {
      * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      */
     function _dispatchMessageWithMetadata(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body,
         bytes memory _hookMetadata
     ) private returns (bytes32) {
@@ -836,7 +955,6 @@ contract InterchainAccountRouter is Router {
             _dispatchMessageWithHook(
                 _destination,
                 _router,
-                _ism,
                 _body,
                 _hookMetadata,
                 hook
@@ -847,7 +965,6 @@ contract InterchainAccountRouter is Router {
      * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
      * @param _destination The remote domain
      * @param _router The address of the remote InterchainAccountRouter
-     * @param _ism The address of the remote ISM
      * @param _body The InterchainAccountMessage body
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @param _hook The hook to use after sending our message to the mailbox
@@ -855,18 +972,36 @@ contract InterchainAccountRouter is Router {
     function _dispatchMessageWithHook(
         uint32 _destination,
         bytes32 _router,
-        bytes32 _ism,
         bytes memory _body,
         bytes memory _hookMetadata,
         IPostDispatchHook _hook
     ) private returns (bytes32) {
-        require(
-            _router != InterchainAccountMessage.EMPTY_SALT,
-            "no router specified for destination"
-        );
-        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: msg.value}(
+            _dispatchMessageWithValue(
+                _destination,
+                _router,
+                _body,
+                _hookMetadata,
+                _hook,
+                msg.value
+            );
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
+     * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
+     */
+    function _dispatchMessageWithValue(
+        uint32 _destination,
+        bytes32 _router,
+        bytes memory _body,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        uint _value
+    ) private returns (bytes32) {
+        require(_router != bytes32(0), "no router specified for destination");
+        return
+            mailbox.dispatch{value: _value}(
                 _destination,
                 _router,
                 _body,
@@ -911,37 +1046,55 @@ contract InterchainAccountRouter is Router {
     /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The domain of the destination router.
+     * @param _gasLimit The gas limit that the calls will use.
      * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
      */
     function quoteGasPayment(
-        uint32 _destination
-    ) external view returns (uint256 _gasPayment) {
+        uint32 _destination,
+        uint256 _gasLimit
+    ) public view returns (uint256 _gasPayment) {
         return
             _Router_quoteDispatch(
                 _destination,
                 new bytes(0),
-                new bytes(0),
+                StandardHookMetadata.overrideGasLimit(_gasLimit),
                 address(hook)
             );
     }
 
     /**
-     * @notice Returns the gas payment required to dispatch a given messageBody to the given domain's router with gas limit override.
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The domain of the destination router.
-     * @param _messageBody The message body to be dispatched.
-     * @param gasLimit The gas limit to override with.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
      */
     function quoteGasPayment(
+        uint32 _destination
+    ) public view returns (uint256 _gasPayment) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                bytes(""),
+                bytes(""),
+                address(hook)
+            );
+    }
+
+    /**
+     * @notice Returns the payment required to commit reveal to the destination router.
+     * @param _destination The domain of the destination router.
+     * @param gasLimit The gas limit that the reveal calls will use.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
+     */
+    function quoteGasForCommitReveal(
         uint32 _destination,
-        bytes calldata _messageBody,
         uint256 gasLimit
     ) external view returns (uint256 _gasPayment) {
         return
             _Router_quoteDispatch(
                 _destination,
-                _messageBody,
-                StandardHookMetadata.overrideGasLimit(gasLimit),
+                new bytes(0),
+                StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
                 address(hook)
-            );
+            ) + quoteGasPayment(_destination, gasLimit);
     }
 }
