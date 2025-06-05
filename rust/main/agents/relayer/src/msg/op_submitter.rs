@@ -540,7 +540,7 @@ async fn process_batch(
             PendingOperationResult::Success => {
                 debug!(?op, "Operation prepared");
 
-                metrics.inc_prepared_with_app_context(app_context);
+                metrics.inc_prepared(app_context);
                 // TODO: push multiple messages at once
                 submit_queue
                     .push(op, Some(PendingOperationStatus::ReadyToSubmit))
@@ -550,13 +550,13 @@ async fn process_batch(
                 prepare_queue.push(op, None).await;
             }
             PendingOperationResult::Reprepare(reason) => {
-                metrics.inc_failed_with_app_context(app_context);
+                metrics.inc_failed(app_context);
                 prepare_queue
                     .push(op, Some(PendingOperationStatus::Retry(reason)))
                     .await;
             }
             PendingOperationResult::Drop => {
-                metrics.inc_dropped_with_app_context(app_context);
+                metrics.inc_dropped(app_context);
                 op.decrement_metric_if_exists();
             }
             PendingOperationResult::Confirm(reason) => {
@@ -759,7 +759,7 @@ async fn confirm_op(
     confirm_queue
         .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
         .await;
-    metrics.inc_submitted_with_app_context(app_context);
+    metrics.inc_submitted(app_context);
 
     if matches!(
         destination.domain_protocol(),
@@ -971,7 +971,7 @@ async fn process_confirm_result(
     match &operation_result {
         PendingOperationResult::Success => {
             debug!(id=?op.id(), ?op, "Operation confirmed");
-            metrics.inc_confirmed_with_app_context(app_context);
+            metrics.inc_confirmed(app_context);
             op.decrement_metric_if_exists();
         }
         PendingOperationResult::NotReady => {
@@ -987,7 +987,7 @@ async fn process_confirm_result(
             send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
-            metrics.inc_dropped_with_app_context(app_context);
+            metrics.inc_dropped(app_context);
             op.decrement_metric_if_exists();
         }
     }
@@ -1001,7 +1001,7 @@ async fn send_back_on_failed_submission(
     maybe_reason: Option<&ReprepareReason>,
 ) {
     let app_context = op.app_context();
-    metrics.inc_failed_with_app_context(app_context);
+    metrics.inc_failed(app_context);
 
     let reason = maybe_reason.unwrap_or(&ReprepareReason::ErrorSubmitting);
     prepare_queue
@@ -1035,23 +1035,23 @@ impl SerialSubmitterMetrics {
         }
     }
 
-    pub fn inc_prepared_with_app_context(&self, app_context: Option<String>) {
+    pub fn inc_prepared(&self, app_context: Option<String>) {
         self.inc_phase_with_app_context("prepared", app_context);
     }
 
-    pub fn inc_submitted_with_app_context(&self, app_context: Option<String>) {
+    pub fn inc_submitted(&self, app_context: Option<String>) {
         self.inc_phase_with_app_context("submitted", app_context);
     }
 
-    pub fn inc_confirmed_with_app_context(&self, app_context: Option<String>) {
+    pub fn inc_confirmed(&self, app_context: Option<String>) {
         self.inc_phase_with_app_context("confirmed", app_context);
     }
 
-    pub fn inc_dropped_with_app_context(&self, app_context: Option<String>) {
+    pub fn inc_dropped(&self, app_context: Option<String>) {
         self.inc_phase_with_app_context("dropped", app_context);
     }
 
-    pub fn inc_failed_with_app_context(&self, app_context: Option<String>) {
+    pub fn inc_failed(&self, app_context: Option<String>) {
         self.inc_phase_with_app_context("failed", app_context);
     }
 

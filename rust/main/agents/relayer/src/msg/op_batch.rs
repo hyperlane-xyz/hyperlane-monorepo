@@ -75,7 +75,7 @@ impl OperationBatch {
                 continue;
             }
             let app_context = op.app_context();
-            metrics.inc_submitted_with_app_context(app_context);
+            metrics.inc_submitted(app_context);
         }
 
         Ok(outcome)
