@@ -144,7 +144,7 @@ async fn test_validate_assigned_nonce() {
     // Test for Free status
     state.insert_nonce_status(&nonce, NonceStatus::Free).await;
     let action = state.validate_assigned_nonce(&nonce, &tx_uuid).await;
-    assert_eq!(action, NonceAction::Reassign);
+    assert_eq!(action, NonceAction::AssignNew);
 
     // Test for Taken status
     state
@@ -165,7 +165,7 @@ async fn test_validate_assigned_nonce() {
     let action = state
         .validate_assigned_nonce(&nonexistent_nonce, &tx_uuid)
         .await;
-    assert_eq!(action, NonceAction::Reassign);
+    assert_eq!(action, NonceAction::AssignNew);
 }
 
 #[tokio::test]

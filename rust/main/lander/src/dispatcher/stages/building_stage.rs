@@ -292,7 +292,7 @@ mod tests {
         tokio::sync::mpsc::Receiver<Transaction>,
         BuildingStageQueue,
     ) {
-        let (payload_db, tx_db, _) = tmp_dbs();
+        let (payload_db, tx_db) = tmp_dbs();
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_build_transactions()

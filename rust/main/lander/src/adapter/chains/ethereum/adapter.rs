@@ -46,13 +46,13 @@ impl EthereumAdapter {
         conf: ChainConf,
         connection_conf: ConnectionConf,
         _raw_conf: RawChainConf,
-        db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
         let locator = ContractLocator {
             domain: &conf.domain,
             address: hyperlane_core::H256::zero(),
         };
+
         let provider = conf
             .build_ethereum(
                 &connection_conf,
@@ -63,7 +63,8 @@ impl EthereumAdapter {
             .await?;
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone()).await?;
+
+        let nonce_manager = NonceManager::new(&conf, provider.clone()).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,

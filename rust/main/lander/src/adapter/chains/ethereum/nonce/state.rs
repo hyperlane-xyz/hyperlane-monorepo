@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
+use tracing::{error, warn};
 
 use hyperlane_core::U256;
 
@@ -23,7 +24,8 @@ pub(crate) enum NonceStatus {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
     Noop,
-    Reassign,
+    AssignNew,
+    FreeAndAssignNew,
 }
 
 pub struct NonceManagerStateInner {
@@ -83,15 +85,42 @@ impl NonceManagerState {
         use NonceStatus::{Committed, Free, Taken};
         use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
 
+        let tx_uuid = &tx.uuid;
         let precursor = tx.precursor();
-        let nonce = precursor.tx.nonce();
-        if let Some(nonce) = nonce {
-            let nonce_status = match tx_status {
-                PendingInclusion | Mempool | Included => Taken(tx.uuid.clone()),
-                Finalized => Committed(tx.uuid.clone()),
-                Dropped(_) => Free,
-            };
-            self.insert_nonce_status(&nonce.into(), nonce_status).await;
+
+        let Some(nonce) = precursor.tx.nonce().map(Into::into) else {
+            return;
+        };
+
+        let nonce_status = match tx_status {
+            PendingInclusion | Mempool | Included => Taken(tx_uuid.clone()),
+            Finalized => Committed(tx_uuid.clone()),
+            Dropped(_) => Free,
+        };
+
+        let (Some(tracked_nonce_status), _) = self.get_nonce_status_and_lowest_nonce(&nonce).await
+        else {
+            // If the nonce is not tracked, we insert it with the new status.
+            self.insert_nonce_status(&nonce, nonce_status).await;
+            return;
+        };
+
+        match &tracked_nonce_status {
+            Taken(tracked_tx_uuid) | Committed(tracked_tx_uuid) if tracked_tx_uuid != tx_uuid => {
+                // If the nonce is taken or committed with a different transaction,
+                // we report an error and do nothing.
+                error!(
+                    tracked_nonce = ?nonce,
+                    tracked_nonce_status = ?tracked_nonce_status,
+                    tx_uuid = ?tx_uuid,
+                    "Same nonce was assigned to multiple transactions"
+                );
+            }
+            Free | Taken(_) | Committed(_) => {
+                // If the nonce is free or assigned to the same transaction,
+                // we update the status to the new one.
+                self.insert_nonce_status(&nonce, nonce_status).await;
+            }
         }
     }
 
@@ -100,7 +129,7 @@ impl NonceManagerState {
         nonce: &U256,
         tx_uuid: &TransactionUuid,
     ) -> NonceAction {
-        use NonceAction::{Noop, Reassign};
+        use NonceAction::{AssignNew, FreeAndAssignNew, Noop};
         use NonceStatus::{Committed, Free, Taken};
 
         let (nonce_status, lowest_nonce) =
@@ -108,27 +137,37 @@ impl NonceManagerState {
 
         if let Some(status) = nonce_status {
             match status {
-                Free => Reassign,
-                Taken(_) if nonce < &lowest_nonce => Reassign,
-                Taken(uuid) | Committed(uuid) if &uuid != tx_uuid => Reassign,
+                Free => AssignNew,
+                Taken(uuid) | Committed(uuid) if &uuid != tx_uuid => AssignNew,
+                Taken(_) if nonce < &lowest_nonce => FreeAndAssignNew,
                 Taken(_) | Committed(_) => Noop,
             }
         } else {
-            Reassign
+            AssignNew
         }
     }
 
     pub(crate) async fn identify_next_nonce(&self) -> U256 {
-        use NonceStatus::Free;
+        use NonceStatus::{Committed, Free};
 
-        let guard = self.inner.lock().await;
-        let nonces = &guard.nonces;
+        let mut guard = self.inner.lock().await;
+
+        let lowest_nonce = guard.lowest_nonce;
+        let upper_nonce = guard.upper_nonce;
+        let nonces = &mut guard.nonces;
+
+        nonces.retain(|nonce, status| !(matches!(status, Committed(_)) && nonce < &lowest_nonce));
+
+        if nonces.iter().any(|(nonce, _)| nonce < &lowest_nonce) {
+            warn!(?nonces, "Nonces below the lowest nonce are being retained");
+        }
+
         let available_nonce = nonces
             .iter()
             .filter(|(_nonce, status)| matches!(status, Free))
             .min_by_key(|(nonce, _)| *nonce)
             .map(|(nonce, _)| nonce)
-            .unwrap_or(&guard.upper_nonce);
+            .unwrap_or(&upper_nonce);
         *available_nonce
     }
 

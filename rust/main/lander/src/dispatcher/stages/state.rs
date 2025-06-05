@@ -66,7 +66,6 @@ impl DispatcherState {
             &settings.chain_conf,
             &settings.raw_chain_conf,
             &settings.metrics,
-            rocksdb.clone(),
         )
         .await?;
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;

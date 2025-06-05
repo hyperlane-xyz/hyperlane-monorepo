@@ -20,7 +20,7 @@ use hyperlane_ethereum::EthereumReorgPeriod;
 use crate::{
     adapter::{
         chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
+            nonce::{NonceManager, NonceManagerState, NonceUpdater},
             tests::MockEvmProvider,
             EthereumAdapter,
         },
@@ -202,8 +202,8 @@ pub fn mock_dispatcher_state_with_provider(
     provider: MockEvmProvider,
     signer: H160,
 ) -> DispatcherState {
-    let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, signer);
+    let (payload_db, tx_db) = tmp_dbs();
+    let adapter = mock_ethereum_adapter(provider, signer);
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -213,11 +213,7 @@ pub fn mock_dispatcher_state_with_provider(
     )
 }
 
-fn mock_ethereum_adapter(
-    provider: MockEvmProvider,
-    nonce_db: Arc<dyn NonceDb>,
-    signer: H160,
-) -> EthereumAdapter {
+fn mock_ethereum_adapter(provider: MockEvmProvider, signer: H160) -> EthereumAdapter {
     let provider = Arc::new(provider);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
     let state = Arc::new(NonceManagerState::new());
@@ -232,9 +228,8 @@ fn mock_ethereum_adapter(
 
     let nonce_manager = NonceManager {
         address: signer,
-        db: nonce_db,
         state,
-        nonce_updater,
+        _nonce_updater: nonce_updater,
     };
 
     EthereumAdapter {
