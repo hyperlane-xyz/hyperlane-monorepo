@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   hyperlaneCoreApply,
   hyperlaneCoreDeploy,

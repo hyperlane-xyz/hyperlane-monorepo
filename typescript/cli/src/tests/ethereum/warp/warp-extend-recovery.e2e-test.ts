@@ -9,8 +9,8 @@ import {
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { getContext } from '../../context/context.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { getContext } from '../../../context/context.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,

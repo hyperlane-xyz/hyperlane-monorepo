@@ -3,7 +3,7 @@ import { $ } from 'zx';
 
 import { randomAddress } from '@hyperlane-xyz/sdk';
 
-import { writeYamlOrJson } from '../../utils/files.js';
+import { writeYamlOrJson } from '../../../utils/files.js';
 import {
   hyperlaneCoreCheck,
   hyperlaneCoreDeploy,

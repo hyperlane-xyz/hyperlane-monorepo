@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ChainMap, IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
 
-import { readIsmConfig } from '../config/ism.js';
+import { readIsmConfig } from '../../config/ism.js';
 
 describe('readIsmConfig', () => {
   it('parses and validates example correctly', () => {

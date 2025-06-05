@@ -18,8 +18,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, randomInt } from '@hyperlane-xyz/utils';
 
-import { WarpSendLogs } from '../../send/transfer.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { WarpSendLogs } from '../../../send/transfer.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,

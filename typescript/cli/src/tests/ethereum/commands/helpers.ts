@@ -23,10 +23,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
-import { getContext } from '../../context/context.js';
-import { CommandContext } from '../../context/types.js';
-import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../deploy/warp.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { getContext } from '../../../context/context.js';
+import { CommandContext } from '../../../context/types.js';
+import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
 import {

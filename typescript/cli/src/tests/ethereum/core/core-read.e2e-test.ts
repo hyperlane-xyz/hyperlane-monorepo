@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 import { hyperlaneCoreDeploy, readCoreConfig } from '../commands/core.js';
 import {
   ANVIL_KEY,
