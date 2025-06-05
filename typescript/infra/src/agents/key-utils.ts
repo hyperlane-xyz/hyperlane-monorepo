@@ -293,10 +293,17 @@ export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
 }
 
+// function isChain(chainName: ChainName): boolean {
+//   const metadata = getChain(chainName);
+//   return metadata?.protocol === ProtocolType.Starknet;
+// }
+
 // Helper function to determine if a chain is Starknet
 function isStarknetChain(chainName: ChainName): boolean {
   const metadata = getChain(chainName);
-  return metadata?.protocol === ProtocolType.Starknet;
+  return (
+    metadata?.protocol === ProtocolType.Starknet && metadata.name === 'paradex'
+  );
 }
 
 // Returns the validator signer key and the chain signer key for the given validator for
@@ -409,14 +416,19 @@ async function createAgentKeys(
 }
 
 async function persistAddresses(agentConfig: AgentContextConfig) {
-  const keys = getModifiableKeys(agentConfig);
+  // const keys = getModifiableKeys(agentConfig);
+  const moreKeys = getAllCloudAgentKeys(agentConfig);
+  // if the key has a chainName and it is a Starknet chain, filter it out
+  const starknetKeys = moreKeys.filter(
+    (key) => key.chainName && isStarknetChain(key.chainName),
+  );
   const addresses = await Promise.all(
-    keys.map(async (key) => {
+    starknetKeys.map(async (key) => {
       await key.fetch();
       return key.serializeAsAddress();
     }),
   );
-  await persistAddressesLocally(agentConfig, keys);
+  await persistAddressesLocally(agentConfig, starknetKeys);
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
@@ -428,7 +440,11 @@ async function persistAddresses(agentConfig: AgentContextConfig) {
 async function agentKeysToBeCreated(
   agentConfig: AgentContextConfig,
 ): Promise<string[]> {
-  const keysToCreateIfNotExist = getModifiableKeys(agentConfig);
+  const moreKeys = getAllCloudAgentKeys(agentConfig);
+  // if the key has a chainName and it is a Starknet chain, filter it out
+  const keysToCreateIfNotExist = moreKeys.filter(
+    (key) => key.chainName && isStarknetChain(key.chainName),
+  );
   return (
     await Promise.all(
       keysToCreateIfNotExist.map(async (key) =>
@@ -525,6 +541,7 @@ async function persistAddressesLocally(
       if (relayer)
         throw new Error('More than one Relayer found in gcpCloudAgentKeys');
       relayer = key.address;
+      return;
     }
     if (key.role === Role.Kathy) {
       if (kathy)
