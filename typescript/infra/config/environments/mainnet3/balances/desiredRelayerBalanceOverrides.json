@@ -9,10 +9,10 @@
   "nibiru": 10,
   "ontology": 10,
   "osmosis": 0,
+  "paradex": 0,
   "plume": 0.05,
   "reactive": 0.1,
   "sophon": 50,
   "tangle": 6,
-  "vana": 0.001,
-  "paradex": 0
+  "vana": 0.001
 }
