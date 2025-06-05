@@ -571,8 +571,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
     assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
 
-    const { destinationGas: actualDestinationGas } = actualConfig;
-    const { destinationGas: expectedDestinationGas } = expectedConfig;
+    const actualDestinationGas = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.destinationGas,
+    );
+    const expectedDestinationGas = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.destinationGas,
+    );
 
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
       const contractToUpdate = GasRouter__factory.connect(
@@ -583,7 +589,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
         [];
-      objMap(expectedDestinationGas, (domain: string, gas: string) => {
+      objMap(expectedDestinationGas, (domain: number, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,

@@ -116,12 +116,11 @@ export function resolveRouterMapConfig<T>(
   );
 }
 
-export const RemoteRouterDomain = z.string();
 export const RemoteRouterRouter = z.object({
   address: z.string().startsWith('0x'),
 });
 export const RemoteRoutersSchema = z.record(
-  RemoteRouterDomain,
+  RemoteRouterDomainOrChainNameSchema,
   RemoteRouterRouter,
 );
 
@@ -134,10 +133,9 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   }),
 );
 
-const DestinationGasDomain = z.string();
 const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
 export const DestinationGasSchema = z.record(
-  DestinationGasDomain,
+  RemoteRouterDomainOrChainNameSchema,
   DestinationGasAmount,
 );
 export const GasRouterConfigSchema = RouterConfigSchema.extend({

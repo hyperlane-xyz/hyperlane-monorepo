@@ -16,7 +16,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
-  isCollateralRebaseTokenConfig,
+  isMovableCollateralTokenConfig,
   resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -122,22 +122,30 @@ export async function readWarpRouteDeployConfig({
   config = objMap(
     config as any,
     (_chain, chainConfig: HypTokenRouterConfig) => {
-      if (!isCollateralRebaseTokenConfig(chainConfig)) {
+      if (chainConfig.destinationGas) {
+        chainConfig.destinationGas = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.destinationGas,
+        );
+      }
+
+      if (chainConfig.remoteRouters) {
+        chainConfig.remoteRouters = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.remoteRouters,
+        );
+      }
+
+      if (!isMovableCollateralTokenConfig(chainConfig)) {
         return chainConfig;
       }
 
-      chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
-        context.multiProvider,
-        chainConfig.allowedRebalancingBridges ?? {},
-      );
-      chainConfig.destinationGas = resolveRouterMapConfig(
-        context.multiProvider,
-        chainConfig.destinationGas ?? {},
-      );
-      chainConfig.remoteRouters = resolveRouterMapConfig(
-        context.multiProvider,
-        chainConfig.remoteRouters ?? {},
-      );
+      if (chainConfig.allowedRebalancingBridges) {
+        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.allowedRebalancingBridges,
+        );
+      }
 
       return chainConfig;
     },

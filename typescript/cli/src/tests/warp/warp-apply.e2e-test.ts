@@ -12,7 +12,11 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { assert, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  assert,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -42,12 +46,14 @@ import {
 
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
-  let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
+  let chain2Metadata: ChainMetadata;
 
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+    chain2Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    chain2Addresses = await deployOrUseExistingCore(
+    chain3Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_3,
       CORE_CONFIG_PATH,
       ANVIL_KEY,
@@ -228,7 +234,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -381,4 +387,50 @@ describe('hyperlane warp apply owner update tests', async function () {
       }
     });
   }
+
+  it('should update the remote gas and routers configuration when specified using the domain name', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    // First read the existing config
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    const expectedRemoteGasSetting = '30000';
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = {
+      [CHAIN_NAME_3]: expectedRemoteGasSetting,
+    };
+
+    const expectedRemoteRouter = randomAddress();
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = {
+      [CHAIN_NAME_3]: {
+        address: expectedRemoteRouter,
+      },
+    };
+
+    // Write the updated config
+    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    const updatedConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    expect(
+      (updatedConfig[CHAIN_NAME_2].destinationGas ?? {})[
+        chain2Metadata.domainId
+      ],
+    ).to.deep.equal(expectedRemoteGasSetting);
+    expect(
+      normalizeAddressEvm(
+        (updatedConfig[CHAIN_NAME_2].remoteRouters ?? {})[
+          chain2Metadata.domainId
+        ].address,
+      ),
+    ).to.deep.equal(addressToBytes32(expectedRemoteRouter));
+  });
 });
