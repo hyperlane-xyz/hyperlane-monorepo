@@ -69,19 +69,30 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external override returns (bool) {
         if (_isProve(_message)) {
-            _proveWithdrawal(_metadata);
+            _proveWithdrawal(_message.id(), _metadata);
         } else {
-            _finalizeWithdrawal(_metadata);
+            _finalizeWithdrawal(_message.id(), _metadata);
         }
 
         return true;
     }
 
+    function _proveMessageId(
+        bytes memory extraData
+    ) internal pure virtual returns (bytes32);
+
+    function _finalizeMessageId(
+        bytes memory extraData
+    ) internal pure virtual returns (bytes32);
+
     function _isProve(
         bytes calldata _message
     ) internal view virtual returns (bool);
 
-    function _proveWithdrawal(bytes calldata _metadata) internal {
+    function _proveWithdrawal(
+        bytes32 messageId,
+        bytes calldata _metadata
+    ) internal {
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -96,6 +107,11 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
                     bytes[]
                 )
             );
+
+        require(
+            _proveMessageId(_tx.data) == messageId,
+            "OPL2ToL1CcipReadIsm: prove message id mismatch"
+        );
 
         bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
 
@@ -115,10 +131,18 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes32 _withdrawalHash
     ) internal view virtual returns (bool);
 
-    function _finalizeWithdrawal(bytes calldata _metadata) internal {
+    function _finalizeWithdrawal(
+        bytes32 messageId,
+        bytes calldata _metadata
+    ) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
             _metadata,
             (IOptimismPortal.WithdrawalTransaction)
+        );
+
+        require(
+            _finalizeMessageId(_tx.data) == messageId,
+            "OPL2ToL1CcipReadIsm: finalize message id mismatch"
         );
 
         bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);

@@ -67,12 +67,6 @@ contract MockOptimismPortal is IOptimismPortal {
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx
     ) external {
-        CallLib.Call memory call = CallLib.Call(
-            TypeCasts.addressToBytes32(_tx.target),
-            _tx.value,
-            _tx.data
-        );
-        CallLib.call(call);
         bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
         _finalizedWithdrawals[withdrawalHash] = true;
     }

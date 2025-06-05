@@ -127,10 +127,12 @@ contract OpL2NativeTokenBridge is HypNative {
         // include for legible error message
         _transferFromSender(_amount);
 
+        // used for mapping withdrawal to hyperlane prove and finalize messages
+        bytes memory extraData = abi.encode(proveMessageId, withdrawMessageId);
         l2Bridge.bridgeETHTo{value: _amount}(
             _recipient.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
-            bytes("")
+            extraData
         );
 
         if (address(this).balance > 0) {
@@ -181,6 +183,23 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         bytes calldata _message
     ) internal pure override returns (bool) {
         return _message.body().amount() == 0;
+    }
+
+    function _proveMessageId(
+        bytes memory extraData
+    ) internal pure override returns (bytes32) {
+        (bytes32 proveMessageId, ) = abi.decode(extraData, (bytes32, bytes32));
+        return proveMessageId;
+    }
+
+    function _finalizeMessageId(
+        bytes memory extraData
+    ) internal pure override returns (bytes32) {
+        (, bytes32 finalizeMessageId) = abi.decode(
+            extraData,
+            (bytes32, bytes32)
+        );
+        return finalizeMessageId;
     }
 
     function _transferTo(
