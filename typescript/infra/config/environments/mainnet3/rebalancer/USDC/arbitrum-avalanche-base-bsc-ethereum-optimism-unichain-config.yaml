@@ -6,7 +6,7 @@ base:
     min: 0.1
     target: 0.11
     type: 'absolute'
-  bridgeLockTime: 80
+  bridgeLockTime: 1500 # 25 mins in seconds
   bridge: '0xEB6d07B591215f9D9c1e5D57D57d5fbD31D6C0d6'
 
 ethereum:
@@ -14,7 +14,7 @@ ethereum:
     min: 0.1
     target: 0.11
     type: 'absolute'
-  bridgeLockTime: 80
+  bridgeLockTime: 1500 # 25 mins in seconds
   bridge: '0xa7f63BC04e94Ad6d7CDD0Ae5a57AeB06d41b040F'
 
 optimism:
@@ -22,5 +22,5 @@ optimism:
     min: 0.1
     target: 0.11
     type: 'absolute'
-  bridgeLockTime: 80
+  bridgeLockTime: 1500 # 25 mins in seconds
   bridge: '0x8047Ac910670E8596CA57Bf7F7ddB8a706079c60'
