@@ -53,24 +53,6 @@ impl NonceManager {
         Ok(manager)
     }
 
-    pub(crate) async fn update_nonce_status(
-        &self,
-        tx: &Transaction,
-        tx_status: &TransactionStatus,
-    ) {
-        self.state.update_nonce_status(tx, tx_status).await;
-    }
-
-    async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
-        let signer_conf = chain_conf
-            .signer
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("Signer configuration is missing"))?;
-        let signer: Signers = signer_conf.build().await?;
-        let address = signer.address();
-        Ok(address)
-    }
-
     pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         let tx_uuid = tx.uuid.clone();
 
@@ -128,5 +110,23 @@ impl NonceManager {
         );
 
         Ok(())
+    }
+
+    pub(crate) async fn update_nonce_status(
+        &self,
+        tx: &Transaction,
+        tx_status: &TransactionStatus,
+    ) {
+        self.state.update_nonce_status(tx, tx_status).await;
+    }
+
+    async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
+        let signer_conf = chain_conf
+            .signer
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("Signer configuration is missing"))?;
+        let signer: Signers = signer_conf.build().await?;
+        let address = signer.address();
+        Ok(address)
     }
 }
