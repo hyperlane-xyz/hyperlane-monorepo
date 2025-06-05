@@ -1,10 +1,12 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
+import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
+  IERC20__factory,
   MailboxClient__factory,
   MovableCollateralRouter__factory,
   ProxyAdmin__factory,
@@ -24,6 +26,7 @@ import {
   isObjEmpty,
   normalizeAddressEvm,
   objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -56,6 +59,7 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  MovableTokenConfig,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedHookAddress,
@@ -65,6 +69,23 @@ import {
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
+};
+
+const getAllowedRebalancingBridgesByDomain = (
+  allowedRebalancingBridgesByDomain: NonNullable<
+    MovableTokenConfig['allowedRebalancingBridges']
+  >,
+): Record<string, Set<Address>> => {
+  return objMap(
+    allowedRebalancingBridgesByDomain,
+    (_domainId, allowedRebalancingBridges) => {
+      return new Set(
+        allowedRebalancingBridges.map((bridgeConfig) =>
+          normalizeAddressEvm(bridgeConfig.bridge),
+        ),
+      );
+    },
+  );
 };
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -122,7 +143,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
-
     const transactions = [];
 
     /**
@@ -146,6 +166,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createAddAllowedBridgesUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
+      ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -345,6 +370,173 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         [rebalancerToRemove],
       ),
     }));
+  }
+
+  async getAllowedBridgesApprovalTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    const tokensToApproveByAllowedBridge = Object.values(
+      expectedConfig.allowedRebalancingBridges,
+    ).reduce(
+      (acc, allowedBridgesConfigs) => {
+        allowedBridgesConfigs.forEach((bridgeConfig) => {
+          acc[bridgeConfig.bridge] ??= [];
+          acc[bridgeConfig.bridge].push(...(bridgeConfig.approvedTokens ?? []));
+        });
+
+        return acc;
+      },
+      // allowed bridge -> tokens to approve
+      {} as Record<Address, Address[]>,
+    );
+
+    const filteredTokensToApproveByAllowedBridge = await promiseObjAll(
+      objMap(tokensToApproveByAllowedBridge, async (bridge, tokens) => {
+        const filteredApprovals = [];
+        for (const token of tokens) {
+          const instance = IERC20__factory.connect(
+            token,
+            this.multiProvider.getProvider(this.chainId),
+          );
+
+          const allowance = await instance.allowance(
+            this.args.addresses.deployedTokenRoute,
+            bridge,
+          );
+
+          if (allowance.toBigInt() !== UINT_256_MAX) {
+            filteredApprovals.push(token);
+          }
+        }
+
+        return filteredApprovals;
+      }),
+    );
+
+    return Object.entries(filteredTokensToApproveByAllowedBridge).flatMap(
+      ([bridge, tokensToApprove]) =>
+        tokensToApprove.map((tokenToApprove) => ({
+          chainId: this.chainId,
+          annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'approveTokenForBridge(address,address)',
+            [tokenToApprove, bridge],
+          ),
+        })),
+    );
+  }
+
+  async createAddAllowedBridgesUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      actualConfig.allowedRebalancingBridges ?? {},
+    );
+    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      expectedConfig.allowedRebalancingBridges,
+    );
+    const rebalancingBridgesToAddByDomain = objMap(
+      expectedAllowedBridges,
+      (domain, bridges) => {
+        const actualBridges = actualAllowedBridges[domain] ?? new Set();
+
+        return Array.from(difference(bridges, actualBridges));
+      },
+    );
+
+    const bridgesToAllow = Object.entries(
+      rebalancingBridgesToAddByDomain,
+    ).flatMap(([domain, allowedBridgesToAdd]) => {
+      return allowedBridgesToAdd.map((bridgeToAdd) => {
+        return {
+          chainId: this.chainId,
+          annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+            'addBridge(uint32,address)',
+            [domain, bridgeToAdd],
+          ),
+        };
+      });
+    });
+
+    const approvalTxs = await this.getAllowedBridgesApprovalTxs(
+      actualConfig,
+      expectedConfig,
+    );
+    return [...bridgesToAllow, ...approvalTxs];
+  }
+
+  createRemoveBridgesTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isMovableCollateralTokenConfig(expectedConfig) ||
+      !isMovableCollateralTokenConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (!expectedConfig.allowedRebalancingBridges) {
+      return [];
+    }
+
+    const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      actualConfig.allowedRebalancingBridges ?? {},
+    );
+    const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
+      expectedConfig.allowedRebalancingBridges,
+    );
+    const rebalancingBridgesToAddByDomain = objMap(
+      actualAllowedBridges,
+      (domain, bridges) => {
+        const expectedBridges = expectedAllowedBridges[domain] ?? new Set();
+
+        return Array.from(difference(bridges, expectedBridges));
+      },
+    );
+
+    return Object.entries(rebalancingBridgesToAddByDomain).flatMap(
+      ([domain, allowedBridgesToAdd]) => {
+        return allowedBridgesToAdd.map((bridgeToAdd) => {
+          return {
+            chainId: this.chainId,
+            annotation: `Removing allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+            to: this.args.addresses.deployedTokenRoute,
+            data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
+              'removeBridge(uint32,address)',
+              [domain, bridgeToAdd],
+            ),
+          };
+        });
+      },
+    );
   }
 
   /**
@@ -646,24 +838,38 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    // This should be impossible since we try catch the call to `PACKAGE_VERSION`
+    // in `EvmERC20WarpRouteReader.fetchPackageVersion`
     assert(
       actualConfig.contractVersion,
       'Actual contract version is undefined',
     );
 
-    const shouldUpgrade =
-      expectedConfig.contractVersion &&
-      compareVersions(
-        expectedConfig.contractVersion,
-        actualConfig.contractVersion,
-      ) === 1;
+    // Only upgrade if the user specifies a version
+    if (!expectedConfig.contractVersion) {
+      return [];
+    }
 
-    if (!shouldUpgrade) return [];
+    const comparisonValue = compareVersions(
+      expectedConfig.contractVersion,
+      actualConfig.contractVersion,
+    );
 
+    // Expected version is lower than actual version, no upgrade is possible
+    if (comparisonValue === -1) {
+      throw new Error(
+        `Expected contract version ${expectedConfig.contractVersion} is lower than actual contract version ${actualConfig.contractVersion}`,
+      );
+    }
+    // Versions are the same, no upgrade needed
+    if (comparisonValue === 0) {
+      return [];
+    }
+
+    // You can only upgrade to the contract version (see `PackageVersioned`)
+    // defined by the @hyperlane-xyz/core package
     assert(
-      contractVersionMatchesDependency(
-        expectedConfig.contractVersion as string, // this definitely exists at this point
-      ),
+      contractVersionMatchesDependency(expectedConfig.contractVersion),
       VERSION_ERROR_MESSAGE,
     );
 
@@ -768,6 +974,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ); // @TODO Remove when EvmERC20WarpModule.create can be used
 
       for (const tx of addRebalancerTxs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
+    }
+
+    if (
+      isMovableCollateralTokenConfig(config) &&
+      config.allowedRebalancingBridges &&
+      !isObjEmpty(config.allowedRebalancingBridges)
+    ) {
+      const addBridgesTxs = await warpModule.createAddAllowedBridgesUpdateTxs(
+        actualConfig,
+        config,
+      ); // @TODO Remove when EvmERC20WarpModule.create can be used
+
+      for (const tx of addBridgesTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
     }

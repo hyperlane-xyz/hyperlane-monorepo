@@ -42,7 +42,18 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+const MovableTokenRebalancingBridgeConfigSchema = z.object({
+  bridge: ZHash,
+  approvedTokens: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
 export const BaseMovableTokenConfigSchema = z.object({
+  allowedRebalancingBridges: z
+    .record(z.array(MovableTokenRebalancingBridgeConfigSchema))
+    .optional(),
   allowedRebalancers: z
     .array(ZHash)
     .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
@@ -469,6 +480,5 @@ const MovableTokenSchema = z.discriminatedUnion('type', [
   CollateralTokenConfigSchema,
   NativeTokenConfigSchema,
 ]);
-export type MovableTokenConfigType = z.infer<typeof MovableTokenSchema>;
-
+export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;
 export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);
