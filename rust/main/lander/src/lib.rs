@@ -4,7 +4,7 @@ pub use dispatcher::{
 };
 pub use error::LanderError;
 pub use payload::{
-    DropReason as PayloadDropReason, FullPayload, PayloadId, PayloadStatus,
+    DropReason as PayloadDropReason, FullPayload, PayloadStatus, PayloadUuid,
     RetryReason as PayloadRetryReason,
 };
 pub use transaction::{DropReason as TransactionDropReason, TransactionStatus};

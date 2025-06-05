@@ -9,8 +9,8 @@ use crate::{
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, DispatcherState, PayloadDbLoader,
     },
-    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId,
-    PayloadStatus, TransactionStatus,
+    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
+    PayloadUuid, TransactionStatus,
 };
 
 use super::PayloadDb;
@@ -74,7 +74,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     // wait until the payload status is InTransaction(Finalized)
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -131,7 +131,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             println!("Payload status: {:?}", payload_status);
             matches!(
@@ -179,7 +179,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -242,14 +242,14 @@ async fn mock_entrypoint_and_dispatcher(
 
 async fn wait_until_payload_status<F>(
     payload_db: Arc<dyn PayloadDb>,
-    payload_id: &PayloadId,
+    payload_uuid: &PayloadUuid,
     status_check: F,
 ) where
     F: Fn(&PayloadStatus) -> bool,
 {
     loop {
         let stored_payload = payload_db
-            .retrieve_payload_by_id(payload_id)
+            .retrieve_payload_by_uuid(payload_uuid)
             .await
             .unwrap()
             .unwrap();

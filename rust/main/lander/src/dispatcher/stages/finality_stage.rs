@@ -227,7 +227,7 @@ impl FinalityStage {
         for payload in payloads.iter() {
             if let Some(full_payload) = state
                 .payload_db
-                .retrieve_payload_by_id(&payload.id)
+                .retrieve_payload_by_uuid(&payload.uuid)
                 .await
                 .ok()
                 .flatten()
@@ -240,7 +240,7 @@ impl FinalityStage {
                 // just link the payload to the null tx id
                 state
                     .payload_db
-                    .store_tx_uuid_by_payload_id(&payload.id, &TransactionUuid::default())
+                    .store_tx_uuid_by_payload_uuid(&payload.uuid, &TransactionUuid::default())
                     .await?;
                 info!(
                     ?payload,
@@ -267,7 +267,7 @@ mod tests {
             },
             PayloadDb, TransactionDb,
         },
-        payload::{PayloadDetails, PayloadId},
+        payload::{PayloadDetails, PayloadUuid},
         transaction::{Transaction, TransactionUuid},
     };
     use eyre::Result;
@@ -577,7 +577,7 @@ mod tests {
     ) {
         for payload in payloads {
             let payload = payload_db
-                .retrieve_payload_by_id(&payload.id)
+                .retrieve_payload_by_uuid(&payload.uuid)
                 .await
                 .unwrap()
                 .unwrap();

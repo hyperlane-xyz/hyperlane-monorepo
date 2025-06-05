@@ -83,7 +83,7 @@ impl DispatcherState {
         for d in details {
             if let Err(err) = self
                 .payload_db
-                .store_new_payload_status(&d.id, status.clone())
+                .store_new_payload_status(&d.uuid, status.clone())
                 .await
             {
                 error!(
@@ -130,13 +130,13 @@ impl DispatcherState {
         for payload_detail in &tx.payload_details {
             if let Err(err) = self
                 .payload_db
-                .store_tx_uuid_by_payload_id(&payload_detail.id, &tx.uuid)
+                .store_tx_uuid_by_payload_uuid(&payload_detail.uuid, &tx.uuid)
                 .await
             {
                 error!(
                     ?err,
                     payload_details = ?tx.payload_details,
-                    "Error storing to the payload_id to tx_uuid mapping in the database"
+                    "Error storing to the payload_uuid to tx_uuid mapping in the database"
                 );
             }
         }

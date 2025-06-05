@@ -486,7 +486,7 @@ mod tests {
 
             for detail in tx.payload_details.iter() {
                 let payload = payload_db
-                    .retrieve_payload_by_id(&detail.id)
+                    .retrieve_payload_by_uuid(&detail.uuid)
                     .await
                     .unwrap()
                     .unwrap();

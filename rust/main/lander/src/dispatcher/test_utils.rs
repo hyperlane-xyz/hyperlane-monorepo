@@ -68,7 +68,7 @@ pub(crate) async fn create_random_txs_and_store_them(
     for _ in 0..num {
         let mut payload = FullPayload::random();
         payload.status = PayloadStatus::InTransaction(status.clone());
-        payload_db.store_payload_by_id(&payload).await.unwrap();
+        payload_db.store_payload_by_uuid(&payload).await.unwrap();
         let tx = dummy_tx(vec![payload], status.clone());
         tx_db.store_transaction_by_uuid(&tx).await.unwrap();
         txs.push(tx);
@@ -77,7 +77,7 @@ pub(crate) async fn create_random_txs_and_store_them(
 }
 
 pub(crate) async fn initialize_payload_db(payload_db: &Arc<dyn PayloadDb>, payload: &FullPayload) {
-    payload_db.store_payload_by_id(payload).await.unwrap();
+    payload_db.store_payload_by_uuid(payload).await.unwrap();
 }
 
 pub async fn are_all_txs_in_pool(

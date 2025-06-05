@@ -8,7 +8,7 @@ use tracing::info;
 use crate::{
     adapter::GasLimit,
     error::LanderError,
-    payload::{FullPayload, PayloadId, PayloadStatus},
+    payload::{FullPayload, PayloadStatus, PayloadUuid},
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
@@ -16,7 +16,8 @@ use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
 #[async_trait]
 pub trait Entrypoint {
     async fn send_payload(&self, payloads: &FullPayload) -> Result<(), LanderError>;
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, LanderError>;
+    async fn payload_status(&self, payload_uuid: PayloadUuid)
+        -> Result<PayloadStatus, LanderError>;
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
@@ -45,16 +46,19 @@ impl DispatcherEntrypoint {
 #[async_trait]
 impl Entrypoint for DispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), LanderError> {
-        self.inner.payload_db.store_payload_by_id(payload).await?;
+        self.inner.payload_db.store_payload_by_uuid(payload).await?;
         info!(payload=?payload.details, "Sent payload to dispatcher");
         Ok(())
     }
 
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, LanderError> {
+    async fn payload_status(
+        &self,
+        payload_uuid: PayloadUuid,
+    ) -> Result<PayloadStatus, LanderError> {
         let payload = self
             .inner
             .payload_db
-            .retrieve_payload_by_id(&payload_id)
+            .retrieve_payload_by_uuid(&payload_uuid)
             .await?;
         payload
             .map(|payload| payload.status)
@@ -93,7 +97,7 @@ mod tests {
 
     struct MockDb {
         // need arcmutex for interior mutability
-        payloads: Arc<Mutex<HashMap<PayloadId, FullPayload>>>,
+        payloads: Arc<Mutex<HashMap<PayloadUuid, FullPayload>>>,
     }
 
     impl MockDb {
@@ -106,49 +110,55 @@ mod tests {
 
     #[async_trait]
     impl PayloadDb for MockDb {
-        async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>> {
-            Ok(self.payloads.lock().unwrap().get(id).cloned())
+        async fn retrieve_payload_by_uuid(
+            &self,
+            payload_uuid: &PayloadUuid,
+        ) -> DbResult<Option<FullPayload>> {
+            Ok(self.payloads.lock().unwrap().get(payload_uuid).cloned())
         }
 
-        async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
+        async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()> {
             self.payloads
                 .lock()
                 .unwrap()
-                .insert(payload.id().clone(), payload.clone());
+                .insert(payload.uuid().clone(), payload.clone());
             Ok(())
         }
 
-        async fn store_tx_uuid_by_payload_id(
+        async fn store_tx_uuid_by_payload_uuid(
             &self,
-            _payload_id: &PayloadId,
+            _payload_uuid: &PayloadUuid,
             _tx_uuid: &TransactionUuid,
         ) -> DbResult<()> {
             todo!()
         }
 
-        async fn retrieve_tx_uuid_by_payload_id(
+        async fn retrieve_tx_uuid_by_payload_uuid(
             &self,
-            _payload_id: &PayloadId,
+            _payload_uuid: &PayloadUuid,
         ) -> DbResult<Option<TransactionUuid>> {
             todo!()
         }
 
-        async fn retrieve_payload_index_by_id(
+        async fn retrieve_payload_index_by_uuid(
             &self,
-            _payload_id: &PayloadId,
+            _payload_uuid: &PayloadUuid,
         ) -> DbResult<Option<u32>> {
             todo!()
         }
 
-        async fn store_payload_id_by_index(
+        async fn store_payload_uuid_by_index(
             &self,
             _index: u32,
-            _payload_id: &PayloadId,
+            _payload_uuid: &PayloadUuid,
         ) -> DbResult<()> {
             todo!()
         }
 
-        async fn retrieve_payload_id_by_index(&self, _index: u32) -> DbResult<Option<PayloadId>> {
+        async fn retrieve_payload_uuid_by_index(
+            &self,
+            _index: u32,
+        ) -> DbResult<Option<PayloadUuid>> {
             todo!()
         }
 
@@ -160,10 +170,10 @@ mod tests {
             todo!()
         }
 
-        async fn store_payload_index_by_id(
+        async fn store_payload_index_by_uuid(
             &self,
             _index: u32,
-            _payload_id: &PayloadId,
+            _payload_uuid: &PayloadUuid,
         ) -> DbResult<()> {
             todo!()
         }
@@ -241,20 +251,20 @@ mod tests {
         db: Arc<dyn PayloadDb>,
     ) -> Result<()> {
         let mut payload = FullPayload::default();
-        let payload_id = payload.id().clone();
+        let payload_uuid = payload.uuid().clone();
 
         entrypoint.send_payload(&payload).await?;
 
-        let status = entrypoint.payload_status(payload_id.clone()).await?;
+        let status = entrypoint.payload_status(payload_uuid.clone()).await?;
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
 
         // update the payload's status
         let new_status = PayloadStatus::InTransaction(TransactionStatus::Finalized);
         payload.status = new_status.clone();
-        db.store_payload_by_id(&payload).await.unwrap();
+        db.store_payload_by_uuid(&payload).await.unwrap();
 
         // ensure the db entry was updated
-        let status = entrypoint.payload_status(payload_id.clone()).await?;
+        let status = entrypoint.payload_status(payload_uuid.clone()).await?;
         assert_eq!(status, new_status);
 
         Ok(())
