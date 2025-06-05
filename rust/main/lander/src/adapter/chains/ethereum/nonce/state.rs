@@ -67,41 +67,28 @@ impl NonceManagerState {
         }
     }
 
-    pub(crate) async fn insert_nonce_status(&self, nonce: &U256, nonce_status: NonceStatus) {
+    pub(crate) async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
         let mut guard = self.inner.lock().await;
 
-        guard.nonces.insert(nonce.into(), nonce_status);
+        guard.nonces.insert(nonce, nonce_status);
 
-        if nonce >= &guard.upper_nonce {
+        if nonce >= guard.upper_nonce {
             guard.upper_nonce = nonce + 1;
         }
     }
 
     pub(crate) async fn update_nonce_status(
         &self,
-        tx: &Transaction,
-        tx_status: &TransactionStatus,
+        nonce: U256,
+        nonce_status: NonceStatus,
+        tx_uuid: &TransactionUuid,
     ) {
         use NonceStatus::{Committed, Free, Taken};
-        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
-
-        let tx_uuid = &tx.uuid;
-        let precursor = tx.precursor();
-
-        let Some(nonce) = precursor.tx.nonce().map(Into::into) else {
-            return;
-        };
-
-        let nonce_status = match tx_status {
-            PendingInclusion | Mempool | Included => Taken(tx_uuid.clone()),
-            Finalized => Committed(tx_uuid.clone()),
-            Dropped(_) => Free,
-        };
 
         let (Some(tracked_nonce_status), _) = self.get_nonce_status_and_lowest_nonce(&nonce).await
         else {
             // If the nonce is not tracked, we insert it with the new status.
-            self.insert_nonce_status(&nonce, nonce_status).await;
+            self.insert_nonce_status(nonce, nonce_status).await;
             return;
         };
 
@@ -119,7 +106,7 @@ impl NonceManagerState {
             Free | Taken(_) | Committed(_) => {
                 // If the nonce is free or assigned to the same transaction,
                 // we update the status to the new one.
-                self.insert_nonce_status(&nonce, nonce_status).await;
+                self.insert_nonce_status(nonce, nonce_status).await;
             }
         }
     }
