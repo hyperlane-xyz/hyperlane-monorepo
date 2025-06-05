@@ -8,6 +8,7 @@ import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {OPL2ToL1CcipReadIsm, OPL2ToL1V1CcipReadIsm, OPL2ToL1V2CcipReadIsm} from "../../isms/hook/OPL2ToL1CcipReadIsm.sol";
+import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {Message} from "../../libs/Message.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -128,7 +129,10 @@ contract OpL2NativeTokenBridge is HypNative {
         _transferFromSender(_amount);
 
         // used for mapping withdrawal to hyperlane prove and finalize messages
-        bytes memory extraData = abi.encode(proveMessageId, withdrawMessageId);
+        bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
+            proveMessageId,
+            withdrawMessageId
+        );
         l2Bridge.bridgeETHTo{value: _amount}(
             _recipient.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
@@ -183,23 +187,6 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         bytes calldata _message
     ) internal pure override returns (bool) {
         return _message.body().amount() == 0;
-    }
-
-    function _proveMessageId(
-        bytes memory extraData
-    ) internal pure override returns (bytes32) {
-        (bytes32 proveMessageId, ) = abi.decode(extraData, (bytes32, bytes32));
-        return proveMessageId;
-    }
-
-    function _finalizeMessageId(
-        bytes memory extraData
-    ) internal pure override returns (bytes32) {
-        (, bytes32 finalizeMessageId) = abi.decode(
-            extraData,
-            (bytes32, bytes32)
-        );
-        return finalizeMessageId;
     }
 
     function _transferTo(

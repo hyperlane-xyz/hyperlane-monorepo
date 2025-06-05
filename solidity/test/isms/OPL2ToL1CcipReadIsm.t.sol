@@ -126,7 +126,10 @@ contract OpL1V1NativeTokenBridgeTest is Test {
             messageBody
         );
 
-        bytes memory data = abi.encodePacked(proveMessageId, bytes32(0));
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            proveMessageId,
+            bytes32(0)
+        );
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
 
@@ -154,7 +157,10 @@ contract OpL1V1NativeTokenBridgeTest is Test {
             messageBody
         );
 
-        bytes memory data = abi.encodePacked(bytes32(0), finalizeMessageId);
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            finalizeMessageId
+        );
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
 
@@ -182,7 +188,10 @@ contract OpL1V1NativeTokenBridgeTest is Test {
             messageBody
         );
 
-        bytes memory data = abi.encodePacked(bytes32(0), bytes32(0));
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            bytes32(0)
+        );
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, 0, data);
 
@@ -206,7 +215,10 @@ contract OpL1V1NativeTokenBridgeTest is Test {
             messageBody
         );
 
-        bytes memory data = abi.encodePacked(bytes32(0), bytes32(0));
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            bytes32(0)
+        );
         IOptimismPortal.WithdrawalTransaction
             memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
 
