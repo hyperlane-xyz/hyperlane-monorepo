@@ -77,7 +77,7 @@ impl HyperlaneRocksDB {
         &self.0
     }
 
-    /// Store a raw committed message
+    /// Store a raw committed message. If message already exists, then do nothing.
     ///
     /// Keys --> Values:
     /// - `nonce` --> `id`
@@ -92,7 +92,21 @@ impl HyperlaneRocksDB {
             trace!(hyp_message=?message, "Message already stored in db");
             return Ok(false);
         }
+        self.upsert_message(message, dispatched_block_number)?;
+        Ok(true)
+    }
 
+    /// Store a raw committed message.
+    ///
+    /// Keys --> Values:
+    /// - `nonce` --> `id`
+    /// - `id` --> `message`
+    /// - `nonce` --> `dispatched block number`
+    pub fn upsert_message(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
         let id = message.id();
         debug!(hyp_message=?message,  "Storing new message in db",);
 
@@ -104,7 +118,7 @@ impl HyperlaneRocksDB {
         self.try_update_max_seen_message_nonce(message.nonce)?;
         // - `nonce` --> `dispatched block number`
         self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
-        Ok(true)
+        Ok(())
     }
 
     /// Retrieve a message by its nonce
@@ -201,7 +215,16 @@ impl HyperlaneRocksDB {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
         }
+        self.store_tree_insertion(insertion, insertion_block_number)
+    }
 
+    /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index.
+    /// Overwrites existing insertions
+    pub fn store_tree_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.

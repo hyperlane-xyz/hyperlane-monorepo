@@ -44,8 +44,10 @@ rusoto_core = '*'
 [dev-dependencies]
 http-body-util.workspace = true
 mockall.workspace = true
+tempfile.workspace = true
 tokio-test.workspace = true
 tower.workspace = true
+tracing-test.workspace = true
 reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
