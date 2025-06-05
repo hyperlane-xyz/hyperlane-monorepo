@@ -284,6 +284,16 @@ export async function createWarpRouteDeployConfig({
           isNft: true,
         };
         break;
+      case TokenType.native:
+      case TokenType.synthetic:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          isNft: false,
+        };
+        break;
       default:
         throw new Error(`Token type ${type} is not supported`);
     }
