@@ -610,6 +610,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         destinationDomain: getDomainId('solanamainnet'),
       },
       { originDomain: getDomainId('starknet') },
+      { originDomain: getDomainId('paradex') },
     ],
   },
   {
