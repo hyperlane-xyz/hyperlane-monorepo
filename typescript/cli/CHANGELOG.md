@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cli
 
+## 12.6.1-next.0
+
 ## 12.6.0
 
 ### Minor Changes

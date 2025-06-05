@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 12.6.1-next.0
+
 ## 12.6.0
 
 ## 12.5.0

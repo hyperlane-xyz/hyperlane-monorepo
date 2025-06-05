@@ -1,5 +1,19 @@
 # @hyperlane-xyz/ccip-server
 
+## 12.6.1-next.0
+
+### Patch Changes
+
+- Updated dependencies [e61bd2f97]
+- Updated dependencies [db1943523]
+- Updated dependencies [fd3bb398b]
+- Updated dependencies [45441207c]
+- Updated dependencies [7a3165fec]
+- Updated dependencies [119a1a896]
+- Updated dependencies [88fe35f15]
+- Updated dependencies [3327a6ec7]
+  - @hyperlane-xyz/core@8.0.0-next.0
+
 ## 12.6.0
 
 ## 12.5.0

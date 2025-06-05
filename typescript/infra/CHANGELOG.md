@@ -1,5 +1,22 @@
 # @hyperlane-xyz/infra
 
+## 12.6.1-next.0
+
+### Patch Changes
+
+- 119a1a896: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+- Updated dependencies [119a1a896]
+  - @hyperlane-xyz/helloworld@12.6.1-next.0
+  - @hyperlane-xyz/sdk@12.6.1-next.0
+  - @hyperlane-xyz/utils@12.6.1-next.0
+
 ## 12.6.0
 
 ### Minor Changes
