@@ -27,7 +27,7 @@ use crate::{
 use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 

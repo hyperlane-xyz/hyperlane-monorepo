@@ -69,3 +69,28 @@ impl Encode for NonceAndSignerAddress {
         writer.write(&vector)
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    mockall::mock! {
+        pub NonceDb {}
+
+        #[async_trait]
+        impl NonceDb for NonceDb {
+            async fn retrieve_tx_id_by_nonce_and_signer_address(
+                &self,
+                nonce: &U256,
+                signer_address: &str,
+            ) -> DbResult<Option<TransactionId>>;
+
+            async fn store_tx_id_by_nonce_and_signer_address(
+                &self,
+                nonce: &U256,
+                signer_address: &str,
+                tx_id: &TransactionId,
+            ) -> DbResult<()>;
+        }
+    }
+}

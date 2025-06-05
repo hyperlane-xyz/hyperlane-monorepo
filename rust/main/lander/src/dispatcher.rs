@@ -13,6 +13,5 @@ mod tests;
 
 pub use core::*;
 pub use db::*;
-pub use entrypoint::*;
 pub use metrics::*;
 pub use stages::*;

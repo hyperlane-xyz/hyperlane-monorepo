@@ -319,7 +319,7 @@ mod tests {
             .expect_tx_status()
             .returning(|_| Ok(TransactionStatus::Included));
 
-        let (payload_db, tx_db) = tmp_dbs();
+        let (payload_db, tx_db, _) = tmp_dbs();
 
         let generated_txs = create_random_txs_and_store_them(
             TXS_TO_PROCESS,
@@ -485,7 +485,7 @@ mod tests {
         FinalityStage,
         BuildingStageQueue,
     ) {
-        let (payload_db, tx_db) = tmp_dbs();
+        let (payload_db, tx_db, _) = tmp_dbs();
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(txs_to_process);
 
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));

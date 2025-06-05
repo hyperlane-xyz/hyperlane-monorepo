@@ -17,7 +17,7 @@ use super::PayloadDb;
 
 #[tokio::test]
 async fn test_entrypoint_send_is_detected_by_loader() {
-    let (payload_db, tx_db) = tmp_dbs();
+    let (payload_db, tx_db, _) = tmp_dbs();
     let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
     let domain = "dummy_domain".to_string();
     let payload_db_loader = PayloadDbLoader::new(
@@ -208,7 +208,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
 async fn mock_entrypoint_and_dispatcher(
     adapter: Arc<MockAdapter>,
 ) -> (DispatcherEntrypoint, Dispatcher) {
-    let (payload_db, tx_db) = tmp_dbs();
+    let (payload_db, tx_db, _) = tmp_dbs();
     let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
     let domain = "test_domain".to_string();
     let payload_db_loader = PayloadDbLoader::new(

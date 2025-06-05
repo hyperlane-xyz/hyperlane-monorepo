@@ -51,10 +51,10 @@ pub trait PayloadDb: Send + Sync {
     }
 
     /// Store the highest payload index
-    async fn store_highest_index(&self, index: u32) -> DbResult<()>;
+    async fn store_highest_payload_index(&self, index: u32) -> DbResult<()>;
 
     /// Retrieve the highest payload index
-    async fn retrieve_highest_index(&self) -> DbResult<u32>;
+    async fn retrieve_highest_payload_index(&self) -> DbResult<u32>;
 
     /// Set the status of a payload by its unique ID. Performs one read (to first fetch the full payload) and one write.
     async fn store_new_payload_status(
@@ -98,9 +98,9 @@ impl PayloadDb for HyperlaneRocksDB {
             .await?
             .is_none()
         {
-            let highest_index = self.retrieve_highest_index().await?;
+            let highest_index = self.retrieve_highest_payload_index().await?;
             let payload_index = highest_index + 1;
-            self.store_highest_index(payload_index).await?;
+            self.store_highest_payload_index(payload_index).await?;
             self.store_payload_index_by_id(payload_index, payload.id())
                 .await?;
             self.store_payload_id_by_index(payload_index, payload.id())
@@ -146,7 +146,7 @@ impl PayloadDb for HyperlaneRocksDB {
         self.store_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, payload_id, &index)
     }
 
-    async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+    async fn store_highest_payload_index(&self, index: u32) -> DbResult<()> {
         // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
         self.store_value_by_key(
             HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX,
@@ -155,7 +155,7 @@ impl PayloadDb for HyperlaneRocksDB {
         )
     }
 
-    async fn retrieve_highest_index(&self) -> DbResult<u32> {
+    async fn retrieve_highest_payload_index(&self) -> DbResult<u32> {
         // return the default value (0) if no index has been stored yet
         self.retrieve_value_by_key(HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX, &bool::default())
             .map(|index: Option<u32>| index.unwrap_or_default())
@@ -238,7 +238,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved_payload, payload);
-            let highest_index = db.retrieve_highest_index().await.unwrap();
+            let highest_index = db.retrieve_highest_payload_index().await.unwrap();
             assert_eq!(highest_index, expected_payload_index);
 
             // storing to this payload ID again should not create a new highest index
@@ -250,7 +250,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved_payload, payload);
-            let highest_index = db.retrieve_highest_index().await.unwrap();
+            let highest_index = db.retrieve_highest_payload_index().await.unwrap();
             assert_eq!(highest_index, expected_payload_index);
         }
     }

@@ -1,12 +1,16 @@
 use super::*;
 use crate::{
     adapter::chains::ethereum::{
-        nonce::{NonceManager, NonceManagerState},
+        nonce::{
+            db::{tests::MockNonceDb, NonceDb},
+            NonceManager, NonceManagerState,
+        },
         tests::MockEvmProvider,
         EthereumAdapter,
     },
     dispatcher::{
         entrypoint::tests::MockDb,
+        finality_stage,
         metrics::DispatcherMetrics,
         test_utils::{
             are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx,
@@ -17,13 +21,13 @@ use crate::{
     transaction::{Transaction, TransactionId},
 };
 use ethers::types::H160;
-use ethers_core::rand::rngs::adapter;
+use ethers_core::rand::rngs::{adapter, mock};
 use eyre::Result;
 use hyperlane_base::settings::ChainConf;
 use hyperlane_core::{config::OpSubmissionConfig, KnownHyperlaneDomain};
 use hyperlane_ethereum::EthereumReorgPeriod;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::{select, sync::mpsc};
 
 #[tokio::test]
 async fn test_processing_included_txs() {
@@ -118,40 +122,6 @@ async fn test_failed_simulation() {
     .await;
 }
 
-#[tokio::test]
-async fn test_evm_tx_underpriced() {
-    let mut mock_evm_provider = MockEvmProvider::new();
-    // let adapter =
-    // let adapter = Arc::new(MockAdapter::new()) as Arc<dyn AdaptsChain>;
-    let adapter = mock_ethereum_adapter(mock_evm_provider);
-    let db = Arc::new(MockDb::new());
-    let payload_db = db.clone() as Arc<dyn PayloadDb>;
-    let tx_db = db as Arc<dyn TransactionDb>;
-    let dispatcher_state = DispatcherState::new(
-        payload_db,
-        tx_db,
-        Arc::new(adapter),
-        DispatcherMetrics::dummy_instance(),
-        "test".to_string(),
-    );
-}
-
-fn mock_ethereum_adapter(provider: MockEvmProvider) -> EthereumAdapter {
-    EthereumAdapter {
-        estimated_block_time: Duration::from_millis(10),
-        domain: KnownHyperlaneDomain::Arbitrum.into(),
-        transaction_overrides: Default::default(),
-        submission_config: OpSubmissionConfig::default(),
-        provider: Box::new(provider),
-        reorg_period: EthereumReorgPeriod::Blocks(1),
-        nonce_manager: NonceManager {
-            address: H160::zero(),
-            db: Arc::new(MockDb::new()),
-            state: NonceManagerState::new(),
-        },
-    }
-}
-
 async fn set_up_test_and_run_stage(
     mock_adapter: MockAdapter,
     txs_to_process: usize,
@@ -162,7 +132,7 @@ async fn set_up_test_and_run_stage(
     Arc<dyn PayloadDb>,
     InclusionStagePool,
 ) {
-    let (payload_db, tx_db) = tmp_dbs();
+    let (payload_db, tx_db, _) = tmp_dbs();
     let (building_stage_sender, building_stage_receiver) = mpsc::channel(txs_to_process);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(txs_to_process);
 
