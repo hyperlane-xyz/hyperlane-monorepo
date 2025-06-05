@@ -8,12 +8,8 @@ import {
   Ownable__factory,
 } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
-  EvmHypVSXERC20Adapter,
-  EvmHypVSXERC20LockboxAdapter,
   EvmXERC20VSAdapter,
-  IHypVSXERC20Adapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -21,7 +17,7 @@ import {
   WarpRouteDeployConfig,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import {
@@ -30,6 +26,7 @@ import {
   SafeMultiSend,
   SignerMultiSend,
 } from '../govern/multisend.js';
+import { Owner, determineGovernanceType } from '../governance.js';
 import { getSafeAndService } from '../utils/safe.js';
 import { getInfraPath } from '../utils/utils.js';
 
@@ -338,28 +335,17 @@ async function prepareRateLimitTx(
 
 async function checkOwnerIsSafe(
   chain: string,
-  multiProvider: MultiProvider,
   owner: Address,
   bridgeAddress: Address,
 ): Promise<boolean> {
-  try {
-    await getSafeAndService(chain, multiProvider, owner);
+  const { ownerType } = await determineGovernanceType(chain, owner);
+  if (ownerType === Owner.SAFE) {
     rootLogger.debug(
       chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${owner}`),
     );
     return true;
-  } catch (error) {
-    const level =
-      error instanceof Error &&
-      error.message.includes('must provide tx service url')
-        ? 'warn'
-        : 'info';
-    const color = level === 'warn' ? chalk.yellow : chalk.gray;
-    rootLogger[level](
-      color(`[${chain}][${bridgeAddress}] Safe not found: ${owner}. ${error}`),
-    );
-    return false;
   }
+  return false;
 }
 
 async function checkSafeProposer(
@@ -471,12 +457,7 @@ async function sendTransactions(
   // (a) the actual owner is a safe
   // (b) the signer (deployer) has the ability to propose transactions on the safe
   // otherwise fallback to a signer transaction, this fallback will allow for us to handle scenario 1 even though the expected owner is a safe
-  const isOwnerSafe = await checkOwnerIsSafe(
-    chain,
-    multiProvider,
-    actualOwner,
-    bridgeAddress,
-  );
+  const isOwnerSafe = await checkOwnerIsSafe(chain, actualOwner, bridgeAddress);
 
   let sender: MultiSend | undefined;
   let safeAddress: Address | undefined;
@@ -504,7 +485,7 @@ async function sendTransactions(
     }
   }
 
-  if (signerAddress !== actualOwner) {
+  if (!eqAddress(signerAddress, actualOwner)) {
     rootLogger.warn(
       chalk.red(
         `[${chain}][${bridgeAddress}] Signer is not the owner of the xERC20 so cannot successful submit a Signer transaction.`,
@@ -658,27 +639,6 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
   return new BigNumber(limit.toString())
     .dividedBy(new BigNumber(10).pow(decimals))
     .toString();
-}
-
-function getHypVSXERC20Adapter(
-  chainName: ChainName,
-  multiProtocolProvider: MultiProtocolProvider,
-  addresses: { token: Address },
-  isLockbox: boolean,
-): IHypVSXERC20Adapter<PopulatedTransaction> {
-  if (isLockbox) {
-    return new EvmHypVSXERC20LockboxAdapter(
-      chainName,
-      multiProtocolProvider,
-      addresses,
-    );
-  } else {
-    return new EvmHypVSXERC20Adapter(
-      chainName,
-      multiProtocolProvider,
-      addresses,
-    );
-  }
 }
 
 export function getAndValidateBridgesToUpdate(

@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  ChainTechnicalStack,
   DeployedOwnableConfig,
   HypERC20Deployer,
   IsmConfig,
@@ -155,6 +156,10 @@ export async function createWarpRouteDeployConfig({
     const proxyAdmin: DeployedOwnableConfig | undefined =
       await setProxyAdminConfig(context, chain);
 
+    const excludeStaticIsms =
+      context.multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.ZkSync;
+
     /**
      * The logic from the cli is as follows:
      *  --yes flag is provided: set ism to undefined (default ISM config)
@@ -167,13 +172,19 @@ export async function createWarpRouteDeployConfig({
     if (context.skipConfirmation) {
       interchainSecurityModule = undefined;
     } else if (advanced) {
-      interchainSecurityModule = await createAdvancedIsmConfig(context);
+      interchainSecurityModule = await createAdvancedIsmConfig(
+        context,
+        excludeStaticIsms,
+      );
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+      interchainSecurityModule = createDefaultWarpIsmConfig(
+        owner,
+        excludeStaticIsms,
+      );
     }
 
     const type = await select({
@@ -335,23 +346,36 @@ export async function readWarpCoreConfig(
 }
 
 /**
- * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
+ * Creates a default configuration for an ISM.
  *
- * Properties relayer and owner are both set as input owner.
+ * When excludeStaticIsms is false (default):
+ * - Creates an AGGREGATION ISM with TRUSTED_RELAYER and FALLBACK_ROUTING modules
+ * - Properties relayer and owner are both set as input owner
  *
- * @param owner - The address of the owner of the ISM.
- * @returns The default Aggregation ISM configuration.
+ * When excludeStaticIsms is true:
+ * - Creates only a TRUSTED_RELAYER ISM (as static ISMs like AGGREGATION are not supported)
+ * - Properties relayer is set as input owner
+ *
+ * @param owner - The address of the owner of the ISM
+ * @param excludeStaticIsms - Whether to exclude static ISM types (default: false)
+ * @returns The ISM configuration
  */
-function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
+function createDefaultWarpIsmConfig(
+  owner: Address,
+  excludeStaticIsms: boolean = false,
+): IsmConfig {
+  const trustedRelayerModule: IsmConfig = {
+    type: IsmType.TRUSTED_RELAYER,
+    relayer: owner,
+  };
+
+  if (excludeStaticIsms) {
+    return trustedRelayerModule;
+  }
+
   return {
     type: IsmType.AGGREGATION,
-    modules: [
-      {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: owner,
-      },
-      createFallbackRoutingConfig(owner),
-    ],
+    modules: [trustedRelayerModule, createFallbackRoutingConfig(owner)],
     threshold: 1,
   };
 }

@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet', 'rometestnet'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
