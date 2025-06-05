@@ -59,13 +59,11 @@ async fn test_evm_tx_underpriced() {
         },
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
-            // assert_eq!(tx_received.status, TransactionStatus::Dropped(TxDropReason::Underpriced));
             assert_eq!(tx_received.payload_details[0].id, txs_created[0].payload_details[0].id);
         },
-        // _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-        //     // stop the inclusion stage to check the outcome
-        //     panic!("Inclusion stage did not process the txs in time");
-        // }
+        _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+            panic!("Inclusion stage did not process the txs in time");
+        }
     }
 }
 

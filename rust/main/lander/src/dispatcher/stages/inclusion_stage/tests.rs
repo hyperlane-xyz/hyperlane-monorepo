@@ -1,10 +1,7 @@
 use super::*;
 use crate::{
     adapter::chains::ethereum::{
-        nonce::{
-            db::{tests::MockNonceDb, NonceDb},
-            NonceManager, NonceManagerState,
-        },
+        nonce::{db::NonceDb, NonceManager, NonceManagerState},
         tests::MockEvmProvider,
         EthereumAdapter,
     },
