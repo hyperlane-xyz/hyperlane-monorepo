@@ -1,0 +1,34 @@
+warpRouteId: USDC/arbitrum-avalanche-base-bsc-ethereum-optimism-unichain
+rebalanceStrategy: minAmount
+
+base:
+  minAmount:
+    min: 0.1
+    target: 0.15
+    type: 'absolute'
+  bridgeLockTime: 80
+  bridge: '0xEB6d07B591215f9D9c1e5D57D57d5fbD31D6C0d6'
+
+ethereum:
+  minAmount:
+    min: 0.1
+    target: 0.15
+    type: 'absolute'
+  bridgeLockTime: 80
+  bridge: '0xa7f63BC04e94Ad6d7CDD0Ae5a57AeB06d41b040F'
+
+optimism:
+  minAmount:
+    min: 0.1
+    target: 0.15
+    type: 'absolute'
+  bridgeLockTime: 80
+  bridge: '0x8047Ac910670E8596CA57Bf7F7ddB8a706079c60'
+
+unichain:
+  minAmount:
+    min: 5
+    target: 8
+    type: 'absolute'
+  bridgeLockTime: 80
+  bridge: '0x988ad4E9465bD63B1E4F9f8A220C4Db12a956487'
