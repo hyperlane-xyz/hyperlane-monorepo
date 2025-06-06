@@ -213,7 +213,14 @@ impl SovereignRestClient {
     }
 
     pub async fn get_tx_by_hash(&self, tx_id: H512) -> ChainResult<Tx> {
-        let query = format!("/ledger/txs/{tx_id}?children=1");
+        if tx_id.0[0..32] != [0; 32] {
+            return Err(ChainCommunicationError::CustomError(format!(
+                "Invalid sovereign transaction id, should have 32 bytes: {tx_id:?}"
+            )));
+        }
+        let tx_id = H256(tx_id[32..].try_into().expect("Must be 32 bytes"));
+
+        let query = format!("/ledger/txs/{tx_id:?}?children=1");
 
         let response = self
             .http_get(&query)
