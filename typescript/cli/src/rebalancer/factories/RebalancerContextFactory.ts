@@ -9,13 +9,13 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { Rebalancer } from '../core/Rebalancer.js';
+import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
-import { Rebalancer } from '../rebalancer/Rebalancer.js';
-import { WithSemaphore } from '../rebalancer/WithSemaphore.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
 import { rebalancerLogger } from '../utils/logger.js';
