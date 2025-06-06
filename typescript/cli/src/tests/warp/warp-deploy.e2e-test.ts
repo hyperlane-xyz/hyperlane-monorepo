@@ -91,7 +91,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     warpCoreConfigPath: string,
     chainName: ChainName,
     expectedMetadata: { decimals: number; symbol: string },
-    expectedMailboxAddress: string,
   ): Promise<void> {
     const currentWarpDeployConfig = await readWarpConfig(
       chainName,
@@ -148,14 +147,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
         finalOutput
           .text()
           .includes(`No "Warp route deployment config" found in`) ||
-        finalOutput
-          .text()
-          .includes(`Invalid file format for ${nonExistingFilePath}`) ||
-        finalOutput
-          .text()
-          .includes(
-            `Warp route deployment config file not found at ${nonExistingFilePath}`,
-          ),
+          finalOutput
+            .text()
+            .includes(`Invalid file format for ${nonExistingFilePath}`) ||
+          finalOutput
+            .text()
+            .includes(
+              `Warp route deployment config file not found at ${nonExistingFilePath}`,
+            ),
       ).to.be.true;
     });
 
@@ -293,17 +292,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
-        const mailboxAddress =
-          chainName === CHAIN_NAME_3
-            ? chain3Addresses.mailbox
-            : chain2Addresses.mailbox;
-
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
-          mailboxAddress,
         );
       }
     });
@@ -571,17 +564,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
-        const mailboxAddress =
-          chainName === CHAIN_NAME_3
-            ? chain3Addresses.mailbox
-            : chain2Addresses.mailbox;
-
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
-          mailboxAddress,
         );
       }
     });

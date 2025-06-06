@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
-import "../../contracts/isms/ccip-read/TestCcipReadIsm.sol";
+import "../../contracts/test/TestCcipReadIsm.sol";
 
 contract TestCcipReadIsmTest is Test {
     TestCcipReadIsm internal ism;
