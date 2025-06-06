@@ -6,7 +6,7 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
+import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
@@ -109,8 +109,11 @@ export function resolveRouterMapConfig<T>(
 ): Record<number, T> {
   return Object.fromEntries(
     Object.entries(routerMap).map(([domainIdOrChainName, value]) => {
-      const meta = multiProvider.getChainMetadata(domainIdOrChainName);
+      if (isNumeric(domainIdOrChainName)) {
+        return [parseInt(domainIdOrChainName), value];
+      }
 
+      const meta = multiProvider.getChainMetadata(domainIdOrChainName);
       return [meta.domainId, value];
     }),
   );

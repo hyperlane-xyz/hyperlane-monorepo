@@ -24,6 +24,7 @@ import {
   arrayToObject,
   assert,
   getLogLevel,
+  isObjEmpty,
   isZeroishAddress,
   objFilter,
   objMap,
@@ -156,6 +157,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           this.provider,
         ).allowedRebalancers();
 
+        // Set to undefined if the object is empty because might trigger false positives in the checker
         allowedRebalancers = rebalancers.length ? rebalancers : undefined;
       } catch (error) {
         // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
@@ -181,6 +183,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
         );
+
+        // Set to undefined if the object is empty because might trigger false positives in the checker
+        allowedRebalancingBridges = !isObjEmpty(allowedRebalancingBridges)
+          ? allowedRebalancingBridges
+          : undefined;
       } catch (error) {
         // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
         this.logger.error(
