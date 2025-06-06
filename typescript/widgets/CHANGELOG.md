@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 13.3.0
+
+### Patch Changes
+
+- Updated dependencies [f8fd7b4]
+  - @hyperlane-xyz/sdk@13.3.0
+  - @hyperlane-xyz/cosmos-sdk@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
 ## 13.2.1
 
 ### Patch Changes

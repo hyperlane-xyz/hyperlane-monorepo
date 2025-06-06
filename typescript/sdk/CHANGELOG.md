@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 13.3.0
+
+### Minor Changes
+
+- f8fd7b4: Support using MultiSend when proposing txs via the EV5GnosisSafeTxSubmitter.
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@13.3.0
+- @hyperlane-xyz/cosmos-sdk@13.3.0
+- @hyperlane-xyz/utils@13.3.0
+- @hyperlane-xyz/core@7.1.11
+
 ## 13.2.1
 
 ### Patch Changes
