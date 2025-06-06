@@ -110,7 +110,20 @@ export const rebalancerConsecutiveExecutionFailures = new Gauge({
   labelNames: ['warp_route_id'],
 });
 
-const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
+const walletBalanceGauge = new Gauge({
+  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
+  name: 'hyperlane_wallet_balance',
+  help: 'Current balance of a wallet for a token',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+  ],
+});
 
 const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
