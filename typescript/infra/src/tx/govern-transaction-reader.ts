@@ -285,6 +285,11 @@ export class GovernTransactionReader {
       return this.readWarpModuleTransaction(chain, tx);
     }
 
+    // If it's a Managed Lockbox transaction
+    if (this.isManagedLockboxTransaction(chain, tx)) {
+      return this.readManagedLockboxTransaction(chain, tx);
+    }
+
     // If it's an XERC20 transaction
     const xerc20Type = await this.isXERC20Transaction(chain, tx);
     if (xerc20Type) {
@@ -504,6 +509,75 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+    };
+  }
+
+  private isManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.to) return false;
+    const lockboxes = {
+      optimism: '0x18C4CdC2d774c047Eac8375Bb09853c4D6D6dF36',
+      base: '0xE92e51D99AE33114C60D9621FB2E1ec0ACeA7E30',
+    };
+    return (
+      chain in lockboxes &&
+      eqAddress(tx.to, lockboxes[chain as keyof typeof lockboxes])
+    );
+  }
+
+  private readManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    if (!tx.data) {
+      throw new Error('No data in Managed Lockbox transaction');
+    }
+
+    const managedLockboxInterface = new ethers.utils.Interface([
+      'function deposit(uint256 _amount) nonpayable',
+      'function disableDeposits() nonpayable',
+      'function enableDeposits() nonpayable',
+      'function grantRole(bytes32 role, address account) nonpayable',
+      'function renounceRole(bytes32 role, address callerConfirmation) nonpayable',
+      'function revokeRole(bytes32 role, address account) nonpayable',
+      'function withdraw(uint256 _amount) nonpayable',
+      'function withdrawTo(address _to, uint256 _amount) nonpayable',
+    ]);
+    let decoded;
+    try {
+      decoded = managedLockboxInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } catch (error) {
+      throw new Error('Failed to decode Managed Lockbox transaction');
+    }
+
+    const roleMap: Record<string, string> = {
+      '0x0000000000000000000000000000000000000000000000000000000000000000':
+        'DEFAULT_ADMIN_ROLE',
+      '0xaf290d8680820aad922855f39b306097b20e28774d6c1ad35a20325630c3a02c':
+        'MANAGER',
+    };
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      managedLockboxInterface.functions['grantRole(bytes32,address)'].name
+    ) {
+      const [role, account] = decoded.args;
+      const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
+      insight = `Grant role${roleName} to ${account}`;
+    } else {
+      insight = 'Unknown function in Managed Lockbox transaction';
+    }
+
+    return {
+      to: `${tx.to} (Managed Lockbox)`,
+      chain,
+      insight,
     };
   }
 
