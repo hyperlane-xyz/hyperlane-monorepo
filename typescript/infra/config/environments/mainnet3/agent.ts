@@ -860,7 +860,28 @@ const releaseCandidate: RootAgentConfig = {
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      {
+        // name: 'velo_message_module',
+        // Almost all messages to / from this address relate to the Velo Message Module.
+        // The only exception is Metal, which had an initial misconfiguration that the Velo
+        // team resolved with a different contract deploy. We can still only match on this address
+        // as Metal is the only exception, so it's always receiving from or sending messages to this address.
+        matchingList: consistentSenderRecipientMatchingList(
+          '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
+        ),
+        type: GasPaymentEnforcementPolicyType.None,
+      },
+      {
+        // name: 'velo_token_bridge',
+        // All messages to / from this address relate to the Velo Token Bridge.
+        matchingList: consistentSenderRecipientMatchingList(
+          '0x1A9d17828897d6289C6dff9DC9F5cc3bAEa17814',
+        ),
+        type: GasPaymentEnforcementPolicyType.None,
+      },
+      ...gasPaymentEnforcement,
+    ],
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {

@@ -38,7 +38,7 @@ use super::{
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
 /// See this PR for why 66 retries means 2 weeks:
 /// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
-pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
+pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 70;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
