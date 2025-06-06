@@ -424,6 +424,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  botanix: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc944176bc4d4e5c7b0598884478a27a2b1904664',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   bouncebit: {
     threshold: 2,
     validators: [
@@ -1252,6 +1262,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  katana: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   kroma: {
     threshold: 2,
     validators: [
@@ -1801,6 +1821,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  paradex: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x190ecB6CD53e02D375aa65F69C9f808dd92c6ab3',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   paradexsepolia: {
     threshold: 1,
     validators: [
@@ -2292,6 +2322,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  starknet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x61204c987d1121175a74e04d5045ab708aa1489f',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

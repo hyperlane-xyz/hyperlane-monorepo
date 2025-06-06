@@ -182,9 +182,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.17"
+version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23a1e53f0f5d86382dafe1cf314783b2044280f406e7e1506368220ad11b1338"
+checksum = "8acc5369981196006228e28809f761875c0327210a891e941f4c683b3a99529b"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -221,11 +221,12 @@ dependencies = [
 
 [[package]]
 name = "anstyle-wincon"
-version = "3.0.6"
+version = "3.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2109dbce0e72be3ec00bed26e6a7479ca384ad226efdd66db8fa2e3a38c83125"
+checksum = "ca3534e77181a9cc07539ad51f2141fe32f6c3ffd4df76db8ad92346b003ae4e"
 dependencies = [
  "anstyle",
+ "once_cell",
  "windows-sys 0.59.0",
 ]
 
@@ -1678,7 +1679,7 @@ dependencies = [
  "cainome-rs",
  "cainome-rs-macro",
  "camino",
- "clap 4.5.20",
+ "clap 4.5.37",
  "clap_complete",
  "convert_case 0.6.0",
  "serde",
@@ -1890,9 +1891,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.20"
+version = "4.5.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97f376d85a664d5837dbae44bf546e6477a679ff6610010f17276f686d867e8"
+checksum = "eccb054f56cbd38340b380d4a8e69ef1f02f1af43db2f0cc817a4774d80ae071"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1900,30 +1901,30 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.20"
+version = "4.5.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19bc80abd44e4bed93ca373a0704ccbd1b710dc5749406201bb018272808dc54"
+checksum = "efd9466fac8543255d3b1fcad4762c5e116ffe808c8a3043d4263cd4fd4862a2"
 dependencies = [
  "anstream",
  "anstyle",
- "clap_lex 0.7.2",
+ "clap_lex 0.7.4",
  "strsim 0.11.1",
 ]
 
 [[package]]
 name = "clap_complete"
-version = "4.5.36"
+version = "4.5.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86bc73de94bc81e52f3bebec71bc4463e9748f7a59166663e32044669577b0e2"
+checksum = "1a554639e42d0c838336fc4fbedb9e2df3ad1fa4acda149f9126b4ccfcd7900f"
 dependencies = [
- "clap 4.5.20",
+ "clap 4.5.37",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "4.5.18"
+version = "4.5.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
+checksum = "09176aae279615badda0765c0c0b3f6ed53f4709118af73cf4655d85d1530cd7"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2 1.0.93",
@@ -1942,9 +1943,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.7.2"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
+checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "cloudabi"
@@ -3706,7 +3707,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -3720,7 +3721,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -3731,7 +3732,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -3749,7 +3750,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -3773,7 +3774,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -3787,7 +3788,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3817,7 +3818,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3833,7 +3834,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3884,7 +3885,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3920,7 +3921,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-21#f0440ebedff16b68ef2d7d6faab9e18e1f364e0f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -3935,6 +3936,7 @@ dependencies = [
  "sha2 0.10.8",
  "spki 0.6.0",
  "thiserror 1.0.63",
+ "tokio",
  "tracing",
 ]
 
@@ -6259,6 +6261,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "lander"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "derive-new",
+ "ethers",
+ "ethers-core",
+ "eyre",
+ "futures-util",
+ "hyperlane-base",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-sealevel",
+ "mockall",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "solana-client",
+ "solana-sdk",
+ "solana-transaction-status",
+ "tempfile",
+ "thiserror 1.0.63",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-test",
+ "uuid 1.11.0",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8331,6 +8364,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-test",
  "itertools 0.12.1",
+ "lander",
  "maplit",
  "mockall",
  "num-derive 0.4.2",
@@ -8344,13 +8378,12 @@ dependencies = [
  "serde_json",
  "sha3 0.10.8",
  "strum 0.26.3",
- "submitter",
  "tempfile",
  "thiserror 1.0.63",
  "tokio",
  "tokio-metrics",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
@@ -9178,7 +9211,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f3d39b35e43a05998228f6c4abaa50b7fcaf001dea94fbdc04188a8be82a016"
 dependencies = [
  "chrono",
- "clap 4.5.20",
+ "clap 4.5.37",
  "dotenvy",
  "glob",
  "regex",
@@ -9209,7 +9242,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ae8b2af58a56c8f850e8d8a18a462255eb36a571f085f3405f6b83d9cf23e0f"
 dependencies = [
  "async-trait",
- "clap 4.5.20",
+ "clap 4.5.37",
  "dotenvy",
  "sea-orm",
  "sea-orm-cli",
@@ -11004,37 +11037,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "submitter"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "chrono",
- "derive-new",
- "ethers",
- "ethers-core",
- "eyre",
- "futures-util",
- "hyperlane-base",
- "hyperlane-core",
- "hyperlane-ethereum",
- "hyperlane-sealevel",
- "mockall",
- "prometheus",
- "serde",
- "serde_json",
- "solana-client",
- "solana-sdk",
- "solana-transaction-status",
- "tempfile",
- "thiserror 1.0.63",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "tracing-test",
- "uuid 1.11.0",
-]
-
-[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12222,12 +12224,14 @@ dependencies = [
  "rusoto_core",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "url",
 ]
 

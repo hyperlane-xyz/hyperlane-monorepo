@@ -26,7 +26,7 @@ pub(crate) struct OperationBatch {
 }
 
 impl OperationBatch {
-    #[instrument(skip_all, fields(domain=%self.domain, batch_size=self.operations.len()))]
+    #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
         prepare_queue: &mut OpQueue,

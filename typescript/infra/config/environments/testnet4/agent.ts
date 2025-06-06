@@ -82,7 +82,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -133,7 +134,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -184,7 +186,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet: true,
+    // Rome started their testnet with a different chain id
+    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -405,7 +408,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'df49f07-20250528-094039',
+      tag: 'cedc8e1-20250603-094703',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -420,7 +423,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '761d140-20250526-120715',
+      tag: 'cedc8e1-20250603-094703',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -429,7 +432,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '919a01f-20250527-071607',
+      tag: 'b23399a-20250603-075344',
     },
     resources: scraperResources,
   },
@@ -444,7 +447,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a58a97c-20250527-151125',
+      tag: 'cedc8e1-20250603-094703',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -459,7 +462,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: 'cedc8e1-20250603-094703',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,

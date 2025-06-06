@@ -86,6 +86,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -131,6 +132,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -160,6 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -185,6 +188,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    starknet: true,
     story: true,
     stride: false,
     subtensor: true,
@@ -235,6 +239,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -280,6 +285,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -309,6 +315,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -334,6 +341,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    starknet: true,
     story: true,
     stride: true,
     subtensor: true,
@@ -384,6 +392,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -429,6 +438,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     injective: true,
     kaia: true,
+    katana: true,
     kroma: true,
     kyve: true,
     linea: true,
@@ -458,6 +468,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -483,6 +494,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    starknet: true,
     story: true,
     stride: true,
     subtensor: true,
@@ -517,6 +529,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
   forma: true,
+  edgenchain: true,
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
@@ -596,6 +609,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('infinityvmmainnet'),
         destinationDomain: getDomainId('solanamainnet'),
       },
+      { originDomain: getDomainId('starknet') },
+      { originDomain: getDomainId('paradex') },
     ],
   },
   {
@@ -799,7 +814,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '8b18655-20250606-081749',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -813,7 +828,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'b916cd9-20250527-145115',
+      tag: '76fbe71-20250605-134618',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -824,7 +839,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '76fbe71-20250605-134618',
     },
     resources: scraperResources,
   },
@@ -839,7 +854,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '76fbe71-20250605-134618',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -856,7 +871,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: 'cedc8e1-20250603-094703',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -877,7 +892,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b431cda-20250529-133433',
+      tag: '8b18655-20250606-081749',
     },
     blacklist,
     gasPaymentEnforcement,

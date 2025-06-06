@@ -1,6 +1,6 @@
 import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
-import { ethers } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { Logger } from 'pino';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
@@ -69,8 +69,17 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
       this.logger.debug('Key already exists');
     } catch (err) {
-      this.logger.debug('Key does not exist, creating new key');
+      this.logger.warn('Key does not exist, creating new key');
       await this.create();
+    }
+  }
+
+  async exists() {
+    try {
+      await this.fetch();
+      return true;
+    } catch (err) {
+      return false;
     }
   }
 
@@ -208,14 +217,19 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug('Key deleted successfully');
   }
 
-  async getSigner(provider?: ZkProvider): Promise<ZkWallet> {
+  async getSigner(
+    provider?: ethers.providers.Provider | ZkProvider,
+  ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key not fetched, fetching now');
       await this.fetch();
     }
 
-    return new ZkWallet(this.privateKey, provider);
+    if (provider instanceof ZkProvider) {
+      return new ZkWallet(this.privateKey, provider);
+    }
+    return new Wallet(this.privateKey, provider);
   }
 
   private requireFetched() {
@@ -228,7 +242,7 @@ export class AgentGCPKey extends CloudAgentKey {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
     this.logger.debug(`Creating key with rotation: ${rotate}`);
-    const wallet = ZkWallet.createRandom();
+    const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
 
