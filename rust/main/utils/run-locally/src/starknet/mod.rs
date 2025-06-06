@@ -454,7 +454,7 @@ fn run_locally() {
         }
 
         for target in targets {
-            dispatched_messages += 2;
+            dispatched_messages += 10;
             let mut cli = StarknetCLI::new(starklid.clone());
 
             let msg_body: &[u8] = b"hello world";
@@ -492,21 +492,13 @@ fn run_locally() {
                 .chain(options_args)
                 .collect();
 
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
-
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
+            for _ in 0..10 {
+                cli.send_tx(
+                    node.deployments.mailbox.clone(),
+                    "dispatch".to_string(),
+                    args.clone(),
+                );
+            }
         }
     }
 

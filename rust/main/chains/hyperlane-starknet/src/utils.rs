@@ -2,10 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::rpc_clients::call_and_retry_n_times;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::Execution;
 use starknet::{
@@ -33,11 +33,15 @@ use crate::{
 pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
-) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
+) -> ChainResult<TxOutcome> {
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
+
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+    const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
@@ -51,12 +55,15 @@ pub async fn get_transaction_receipt(
                     MaybePendingTransactionReceipt::PendingReceipt(pending) => {
                         Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
                     }
-                    MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
+                    MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(
+                        receipt,
+                    )) => tx_receipt_to_outcome(receipt),
+                    _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
                 }
             })
         },
-        8,
-        Some(Duration::from_millis(2000)),
+        N,
+        Some(Duration::from_secs(POLLING_INTERVAL)),
     )
     .await
 }
@@ -329,12 +336,7 @@ pub async fn send_and_confirm(
         .await
         .map_err(HyperlaneStarknetError::from)?;
 
-    let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
-
-    match receipt {
-        TransactionReceipt::Invoke(receipt) => Ok(tx_receipt_to_outcome(receipt)?),
-        _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
-    }
+    get_transaction_receipt(rpc_client, tx.transaction_hash).await
 }
 
 #[cfg(test)]

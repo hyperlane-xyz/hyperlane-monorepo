@@ -1,4 +1,4 @@
-use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError};
 use url::Url;
 
 /// Starknet connection configuration
@@ -6,6 +6,9 @@ use url::Url;
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
+
+    /// Operation batching configuration
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 /// An error type when parsing a connection configuration.
