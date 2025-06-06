@@ -304,6 +304,7 @@ jobs:
           - warp-init
           - warp-read
           - warp-send
+          - warp-rebalancer
     steps:
       - uses: actions/checkout@v4
         with:
