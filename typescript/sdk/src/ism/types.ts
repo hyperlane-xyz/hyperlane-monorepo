@@ -179,7 +179,7 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 export type InterchainAccountRouterIsm =
   BaseRoutingIsmConfig<IsmType.INTERCHAIN_ACCOUNT_ROUTING> &
     OwnableConfig & {
-      isms: ChainMap<IsmConfig>;
+      isms: ChainMap<string>;
     };
 
 export type AmountRoutingIsmConfig =

@@ -290,6 +290,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     domainIds: ethers.BigNumber[],
     contractInstance: AbstractRoutingIsm,
     addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: true,
+  ): Promise<ChainMap<IsmConfig>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: false,
+  ): Promise<ChainMap<string>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
     deriveConfig: boolean,
   ): Promise<ChainMap<IsmConfig>> {
     const res = await concurrentMap(
