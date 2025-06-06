@@ -10,6 +10,7 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IOutbox__factory,
+  InterchainAccountRouter__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
@@ -53,7 +54,7 @@ export interface IsmReader {
   deriveOffchainLookupConfig(
     address: string,
   ): Promise<WithAddress<OffchainLookupIsmConfig>>;
-  deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
+  deriveRoutingConfig(address: Address): Promise<WithAddress<DerivedIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>>;
@@ -196,10 +197,34 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
   async deriveRoutingConfig(
     address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
+  ): Promise<WithAddress<DerivedIsmConfig>> {
     const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
 
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
+
+    // check if its the ICA ISM
+    try {
+      const icaInstance = InterchainAccountRouter__factory.connect(
+        address,
+        this.provider,
+      );
+      await icaInstance.CCIP_READ_ISM();
+      if (this.messageContext) {
+        // Route via the message context to get routed ISM
+        const routedIsm = await icaInstance.route(this.messageContext.message);
+        return this.deriveIsmConfig(routedIsm);
+      }
+      // If no message context, just return this ICA ISM placeholder
+      return {
+        address,
+        type: IsmType.ICA,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing CCIP_READ_ISM property, implying this is not an ICA ISM.',
+        address,
+      );
+    }
 
     let owner: Address | undefined;
     const defaultFallbackIsmInstance =
@@ -213,7 +238,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // If the current ISM does not have an owner then it is either an ICA Router or Amount Router
+    // If the current ISM does not have an owner then it is an Amount Router
     if (!owner) {
       return this.deriveNonOwnableRoutingConfig(address);
     }
