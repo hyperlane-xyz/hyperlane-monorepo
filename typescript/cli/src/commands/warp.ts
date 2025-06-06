@@ -540,7 +540,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       logGreen('✅ Loaded rebalancer config');
 
       // Instantiate the factory used to create the different rebalancer components
-      const contextFactory = await RebalancerContextFactory.create(
+      const rebalancerContextFactory = await RebalancerContextFactory.create(
         rebalancerConfig,
         context,
       );
@@ -556,8 +556,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
           `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
         );
 
-        const warpCore = contextFactory.getWarpCore();
-        const rebalancer = contextFactory.createRebalancer();
+        const warpCore = rebalancerContextFactory.getWarpCore();
+        const rebalancer = rebalancerContextFactory.createRebalancer();
         const originToken = warpCore.tokens.find((t) => t.chainName === origin);
 
         try {
@@ -582,17 +582,19 @@ export const rebalancer: CommandModuleWithWriteContext<{
       }
 
       // Instantiates the monitor that will observe the warp route
-      monitor = contextFactory.createMonitor();
+      monitor = rebalancerContextFactory.createMonitor();
 
       // Instantiates the metrics that will publish stats from the monitored data
-      metrics = withMetrics ? await contextFactory.createMetrics() : undefined;
+      metrics = withMetrics
+        ? await rebalancerContextFactory.createMetrics()
+        : undefined;
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
-      strategy = await contextFactory.createStrategy(metrics);
+      strategy = await rebalancerContextFactory.createStrategy(metrics);
 
       // Instantiates the rebalancer in charge of executing the rebalancing transactions
       rebalancer = !rebalancerConfig.monitorOnly
-        ? contextFactory.createRebalancer(metrics)
+        ? rebalancerContextFactory.createRebalancer(metrics)
         : undefined;
 
       if (rebalancerConfig.monitorOnly) {
