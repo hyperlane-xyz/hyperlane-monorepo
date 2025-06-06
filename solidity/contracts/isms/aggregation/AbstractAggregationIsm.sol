@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-// ============ External Imports ============
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IAggregationIsm} from "../../interfaces/isms/IAggregationIsm.sol";

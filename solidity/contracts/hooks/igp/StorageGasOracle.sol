@@ -17,7 +17,8 @@ contract StorageGasOracle is IGasOracle, Ownable, PackageVersioned {
     // ============ Public Storage ============
 
     /// @notice Keyed by remote domain, gas data on that remote domain.
-    mapping(uint32 => IGasOracle.RemoteGasData) public remoteGasData;
+    mapping(uint32 remoteDomain => IGasOracle.RemoteGasData gasData)
+        public remoteGasData;
 
     // ============ Events ============
 

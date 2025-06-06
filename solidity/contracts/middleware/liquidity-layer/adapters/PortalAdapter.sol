@@ -17,9 +17,11 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     address public liquidityLayerRouter;
 
     /// @notice Hyperlane domain => Wormhole domain.
-    mapping(uint32 => uint16) public hyperlaneDomainToWormholeDomain;
+    mapping(uint32 hyperlaneDomain => uint16 wormholeDomain)
+        public hyperlaneDomainToWormholeDomain;
     /// @notice transferId => token address
-    mapping(bytes32 => address) public portalTransfersProcessed;
+    mapping(bytes32 transferId => address token)
+        public portalTransfersProcessed;
 
     // We could technically use Portal's sequence number here but it doesn't
     // get passed through, so we would have to parse the VAA twice

@@ -57,7 +57,10 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEthRouterEnrollment(chain);
-    await this.checkProxiedContracts(chain);
-    await this.checkOwnership(chain);
+    await super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.configMap[chain].ownerOverrides,
+    );
   }
 }

@@ -140,6 +140,11 @@ describe('core', async () => {
             chain,
             multiProvider: multiProvider,
             config: {
+              commitmentIsm: {
+                type: IsmType.OFFCHAIN_LOOKUP,
+                urls: ['https://commitment-read-ism.hyperlane.xyz'],
+                owner: signer.address,
+              },
               mailbox: contracts[chain].mailbox.address,
               owner: signer.address,
             },

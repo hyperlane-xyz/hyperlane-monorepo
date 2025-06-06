@@ -3,11 +3,11 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-import { readFileAtPath } from '@hyperlane-xyz/cli/dist/src/utils/files.js';
 import { HypTokenConfig, TokenStandard } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistry } from '../../config/registry.js';
+import { readFileAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWarpRouteId } from '../agent-utils.js';
 
 async function main() {

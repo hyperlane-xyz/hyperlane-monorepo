@@ -6,7 +6,7 @@ dist/
 coverage/
 coverage.json
 storage/
-.env
+*.env
 *lcov.info
 # Foundry
 out
