@@ -79,4 +79,9 @@ export const blacklistedMessageIds = [
   // oUSDT stuck messages on Unichain
   '0xbd7eccf869f79031b18d57308b36bf424cea41aec5e631a6d9b8922fee2620ba',
   '0xe9711b78964bee999fd9022536328802ccdf2db3e98beb1331ae54fe614bc891',
+
+  // undeliverable Velo message module messages
+  '0xd48b8599f52e75d43916a7d1ec9512c98c5025394bc4983bf7c6309744758b9e',
+  '0x4f984fb0312da11f55b931a809563072bd8a46d44da0e42dfce40a9ccf1b97f2',
+  '0x50b8a9b21a4a2c980db8232d819cab72fe04707e39fc1b78ef5e583a44c412cf',
 ];
