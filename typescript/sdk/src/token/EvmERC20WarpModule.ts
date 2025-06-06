@@ -569,7 +569,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
-    assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(
+      expectedConfig.destinationGas,
+      'expectedDestinationGas is undefined',
+    );
 
     const actualDestinationGas = resolveRouterMapConfig(
       this.multiProvider,
