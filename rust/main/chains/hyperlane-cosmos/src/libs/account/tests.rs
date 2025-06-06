@@ -1,5 +1,4 @@
 use cosmrs::crypto::PublicKey;
-use cosmwasm_std::HexBinary;
 
 use crypto::decompress_public_key;
 use hyperlane_core::AccountAddressType;
