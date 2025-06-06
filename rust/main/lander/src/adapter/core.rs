@@ -63,7 +63,7 @@ pub trait AdaptsChain: Send + Sync {
         info!(?tx, "checking status of transaction");
 
         if tx.tx_hashes.is_empty() {
-            return Ok(TransactionStatus::PendingInclusion);
+            return Ok(TransactionStatus::Pending);
         }
 
         let hash_status_futures = tx
@@ -86,7 +86,7 @@ pub trait AdaptsChain: Send + Sync {
         true
     }
 
-    /// Uses BatchManager, returns any reverted Payload IDs sent in a Transaction.
+    /// Uses BatchManager, returns any reverted Payload UUIDs sent in a Transaction.
     /// Called in the Finality Stage (PayloadDispatcher).
     async fn reverted_payloads(
         &self,

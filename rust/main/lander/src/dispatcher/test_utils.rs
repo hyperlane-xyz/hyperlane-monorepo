@@ -47,7 +47,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
         .map(|payload| payload.details)
         .collect();
     Transaction {
-        id: UniqueIdentifier::random(),
+        uuid: UniqueIdentifier::random(),
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
@@ -68,30 +68,30 @@ pub(crate) async fn create_random_txs_and_store_them(
     for _ in 0..num {
         let mut payload = FullPayload::random();
         payload.status = PayloadStatus::InTransaction(status.clone());
-        payload_db.store_payload_by_id(&payload).await.unwrap();
+        payload_db.store_payload_by_uuid(&payload).await.unwrap();
         let tx = dummy_tx(vec![payload], status.clone());
-        tx_db.store_transaction_by_id(&tx).await.unwrap();
+        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
         txs.push(tx);
     }
     txs
 }
 
 pub(crate) async fn initialize_payload_db(payload_db: &Arc<dyn PayloadDb>, payload: &FullPayload) {
-    payload_db.store_payload_by_id(payload).await.unwrap();
+    payload_db.store_payload_by_uuid(payload).await.unwrap();
 }
 
 pub async fn are_all_txs_in_pool(
     txs: Vec<Transaction>,
-    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+    pool: &Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
 ) -> bool {
     let pool = pool.lock().await;
-    txs.iter().all(|tx| pool.contains_key(&tx.id))
+    txs.iter().all(|tx| pool.contains_key(&tx.uuid))
 }
 
 pub async fn are_no_txs_in_pool(
     txs: Vec<Transaction>,
-    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+    pool: &Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
 ) -> bool {
     let pool = pool.lock().await;
-    txs.iter().all(|tx| !pool.contains_key(&tx.id))
+    txs.iter().all(|tx| !pool.contains_key(&tx.uuid))
 }

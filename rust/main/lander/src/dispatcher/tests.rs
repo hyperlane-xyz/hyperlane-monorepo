@@ -9,8 +9,8 @@ use crate::{
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, DispatcherState, PayloadDbLoader,
     },
-    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId,
-    PayloadStatus, TransactionStatus,
+    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
+    PayloadUuid, TransactionStatus,
 };
 
 use super::PayloadDb;
@@ -74,7 +74,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     // wait until the payload status is InTransaction(Finalized)
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -131,7 +131,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             println!("Payload status: {:?}", payload_status);
             matches!(
@@ -179,7 +179,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -242,14 +242,14 @@ async fn mock_entrypoint_and_dispatcher(
 
 async fn wait_until_payload_status<F>(
     payload_db: Arc<dyn PayloadDb>,
-    payload_id: &PayloadId,
+    payload_uuid: &PayloadUuid,
     status_check: F,
 ) where
     F: Fn(&PayloadStatus) -> bool,
 {
     loop {
         let stored_payload = payload_db
-            .retrieve_payload_by_id(payload_id)
+            .retrieve_payload_by_uuid(payload_uuid)
             .await
             .unwrap()
             .unwrap();
@@ -265,7 +265,7 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));
 
-    let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
+    let tx = dummy_tx(vec![payload.clone()], TransactionStatus::Pending);
     let tx_building_result = TxBuildingResult::new(vec![payload.details.clone()], Some(tx));
     let txs = vec![tx_building_result];
     adapter
@@ -276,8 +276,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     adapter.expect_tx_status().returning(move |_| {
         counter += 1;
         match counter {
-            1 => Ok(TransactionStatus::PendingInclusion),
-            2 => Ok(TransactionStatus::PendingInclusion),
+            1 => Ok(TransactionStatus::Pending),
+            2 => Ok(TransactionStatus::Pending),
             3 => Ok(TransactionStatus::Included),
             4 => Ok(TransactionStatus::Included),
             5 => Ok(TransactionStatus::Included),

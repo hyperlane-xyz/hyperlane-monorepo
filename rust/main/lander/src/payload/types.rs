@@ -9,14 +9,14 @@ use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
 use crate::transaction::TransactionStatus;
 
-pub type PayloadId = UniqueIdentifier;
+pub type PayloadUuid = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
 #[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
-    pub id: PayloadId,
+    pub uuid: PayloadUuid,
 
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
     pub metadata: String,
@@ -29,7 +29,7 @@ pub struct PayloadDetails {
 impl Debug for PayloadDetails {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PayloadDetails")
-            .field("id", &self.id)
+            .field("uuid", &self.uuid)
             .field("metadata", &self.metadata)
             .finish()
     }
@@ -37,12 +37,12 @@ impl Debug for PayloadDetails {
 
 impl PayloadDetails {
     pub fn new(
-        id: PayloadId,
+        uuid: PayloadUuid,
         metadata: impl Into<String>,
         success_criteria: Option<Vec<u8>>,
     ) -> Self {
         Self {
-            id,
+            uuid,
             metadata: metadata.into(),
             success_criteria,
         }
@@ -71,7 +71,7 @@ pub struct FullPayload {
 impl Debug for FullPayload {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FullPayload")
-            .field("id", &self.details.id)
+            .field("uuid", &self.details.uuid)
             .field("metadata", &self.details.metadata)
             .field("to", &self.to)
             .field("status", &self.status)
@@ -83,14 +83,14 @@ impl Debug for FullPayload {
 
 impl FullPayload {
     pub fn new(
-        id: PayloadId,
+        uuid: PayloadUuid,
         metadata: impl Into<String>,
         data: Vec<u8>,
         success_criteria: Option<Vec<u8>>,
         to: Address,
     ) -> Self {
         Self {
-            details: PayloadDetails::new(id, metadata, success_criteria),
+            details: PayloadDetails::new(uuid, metadata, success_criteria),
             data,
             to,
             status: Default::default(),
@@ -99,16 +99,16 @@ impl FullPayload {
         }
     }
 
-    pub fn id(&self) -> &PayloadId {
-        &self.details.id
+    pub fn uuid(&self) -> &PayloadUuid {
+        &self.details.uuid
     }
 
     #[cfg(test)]
     pub fn random() -> Self {
-        let id = PayloadId::random();
+        let payload_uuid = PayloadUuid::random();
         let details = PayloadDetails {
-            id: id.clone(),
-            metadata: format!("payload-{}", id.to_string()),
+            uuid: payload_uuid.clone(),
+            metadata: format!("payload-{}", payload_uuid.to_string()),
             success_criteria: None,
         };
         FullPayload {

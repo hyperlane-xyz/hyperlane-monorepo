@@ -22,7 +22,7 @@ use hyperlane_core::{
     PendingOperationStatus, QueueOperation, ReprepareReason,
 };
 use lander::{
-    DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId, PayloadStatus,
+    DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -456,20 +456,20 @@ async fn has_operation_been_submitted(
 ) -> bool {
     let id = op.id();
 
-    let payload_ids = match db.retrieve_payload_ids_by_message_id(&id) {
-        Ok(ids) => ids,
+    let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
+        Ok(uuids) => uuids,
         Err(_) => return false,
     };
 
-    let payload_ids = match payload_ids {
+    let payload_uuids = match payload_uuids {
         None => return false,
-        Some(ids) if ids.is_empty() => return false,
-        Some(ids) => ids,
+        Some(uuids) if uuids.is_empty() => return false,
+        Some(uuids) => uuids,
     };
 
-    // TODO checking only the first payload id since we support a single payload per message at this point
-    let payload_id = payload_ids[0].clone();
-    let status = entrypoint.payload_status(payload_id).await;
+    // TODO checking only the first payload uuid since we support a single payload per message at this point
+    let payload_uuid = payload_uuids[0].clone();
+    let status = entrypoint.payload_status(payload_uuid).await;
 
     match status {
         Ok(PayloadStatus::Dropped(_)) => false,
@@ -664,9 +664,9 @@ async fn submit_via_lander(
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
         .address();
-    let payload_id = PayloadId::random();
+    let payload_uuid = PayloadUuid::random();
     let payload = FullPayload::new(
-        payload_id,
+        payload_uuid,
         metadata,
         operation_payload,
         operation_success_criteria,
@@ -680,9 +680,9 @@ async fn submit_via_lander(
         return;
     }
 
-    if let Err(e) = db.store_payload_ids_by_message_id(&message_id, vec![payload.details.id]) {
-        let reason = ReprepareReason::ErrorStoringPayloadIdsByMessageId;
-        let msg = "Error storing mapping from message id to payload ids";
+    if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![payload.details.uuid]) {
+        let reason = ReprepareReason::ErrorStoringPayloadUuidsByMessageId;
+        let msg = "Error storing mapping from message id to payload uuids";
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
@@ -830,15 +830,15 @@ async fn confirm_lander_task(
             continue;
         }
         // cannot use `join_all` here because db reads are blocking
-        let payload_id_results = batch
+        let payload_uuid_results = batch
             .into_iter()
             .map(|op| {
                 let message_id = op.id();
-                (op, db.retrieve_payload_ids_by_message_id(&message_id))
+                (op, db.retrieve_payload_uuids_by_message_id(&message_id))
             })
             .collect::<Vec<_>>();
 
-        let payload_status_result_futures = payload_id_results
+        let payload_status_result_futures = payload_uuid_results
             .into_iter()
             .map(|(op, result)| async {
                 let message_id = op.id();
@@ -855,12 +855,12 @@ async fn confirm_lander_task(
                         Some((op, op_results))
                     }
                     Ok(Some(_)) | Ok(None) | Err(_) => {
-                        debug!(?op, ?message_id, "No payload id found for message id",);
+                        debug!(?op, ?message_id, "No payload uuid found for message id",);
                         send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
                             &metrics,
-                            Some(&ReprepareReason::ErrorRetrievingPayloadIds),
+                            Some(&ReprepareReason::ErrorRetrievingPayloadUuids),
                         )
                         .await;
                         None
@@ -932,8 +932,8 @@ async fn confirm_lander_task(
 }
 
 fn filter_status_results(
-    status_results: Vec<(PayloadId, Result<PayloadStatus, LanderError>)>,
-) -> Vec<(PayloadId, PayloadStatus)> {
+    status_results: Vec<(PayloadUuid, Result<PayloadStatus, LanderError>)>,
+) -> Vec<(PayloadUuid, PayloadStatus)> {
     status_results
         .into_iter()
         .filter_map(|(id, result)| Some((id, result.ok()?)))
