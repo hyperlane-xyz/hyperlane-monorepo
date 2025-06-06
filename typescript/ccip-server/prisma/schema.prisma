@@ -13,7 +13,7 @@ datasource db {
 
 model Commitment {
   commitment           String
-  revealMessageId      String
+  revealMessageId      String   @id
   calls                Json
   relayers             Json
   salt                 String
@@ -21,6 +21,4 @@ model Commitment {
   commitmentDispatchTx String
   originDomain         Int
   createdAt            DateTime @default(now())
-
-  @@id([commitment, revealMessageId])
 }

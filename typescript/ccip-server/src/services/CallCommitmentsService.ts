@@ -82,17 +82,12 @@ export class CallCommitmentsService extends BaseService {
 
   public async handleFetchCommitment(message: string) {
     try {
-      const parsedMessage = parseMessage(message);
-      // Parse the commitment from abi.encodePacked(MessageType.REVEAL, _ism, _commitment);
-      const commitment = ensure0x(parsedMessage.body.slice(68, 132));
-      const record = await this.fetchCommitmentRecord(
-        commitment,
-        messageId(message),
-      );
+      const revealMsgId = messageId(message);
+      const record = await this.fetchCommitmentRecord(revealMsgId);
       const encoded =
         record.ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
-      console.log('Serving calls for commitment', commitment);
+      console.log('Serving calls for commitment', record.commitment);
       return encoded;
     } catch (error: any) {
       console.error('Error fetching commitment from message', message, error);
@@ -187,20 +182,25 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Fetch a commitment record from the database by ID.
+   * Fetch a commitment record from the database by revealMessageId.
    * Throws if not found.
    */
-  private async fetchCommitmentRecord(
-    commitment: string,
-    revealMessageId: string,
-  ) {
-    console.log('Fetching commitment from DB', commitment, revealMessageId);
+  private async fetchCommitmentRecord(revealMessageId: string) {
+    console.log(
+      'Fetching commitment from DB with revealMessageId',
+      revealMessageId,
+    );
     const record = await prisma.commitment.findUnique({
-      where: { commitment_revealMessageId: { commitment, revealMessageId } },
+      where: { revealMessageId },
     });
     if (!record) {
-      console.log('Commitment not found in DB', commitment, revealMessageId);
-      throw new Error('Commitment not found');
+      console.log(
+        'Commitment not found in DB with revealMessageId',
+        revealMessageId,
+      );
+      throw new Error(
+        'Commitment not found for revealMessageId: ' + revealMessageId,
+      );
     }
     const parsed = CommitmentRecordSchema.parse(record);
     return parsed;
