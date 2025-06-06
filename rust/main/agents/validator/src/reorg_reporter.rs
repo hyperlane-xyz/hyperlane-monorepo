@@ -29,6 +29,7 @@ pub struct LatestCheckpointReorgReporter {
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
     async fn report_at_block(&self, height: u64) {
+        info!(?height, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let future = async {
@@ -40,7 +41,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(url = ?url.clone(), ?latest_checkpoint, "Latest checkpoint on reorg");
+                info!(url = ?url.clone(), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
             };
 
             futures.push(future);
@@ -50,6 +51,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
     }
 
     async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+        info!(?reorg_period, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
             let future = async {
@@ -60,7 +62,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(url = ?url.clone(), ?latest_checkpoint, "Latest checkpoint on reorg");
+                info!(url = ?url.clone(), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
             };
 
             futures.push(future);
@@ -95,7 +97,7 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel};
+        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet};
 
         let chain_conf = settings
             .chains
@@ -103,7 +105,7 @@ impl LatestCheckpointReorgReporter {
             .expect("Chain configuration is not found")
             .clone();
 
-        let chain_conn_confs = match chain_conf.connection {
+        let chain_conn_confs: Vec<(Url, ChainConnectionConf)> = match chain_conf.connection {
             Ethereum(conn) => Self::map_urls_to_connections(conn.rpc_urls(), conn, |conn, url| {
                 let mut updated_conn = conn.clone();
                 updated_conn.rpc_connection = RpcConnectionConf::Http { url };
@@ -131,6 +133,10 @@ impl LatestCheckpointReorgReporter {
                     updated_conn.grpc_urls = vec![url];
                     CosmosNative(updated_conn)
                 })
+            }
+            Starknet(conn) => {
+                // Starknet only has a single RPC URL, so we can use it directly
+                vec![(conn.url.clone(), ChainConnectionConf::Starknet(conn))]
             }
         };
 

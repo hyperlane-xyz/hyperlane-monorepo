@@ -434,7 +434,7 @@ describe('EvmIsmModule', async () => {
       });
 
       it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
-        // create a an initial ISM
+        // create an initial ISM
         const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
 
         // update the threshold for a domain

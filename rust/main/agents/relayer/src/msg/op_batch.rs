@@ -26,7 +26,7 @@ pub(crate) struct OperationBatch {
 }
 
 impl OperationBatch {
-    #[instrument(skip_all, fields(domain=%self.domain, batch_size=self.operations.len()))]
+    #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
         prepare_queue: &mut OpQueue,
@@ -347,6 +347,7 @@ mod tests {
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
+            ignore_reorg_reports: false,
         };
 
         // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
@@ -387,6 +388,7 @@ mod tests {
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
             None,
+            false,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

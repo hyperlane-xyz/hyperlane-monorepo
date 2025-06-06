@@ -1,4 +1,7 @@
 {
+  "zoramainnet": {
+    "validators": []
+  },
   "ancient8": {
     "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
   },
@@ -86,6 +89,9 @@
       "0x2d1f367e942585f8a1c25c742397dc8be9a61dee",
       "0x2111141b7f985d305f392c502ad52dd74ef9c569"
     ]
+  },
+  "hyperevm": {
+    "validators": ["0x95b460edc770f53981c9aa82aa2a297af619cabf"]
   },
   "inevm": {
     "validators": [

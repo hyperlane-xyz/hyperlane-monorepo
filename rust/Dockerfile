@@ -39,7 +39,7 @@ COPY rust/main/hyperlane-base ./hyperlane-base
 COPY rust/main/hyperlane-core ./hyperlane-core
 COPY rust/main/hyperlane-metric ./hyperlane-metric
 COPY rust/main/hyperlane-test ./hyperlane-test
-COPY rust/main/submitter ./submitter
+COPY rust/main/lander ./lander
 COPY rust/main/utils ./utils
 COPY rust/main/Cargo.toml ./
 COPY rust/main/Cargo.lock ./
