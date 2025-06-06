@@ -37,6 +37,7 @@ fallback_domain_routing_hook_addr_everclear_staging := "0x2198bF096FC8C3C05C4B5a
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 simple_sender_receiver_addr_everclear_staging := "0x02b6ece368d5de946edb4710c7579f7fd9e6244e"
+simple_sender_receiver_addr_everclear_staging_for_tron_testnet_sigs := "0x95b3640F88DECe1b14E813C03F80dfe0BdE23dc0"
 simple_sender_receiver_addr_base := "0xc81686396C44dD0f39A76de2BeC5CCE2eE3d4548"
 
 deploy-mailbox-b3:
@@ -234,6 +235,14 @@ deploy-simple-app-base:
 deploy-simple-app-everclear-staging:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-everclear-staging-for-tron-testnet-sigs:
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_tron_testnet_sigs }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
