@@ -31,6 +31,7 @@ import {
   Address,
   Domain,
   Numberish,
+  ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
   addressToBytes32,
   bytes32ToAddress,
@@ -361,6 +362,14 @@ export class EvmHypCollateralAdapter
   async getAllowedDestination(domain: Domain): Promise<Address> {
     const allowedDestinationBytes32 =
       await this.collateralContract.allowedRecipient(domain);
+
+    // If allowedRecipient is not set (returns bytes32(0)),
+    // fall back to the enrolled remote router for that domain,
+    // matching the contract's fallback logic in MovableCollateralRouter.sol
+    if (allowedDestinationBytes32 === ZERO_ADDRESS_HEX_32) {
+      const routerBytes32 = await this.collateralContract.routers(domain);
+      return bytes32ToAddress(routerBytes32);
+    }
 
     return bytes32ToAddress(allowedDestinationBytes32);
   }
