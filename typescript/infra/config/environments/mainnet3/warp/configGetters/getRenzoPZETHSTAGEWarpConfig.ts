@@ -33,6 +33,7 @@ export const getRenzoPZETHStagingWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: pzEthStagingAddresses,
   xERC20Lockbox: pzEthStagingLockbox,
   tokenPrices: pzEthStagingTokenPrices,
+  useLegacyRoutingHook: true,
 });
 
 export const getPZETHSTAGEGnosisSafeBuilderStrategyConfig =

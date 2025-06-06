@@ -2,6 +2,7 @@ import { parseEther } from 'ethers/lib/utils.js';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
+  AggregationIsmConfig,
   ChainMap,
   ChainName,
   HookConfig,
@@ -9,6 +10,7 @@ import {
   HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
+  RoutingIsmConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -82,15 +84,57 @@ const chainProtocolFee: Record<ChainName, string> = {
   zircuit: '400000000000000',
 };
 
-export function getRenzoHook(
-  defaultHook: Address,
-  chain: ChainName,
-  owner: Address,
-): HookConfig {
+export function getRenzoHook(params: {
+  defaultHook: Address;
+  origin: ChainName;
+  destinationChains: ChainName[];
+  owner: Address;
+  useLegacyRoutingHook: boolean;
+}): HookConfig {
+  const {
+    defaultHook,
+    origin,
+    destinationChains,
+    owner,
+    useLegacyRoutingHook,
+  } = params;
+
+  let routingHook: HookConfig;
+
+  if (useLegacyRoutingHook) {
+    // Currently, most of the Hook configs are using the default hook address.
+    // This is here to allow for incremental rollout of the default hook config for other (PZETH, REZ) configs that depend on this Getter.
+    // TODO: Remove this when we replace all the default hook address with HookType.MAILBOX_DEFAULT
+    routingHook = defaultHook;
+  } else {
+    // If origin is blast, use default hook (allows for outbound to all existing chains).
+    // If origin is other chains, use default hook to route to all existing destinations, except blast.
+    routingHook =
+      origin === 'blast'
+        ? {
+            type: HookType.MAILBOX_DEFAULT,
+          }
+        : {
+            type: HookType.ROUTING,
+            owner: owner,
+            domains: destinationChains
+              .filter((c) => c !== origin)
+              .filter((c) => c !== 'blast')
+              .reduce(
+                (acc, destination) => {
+                  acc[destination] = defaultHook;
+                  return acc;
+                },
+                {} as Record<ChainName, Address>,
+              ),
+          };
+  }
+
   return {
     type: HookType.AGGREGATION,
     hooks: [
-      defaultHook,
+      routingHook,
+      // Protocol Fee Hook
       {
         type: HookType.PROTOCOL_FEE,
         owner: owner,
@@ -98,9 +142,44 @@ export function getRenzoHook(
 
         // Use hardcoded, actual onchain fees, or fallback to fee calculation
         protocolFee:
-          chainProtocolFee[chain] ??
-          parseEther(getProtocolFee(chain)).toString(),
+          chainProtocolFee[origin] ??
+          parseEther(getProtocolFee(origin)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
+      },
+    ],
+  };
+}
+
+function getRenzoIsmConfig(params: {
+  origin: ChainName;
+  chainsToDeploy: ChainName[];
+  safes: ChainMap<Address>;
+  validators: ChainMap<MultisigConfig>;
+}): AggregationIsmConfig | RoutingIsmConfig {
+  const { origin, safes, chainsToDeploy, validators } = params;
+
+  if (origin === 'blast') {
+    // If origin is blast, use routing ism without domains (restricts inbound from all chains).
+    return {
+      type: IsmType.ROUTING,
+      owner: safes[origin],
+      domains: {},
+    };
+  }
+
+  return {
+    type: IsmType.AGGREGATION,
+    threshold: 2,
+    modules: [
+      {
+        type: IsmType.ROUTING,
+        owner: safes[origin],
+        domains: buildAggregationIsmConfigs(origin, chainsToDeploy, validators),
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        domains: {},
+        owner: safes[origin],
       },
     ],
   };
@@ -371,6 +450,7 @@ export function getRenzoWarpConfigGenerator(params: {
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
+  useLegacyRoutingHook: boolean;
 }) {
   const {
     chainsToDeploy,
@@ -380,6 +460,7 @@ export function getRenzoWarpConfigGenerator(params: {
     xERC20Lockbox,
     tokenPrices,
     existingProxyAdmins,
+    useLegacyRoutingHook,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -460,27 +541,19 @@ export function getRenzoWarpConfigGenerator(params: {
                 owner: safes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox,
-                interchainSecurityModule: {
-                  type: IsmType.AGGREGATION,
-                  threshold: 2,
-                  modules: [
-                    {
-                      type: IsmType.ROUTING,
-                      owner: safes[chain],
-                      domains: buildAggregationIsmConfigs(
-                        chain,
-                        chainsToDeploy,
-                        validators,
-                      ),
-                    },
-                    {
-                      type: IsmType.FALLBACK_ROUTING,
-                      domains: {},
-                      owner: safes[chain],
-                    },
-                  ],
-                },
-                hook: getRenzoHook(defaultHook, chain, safes[chain]),
+                interchainSecurityModule: getRenzoIsmConfig({
+                  origin: chain,
+                  safes,
+                  chainsToDeploy,
+                  validators,
+                }),
+                hook: getRenzoHook({
+                  defaultHook,
+                  origin: chain,
+                  destinationChains: ezEthChainsToDeploy,
+                  owner: safes[chain],
+                  useLegacyRoutingHook,
+                }),
                 ...(existingProxyAdmins?.[chain]
                   ? { proxyAdmin: existingProxyAdmins?.[chain] }
                   : {}),
@@ -505,6 +578,7 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
+  useLegacyRoutingHook: false,
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =
