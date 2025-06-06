@@ -1412,8 +1412,9 @@ mod test {
 
         let mailboxes = Relayer::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
 
-        assert_eq!(mailboxes.len(), 1);
+        assert_eq!(mailboxes.len(), 2);
         assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+        assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
 
         // Arbitrum chain should not have any errors because it's ChainConf exists
         let metric = chain_metrics
@@ -1427,7 +1428,7 @@ mod test {
             .critical_error
             .get_metric_with_label_values(&["ethereum"])
             .unwrap();
-        assert_eq!(metric.get(), 1);
+        assert_eq!(metric.get(), 0);
 
         // Optimism chain should error because it is missing ChainConf
         let metric = chain_metrics
