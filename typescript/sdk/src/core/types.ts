@@ -39,7 +39,6 @@ export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   testRecipient: z.string(),
   timelockController: z.string().optional(),
   interchainAccountRouter: z.string(),
-  interchainAccountIsm: z.string(),
   merkleTreeHook: z.string().optional(),
   interchainGasPaymaster: z.string().optional(),
 });

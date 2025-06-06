@@ -35,7 +35,8 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
     CheckpointFraudProofs public immutable checkpointFraudProofs =
         new CheckpointFraudProofs();
 
-    mapping(address => bool) public merkleTreeWhitelist;
+    mapping(address merkleTree => bool isWhitelisted)
+        public merkleTreeWhitelist;
 
     mapping(address signer => mapping(bytes32 digest => Attribution))
         internal _attributions;

@@ -1,16 +1,11 @@
-// SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
+import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Router} from "../client/Router.sol";
 import {CallLib} from "./libs/Call.sol";
 import {InterchainQueryMessage} from "./libs/InterchainQueryMessage.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
-
-// ============ External Imports ============
-import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title Interchain Query Router that performs remote view calls on other chains and returns the result.

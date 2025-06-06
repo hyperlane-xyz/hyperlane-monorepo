@@ -22,7 +22,6 @@ import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
@@ -44,7 +43,8 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     /// rest of bits is the amount to send to the recipient
     /// @dev bc of the bit packing, we can only send up to 2^255 wei
     /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
-    mapping(bytes32 => uint256) public verifiedMessages;
+    mapping(bytes32 messageId => uint256 verifiedAndValue)
+        public verifiedMessages;
     /// @notice Index of verification bit in verifiedMessages
     uint256 public constant VERIFIED_MASK_INDEX = 255;
     /// @notice address for the authorized hook

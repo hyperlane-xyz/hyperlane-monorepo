@@ -115,9 +115,9 @@ contract RateLimited is OwnableUpgradeable {
      * @param _consumedAmount The amount to consume the fill level
      * @return The new filled level
      */
-    function validateAndConsumeFilledLevel(
+    function _validateAndConsumeFilledLevel(
         uint256 _consumedAmount
-    ) public returns (uint256) {
+    ) internal returns (uint256) {
         uint256 adjustedFilledLevel = calculateCurrentLevel();
         require(_consumedAmount <= adjustedFilledLevel, "RateLimitExceeded");
 

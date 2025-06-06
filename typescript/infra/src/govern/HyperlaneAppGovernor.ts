@@ -19,6 +19,7 @@ import {
 import {
   Address,
   CallData,
+  assert,
   bytes32ToAddress,
   eqAddress,
   objMap,
@@ -26,8 +27,14 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
+import { regularIcas } from '../../config/environments/mainnet3/governance/ica/regular.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 
 import {
   ManualMultiSend,
@@ -375,14 +382,45 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    // Get the account's config
-    const accountConfig = await this.interchainAccount.getAccountConfig(
+    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+
+    if (!accountConfig) {
+      const { ownerType, governanceType: icaGovernanceType } =
+        await determineGovernanceType(chain, account.address);
+      // verify that we expect it to be an ICA
+      assert(ownerType === Owner.ICA, 'ownerType should be ICA');
+      // get the set of safes for this governance type
+      const safes = getGovernanceSafes(icaGovernanceType);
+      const origin = 'ethereum';
+      const remoteOwner = safes[origin];
+      accountConfig = {
+        origin,
+        owner: remoteOwner,
+      };
+    }
+
+    // WARNING: origin is a reserved word in TypeScript
+    const origin = accountConfig.origin;
+
+    // Check that it derives to the ICA
+    const derivedIca = await this.interchainAccount.getAccount(
       chain,
-      account.address,
+      accountConfig,
     );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
+
+    if (!eqAddress(derivedIca, account.address)) {
+      console.info(
+        chalk.gray(
+          `Account ${account.address} is not the expected ICA ${derivedIca}. Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
     rootLogger.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
@@ -438,7 +476,7 @@ export abstract class HyperlaneAppGovernor<
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
           chain === origin &&
-          eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+          eqAddress(bytes32ToAddress(accountConfig!.owner), submitterAddress)
         );
       },
       true, // Flag this as an ICA call

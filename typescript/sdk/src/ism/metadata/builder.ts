@@ -16,7 +16,7 @@ import { IsmType } from '../types.js';
 
 import { AggregationMetadataBuilder } from './aggregation.js';
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
-import { CcipReadMetadataBuilder } from './ccipread.js';
+import { OffchainLookupMetadataBuilder } from './ccipread.js';
 import { decodeIsmMetadata } from './decode.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
@@ -33,7 +33,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
-  public ccipReadMetadataBuilder: CcipReadMetadataBuilder;
+  public ccipReadMetadataBuilder: OffchainLookupMetadataBuilder;
 
   public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
@@ -46,7 +46,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
     );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
-    this.ccipReadMetadataBuilder = new CcipReadMetadataBuilder(core);
+    this.ccipReadMetadataBuilder = new OffchainLookupMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
   }
 
@@ -86,7 +86,6 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.ICA_ROUTING:
       case IsmType.AMOUNT_ROUTING:
         return this.routingMetadataBuilder.build(
           {
@@ -111,7 +110,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         });
       }
 
-      case IsmType.CCIP_READ:
+      case IsmType.OFFCHAIN_LOOKUP:
         return this.ccipReadMetadataBuilder.build({
           ...context,
           ism,

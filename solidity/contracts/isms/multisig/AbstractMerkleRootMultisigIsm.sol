@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";

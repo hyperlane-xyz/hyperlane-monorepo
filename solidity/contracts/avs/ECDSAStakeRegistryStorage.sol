@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";
-import {IECDSAStakeRegistryEventsAndErrors, Quorum, StrategyParams} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
+import {IECDSAStakeRegistryEventsAndErrors, Quorum} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 
 /// @author Layr Labs, Inc.
 abstract contract ECDSAStakeRegistryStorage is
@@ -31,7 +31,7 @@ abstract contract ECDSAStakeRegistryStorage is
     uint256 internal _stakeExpiry;
 
     /// @notice Maps an operator to their signing key history using checkpoints
-    mapping(address => CheckpointsUpgradeable.History)
+    mapping(address operator => CheckpointsUpgradeable.History signingKeyHistory)
         internal _operatorSigningKeyHistory;
 
     /// @notice Tracks the total stake history over time using checkpoints
@@ -41,11 +41,11 @@ abstract contract ECDSAStakeRegistryStorage is
     CheckpointsUpgradeable.History internal _thresholdWeightHistory;
 
     /// @notice Maps operator addresses to their respective stake histories using checkpoints
-    mapping(address => CheckpointsUpgradeable.History)
+    mapping(address operator => CheckpointsUpgradeable.History operatorWeightHistory)
         internal _operatorWeightHistory;
 
     /// @notice Maps an operator to their registration status
-    mapping(address => bool) internal _operatorRegistered;
+    mapping(address operator => bool isRegistered) internal _operatorRegistered;
 
     /// @param _delegationManager Connects this registry with the DelegationManager
     constructor(IDelegationManager _delegationManager) {

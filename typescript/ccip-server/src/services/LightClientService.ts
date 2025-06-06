@@ -1,8 +1,8 @@
 import { ethers, utils } from 'ethers';
 
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 
-import { ProofStatus } from './common/ProofStatusEnum';
+import { ProofStatus } from './common/ProofStatusEnum.js';
 
 export type SuccinctConfig = {
   readonly lightClientAddress: string;

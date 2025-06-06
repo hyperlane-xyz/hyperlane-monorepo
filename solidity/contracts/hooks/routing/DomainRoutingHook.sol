@@ -35,7 +35,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         address hook;
     }
 
-    mapping(uint32 => IPostDispatchHook) public hooks;
+    mapping(uint32 destinationDomain => IPostDispatchHook hook) public hooks;
 
     constructor(address _mailbox, address _owner) MailboxClient(_mailbox) {
         _transferOwnership(_owner);
