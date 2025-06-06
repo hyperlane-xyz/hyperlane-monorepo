@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use derive_new::new;
 use hyperlane_core::{
@@ -68,8 +68,16 @@ impl OperationBatch {
         let outcome = self
             .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, BATCH_RETRY_SLEEP_DURATION)
             .await?;
-        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
-        metrics.ops_submitted.inc_by(ops_submitted as u64);
+
+        let failed_indexes: HashSet<usize> = outcome.failed_indexes.iter().cloned().collect();
+        for (i, op) in self.operations.iter().enumerate() {
+            if failed_indexes.contains(&i) {
+                continue;
+            }
+            let app_context = op.app_context();
+            metrics.inc_submitted(app_context);
+        }
+
         Ok(outcome)
     }
 
