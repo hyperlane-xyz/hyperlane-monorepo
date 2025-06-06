@@ -369,7 +369,7 @@ describe('hyperlane warp apply owner update tests', async function () {
 
       const [currentRebalancer] =
         (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
-        chain3Metadata.domainId
+          chain3Metadata.domainId
         ] ?? [];
       expect(currentRebalancer.bridge).to.equal(rebalancer);
     }
@@ -400,11 +400,12 @@ describe('hyperlane warp apply owner update tests', async function () {
       const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
         WARP_CORE_CONFIG_PATH_2,
       );
-      const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
-        warpRouteId,
-        warpConfig,
-        warpCoreConfig,
-      });
+      const { warpCorePath: updatedWarpCorePath } =
+        exportWarpConfigsToFilePaths({
+          warpRouteId,
+          warpConfig,
+          warpCoreConfig,
+        });
 
       // Apply
       await hyperlaneWarpApplyRaw({
@@ -458,6 +459,9 @@ describe('hyperlane warp apply owner update tests', async function () {
         updatedWarpDeployPath,
       );
 
-      expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
+      expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(
+        E2E_TEST_BURN_ADDRESS,
+      );
     });
   });
+});

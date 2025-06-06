@@ -421,7 +421,6 @@ export abstract class HyperlaneDeployer<
 
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
     const isZKSyncChain = technicalStack === ChainTechnicalStack.ZkSync;
-    const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
     const contract = await this.multiProvider.handleDeploy(

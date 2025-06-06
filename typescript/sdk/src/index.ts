@@ -447,20 +447,12 @@ export {
   EV5InterchainAccountTxTransformerPropsSchema,
 } from './providers/transactions/transformer/ethersV5/types.js';
 
-export {
-  HyperlaneCCIPDeployer,
-  HyperlaneCCIPDeployer,
-} from './ccip/HyperlaneCCIPDeployer.js';
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export {
   CCIPContractCache,
-  CCIPContractCache,
-  getCCIPChains,
   getCCIPChains,
   getCCIPChainSelector,
-  getCCIPChainSelector,
   getCCIPRouterAddress,
-  getCCIPRouterAddress,
-  getChainNameFromCCIPSelector,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
 export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
@@ -701,6 +693,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
+  // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
