@@ -16,22 +16,20 @@ export const metricsRegister = new Registry();
 
 type supportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
 
-interface BaseWarpRouteMetrics {
+interface BaseWarpRouteMetricLabels {
   chain_name: ChainName;
   token_address: string;
   token_name: string;
   warp_route_id: string;
 }
 
-interface WarpRouteMetrics extends BaseWarpRouteMetrics {
+interface WarpRouteMetricLabels extends BaseWarpRouteMetricLabels {
   wallet_address: string;
   token_standard: supportedTokenStandards;
   related_chain_names: string;
 }
 
-type WarpRouteMetricLabels = keyof WarpRouteMetrics;
-
-const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
+const warpRouteMetricLabels: (keyof WarpRouteMetricLabels)[] = [
   'chain_name',
   'token_address',
   'token_name',
@@ -55,31 +53,30 @@ const warpRouteCollateralValue = new Gauge({
   labelNames: warpRouteMetricLabels,
 });
 
-interface WarpRouteValueAtRiskMetrics extends BaseWarpRouteMetrics {
+interface WarpRouteValueAtRiskMetricLabels extends BaseWarpRouteMetricLabels {
   collateral_chain_name: ChainName;
   collateral_token_standard: supportedTokenStandards;
 }
 
-type WarpRouteValueAtRiskMetricLabels = keyof WarpRouteValueAtRiskMetrics;
-
-const warpRouteValueAtRiskLabels: WarpRouteValueAtRiskMetricLabels[] = [
-  'chain_name',
-  'collateral_chain_name',
-  'token_address',
-  'token_name',
-  'collateral_token_standard',
-  'warp_route_id',
-];
+const warpRouteValueAtRiskMetricLabels: (keyof WarpRouteValueAtRiskMetricLabels)[] =
+  [
+    'chain_name',
+    'collateral_chain_name',
+    'token_address',
+    'token_name',
+    'collateral_token_standard',
+    'warp_route_id',
+  ];
 
 const warpRouteValueAtRisk = new Gauge({
   name: 'hyperlane_warp_route_value_at_risk',
   help: 'Value at risk on chain for a given Warp Route',
   registers: [metricsRegister],
-  labelNames: warpRouteValueAtRiskLabels,
+  labelNames: warpRouteValueAtRiskMetricLabels,
 });
 
 export const rebalancerExecutionTotal = new Counter({
-  name: 'hyperlane_rebalancer_execution_total',
+  name: 'hyperlane_rebalancer_executions_total',
   help: 'Total number of rebalance execution attempts.',
   registers: [metricsRegister],
   labelNames: ['warp_route_id'],
@@ -140,7 +137,7 @@ export function updateTokenBalanceMetrics(
     (chainName) => chainName !== token.chainName,
   );
 
-  const metrics: WarpRouteMetrics = {
+  const metrics: WarpRouteMetricLabels = {
     chain_name: token.chainName,
     token_address: balanceInfo.tokenAddress,
     token_name: token.name,
@@ -214,7 +211,7 @@ export function updateManagedLockboxBalanceMetrics(
   balanceInfo: WarpRouteBalance,
   collateralTokenSymbol: string,
 ) {
-  const metrics: WarpRouteMetrics = {
+  const metrics: WarpRouteMetricLabels = {
     chain_name: chainName,
     token_address: tokenAddress,
     token_name: tokenName,
