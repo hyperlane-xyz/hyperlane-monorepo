@@ -1,6 +1,7 @@
 import { input } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
+import { Logger } from 'pino';
 
 import {
   LogFormat,
@@ -22,22 +23,25 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-async function validateRegistryCommit(commit: string) {
-  const registry = getRegistry();
-  const registryUri = registry.getUri();
-
+export async function validateRegistryCommit(
+  commit: string,
+  registryUri: string,
+  logger: Logger,
+  execSyncFn = execSync,
+) {
   try {
-    rootLogger.info(
+    logger.info(
       chalk.grey.italic(`Attempting to fetch registry commit ${commit}...`),
     );
-    execSync(`cd ${registryUri} && git fetch origin ${commit}`, {
+    execSyncFn(`cd ${registryUri} && git fetch origin ${commit}`, {
       stdio: 'inherit',
     });
-    rootLogger.info(chalk.grey.italic('Fetch completed successfully.'));
-  } catch (_) {
-    rootLogger.error(chalk.red(`Unable to fetch registry commit ${commit}.`));
+    logger.info(chalk.grey.italic('Fetch completed successfully.'));
+  } catch (error) {
+    logger.error(chalk.red(`Failed to fetch registry commit ${commit}.`));
     process.exit(1);
   }
+  return commit;
 }
 
 async function main() {
@@ -57,7 +61,12 @@ async function main() {
     message:
       'Enter the registry version to use (can be a commit, branch or tag):',
   });
-  await validateRegistryCommit(registryCommit);
+  const registry = getRegistry();
+  const validatedCommit = await validateRegistryCommit(
+    registryCommit,
+    registry.getUri(),
+    rootLogger,
+  );
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
@@ -67,7 +76,7 @@ async function main() {
       warpRouteId,
       environment,
       agentConfig.environmentChainNames,
-      registryCommit,
+      validatedCommit,
     );
     await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
