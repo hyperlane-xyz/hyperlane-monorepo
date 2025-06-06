@@ -273,7 +273,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       ismType = IsmType.ROUTING;
       this.logger.debug(
-        'Error accessing mailbox property, implying this is not a fallback routing ISM ism.',
+        'Error accessing mailbox property, implying this is not a fallback routing ISM.',
         address,
       );
     }
