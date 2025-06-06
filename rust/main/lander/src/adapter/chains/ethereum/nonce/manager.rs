@@ -22,9 +22,9 @@ use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState, NonceStatus};
 
 pub struct NonceManager {
-    address: Address,
-    db: Arc<dyn NonceDb>,
-    state: NonceManagerState,
+    pub address: Address,
+    pub db: Arc<dyn NonceDb>,
+    pub state: NonceManagerState,
 }
 
 impl NonceManager {

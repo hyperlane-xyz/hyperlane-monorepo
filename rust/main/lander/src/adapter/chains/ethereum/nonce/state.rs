@@ -33,7 +33,7 @@ pub struct NonceManagerStateInner {
     upper_nonce: U256,
 }
 
-pub(crate) struct NonceManagerState {
+pub struct NonceManagerState {
     inner: Arc<Mutex<NonceManagerStateInner>>,
 }
 

@@ -3,7 +3,7 @@
 
 mod core;
 mod db;
-mod entrypoint;
+pub mod entrypoint;
 mod metrics;
 mod stages;
 #[cfg(test)]
@@ -13,6 +13,5 @@ mod tests;
 
 pub use core::*;
 pub use db::*;
-pub use entrypoint::*;
 pub use metrics::*;
 pub use stages::*;
