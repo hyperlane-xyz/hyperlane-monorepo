@@ -10,7 +10,6 @@ import {
   WarpRouteBalance,
   XERC20Limit,
 } from '../types.js';
-import { getWalletBalanceGauge } from '../utils/metrics.js';
 
 export const metricsRegister = new Registry();
 
