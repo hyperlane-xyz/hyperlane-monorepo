@@ -48,7 +48,7 @@ library TypedMemView {
     // - recommended: implement modifiers that perform type checking
     // - - e.g.
     // - - `uint40 constant MY_TYPE = 3;`
-    // - - ` modifer onlyMyType(bytes29 myView) { myView.assertType(MY_TYPE); }`
+    // - - ` modifier onlyMyType(bytes29 myView) { myView.assertType(MY_TYPE); }`
     // - instantiate a typed view from a bytearray using `ref`
     // - use `index` to inspect the contents of the view
     // - use `slice` to create smaller views into the same memory
@@ -914,7 +914,7 @@ library TypedMemView {
 
         assembly {
             // solhint-disable-previous-line no-inline-assembly
-            // store the legnth
+            // store the length
             mstore(ptr, _written)
             // new pointer is old + 0x20 + the footprint of the body
             mstore(0x40, add(add(ptr, _footprint), 0x20))
