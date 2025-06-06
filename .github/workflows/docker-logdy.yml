@@ -1,0 +1,87 @@
+name: logdy
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*.*.*
+
+env:
+  IMAGE_NAME: ghcr.io/polymerdao/logdy
+
+jobs:
+  docker-build-logdy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.build-ref }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=semver,pattern={{raw}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.title=hyperlane-monorepo-logdy
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+
+      - name: Authenticate Docker
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Extract final image name with tag
+        id: extract-tag
+        run: echo "FINAL_IMAGE=$(echo ${{ steps.meta.outputs.tags }} | awk -F, '{print $1}')" >> $GITHUB_ENV
+
+      - name: Build and push (with security scan)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          file: ./docker/logdy.dockerfile
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:logdy-buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:logdy-buildcache,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.FINAL_IMAGE }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          file: ./docker/logdy.dockerfile
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:logdy-buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:logdy-buildcache,mode=max
