@@ -1,7 +1,4 @@
-import {
-  DefaultFallbackRoutingIsm__factory,
-  InterchainAccountIsm__factory,
-} from '@hyperlane-xyz/core';
+import { DefaultFallbackRoutingIsm__factory } from '@hyperlane-xyz/core';
 import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
@@ -79,12 +76,11 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
     );
 
     const isRouted =
-      context.ism.type === IsmType.ICA_ROUTING ||
       context.ism.type === IsmType.AMOUNT_ROUTING
         ? false
         : !!context.ism.domains[originChain];
     // If the chain is routed then we are 100% sure that the ism is not an ICA ISM
-    if (isRouted && context.ism.type !== IsmType.ICA_ROUTING) {
+    if (isRouted) {
       return super.build(
         // Typescript is not clever enough to understand that after the conditional check
         // the ism type will be of the same expected type
@@ -95,7 +91,6 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
 
     if (
       context.ism.type !== IsmType.FALLBACK_ROUTING &&
-      context.ism.type !== IsmType.ICA_ROUTING &&
       context.ism.type !== IsmType.AMOUNT_ROUTING
     ) {
       throw new Error(
@@ -109,14 +104,7 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       );
 
     let ismAddress: Address;
-    if (context.ism.type === IsmType.ICA_ROUTING) {
-      const icaFallbackRoutingIsm = InterchainAccountIsm__factory.connect(
-        context.ism.address,
-        destinationProvider,
-      );
-
-      ismAddress = await icaFallbackRoutingIsm.route(context.message.message);
-    } else if (context.ism.type === IsmType.AMOUNT_ROUTING) {
+    if (context.ism.type === IsmType.AMOUNT_ROUTING) {
       const amountFallbackRoutingIsm =
         DefaultFallbackRoutingIsm__factory.connect(
           context.ism.address,

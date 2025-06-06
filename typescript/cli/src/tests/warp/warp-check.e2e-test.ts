@@ -39,6 +39,7 @@ import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -60,6 +61,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let signer: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
+  let chain3DomainId: number;
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
@@ -73,6 +75,8 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain3DomainId = (readYamlOrJson(CHAIN_3_METADATA_PATH) as ChainMetadata)
+      .domainId;
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
@@ -540,4 +544,96 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.text().includes(expectedActualText)).to.be.true;
     });
   }
+
+  it('should successfully check allowedRebalancers', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
+    await deployAndExportWarpRoute();
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
+
+  it('should report a violation if no rebalancers are in the config but are set on chain', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
+    await deployAndExportWarpRoute();
+
+    warpConfig[CHAIN_NAME_2].allowedRebalancers = undefined;
+    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-deploy.yaml',
+    );
+    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: wrongDeployConfigPath,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(1);
+  });
+
+  it('should successfully check the allowed rebalancing bridges', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: randomAddress() }],
+    };
+    await deployAndExportWarpRoute();
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
+
+  it('should report a violation if no allowed bridges are in the config but are set on chain', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: randomAddress() }],
+    };
+    await deployAndExportWarpRoute();
+
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = undefined;
+    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-deploy.yaml',
+    );
+    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: wrongDeployConfigPath,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(1);
+  });
 });

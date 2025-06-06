@@ -1,15 +1,15 @@
 import { utils } from 'ethers';
 
-import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
+import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { CCIPReadIsmConfig, IsmType } from '../types.js';
+import { IsmType, OffchainLookupIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 
-export class CcipReadMetadataBuilder implements MetadataBuilder {
-  readonly type = IsmType.CCIP;
+export class OffchainLookupMetadataBuilder implements MetadataBuilder {
+  readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
 
   constructor(core: HyperlaneCore) {
@@ -17,11 +17,14 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
   }
 
   async build(
-    context: MetadataContext<WithAddress<CCIPReadIsmConfig>>,
+    context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
   ): Promise<string> {
     const { ism, message } = context;
     const provider = this.core.multiProvider.getProvider(message.parsed.origin);
-    const contract = ICcipReadIsm__factory.connect(ism.address, provider);
+    const contract = AbstractCcipReadIsm__factory.connect(
+      ism.address,
+      provider,
+    );
 
     let revertData: string;
     try {

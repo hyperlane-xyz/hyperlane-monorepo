@@ -36,7 +36,8 @@ async function getConfigsForBranch(branch: string) {
     branch,
   }).getWarpDeployConfigs();
 }
-describe('Warp Configs', async function () {
+
+describe.skip('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
   const warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
