@@ -8,6 +8,7 @@ import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {OPL2ToL1CcipReadIsm, OPL2ToL1V1CcipReadIsm, OPL2ToL1V2CcipReadIsm} from "../../isms/hook/OPL2ToL1CcipReadIsm.sol";
+import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {Message} from "../../libs/Message.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -127,10 +128,15 @@ contract OpL2NativeTokenBridge is HypNative {
         // include for legible error message
         _transferFromSender(_amount);
 
+        // used for mapping withdrawal to hyperlane prove and finalize messages
+        bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
+            proveMessageId,
+            withdrawMessageId
+        );
         l2Bridge.bridgeETHTo{value: _amount}(
             _recipient.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
-            bytes("")
+            extraData
         );
 
         if (address(this).balance > 0) {
