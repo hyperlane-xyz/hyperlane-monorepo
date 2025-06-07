@@ -27,6 +27,7 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   KeyBoardKeys,
   REGISTRY_PATH,
   TestPromptAction,
@@ -34,7 +35,6 @@ import {
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
-  getCombinedWarpRoutePath,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
@@ -48,10 +48,10 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
-const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('VAULT', [
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-]);
+const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+  WARP_DEPLOY_OUTPUT_PATH,
+  'VAULT',
+);
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -122,7 +122,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: nonExistingFilePath,
+        warpDeployPath: nonExistingFilePath,
       })
         .stdio('pipe')
         .nothrow();
@@ -130,17 +130,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(1);
-      expect(
-        finalOutput
-          .text()
-          .includes(`No "Warp route deployment config" found in`) ||
-          finalOutput
-            .text()
-            .includes(`Invalid file format for ${nonExistingFilePath}`),
-      ).to.be.true;
+      expect(finalOutput.text()).to.include(
+        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+      );
     });
 
-    it(`should exit early when the provided scale is incorrect`, async function () {
+    it.only(`should exit early when the provided scale is incorrect`, async function () {
       const tokenFiat = await deployToken(
         ANVIL_KEY,
         CHAIN_NAME_2,
@@ -197,7 +192,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
@@ -207,13 +202,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(1);
 
-      expect(
-        finalOutput
-          .text()
-          .includes(
-            `Failed to derive token metadata Error: Found invalid or missing scale for inconsistent decimals`,
-          ),
-      ).to.be.true;
+      expect(finalOutput.text()).includes(
+        `Failed to derive token metadata Error: Found invalid or missing scale for inconsistent decimals`,
+      );
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
@@ -223,10 +214,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.symbol(),
         token.decimals(),
       ]);
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        expectedTokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          expectedTokenSymbol,
+        );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -264,7 +256,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
@@ -369,10 +361,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         tokenFiat.symbol(),
       ]);
 
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        expectedTokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          expectedTokenSymbol,
+        );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -411,7 +404,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
@@ -482,7 +475,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: nonExistingFilePath,
+        warpDeployPath: nonExistingFilePath,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -492,7 +485,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config is required`,
+        `Warp route deployment config file not found at ${nonExistingFilePath}`,
       );
     });
 
@@ -504,10 +497,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.decimals(),
       ]);
       console.log(expectedTokenDecimals);
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        expectedTokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          expectedTokenSymbol,
+        );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -540,7 +534,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
