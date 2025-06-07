@@ -100,7 +100,9 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  MainnetCCTP = 'USDC/arbitrum-avalanche-base-ethereum-optimism-polygon-unichain',
   TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  MainnetRebalancingUSDC = 'USDC/arbitrum-avalanche-base-bsc-ethereum-optimism-unichain',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
