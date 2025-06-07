@@ -54,6 +54,7 @@ import {
 import {
   ProtocolType,
   assert,
+  deepCopy,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -458,7 +459,7 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    warpDeployConfig,
+    warpDeployConfig: deepCopy(warpDeployConfig),
     deployedRoutersAddresses,
   });
 
@@ -480,7 +481,7 @@ async function updateExistingWarpRoute(
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
-            config: configWithMailbox,
+            config: warpDeployConfig[chain],
             chain,
             addresses: {
               deployedTokenRoute,
