@@ -592,7 +592,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
         [];
-      objMap(expectedDestinationGas, (domain: number, gas: string) => {
+      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,
