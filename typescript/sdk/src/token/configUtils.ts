@@ -1,13 +1,16 @@
 import { zeroAddress } from 'viem';
 
+import { isMovableCollateralTokenConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  deepCopy,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isObjEmpty,
   objFilter,
   objMap,
   promiseObjAll,
@@ -326,8 +329,22 @@ export function transformConfigToCheck(
     ),
   );
 
+  const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
+
+  if (isMovableCollateralTokenConfig(clonedTokenConfig)) {
+    clonedTokenConfig.allowedRebalancers = clonedTokenConfig.allowedRebalancers
+      ?.length
+      ? clonedTokenConfig.allowedRebalancers
+      : undefined;
+    clonedTokenConfig.allowedRebalancingBridges = !isObjEmpty(
+      clonedTokenConfig.allowedRebalancingBridges ?? {},
+    )
+      ? clonedTokenConfig.allowedRebalancingBridges
+      : undefined;
+  }
+
   return sortArraysInObject(
-    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+    transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),
     sortArraysInConfigToCheck,
   );
 }

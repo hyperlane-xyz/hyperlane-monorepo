@@ -176,11 +176,13 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
-export type InterchainAccountRouterIsm =
-  BaseRoutingIsmConfig<IsmType.INTERCHAIN_ACCOUNT_ROUTING> &
-    OwnableConfig & {
-      isms: ChainMap<string>;
-    };
+export const InterchainAccountRouterIsmSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.INTERCHAIN_ACCOUNT_ROUTING),
+  isms: z.record(ZHash),
+});
+export type InterchainAccountRouterIsm = z.infer<
+  typeof InterchainAccountRouterIsmSchema
+>;
 
 export type AmountRoutingIsmConfig =
   BaseRoutingIsmConfig<IsmType.AMOUNT_ROUTING> & {
@@ -329,10 +331,7 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
         type: z.literal(IsmType.FALLBACK_ROUTING),
         domains: z.record(IsmConfigSchema),
       }),
-      OwnableSchema.extend({
-        type: z.literal(IsmType.INTERCHAIN_ACCOUNT_ROUTING),
-        isms: z.record(ZHash),
-      }),
+      InterchainAccountRouterIsmSchema,
     ]),
 );
 
