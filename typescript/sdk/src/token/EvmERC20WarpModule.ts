@@ -510,7 +510,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: actualConfig.hook,
+        config: this.initialConfig.hook!,
         addresses: {
           ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
