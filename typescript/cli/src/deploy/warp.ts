@@ -1,11 +1,14 @@
 import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
+import path from 'path';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AddWarpRouteConfigOptions,
+  BaseRegistry,
   ChainAddresses,
+  createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
@@ -93,10 +96,12 @@ export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
   warpRouteId,
+  warpDeployConfigFileName,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpRouteId?: string;
+  warpDeployConfigFileName?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
 
@@ -135,11 +140,40 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  await writeDeploymentArtifacts(
-    warpCoreConfig,
-    context,
-    warpRouteId ? { warpRouteId } : addWarpRouteOptions, // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
-  );
+  // Use warpRouteId if provided, otherwise if the user is deploying
+  // using a config file use the name of the file to generate the id
+  // or just fallback to use the warpCoreConfig symbol
+  let warpRouteIdOptions: AddWarpRouteConfigOptions;
+  if (warpRouteId) {
+    warpRouteIdOptions = { warpRouteId };
+  } else if (
+    warpDeployConfigFileName &&
+    !('warpRouteId' in addWarpRouteOptions)
+  ) {
+    const fileName = path.parse(warpDeployConfigFileName).name;
+    const maybeId = createWarpRouteConfigId(
+      addWarpRouteOptions.symbol,
+      fileName,
+    );
+
+    // validate that the id is correct
+    let isIdOk = true;
+    try {
+      BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
+        warpRouteId: maybeId,
+      });
+    } catch {
+      isIdOk = false;
+    }
+
+    warpRouteIdOptions = isIdOk
+      ? { warpRouteId: maybeId }
+      : addWarpRouteOptions;
+  } else {
+    warpRouteIdOptions = addWarpRouteOptions;
+  }
+
+  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
 
   await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }

@@ -1,4 +1,5 @@
 import { Wallet, ethers } from 'ethers';
+import path from 'path';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import {
@@ -61,6 +62,15 @@ export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
 export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
+
+export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
+  originalDeployConfigPath: string,
+  symbol: string,
+): string => {
+  const fileName = path.parse(originalDeployConfigPath).name;
+
+  return `${REGISTRY_PATH}/deployments/warp_routes/${symbol}/${fileName}-config.yaml`;
+};
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
