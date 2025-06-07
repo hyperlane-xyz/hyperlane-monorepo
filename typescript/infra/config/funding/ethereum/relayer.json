@@ -1,0 +1,17 @@
+{
+  "mainnet3": {
+    "hyperlane": "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5",
+    "neutron": "0x03787bc64a4f352b4ad172947473342028513ef3",
+    "rc": "0x09b96417602ed6ac76651f7a8c4860e60e3aa6d0"
+  },
+  "test": {
+    "hyperlane": "",
+    "neutron": "",
+    "rc": ""
+  },
+  "testnet4": {
+    "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
+    "neutron": "0xf2c72c0befa494d62949a1699a99e2c605a0b636",
+    "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16"
+  }
+}
