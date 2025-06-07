@@ -98,25 +98,38 @@ export class WarpCore {
     );
     // Connect tokens together
     parsedConfig.tokens.forEach((config, i) => {
+      const isKhalaniConfig =
+        config.standard === TokenStandard.EvmKhalaniIntent;
+
       for (const connection of config.connections || []) {
-        const token1 = tokens[i];
-        const { chainName, addressOrDenom } = parseTokenConnectionId(
-          connection.token,
-        );
-        const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
-        );
+        const { chainName, addressOrDenom: connectionAddressOrDenom } =
+          parseTokenConnectionId(connection.token);
+
+        const connectedToken = tokens.find((token) => {
+          if (token.chainName !== chainName) return false;
+
+          if (
+            isKhalaniConfig &&
+            token.standard === TokenStandard.EvmKhalaniIntent
+          ) {
+            return token.collateralAddressOrDenom === connectionAddressOrDenom;
+          } else {
+            return token.addressOrDenom === connectionAddressOrDenom;
+          }
+        });
+
         assert(
-          token2,
-          `Connected token not found: ${chainName} ${addressOrDenom}`,
+          connectedToken,
+          `Connected token not found: ${chainName} ${connectionAddressOrDenom}`,
         );
-        token1.addConnection({
+
+        tokens[i].addConnection({
           ...connection,
-          token: token2,
+          token: connectedToken,
         });
       }
     });
+
     // Create new Warp
     return new WarpCore(multiProvider, tokens, parsedConfig.options);
   }
@@ -129,10 +142,12 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    amount,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender?: Address;
+    amount?: string;
   }): Promise<TokenAmount> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { chainName: originName } = originToken;
@@ -157,6 +172,7 @@ export class WarpCore {
       const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
         sender,
+        amount,
       );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;
@@ -385,6 +401,7 @@ export class WarpCore {
         originToken: token,
         destination,
         sender,
+        amount: amount.toString(),
       });
     }
 
@@ -418,11 +435,13 @@ export class WarpCore {
     destination,
     sender,
     senderPubKey,
+    amount,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
+    amount?: string;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
 
@@ -432,6 +451,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      amount,
     });
 
     // Next, get the local gas quote
@@ -766,6 +786,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      amount: amount.toString(),
     });
     // Get balance of the IGP fee token, which may be different from the transfer token
     const interchainQuoteTokenBalance = originToken.isFungibleWith(
