@@ -44,6 +44,12 @@ export async function runWarpRouteCheck({
         );
       }
 
+      // if the input config does not specify the expected contractVersion we skip to
+      // avoid triggering a false positive
+      if (!expectedDeployedConfig.contractVersion) {
+        currentDeployedConfig.contractVersion = undefined;
+      }
+
       const { mergedObject, isInvalid } = diffObjMerge(
         transformConfigToCheck(currentDeployedConfig),
         transformConfigToCheck(expectedDeployedConfig),

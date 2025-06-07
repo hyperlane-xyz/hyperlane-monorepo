@@ -6,7 +6,7 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
+import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
@@ -14,6 +14,7 @@ import { CheckerViolation } from '../deploy/types.js';
 import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
 export type RouterAddress = {
@@ -97,12 +98,32 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
-export const RemoteRouterDomain = z.string();
+export const RemoteRouterDomainOrChainNameSchema = z.string().or(z.number());
+export type RemoteRouterDomainOrChainName = z.infer<
+  typeof RemoteRouterDomainOrChainNameSchema
+>;
+
+export function resolveRouterMapConfig<T>(
+  multiProvider: MultiProvider,
+  routerMap: Record<RemoteRouterDomainOrChainName, T>,
+): Record<number, T> {
+  return Object.fromEntries(
+    Object.entries(routerMap).map(([domainIdOrChainName, value]) => {
+      if (isNumeric(domainIdOrChainName)) {
+        return [parseInt(domainIdOrChainName), value];
+      }
+
+      const meta = multiProvider.getChainMetadata(domainIdOrChainName);
+      return [meta.domainId, value];
+    }),
+  );
+}
+
 export const RemoteRouterRouter = z.object({
   address: z.string().startsWith('0x'),
 });
 export const RemoteRoutersSchema = z.record(
-  RemoteRouterDomain,
+  RemoteRouterDomainOrChainNameSchema,
   RemoteRouterRouter,
 );
 
@@ -115,10 +136,9 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   }),
 );
 
-const DestinationGasDomain = z.string();
 const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
 export const DestinationGasSchema = z.record(
-  DestinationGasDomain,
+  RemoteRouterDomainOrChainNameSchema,
   DestinationGasAmount,
 );
 export const GasRouterConfigSchema = RouterConfigSchema.extend({

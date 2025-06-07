@@ -76,7 +76,8 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
     );
 
     const isRouted =
-      context.ism.type === IsmType.AMOUNT_ROUTING
+      context.ism.type === IsmType.AMOUNT_ROUTING ||
+      context.ism.type === IsmType.INTERCHAIN_ACCOUNT_ROUTING
         ? false
         : !!context.ism.domains[originChain];
     // If the chain is routed then we are 100% sure that the ism is not an ICA ISM
@@ -91,7 +92,8 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
 
     if (
       context.ism.type !== IsmType.FALLBACK_ROUTING &&
-      context.ism.type !== IsmType.AMOUNT_ROUTING
+      context.ism.type !== IsmType.AMOUNT_ROUTING &&
+      context.ism.type !== IsmType.INTERCHAIN_ACCOUNT_ROUTING
     ) {
       throw new Error(
         `Origin domain ${originChain} is not enrolled in DomainRoutingIsm`,
@@ -104,7 +106,10 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       );
 
     let ismAddress: Address;
-    if (context.ism.type === IsmType.AMOUNT_ROUTING) {
+    if (
+      context.ism.type === IsmType.AMOUNT_ROUTING ||
+      context.ism.type === IsmType.INTERCHAIN_ACCOUNT_ROUTING
+    ) {
       const amountFallbackRoutingIsm =
         DefaultFallbackRoutingIsm__factory.connect(
           context.ism.address,

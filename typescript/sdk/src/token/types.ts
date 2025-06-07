@@ -11,7 +11,11 @@ import {
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
+import {
+  DerivedRouterConfig,
+  GasRouterConfigSchema,
+  RemoteRouterDomainOrChainNameSchema,
+} from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -52,7 +56,10 @@ const MovableTokenRebalancingBridgeConfigSchema = z.object({
 
 export const BaseMovableTokenConfigSchema = z.object({
   allowedRebalancingBridges: z
-    .record(z.array(MovableTokenRebalancingBridgeConfigSchema))
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.array(MovableTokenRebalancingBridgeConfigSchema),
+    )
     .optional(),
   allowedRebalancers: z
     .array(ZHash)

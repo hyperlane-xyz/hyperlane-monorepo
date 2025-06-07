@@ -366,6 +366,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       });
     }
 
+    if (config.type === IsmType.INTERCHAIN_ACCOUNT_ROUTING) {
+      throw new Error(
+        `${IsmType.INTERCHAIN_ACCOUNT_ROUTING} deployment not supported for now in the HyperlaneIsmFactory class`,
+      );
+    }
+
     return this.deployOwnableRoutingIsm({
       ...params,
       // Can't pass params directly because ts will complain that the types do not match

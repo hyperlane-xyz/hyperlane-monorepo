@@ -2,6 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AbstractCcipReadIsm__factory,
+  AbstractRoutingIsm,
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
@@ -10,7 +11,9 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IOutbox__factory,
+  InterchainAccountRouter__factory,
   OPStackIsm__factory,
+  Ownable__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
@@ -31,7 +34,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
@@ -197,15 +200,20 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   async deriveRoutingConfig(
     address: Address,
   ): Promise<WithAddress<RoutingIsmConfig>> {
-    const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
+    const abstractRoutingIsm = AbstractRoutingIsm__factory.connect(
+      address,
+      this.provider,
+    );
 
-    this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
+    this.assertModuleType(
+      await abstractRoutingIsm.moduleType(),
+      ModuleType.ROUTING,
+    );
 
     let owner: Address | undefined;
-    const defaultFallbackIsmInstance =
-      DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
+    const ownableIsm = Ownable__factory.connect(address, this.provider);
     try {
-      owner = await defaultFallbackIsmInstance.owner();
+      owner = await ownableIsm.owner();
     } catch {
       this.logger.debug(
         'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
@@ -218,24 +226,45 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return this.deriveNonOwnableRoutingConfig(address);
     }
 
+    const defaultFallbackIsmInstance =
+      DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
     const domainIds = this.messageContext
       ? [BigNumber.from(this.messageContext.parsed.origin)]
       : await defaultFallbackIsmInstance.domains();
-    const domains: DomainRoutingIsmConfig['domains'] = {};
 
-    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
-      if (!chainName) {
-        this.logger.warn(
-          `Unknown domain ID ${domainId}, skipping domain configuration`,
-        );
-        return;
-      }
-      const module = this.messageContext
-        ? await defaultFallbackIsmInstance.route(this.messageContext.message)
-        : await defaultFallbackIsmInstance.module(domainId);
-      domains[chainName] = await this.deriveIsmConfig(module);
-    });
+    const icaRouter = InterchainAccountRouter__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      await icaRouter.CCIP_READ_ISM();
+
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: await this.deriveRemoteIsmConfigs(
+          domainIds,
+          abstractRoutingIsm,
+          icaRouter.isms,
+          // The isms here are deployed on remote chains and can't be derived
+          false,
+        ),
+        address,
+        owner,
+      };
+    } catch {
+      this.logger.debug(
+        `Error accessing CCIP_READ_ISM property, implying that this is not a InterchainAccountRouterIsm.`,
+        address,
+      );
+    }
+
+    const domains: DomainRoutingIsmConfig['domains'] =
+      await this.deriveRemoteIsmConfigs(
+        domainIds,
+        abstractRoutingIsm,
+        defaultFallbackIsmInstance.module,
+        true,
+      );
 
     // Fallback routing ISM extends from MailboxClient, default routing
     let ismType = IsmType.FALLBACK_ROUTING;
@@ -255,6 +284,55 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       type: ismType,
       domains,
     };
+  }
+
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: true,
+  ): Promise<ChainMap<IsmConfig>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: false,
+  ): Promise<ChainMap<string>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: boolean,
+  ): Promise<ChainMap<IsmConfig>> {
+    const res = await concurrentMap(
+      this.concurrency,
+      domainIds,
+      async (domainId): Promise<[string, IsmConfig] | undefined> => {
+        const chainName = this.multiProvider.tryGetChainName(
+          domainId.toNumber(),
+        );
+        if (!chainName) {
+          this.logger.warn(
+            `Unknown domain ID ${domainId}, skipping domain configuration`,
+          );
+          return;
+        }
+        const moduleAddress = this.messageContext
+          ? await contractInstance.route(this.messageContext.message)
+          : await addressDeriveFunc(domainId);
+
+        return [
+          chainName,
+          deriveConfig
+            ? await this.deriveIsmConfig(moduleAddress)
+            : moduleAddress,
+        ];
+      },
+    );
+
+    return Object.fromEntries(
+      res.filter((curr) => curr) as [string, IsmConfig][],
+    );
   }
 
   private async deriveNonOwnableRoutingConfig(
