@@ -1,6 +1,5 @@
 import { zeroAddress } from 'viem';
 
-import { isMovableCollateralTokenConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -36,6 +35,7 @@ import {
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 
 /**
