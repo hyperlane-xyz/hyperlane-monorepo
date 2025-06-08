@@ -1,11 +1,9 @@
 import { assert } from '@hyperlane-xyz/utils';
 
-import { verifyScale } from '../utils/decimals.js';
-
 import { TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
-  private readonly tokenMetadataMap: Map<string, TokenMetadata>;
+  private tokenMetadataMap: Map<string, TokenMetadata>;
 
   constructor() {
     this.tokenMetadataMap = new Map();
@@ -19,7 +17,7 @@ export class TokenMetadataMap {
     const config = this.tokenMetadataMap.get(chain);
     if (config) return config.decimals!;
     return [...this.tokenMetadataMap.values()].find(
-      (config) => config?.decimals,
+      (config) => config?.decimals !== undefined,
     )?.decimals;
   }
 
@@ -55,15 +53,43 @@ export class TokenMetadataMap {
     throw new Error('No symbol found in token metadata map.');
   }
 
+  areDecimalsUniform(): boolean {
+    const values = [...this.tokenMetadataMap.values()];
+    const [first, ...rest] = values;
+    for (const d of rest) {
+      if (d.decimals !== first.decimals) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   finalize(): void {
     assert(
-      [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
+      [...this.tokenMetadataMap.values()].every((config) => config.decimals !== undefined),
       'All decimals must be defined',
     );
 
-    assert(
-      verifyScale(this.tokenMetadataMap),
-      `Found invalid or missing scale for inconsistent decimals`,
-    );
+    if (!this.areDecimalsUniform()) {
+      const maxDecimals = Math.max(
+        ...[...this.tokenMetadataMap.values()].map(
+          (config) => config.decimals!,
+        ),
+      );
+
+      for (const [chain, config] of this.tokenMetadataMap.entries()) {
+        if (config.decimals !== undefined) {
+          const scale = 10 ** (maxDecimals - config.decimals);
+          // Only assert if scale is already set and doesn't match expected value
+          if (config.scale !== undefined) {
+            assert(
+              scale === config.scale,
+              `Scale is not correct for ${chain}`,
+            );
+          }
+          config.scale = scale;
+        }
+      }
+    }
   }
 }
