@@ -63,10 +63,10 @@ pub trait TransactionDb: Send + Sync {
     }
 
     /// Store the highest transaction index
-    async fn store_highest_index(&self, index: u32) -> DbResult<()>;
+    async fn store_highest_transaction_index(&self, index: u32) -> DbResult<()>;
 
     /// Retrieve the highest transaction index
-    async fn retrieve_highest_index(&self) -> DbResult<u32>;
+    async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
 }
 
 #[async_trait]
@@ -84,9 +84,9 @@ impl TransactionDb for HyperlaneRocksDB {
             .await?
             .is_none()
         {
-            let highest_index = self.retrieve_highest_index().await?;
+            let highest_index = self.retrieve_highest_transaction_index().await?;
             let tx_index = highest_index + 1;
-            self.store_highest_index(tx_index).await?;
+            self.store_highest_transaction_index(tx_index).await?;
             self.store_transaction_index_by_uuid(tx_index, &tx.uuid)
                 .await?;
             self.store_transaction_uuid_by_index(tx_index, &tx.uuid)
@@ -125,7 +125,7 @@ impl TransactionDb for HyperlaneRocksDB {
         self.store_value_by_key(TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX, &index, tx_uuid)
     }
 
-    async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+    async fn store_highest_transaction_index(&self, index: u32) -> DbResult<()> {
         // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
         self.store_value_by_key(
             HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX,
@@ -134,7 +134,7 @@ impl TransactionDb for HyperlaneRocksDB {
         )
     }
 
-    async fn retrieve_highest_index(&self) -> DbResult<u32> {
+    async fn retrieve_highest_transaction_index(&self) -> DbResult<u32> {
         // return the default value (0) if no index has been stored yet
         self.retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())
             .map(|index| index.unwrap_or_default())
@@ -208,7 +208,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved_tx, tx);
-            let highest_index = db.retrieve_highest_index().await.unwrap();
+            let highest_index = db.retrieve_highest_transaction_index().await.unwrap();
             assert_eq!(highest_index, expected_index as u32);
 
             // storing to this new tx ID again should not create a new
@@ -221,7 +221,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(retrieved_tx, tx);
-            let highest_index = db.retrieve_highest_index().await.unwrap();
+            let highest_index = db.retrieve_highest_transaction_index().await.unwrap();
             assert_eq!(highest_index, expected_index as u32);
         }
     }
