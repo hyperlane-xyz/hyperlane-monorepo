@@ -47,6 +47,7 @@ import {
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
+  IMovableCollateralRouterAdapter,
   ITokenAdapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
@@ -280,7 +281,9 @@ export class EvmHypSyntheticAdapter
 // Interacts with HypCollateral contracts
 export class EvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
+  implements
+    IHypTokenAdapter<PopulatedTransaction>,
+    IMovableCollateralRouterAdapter<PopulatedTransaction>
 {
   public readonly collateralContract: HypERC20Collateral;
   protected wrappedTokenAddress?: Address;
