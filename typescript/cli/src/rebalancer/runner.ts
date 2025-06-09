@@ -20,7 +20,7 @@ import {
 import { getRawBalances } from './utils/getRawBalances.js';
 import { rebalancerLogger } from './utils/logger.js';
 
-interface RebalancerRunnerArgs {
+interface RebalancerCliArgs {
   config: string;
   checkFrequency: number;
   withMetrics: boolean;
@@ -31,6 +31,12 @@ interface RebalancerRunnerArgs {
   amount?: string;
 }
 
+interface ManualRebalanceArgs {
+  origin: string;
+  destination: string;
+  amount: string;
+}
+
 export class RebalancerRunner {
   private readonly monitor: Monitor;
   private readonly strategy: IStrategy;
@@ -38,30 +44,49 @@ export class RebalancerRunner {
   private readonly metrics: Metrics | undefined;
   private readonly rebalancerConfig: RebalancerConfig;
   private readonly contextFactory: RebalancerContextFactory;
+  private readonly manualArgs: ManualRebalanceArgs | undefined;
 
   private constructor(
-    private readonly args: RebalancerRunnerArgs,
     contextFactory: RebalancerContextFactory,
     rebalancerConfig: RebalancerConfig,
     monitor: Monitor,
     strategy: IStrategy,
     rebalancer: IRebalancer | undefined,
     metrics: Metrics | undefined,
+    manualArgs: ManualRebalanceArgs | undefined,
   ) {
-    this.args = args;
     this.contextFactory = contextFactory;
     this.rebalancerConfig = rebalancerConfig;
     this.monitor = monitor;
     this.strategy = strategy;
     this.rebalancer = rebalancer;
     this.metrics = metrics;
+    this.manualArgs = manualArgs;
+  }
+
+  private static validateManualArgs(
+    args: RebalancerCliArgs,
+  ): ManualRebalanceArgs {
+    assert(
+      args.origin && args.destination && args.amount,
+      'Origin, destination, and amount are required for a manual run',
+    );
+    return {
+      origin: args.origin,
+      destination: args.destination,
+      amount: args.amount,
+    };
   }
 
   public static async create(
-    args: RebalancerRunnerArgs,
+    args: RebalancerCliArgs,
     context: WriteCommandContext,
   ): Promise<RebalancerRunner> {
-    const { config, checkFrequency, withMetrics, monitorOnly } = args;
+    const { config, checkFrequency, withMetrics, monitorOnly, manual } = args;
+    let manualArgs: ManualRebalanceArgs | undefined;
+    if (manual) {
+      manualArgs = this.validateManualArgs(args);
+    }
     // Load rebalancer config from disk
     const rebalancerConfig = RebalancerConfig.load(config, {
       checkFrequency,
@@ -107,19 +132,19 @@ export class RebalancerRunner {
     }
 
     return new RebalancerRunner(
-      args,
       contextFactory,
       rebalancerConfig,
       monitor,
       strategy,
       rebalancer,
       metrics,
+      manualArgs,
     );
   }
 
   public async run(): Promise<void> {
     try {
-      if (this.args.manual) {
+      if (this.manualArgs) {
         await this.runManual();
       } else {
         await this.runDaemon();
@@ -132,10 +157,8 @@ export class RebalancerRunner {
   }
 
   private async runManual(): Promise<void> {
-    const { origin, destination, amount } = this.args;
-    assert(origin, '--origin is required');
-    assert(destination, '--destination is required');
-    assert(amount, '--amount is required');
+    assert(this.manualArgs, 'Manual arguments are not defined for manual run');
+    const { origin, destination, amount } = this.manualArgs;
 
     warnYellow(
       `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
