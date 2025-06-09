@@ -15,7 +15,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::ContractLocator;
+use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain};
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterProviderBuilder};
 
 use crate::{
@@ -32,21 +32,20 @@ mod gas_price_estimator;
 mod tx_status_checker;
 
 pub struct EthereumAdapter {
-    estimated_block_time: Duration,
-    max_batch_size: u32,
-    conf: ChainConf,
-    connection_conf: ConnectionConf,
-    _raw_conf: RawChainConf,
-    provider: Box<dyn EvmProviderForLander>,
-    reorg_period: EthereumReorgPeriod,
-    nonce_manager: NonceManager,
+    pub estimated_block_time: Duration,
+    pub domain: HyperlaneDomain,
+    pub transaction_overrides: hyperlane_ethereum::TransactionOverrides,
+    pub submission_config: OpSubmissionConfig,
+    pub provider: Box<dyn EvmProviderForLander>,
+    pub reorg_period: EthereumReorgPeriod,
+    pub nonce_manager: NonceManager,
 }
 
 impl EthereumAdapter {
     pub async fn new(
         conf: ChainConf,
         connection_conf: ConnectionConf,
-        raw_conf: RawChainConf,
+        _raw_conf: RawChainConf,
         db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
@@ -62,30 +61,16 @@ impl EthereumAdapter {
                 SubmitterProviderBuilder {},
             )
             .await?;
-        let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-
-        let nonce_manager = NonceManager::new(&conf, db).await?;
-        let estimated_block_time = conf.estimated_block_time;
-        let max_batch_size = Self::batch_size(&conf)?;
-
-        Ok(Self {
-            estimated_block_time,
-            max_batch_size,
-            conf,
-            connection_conf,
-            _raw_conf: raw_conf,
+        let adapter = Self {
+            estimated_block_time: conf.estimated_block_time,
+            domain: conf.domain.clone(),
+            transaction_overrides: connection_conf.transaction_overrides.clone(),
+            submission_config: connection_conf.op_submission_config.clone(),
             provider,
-            reorg_period,
-            nonce_manager,
-        })
-    }
-
-    fn batch_size(conf: &ChainConf) -> eyre::Result<u32> {
-        Ok(conf
-            .connection
-            .operation_submission_config()
-            .ok_or_else(|| eyre!("no operation batch config"))?
-            .max_batch_size)
+            reorg_period: EthereumReorgPeriod::try_from(&conf.reorg_period)?,
+            nonce_manager: NonceManager::new(&conf, db).await?,
+        };
+        Ok(adapter)
     }
 
     async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -105,8 +90,8 @@ impl EthereumAdapter {
             gas_price_estimator::estimate_gas_price(
                 &self.provider,
                 tx.precursor_mut(),
-                &self.connection_conf.transaction_overrides,
-                &self.conf.domain,
+                &self.transaction_overrides,
+                &self.domain,
             )
             .await?;
             info!(?tx, "estimated gas price for transaction");
@@ -159,8 +144,8 @@ impl AdaptsChain for EthereumAdapter {
         gas_limit_estimator::estimate_gas_limit(
             &self.provider,
             precursor,
-            &self.connection_conf.transaction_overrides,
-            &self.conf.domain,
+            &self.transaction_overrides,
+            &self.domain,
             true,
         )
         .await
@@ -229,6 +214,6 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     fn max_batch_size(&self) -> u32 {
-        self.max_batch_size
+        self.submission_config.max_batch_size
     }
 }
