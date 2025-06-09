@@ -135,7 +135,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    it.only(`should exit early when the provided scale is incorrect`, async function () {
+    it(`should exit early when the provided scale is incorrect`, async function () {
       const tokenFiat = await deployToken(
         ANVIL_KEY,
         CHAIN_NAME_2,

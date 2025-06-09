@@ -1,22 +1,36 @@
-import {
-  HypTokenRouterVirtualConfig,
-  WarpRouteDeployConfigMailboxRequired,
-} from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { TokenMetadata } from '../token/types.js';
+import {
+  TokenMetadata,
+  WarpRouteDeployConfigMailboxRequired,
+} from '../token/types.js';
+import { ChainMap } from '../types.js';
 
 export function verifyScale(
-  configMap:
-    | Map<string, TokenMetadata>
-    | WarpRouteDeployConfigMailboxRequired
-    | Record<string, Partial<HypTokenRouterVirtualConfig>>,
+  configMap: Map<string, TokenMetadata> | WarpRouteDeployConfigMailboxRequired,
 ): boolean {
-  if (!areDecimalsUniform(configMap)) {
-    const maxDecimals = Math.max(
-      ...Object.values(configMap).map((config) => config.decimals!),
+  const chainDecimalConfigPairs =
+    configMap instanceof Map
+      ? Array.from(configMap.entries())
+      : Object.entries(configMap);
+  const decimalsByChain: ChainMap<{ decimals: number; scale?: number }> =
+    Object.fromEntries(
+      chainDecimalConfigPairs.map(([chain, config]) => {
+        assert(
+          config.decimals,
+          `Decimals must be defined for token config on chain ${chain}`,
+        );
+
+        return [chain, { decimals: config.decimals, scale: config.scale }];
+      }),
     );
 
-    for (const [_, config] of Object.entries(configMap)) {
+  if (!areDecimalsUniform(decimalsByChain)) {
+    const maxDecimals = Math.max(
+      ...Object.values(decimalsByChain).map((config) => config.decimals!),
+    );
+
+    for (const [_, config] of Object.entries(decimalsByChain)) {
       if (config.decimals) {
         const calculatedScale = 10 ** (maxDecimals - config.decimals);
         if (
@@ -32,10 +46,7 @@ export function verifyScale(
 }
 
 function areDecimalsUniform(
-  configMap:
-    | Map<string, TokenMetadata>
-    | WarpRouteDeployConfigMailboxRequired
-    | Record<string, Partial<HypTokenRouterVirtualConfig>>,
+  configMap: ChainMap<{ decimals: number; scale?: number }>,
 ): boolean {
   const values = [...Object.values(configMap)];
   const [first, ...rest] = values;
