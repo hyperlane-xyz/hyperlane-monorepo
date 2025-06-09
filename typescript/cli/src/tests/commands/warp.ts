@@ -111,11 +111,13 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
   strategyUrl = '',
+  warpRouteId?: string,
 ) {
   return hyperlaneWarpApplyRaw({
     warpDeployPath,
     warpCorePath,
     strategyUrl,
+    warpRouteId,
   });
 }
 
