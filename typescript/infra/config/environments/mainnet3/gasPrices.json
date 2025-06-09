@@ -380,8 +380,8 @@
     "decimals": 1
   },
   "paradex": {
-    "amount": "0.000000001",
-    "decimals": 18
+    "amount": "0.000000100",
+    "decimals": 9
   },
   "peaq": {
     "amount": "100.0",
