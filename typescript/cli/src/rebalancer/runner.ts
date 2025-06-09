@@ -66,10 +66,6 @@ export class RebalancerRunner {
     context: WriteCommandContext,
   ): Promise<RebalancerRunner> {
     const { config, checkFrequency, withMetrics, monitorOnly, manual } = args;
-    let manualArgs: ManualRebalanceArgs | undefined;
-    if (manual) {
-      manualArgs = this.validateManualArgs(args);
-    }
     // Load rebalancer config from disk
     const rebalancerConfig = RebalancerConfig.load(config, {
       checkFrequency,
@@ -77,6 +73,17 @@ export class RebalancerRunner {
       monitorOnly,
     });
     logGreen('✅ Loaded rebalancer config');
+
+    if (manual && rebalancerConfig.monitorOnly) {
+      throw new Error(
+        'Manual mode is not compatible with monitorOnly. Please disable monitorOnly in your config or via the CLI.',
+      );
+    }
+
+    let manualArgs: ManualRebalanceArgs | undefined;
+    if (manual) {
+      manualArgs = this.validateManualArgs(args);
+    }
 
     // Instantiate the factory used to create the different rebalancer components
     const contextFactory = await RebalancerContextFactory.create(
@@ -141,6 +148,7 @@ export class RebalancerRunner {
 
   private async runManual(): Promise<void> {
     assert(this.manualArgs, 'Manual arguments are not defined for manual run');
+    assert(this.rebalancer, 'Rebalancer should be defined for a manual run.');
     const { origin, destination, amount } = this.manualArgs;
 
     warnYellow(
@@ -148,13 +156,12 @@ export class RebalancerRunner {
     );
 
     const warpCore = this.contextFactory.getWarpCore();
-    const rebalancer = this.contextFactory.createRebalancer();
     const originToken = warpCore.tokens.find(
       (t: Token) => t.chainName === origin,
     );
 
     try {
-      await rebalancer.rebalance([
+      await this.rebalancer.rebalance([
         {
           origin,
           destination,
