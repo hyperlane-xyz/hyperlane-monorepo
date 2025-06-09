@@ -496,7 +496,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   },
   handler: async (args) => {
     const { context, ...rest } = args;
-    const runner = new RebalancerRunner(rest, context);
+    const runner = await RebalancerRunner.create(rest, context);
     return runner.run();
   },
 };

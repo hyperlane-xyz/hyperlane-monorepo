@@ -32,37 +32,38 @@ interface RebalancerRunnerArgs {
 }
 
 export class RebalancerRunner {
-  private monitor: Monitor | undefined;
-  private strategy: IStrategy | undefined;
-  private rebalancer: IRebalancer | undefined;
-  private metrics: Metrics | undefined;
-  private rebalancerConfig: RebalancerConfig | undefined;
-  private contextFactory: RebalancerContextFactory | undefined;
+  private readonly monitor: Monitor;
+  private readonly strategy: IStrategy;
+  private readonly rebalancer: IRebalancer | undefined;
+  private readonly metrics: Metrics | undefined;
+  private readonly rebalancerConfig: RebalancerConfig;
+  private readonly contextFactory: RebalancerContextFactory;
 
-  constructor(
+  private constructor(
     private readonly args: RebalancerRunnerArgs,
-    private readonly context: WriteCommandContext,
-  ) {}
-
-  public async run(): Promise<void> {
-    try {
-      await this.initialize();
-      if (this.args.manual) {
-        await this.runManual();
-      } else {
-        await this.runDaemon();
-      }
-    } catch (e) {
-      rebalancerLogger.error(e, 'Rebalancer runner failed');
-      errorRed('Rebalancer startup error:', format(e));
-      process.exit(1);
-    }
+    contextFactory: RebalancerContextFactory,
+    rebalancerConfig: RebalancerConfig,
+    monitor: Monitor,
+    strategy: IStrategy,
+    rebalancer: IRebalancer | undefined,
+    metrics: Metrics | undefined,
+  ) {
+    this.args = args;
+    this.contextFactory = contextFactory;
+    this.rebalancerConfig = rebalancerConfig;
+    this.monitor = monitor;
+    this.strategy = strategy;
+    this.rebalancer = rebalancer;
+    this.metrics = metrics;
   }
 
-  private async initialize(): Promise<void> {
-    const { config, checkFrequency, withMetrics, monitorOnly } = this.args;
+  public static async create(
+    args: RebalancerRunnerArgs,
+    context: WriteCommandContext,
+  ): Promise<RebalancerRunner> {
+    const { config, checkFrequency, withMetrics, monitorOnly } = args;
     // Load rebalancer config from disk
-    this.rebalancerConfig = RebalancerConfig.load(config, {
+    const rebalancerConfig = RebalancerConfig.load(config, {
       checkFrequency,
       withMetrics,
       monitorOnly,
@@ -70,28 +71,28 @@ export class RebalancerRunner {
     logGreen('✅ Loaded rebalancer config');
 
     // Instantiate the factory used to create the different rebalancer components
-    this.contextFactory = await RebalancerContextFactory.create(
-      this.rebalancerConfig,
-      this.context,
+    const contextFactory = await RebalancerContextFactory.create(
+      rebalancerConfig,
+      context,
     );
 
     // Instantiates the monitor that will observe the warp route
-    this.monitor = this.contextFactory.createMonitor();
+    const monitor = contextFactory.createMonitor();
 
     // Instantiates the metrics that will publish stats from the monitored data
-    this.metrics = withMetrics
-      ? await this.contextFactory.createMetrics()
+    const metrics = withMetrics
+      ? await contextFactory.createMetrics()
       : undefined;
 
     // Instantiates the strategy that will compute how rebalance routes should be performed
-    this.strategy = await this.contextFactory.createStrategy(this.metrics);
+    const strategy = await contextFactory.createStrategy(metrics);
 
     // Instantiates the rebalancer in charge of executing the rebalancing transactions
-    this.rebalancer = !this.rebalancerConfig.monitorOnly
-      ? this.contextFactory.createRebalancer(this.metrics)
+    const rebalancer = !rebalancerConfig.monitorOnly
+      ? contextFactory.createRebalancer(metrics)
       : undefined;
 
-    if (this.rebalancerConfig.monitorOnly) {
+    if (rebalancerConfig.monitorOnly) {
       warnYellow(
         'Running in monitorOnly mode: no transactions will be executed.',
       );
@@ -102,7 +103,31 @@ export class RebalancerRunner {
         'Metrics collection has been enabled and will be gathered during execution',
       );
       // Initialize execution status metrics, if metrics are enabled
-      this.metrics?.initializeRebalancerMetrics();
+      metrics?.initializeRebalancerMetrics();
+    }
+
+    return new RebalancerRunner(
+      args,
+      contextFactory,
+      rebalancerConfig,
+      monitor,
+      strategy,
+      rebalancer,
+      metrics,
+    );
+  }
+
+  public async run(): Promise<void> {
+    try {
+      if (this.args.manual) {
+        await this.runManual();
+      } else {
+        await this.runDaemon();
+      }
+    } catch (e) {
+      rebalancerLogger.error(e, 'Rebalancer runner failed');
+      errorRed('Rebalancer startup error:', format(e));
+      process.exit(1);
     }
   }
 
@@ -116,7 +141,6 @@ export class RebalancerRunner {
       `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
     );
 
-    assert(this.contextFactory, 'Context factory not initialized');
     const warpCore = this.contextFactory.getWarpCore();
     const rebalancer = this.contextFactory.createRebalancer();
     const originToken = warpCore.tokens.find(
@@ -143,7 +167,6 @@ export class RebalancerRunner {
   }
 
   private async runDaemon(): Promise<void> {
-    assert(this.monitor, 'Monitor not initialized');
     // Setup monitor event listeners before starting it.
     // These handlers deal with events and errors occurring *after* the monitor has successfully started.
     this.monitor
@@ -165,9 +188,6 @@ export class RebalancerRunner {
   }
 
   private onTokenInfo(event: any): void {
-    assert(this.rebalancerConfig, 'Rebalancer config not initialized');
-    assert(this.strategy, 'Strategy not initialized');
-
     if (this.metrics) {
       for (const tokenInfo of event.tokensInfo) {
         this.metrics.processToken(tokenInfo).catch((e) => {
