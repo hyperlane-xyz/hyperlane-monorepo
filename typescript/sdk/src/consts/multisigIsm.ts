@@ -1821,6 +1821,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  paradex: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x190ecB6CD53e02D375aa65F69C9f808dd92c6ab3',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   paradexsepolia: {
     threshold: 1,
     validators: [

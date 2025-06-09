@@ -733,3 +733,4 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export { verifyScale } from './utils/decimals.js';
