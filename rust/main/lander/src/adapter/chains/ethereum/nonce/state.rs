@@ -70,13 +70,13 @@ impl NonceManagerState {
         tx_status: &TransactionStatus,
     ) {
         use NonceStatus::{Committed, Free, Taken};
-        use TransactionStatus::{Dropped, Finalized, Included, Mempool, Pending};
+        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
 
         let precursor = tx.precursor();
         let nonce = precursor.tx.nonce();
         if let Some(nonce) = nonce {
             let nonce_status = match tx_status {
-                Pending | Mempool | Included => Taken,
+                PendingInclusion | Mempool | Included => Taken,
                 Finalized => Committed,
                 Dropped(_) => Free,
             };

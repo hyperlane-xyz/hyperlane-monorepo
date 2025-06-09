@@ -197,7 +197,7 @@ mod tests {
 
         for i in 0..num_txs {
             let payload = FullPayload::random();
-            let mut tx = dummy_tx(vec![payload.clone()], TransactionStatus::Pending);
+            let mut tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
 
             // storing to this new tx ID for the first time should create a new
             db.store_transaction_by_uuid(&tx).await.unwrap();

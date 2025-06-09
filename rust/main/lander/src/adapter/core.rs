@@ -63,7 +63,7 @@ pub trait AdaptsChain: Send + Sync {
         info!(?tx, "checking status of transaction");
 
         if tx.tx_hashes.is_empty() {
-            return Ok(TransactionStatus::Pending);
+            return Ok(TransactionStatus::PendingInclusion);
         }
 
         let hash_status_futures = tx

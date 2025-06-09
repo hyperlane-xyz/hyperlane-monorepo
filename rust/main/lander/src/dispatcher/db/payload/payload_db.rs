@@ -273,7 +273,7 @@ mod tests {
             assert_eq!(highest_index, expected_payload_index);
 
             // storing to this payload UUID again should not create a new highest index
-            payload.status = PayloadStatus::InTransaction(TransactionStatus::Pending);
+            payload.status = PayloadStatus::InTransaction(TransactionStatus::PendingInclusion);
             db.store_payload_by_uuid(&payload).await.unwrap();
             let retrieved_payload = db
                 .retrieve_payload_by_index(expected_payload_index)

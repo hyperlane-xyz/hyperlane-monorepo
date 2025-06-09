@@ -162,7 +162,7 @@ impl InclusionStage {
         info!(?tx, ?tx_status, "Transaction status");
 
         match tx_status {
-            TransactionStatus::Pending | TransactionStatus::Mempool => {
+            TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
@@ -333,7 +333,7 @@ mod tests {
 
         mock_adapter
             .expect_tx_status()
-            .returning(|_| Ok(TransactionStatus::Pending));
+            .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
 
@@ -366,7 +366,7 @@ mod tests {
 
         mock_adapter
             .expect_tx_status()
-            .returning(|_| Ok(TransactionStatus::Pending));
+            .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
 
@@ -421,7 +421,7 @@ mod tests {
             txs_to_process,
             &payload_db,
             &tx_db,
-            TransactionStatus::Pending,
+            TransactionStatus::PendingInclusion,
         )
         .await;
         for tx in txs_created.iter() {

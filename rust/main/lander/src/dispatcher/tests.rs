@@ -265,7 +265,7 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));
 
-    let tx = dummy_tx(vec![payload.clone()], TransactionStatus::Pending);
+    let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
     let tx_building_result = TxBuildingResult::new(vec![payload.details.clone()], Some(tx));
     let txs = vec![tx_building_result];
     adapter
@@ -276,8 +276,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     adapter.expect_tx_status().returning(move |_| {
         counter += 1;
         match counter {
-            1 => Ok(TransactionStatus::Pending),
-            2 => Ok(TransactionStatus::Pending),
+            1 => Ok(TransactionStatus::PendingInclusion),
+            2 => Ok(TransactionStatus::PendingInclusion),
             3 => Ok(TransactionStatus::Included),
             4 => Ok(TransactionStatus::Included),
             5 => Ok(TransactionStatus::Included),

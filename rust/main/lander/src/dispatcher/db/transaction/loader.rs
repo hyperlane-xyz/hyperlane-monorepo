@@ -50,7 +50,7 @@ impl LoadableFromDb for TransactionDbLoader {
 
     async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, LanderError> {
         match item.status {
-            TransactionStatus::Pending | TransactionStatus::Mempool => {
+            TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 self.inclusion_stage_sender.send(item).await?;
                 Ok(LoadingOutcome::Loaded)
             }
