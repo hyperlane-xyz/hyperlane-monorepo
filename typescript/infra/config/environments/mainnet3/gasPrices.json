@@ -35,10 +35,6 @@
     "amount": "27.5",
     "decimals": 9
   },
-  "arthera": {
-    "amount": "1.025033",
-    "decimals": 9
-  },
   "astar": {
     "amount": "779.371350051",
     "decimals": 9
@@ -123,10 +119,6 @@
     "amount": "30.0",
     "decimals": 9
   },
-  "corn": {
-    "amount": "0.0005",
-    "decimals": 9
-  },
   "coti": {
     "amount": "1.500000007",
     "decimals": 9
@@ -201,10 +193,6 @@
   },
   "game7": {
     "amount": "0.01",
-    "decimals": 9
-  },
-  "glue": {
-    "amount": "125.0",
     "decimals": 9
   },
   "gnosis": {

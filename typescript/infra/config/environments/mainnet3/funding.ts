@@ -33,7 +33,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['arthera'],
+  chainsToSkip: [],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
