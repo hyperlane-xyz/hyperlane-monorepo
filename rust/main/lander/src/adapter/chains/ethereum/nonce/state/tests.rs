@@ -13,12 +13,15 @@ use super::{NonceAction, NonceManagerState, NonceStatus};
 async fn test_insert_nonce_status() {
     let state = NonceManagerState::new();
 
+    let tx_uuid = TransactionUuid::random();
     let nonce = U256::from(1);
 
-    state.insert_nonce_status(nonce, NonceStatus::Free).await;
+    state
+        .insert_nonce_status(nonce, NonceStatus::Freed(tx_uuid.clone()))
+        .await;
 
     let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
-    assert_eq!(status, Some(NonceStatus::Free));
+    assert_eq!(status, Some(NonceStatus::Freed(tx_uuid)));
     assert_eq!(lowest_nonce, U256::zero());
 
     let upper_nonce = {
@@ -36,9 +39,7 @@ async fn test_update_nonce_status_taken() {
     let nonce = U256::from(1);
     let nonce_status = NonceStatus::Taken(tx_uuid.clone());
 
-    state
-        .update_nonce_status(nonce, nonce_status, &tx_uuid)
-        .await;
+    state.update_nonce_status(nonce, nonce_status).await;
 
     let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Taken(tx_uuid)));
@@ -53,9 +54,7 @@ async fn test_update_nonce_status_committed() {
     let nonce = U256::from(1);
     let nonce_status = NonceStatus::Committed(tx_uuid.clone());
 
-    state
-        .update_nonce_status(nonce, nonce_status, &tx_uuid)
-        .await;
+    state.update_nonce_status(nonce, nonce_status).await;
 
     let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
     assert_eq!(status, Some(NonceStatus::Committed(tx_uuid)));
@@ -68,67 +67,63 @@ async fn test_update_nonce_status_free() {
 
     let tx_uuid = TransactionUuid::random();
     let nonce = U256::from(1);
-    let nonce_status = NonceStatus::Free;
+    let nonce_status = NonceStatus::Freed(tx_uuid.clone());
 
-    state
-        .update_nonce_status(nonce, nonce_status, &tx_uuid)
-        .await;
+    state.update_nonce_status(nonce, nonce_status).await;
 
     let (status, lowest_nonce) = state.get_nonce_status_and_lowest_nonce(&nonce).await;
-    assert_eq!(status, Some(NonceStatus::Free));
+    assert_eq!(status, Some(NonceStatus::Freed(tx_uuid)));
     assert_eq!(lowest_nonce, U256::zero());
 }
 
 #[tokio::test]
 async fn test_validate_assigned_nonce() {
     let state = NonceManagerState::new();
+
+    let tx_uuid = TransactionUuid::random();
     let nonce = U256::from(1);
-    let tx_uuid = TransactionUuid::default();
 
     // Test for Free status
-    state.insert_nonce_status(nonce, NonceStatus::Free).await;
-    let action = state.validate_assigned_nonce(&nonce, &tx_uuid).await;
-    assert_eq!(action, NonceAction::AssignNew);
+    let nonce_status = NonceStatus::Freed(tx_uuid.clone());
+    state.insert_nonce_status(nonce, nonce_status.clone()).await;
+    let action = state.validate_assigned_nonce(&nonce, &nonce_status).await;
+    assert_eq!(action, NonceAction::Assign);
 
     // Test for Taken status
-    state
-        .insert_nonce_status(nonce, NonceStatus::Taken(tx_uuid.clone()))
-        .await;
-    let action = state.validate_assigned_nonce(&nonce, &tx_uuid).await;
+    let nonce_status = NonceStatus::Taken(tx_uuid.clone());
+    state.insert_nonce_status(nonce, nonce_status.clone()).await;
+    let action = state.validate_assigned_nonce(&nonce, &nonce_status).await;
     assert_eq!(action, NonceAction::Noop);
 
     // Test for Committed status
-    state
-        .insert_nonce_status(nonce, NonceStatus::Committed(tx_uuid.clone()))
-        .await;
-    let action = state.validate_assigned_nonce(&nonce, &tx_uuid).await;
+    let nonce_status = NonceStatus::Committed(tx_uuid.clone());
+    state.insert_nonce_status(nonce, nonce_status.clone()).await;
+    let action = state.validate_assigned_nonce(&nonce, &nonce_status).await;
     assert_eq!(action, NonceAction::Noop);
-
-    // Test for nonexistent nonce
-    let nonexistent_nonce = U256::from(2);
-    let action = state
-        .validate_assigned_nonce(&nonexistent_nonce, &tx_uuid)
-        .await;
-    assert_eq!(action, NonceAction::AssignNew);
 }
 
 #[tokio::test]
 async fn test_identify_next_nonce_comprehensive() {
     let state = NonceManagerState::new();
+
+    let tx_uuid = TransactionUuid::random();
     let nonce1 = U256::from(1); // Free nonce
     let nonce2 = U256::from(2); // Taken nonce
     let nonce3 = U256::from(3); // Committed nonce
     let nonce4 = U256::from(4); // Free nonce
-    let tx_uuid = TransactionUuid::default();
 
-    state.insert_nonce_status(nonce1, NonceStatus::Free).await;
+    state
+        .insert_nonce_status(nonce1, NonceStatus::Freed(tx_uuid.clone()))
+        .await;
     state
         .insert_nonce_status(nonce2, NonceStatus::Taken(tx_uuid.clone()))
         .await;
     state
         .insert_nonce_status(nonce3, NonceStatus::Committed(tx_uuid.clone()))
         .await;
-    state.insert_nonce_status(nonce4, NonceStatus::Free).await;
+    state
+        .insert_nonce_status(nonce4, NonceStatus::Freed(tx_uuid.clone()))
+        .await;
 
     let next_nonce = state.identify_next_nonce().await;
     assert_eq!(next_nonce, nonce1); // The smallest free nonce should be returned
