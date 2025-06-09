@@ -6,7 +6,8 @@ use std::{sync::Arc, time::Duration};
 use ethers::{
     abi::{Function, Param, ParamType, StateMutability},
     types::{
-        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
+        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt,
+        H160, H256 as EthersH256,
     },
 };
 use hyperlane_core::{
@@ -68,9 +69,19 @@ async fn test_inclusion_happy_path() {
 }
 
 #[tokio::test]
-// #[traced_test]
+#[traced_test]
 async fn test_inclusion_gas_spike() {
-    let mut mock_evm_provider = mocked_evm_provider();
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_finalized_block_number()
+        .returning(|_reorg_period| {
+            Ok(43) // Mocked block number
+        });
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| {
+            Ok(21000.into()) // Mocked gas limit
+        });
 
     // first submission, price is 100
     // second submission, price is 109 (less than 10% spike)
@@ -81,12 +92,14 @@ async fn test_inclusion_gas_spike() {
         .expect_fee_history()
         .returning(move |_, _, _| {
             fee_history_call_counter += 1;
-            println!("Fee history call counter: {}", fee_history_call_counter);
             let base_fee = match fee_history_call_counter {
-                1 => 100,
-                2 => 109,
-                3 => 110,
-                _ => 150, // This will be the price for the last submission
+                1 => 200000,
+                // second submission, price spikes less than 10% spike (to test that we escalate 10% correctly, so the pending mempool tx actually gets replaced)
+                2 => 219000,
+                // third submission, price spikes less than 10% spike (to test that we escalate 10% correctly, so the pending mempool tx actually gets replaced)
+                3 => 220000,
+                // fourth submission, price spikes more than 10% spike (to test that the escalation matches the spike)
+                _ => 300000, // This will be the price for the last submission
             };
             let prio_fee = if fee_history_call_counter < 4 {
                 0 // No priority fee for the first three submissions
@@ -115,17 +128,25 @@ async fn test_inclusion_gas_spike() {
         send_call_counter += 1;
         match send_call_counter {
             1 => {
-                println!("First submission, gas price: {}", tx.gas_price().unwrap());
-                assert_eq!(tx.gas_price().unwrap(), 100.into())
-            } // First submission, price is 100
+                assert_eq!(tx.gas_price().unwrap(), 200000.into())
+            }
             2 => {
-                println!("Second submission, gas price: {}", tx.gas_price().unwrap());
-                assert_eq!(tx.gas_price().unwrap(), 100.into()) // Second submission, price is 109
+                assert_eq!(tx.gas_price().unwrap(), 220000.into()) // Second submission, price is 10% higher, even though the spike was smaller
+            }
+            3 => {
+                assert_eq!(tx.gas_price().unwrap(), 242000.into()) // Third submission, price is 10% higher again, even though the spike was smaller
+            }
+            4 => {
+                assert_eq!(tx.gas_price().unwrap(), 300000.into()) // Fourth submission, price matches the spike
             }
             _ => {}
         }
         Ok(H256::random()) // Mocked transaction hash
     });
+
+    mock_evm_provider
+        .expect_get_block()
+        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
 
     let signer = H160::random();
     let dispatcher_state = mock_dispatcher_state_with_provider(mock_evm_provider, signer);
@@ -165,16 +186,17 @@ fn mocked_evm_provider() -> MockEvmProvider {
     mock_evm_provider
         .expect_get_finalized_block_number()
         .returning(|_reorg_period| {
-            Ok(42) // Mocked block number
+            Ok(43) // Mocked block number
         });
-    mock_evm_provider.expect_get_block().returning(|_| {
-        Ok(Some(Default::default())) // Mocked block retrieval
-    });
     mock_evm_provider
         .expect_estimate_gas_limit()
         .returning(|_, _| {
             Ok(21000.into()) // Mocked gas limit
         });
+    mock_evm_provider.expect_get_block().returning(|_| {
+        Ok(Some(Default::default())) // Mocked block retrieval
+    });
+
     mock_evm_provider.expect_send().returning(|_, _| {
         Ok(H256::random()) // Mocked transaction hash
     });
@@ -191,11 +213,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
                 ..Default::default()
             }))
         });
-
-    // mock finalized block number to be greater than the tx block number
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_| Ok(43)); // Mocked finalized block number
 
     mock_evm_provider
 }
@@ -338,6 +355,14 @@ fn mock_tx_receipt(block_number: Option<u64>) -> TransactionReceipt {
     TransactionReceipt {
         transaction_hash: H256::random().into(),
         block_number: block_number.map(|n| n.into()),
+        ..Default::default()
+    }
+}
+
+fn mock_block(block_number: u64, base_fee: u32) -> ethers::types::Block<EthersH256> {
+    ethers::types::Block {
+        number: Some(block_number.into()),
+        base_fee_per_gas: Some(base_fee.into()),
         ..Default::default()
     }
 }
