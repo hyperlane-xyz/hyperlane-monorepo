@@ -151,14 +151,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes32 sourceSender = originalMsg._sender();
         require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
 
-        uint64 sourceNonce = originalMsg._nonce();
-        require(
-            sourceNonce == uint64(bytes8(TokenMessage.metadata(tokenMessage))),
-            "Invalid nonce"
-        );
-
         bytes29 burnMessage = originalMsg._messageBody();
-
         require(
             TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
             "Invalid amount"
@@ -174,6 +167,12 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             sourceDomain ==
                 hyperlaneDomainToCircleDomain(_hyperlaneMessage.origin()),
             "Invalid source domain"
+        );
+
+        uint64 sourceNonce = originalMsg._nonce();
+        require(
+            sourceNonce == uint64(bytes8(TokenMessage.metadata(tokenMessage))),
+            "Invalid nonce"
         );
 
         // Receive only if the nonce hasn't been used before
