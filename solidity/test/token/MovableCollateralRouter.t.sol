@@ -74,6 +74,7 @@ contract MovableCollateralRouterTest is Test {
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
     MockMailbox mailbox;
+    address remote = vm.addr(10);
 
     function setUp() public {
         mailbox = new MockMailbox(1);
@@ -81,8 +82,7 @@ contract MovableCollateralRouterTest is Test {
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
         vtb = new MockValueTransferBridge(token);
 
-        address remote = vm.addr(10);
-
+        remote = vm.addr(10);
         router.enrollRemoteRouter(destinationDomain, remote.addressToBytes32());
     }
 
@@ -156,6 +156,23 @@ contract MovableCollateralRouterTest is Test {
         router.addBridge(destinationDomain, vtb);
         router.removeBridge(destinationDomain, vtb);
         assertEq(router.allowedBridges(destinationDomain).length, 0);
+    }
+
+    function test_bridge_usable_after_deletion() public {
+        // Bridge is added and then supposedly removed
+        test_unenrollRemoteRouter();
+        router.enrollRemoteRouter(destinationDomain, remote.addressToBytes32());
+
+        // Approvals
+        token.mintTo(address(router), 1e18);
+        vm.prank(address(router));
+        token.approve(address(vtb), 1e18);
+
+        router.addRebalancer(address(this));
+
+        // Using the bridge still works, even though we never added it again. This is because the inner mapping in the Enumerable Set
+        // is not cleared. See http://github.com/hyperlane-xyz/hyperlane-monorepo/pull/6493 for more
+        router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function test_unenrollRemoteRouter() public {
