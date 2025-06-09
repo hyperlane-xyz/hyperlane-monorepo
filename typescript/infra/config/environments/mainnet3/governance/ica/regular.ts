@@ -122,6 +122,6 @@ export const regularIcas: ChainMap<Address> = {
 
   // Jun 4, 2025 batch
   // ----------------------------------------------------------
-  // botanix: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
-  // katana: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
+  botanix: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
+  katana: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
 };
