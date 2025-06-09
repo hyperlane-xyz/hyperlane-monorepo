@@ -1,4 +1,5 @@
-import { BytesLike, ethers } from 'ethers';
+import { BytesLike } from 'ethers';
+import { ethers } from 'ethers';
 
 interface CCTPMessageEntry {
   attestation: string;

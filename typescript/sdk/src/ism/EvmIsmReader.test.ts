@@ -2,12 +2,15 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
+  AbstractRoutingIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
   OPStackIsm,
   OPStackIsm__factory,
   PausableIsm,
@@ -25,6 +28,7 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
+  IcaIsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
@@ -156,6 +160,43 @@ describe('EvmIsmReader', () => {
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should derive the ICA ism correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockccipIsm = randomAddress();
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      owner: sandbox.stub().resolves(mockOwner),
+      CCIP_READ_ISM: sandbox.stub().resolves(mockccipIsm),
+    };
+    sandbox
+      .stub(AbstractRoutingIsm__factory, 'connect')
+      .returns(mockContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(mockContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    const expectedConfig: WithAddress<IcaIsmConfig> = {
+      address: mockAddress,
+      type: IsmType.ICA,
+    };
+
+    // top-level method infers ism type
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
   });
 

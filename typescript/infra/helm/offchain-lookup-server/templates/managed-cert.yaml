@@ -1,0 +1,9 @@
+# Managed Certificate
+# Used for HTTPS, the ip needs to be looked up in GKE.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: {{ .Chart.Name }}--certificate--{{ .Values.environment }}
+spec:
+  domains:
+    - {{ .Values.ingress.host }}
