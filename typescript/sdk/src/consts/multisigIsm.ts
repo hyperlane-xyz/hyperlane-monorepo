@@ -425,12 +425,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   botanix: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xc944176bc4d4e5c7b0598884478a27a2b1904664',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1263,12 +1264,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   katana: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1389,7 +1391,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantapacific: {
-    threshold: 5,
+    threshold: 4,
     validators: [
       {
         address: '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc',
@@ -1409,7 +1411,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Cosmos Spaces',
       },
       { address: '0xcc9a0b6de7fe314bd99223687d784730a75bb957', alias: 'DSRV' },
-      { address: '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', alias: 'SG-1' },
     ],
   },
 
@@ -1689,7 +1690,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x54b2cca5091b098a1a993dec03c4d1ee9af65999',
         alias: 'Cosmos Spaces',
       },
-      { address: '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', alias: 'SG-1' },
     ],
   },
 
@@ -1822,12 +1822,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   paradex: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x190ecB6CD53e02D375aa65F69C9f808dd92c6ab3',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2326,12 +2327,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   starknet: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x61204c987d1121175a74e04d5045ab708aa1489f',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_STAKED_VALIDATOR,
     ],
   },
 
