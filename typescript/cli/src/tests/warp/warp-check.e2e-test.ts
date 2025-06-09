@@ -506,7 +506,10 @@ describe('hyperlane warp check e2e tests', async function () {
     });
   }
 
-  for (const ismType of MUTABLE_ISM_TYPE) {
+  // Removing the offchain lookup ism because it is a family of different isms
+  for (const ismType of MUTABLE_ISM_TYPE.filter(
+    (ismType) => ismType !== IsmType.OFFCHAIN_LOOKUP,
+  )) {
     it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
       // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
       warpConfig[CHAIN_NAME_3].interchainSecurityModule =

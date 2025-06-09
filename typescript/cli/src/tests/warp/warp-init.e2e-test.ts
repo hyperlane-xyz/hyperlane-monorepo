@@ -63,7 +63,7 @@ describe('hyperlane warp init e2e tests', async function () {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Select .+?'s token type/),
           // Scroll up through the token type list and select native
-          input: `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
         },
       ];
 
@@ -85,13 +85,13 @@ describe('hyperlane warp init e2e tests', async function () {
         {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
         },
         CONFIRM_DETECTED_OWNER_STEP,
         {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
         },
       ];
 

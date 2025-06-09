@@ -633,6 +633,7 @@ export {
   HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
@@ -730,3 +731,4 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export { resolveRouterMapConfig } from './router/types.js';

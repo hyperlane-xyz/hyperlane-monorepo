@@ -30,6 +30,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
+import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
@@ -395,7 +396,10 @@ abstract class TokenDeployer<
         }
 
         const bridgesToAllow = Object.entries(
-          config.allowedRebalancingBridges ?? {},
+          resolveRouterMapConfig(
+            this.multiProvider,
+            config.allowedRebalancingBridges ?? {},
+          ),
         ).flatMap(([domain, allowedBridgesToAdd]) => {
           return allowedBridgesToAdd.map((bridgeToAdd) => {
             return {
