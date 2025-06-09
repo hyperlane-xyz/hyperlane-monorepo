@@ -203,12 +203,12 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
-      WARP_DEPLOY_2_ID,
+      WARP_CORE_CONFIG_PATH_2,
       warpDeployPath,
     );
     const updatedWarpDeployConfig_3 = await readWarpConfig(
       CHAIN_NAME_3,
-      WARP_DEPLOY_2_ID,
+      WARP_CORE_CONFIG_PATH_2,
       warpDeployPath,
     );
     // Check that anvil2 owner is burned
@@ -271,7 +271,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
-      WARP_DEPLOY_2_ID,
+      WARP_CORE_CONFIG_PATH_2,
       warpConfigPath,
     );
 
@@ -287,7 +287,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     // Destination gas should be set for the extended chain (chain3)
     const updatedWarpDeployConfig_3 = await readWarpConfig(
       CHAIN_NAME_3,
-      WARP_DEPLOY_2_ID,
+      WARP_CORE_CONFIG_PATH_2,
       warpConfigPath,
     );
     const destinationGas_3 =
