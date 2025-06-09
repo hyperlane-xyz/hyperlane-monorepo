@@ -59,7 +59,7 @@ async fn test_evm_tx_underpriced() {
         },
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
-            assert_eq!(tx_received.payload_details[0].id, txs_created[0].payload_details[0].id);
+            assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
         },
         _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
             panic!("Inclusion stage did not process the txs in time");
@@ -131,9 +131,9 @@ pub(crate) async fn mock_evm_txs(
     for _ in 0..num {
         let mut payload = FullPayload::random();
         payload.status = PayloadStatus::InTransaction(status.clone());
-        payload_db.store_payload_by_id(&payload).await.unwrap();
+        payload_db.store_payload_by_uuid(&payload).await.unwrap();
         let tx = dummy_evm_tx(vec![payload], status.clone(), signer.clone());
-        tx_db.store_transaction_by_id(&tx).await.unwrap();
+        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
         txs.push(tx);
     }
     txs
@@ -150,7 +150,7 @@ fn dummy_evm_tx(
         .map(|payload| payload.details)
         .collect();
     Transaction {
-        id: UniqueIdentifier::random(),
+        uuid: UniqueIdentifier::random(),
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::Evm(dummy_tx_precursor(signer)),
         payload_details: details.clone(),

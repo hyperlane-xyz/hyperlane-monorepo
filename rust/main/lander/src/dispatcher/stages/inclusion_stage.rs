@@ -21,7 +21,7 @@ use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
     payload::{FullPayload, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
 use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
@@ -29,7 +29,7 @@ use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
 #[cfg(test)]
 pub mod tests;
 
-pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
+pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
 pub const STAGE_NAME: &str = "InclusionStage";
 
@@ -97,7 +97,7 @@ impl InclusionStage {
                 // the lock is held until the metric is updated, to prevent race conditions
                 let mut pool_lock = pool.lock().await;
                 let pool_len = pool_lock.len();
-                pool_lock.insert(tx.id.clone(), tx.clone());
+                pool_lock.insert(tx.uuid.clone(), tx.clone());
                 info!(?tx, "Received transaction");
                 state
                     .metrics
@@ -147,7 +147,7 @@ impl InclusionStage {
     #[instrument(
         skip_all,
         name = "InclusionStage::try_process_tx",
-        fields(tx_id = ?tx.id, tx_status = ?tx.status, payloads = ?tx.payload_details)
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
         mut tx: Transaction,
@@ -166,7 +166,7 @@ impl InclusionStage {
 
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
-                info!(tx_id = ?tx.id, ?tx_status, "Transaction is pending inclusion");
+                info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
@@ -175,10 +175,10 @@ impl InclusionStage {
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
-                let tx_id = tx.id.clone();
+                let tx_uuid = tx.uuid.clone();
                 finality_stage_sender.send(tx).await?;
-                info!(?tx_id, ?tx_status, "Transaction included in block");
-                pool.lock().await.remove(&tx_id);
+                info!(?tx_uuid, ?tx_status, "Transaction included in block");
+                pool.lock().await.remove(&tx_uuid);
                 return Ok(());
             }
             TransactionStatus::Dropped(_) => {
@@ -261,7 +261,7 @@ impl InclusionStage {
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
         // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
-        pool.lock().await.insert(tx.id.clone(), tx.clone());
+        pool.lock().await.insert(tx.uuid.clone(), tx.clone());
         Ok(())
     }
 
@@ -275,7 +275,7 @@ impl InclusionStage {
         let new_tx_status = TransactionStatus::Dropped(reason);
         // this will drop the payloads as well
         update_tx_status(state, tx, new_tx_status.clone()).await?;
-        pool.lock().await.remove(&tx.id);
+        pool.lock().await.remove(&tx.uuid);
         Ok(())
     }
 }
