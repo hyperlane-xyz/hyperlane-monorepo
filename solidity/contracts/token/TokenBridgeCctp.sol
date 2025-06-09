@@ -88,6 +88,14 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public override {
+        revert("Only TokenBridgeCctp.initialize() may be called");
+    }
+
     function interchainSecurityModule()
         external
         view

@@ -132,10 +132,26 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         });
     }
 
+    /// @dev This function in `EnumerableSet` was introduced in OpenZeppelin v5. We are using 4.9
+    /// See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.3.0-rc.0/contracts/utils/structs/EnumerableSet.sol#L126
+    function _clear(EnumerableSet.Set storage set) private {
+        uint256 len = set._values.length;
+        for (uint256 i = 0; i < len; ++i) {
+            delete set._indexes[set._values[i]];
+        }
+        _unsafeSetLength(set._values, 0);
+    }
+    /// @dev A helper for `_clear`. See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/39f5a0284e7eb539354e44b76fcbb69033b22b56/contracts/utils/Arrays.sol#L466
+    function _unsafeSetLength(bytes32[] storage array, uint256 len) internal {
+        assembly ("memory-safe") {
+            sstore(array.slot, len)
+        }
+    }
+
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
         delete allowedRecipient[domain];
-        delete _allowedBridges[domain];
+        _clear(_allowedBridges[domain]._inner);
         Router._unenrollRemoteRouter(domain);
     }
 
