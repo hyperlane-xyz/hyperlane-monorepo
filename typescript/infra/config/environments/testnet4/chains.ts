@@ -20,7 +20,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   },
   hyperliquidevmtestnet: {
     blocks: {
-      confirmations: 5,
+      confirmations: 1,
       reorgPeriod: 5,
     },
   },
