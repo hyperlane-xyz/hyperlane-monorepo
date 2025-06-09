@@ -62,10 +62,13 @@ contract TokenBridgeCctpTest is Test {
     MockCircleTokenMessenger internal tokenMessengerDestination;
     MockCircleMessageTransmitter internal messageTransmitterDestination;
 
-    function setUp() public virtual {
-        urls = new string[](1);
+    function _getUrls() internal returns (string[] memory) {
+        string[] memory urls = new string[](1);
         urls[0] = "https://ccip-read-gateway.io";
+        return urls;
+    }
 
+    function setUp() public virtual {
         proxyAdmin = makeAddr("proxyAdmin");
 
         environment = new MockHyperlaneEnvironment(origin, destination);
@@ -103,15 +106,17 @@ contract TokenBridgeCctpTest is Test {
             ITokenMessenger(address(tokenMessengerOrigin))
         );
 
+        bytes memory initData = abi.encodeWithSignature(
+            "initialize(address,address,string[])",
+            address(0),
+            address(this),
+            _getUrls()
+        );
         TransparentUpgradeableProxy proxyOrigin = new TransparentUpgradeableProxy(
                 address(originImplementation),
                 proxyAdmin,
-                abi.encodeCall(
-                    TokenBridgeCctp.initialize,
-                    (address(0), address(this), urls)
-                )
+                initData
             );
-
         tbOrigin = TokenBridgeCctp(address(proxyOrigin));
 
         TokenBridgeCctp destinationImplementation = new TokenBridgeCctp(
@@ -125,10 +130,7 @@ contract TokenBridgeCctpTest is Test {
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
                 address(destinationImplementation),
                 proxyAdmin,
-                abi.encodeCall(
-                    TokenBridgeCctp.initialize,
-                    (address(0), address(this), urls)
-                )
+                initData
             );
 
         tbDestination = TokenBridgeCctp(address(proxyDestination));
@@ -157,11 +159,9 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_setUrls_revertsWhen_callerIsNotTheOwner() public {
-        address evil = makeAddr("evil");
-
         vm.prank(evil);
         _expectCallerIsNotTheOwnerRevert();
-        tbOrigin.setUrls(urls);
+        tbOrigin.setUrls(_getUrls());
     }
 
     function test_addDomain_revertsWhen_callerIsNotTheOwner() public {
@@ -344,7 +344,7 @@ contract TokenBridgeCctpTest is Test {
             abi.encodeWithSelector(
                 ICcipReadIsm.OffchainLookup.selector,
                 address(tbDestination),
-                urls,
+                _getUrls(),
                 abi.encodeCall(CctpService.getCCTPAttestation, (message)),
                 tbDestination.verify.selector,
                 message
@@ -360,7 +360,7 @@ contract TokenBridgeCctpTest is Test {
         TokenBridgeCctp _tbOrigin,
         TokenBridgeCctp _tbDestination
     ) internal {
-        _tbOrigin.setUrls(urls);
+        _tbOrigin.setUrls(_getUrls());
         _tbOrigin.addDomain(destination, cctpDestination);
         _tbOrigin.enrollRemoteRouter(
             destination,
@@ -368,7 +368,7 @@ contract TokenBridgeCctpTest is Test {
         );
         _tbOrigin.setDestinationGas(destination, gasLimit);
 
-        _tbDestination.setUrls(urls);
+        _tbDestination.setUrls(_getUrls());
         _tbDestination.addDomain(origin, cctpOrigin);
         _tbDestination.enrollRemoteRouter(
             origin,
@@ -395,5 +395,10 @@ contract TokenBridgeCctpTest is Test {
             tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain),
             circleDomain
         );
+    }
+
+    function test_parent_initialize_reverts() public {
+        vm.expectRevert("Only one initialize() function is allowed");
+        tbOrigin.initialize(address(0), address(0), address(0));
     }
 }
