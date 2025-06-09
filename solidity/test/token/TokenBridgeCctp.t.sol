@@ -183,6 +183,30 @@ contract TokenBridgeCctpTest is Test {
             );
     }
 
+    function _setupAndDispatch()
+        internal
+        returns (bytes memory message, uint64 cctpNonce, bytes32 recipient)
+    {
+        recipient = user.addressToBytes32();
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
+
+        message = mailboxDestination.inboundMessages(0);
+    }
+
     function test_setUrls_revertsWhen_callerIsNotTheOwner() public {
         vm.prank(evil);
         _expectCallerIsNotTheOwnerRevert();
@@ -239,24 +263,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify() public {
-        bytes32 recipient = user.addressToBytes32();
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         _expectOffChainLookUpRevert(message);
         tbDestination.getOffchainVerifyInfo(message);
@@ -281,26 +292,14 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidNonce() public {
-        bytes32 recipient = user.addressToBytes32();
-
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         // invalid nonce := nextNonce + 1
-        uint64 badNonce = tokenMessengerOrigin.nextNonce() + 1;
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
-
+        uint64 badNonce = cctpNonce + 1;
         bytes memory cctpMessage = _encodeCctpMessage(
             badNonce,
             cctpOrigin,
@@ -315,24 +314,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidSourceDomain() public {
-        bytes32 recipient = user.addressToBytes32();
-
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         // invalid source domain := destination
         uint32 badSourceDomain = cctpDestination;
@@ -350,23 +336,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidAmount() public {
-        bytes32 recipient = user.addressToBytes32();
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         // invalid amount := amount + 1
         uint256 badAmount = amount + 1;
@@ -384,23 +358,7 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidRecipient() public {
-        bytes32 recipient = user.addressToBytes32();
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (bytes memory message, uint64 cctpNonce, ) = _setupAndDispatch();
 
         // invalid recipient := evil
         bytes32 badRecipient = evil.addressToBytes32();
@@ -418,23 +376,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidSender() public {
-        bytes32 recipient = user.addressToBytes32();
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         // invalid sender := evil
         bytes memory cctpMessage = _encodeCctpMessage(
@@ -452,23 +398,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidLength() public {
-        bytes32 recipient = user.addressToBytes32();
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
-            destination,
-            recipient,
-            amount
-        );
-
-        vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
-
-        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
-        tbOrigin.transferRemote{value: quote[0].amount}(
-            destination,
-            recipient,
-            amount
-        );
-        bytes memory message = mailboxDestination.inboundMessages(0);
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
 
         bytes memory cctpMessage = _encodeCctpMessage(
             cctpNonce,
