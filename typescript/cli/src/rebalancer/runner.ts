@@ -20,15 +20,12 @@ import {
 import { getRawBalances } from './utils/getRawBalances.js';
 import { rebalancerLogger } from './utils/logger.js';
 
-interface RebalancerCliArgs {
+interface SharedRebalanceArgs {
   config: string;
   checkFrequency: number;
   withMetrics: boolean;
   monitorOnly: boolean;
   manual?: boolean;
-  origin?: string;
-  destination?: string;
-  amount?: string;
 }
 
 interface ManualRebalanceArgs {
@@ -37,32 +34,18 @@ interface ManualRebalanceArgs {
   amount: string;
 }
 
-export class RebalancerRunner {
-  private readonly monitor: Monitor;
-  private readonly strategy: IStrategy;
-  private readonly rebalancer: IRebalancer | undefined;
-  private readonly metrics: Metrics | undefined;
-  private readonly rebalancerConfig: RebalancerConfig;
-  private readonly contextFactory: RebalancerContextFactory;
-  private readonly manualArgs: ManualRebalanceArgs | undefined;
+type RebalancerCliArgs = SharedRebalanceArgs & Partial<ManualRebalanceArgs>;
 
+export class RebalancerRunner {
   private constructor(
-    contextFactory: RebalancerContextFactory,
-    rebalancerConfig: RebalancerConfig,
-    monitor: Monitor,
-    strategy: IStrategy,
-    rebalancer: IRebalancer | undefined,
-    metrics: Metrics | undefined,
-    manualArgs: ManualRebalanceArgs | undefined,
-  ) {
-    this.contextFactory = contextFactory;
-    this.rebalancerConfig = rebalancerConfig;
-    this.monitor = monitor;
-    this.strategy = strategy;
-    this.rebalancer = rebalancer;
-    this.metrics = metrics;
-    this.manualArgs = manualArgs;
-  }
+    private readonly contextFactory: RebalancerContextFactory,
+    private readonly rebalancerConfig: RebalancerConfig,
+    private readonly monitor: Monitor,
+    private readonly strategy: IStrategy,
+    private readonly rebalancer: IRebalancer | undefined,
+    private readonly metrics: Metrics | undefined,
+    private readonly manualArgs: ManualRebalanceArgs | undefined,
+  ) {}
 
   private static validateManualArgs(
     args: RebalancerCliArgs,
