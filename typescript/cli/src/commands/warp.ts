@@ -594,7 +594,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       // Instantiates the rebalancer in charge of executing the rebalancing transactions
       rebalancer = !rebalancerConfig.monitorOnly
-        ? rebalancerContextFactory.createRebalancer(metrics)
+        ? rebalancerContextFactory.createRebalancer()
         : undefined;
 
       if (rebalancerConfig.monitorOnly) {
@@ -649,6 +649,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
             .catch((e) => {
               metrics?.recordRebalancerFailure();
               // This is an operational error, log it but don't stop the monitor.
+              // TODO: this should be a stuctured log
               errorRed('Error while rebalancing:', format(e));
             });
         })
