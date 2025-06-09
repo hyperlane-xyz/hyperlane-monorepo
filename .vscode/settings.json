@@ -3,4 +3,5 @@
         "./rust/main/Cargo.toml",
         "./rust/sealevel/Cargo.toml",
     ],
+    "typescript.tsdk": "node_modules/typescript/lib",
 }
