@@ -1,11 +1,16 @@
 import chalk from 'chalk';
 
-import { WarpCoreConfig, parseTokenConnectionId } from '@hyperlane-xyz/sdk';
+import {
+  TokenStandard,
+  WarpCoreConfig,
+  parseTokenConnectionId,
+} from '@hyperlane-xyz/sdk';
 
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
 import { getRegistry } from '../../../config/registry.js';
 
 const warpRouteId = WarpRouteIds.oUSDT;
+const collateralChains = ['celo', 'ethereum'];
 const chainsToPrune = [
   'ink',
   'worldchain',
@@ -42,6 +47,22 @@ async function main() {
   }
 
   const prunedWarpRoute = pruneProdConfig(warpRoute);
+
+  // Ensure the token configs are set
+  prunedWarpRoute.tokens.forEach((token) => {
+    if (collateralChains.includes(token.chainName)) {
+      token.coinGeckoId = 'tether';
+      token.name = 'USDT';
+      token.symbol = 'USD₮';
+      token.standard = TokenStandard.EvmHypVSXERC20Lockbox;
+      token.logoURI = '/deployments/warp_routes/USDT/logo.svg';
+    } else {
+      token.name = 'OpenUSDT';
+      token.symbol = 'oUSDT';
+      token.standard = TokenStandard.EvmHypVSXERC20;
+      token.logoURI = '/deployments/warp_routes/oUSDT/logo.svg';
+    }
+  });
 
   try {
     registry.addWarpRoute(prunedWarpRoute, {
