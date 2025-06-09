@@ -118,16 +118,20 @@ contract OpL1V1NativeTokenBridgeTest is Test {
         bytes32 _recipient,
         uint256 amount
     ) public {
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
-
         // amount 0 indicates prove message
         bytes memory messageBody = TokenMessage.format(_recipient, 0);
-        mailboxOrigin.dispatch(
+        bytes32 proveMessageId = mailboxOrigin.dispatch(
             destination,
             address(ism).addressToBytes32(),
             messageBody
         );
+
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            proveMessageId,
+            bytes32(0)
+        );
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
 
         bytes memory message = mailboxDestination.inboundMessages(0);
         bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
@@ -146,15 +150,19 @@ contract OpL1V1NativeTokenBridgeTest is Test {
     ) public {
         vm.assume(amount > 0);
 
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, bytes(""));
-
         bytes memory messageBody = TokenMessage.format(_recipient, amount);
-        mailboxOrigin.dispatch(
+        bytes32 finalizeMessageId = mailboxOrigin.dispatch(
             destination,
             address(tokenBridgeDestination).addressToBytes32(),
             messageBody
         );
+
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            finalizeMessageId
+        );
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
 
         vm.deal(address(portal), amount);
 
@@ -167,6 +175,60 @@ contract OpL1V1NativeTokenBridgeTest is Test {
             portal.finalizedWithdrawals(withdrawalTx.hashWithdrawal()),
             true
         );
+    }
+
+    function test_verify_revertsWhen_proveMessageIdMismatched(
+        bytes32 _recipient
+    ) public {
+        // amount 0 indicates prove message
+        bytes memory messageBody = TokenMessage.format(_recipient, 0);
+        mailboxOrigin.dispatch(
+            destination,
+            address(ism).addressToBytes32(),
+            messageBody
+        );
+
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            bytes32(0)
+        );
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawalTx = _getDummyWithdrawalTx(0, 0, data);
+
+        bytes memory message = mailboxDestination.inboundMessages(0);
+        bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
+
+        vm.expectRevert("OPL2ToL1CcipReadIsm: prove message id mismatch");
+        ism.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_finalizeMessageIdMismatched(
+        bytes32 _recipient,
+        uint256 amount
+    ) public {
+        vm.assume(amount > 0);
+
+        bytes memory messageBody = TokenMessage.format(_recipient, amount);
+        mailboxOrigin.dispatch(
+            destination,
+            address(tokenBridgeDestination).addressToBytes32(),
+            messageBody
+        );
+
+        bytes memory data = OPL2ToL1Withdrawal.encodeData(
+            bytes32(0),
+            bytes32(0)
+        );
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawalTx = _getDummyWithdrawalTx(0, amount, data);
+
+        vm.deal(address(portal), amount);
+
+        bytes memory message = mailboxDestination.inboundMessages(0);
+        bytes memory metadata = _getDummyVerifyMetadata(withdrawalTx);
+
+        vm.expectRevert("OPL2ToL1CcipReadIsm: finalize message id mismatch");
+        ism.verify(metadata, message);
     }
 
     function test_interchainSecurityModule_givenIsmIsCorrect() public {
