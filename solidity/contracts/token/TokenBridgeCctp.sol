@@ -210,10 +210,8 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             outboundAmount,
             abi.encodePacked(nonce)
         );
-        require(
-            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message body length"
-        );
+        // sanity check: should only happen if the implementation changes
+        assert(_tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
 
         messageId = _Router_dispatch(
             _destination,
