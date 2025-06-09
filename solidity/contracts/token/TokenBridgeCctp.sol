@@ -21,7 +21,9 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = 32 + 32 + 8; // 72 bytes
+// TokenMessage.metadata := uint8 cctpNonce
+uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
+    8;
 
 // @dev Supports only CCTP V1
 contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
@@ -149,10 +151,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         );
 
         bytes calldata tokenMessage = _hyperlaneMessage.body();
-        require(
-            tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message body length"
-        );
+        _validateMessageLength(tokenMessage);
 
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
 
@@ -218,8 +217,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             outboundAmount,
             abi.encodePacked(nonce)
         );
-        // sanity check: should only happen if the implementation changes
-        assert(_tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
+        _validateMessageLength(_tokenMessage);
 
         messageId = _Router_dispatch(
             _destination,
@@ -244,5 +242,12 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes calldata metadata
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
+    }
+
+    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
+        require(
+            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message body length"
+        );
     }
 }
