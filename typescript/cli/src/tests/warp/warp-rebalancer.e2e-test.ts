@@ -329,6 +329,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       for await (let chunk of process.stdout) {
         chunk = typeof chunk === 'string' ? chunk : chunk.toString();
 
+        console.log(chunk);
+
         if (chunk.includes(expectedLogs[0])) {
           expectedLogs.shift();
 
@@ -582,7 +584,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Signer ${ANVIL_DEPLOYER_ADDRESS} is not a rebalancer`,
+      `Route validation failed: Signer is not a rebalancer`,
     );
   });
 
@@ -619,12 +621,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
     await chain3CollateralContract.addRebalancer(chain3Signer.address);
 
+    // Disallow destination by setting it to a random, non-zero address
+    await chain3CollateralContract.setRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(ethers.Wallet.createRandom().address),
+    );
+
     await startRebalancerAndExpectLog(
-      `Destination ${warpCoreConfig.tokens[0].addressOrDenom!} for domain ${
-        chain2Metadata.domainId
-      } (${chain2Metadata.name}) is not allowed. From ${
-        warpCoreConfig.tokens[1].addressOrDenom
-      } at ${chain3Metadata.name}`,
+      'Route validation failed: Destination is not allowed.',
     );
   });
 
@@ -668,11 +672,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Error while rebalancing: Error: Bridge ${ethers.constants.AddressZero} for domain ${chain2Metadata.domainId} (${
-        chain2Metadata.name
-      }) is not allowed. From ${warpCoreConfig.tokens[1].addressOrDenom} at ${
-        chain3Metadata.name
-      }. To ${warpCoreConfig.tokens[0].addressOrDenom} at ${chain2Metadata.name}.`,
+      'Route validation failed: Bridge is not allowed.',
     );
   });
 
@@ -722,7 +722,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      `Could not get rebalance quotes from ${chain3Metadata.name} to ${chain2Metadata.name}, for 5 token`,
+      'Failed to get quotes or populate transaction for route.',
     );
   });
 
@@ -888,7 +888,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      'Rebalance skipped: No routes to execute',
+      'Route skipped due to minimum threshold amount not met.',
     );
   });
 
@@ -1285,7 +1285,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         [
           'Rebalancer started successfully 🚀',
           `{ context: 'WeightedStrategy', numberOfRoutes: 1 } Found rebalancing routes`,
-          `} Populating rebalance transaction`,
+          `Populating rebalance transaction`,
           '✅ Rebalance successful',
           `{ context: 'WeightedStrategy', numberOfRoutes: 0 } Found rebalancing routes`,
           'No routes to execute',
