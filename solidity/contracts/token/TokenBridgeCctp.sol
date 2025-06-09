@@ -10,7 +10,7 @@ import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {ITokenMessenger} from "./../interfaces/cctp/ITokenMessenger.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {CctpMessage} from "../libs/CctpMessage.sol";
+import {CctpMessage, BurnMessage} from "../libs/CctpMessage.sol";
 
 interface CctpService {
     function getCCTPAttestation(
@@ -21,11 +21,14 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
+uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = 32 + 32 + 8; // 72 bytes
+
 // @dev Supports only CCTP V1
 contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
     using CctpMessage for bytes29;
+    using BurnMessage for bytes29;
+
     using Message for bytes;
-    using TokenMessage for bytes;
 
     uint32 internal constant CCTP_VERSION = 0;
 
@@ -139,17 +142,35 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
 
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
 
+        bytes32 sourceSender = originalMsg._sender();
+        require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
+
+        bytes calldata tokenMessage = _hyperlaneMessage.body();
+        assert(tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
+
+        uint64 sourceNonce = originalMsg._nonce();
+        require(
+            sourceNonce == uint64(bytes8(TokenMessage.metadata(tokenMessage))),
+            "Invalid nonce"
+        );
+
+        bytes29 burnMessage = originalMsg._messageBody();
+
+        require(
+            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
+            "Invalid amount"
+        );
+        require(
+            TokenMessage.recipient(tokenMessage) ==
+                burnMessage._getMintRecipient(),
+            "Invalid recipient"
+        );
+
         uint32 sourceDomain = originalMsg._sourceDomain();
         require(
             sourceDomain ==
                 hyperlaneDomainToCircleDomain(_hyperlaneMessage.origin()),
             "Invalid source domain"
-        );
-
-        uint64 sourceNonce = originalMsg._nonce();
-        require(
-            sourceNonce == uint64(bytes8(_hyperlaneMessage.body().metadata())),
-            "Invalid nonce"
         );
 
         // Receive only if the nonce hasn't been used before
@@ -187,6 +208,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             outboundAmount,
             abi.encodePacked(nonce)
         );
+        assert(_tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
 
         messageId = _Router_dispatch(
             _destination,

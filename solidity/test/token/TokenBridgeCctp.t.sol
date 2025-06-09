@@ -19,7 +19,7 @@ import {ITokenMessenger} from "../../contracts/interfaces/cctp/ITokenMessenger.s
 import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {CctpMessage} from "../../contracts/libs/CctpMessage.sol";
+import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
 
@@ -141,18 +141,43 @@ contract TokenBridgeCctpTest is Test {
     function _encodeCctpMessage(
         uint64 nonce,
         uint32 sourceDomain,
-        bytes memory body
+        bytes32 recipient,
+        uint256 amount
     ) internal view returns (bytes memory) {
+        return
+            _encodeCctpMessage(
+                nonce,
+                sourceDomain,
+                recipient,
+                amount,
+                address(tbOrigin)
+            );
+    }
+
+    function _encodeCctpMessage(
+        uint64 nonce,
+        uint32 sourceDomain,
+        bytes32 recipient,
+        uint256 amount,
+        address sender
+    ) internal view returns (bytes memory) {
+        bytes memory burnMessage = BurnMessage._formatMessage(
+            version,
+            address(tokenOrigin).addressToBytes32(),
+            recipient,
+            amount,
+            sender.addressToBytes32()
+        );
         return
             CctpMessage._formatMessage(
                 version,
                 sourceDomain,
                 cctpDestination,
                 nonce,
-                address(tbOrigin).addressToBytes32(),
+                sender.addressToBytes32(),
                 address(tbDestination).addressToBytes32(),
                 bytes32(0),
-                body
+                burnMessage
             );
     }
 
@@ -214,9 +239,10 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify() public {
+        bytes32 recipient = user.addressToBytes32();
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
 
@@ -226,7 +252,7 @@ contract TokenBridgeCctpTest is Test {
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
         tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
 
@@ -238,7 +264,8 @@ contract TokenBridgeCctpTest is Test {
         bytes memory cctpMessage = _encodeCctpMessage(
             cctpNonce,
             cctpOrigin,
-            ""
+            recipient,
+            amount
         );
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
@@ -254,9 +281,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidNonce() public {
+        bytes32 recipient = user.addressToBytes32();
+
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
 
@@ -267,12 +296,17 @@ contract TokenBridgeCctpTest is Test {
         uint64 badNonce = tokenMessengerOrigin.nextNonce() + 1;
         tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
         bytes memory message = mailboxDestination.inboundMessages(0);
 
-        bytes memory cctpMessage = _encodeCctpMessage(badNonce, cctpOrigin, "");
+        bytes memory cctpMessage = _encodeCctpMessage(
+            badNonce,
+            cctpOrigin,
+            recipient,
+            amount
+        );
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
@@ -281,9 +315,11 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_verify_revertsWhen_invalidSourceDomain() public {
+        bytes32 recipient = user.addressToBytes32();
+
         Quote[] memory quote = tbOrigin.quoteTransferRemote(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
 
@@ -293,7 +329,7 @@ contract TokenBridgeCctpTest is Test {
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
         tbOrigin.transferRemote{value: quote[0].amount}(
             destination,
-            user.addressToBytes32(),
+            recipient,
             amount
         );
         bytes memory message = mailboxDestination.inboundMessages(0);
@@ -303,13 +339,151 @@ contract TokenBridgeCctpTest is Test {
         bytes memory cctpMessage = _encodeCctpMessage(
             cctpNonce,
             badSourceDomain,
-            ""
+            recipient,
+            amount
         );
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         vm.expectRevert(bytes("Invalid source domain"));
         tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidAmount() public {
+        bytes32 recipient = user.addressToBytes32();
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
+        bytes memory message = mailboxDestination.inboundMessages(0);
+
+        // invalid amount := amount + 1
+        uint256 badAmount = amount + 1;
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            badAmount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid amount"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidRecipient() public {
+        bytes32 recipient = user.addressToBytes32();
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
+        bytes memory message = mailboxDestination.inboundMessages(0);
+
+        // invalid recipient := evil
+        bytes32 badRecipient = evil.addressToBytes32();
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            badRecipient,
+            amount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid recipient"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidSender() public {
+        bytes32 recipient = user.addressToBytes32();
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
+        bytes memory message = mailboxDestination.inboundMessages(0);
+
+        // invalid sender := evil
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount,
+            evil
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid sender"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidLength() public {
+        bytes32 recipient = user.addressToBytes32();
+        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+        tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
+        bytes memory message = mailboxDestination.inboundMessages(0);
+
+        bytes memory cctpMessage = _encodeCctpMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        // a message with invalid length.
+        bytes memory badMessage = bytes.concat(message, bytes1(uint8(60)));
+
+        vm.expectRevert();
+        tbDestination.verify(metadata, badMessage);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
