@@ -398,7 +398,7 @@ contract TokenBridgeCctpTest is Test {
     }
 
     function test_parent_initialize_reverts() public {
-        vm.expectRevert("Only one initialize() function is allowed");
+        vm.expectRevert("Only TokenBridgeCctp.initialize() may be called");
         tbOrigin.initialize(address(0), address(0), address(0));
     }
 }

@@ -90,7 +90,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         address _interchainSecurityModule,
         address _owner
     ) public override {
-        revert("Only one initialize() function is allowed");
+        revert("Only TokenBridgeCctp.initialize() may be called");
     }
 
     function interchainSecurityModule()
