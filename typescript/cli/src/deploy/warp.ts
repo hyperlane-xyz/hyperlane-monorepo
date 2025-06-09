@@ -459,7 +459,7 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    warpDeployConfig: deepCopy(warpDeployConfig),
+    warpDeployConfig: deepCopy(warpDeployConfig), // Need to be copied because expandWarpDeployConfig mutates
     deployedRoutersAddresses,
   });
 
