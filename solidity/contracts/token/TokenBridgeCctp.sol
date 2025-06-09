@@ -140,13 +140,16 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             (bytes, bytes)
         );
 
+        bytes calldata tokenMessage = _hyperlaneMessage.body();
+        require(
+            tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message body length"
+        );
+
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
 
         bytes32 sourceSender = originalMsg._sender();
         require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
-
-        bytes calldata tokenMessage = _hyperlaneMessage.body();
-        assert(tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
 
         uint64 sourceNonce = originalMsg._nonce();
         require(
@@ -208,7 +211,10 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             outboundAmount,
             abi.encodePacked(nonce)
         );
-        assert(_tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN);
+        require(
+            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message body length"
+        );
 
         messageId = _Router_dispatch(
             _destination,
