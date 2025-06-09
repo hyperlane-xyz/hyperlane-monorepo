@@ -5,6 +5,7 @@ import {
   ChainMap,
   DeployedOwnableConfig,
   HypERC20Deployer,
+  HypTokenRouterConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -15,6 +16,8 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
+  isMovableCollateralTokenConfig,
+  resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -115,6 +118,38 @@ export async function readWarpRouteDeployConfig({
   assert(config, `No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
+
+  config = objMap(
+    config as any,
+    (_chain, chainConfig: HypTokenRouterConfig) => {
+      if (chainConfig.destinationGas) {
+        chainConfig.destinationGas = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.destinationGas,
+        );
+      }
+
+      if (chainConfig.remoteRouters) {
+        chainConfig.remoteRouters = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.remoteRouters,
+        );
+      }
+
+      if (!isMovableCollateralTokenConfig(chainConfig)) {
+        return chainConfig;
+      }
+
+      if (chainConfig.allowedRebalancingBridges) {
+        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.allowedRebalancingBridges,
+        );
+      }
+
+      return chainConfig;
+    },
+  );
 
   //fillDefaults would have added a mailbox to the config if it was missing
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
@@ -255,6 +290,16 @@ export async function createWarpRouteDeployConfig({
           proxyAdmin,
           interchainSecurityModule,
           isNft: true,
+        };
+        break;
+      case TokenType.native:
+      case TokenType.synthetic:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          isNft: false,
         };
         break;
       default:
