@@ -94,11 +94,11 @@ impl NonceManagerState {
             return;
         }
 
-        let tracked_tx_uuid = match &nonce_status {
+        let tracked_tx_uuid = match &tracked_nonce_status {
             Taken(uuid) | Committed(uuid) | Placed(uuid) => uuid,
             Freed(_) => {
                 // If the tracked nonce status is Freed, and it differs from the nonce status,
-                // we track nonce as assigned to given transaction.
+                // we track nonce as assigned to the given transaction.
                 self.insert_nonce_status(nonce, nonce_status).await;
                 return;
             }
