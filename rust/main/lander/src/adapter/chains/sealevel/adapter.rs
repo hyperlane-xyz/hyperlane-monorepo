@@ -48,7 +48,9 @@ use crate::{
     error,
     error::LanderError,
     payload::{FullPayload, PayloadDetails},
-    transaction::{SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData},
+    transaction::{
+        SignerAddress, Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData,
+    },
     TransactionDropReason,
 };
 
@@ -69,7 +71,7 @@ pub struct SealevelAdapter {
     provider: Box<dyn SealevelProviderForLander>,
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
-    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
+    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
 }
 
 impl SealevelAdapter {
@@ -326,8 +328,8 @@ impl AdaptsChain for SealevelAdapter {
         // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
         {
             let mut guard = self.estimate_freshness_cache.lock().await;
-            if guard.get(&tx.id).copied().unwrap_or_default() == Stale {
-                guard.insert(tx.id.clone(), Fresh);
+            if guard.get(&tx.uuid).copied().unwrap_or_default() == Stale {
+                guard.insert(tx.uuid.clone(), Fresh);
             }
         };
 
@@ -344,10 +346,10 @@ impl AdaptsChain for SealevelAdapter {
         let previous = tx.precursor();
         let estimated = {
             let mut guard = self.estimate_freshness_cache.lock().await;
-            match guard.get(&tx.id).copied().unwrap_or_default() {
+            match guard.get(&tx.uuid).copied().unwrap_or_default() {
                 Stale => self.estimate(previous).await?,
                 Fresh => {
-                    guard.insert(tx.id.clone(), Stale);
+                    guard.insert(tx.uuid.clone(), Stale);
                     previous.clone()
                 }
             }

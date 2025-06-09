@@ -14,7 +14,7 @@ use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::Signers;
 
-use crate::transaction::{Transaction, TransactionId};
+use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
 
 use super::super::transaction::Precursor;
@@ -22,9 +22,9 @@ use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState, NonceStatus};
 
 pub struct NonceManager {
-    address: Address,
-    db: Arc<dyn NonceDb>,
-    state: NonceManagerState,
+    pub address: Address,
+    pub db: Arc<dyn NonceDb>,
+    pub state: NonceManagerState,
 }
 
 impl NonceManager {
@@ -51,7 +51,7 @@ impl NonceManager {
     }
 
     pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        let tx_id = tx.id.clone();
+        let tx_uuid = tx.uuid.clone();
 
         let precursor = tx.precursor_mut();
 
@@ -69,13 +69,13 @@ impl NonceManager {
             let nonce: U256 = nonce.into();
             let action = self.state.validate_assigned_nonce(&nonce).await;
             if matches!(action, NonceAction::Noop) {
-                let assigned_tx_id = self
+                let assigned_tx_uuid = self
                     .db
-                    .retrieve_tx_id_by_nonce_and_signer_address(&nonce, &self.address.to_string())
+                    .retrieve_tx_uuid_by_nonce_and_signer_address(&nonce, &self.address.to_string())
                     .await?;
 
-                if let Some(assigned_tx_id) = assigned_tx_id {
-                    if assigned_tx_id == tx_id {
+                if let Some(assigned_tx_uuid) = assigned_tx_uuid {
+                    if assigned_tx_uuid == tx_uuid {
                         return Ok(());
                     }
                 }
@@ -85,7 +85,11 @@ impl NonceManager {
         let next_nonce = self.state.identify_next_nonce().await;
 
         self.db
-            .store_tx_id_by_nonce_and_signer_address(&next_nonce, &self.address.to_string(), &tx_id)
+            .store_tx_uuid_by_nonce_and_signer_address(
+                &next_nonce,
+                &self.address.to_string(),
+                &tx_uuid,
+            )
             .await?;
 
         self.state
@@ -97,7 +101,7 @@ impl NonceManager {
         info!(
             nonce = next_nonce.to_string(),
             address = ?from,
-            ?tx_id,
+            ?tx_uuid,
             precursor = ?precursor,
             "Set nonce for transaction"
         );
