@@ -56,6 +56,14 @@
       },
       "overhead": 166887
     },
+    "starknet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "256398338094001558036",
+        "gasPrice": "77905462",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
     "bsc": {
       "oracleConfig": {
         "tokenExchangeRate": "62110871980005554012",
