@@ -65,7 +65,14 @@ import {
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logTable,
+  warnYellow,
+} from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
@@ -146,11 +153,10 @@ export async function runWarpRouteDeploy({
   let warpRouteIdOptions: AddWarpRouteConfigOptions;
   if (warpRouteId) {
     warpRouteIdOptions = { warpRouteId };
-  } else if (
-    warpDeployConfigFileName &&
-    !('warpRouteId' in addWarpRouteOptions)
-  ) {
-    const fileName = path.parse(warpDeployConfigFileName).name;
+  } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
+    const fileName = path
+      .parse(warpDeployConfigFileName)
+      .name.replace(/-deploy$/, '');
     const maybeId = createWarpRouteConfigId(
       addWarpRouteOptions.symbol,
       fileName,
@@ -164,6 +170,9 @@ export async function runWarpRouteDeploy({
       });
     } catch {
       isIdOk = false;
+      warnYellow(
+        `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
+      );
     }
 
     warpRouteIdOptions = isIdOk

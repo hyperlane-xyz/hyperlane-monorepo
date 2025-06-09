@@ -3,9 +3,13 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 import fs from 'fs';
+import path from 'path';
 
 import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainName,
@@ -30,6 +34,7 @@ import {
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   KeyBoardKeys,
   REGISTRY_PATH,
+  TEMP_PATH,
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
@@ -721,6 +726,41 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ).should.be.rejectedWith(
         'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
       );
+    });
+
+    it('should successfully output the filename without having the -deploy-config suffix when providing a deploy config file that ends in -deploy', async function () {
+      const baseFileName = path.parse(WARP_DEPLOY_OUTPUT_PATH).name;
+      const customDeployPathFileName = `${TEMP_PATH}/${baseFileName.replace(
+        '-deployment',
+        '-deploy.yaml',
+      )}`;
+      const expectedFileName = createWarpRouteConfigId(
+        await vaultChain2.symbol(),
+        path.parse(baseFileName).name.replace('-deployment', ''),
+      );
+      const expectedWarpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${expectedFileName}-config.yaml`;
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateralVaultRebase,
+          token: vaultChain2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: chain2Addresses.mailbox,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.syntheticRebase,
+          mailbox: chain3Addresses.mailbox,
+          owner: chain3Addresses.mailbox,
+          collateralChainName: CHAIN_NAME_2,
+        },
+      };
+
+      writeYamlOrJson(customDeployPathFileName, warpConfig);
+      const finalOutput = await hyperlaneWarpDeploy(customDeployPathFileName);
+
+      expect(finalOutput.exitCode).to.equal(0);
+
+      expect(fs.existsSync(expectedWarpCorePath)).to.be.true;
     });
   });
 });
