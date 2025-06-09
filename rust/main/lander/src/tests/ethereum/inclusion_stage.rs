@@ -32,7 +32,7 @@ use crate::{
 
 #[tokio::test]
 #[traced_test]
-async fn test_evm_tx_underpriced() {
+async fn test_inclusion_happy_path() {
     let mock_evm_provider = mocked_evm_provider();
     let signer = H160::random();
     let dispatcher_state = mock_dispatcher_state_with_provider(mock_evm_provider, signer);
@@ -67,6 +67,99 @@ async fn test_evm_tx_underpriced() {
     }
 }
 
+#[tokio::test]
+// #[traced_test]
+async fn test_inclusion_gas_spike() {
+    let mut mock_evm_provider = mocked_evm_provider();
+
+    // first submission, price is 100
+    // second submission, price is 109 (less than 10% spike)
+    // third submission, price is 110 (less than 10% spike)
+    // fourth submission, price is 150 (greater than 10% spike)
+    let mut fee_history_call_counter = 0;
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(move |_, _, _| {
+            fee_history_call_counter += 1;
+            println!("Fee history call counter: {}", fee_history_call_counter);
+            let base_fee = match fee_history_call_counter {
+                1 => 100,
+                2 => 109,
+                3 => 110,
+                _ => 150, // This will be the price for the last submission
+            };
+            let prio_fee = if fee_history_call_counter < 4 {
+                0 // No priority fee for the first three submissions
+            } else {
+                10 // Priority fee for the last submission
+            };
+            Ok(mock_fee_history(base_fee, prio_fee))
+        });
+
+    // return mock receipt than has no block for first 3 submissions, then full receipt for the last one
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42)))) // Block number for the last submission
+            }
+        });
+
+    // assert each expected price by mocking the `send` method of the provider
+    let mut send_call_counter = 0;
+    mock_evm_provider.expect_send().returning(move |tx, _| {
+        send_call_counter += 1;
+        match send_call_counter {
+            1 => {
+                println!("First submission, gas price: {}", tx.gas_price().unwrap());
+                assert_eq!(tx.gas_price().unwrap(), 100.into())
+            } // First submission, price is 100
+            2 => {
+                println!("Second submission, gas price: {}", tx.gas_price().unwrap());
+                assert_eq!(tx.gas_price().unwrap(), 100.into()) // Second submission, price is 109
+            }
+            _ => {}
+        }
+        Ok(H256::random()) // Mocked transaction hash
+    });
+
+    let signer = H160::random();
+    let dispatcher_state = mock_dispatcher_state_with_provider(mock_evm_provider, signer);
+    let (tx_sender, tx_receiver) = mpsc::channel(100);
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage =
+        mock_inclusion_stage(dispatcher_state.clone(), tx_receiver, finality_stage_sender);
+
+    let txs_to_process = 1;
+    let txs_created = mock_evm_txs(
+        txs_to_process,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+    )
+    .await;
+    for tx in txs_created.iter() {
+        tx_sender.send(tx.clone()).await.unwrap();
+    }
+    select! {
+        _ = inclusion_stage.run() => {
+            // inclusion stage should process the txs
+        },
+        tx_received = finality_stage_receiver.recv() => {
+            let tx_received = tx_received.unwrap();
+            assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
+        },
+        _ = tokio::time::sleep(tokio::time::Duration::from_millis(5000)) => {
+            panic!("Inclusion stage did not process the txs in time");
+        }
+    }
+}
+
 fn mocked_evm_provider() -> MockEvmProvider {
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_evm_provider
@@ -87,7 +180,7 @@ fn mocked_evm_provider() -> MockEvmProvider {
     });
     mock_evm_provider
         .expect_fee_history()
-        .returning(|_, _, _| Ok(mock_fee_history()));
+        .returning(|_, _, _| Ok(mock_fee_history(0, 0)));
 
     mock_evm_provider
         .expect_get_transaction_receipt()
@@ -232,11 +325,19 @@ fn mock_ethereum_adapter(
     }
 }
 
-fn mock_fee_history() -> ethers::types::FeeHistory {
+fn mock_fee_history(base_fee: u32, prio_fee: u32) -> ethers::types::FeeHistory {
     ethers::types::FeeHistory {
         oldest_block: 0.into(),
-        reward: vec![vec![0.into()]],
-        base_fee_per_gas: vec![0.into()],
+        reward: vec![vec![prio_fee.into()]],
+        base_fee_per_gas: vec![base_fee.into()],
         gas_used_ratio: vec![0.0],
+    }
+}
+
+fn mock_tx_receipt(block_number: Option<u64>) -> TransactionReceipt {
+    TransactionReceipt {
+        transaction_hash: H256::random().into(),
+        block_number: block_number.map(|n| n.into()),
+        ..Default::default()
     }
 }
