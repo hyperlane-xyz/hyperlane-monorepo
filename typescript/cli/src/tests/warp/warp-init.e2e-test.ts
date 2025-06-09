@@ -168,7 +168,7 @@ describe('hyperlane warp init e2e tests', async function () {
         {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput: string) =>
