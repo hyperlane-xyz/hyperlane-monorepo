@@ -229,7 +229,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         finalOutput
           .text()
           .includes(
-            `Failed to derive token metadata Error: Scale is not correct for ${CHAIN_NAME_3}`,
+            `Failed to derive token metadata Error: Found invalid or missing scale for inconsistent decimals`,
           ),
       ).to.be.true;
     });

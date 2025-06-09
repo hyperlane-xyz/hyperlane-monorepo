@@ -732,3 +732,4 @@ export {
   getStarknetEtherContract,
 } from './utils/starknet.js';
 export { resolveRouterMapConfig } from './router/types.js';
+export { verifyScale } from './utils/decimals.js';

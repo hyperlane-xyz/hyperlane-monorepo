@@ -7,6 +7,7 @@ import {
   HypTokenRouterConfig,
   MultiProvider,
   WarpRouteDeployConfig,
+  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -81,7 +82,9 @@ describe.skip('Warp Configs', async function () {
       expect(warpConfig).to.have.keys(Object.keys(expectedConfig));
       for (const key in warpConfig) {
         if (warpConfig[key]) {
-          expect(warpConfig[key]).to.deep.equal(expectedConfig[key]);
+          expect(normalizeConfig(warpConfig[key])).to.deep.equal(
+            normalizeConfig(expectedConfig[key]),
+          );
         }
       }
     });
