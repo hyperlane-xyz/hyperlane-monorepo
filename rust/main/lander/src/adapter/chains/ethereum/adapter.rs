@@ -106,7 +106,6 @@ impl EthereumAdapter {
             &mut new_tx_precursor,
         );
 
-        // assign the max between the estimated gas price and 1.1x the current gas price
         info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
         Ok(())
     }

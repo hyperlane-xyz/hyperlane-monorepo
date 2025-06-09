@@ -15,7 +15,7 @@ use crate::{
         },
         PayloadDb, TransactionDb,
     },
-    transaction::{Transaction, TransactionId},
+    transaction::{Transaction, TransactionUuid},
 };
 use ethers::types::H160;
 use ethers_core::rand::rngs::{adapter, mock};
@@ -209,7 +209,7 @@ async fn assert_tx_status(
     // check that the payload and tx dbs were updated
     for tx in txs {
         let tx_from_db = tx_db
-            .retrieve_transaction_by_id(&tx.id)
+            .retrieve_transaction_by_uuid(&tx.uuid)
             .await
             .unwrap()
             .unwrap();
@@ -217,7 +217,7 @@ async fn assert_tx_status(
 
         for detail in tx.payload_details.iter() {
             let payload = payload_db
-                .retrieve_payload_by_id(&detail.id)
+                .retrieve_payload_by_uuid(&detail.uuid)
                 .await
                 .unwrap()
                 .unwrap();

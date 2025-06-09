@@ -5,9 +5,10 @@ use tokio::sync::Mutex;
 
 use hyperlane_core::U256;
 
-use super::super::transaction::Precursor;
 use crate::transaction::Transaction;
-use crate::TransactionStatus::{self, Finalized, Included, Mempool, PendingInclusion};
+use crate::TransactionStatus;
+
+use super::super::transaction::Precursor;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceStatus {
@@ -68,10 +69,8 @@ impl NonceManagerState {
         tx: &Transaction,
         tx_status: &TransactionStatus,
     ) {
-        use crate::transaction::TransactionStatus::{
-            Dropped, Finalized, Included, Mempool, PendingInclusion,
-        };
         use NonceStatus::{Committed, Free, Taken};
+        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
 
         let precursor = tx.precursor();
         let nonce = precursor.tx.nonce();

@@ -394,6 +394,7 @@ where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
+    #[instrument(skip_all, fields(domain=%self.domain.name(), index_settings = ?index_settings))]
     async fn cursor(
         &self,
         index_settings: IndexSettings,

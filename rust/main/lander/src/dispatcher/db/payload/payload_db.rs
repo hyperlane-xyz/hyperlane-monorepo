@@ -10,41 +10,55 @@ use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlanePro
 use tracing::debug;
 
 use crate::{
-    payload::{self, FullPayload, PayloadId, PayloadStatus},
-    transaction::TransactionId,
+    payload::{self, FullPayload, PayloadStatus, PayloadUuid},
+    transaction::TransactionUuid,
 };
 
-const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
-const TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX: &str = "transaction_id_by_payload_id_";
-const PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX: &str = "payload_index_by_id_";
-const PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX: &str = "payload_id_by_index_";
+const PAYLOAD_BY_UUID_STORAGE_PREFIX: &str = "payload_by_uuid_";
+const TRANSACTION_UUID_BY_PAYLOAD_UUID_STORAGE_PREFIX: &str = "transaction_uuid_by_payload_uuid_";
+const PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX: &str = "payload_index_by_uuid_";
+const PAYLOAD_UUID_BY_INDEX_STORAGE_PREFIX: &str = "payload_uuid_by_index_";
 const HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX: &str = "highest_payload_index_";
 
 #[async_trait]
 pub trait PayloadDb: Send + Sync {
     /// Retrieve a payload by its unique ID
-    async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>>;
+    async fn retrieve_payload_by_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<FullPayload>>;
 
     /// Store a payload by its unique ID
-    async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()>;
+    async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()>;
 
     /// Retrieve a payload index by its unique ID
-    async fn retrieve_payload_index_by_id(&self, payload_id: &PayloadId) -> DbResult<Option<u32>>;
+    async fn retrieve_payload_index_by_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<u32>>;
 
     /// Store a payload index by the payload's unique ID
-    async fn store_payload_index_by_id(&self, index: u32, payload_id: &PayloadId) -> DbResult<()>;
+    async fn store_payload_index_by_uuid(
+        &self,
+        index: u32,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<()>;
 
     /// Retrieve a payload's unique ID by its index
-    async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>>;
+    async fn retrieve_payload_uuid_by_index(&self, index: u32) -> DbResult<Option<PayloadUuid>>;
 
     /// Store a payload's unique ID by the payload's index
-    async fn store_payload_id_by_index(&self, index: u32, payload_id: &PayloadId) -> DbResult<()>;
+    async fn store_payload_uuid_by_index(
+        &self,
+        index: u32,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<()>;
 
     /// Retrieve a payload by its index
     async fn retrieve_payload_by_index(&self, index: u32) -> DbResult<Option<FullPayload>> {
-        let id = self.retrieve_payload_id_by_index(index).await?;
-        if let Some(id) = id {
-            self.retrieve_payload_by_id(&id).await
+        let payload_uuid = self.retrieve_payload_uuid_by_index(index).await?;
+        if let Some(payload_uuid) = payload_uuid {
+            self.retrieve_payload_by_uuid(&payload_uuid).await
         } else {
             Ok(None)
         }
@@ -59,51 +73,54 @@ pub trait PayloadDb: Send + Sync {
     /// Set the status of a payload by its unique ID. Performs one read (to first fetch the full payload) and one write.
     async fn store_new_payload_status(
         &self,
-        payload_id: &PayloadId,
+        payload_uuid: &PayloadUuid,
         new_status: PayloadStatus,
     ) -> DbResult<()> {
-        if let Some(mut payload) = self.retrieve_payload_by_id(payload_id).await? {
+        if let Some(mut payload) = self.retrieve_payload_by_uuid(payload_uuid).await? {
             payload.status = new_status;
-            self.store_payload_by_id(&payload).await?;
+            self.store_payload_by_uuid(&payload).await?;
         } else {
             return Err(DbError::Other(format!(
-                "Payload with ID {:?} not found",
-                payload_id
+                "Payload with UUID {:?} not found",
+                payload_uuid
             )));
         }
         Ok(())
     }
 
-    async fn store_tx_id_by_payload_id(
+    async fn store_tx_uuid_by_payload_uuid(
         &self,
-        payload_id: &PayloadId,
-        tx_id: &TransactionId,
+        payload_uuid: &PayloadUuid,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 
-    async fn retrieve_tx_id_by_payload_id(
+    async fn retrieve_tx_uuid_by_payload_uuid(
         &self,
-        payload_id: &PayloadId,
-    ) -> DbResult<Option<TransactionId>>;
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<TransactionUuid>>;
 }
 
 #[async_trait]
 impl PayloadDb for HyperlaneRocksDB {
-    async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>> {
-        self.retrieve_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, id)
+    async fn retrieve_payload_by_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<FullPayload>> {
+        self.retrieve_value_by_key(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload_uuid)
     }
 
-    async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
+    async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()> {
         if self
-            .retrieve_payload_index_by_id(payload.id())
+            .retrieve_payload_index_by_uuid(payload.uuid())
             .await?
             .is_none()
         {
             let highest_index = self.retrieve_highest_payload_index().await?;
             let payload_index = highest_index + 1;
             self.store_highest_payload_index(payload_index).await?;
-            self.store_payload_index_by_id(payload_index, payload.id())
+            self.store_payload_index_by_uuid(payload_index, payload.uuid())
                 .await?;
-            self.store_payload_id_by_index(payload_index, payload.id())
+            self.store_payload_uuid_by_index(payload_index, payload.uuid())
                 .await?;
             debug!(
                 ?payload,
@@ -112,38 +129,38 @@ impl PayloadDb for HyperlaneRocksDB {
             );
         } else {
             debug!(
-                payload_id = ?payload.id(),
-                "Payload with ID already exists, not updating index",
+                payload_uuid = ?payload.uuid(),
+                "Payload with UUID already exists, not updating index",
             );
         }
-        self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), payload)
+        self.store_value_by_key(PAYLOAD_BY_UUID_STORAGE_PREFIX, payload.uuid(), payload)
     }
 
-    async fn store_tx_id_by_payload_id(
+    async fn retrieve_payload_index_by_uuid(
         &self,
-        payload_id: &PayloadId,
-        tx_id: &TransactionId,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX, payload_uuid)
+    }
+
+    async fn store_payload_index_by_uuid(
+        &self,
+        index: u32,
+        payload_uuid: &PayloadUuid,
     ) -> DbResult<()> {
-        self.store_value_by_key(
-            TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX,
-            payload_id,
-            tx_id,
-        )
+        self.store_value_by_key(PAYLOAD_INDEX_BY_UUID_STORAGE_PREFIX, payload_uuid, &index)
     }
 
-    async fn retrieve_tx_id_by_payload_id(
+    async fn retrieve_payload_uuid_by_index(&self, index: u32) -> DbResult<Option<PayloadUuid>> {
+        self.retrieve_value_by_key(PAYLOAD_UUID_BY_INDEX_STORAGE_PREFIX, &index)
+    }
+
+    async fn store_payload_uuid_by_index(
         &self,
-        payload_id: &PayloadId,
-    ) -> DbResult<Option<TransactionId>> {
-        self.retrieve_value_by_key(TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX, payload_id)
-    }
-
-    async fn retrieve_payload_index_by_id(&self, id: &PayloadId) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, id)
-    }
-
-    async fn store_payload_index_by_id(&self, index: u32, payload_id: &PayloadId) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, payload_id, &index)
+        index: u32,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<()> {
+        self.store_value_by_key(PAYLOAD_UUID_BY_INDEX_STORAGE_PREFIX, &index, payload_uuid)
     }
 
     async fn store_highest_payload_index(&self, index: u32) -> DbResult<()> {
@@ -161,12 +178,26 @@ impl PayloadDb for HyperlaneRocksDB {
             .map(|index: Option<u32>| index.unwrap_or_default())
     }
 
-    async fn store_payload_id_by_index(&self, index: u32, payload_id: &PayloadId) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX, &index, payload_id)
+    async fn store_tx_uuid_by_payload_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+        tx_uuid: &TransactionUuid,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            TRANSACTION_UUID_BY_PAYLOAD_UUID_STORAGE_PREFIX,
+            payload_uuid,
+            tx_uuid,
+        )
     }
 
-    async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>> {
-        self.retrieve_value_by_key(PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX, &index)
+    async fn retrieve_tx_uuid_by_payload_uuid(
+        &self,
+        payload_uuid: &PayloadUuid,
+    ) -> DbResult<Option<TransactionUuid>> {
+        self.retrieve_value_by_key(
+            TRANSACTION_UUID_BY_PAYLOAD_UUID_STORAGE_PREFIX,
+            payload_uuid,
+        )
     }
 }
 
@@ -228,9 +259,9 @@ mod tests {
         for i in 0..num_payloads {
             let mut payload = FullPayload::random();
 
-            // storing to this new payload ID for the first time should create a new
+            // storing to this new payload UUID for the first time should create a new
             // highest index
-            db.store_payload_by_id(&payload).await.unwrap();
+            db.store_payload_by_uuid(&payload).await.unwrap();
             let expected_payload_index = (i + 1) as u32;
             let retrieved_payload = db
                 .retrieve_payload_by_index(expected_payload_index)
@@ -241,9 +272,9 @@ mod tests {
             let highest_index = db.retrieve_highest_payload_index().await.unwrap();
             assert_eq!(highest_index, expected_payload_index);
 
-            // storing to this payload ID again should not create a new highest index
+            // storing to this payload UUID again should not create a new highest index
             payload.status = PayloadStatus::InTransaction(TransactionStatus::PendingInclusion);
-            db.store_payload_by_id(&payload).await.unwrap();
+            db.store_payload_by_uuid(&payload).await.unwrap();
             let retrieved_payload = db
                 .retrieve_payload_by_index(expected_payload_index)
                 .await

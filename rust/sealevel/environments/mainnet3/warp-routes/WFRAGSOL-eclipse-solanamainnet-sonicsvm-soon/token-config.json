@@ -15,6 +15,15 @@
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
     "owner": "TPP6hFE9AKyc5rTxRh5P5igBzDmSpPLaqi6pdph9KHR"
   },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Wrapped Fragmetric Restaked SOL",
+    "symbol": "wfragSOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f4e41f22aabd09d15d41f35559c1a9ebf65b9616/deployments/warp_routes/WFRAGSOL/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "B1pieLBPCRgAVvWVyTiXJsLwkhRwU1YLCuUSEyWQafp9"
+  },
   "soon": {
     "type": "synthetic",
     "decimals": 9,
