@@ -88,17 +88,26 @@ impl EthereumAdapter {
     async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         // even if the gas price is already set, we still want to (re-)estimate it
         // to be resilient to gas spikes
-        let mut precursor_clone = tx.precursor().clone();
+        let old_tx_precursor = tx.precursor().clone();
+        let mut new_tx_precursor = tx.precursor_mut();
+
+        // first, estimate the gas price and set it on the new transaction precursor
         gas_price::estimator::estimate_gas_price(
             &self.provider,
-            &mut precursor_clone,
+            &mut new_tx_precursor,
             &self.transaction_overrides,
             &self.domain,
         )
         .await?;
 
+        // then, compare the estimated gas price with `current * escalation_multiplier`
+        gas_price::escalator::escalate_gas_price_if_needed(
+            &old_tx_precursor,
+            &mut new_tx_precursor,
+        );
+
         // assign the max between the estimated gas price and 1.1x the current gas price
-        info!(?tx, "estimated gas price for transaction");
+        info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
         Ok(())
     }
 }
