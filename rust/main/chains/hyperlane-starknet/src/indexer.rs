@@ -9,7 +9,6 @@ use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
-use tracing::instrument;
 
 use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
@@ -56,7 +55,6 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -74,7 +72,6 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for StarknetMailboxIndexer {
-    #[instrument(err, skip(self))]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
 
@@ -97,7 +94,6 @@ impl Indexer<H256> for StarknetMailboxIndexer {
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -166,7 +162,6 @@ impl StarknetMerkleTreeHookIndexer {
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -200,7 +195,6 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
         .await
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         get_block_height_u32(&self.contract.provider, &self.reorg_period).await
     }
@@ -237,7 +231,6 @@ impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
         Ok(Default::default())
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(0)
     }

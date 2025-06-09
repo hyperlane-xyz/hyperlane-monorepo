@@ -3,7 +3,6 @@ use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
@@ -58,18 +57,7 @@ impl Default for HyperlaneMessage {
 
 impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
-            self.id(),
-            self.version,
-            self.nonce,
-            fmt_domain(self.origin),
-            fmt_address_for_domain(self.origin, self.sender),
-            fmt_domain(self.destination),
-            fmt_address_for_domain(self.destination, self.recipient),
-            hex::encode(&self.body)
-        )
+        write!(f, "HyperlaneMessage {{ id: {:?} }}", self.id(),)
     }
 }
 

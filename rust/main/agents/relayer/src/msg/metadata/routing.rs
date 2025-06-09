@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
 use hyperlane_base::cache::FunctionCallCache;
-use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
 
@@ -18,7 +17,6 @@ pub struct RoutingIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
-    #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn build(
         &self,
