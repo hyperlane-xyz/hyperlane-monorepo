@@ -102,7 +102,7 @@ describe('WithSemaphore', () => {
     const withSemaphore = new WithSemaphore(config, rebalancer);
 
     await expect(withSemaphore.rebalance(routes)).to.be.rejectedWith(
-      "Cannot read properties of undefined (reading 'bridgeLockTime')",
+      `Chain ${routes[0].origin} not found in config`,
     );
   });
 

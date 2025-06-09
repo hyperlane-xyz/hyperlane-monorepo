@@ -71,6 +71,15 @@ export class WithSemaphore implements IRebalancer {
   private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
       const origin = this.config.chains[route.origin];
+
+      if (!origin) {
+        rebalancerLogger.error(
+          { route },
+          'Chain not found in config. Skipping.',
+        );
+        throw new Error(`Chain ${route.origin} not found in config`);
+      }
+
       const bridgeLockTime = origin.bridgeLockTime;
       const overrideLockTime =
         origin.override?.[route.destination].bridgeLockTime ?? 0;
