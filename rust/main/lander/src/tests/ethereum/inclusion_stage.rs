@@ -14,7 +14,8 @@ use ethers::{
     },
 };
 use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, KnownHyperlaneDomain, H256,
+    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
+    KnownHyperlaneDomain, H256,
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 use tokio::{select, sync::mpsc};
@@ -39,38 +40,8 @@ use crate::{
 async fn test_inclusion_happy_path() {
     let block_time = Duration::from_millis(10);
     let mock_evm_provider = mocked_evm_provider();
-    let signer = H160::random();
-    let dispatcher_state =
-        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
-    let (tx_sender, tx_receiver) = mpsc::channel(100);
-    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
-    let inclusion_stage =
-        mock_inclusion_stage(dispatcher_state.clone(), tx_receiver, finality_stage_sender);
 
-    let txs_to_process = 1;
-    let txs_created = mock_evm_txs(
-        txs_to_process,
-        &dispatcher_state.payload_db,
-        &dispatcher_state.tx_db,
-        TransactionStatus::PendingInclusion,
-        signer,
-    )
-    .await;
-    for tx in txs_created.iter() {
-        tx_sender.send(tx.clone()).await.unwrap();
-    }
-    select! {
-        _ = inclusion_stage.run() => {
-            // inclusion stage should process the txs
-        },
-        tx_received = finality_stage_receiver.recv() => {
-            let tx_received = tx_received.unwrap();
-            assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
-        },
-        _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-            panic!("Inclusion stage did not process the txs in time");
-        }
-    }
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
 
 #[tokio::test]
@@ -153,6 +124,72 @@ async fn test_inclusion_gas_spike() {
         .expect_get_block()
         .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
 
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_inclusion_gas_underpriced() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_finalized_block_number()
+        .returning(|_reorg_period| {
+            Ok(43) // Mocked block number
+        });
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| {
+            Ok(21000.into()) // Mocked gas limit
+        });
+
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
+
+    // return receipts without a block, to trigger tx submission
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| Ok(Some(mock_tx_receipt(None))));
+
+    // assert each expected price by mocking the `send` method of the provider
+    let mut send_call_counter = 0;
+    let elapsed = Instant::now();
+    let base_processing_delay = Duration::from_millis(15);
+    let inclusion_stage_processing_delay = Duration::from_millis(10);
+    let block_time_clone = block_time.clone();
+    mock_evm_provider.expect_send().returning(move |tx, _| {
+        send_call_counter += 1;
+        // assert the timing of resubmissions to make sure they don't happen more than once per block
+        assert_gas_prices_and_timings(
+            send_call_counter,
+            elapsed,
+            base_processing_delay,
+            inclusion_stage_processing_delay,
+            block_time_clone,
+            &tx,
+            // First submission, price is 200000 - the default fee used by the ethers estimation logic
+            // Second submission, price is 10% higher, even though the spike was smaller
+            // Third submission, price is 10% higher again, even though the spike was smaller
+            // Fourth submission, price matches the spike, because it was greater than 10%
+            vec![200000, 220000],
+        );
+        Err(ChainCommunicationError::CustomError(
+            "replacement transaction underpriced".to_string(),
+        ))
+    });
+
+    mock_evm_provider
+        .expect_get_block()
+        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
+
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
+}
+
+async fn run_and_expect_successful_inclusion(
+    mock_evm_provider: MockEvmProvider,
+    block_time: Duration,
+) {
     let signer = H160::random();
     let dispatcher_state =
         mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
@@ -389,7 +426,8 @@ fn assert_gas_prices_and_timings(
         + (inclusion_stage_processing_delay + block_time) * (nth_submission as u32);
     assert!(
         actual_elapsed < expected_elapsed,
-        "elapsed {:?} was not < blocktime {:?}",
+        "(submission {}) elapsed {:?} was not < expected {:?}",
+        nth_submission,
         actual_elapsed,
         expected_elapsed
     );

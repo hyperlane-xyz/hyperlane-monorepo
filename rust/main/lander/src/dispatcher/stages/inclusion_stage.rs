@@ -200,25 +200,8 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
-        // TODO: simulating the transaction is commented out for now, because
-        // on SVM the tx is simulated in the `submit` call.
-        // let simulation_success = call_until_success_or_nonretryable_error(
-        //     || state.adapter.simulate_tx(&tx),
-        //     "Simulating transaction",
-        //     state,
-        // )
-        // .await
-        // // if simulation fails or hits a non-retryable error, drop the tx
-        // .unwrap_or(false);
-        // if !simulation_success {
-        //     warn!(?tx, "Transaction simulation failed");
-        //     return Err(eyre!("Transaction simulation failed"));
-        // }
-        // info!(?tx, "Transaction simulation succeeded");
 
         // Estimating transaction just before we submit it
-        // TODO we will need to re-classify `ChainCommunicationError` into `LanderError::EstimateError` in the future.
-        // At the moment, both errors are non-retryable, so we can keep them as is.
         tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
