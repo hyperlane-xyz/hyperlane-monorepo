@@ -3,7 +3,6 @@
 use std::io::{Read, Write};
 
 use async_trait::async_trait;
-use ethers_core::k256::elliptic_curve::weierstrass::add;
 use ethers_core::types::Address;
 use futures_util::FutureExt;
 
@@ -48,13 +47,13 @@ pub trait NonceDb: Send + Sync {
     async fn retrieve_nonce_status_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
-        signer_address: &str,
+        signer_address: &Address,
     ) -> DbResult<Option<NonceStatus>>;
 
     async fn store_nonce_status_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
-        signer_address: &str,
+        signer_address: &Address,
         nonce_status: &NonceStatus,
     ) -> DbResult<()>;
 }
@@ -108,23 +107,23 @@ impl NonceDb for HyperlaneRocksDB {
     async fn retrieve_nonce_status_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
-        signer_address: &str,
+        signer_address: &Address,
     ) -> DbResult<Option<NonceStatus>> {
         self.retrieve_value_by_key(
             NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
-            &NonceAndSignerAddress(*nonce, signer_address.to_string()),
+            &NonceAndSignerAddress(*nonce, *signer_address),
         )
     }
 
     async fn store_nonce_status_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
-        signer_address: &str,
+        signer_address: &Address,
         nonce_status: &NonceStatus,
     ) -> DbResult<()> {
         self.store_value_by_key(
             NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
-            &NonceAndSignerAddress(*nonce, signer_address.to_string()),
+            &NonceAndSignerAddress(*nonce, *signer_address),
             nonce_status,
         )
     }
@@ -142,15 +141,19 @@ impl Encode for SignerAddress {
     }
 }
 
-struct NonceAndSignerAddress(U256, String);
+struct NonceAndSignerAddress(U256, Address);
 
 impl Encode for NonceAndSignerAddress {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: Write,
     {
-        let (nonce, signer_address) = (self.0, &self.1);
-        let vector = format!("{}:{}", nonce, signer_address).into_bytes();
-        writer.write(&vector)
+        use hyperlane_core::Encode;
+
+        let (nonce, address) = (self.0, SignerAddress(self.1));
+
+        let mut written = nonce.write_to(writer)?;
+        written += address.write_to(writer)?;
+        Ok(written)
     }
 }

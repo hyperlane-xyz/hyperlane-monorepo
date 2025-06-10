@@ -172,10 +172,7 @@ impl NonceManagerState {
         while next_nonce < upper_nonce {
             let nonce_status = self
                 .db
-                .retrieve_nonce_status_by_nonce_and_signer_address(
-                    &next_nonce,
-                    &self.address.to_string(),
-                )
+                .retrieve_nonce_status_by_nonce_and_signer_address(&next_nonce, &self.address)
                 .await
                 .expect("Failed to retrieve nonce status from the database");
 
@@ -199,7 +196,7 @@ impl NonceManagerState {
         self.db
             .store_nonce_status_by_nonce_and_signer_address(
                 &next_nonce,
-                &self.address.to_string(),
+                &self.address,
                 nonce_status,
             )
             .await
@@ -210,11 +207,7 @@ impl NonceManagerState {
 
     async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
         self.db
-            .store_nonce_status_by_nonce_and_signer_address(
-                &nonce,
-                &self.address.to_string(),
-                &nonce_status,
-            )
+            .store_nonce_status_by_nonce_and_signer_address(&nonce, &self.address, &nonce_status)
             .await
             .expect("Failed to store nonce status in the database");
 
@@ -247,7 +240,7 @@ impl NonceManagerState {
 
     async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
         self.db
-            .retrieve_nonce_status_by_nonce_and_signer_address(nonce, &self.address.to_string())
+            .retrieve_nonce_status_by_nonce_and_signer_address(nonce, &self.address)
             .await
             .expect("Failed to retrieve nonce status from the database")
     }
