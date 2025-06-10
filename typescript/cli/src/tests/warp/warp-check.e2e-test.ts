@@ -406,14 +406,20 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       const hookAddress = await mailboxInstance.callStatic.defaultHook();
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      writeYamlOrJson(
-        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-        warpConfig,
+      const warpDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(warpDeployPath, warpConfig);
+      writeYamlOrJson(warpDeployPath, warpConfig);
+
+      const currentWarpId = createWarpRouteConfigId(
+        await token.symbol(),
+        CHAIN_NAME_3,
       );
 
       const warpDeployConfig = warpConfig;
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
 
       const expectedOwner = (await signer.getAddress()).toLowerCase();
       warpDeployConfig[CHAIN_NAME_2].hook = {
@@ -423,7 +429,7 @@ describe('hyperlane warp check e2e tests', async function () {
         owner: expectedOwner,
       };
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
       const expectedActualText = `ACTUAL: ${HookType.MERKLE_TREE}\n`;
       const expectedDiffText = `EXPECTED: ${HookType.FALLBACK_ROUTING}`;
@@ -438,8 +444,7 @@ describe('hyperlane warp check e2e tests', async function () {
         beneficiary: "${expectedOwner}"`;
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId: currentWarpId,
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
