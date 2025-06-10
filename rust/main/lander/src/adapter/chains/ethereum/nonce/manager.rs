@@ -14,11 +14,13 @@ use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
 
 use super::super::transaction::Precursor;
+use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState, NonceStatus};
 use super::updater::NonceUpdater;
 
 pub struct NonceManager {
     pub address: Address,
+    pub db: Arc<dyn NonceDb>,
     pub state: Arc<NonceManagerState>,
     pub _nonce_updater: NonceUpdater,
 }
@@ -26,12 +28,14 @@ pub struct NonceManager {
 impl NonceManager {
     pub async fn new(
         chain_conf: &ChainConf,
+        db: Arc<HyperlaneRocksDB>,
         provider: Arc<dyn EvmProviderForLander>,
     ) -> eyre::Result<Self> {
         let address = Self::address(chain_conf).await?;
         let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
         let block_time = chain_conf.estimated_block_time;
 
+        let db = db as Arc<dyn NonceDb>;
         let state = Arc::new(NonceManagerState::new());
 
         let mut nonce_updater =
@@ -41,6 +45,7 @@ impl NonceManager {
 
         let manager = Self {
             address,
+            db,
             state,
             _nonce_updater: nonce_updater,
         };
@@ -76,11 +81,28 @@ impl NonceManager {
                 .await;
 
             if matches!(action, Noop) {
-                return Ok(());
+                let assigned_tx_uuid = self
+                    .db
+                    .retrieve_tx_uuid_by_nonce_and_signer_address(&nonce, &self.address.to_string())
+                    .await?;
+
+                if let Some(assigned_tx_uuid) = assigned_tx_uuid {
+                    if assigned_tx_uuid == tx_uuid {
+                        return Ok(());
+                    }
+                }
             }
         }
 
         let next_nonce = self.state.identify_next_nonce().await;
+
+        self.db
+            .store_tx_uuid_by_nonce_and_signer_address(
+                &next_nonce,
+                &self.address.to_string(),
+                &tx_uuid,
+            )
+            .await?;
 
         self.state
             .insert_nonce_status(next_nonce, nonce_status.clone())

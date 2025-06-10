@@ -129,7 +129,7 @@ async fn set_up_test_and_run_stage(
     Arc<dyn PayloadDb>,
     InclusionStagePool,
 ) {
-    let (payload_db, tx_db) = tmp_dbs();
+    let (payload_db, tx_db, _) = tmp_dbs();
     let (building_stage_sender, building_stage_receiver) = mpsc::channel(txs_to_process);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(txs_to_process);
 

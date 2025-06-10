@@ -35,7 +35,7 @@ mockall::mock! {
     }
 }
 
-pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>) {
+pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>, Arc<dyn NonceDb>) {
     let temp_dir = tempfile::tempdir().unwrap();
     let db = DB::from_path(temp_dir.path()).unwrap();
     let domain = KnownHyperlaneDomain::Arbitrum.into();
@@ -43,7 +43,8 @@ pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>) {
 
     let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
     let tx_db = rocksdb.clone() as Arc<dyn TransactionDb>;
-    (payload_db, tx_db)
+    let nonce_db = rocksdb.clone() as Arc<dyn NonceDb>;
+    (payload_db, tx_db, nonce_db)
 }
 
 pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) -> Transaction {
