@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::io::{Read, Write};
 
 use async_trait::async_trait;
