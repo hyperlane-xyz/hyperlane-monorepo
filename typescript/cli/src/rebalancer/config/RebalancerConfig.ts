@@ -14,7 +14,6 @@ import { readYamlOrJson } from '../../utils/files.js';
 export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
-    public readonly checkFrequency: number,
     public readonly coingeckoApiKey: string | undefined,
     public readonly rebalanceStrategy: RebalancerStrategyOptions,
     public readonly chains: ChainMap<RebalancerChainConfig>,
@@ -24,12 +23,7 @@ export class RebalancerConfig {
    * Loads config from a file
    * @param extraArgs Params to be provided along the config file (E.g. Params provided from cli args)
    */
-  static load(
-    configFilePath: string,
-    extraArgs: {
-      checkFrequency: number;
-    },
-  ) {
+  static load(configFilePath: string) {
     const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
     const validationResult = RebalancerConfigSchema.safeParse(config);
 
@@ -45,7 +39,6 @@ export class RebalancerConfig {
 
     return new RebalancerConfig(
       warpRouteId,
-      extraArgs.checkFrequency,
       ENV.COINGECKO_API_KEY,
       rebalanceStrategy,
       chains,

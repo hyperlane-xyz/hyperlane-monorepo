@@ -66,11 +66,6 @@ export class RebalancerRunner {
     context: WriteCommandContext,
   ): Promise<RebalancerRunner> {
     const { config, checkFrequency, withMetrics, monitorOnly, manual } = args;
-    // Load rebalancer config from disk
-    const rebalancerConfig = RebalancerConfig.load(config, {
-      checkFrequency,
-    });
-    logGreen('✅ Loaded rebalancer config');
 
     if (manual && monitorOnly) {
       throw new Error(
@@ -83,6 +78,10 @@ export class RebalancerRunner {
       manualArgs = this.validateManualArgs(args);
     }
 
+    // Load rebalancer config from disk
+    const rebalancerConfig = RebalancerConfig.load(config);
+    logGreen('✅ Loaded rebalancer config');
+
     // Instantiate the factory used to create the different rebalancer components
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
@@ -90,7 +89,7 @@ export class RebalancerRunner {
     );
 
     // Instantiates the monitor that will observe the warp route
-    const monitor = contextFactory.createMonitor();
+    const monitor = contextFactory.createMonitor(checkFrequency);
 
     // Instantiates the metrics that will publish stats from the monitored data
     const metrics = withMetrics

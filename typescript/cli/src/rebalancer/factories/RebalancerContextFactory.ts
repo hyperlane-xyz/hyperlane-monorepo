@@ -110,15 +110,15 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createMonitor(): Monitor {
+  public createMonitor(checkFrequency: number): Monitor {
     rebalancerLogger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        checkFrequency: this.config.checkFrequency,
+        checkFrequency: checkFrequency,
       },
       'Creating Monitor',
     );
-    return new Monitor(this.config.checkFrequency, this.warpCore);
+    return new Monitor(checkFrequency, this.warpCore);
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
