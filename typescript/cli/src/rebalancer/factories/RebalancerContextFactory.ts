@@ -94,16 +94,12 @@ export class RebalancerContextFactory {
       'Creating Metrics',
     );
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
-    const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
-      this.warpCore,
-    );
     const warpDeployConfig = await this.context.registry.getWarpDeployConfig(
       this.config.warpRouteId,
     );
 
     return new Metrics(
       tokenPriceGetter,
-      collateralTokenSymbol,
       warpDeployConfig,
       this.warpCore,
       this.config.warpRouteId,

@@ -48,14 +48,17 @@ export class Metrics implements IMetrics {
     'function XERC20() view returns (address)',
     'function ERC20() view returns (address)',
   ] as const;
+  private readonly collateralTokenSymbol: string;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
-    private readonly collateralTokenSymbol: string,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
     private readonly warpCore: WarpCore,
     private readonly warpRouteId: string,
   ) {
+    this.collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
+      warpCore.tokens,
+    );
     startMetricsServer(metricsRegister);
   }
 
@@ -502,7 +505,7 @@ export class Metrics implements IMetrics {
     };
   }
 
-  static getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
+  static getWarpRouteCollateralTokenSymbol(tokens: Token[]): string {
     // We need to have a deterministic way to determine the symbol of the warp route
     // as its used to identify the warp route in metrics. This method should support routes where:
     // - All tokens have the same symbol, token standards can be all collateral, all synthetic or a mix
@@ -510,15 +513,15 @@ export class Metrics implements IMetrics {
     // - All tokens have different symbol, but there is no collateral token to break the tie, pick the alphabetically first symbol
 
     // Get all unique symbols from the tokens array
-    const uniqueSymbols = new Set(warpCore.tokens.map((token) => token.symbol));
+    const uniqueSymbols = new Set(tokens.map((token) => token.symbol));
 
     // If all tokens have the same symbol, return that symbol
     if (uniqueSymbols.size === 1) {
-      return warpCore.tokens[0].symbol;
+      return tokens[0].symbol;
     }
 
     // Find all collateralized tokens
-    const collateralTokens = warpCore.tokens.filter(
+    const collateralTokens = tokens.filter(
       (token) =>
         token.isCollateralized() ||
         token.standard === TokenStandard.EvmHypXERC20Lockbox,
