@@ -78,15 +78,6 @@ export function getRenzoHook(params: {
   let routingHook: HookConfig;
   let protocolFeeHook: HookConfig;
 
-  // if (useLegacyHooks) {
-  //   // Currently, most of the Hook configs are using the default hook address and protocolFee config.
-  //   // This is here to allow for incremental rollout of the default hook config for other (PZETH, REZ) configs that depend on this Getter.
-  //   // TODO: Remove this when we replace all the default hook address with HookType.MAILBOX_DEFAULT
-  //   routingHook = defaultHook;
-  //   protocolFeeHook = objOmit(existingProtocolFee[origin], { address: true }) as HookConfig;
-  // } else {
-  // If origin is blast, use default hook (allows for outbound to all existing chains).
-  // If origin is other chains, use default hook to route to all existing destinations, except blast.
   routingHook =
     origin === 'blast'
       ? defaultHook
@@ -105,7 +96,6 @@ export function getRenzoHook(params: {
             ),
         };
   protocolFeeHook = existingProtocolFee[origin];
-  // }
 
   return {
     type: HookType.AGGREGATION,
