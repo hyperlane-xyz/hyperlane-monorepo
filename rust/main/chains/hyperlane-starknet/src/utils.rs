@@ -83,7 +83,7 @@ pub async fn build_single_owner_account(
 
     // fallback to the default signer, as the starknet SDK requires the SignleOwnerAccount
     // and therefore a signer to perform state queries
-    let signer = signer.unwrap_or_else(Signer::default);
+    let signer = signer.unwrap_or_default();
 
     let execution_encoding = if signer.is_legacy {
         starknet::accounts::ExecutionEncoding::Legacy
