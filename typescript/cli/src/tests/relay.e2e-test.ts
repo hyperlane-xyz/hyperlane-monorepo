@@ -1,3 +1,4 @@
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { TokenType } from '@hyperlane-xyz/sdk';
 
 import { writeYamlOrJson } from '../utils/files.js';
@@ -19,6 +20,7 @@ import {
 } from './commands/warp.js';
 
 const SYMBOL = 'ETH';
+const WARP_ID = createWarpRouteConfigId(SYMBOL, CHAIN_NAME_3);
 const WARP_DEPLOY_OUTPUT = `${REGISTRY_PATH}/deployments/warp_routes/${SYMBOL}/${CHAIN_NAME_3}-config.yaml`;
 
 describe('hyperlane relayer e2e tests', async function () {
@@ -43,7 +45,7 @@ describe('hyperlane relayer e2e tests', async function () {
 
     const warpConfigPath = `./${TEMP_PATH}/warp-route-config.yaml`;
     writeYamlOrJson(warpConfigPath, warpConfig);
-    await hyperlaneWarpDeploy(warpConfigPath);
+    await hyperlaneWarpDeploy(warpConfigPath, WARP_ID);
   });
 
   describe('relayer', () => {

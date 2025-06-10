@@ -97,7 +97,12 @@ describe('hyperlane warp check e2e tests', async function () {
       warpConfig,
     );
 
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    const currentWarpId = createWarpRouteConfigId(
+      await token.symbol(),
+      CHAIN_NAME_3,
+    );
+
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
 
     return warpConfig;
   }
