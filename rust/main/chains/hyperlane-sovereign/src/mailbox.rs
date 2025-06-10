@@ -161,9 +161,7 @@ impl Mailbox for SovereignMailbox {
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let delivered = self.provider.client().get_delivered_status(id).await?;
-
-        Ok(delivered)
+        self.provider.client().delivered(id).await
     }
 
     /// For now, there's no default ism in sov
