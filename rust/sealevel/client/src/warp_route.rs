@@ -35,9 +35,9 @@ use hyperlane_sealevel_token_lib::{
 use crate::{
     cmd_utils::account_exists,
     core::CoreProgramIds,
+    registry::ChainMetadata,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
-        RouterDeployer,
+        deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
@@ -154,7 +154,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 "warp-routes",
                 &deploy.warp_route_name,
                 deploy.token_config_file,
-                deploy.chain_config_file,
+                deploy.registry,
                 deploy.env_args.environments_dir,
                 &deploy.env_args.environment,
                 deploy.built_so_dir,
@@ -442,7 +442,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         _ctx: &mut Context,
         _app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        chain_configs: &HashMap<String, ChainMetadata>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
     ) {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
@@ -451,7 +451,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 let metadata_uri = match synthetic.uri.as_ref() {
                     Some(uri) => uri,
                     None => {
-                        if chain_configs
+                        if chain_metadatas
                             .get(*chain)
                             .unwrap()
                             .is_testnet
@@ -490,12 +490,12 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         ctx: &mut Context,
         app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        chain_configs: &HashMap<String, ChainMetadata>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
         routers: &HashMap<u32, H256>,
     ) {
         // Set gas amounts for each destination chain
         for chain_name in app_configs_to_deploy.keys() {
-            let chain_config = chain_configs
+            let chain_config = chain_metadatas
                 .get(*chain_name)
                 .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
@@ -512,7 +512,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 // filter out local chain
                 .filter(|(dest_chain_name, _)| dest_chain_name != chain_name)
                 .map(|(dest_chain_name, app_config)| {
-                    let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
+                    let domain = chain_metadatas.get(dest_chain_name).unwrap().domain_id();
                     (
                         domain,
                         GasRouterConfig {

@@ -11,7 +11,6 @@ use solana_program::instruction::Instruction;
 use solana_sdk::{
     account_utils::StateMut,
     bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    commitment_config::CommitmentConfig,
     pubkey::Pubkey,
 };
 
@@ -23,7 +22,9 @@ use crate::{
     adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
     cmd_utils::{create_new_directory, deploy_program},
-    read_core_program_ids, warp_route, Context, CoreProgramIds,
+    read_core_program_ids,
+    registry::{ChainMetadata, FileSystemRegistry},
+    warp_route, Context, CoreProgramIds,
 };
 
 /// Optional connection client configuration.
@@ -106,48 +107,6 @@ pub struct RouterConfig {
     pub connection_client: OptionalConnectionClientConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RpcUrlConfig {
-    pub http: String,
-}
-
-/// An abridged version of the Typescript ChainMetadata
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ChainMetadata {
-    // Can be a string or a number
-    chain_id: serde_json::Value,
-    /// Hyperlane domain, only required if differs from id above
-    domain_id: Option<u32>,
-    name: String,
-    /// Collection of RPC endpoints
-    rpc_urls: Vec<RpcUrlConfig>,
-    pub is_testnet: Option<bool>,
-}
-
-impl ChainMetadata {
-    pub fn client(&self) -> RpcClient {
-        RpcClient::new_with_commitment(self.rpc_urls[0].http.clone(), CommitmentConfig::confirmed())
-    }
-
-    pub fn domain_id(&self) -> u32 {
-        self.domain_id.unwrap_or_else(|| {
-            // Try to parse as a number, otherwise panic, as the domain ID must
-            // be specified if the chain id is not a number.
-            self.chain_id
-                .as_u64()
-                .and_then(|v| v.try_into().ok())
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Unable to get domain ID for chain {:?}: domain_id is undefined and could not fall back to chain_id {:?}",
-                        self.name, self.chain_id
-                    )
-                })
-        })
-    }
-}
-
 pub trait RouterConfigGetter {
     fn router_config(&self) -> &RouterConfig;
 }
@@ -226,7 +185,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         _ctx: &mut Context,
         _app_configs: &HashMap<String, Config>,
         _app_configs_to_deploy: &HashMap<&String, &Config>,
-        _chain_configs: &HashMap<String, ChainMetadata>,
+        _chain_metadatas: &HashMap<String, ChainMetadata>,
     ) {
         // By default, do nothing.
     }
@@ -246,7 +205,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         _ctx: &mut Context,
         _app_configs: &HashMap<String, Config>,
         _app_configs_to_deploy: &HashMap<&String, &Config>,
-        _chain_configs: &HashMap<String, ChainMetadata>,
+        _chain_metadatas: &HashMap<String, ChainMetadata>,
         _routers: &HashMap<u32, H256>,
     ) {
         // By default, do nothing.
@@ -323,7 +282,7 @@ pub(crate) fn deploy_routers<
     app_name: &str,
     deploy_name: &str,
     app_config_file_path: PathBuf,
-    chain_config_file_path: PathBuf,
+    registry_path: PathBuf,
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
@@ -333,9 +292,8 @@ pub(crate) fn deploy_routers<
     let app_configs: HashMap<String, Config> = serde_json::from_reader(app_config_file).unwrap();
 
     // Load the chain configs from the chain config file.
-    let chain_config_file = File::open(chain_config_file_path).unwrap();
-    let chain_configs: HashMap<String, ChainMetadata> =
-        serde_json::from_reader(chain_config_file).unwrap();
+    let registry = FileSystemRegistry::new(registry_path);
+    let chain_metadatas: HashMap<String, ChainMetadata> = registry.get_metadata();
 
     let environments_dir = create_new_directory(&environments_dir_path, environment);
 
@@ -356,7 +314,7 @@ pub(crate) fn deploy_routers<
                 .foreign_deployment
                 .as_ref()
                 .map(|foreign_deployment| {
-                    let chain_config = chain_configs.get(chain_name).unwrap();
+                    let chain_config = chain_metadatas.get(chain_name).unwrap();
                     (
                         chain_config.domain_id(),
                         hex_or_base58_to_h256(foreign_deployment).unwrap(),
@@ -376,14 +334,14 @@ pub(crate) fn deploy_routers<
 
     // Verify the configuration.
     println!("Verifying configuration...");
-    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_configs);
+    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_metadatas);
     println!("Configuration successfully verified!");
 
     warp_route::install_spl_token_cli();
 
     // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
-        let chain_config = chain_configs
+        let chain_config = chain_metadatas
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
@@ -431,7 +389,7 @@ pub(crate) fn deploy_routers<
         &deployer,
         ctx,
         &app_configs_to_deploy,
-        &chain_configs,
+        &chain_metadatas,
         &routers,
     );
 
@@ -440,7 +398,7 @@ pub(crate) fn deploy_routers<
         ctx,
         &app_configs,
         &app_configs_to_deploy,
-        &chain_configs,
+        &chain_metadatas,
         &routers,
     );
 
@@ -449,7 +407,7 @@ pub(crate) fn deploy_routers<
         .iter()
         .map(|(domain_id, router)| {
             (
-                chain_configs
+                chain_metadatas
                     .iter()
                     .find(|(_, chain_config)| chain_config.domain_id() == *domain_id)
                     .unwrap()
@@ -694,12 +652,12 @@ fn enroll_all_remote_routers<
     deployer: &impl RouterDeployer<Config>,
     ctx: &mut Context,
     app_configs_to_deploy: &HashMap<&String, &Config>,
-    chain_configs: &HashMap<String, ChainMetadata>,
+    chain_metadatas: &HashMap<String, ChainMetadata>,
     routers: &HashMap<u32, H256>,
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
-        let chain_config = chain_configs
+        let chain_config = chain_metadatas
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
         let client = chain_config.client();

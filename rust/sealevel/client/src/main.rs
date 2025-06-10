@@ -68,6 +68,7 @@ mod r#core;
 mod helloworld;
 mod igp;
 mod multisig_ism;
+mod registry;
 mod router;
 mod serde;
 mod squads;
@@ -149,7 +150,7 @@ pub(crate) struct WarpRouteDeploy {
     #[arg(long)]
     token_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
 }
@@ -559,7 +560,7 @@ struct ConfigureIgpArgs {
     #[arg(long)]
     gas_oracle_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     account_salt: Option<H256>,
 }
@@ -633,7 +634,7 @@ struct MultisigIsmMessageIdDeploy {
     #[arg(long)]
     context: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
 }
 
 #[derive(Args)]
@@ -643,7 +644,7 @@ struct MultisigIsmMessageIdConfigure {
     #[arg(long)]
     multisig_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
 }
 
 #[derive(Args)]
@@ -693,7 +694,7 @@ pub(crate) struct HelloWorldDeploy {
     #[arg(long)]
     config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     context: String,
 }

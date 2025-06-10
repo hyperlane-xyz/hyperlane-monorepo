@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use account_utils::DiscriminatorDecode;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -12,7 +12,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{read_core_program_ids, router::ChainMetadata, Context, EnvironmentArgs};
+use crate::{read_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs};
 
 const COMPUTE_BUDGET_PROGRAM_ID: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID: Pubkey =
@@ -90,7 +90,7 @@ pub(crate) struct SquadsVerifyCmd {
     #[command(flatten)]
     env_args: EnvironmentArgs,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     /// The path to the squads file to verify
     #[arg(long, short)]
     tx_pubkeys: Vec<Pubkey>,
@@ -101,11 +101,10 @@ pub(crate) struct SquadsVerifyCmd {
 pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
     match cmd.cmd {
         SquadsSubCmd::Verify(verify) => {
-            let chain_config_file = File::open(verify.chain_config_file).unwrap();
-            let chain_configs: HashMap<String, ChainMetadata> =
-                serde_json::from_reader(chain_config_file).unwrap();
+            let registry = FileSystemRegistry::new(verify.registry.to_path_buf());
+            let chain_metadatas = registry.get_metadata();
 
-            let chain_config = chain_configs
+            let chain_config = chain_metadatas
                 .get(&verify.chain)
                 .expect("No chain config found");
 
