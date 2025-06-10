@@ -20,6 +20,7 @@
     "decimals": 9,
     "name": "Kyros Restaked SOL",
     "symbol": "kySOL",
+    "owner": "FjGBLihcrp1zy2TgAeg9PdXsvBAueyAkg9oQhYCJ3QKF",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/995e74502e0c582ed0990bcb437459e01cc9bcc3/deployments/warp_routes/kySOL/metadata.json",
     "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
   }
