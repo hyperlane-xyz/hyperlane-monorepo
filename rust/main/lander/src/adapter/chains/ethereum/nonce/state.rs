@@ -7,6 +7,7 @@ use futures_util::FutureExt;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{error, warn};
 
+use hyperlane_base::db::DbError;
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
 use crate::transaction::{Transaction, TransactionUuid};
@@ -14,6 +15,7 @@ use crate::TransactionStatus;
 
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
+use super::error::{NonceError, NonceResult};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(crate) enum NonceStatus {
@@ -41,39 +43,42 @@ impl NonceManagerState {
         Self { db, address }
     }
 
-    pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) {
+    pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) -> NonceResult<()> {
         self.db
             .store_lowest_available_nonce_by_signer_address(&self.address, nonce)
-            .await
-            .expect("Failed to store lowest nonce in the database");
+            .await?;
 
         let upper_nonce = self
             .db
             .retrieve_upper_nonce_by_signer_address(&self.address)
-            .await
-            .expect("Failed to retrieve upper nonce from the database")
+            .await?
             .unwrap_or_default();
 
         if nonce > &upper_nonce {
             self.db
                 .store_upper_nonce_by_signer_address(&self.address, nonce)
-                .await
-                .expect("Failed to store upper nonce in the database");
+                .await?;
         }
+
+        Ok(())
     }
 
-    pub(crate) async fn update_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
+    pub(crate) async fn update_nonce_status(
+        &self,
+        nonce: U256,
+        nonce_status: NonceStatus,
+    ) -> NonceResult<()> {
         use NonceStatus::{Committed, Freed, Taken};
 
-        let Some(tracked_nonce_status) = self.get_nonce_status(&nonce).await else {
+        let Some(tracked_nonce_status) = self.get_nonce_status(&nonce).await? else {
             // If the nonce is not tracked, we insert it with the new status.
-            self.insert_nonce_status(nonce, nonce_status).await;
-            return;
+            self.insert_nonce_status(nonce, nonce_status).await?;
+            return Ok(());
         };
 
         if tracked_nonce_status == nonce_status {
             // If the nonce status is the same as the tracked one, we do nothing.
-            return;
+            return Ok(());
         }
 
         let tracked_tx_uuid = match &tracked_nonce_status {
@@ -81,8 +86,8 @@ impl NonceManagerState {
             Freed(_) => {
                 // If the tracked nonce status is Freed, and it differs from the nonce status,
                 // we track nonce as assigned to the given transaction.
-                self.insert_nonce_status(nonce, nonce_status).await;
-                return;
+                self.insert_nonce_status(nonce, nonce_status).await?;
+                return Ok(());
             }
         };
 
@@ -92,8 +97,8 @@ impl NonceManagerState {
 
         if tracked_tx_uuid == tx_uuid {
             // If the nonce is assigned to the same transaction, we update the status.
-            self.insert_nonce_status(nonce, nonce_status).await;
-            return;
+            self.insert_nonce_status(nonce, nonce_status).await?;
+            return Ok(());
         }
 
         // If the nonce is assigned to a different transaction, we log an error.
@@ -104,13 +109,19 @@ impl NonceManagerState {
             ?tracked_nonce_status,
             "Same nonce was assigned to multiple transactions"
         );
+
+        Err(NonceError::NonceAssignedToMultipleTransactions(
+            nonce,
+            tracked_tx_uuid.clone(),
+            tx_uuid.clone(),
+        ))
     }
 
     pub(crate) async fn validate_assigned_nonce(
         &self,
         nonce: &U256,
         nonce_status: &NonceStatus,
-    ) -> NonceAction {
+    ) -> NonceResult<NonceAction> {
         use NonceAction::{Assign, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
@@ -120,13 +131,14 @@ impl NonceManagerState {
         };
 
         // Fetching the tracked nonce status and the lowest nonce.
-        let (tracked_nonce_status, lowest_nonce) =
-            self.get_nonce_status_and_lowest_nonce(&nonce.into()).await;
+        let (tracked_nonce_status, lowest_nonce) = self
+            .get_nonce_status_and_lowest_nonce(&nonce.into())
+            .await?;
 
         let Some(tracked_nonce_status) = tracked_nonce_status else {
             // If the nonce currently assigned to the transaction is not tracked,
             // we should assign the new nonce.
-            return Assign;
+            return Ok(Assign);
         };
 
         // Getting the transaction UUID from the tracked nonce status.
@@ -137,7 +149,7 @@ impl NonceManagerState {
         if tracked_tx_uuid != tx_uuid {
             // If the tracked nonce is assigned to a different transaction,
             // we should assign the new nonce.
-            return Assign;
+            return Ok(Assign);
         }
 
         match nonce_status {
@@ -145,25 +157,25 @@ impl NonceManagerState {
                 // If the nonce which is currently assigned to the transaction, is Freed,
                 // then the transaction was dropped, and we need to submit the transaction again.
                 // We should assign the new nonce.
-                Assign
+                Ok(Assign)
             }
             Taken(_) if nonce < &lowest_nonce => {
                 // If the nonce is taken, but it is below the lowest nonce,
                 // it means that the current nonce is outdated.
                 // We should assign the new nonce.
-                Assign
+                Ok(Assign)
             }
             Taken(_) | Committed(_) => {
                 // If the nonce is taken or committed, we don't need to do anything.
-                Noop
+                Ok(Noop)
             }
         }
     }
 
-    pub(crate) async fn assign_next_nonce(&self, nonce_status: &NonceStatus) -> U256 {
+    pub(crate) async fn assign_next_nonce(&self, nonce_status: &NonceStatus) -> NonceResult<U256> {
         use NonceStatus::{Committed, Freed};
 
-        let (lowest_nonce, upper_nonce) = self.get_boundary_nonces().await;
+        let (lowest_nonce, upper_nonce) = self.get_boundary_nonces().await?;
 
         let mut next_nonce = lowest_nonce;
 
@@ -171,8 +183,7 @@ impl NonceManagerState {
             let nonce_status = self
                 .db
                 .retrieve_nonce_status_by_nonce_and_signer_address(&next_nonce, &self.address)
-                .await
-                .expect("Failed to retrieve nonce status from the database");
+                .await?;
 
             if nonce_status.is_none() || matches!(nonce_status.unwrap(), Freed(_)) {
                 // If the nonce is not tracked or is Freed, we can use it.
@@ -186,8 +197,7 @@ impl NonceManagerState {
             // If we reached the upper nonce, we need to update it.
             self.db
                 .store_upper_nonce_by_signer_address(&self.address, &(next_nonce + 1))
-                .await
-                .expect("Failed to store upper nonce in the database");
+                .await?;
         }
 
         // Store the nonce status in the database.
@@ -197,66 +207,73 @@ impl NonceManagerState {
                 &self.address,
                 nonce_status,
             )
-            .await
-            .expect("Failed to store nonce status in the database");
+            .await?;
 
-        next_nonce
+        Ok(next_nonce)
     }
 
-    async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
+    async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) -> NonceResult<()> {
         self.db
             .store_nonce_status_by_nonce_and_signer_address(&nonce, &self.address, &nonce_status)
-            .await
-            .expect("Failed to store nonce status in the database");
+            .await?;
 
         let upper_nonce = self
             .db
             .retrieve_upper_nonce_by_signer_address(&self.address)
-            .await
-            .expect("Failed to retrieve upper nonce from the database")
+            .await?
             .unwrap_or_default();
 
         if nonce >= upper_nonce {
             self.db
                 .store_upper_nonce_by_signer_address(&self.address, &(nonce + 1))
-                .await
-                .expect("Failed to store upper nonce in the database");
+                .await?;
         }
+
+        Ok(())
     }
 
-    async fn get_nonce_status_and_lowest_nonce(&self, nonce: &U256) -> (Option<NonceStatus>, U256) {
-        let nonce_status = self.get_nonce_status(nonce).await;
-        let lowest_nonce = self.get_lowest_nonce().await;
-        (nonce_status, lowest_nonce)
+    async fn get_nonce_status_and_lowest_nonce(
+        &self,
+        nonce: &U256,
+    ) -> NonceResult<(Option<NonceStatus>, U256)> {
+        let nonce_status = self.get_nonce_status(nonce).await?;
+        let lowest_nonce = self.get_lowest_nonce().await?;
+        Ok((nonce_status, lowest_nonce))
     }
 
-    async fn get_boundary_nonces(&self) -> (U256, U256) {
-        let lowest_nonce = self.get_lowest_nonce().await;
-        let upper_nonce = self.get_upper_nonce().await;
-        (lowest_nonce, upper_nonce)
+    async fn get_boundary_nonces(&self) -> NonceResult<(U256, U256)> {
+        let lowest_nonce = self.get_lowest_nonce().await?;
+        let upper_nonce = self.get_upper_nonce().await?;
+        Ok((lowest_nonce, upper_nonce))
     }
 
-    async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
-        self.db
+    async fn get_nonce_status(&self, nonce: &U256) -> NonceResult<Option<NonceStatus>> {
+        let nonce_status = self
+            .db
             .retrieve_nonce_status_by_nonce_and_signer_address(nonce, &self.address)
-            .await
-            .expect("Failed to retrieve nonce status from the database")
+            .await?;
+
+        Ok(nonce_status)
     }
 
-    async fn get_lowest_nonce(&self) -> U256 {
-        self.db
+    async fn get_lowest_nonce(&self) -> NonceResult<U256> {
+        let nonce = self
+            .db
             .retrieve_lowest_available_nonce_by_signer_address(&self.address)
-            .await
-            .expect("Failed to retrieve lowest nonce from the database")
-            .unwrap_or_default()
+            .await?
+            .unwrap_or_default();
+
+        Ok(nonce)
     }
 
-    async fn get_upper_nonce(&self) -> U256 {
-        self.db
+    async fn get_upper_nonce(&self) -> NonceResult<U256> {
+        let nonce = self
+            .db
             .retrieve_upper_nonce_by_signer_address(&self.address)
-            .await
-            .expect("Failed to retrieve upper nonce from the database")
-            .unwrap_or_default()
+            .await?
+            .unwrap_or_default();
+
+        Ok(nonce)
     }
 }
 

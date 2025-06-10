@@ -3,10 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ethers_core::types::Address;
-
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
-use tracing::{info_span, Instrument};
+use tracing::{error, info, info_span, Instrument};
 
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
@@ -52,7 +51,9 @@ impl NonceUpdater {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
+                    info!(?address, "Started nonce updater for address");
                     Self::update(address, reorg_period, block_time, provider, state).await;
+                    info!(?address, "Finished nonce updater for address");
                 }
                 .instrument(info_span!("NonceManagerFinalizedNonceUpdater")),
             ))
@@ -95,7 +96,15 @@ impl NonceUpdater {
             .await;
 
         if let Ok(next_nonce) = next_nonce {
-            state.update_boundary_nonces(&next_nonce).await;
+            let update_boundary_nonces_result = state.update_boundary_nonces(&next_nonce).await;
+            if let Err(e) = update_boundary_nonces_result {
+                error!("Failed to update boundary nonces: {:?}", e);
+            }
+        } else {
+            error!(
+                "Failed to get next nonce on finalized block: {:?}",
+                next_nonce
+            );
         }
     }
 }

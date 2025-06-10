@@ -50,7 +50,7 @@ impl NonceManager {
         Ok(manager)
     }
 
-    pub(crate) async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    pub(crate) async fn assign_nonce(&self, tx: &mut Transaction) -> eyre::Result<(), LanderError> {
         use NonceAction::{Assign, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
@@ -75,14 +75,25 @@ impl NonceManager {
             let action = self
                 .state
                 .validate_assigned_nonce(&nonce, &nonce_status)
-                .await;
+                .await
+                .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
             if matches!(action, Noop) {
                 return Ok(());
             }
         }
 
-        let next_nonce = self.state.assign_next_nonce(&nonce_status).await;
+        let next_nonce = self
+            .state
+            .assign_next_nonce(&nonce_status)
+            .await
+            .map_err(|e| {
+                eyre::eyre!(
+                    "Failed to assign next nonce for transaction {}: {}",
+                    tx_uuid,
+                    e
+                )
+            })?;
 
         precursor.tx.set_nonce(next_nonce);
 
@@ -102,17 +113,20 @@ impl NonceManager {
         &self,
         tx: &Transaction,
         tx_status: &TransactionStatus,
-    ) {
+    ) -> eyre::Result<()> {
         let tx_uuid = &tx.uuid;
         let precursor = tx.precursor();
 
         let Some(nonce) = precursor.tx.nonce().map(Into::into) else {
-            return;
+            return Ok(());
         };
 
         let nonce_status = Self::calculate_nonce_status(tx_uuid.clone(), tx_status);
 
-        self.state.update_nonce_status(nonce, nonce_status).await;
+        self.state
+            .update_nonce_status(nonce, nonce_status)
+            .await
+            .map_err(|e| eyre::eyre!("Failed to update nonce status: {}", e))
     }
 
     fn calculate_nonce_status(

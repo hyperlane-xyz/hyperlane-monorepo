@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use futures_util::future::join_all;
 use tokio::sync::mpsc::error::SendError;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 
 use hyperlane_core::{H256, H512, U256};
@@ -53,8 +53,13 @@ pub trait AdaptsChain: Send + Sync {
 
     async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, LanderError>;
 
-    async fn on_tx_status(&self, _tx: &Transaction, _tx_status: &TransactionStatus) {
+    async fn on_tx_status(
+        &self,
+        _tx: &Transaction,
+        _tx_status: &TransactionStatus,
+    ) -> Result<(), LanderError> {
         // Default implementation does nothing.
+        Ok(())
     }
 
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
@@ -75,7 +80,7 @@ pub trait AdaptsChain: Send + Sync {
         let hash_status_results = join_all(hash_status_futures).await;
         let status = TransactionStatus::classify_tx_status_from_hash_statuses(hash_status_results);
 
-        self.on_tx_status(tx, &status).await;
+        self.on_tx_status(tx, &status).await?;
 
         Ok(status)
     }
