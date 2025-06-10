@@ -38,6 +38,9 @@ export const chainsToSkip: ChainName[] = [
 
   // Oct 16 batch
   'lumia',
+
+  // Removal TBD
+  'arthera',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
