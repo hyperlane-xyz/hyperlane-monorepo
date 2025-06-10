@@ -4,9 +4,9 @@ import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import { ezEthStagingSafes } from './getRenzoEZETHSTAGEWarpConfig.js';
 import {
+  ezEthProdExistingProtocolFeeAddresses,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 import { pzEthChainsToDeploy } from './getRenzoPZETHWarpConfig.js';
 
@@ -21,8 +21,8 @@ const pzEthStagingAddresses = {
 
 const pzEthStagingValidators = pick(ezEthValidators, pzEthChainsToDeploy);
 const pzEthStagingSafes = pick(ezEthStagingSafes, pzEthChainsToDeploy);
-export const pzEthStagingTokenPrices = pick(
-  renzoTokenPrices,
+export const pzEthProtocolFee = pick(
+  ezEthProdExistingProtocolFeeAddresses,
   pzEthChainsToDeploy,
 );
 
@@ -32,8 +32,8 @@ export const getRenzoPZETHStagingWarpConfig = getRenzoWarpConfigGenerator({
   safes: pzEthStagingSafes,
   xERC20Addresses: pzEthStagingAddresses,
   xERC20Lockbox: pzEthStagingLockbox,
-  tokenPrices: pzEthStagingTokenPrices,
-  useLegacyRoutingHook: true,
+  existingProtocolFee: pzEthProtocolFee,
+  useLegacyHooks: true,
 });
 
 export const getPZETHSTAGEGnosisSafeBuilderStrategyConfig =

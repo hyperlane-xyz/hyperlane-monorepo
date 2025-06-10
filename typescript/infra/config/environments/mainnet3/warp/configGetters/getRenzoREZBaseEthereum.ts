@@ -1,10 +1,10 @@
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
+  ezEthProdExistingProtocolFeeAddresses,
   ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
 export const rezEthChainsToDeploy = ['ethereum', 'base', 'unichain'];
@@ -17,7 +17,10 @@ const rezEthAddresses = {
 
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
 const rezEthSafes = pick(ezEthSafes, rezEthChainsToDeploy);
-const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
+const rezExistingProtocolFee = pick(
+  ezEthProdExistingProtocolFeeAddresses,
+  rezEthChainsToDeploy,
+);
 
 export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
@@ -25,6 +28,5 @@ export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   safes: rezEthSafes,
   xERC20Addresses: rezEthAddresses,
   xERC20Lockbox: rezProductionLockbox,
-  tokenPrices: rezEthTokenPrices,
-  useLegacyRoutingHook: true,
+  existingProtocolFee: rezExistingProtocolFee,
 });

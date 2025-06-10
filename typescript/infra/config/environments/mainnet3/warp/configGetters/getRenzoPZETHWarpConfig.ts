@@ -2,10 +2,10 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
+  ezEthProdExistingProtocolFeeAddresses,
   ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
 const pzEthProductionLockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
@@ -27,7 +27,10 @@ export const pzEthChainsToDeploy = [
 
 const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
 const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
-export const pzEthTokenPrices = pick(renzoTokenPrices, pzEthChainsToDeploy);
+export const pzEthExistingProtocolFee = pick(
+  ezEthProdExistingProtocolFeeAddresses,
+  pzEthChainsToDeploy,
+);
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   ethereum: {
     address: '0x4f4671Ce69c9af15e33eB7Cf6D1358d1B39Af3bF',
@@ -45,7 +48,7 @@ export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   safes: pzEthSafes,
   xERC20Addresses: pzEthAddresses,
   xERC20Lockbox: pzEthProductionLockbox,
-  tokenPrices: pzEthTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
-  useLegacyRoutingHook: true,
+  existingProtocolFee: pzEthExistingProtocolFee,
+  useLegacyHooks: true,
 });

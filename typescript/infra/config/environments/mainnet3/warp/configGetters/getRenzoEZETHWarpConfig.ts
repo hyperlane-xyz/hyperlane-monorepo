@@ -5,16 +5,26 @@ import {
   AggregationIsmConfig,
   ChainMap,
   ChainName,
+  EvmHookModule,
+  EvmHookReader,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmType,
+  MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
   TokenType,
   buildAggregationIsmConfigs,
+  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  assert,
+  objOmit,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
@@ -40,132 +50,66 @@ export const ezEthChainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-// Used to stabilize the protocolFee of ProtocolHook such that we don't get diffs every time tokenPrices.json is updated
-export const renzoTokenPrices: ChainMap<string> = {
-  arbitrum: '3157.26',
-  optimism: '3157.26',
-  base: '3157.26',
-  blast: '3157.26',
-  bsc: '673.59',
-  mode: '3157.26',
-  linea: '3157.26',
-  ethereum: '3157.26',
-  fraxtal: '3168.75',
-  zircuit: '3157.26',
-  taiko: '3157.26',
-  sei: '0.354988',
-  swell: '3157.26',
-  unichain: '2602.66',
-  berachain: '10',
-  worldchain: '1599.53',
-};
-export function getProtocolFee(chain: ChainName) {
-  const price = renzoTokenPrices[chain];
-  assert(price, `No price for chain ${chain}`);
-  return (0.5 / Number(price)).toFixed(10).toString(); // ~$0.50 USD
+export async function getRenzoLegacyHook(params: {
+  multiProvider: MultiProvider;
+  chain: ChainName;
+  defaultHook: Address;
+  existingProtocolFee: ChainMap<Address>;
+}): Promise<HookConfig> {
+  const { multiProvider, chain, defaultHook, existingProtocolFee } = params;
+  const hookReader = new EvmHookReader(multiProvider, chain);
+  const { address, ...hookConfig } =
+    await hookReader.deriveHookConfigFromAddress(existingProtocolFee[chain]);
+  return {
+    type: HookType.AGGREGATION,
+    hooks: [defaultHook, hookConfig],
+  };
 }
-
-// Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
-const chainProtocolFee: ChainMap<string> = {
-  arbitrum: '400000000000000',
-  base: '400000000000000',
-  blast: '129871800000000',
-  bsc: '1400000000000000',
-  ethereum: '400000000000000',
-  fraxtal: '400000000000000',
-  linea: '400000000000000',
-  mode: '400000000000000',
-  optimism: '400000000000000',
-  sei: '798889224400000000',
-  swell: '129871800000000',
-  taiko: '400000000000000',
-  unichain: '400000000000000',
-  worldchain: '400000000000000',
-  zircuit: '400000000000000',
-};
-
-const ezEthProdExistingProtocolFee = {
-  arbitrum: '0x592cd754B947396255E50Cac10c519c7ee313919',
-  base: '0xFA6A5Ab6a77dDdf2936b538Fdc39DAe314Cc5500',
-  berachain: '0x96003848cfc3C236d70661aF4722F404435a526d',
-  blast: '0x68a3963D2fE3427cfD044806B40AF41feCaae845',
-  bsc: '0x18431F422A9f32967054689673b7e1731Da233A7',
-  ethereum: '0x16198AD900a78360387CC2c5aCEaF21665508001',
-  fraxtal: '0xc2100BBF930f3A61c36d58c59453B422B929d2E8',
-  linea: '0xa2fd91b39926daBB5009C5e4ee237c1C0b677bCe',
-  mode: '0xD3378b419feae4e3A4Bb4f3349DBa43a1B511760',
-  optimism: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
-  sei: '0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49',
-  swell: '0x1604d2D3DaFba7D302F86BD7e79B3931414E4625',
-  taiko: '0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7',
-  unichain: '0x674f4698d063cE4C0d604c88dD7D542De72f327f',
-  worldchain: '0x4019404611325b06eC133bdf6907583E162D508c',
-  zircuit: '0x9dE36D2d60a81FaFDDC888595C822f9085B2cFB5',
-};
-
 export function getRenzoHook(params: {
   defaultHook: Address;
   origin: ChainName;
   destinationChains: ChainName[];
   owner: Address;
-  useLegacyRoutingHook: boolean;
+  existingProtocolFee: ChainMap<Address>;
 }): HookConfig {
-  const {
-    defaultHook,
-    origin,
-    destinationChains,
-    owner,
-    useLegacyRoutingHook,
-  } = params;
+  const { defaultHook, origin, destinationChains, owner, existingProtocolFee } =
+    params;
 
   let routingHook: HookConfig;
+  let protocolFeeHook: HookConfig;
 
-  if (useLegacyRoutingHook) {
-    // Currently, most of the Hook configs are using the default hook address.
-    // This is here to allow for incremental rollout of the default hook config for other (PZETH, REZ) configs that depend on this Getter.
-    // TODO: Remove this when we replace all the default hook address with HookType.MAILBOX_DEFAULT
-    routingHook = defaultHook;
-  } else {
-    // If origin is blast, use default hook (allows for outbound to all existing chains).
-    // If origin is other chains, use default hook to route to all existing destinations, except blast.
-    routingHook =
-      origin === 'blast'
-        ? {
-            type: HookType.MAILBOX_DEFAULT,
-          }
-        : {
-            type: HookType.ROUTING,
-            owner: owner,
-            domains: destinationChains
-              .filter((c) => c !== origin)
-              .filter((c) => c !== 'blast')
-              .reduce(
-                (acc, destination) => {
-                  acc[destination] = defaultHook;
-                  return acc;
-                },
-                {} as Record<ChainName, Address>,
-              ),
-          };
-  }
+  // if (useLegacyHooks) {
+  //   // Currently, most of the Hook configs are using the default hook address and protocolFee config.
+  //   // This is here to allow for incremental rollout of the default hook config for other (PZETH, REZ) configs that depend on this Getter.
+  //   // TODO: Remove this when we replace all the default hook address with HookType.MAILBOX_DEFAULT
+  //   routingHook = defaultHook;
+  //   protocolFeeHook = objOmit(existingProtocolFee[origin], { address: true }) as HookConfig;
+  // } else {
+  // If origin is blast, use default hook (allows for outbound to all existing chains).
+  // If origin is other chains, use default hook to route to all existing destinations, except blast.
+  routingHook =
+    origin === 'blast'
+      ? defaultHook
+      : {
+          type: HookType.ROUTING,
+          owner: owner,
+          domains: destinationChains
+            .filter((c) => c !== origin)
+            .filter((c) => c !== 'blast')
+            .reduce(
+              (acc, destination) => {
+                acc[destination] = defaultHook;
+                return acc;
+              },
+              {} as Record<ChainName, Address>,
+            ),
+        };
+  protocolFeeHook = existingProtocolFee[origin];
+  // }
 
   return {
     type: HookType.AGGREGATION,
-    hooks: [
-      routingHook,
-      // Protocol Fee Hook
-      {
-        type: HookType.PROTOCOL_FEE,
-        owner: owner,
-        beneficiary: owner,
-
-        // Use hardcoded, actual onchain fees, or fallback to fee calculation
-        protocolFee:
-          chainProtocolFee[origin] ??
-          parseEther(getProtocolFee(origin)).toString(),
-        maxProtocolFee: MAX_PROTOCOL_FEE,
-      },
-    ],
+    hooks: [routingHook, protocolFeeHook],
   };
 }
 
@@ -460,6 +404,24 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
     owner: ezEthSafes.taiko,
   },
 };
+export const ezEthProdExistingProtocolFeeAddresses = {
+  arbitrum: '0x592cd754B947396255E50Cac10c519c7ee313919',
+  base: '0xFA6A5Ab6a77dDdf2936b538Fdc39DAe314Cc5500',
+  berachain: '0x96003848cfc3C236d70661aF4722F404435a526d',
+  blast: '0x68a3963D2fE3427cfD044806B40AF41feCaae845',
+  bsc: '0x18431F422A9f32967054689673b7e1731Da233A7',
+  ethereum: '0x16198AD900a78360387CC2c5aCEaF21665508001',
+  fraxtal: '0xc2100BBF930f3A61c36d58c59453B422B929d2E8',
+  linea: '0xa2fd91b39926daBB5009C5e4ee237c1C0b677bCe',
+  mode: '0xD3378b419feae4e3A4Bb4f3349DBa43a1B511760',
+  optimism: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
+  sei: '0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49',
+  swell: '0x1604d2D3DaFba7D302F86BD7e79B3931414E4625',
+  taiko: '0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7',
+  unichain: '0x674f4698d063cE4C0d604c88dD7D542De72f327f',
+  worldchain: '0x4019404611325b06eC133bdf6907583E162D508c',
+  zircuit: '0x9dE36D2d60a81FaFDDC888595C822f9085B2cFB5',
+};
 
 export function getRenzoWarpConfigGenerator(params: {
   chainsToDeploy: string[];
@@ -467,9 +429,9 @@ export function getRenzoWarpConfigGenerator(params: {
   safes: Record<string, string>;
   xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
-  tokenPrices: ChainMap<string>;
+  existingProtocolFee: ChainMap<Address>;
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
-  useLegacyRoutingHook: boolean;
+  useLegacyHooks?: boolean;
 }) {
   const {
     chainsToDeploy,
@@ -477,9 +439,9 @@ export function getRenzoWarpConfigGenerator(params: {
     safes,
     xERC20Addresses,
     xERC20Lockbox,
-    tokenPrices,
+    existingProtocolFee,
     existingProxyAdmins,
-    useLegacyRoutingHook,
+    useLegacyHooks = true,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -498,10 +460,7 @@ export function getRenzoWarpConfigGenerator(params: {
       new Set(chainsToDeploy),
       new Set(Object.keys(xERC20Addresses)),
     );
-    const tokenPriceDiff = symmetricDifference(
-      new Set(chainsToDeploy),
-      new Set(Object.keys(tokenPrices)),
-    );
+
     if (validatorDiff.size > 0) {
       throw new Error(
         `chainsToDeploy !== validatorConfig, diff is ${Array.from(
@@ -521,14 +480,6 @@ export function getRenzoWarpConfigGenerator(params: {
         `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
           ', ',
         )}`,
-      );
-    }
-
-    if (tokenPriceDiff.size > 0) {
-      throw new Error(
-        `chainsToDeploy !== tokenPriceDiff, diff is ${Array.from(
-          tokenPriceDiff,
-        ).join(', ')}`,
       );
     }
 
@@ -566,13 +517,20 @@ export function getRenzoWarpConfigGenerator(params: {
                   chainsToDeploy,
                   validators,
                 }),
-                hook: getRenzoHook({
-                  defaultHook,
-                  origin: chain,
-                  destinationChains: ezEthChainsToDeploy,
-                  owner: safes[chain],
-                  useLegacyRoutingHook,
-                }),
+                hook: useLegacyHooks
+                  ? await getRenzoLegacyHook({
+                      multiProvider,
+                      chain,
+                      defaultHook,
+                      existingProtocolFee,
+                    })
+                  : getRenzoHook({
+                      defaultHook,
+                      origin: chain,
+                      destinationChains: chainsToDeploy,
+                      owner: safes[chain],
+                      existingProtocolFee,
+                    }),
                 ...(existingProxyAdmins?.[chain]
                   ? { proxyAdmin: existingProxyAdmins?.[chain] }
                   : {}),
@@ -595,9 +553,9 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   safes: ezEthSafes,
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
-  tokenPrices: renzoTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
-  useLegacyRoutingHook: false,
+  existingProtocolFee: ezEthProdExistingProtocolFeeAddresses,
+  useLegacyHooks: false,
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =

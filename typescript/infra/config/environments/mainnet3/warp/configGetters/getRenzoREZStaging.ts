@@ -3,9 +3,9 @@ import { pick } from '@hyperlane-xyz/utils';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import {
+  ezEthProdExistingProtocolFeeAddresses,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 import { rezEthChainsToDeploy } from './getRenzoREZBaseEthereum.js';
 
@@ -26,7 +26,10 @@ const rezStagingAddresses = {
 
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
 const rezEthSafes = pick(rezStagingSafes, rezEthChainsToDeploy);
-const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
+const rezExistingProtocolFee = pick(
+  ezEthProdExistingProtocolFeeAddresses,
+  rezEthChainsToDeploy,
+);
 
 export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
@@ -34,8 +37,7 @@ export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   safes: rezEthSafes,
   xERC20Addresses: rezStagingAddresses,
   xERC20Lockbox: rezStagingLockbox,
-  tokenPrices: rezEthTokenPrices,
-  useLegacyRoutingHook: true,
+  existingProtocolFee: rezExistingProtocolFee,
 });
 
 export const getRezStagingGnosisSafeBuilderStrategyConfig =

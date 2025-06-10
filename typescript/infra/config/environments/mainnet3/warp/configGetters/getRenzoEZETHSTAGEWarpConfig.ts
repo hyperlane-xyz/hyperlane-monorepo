@@ -7,7 +7,6 @@ import {
   ezEthChainsToDeploy,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
 const ezEthStagingAddresses: Record<
@@ -80,8 +79,8 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   safes: ezEthStagingSafes,
   xERC20Addresses: ezEthStagingAddresses,
   xERC20Lockbox: ezEthStagingLockbox,
-  tokenPrices: renzoTokenPrices,
   existingProtocolFee: ezEthStageExistingProtocolFee,
+  useLegacyHooks: false,
 });
 
 export const getEZETHSTAGEGnosisSafeBuilderStrategyConfig =
