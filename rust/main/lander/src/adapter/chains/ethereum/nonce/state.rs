@@ -19,10 +19,8 @@ use super::db::NonceDb;
 pub(crate) enum NonceStatus {
     /// The nonce which we track, but is not currently assigned to any transaction.
     Freed(TransactionUuid),
-    /// The nonce is currently assigned to a transaction that is either pending or in mempool.
+    /// The nonce is currently assigned to a transaction but not finalised.
     Taken(TransactionUuid),
-    /// The nonce is currently assigned to a transaction that included.
-    Placed(TransactionUuid),
     /// The nonce is assigned to a transaction that has been finalised.
     Committed(TransactionUuid),
 }
@@ -65,7 +63,7 @@ impl NonceManagerState {
     }
 
     pub(crate) async fn update_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
-        use NonceStatus::{Committed, Freed, Placed, Taken};
+        use NonceStatus::{Committed, Freed, Taken};
 
         let Some(tracked_nonce_status) = self.get_nonce_status(&nonce).await else {
             // If the nonce is not tracked, we insert it with the new status.
@@ -79,7 +77,7 @@ impl NonceManagerState {
         }
 
         let tracked_tx_uuid = match &tracked_nonce_status {
-            Taken(uuid) | Placed(uuid) | Committed(uuid) => uuid,
+            Taken(uuid) | Committed(uuid) => uuid,
             Freed(_) => {
                 // If the tracked nonce status is Freed, and it differs from the nonce status,
                 // we track nonce as assigned to the given transaction.
@@ -89,7 +87,7 @@ impl NonceManagerState {
         };
 
         let tx_uuid = match &nonce_status {
-            Freed(uuid) | Taken(uuid) | Placed(uuid) | Committed(uuid) => uuid,
+            Freed(uuid) | Taken(uuid) | Committed(uuid) => uuid,
         };
 
         if tracked_tx_uuid == tx_uuid {
@@ -114,11 +112,11 @@ impl NonceManagerState {
         nonce_status: &NonceStatus,
     ) -> NonceAction {
         use NonceAction::{Assign, Noop};
-        use NonceStatus::{Committed, Freed, Placed, Taken};
+        use NonceStatus::{Committed, Freed, Taken};
 
         // Getting transaction UUID from the nonce status.
         let tx_uuid = match nonce_status {
-            Freed(uuid) | Taken(uuid) | Placed(uuid) | Committed(uuid) => uuid,
+            Freed(uuid) | Taken(uuid) | Committed(uuid) => uuid,
         };
 
         // Fetching the tracked nonce status and the lowest nonce.
@@ -133,7 +131,7 @@ impl NonceManagerState {
 
         // Getting the transaction UUID from the tracked nonce status.
         let tracked_tx_uuid = match &tracked_nonce_status {
-            Freed(uuid) | Taken(uuid) | Placed(uuid) | Committed(uuid) => uuid,
+            Freed(uuid) | Taken(uuid) | Committed(uuid) => uuid,
         };
 
         if tracked_tx_uuid != tx_uuid {
@@ -149,14 +147,14 @@ impl NonceManagerState {
                 // We should assign the new nonce.
                 Assign
             }
-            Taken(_) | Placed(_) if nonce < &lowest_nonce => {
-                // If the nonce is taken or placed, but it is below the lowest nonce,
+            Taken(_) if nonce < &lowest_nonce => {
+                // If the nonce is taken, but it is below the lowest nonce,
                 // it means that the current nonce is outdated.
                 // We should assign the new nonce.
                 Assign
             }
-            Taken(_) | Placed(_) | Committed(_) => {
-                // If the nonce is taken, placed, or committed, we don't need to do anything.
+            Taken(_) | Committed(_) => {
+                // If the nonce is taken or committed, we don't need to do anything.
                 Noop
             }
         }

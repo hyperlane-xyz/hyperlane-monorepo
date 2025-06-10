@@ -25,7 +25,7 @@ fn test_calculate_nonce_status_included() {
     let uuid = TransactionUuid::random();
     let status = TransactionStatus::Included;
     let result = NonceManager::calculate_nonce_status(uuid, &status);
-    assert!(matches!(result, NonceStatus::Placed(_)));
+    assert!(matches!(result, NonceStatus::Taken(_)));
 }
 
 #[test]

@@ -119,12 +119,11 @@ impl NonceManager {
         tx_uuid: TransactionUuid,
         tx_status: &TransactionStatus,
     ) -> NonceStatus {
-        use NonceStatus::{Committed, Freed, Placed, Taken};
+        use NonceStatus::{Committed, Freed, Taken};
         use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
 
         match tx_status {
-            PendingInclusion | Mempool => Taken(tx_uuid),
-            Included => Placed(tx_uuid),
+            PendingInclusion | Mempool | Included => Taken(tx_uuid),
             Finalized => Committed(tx_uuid),
             Dropped(_) => Freed(tx_uuid),
         }
