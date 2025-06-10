@@ -408,7 +408,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '0100511-20250609-175448',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -432,7 +432,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b23399a-20250603-075344',
+      tag: '0100511-20250609-175448',
     },
     resources: scraperResources,
   },
@@ -447,7 +447,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '0100511-20250609-175448',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -485,7 +485,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '761d140-20250526-120715',
+      tag: '0100511-20250609-175448',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
