@@ -433,7 +433,18 @@ export async function extendWarpRoute(
   return updatedWarpCoreConfig;
 }
 
-// Updates Warp routes with new configurations.
+/**
+ * Updates deployed Warp routes with new configurations and generates the necessary update transactions.
+ *
+ * For each EVM-compatible chain in the deployment config, this function prepares the updated configuration, verifies contract addresses, and collects all update transactions required to synchronize the deployed Warp route contracts with the new configuration.
+ *
+ * @param apiKeys - Mapping of chain names to API keys for contract verification.
+ * @param warpDeployConfig - The Warp route deployment configuration, including required mailbox addresses.
+ * @param warpCoreConfig - The current Warp core configuration containing deployed router addresses.
+ * @returns An array of annotated transactions to update the deployed Warp routes.
+ *
+ * @remark Non-EVM chains are skipped during the update process.
+ */
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
