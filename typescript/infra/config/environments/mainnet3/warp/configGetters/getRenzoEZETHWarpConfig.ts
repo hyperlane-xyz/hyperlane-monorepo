@@ -50,6 +50,19 @@ export const ezEthChainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
+/**
+ * For REZ, PZETH, which still uses
+ *
+ * hook:
+ *   hooks:
+ *    - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+ *    - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+ *    - maxProtocolFee: "100000000000000000000"
+ *    - owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+ *    - protocolFee: "50000000000000000"
+ *    - type: protocolFee
+ *    - type: aggregationHook
+ */
 export async function getRenzoLegacyHook(params: {
   multiProvider: MultiProvider;
   chain: ChainName;
@@ -65,6 +78,16 @@ export async function getRenzoLegacyHook(params: {
     hooks: [defaultHook, hookConfig],
   };
 }
+
+/**
+ * For EZETH, which uses the default hook and protocolFee addresses (except for blast)
+ *
+ * hook:
+ *   hooks:
+ *    - "0x68a3963D2fE3427cfD044806B40AF41feCaae845"
+ *    - "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
+ */
+const outBoundOnlyChain = 'blast';
 export function getRenzoHook(params: {
   defaultHook: Address;
   origin: ChainName;
@@ -79,21 +102,17 @@ export function getRenzoHook(params: {
   let protocolFeeHook: HookConfig;
 
   routingHook =
-    origin === 'blast'
+    origin === outBoundOnlyChain
       ? defaultHook
       : {
           type: HookType.ROUTING,
           owner: owner,
-          domains: destinationChains
-            .filter((c) => c !== origin)
-            .filter((c) => c !== 'blast')
-            .reduce(
-              (acc, destination) => {
-                acc[destination] = defaultHook;
-                return acc;
-              },
-              {} as Record<ChainName, Address>,
-            ),
+          domains: Object.fromEntries(
+            destinationChains
+              .filter((c) => c !== origin)
+              .filter((c) => c !== outBoundOnlyChain)
+              .map((dest) => [dest, defaultHook]),
+          ),
         };
   protocolFeeHook = existingProtocolFee[origin];
 
