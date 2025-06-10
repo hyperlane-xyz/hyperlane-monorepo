@@ -10,7 +10,7 @@ import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {ITokenMessenger} from "./../interfaces/cctp/ITokenMessenger.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {CctpMessage} from "../libs/CctpMessage.sol";
+import {CctpMessage, BurnMessage} from "../libs/CctpMessage.sol";
 
 interface CctpService {
     function getCCTPAttestation(
@@ -21,11 +21,16 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
+// TokenMessage.metadata := uint8 cctpNonce
+uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
+    8;
+
 // @dev Supports only CCTP V1
 contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
     using CctpMessage for bytes29;
+    using BurnMessage for bytes29;
+
     using Message for bytes;
-    using TokenMessage for bytes;
 
     uint32 internal constant CCTP_VERSION = 0;
 
@@ -145,7 +150,24 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             (bytes, bytes)
         );
 
+        bytes calldata tokenMessage = _hyperlaneMessage.body();
+        _validateMessageLength(tokenMessage);
+
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
+
+        bytes32 sourceSender = originalMsg._sender();
+        require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
+
+        bytes29 burnMessage = originalMsg._messageBody();
+        require(
+            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
+            "Invalid amount"
+        );
+        require(
+            TokenMessage.recipient(tokenMessage) ==
+                burnMessage._getMintRecipient(),
+            "Invalid recipient"
+        );
 
         uint32 sourceDomain = originalMsg._sourceDomain();
         require(
@@ -156,7 +178,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
 
         uint64 sourceNonce = originalMsg._nonce();
         require(
-            sourceNonce == uint64(bytes8(_hyperlaneMessage.body().metadata())),
+            sourceNonce == uint64(bytes8(TokenMessage.metadata(tokenMessage))),
             "Invalid nonce"
         );
 
@@ -195,6 +217,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
             outboundAmount,
             abi.encodePacked(nonce)
         );
+        _validateMessageLength(_tokenMessage);
 
         messageId = _Router_dispatch(
             _destination,
@@ -219,5 +242,12 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes calldata metadata
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
+    }
+
+    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
+        require(
+            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message body length"
+        );
     }
 }

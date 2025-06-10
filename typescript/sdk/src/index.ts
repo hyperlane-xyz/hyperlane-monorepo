@@ -623,6 +623,7 @@ export {
   HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
@@ -727,3 +728,4 @@ export {
   RebalancerBaseConfigInput,
   RebalancerConfigFileInput,
 } from './rebalancer/types.js';
+export { resolveRouterMapConfig } from './router/types.js';
