@@ -32,6 +32,8 @@ pub(crate) enum NonceAction {
 
 pub struct NonceManagerStateInner {
     nonces: HashMap<U256, NonceStatus>,
+    /// The lowest available nonce recorded at the tip of the chain.
+    /// If no transactions are in flight, this is the next nonce to be assigned.
     lowest_nonce: U256,
     /// The lowest nonce which is not tracked by the manager and can be assigned.
     /// This is not the next nonce necessarily since if `nonces` contains a nonce
