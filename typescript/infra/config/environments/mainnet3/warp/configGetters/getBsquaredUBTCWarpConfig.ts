@@ -80,7 +80,7 @@ export function getUbtcOwnerConfigGenerator(safes: Record<string, string>) {
                   chain,
                 }
               : {
-                  type: TxSubmitterType.GNOSIS_SAFE,
+                  type: TxSubmitterType.GNOSIS_TX_BUILDER,
                   version: '1.0',
                   chain,
                   safeAddress,
