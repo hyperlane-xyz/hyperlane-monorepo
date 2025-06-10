@@ -1,6 +1,5 @@
 import { format } from 'util';
 
-import { Token } from '@hyperlane-xyz/sdk';
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
@@ -76,18 +75,20 @@ export async function runRebalancer(options: RunRebalancerOptions) {
         `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
       );
 
-      const warpCore = rebalancerContextFactory.getWarpCore();
       const rebalancer = rebalancerContextFactory.createRebalancer();
-      const originToken = warpCore.tokens.find(
-        (t: Token) => t.chainName === origin,
-      );
+      const originToken = rebalancerContextFactory.getTokenForChain(origin);
+
+      if (!originToken) {
+        errorRed(`Token for origin chain ${origin} not found`);
+        process.exit(1);
+      }
 
       try {
         await rebalancer.rebalance([
           {
             origin,
             destination,
-            amount: BigInt(toWei(amount, originToken!.decimals)),
+            amount: BigInt(toWei(amount, originToken.decimals)),
           },
         ]);
         logGreen(

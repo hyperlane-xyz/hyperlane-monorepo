@@ -89,6 +89,10 @@ export class RebalancerContextFactory {
     return this.warpCore;
   }
 
+  public getTokenForChain(chainName: string): Token | undefined {
+    return this.tokensByChainName[chainName];
+  }
+
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
     rebalancerLogger.debug(
       { warpRouteId: this.config.warpRouteId },
