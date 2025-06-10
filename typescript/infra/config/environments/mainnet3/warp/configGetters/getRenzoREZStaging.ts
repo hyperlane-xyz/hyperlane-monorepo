@@ -3,7 +3,6 @@ import { pick } from '@hyperlane-xyz/utils';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import {
-  ezEthProdExistingProtocolFeeAddresses,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
 } from './getRenzoEZETHWarpConfig.js';
@@ -23,11 +22,15 @@ const rezStagingAddresses = {
   base: '0x19c5C2316171A2cff8773435a9A5F3f0e3eaB14B',
   unichain: '0x19c5C2316171A2cff8773435a9A5F3f0e3eaB14B',
 };
-
+const rezStagingExistingProtocolFeeAddresses = {
+  base: '0xe588d064639C6F68ECF947E8C1f94A6e744437bD',
+  ethereum: '0x017D657a95661EcBC7C23A59D65Da94f3660B685',
+  unichain: '0x98996dD4CFb5b989D264D17887AA53B165ad3A8b',
+};
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
 const rezEthSafes = pick(rezStagingSafes, rezEthChainsToDeploy);
 const rezExistingProtocolFee = pick(
-  ezEthProdExistingProtocolFeeAddresses,
+  rezStagingExistingProtocolFeeAddresses,
   rezEthChainsToDeploy,
 );
 
