@@ -1,11 +1,10 @@
 import {
   type ChainMap,
   type ChainMetadata,
-  MultiProtocolProvider,
   type Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -57,7 +56,9 @@ export class RebalancerContextFactory {
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-    const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
+    const provider =
+      context.multiProtocolProvider.extendChainMetadata(mailboxes);
+
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
