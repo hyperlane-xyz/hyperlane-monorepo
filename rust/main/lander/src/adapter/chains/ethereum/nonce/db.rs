@@ -14,8 +14,6 @@ use crate::transaction::TransactionUuid;
 
 use super::super::nonce::state::NonceStatus;
 
-const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
-    "transaction_uuid_by_nonce_and_signer_address_";
 const NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
     "nonce_status_by_nonce_and_signer_address_";
 const LOWEST_AVAILABLE_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
@@ -58,21 +56,6 @@ pub trait NonceDb: Send + Sync {
         nonce: &U256,
         signer_address: &str,
         nonce_status: &NonceStatus,
-    ) -> DbResult<()>;
-
-    /// Retrieve a transaction UUID by nonce and signer address.
-    async fn retrieve_tx_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &str,
-    ) -> DbResult<Option<TransactionUuid>>;
-
-    /// Store a transaction UUID by nonce and signer address.
-    async fn store_tx_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &str,
-        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 }
 
@@ -143,30 +126,6 @@ impl NonceDb for HyperlaneRocksDB {
             NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, signer_address.to_string()),
             nonce_status,
-        )
-    }
-
-    async fn retrieve_tx_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &str,
-    ) -> DbResult<Option<TransactionUuid>> {
-        self.retrieve_value_by_key(
-            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
-            &NonceAndSignerAddress(*nonce, signer_address.to_string()),
-        )
-    }
-
-    async fn store_tx_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &str,
-        tx_uuid: &TransactionUuid,
-    ) -> DbResult<()> {
-        self.store_value_by_key(
-            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
-            &NonceAndSignerAddress(*nonce, signer_address.to_string()),
-            tx_uuid,
         )
     }
 }
