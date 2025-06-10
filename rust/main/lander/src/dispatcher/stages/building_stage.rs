@@ -74,7 +74,7 @@ impl BuildingStage {
         name = "BuildingStage::handle_tx_building_result",
         fields(
             payloads = ?tx_building_result.payloads,
-            tx_ids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.id.to_string()),
+            tx_uuids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.uuid.to_string()),
         )
     )]
     async fn handle_tx_building_result(
@@ -144,7 +144,7 @@ fn get_full_payloads_from_details(
 ) -> Vec<FullPayload> {
     full_payloads
         .iter()
-        .filter(|payload| details.iter().any(|d| d.id == payload.details.id))
+        .filter(|payload| details.iter().any(|d| d.uuid == payload.details.uuid))
         .cloned()
         .collect()
 }
@@ -292,7 +292,7 @@ mod tests {
         tokio::sync::mpsc::Receiver<Transaction>,
         BuildingStageQueue,
     ) {
-        let (payload_db, tx_db) = tmp_dbs();
+        let (payload_db, tx_db, _) = tmp_dbs();
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_build_transactions()
@@ -352,7 +352,7 @@ mod tests {
         for payload in payloads {
             let payload_from_db = state
                 .payload_db
-                .retrieve_payload_by_id(&payload.id)
+                .retrieve_payload_by_uuid(&payload.uuid)
                 .await
                 .unwrap()
                 .unwrap();

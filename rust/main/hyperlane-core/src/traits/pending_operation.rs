@@ -279,14 +279,14 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to create payload for message and metadata")]
     /// Failed to create payload for message and metadata
     ErrorCreatingPayload,
-    #[strum(to_string = "Failed to store payload id by message id")]
-    /// Failed to store payload id by message id
-    ErrorStoringPayloadIdsByMessageId,
-    #[strum(to_string = "Failed to retrieve payload ids by message id")]
-    /// Failed to retrieve payload ids by message id
-    ErrorRetrievingPayloadIds,
-    #[strum(to_string = "Failed to retrieve payload id status by message id")]
-    /// Failed to retrieve payload id status by message id
+    #[strum(to_string = "Failed to store payload uuid by message id")]
+    /// Failed to store payload uuid by message id
+    ErrorStoringPayloadUuidsByMessageId,
+    #[strum(to_string = "Failed to retrieve payload uuids by message id")]
+    /// Failed to retrieve payload uuids by message id
+    ErrorRetrievingPayloadUuids,
+    #[strum(to_string = "Failed to retrieve payload uuid status by message id")]
+    /// Failed to retrieve payload status by message id
     ErrorRetrievingPayloadStatus,
     #[strum(to_string = "Failed to create payload success criteria")]
     /// Failed to create payload success criteria

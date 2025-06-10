@@ -9,11 +9,14 @@ import {
   IsmType,
   TokenType,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { ousdtSafes } from '../../governance/safe/ousdt.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
@@ -37,6 +40,8 @@ const deploymentChains = [
   'metis',
   'linea',
   'metal',
+  'bob',
+  'hashkey',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
@@ -72,6 +77,8 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metis: lowerBufferCap,
   linea: lowerBufferCap,
   metal: lowerBufferCap,
+  bob: lowerBufferCap,
+  hashkey: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -96,31 +103,23 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metis: lowerRateLimitPerSecond,
   linea: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
+  bob: lowerRateLimitPerSecond,
+  hashkey: lowerRateLimitPerSecond,
 };
 
-const productionOwnerByChain: TypedoUSDTTokenChainMap<string> = {
-  ethereum: awSafes['ethereum'],
-  celo: '0xf1b3fc934bB46c459253fb38555A400b94909800',
-  optimism: '0x8E3340E241880F80359AA95Ae20Dc498d3f62503',
-  base: '0x125d1b64dfd7898DD06ac3E060A432691b8Fa676',
-  unichain: '0xf306ad5bF95960188c67A30f5546D193760ca3D0',
-  ink: '0x1BBf2CE75A77b8A10dA7e73dC1F76456008010bD',
-  soneium: '0x31Bf112F33556A0F1dc76881cfA8A36Bc2134A57',
-  mode: '0xD4c01B4753575899AD81aAca0bb2DB7796E9F7C0',
-  fraxtal: '0x21C0CA5be5aC9BC6161Bf1cfE281A18Fe2190079',
-  superseed: '0x0731a8e0DC88Df79d9643BD6C1f26cfe6fa53382',
-  lisk: '0x6F0A0038FcDB2F1655219f1b92f7E9aD4b78Aa49',
-  worldchain: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd',
-  sonic: awSafes['sonic'],
-  bitlayer: awSafes['bitlayer'],
-  ronin: awSafes['ronin'],
-  mantle: awSafes['mantle'],
-  metis: awSafes['metis'],
-  linea: awSafes['linea'],
-  metal: awSafes['metal'],
-};
+const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = ['bob', 'hashkey'];
+const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
+  deploymentChains.reduce((acc, chain) => {
+    if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
+      assert(awIcas[chain], `ICA for ${chain} not found`);
+      acc[chain] = awIcas[chain];
+    } else {
+      acc[chain] = ousdtSafes[chain] ?? awSafes[chain] ?? DEPLOYER;
+    }
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<string>);
 
-const productionOwnerOverridesByChain: ChainMap<
+const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
   Record<'collateralToken' | 'collateralProxyAdmin', string>
 > = {
   ethereum: {
@@ -199,6 +198,14 @@ const productionOwnerOverridesByChain: ChainMap<
     collateralToken: productionOwnerByChain.metal,
     collateralProxyAdmin: productionOwnerByChain.metal,
   },
+  bob: {
+    collateralToken: productionOwnerByChain.bob,
+    collateralProxyAdmin: productionOwnerByChain.bob,
+  },
+  hashkey: {
+    collateralToken: productionOwnerByChain.hashkey,
+    collateralProxyAdmin: productionOwnerByChain.hashkey,
+  },
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
@@ -214,7 +221,22 @@ const zeroLimits: XERC20LimitConfig = {
   rateLimitPerSecond: '0',
 };
 
-const productionExtraLockboxes = {
+const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
+  ethereum: '0xCe19f75BCE7Fb74c9e2328766Ebe50465df24CA3',
+  celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
+  base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
+  sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
+  optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
+  bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
+  hashkey: '0x55aeb80Aa6Ab34aA83E1F387903F8Bb2Aa9e2F2d',
+};
+
+const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
+  bufferCap: upperBufferCap,
+  rateLimitPerSecond: productionDefaultRateLimitPerSecond,
+};
+
+const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ethereum: [
     {
       lockbox: productionEthereumXERC20LockboxAddress,
@@ -222,6 +244,16 @@ const productionExtraLockboxes = {
         bufferCap: productionBufferCapByChain.ethereum,
         rateLimitPerSecond: productionRateLimitByChain.ethereum,
       },
+    },
+    {
+      lockbox: productionCCIPTokenPoolAddresses.ethereum,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  celo: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.celo,
+      limits: productionCCIPTokenPoolLimits,
     },
   ],
   base: [
@@ -235,6 +267,16 @@ const productionExtraLockboxes = {
       lockbox: '0xe92e51d99ae33114c60d9621fb2e1ec0acea7e30',
       limits: zeroLimits,
     },
+    {
+      lockbox: productionCCIPTokenPoolAddresses.base,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  sonic: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.sonic,
+      limits: productionCCIPTokenPoolLimits,
+    },
   ],
   optimism: [
     {
@@ -246,6 +288,22 @@ const productionExtraLockboxes = {
       // usdt
       lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
       limits: zeroLimits,
+    },
+    {
+      lockbox: productionCCIPTokenPoolAddresses.optimism,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  bob: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.bob,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
+  hashkey: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.hashkey,
+      limits: productionCCIPTokenPoolLimits,
     },
   ],
 };
@@ -270,6 +328,8 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metis: productionXERC20TokenAddress,
   linea: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
+  bob: productionXERC20TokenAddress,
+  hashkey: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -294,6 +354,8 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metis: stagingDefaultBufferCap,
   linea: stagingDefaultBufferCap,
   metal: stagingDefaultBufferCap,
+  bob: stagingDefaultBufferCap,
+  hashkey: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
 const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
@@ -316,30 +378,16 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metis: stagingDefaultRateLimitPerSecond,
   linea: stagingDefaultRateLimitPerSecond,
   metal: stagingDefaultRateLimitPerSecond,
+  bob: stagingDefaultRateLimitPerSecond,
+  hashkey: stagingDefaultRateLimitPerSecond,
 };
 
-const ownerAddress = DEPLOYER;
-const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> = {
-  ethereum: ownerAddress,
-  celo: ownerAddress,
-  optimism: ownerAddress,
-  base: ownerAddress,
-  unichain: ownerAddress,
-  ink: ownerAddress,
-  soneium: ownerAddress,
-  mode: ownerAddress,
-  fraxtal: ownerAddress,
-  superseed: ownerAddress,
-  lisk: ownerAddress,
-  worldchain: ownerAddress,
-  sonic: ownerAddress,
-  bitlayer: ownerAddress,
-  ronin: ownerAddress,
-  mantle: ownerAddress,
-  metis: ownerAddress,
-  linea: ownerAddress,
-  metal: ownerAddress,
-};
+const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> =
+  deploymentChains.reduce((acc, chain) => {
+    acc[chain] = DEPLOYER;
+    return acc;
+  }, {} as TypedoUSDTTokenChainMap<string>);
+
 const stagingAmountRoutingThreshold = 5;
 const stagingEthereumXERC20LockboxAddress =
   '0x935EAaAb78B491Cd9281f438E413767893913983';
@@ -366,9 +414,11 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metis: stagingXERC20TokenAddress,
   linea: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
+  bob: stagingXERC20TokenAddress,
+  hashkey: stagingXERC20TokenAddress,
 };
 
-const stagingExtraLockboxes = {
+const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ethereum: [
     {
       lockbox: stagingEthereumXERC20LockboxAddress,
@@ -376,30 +426,6 @@ const stagingExtraLockboxes = {
         bufferCap: stagingBufferCapByChain.ethereum,
         rateLimitPerSecond: stagingRateLimitByChain.ethereum,
       },
-    },
-  ],
-  base: [
-    {
-      // usdt
-      lockbox: '0xd28ca33022d41758bed4f1a31a99dde8fc4d89b3',
-      limits: zeroLimits,
-    },
-    {
-      // usdc
-      lockbox: '0x50df545016d26735daacbbf5afda56dc17d8748b',
-      limits: zeroLimits,
-    },
-  ],
-  optimism: [
-    {
-      // usdc
-      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: zeroLimits,
-    },
-    {
-      // usdt
-      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: zeroLimits,
     },
   ],
 };
@@ -506,7 +532,7 @@ function generateoUSDTTokenConfig(
   amountRoutingThreshold: number,
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
-  extraLockboxes?: ChainMap<{ lockbox: Address; limits: XERC20LimitConfig }[]>,
+  extraBridges?: ChainMap<XERC20TokenExtraBridgesLimits[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
   return Object.fromEntries(
@@ -524,7 +550,7 @@ function generateoUSDTTokenConfig(
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },
-          extraBridges: extraLockboxes ? extraLockboxes[chain] : undefined,
+          extraBridges: extraBridges ? extraBridges[chain] : undefined,
         },
         // The ISM configuration uses a fallback routing ISM that routes messages based on amount thresholds:
         // - Below threshold: Uses default ISM
@@ -562,7 +588,7 @@ export const getoUSDTTokenStagingWarpConfig = async (
     stagingAmountRoutingThreshold,
     stagingBufferCapByChain,
     stagingRateLimitByChain,
-    stagingExtraLockboxes,
+    stagingExtraBridges,
   );
 };
 
@@ -576,7 +602,7 @@ export const getoUSDTTokenProductionWarpConfig = async (
     productionAmountRoutingThreshold,
     productionBufferCapByChain,
     productionRateLimitByChain,
-    productionExtraLockboxes,
+    productionExtraBridges,
     productionOwnerOverridesByChain,
   );
 };
