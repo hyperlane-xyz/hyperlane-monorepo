@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tokio::sync::Mutex;
 use tracing::info;
 
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -20,7 +19,6 @@ use super::updater::NonceUpdater;
 
 pub struct NonceManager {
     pub address: Address,
-    pub db: Arc<dyn NonceDb>,
     pub state: Arc<NonceManagerState>,
     pub _nonce_updater: NonceUpdater,
 }
@@ -36,7 +34,7 @@ impl NonceManager {
         let block_time = chain_conf.estimated_block_time;
 
         let db = db as Arc<dyn NonceDb>;
-        let state = Arc::new(NonceManagerState::new());
+        let state = Arc::new(NonceManagerState::new(db, address));
 
         let mut nonce_updater =
             NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
@@ -45,7 +43,6 @@ impl NonceManager {
 
         let manager = Self {
             address,
-            db,
             state,
             _nonce_updater: nonce_updater,
         };
@@ -53,7 +50,7 @@ impl NonceManager {
         Ok(manager)
     }
 
-    pub async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    pub(crate) async fn assign_nonce(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use NonceAction::{Assign, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
@@ -81,32 +78,11 @@ impl NonceManager {
                 .await;
 
             if matches!(action, Noop) {
-                let assigned_tx_uuid = self
-                    .db
-                    .retrieve_tx_uuid_by_nonce_and_signer_address(&nonce, &self.address.to_string())
-                    .await?;
-
-                if let Some(assigned_tx_uuid) = assigned_tx_uuid {
-                    if assigned_tx_uuid == tx_uuid {
-                        return Ok(());
-                    }
-                }
+                return Ok(());
             }
         }
 
-        let next_nonce = self.state.identify_next_nonce().await;
-
-        self.db
-            .store_tx_uuid_by_nonce_and_signer_address(
-                &next_nonce,
-                &self.address.to_string(),
-                &tx_uuid,
-            )
-            .await?;
-
-        self.state
-            .insert_nonce_status(next_nonce, nonce_status.clone())
-            .await;
+        let next_nonce = self.state.assign_next_nonce(&nonce_status).await;
 
         precursor.tx.set_nonce(next_nonce);
 

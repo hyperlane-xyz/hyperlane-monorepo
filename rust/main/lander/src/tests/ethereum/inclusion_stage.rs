@@ -220,7 +220,7 @@ fn mock_ethereum_adapter(
 ) -> EthereumAdapter {
     let provider = Arc::new(provider);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
-    let state = Arc::new(NonceManagerState::new());
+    let state = Arc::new(NonceManagerState::new(nonce_db, signer));
 
     let nonce_updater = NonceUpdater::new(
         signer,
@@ -232,7 +232,6 @@ fn mock_ethereum_adapter(
 
     let nonce_manager = NonceManager {
         address: signer,
-        db: nonce_db,
         state,
         _nonce_updater: nonce_updater,
     };

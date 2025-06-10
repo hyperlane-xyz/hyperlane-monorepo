@@ -1,18 +1,21 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::Arc;
 
+use ethers_core::types::Address;
 use futures_util::FutureExt;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{error, warn};
 
-use hyperlane_core::U256;
+use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
 
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::TransactionStatus;
 
 use super::super::transaction::Precursor;
+use super::db::NonceDb;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(crate) enum NonceStatus {
     /// The nonce which we track, but is not currently assigned to any transaction.
     Freed(TransactionUuid),
@@ -30,62 +33,41 @@ pub(crate) enum NonceAction {
     Assign,
 }
 
-pub struct NonceManagerStateInner {
-    nonces: HashMap<U256, NonceStatus>,
-    /// The lowest available nonce recorded at the tip of the chain.
-    /// If no transactions are in flight, this is the next nonce to be assigned.
-    lowest_nonce: U256,
-    /// The lowest nonce which is not tracked by the manager and can be assigned.
-    /// This is not the next nonce necessarily since if `nonces` contains a nonce
-    /// with status `Free`, it will be returned as the next available nonce.
-    upper_nonce: U256,
-}
-
 pub struct NonceManagerState {
-    inner: Arc<Mutex<NonceManagerStateInner>>,
-}
-
-impl NonceManagerStateInner {
-    pub fn new() -> Self {
-        Self {
-            nonces: HashMap::new(),
-            lowest_nonce: U256::zero(),
-            upper_nonce: U256::zero(),
-        }
-    }
+    db: Arc<dyn NonceDb>,
+    address: Address,
 }
 
 impl NonceManagerState {
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(NonceManagerStateInner::new())),
-        }
+    pub fn new(db: Arc<dyn NonceDb>, address: Address) -> Self {
+        Self { db, address }
     }
 
     pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) {
-        let mut guard = self.inner.lock().await;
+        self.db
+            .store_lowest_available_nonce_by_signer_address(&self.address, nonce)
+            .await
+            .expect("Failed to store lowest nonce in the database");
 
-        guard.lowest_nonce = *nonce;
-        if guard.lowest_nonce > guard.upper_nonce {
-            guard.upper_nonce = *nonce;
-        }
-    }
+        let upper_nonce = self
+            .db
+            .retrieve_upper_nonce_by_signer_address(&self.address)
+            .await
+            .expect("Failed to retrieve upper nonce from the database")
+            .unwrap_or_default();
 
-    pub(crate) async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
-        let mut guard = self.inner.lock().await;
-
-        guard.nonces.insert(nonce, nonce_status);
-
-        if nonce >= guard.upper_nonce {
-            guard.upper_nonce = nonce + 1;
+        if nonce > &upper_nonce {
+            self.db
+                .store_upper_nonce_by_signer_address(&self.address, nonce)
+                .await
+                .expect("Failed to store upper nonce in the database");
         }
     }
 
     pub(crate) async fn update_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
         use NonceStatus::{Committed, Freed, Placed, Taken};
 
-        let (Some(tracked_nonce_status), _) = self.get_nonce_status_and_lowest_nonce(&nonce).await
-        else {
+        let Some(tracked_nonce_status) = self.get_nonce_status(&nonce).await else {
             // If the nonce is not tracked, we insert it with the new status.
             self.insert_nonce_status(nonce, nonce_status).await;
             return;
@@ -97,7 +79,7 @@ impl NonceManagerState {
         }
 
         let tracked_tx_uuid = match &tracked_nonce_status {
-            Taken(uuid) | Committed(uuid) | Placed(uuid) => uuid,
+            Taken(uuid) | Placed(uuid) | Committed(uuid) => uuid,
             Freed(_) => {
                 // If the tracked nonce status is Freed, and it differs from the nonce status,
                 // we track nonce as assigned to the given transaction.
@@ -180,50 +162,138 @@ impl NonceManagerState {
         }
     }
 
-    pub(crate) async fn identify_next_nonce(&self) -> U256 {
+    pub(crate) async fn assign_next_nonce(&self, nonce_status: &NonceStatus) -> U256 {
         use NonceStatus::{Committed, Freed};
 
-        self.clean().await;
+        let (lowest_nonce, upper_nonce) = self.get_boundary_nonces().await;
 
-        let mut guard = self.inner.lock().await;
+        let mut next_nonce = lowest_nonce;
 
-        let lowest_nonce = guard.lowest_nonce;
-        let upper_nonce = guard.upper_nonce;
-        let nonces = &mut guard.nonces;
+        while next_nonce < upper_nonce {
+            let nonce_status = self
+                .db
+                .retrieve_nonce_status_by_nonce_and_signer_address(
+                    &next_nonce,
+                    &self.address.to_string(),
+                )
+                .await
+                .expect("Failed to retrieve nonce status from the database");
 
-        if nonces.iter().any(|(nonce, _)| nonce < &lowest_nonce) {
-            // This should never happen after the clearing of obsolete nonces.
-            warn!(?nonces, "Nonces below the lowest nonce are being retained");
+            if nonce_status.is_none() || matches!(nonce_status.unwrap(), Freed(_)) {
+                // If the nonce is not tracked or is Freed, we can use it.
+                break;
+            }
+
+            next_nonce += U256::one();
         }
 
-        let next_available_nonce = nonces
-            .iter()
-            .filter(|(_nonce, status)| matches!(status, Freed(_)))
-            .min_by_key(|(nonce, _)| *nonce)
-            .map(|(nonce, _)| nonce)
-            .unwrap_or(&upper_nonce);
-        *next_available_nonce
+        if next_nonce >= upper_nonce {
+            // If we reached the upper nonce, we need to update it.
+            self.db
+                .store_upper_nonce_by_signer_address(&self.address, &(next_nonce + 1))
+                .await
+                .expect("Failed to store upper nonce in the database");
+        }
+
+        // Store the nonce status in the database.
+        self.db
+            .store_nonce_status_by_nonce_and_signer_address(
+                &next_nonce,
+                &self.address.to_string(),
+                nonce_status,
+            )
+            .await
+            .expect("Failed to store nonce status in the database");
+
+        next_nonce
+    }
+
+    async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) {
+        self.db
+            .store_nonce_status_by_nonce_and_signer_address(
+                &nonce,
+                &self.address.to_string(),
+                &nonce_status,
+            )
+            .await
+            .expect("Failed to store nonce status in the database");
+
+        let upper_nonce = self
+            .db
+            .retrieve_upper_nonce_by_signer_address(&self.address)
+            .await
+            .expect("Failed to retrieve upper nonce from the database")
+            .unwrap_or_default();
+
+        if nonce >= upper_nonce {
+            self.db
+                .store_upper_nonce_by_signer_address(&self.address, &(nonce + 1))
+                .await
+                .expect("Failed to store upper nonce in the database");
+        }
     }
 
     async fn get_nonce_status_and_lowest_nonce(&self, nonce: &U256) -> (Option<NonceStatus>, U256) {
-        let guard = self.inner.lock().await;
-        (guard.nonces.get(nonce).cloned(), guard.lowest_nonce)
+        let nonce_status = self.get_nonce_status(nonce).await;
+        let lowest_nonce = self.get_lowest_nonce().await;
+        (nonce_status, lowest_nonce)
     }
 
-    async fn clean(&self) {
-        use NonceStatus::{Committed, Freed};
+    async fn get_boundary_nonces(&self) -> (U256, U256) {
+        let lowest_nonce = self.get_lowest_nonce().await;
+        let upper_nonce = self.get_upper_nonce().await;
+        (lowest_nonce, upper_nonce)
+    }
 
-        let mut guard = self.inner.lock().await;
+    async fn get_nonce_status(&self, nonce: &U256) -> Option<NonceStatus> {
+        self.db
+            .retrieve_nonce_status_by_nonce_and_signer_address(nonce, &self.address.to_string())
+            .await
+            .expect("Failed to retrieve nonce status from the database")
+    }
 
-        let lowest_nonce = guard.lowest_nonce;
-        let nonces = &mut guard.nonces;
+    async fn get_lowest_nonce(&self) -> U256 {
+        self.db
+            .retrieve_lowest_available_nonce_by_signer_address(&self.address)
+            .await
+            .expect("Failed to retrieve lowest nonce from the database")
+            .unwrap_or_default()
+    }
 
-        nonces.retain(|nonce, _| nonce >= &lowest_nonce);
+    async fn get_upper_nonce(&self) -> U256 {
+        self.db
+            .retrieve_upper_nonce_by_signer_address(&self.address)
+            .await
+            .expect("Failed to retrieve upper nonce from the database")
+            .unwrap_or_default()
+    }
+}
 
-        guard.upper_nonce = nonces
-            .iter()
-            .max_by_key(|(nonce, _)| *nonce)
-            .map_or(lowest_nonce, |(nonce, _)| nonce + 1)
+impl Encode for NonceStatus {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        // Serialize to JSON and write to the writer, to avoid having to implement the encoding manually
+        let serialized = serde_json::to_vec(self)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
+        writer.write(&serialized)
+    }
+}
+
+impl Decode for NonceStatus {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
+        serde_json::from_reader(reader).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to deserialize. Error: {}", err),
+            ))
+        })
     }
 }
 
