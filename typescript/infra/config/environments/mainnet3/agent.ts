@@ -713,14 +713,14 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // team resolved with a different contract deploy. We can still only match on this address
       // as Metal is the only exception, so it's always receiving from or sending messages to this address.
       matchingList: consistentSenderRecipientMatchingList(
-        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
+        '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
       ),
     },
     {
       name: 'velo_token_bridge',
       // All messages to / from this address relate to the Velo Token Bridge.
       matchingList: consistentSenderRecipientMatchingList(
-        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+        '0x1A9d17828897d6289C6dff9DC9F5cc3bAEa17814',
       ),
     },
     {
@@ -828,7 +828,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '76fbe71-20250605-134618',
+      tag: '7be388b-20250606-101916',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),

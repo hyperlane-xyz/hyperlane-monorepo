@@ -1,5 +1,6 @@
 pub use manager::NonceManager;
+pub use state::NonceManagerState;
 
-mod db;
+pub mod db;
 mod manager;
 mod state;

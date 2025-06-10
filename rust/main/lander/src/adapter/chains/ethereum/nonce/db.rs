@@ -8,51 +8,52 @@ use futures_util::FutureExt;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Encode, U256};
 
-use crate::transaction::TransactionId;
+use crate::transaction::TransactionUuid;
 
-const TX_ID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "tx_id_by_nonce_and_signer_address_";
+const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
+    "transaction_uuid_by_nonce_and_signer_address_";
 
 #[async_trait]
 pub trait NonceDb: Send + Sync {
-    /// Retrieve a transaction ID by nonce and signer address.
-    async fn retrieve_tx_id_by_nonce_and_signer_address(
+    /// Retrieve a transaction UUID by nonce and signer address.
+    async fn retrieve_tx_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &str,
-    ) -> DbResult<Option<TransactionId>>;
+    ) -> DbResult<Option<TransactionUuid>>;
 
-    // Store a transaction ID by nonce and signer address.
-    async fn store_tx_id_by_nonce_and_signer_address(
+    // Store a transaction UUID by nonce and signer address.
+    async fn store_tx_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &str,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 }
 
 #[async_trait]
 impl NonceDb for HyperlaneRocksDB {
-    async fn retrieve_tx_id_by_nonce_and_signer_address(
+    async fn retrieve_tx_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &str,
-    ) -> DbResult<Option<TransactionId>> {
+    ) -> DbResult<Option<TransactionUuid>> {
         self.retrieve_value_by_key(
-            TX_ID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
+            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, signer_address.to_string()),
         )
     }
 
-    async fn store_tx_id_by_nonce_and_signer_address(
+    async fn store_tx_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &str,
-        tx_id: &TransactionId,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()> {
         self.store_value_by_key(
-            TX_ID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
+            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, signer_address.to_string()),
-            tx_id,
+            tx_uuid,
         )
     }
 }
