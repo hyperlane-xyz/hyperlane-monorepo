@@ -660,6 +660,7 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
