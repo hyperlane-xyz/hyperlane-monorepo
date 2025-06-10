@@ -69,12 +69,10 @@ export class RebalancerRunner {
     // Load rebalancer config from disk
     const rebalancerConfig = RebalancerConfig.load(config, {
       checkFrequency,
-      withMetrics,
-      monitorOnly,
     });
     logGreen('✅ Loaded rebalancer config');
 
-    if (manual && rebalancerConfig.monitorOnly) {
+    if (manual && monitorOnly) {
       throw new Error(
         'Manual mode is not compatible with monitorOnly. Please disable monitorOnly in your config or via the CLI.',
       );
@@ -103,11 +101,11 @@ export class RebalancerRunner {
     const strategy = await contextFactory.createStrategy(metrics);
 
     // Instantiates the rebalancer in charge of executing the rebalancing transactions
-    const rebalancer = !rebalancerConfig.monitorOnly
+    const rebalancer = !monitorOnly
       ? contextFactory.createRebalancer(metrics)
       : undefined;
 
-    if (rebalancerConfig.monitorOnly) {
+    if (monitorOnly) {
       warnYellow(
         'Running in monitorOnly mode: no transactions will be executed.',
       );

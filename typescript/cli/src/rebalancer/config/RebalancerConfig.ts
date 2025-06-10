@@ -15,8 +15,6 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly checkFrequency: number,
-    public readonly monitorOnly: boolean,
-    public readonly withMetrics: boolean,
     public readonly coingeckoApiKey: string | undefined,
     public readonly rebalanceStrategy: RebalancerStrategyOptions,
     public readonly chains: ChainMap<RebalancerChainConfig>,
@@ -30,8 +28,6 @@ export class RebalancerConfig {
     configFilePath: string,
     extraArgs: {
       checkFrequency: number;
-      monitorOnly: boolean;
-      withMetrics: boolean;
     },
   ) {
     const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
@@ -50,8 +46,6 @@ export class RebalancerConfig {
     return new RebalancerConfig(
       warpRouteId,
       extraArgs.checkFrequency,
-      extraArgs.monitorOnly,
-      extraArgs.withMetrics,
       ENV.COINGECKO_API_KEY,
       rebalanceStrategy,
       chains,
