@@ -1,7 +1,10 @@
 #![allow(deprecated)]
 
 use core::panic;
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use ethers::{
     abi::{Function, Param, ParamType, StateMutability},
@@ -34,9 +37,11 @@ use crate::{
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_happy_path() {
+    let block_time = Duration::from_millis(10);
     let mock_evm_provider = mocked_evm_provider();
     let signer = H160::random();
-    let dispatcher_state = mock_dispatcher_state_with_provider(mock_evm_provider, signer);
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
     let (tx_sender, tx_receiver) = mpsc::channel(100);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
     let inclusion_stage =
@@ -71,6 +76,7 @@ async fn test_inclusion_happy_path() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_spike() {
+    let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_evm_provider
         .expect_get_finalized_block_number()
@@ -83,10 +89,6 @@ async fn test_inclusion_gas_spike() {
             Ok(21000.into()) // Mocked gas limit
         });
 
-    // first submission, price is 100
-    // second submission, price is 109 (less than 10% spike)
-    // third submission, price is 110 (less than 10% spike)
-    // fourth submission, price is 150 (greater than 10% spike)
     let mut fee_history_call_counter = 0;
     mock_evm_provider
         .expect_fee_history()
@@ -109,7 +111,7 @@ async fn test_inclusion_gas_spike() {
             Ok(mock_fee_history(base_fee, prio_fee))
         });
 
-    // return mock receipt than has no block for first 3 submissions, then full receipt for the last one
+    // return mock receipt that has no block for first 3 submissions, then full receipt for the last one
     let mut tx_receipt_call_counter = 0;
     mock_evm_provider
         .expect_get_transaction_receipt()
@@ -124,23 +126,26 @@ async fn test_inclusion_gas_spike() {
 
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
+    let elapsed = Instant::now();
+    let base_processing_delay = Duration::from_millis(15);
+    let inclusion_stage_processing_delay = Duration::from_millis(10);
+    let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
-        match send_call_counter {
-            1 => {
-                assert_eq!(tx.gas_price().unwrap(), 200000.into())
-            }
-            2 => {
-                assert_eq!(tx.gas_price().unwrap(), 220000.into()) // Second submission, price is 10% higher, even though the spike was smaller
-            }
-            3 => {
-                assert_eq!(tx.gas_price().unwrap(), 242000.into()) // Third submission, price is 10% higher again, even though the spike was smaller
-            }
-            4 => {
-                assert_eq!(tx.gas_price().unwrap(), 300000.into()) // Fourth submission, price matches the spike
-            }
-            _ => {}
-        }
+        // assert the timing of resubmissions to make sure they don't happen more than once per block
+        assert_gas_prices_and_timings(
+            send_call_counter,
+            elapsed,
+            base_processing_delay,
+            inclusion_stage_processing_delay,
+            block_time_clone,
+            &tx,
+            // First submission, price is 200000 - the default fee used by the ethers estimation logic
+            // Second submission, price is 10% higher, even though the spike was smaller
+            // Third submission, price is 10% higher again, even though the spike was smaller
+            // Fourth submission, price matches the spike, because it was greater than 10%
+            vec![200000, 220000, 242000, 300000],
+        );
         Ok(H256::random()) // Mocked transaction hash
     });
 
@@ -149,7 +154,8 @@ async fn test_inclusion_gas_spike() {
         .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
 
     let signer = H160::random();
-    let dispatcher_state = mock_dispatcher_state_with_provider(mock_evm_provider, signer);
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
     let (tx_sender, tx_receiver) = mpsc::channel(100);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
     let inclusion_stage =
@@ -310,9 +316,10 @@ fn dummy_tx_precursor(signer: H160) -> EthereumTxPrecursor {
 pub fn mock_dispatcher_state_with_provider(
     provider: MockEvmProvider,
     signer: H160,
+    block_time: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, signer);
+    let adapter = mock_ethereum_adapter(provider, nonce_db, signer, block_time);
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -326,9 +333,10 @@ fn mock_ethereum_adapter(
     provider: MockEvmProvider,
     nonce_db: Arc<dyn NonceDb>,
     signer: H160,
+    block_time: Duration,
 ) -> EthereumAdapter {
     EthereumAdapter {
-        estimated_block_time: Duration::from_millis(10),
+        estimated_block_time: block_time,
         domain: KnownHyperlaneDomain::Arbitrum.into(),
         transaction_overrides: Default::default(),
         submission_config: OpSubmissionConfig::default(),
@@ -365,4 +373,30 @@ fn mock_block(block_number: u64, base_fee: u32) -> ethers::types::Block<EthersH2
         base_fee_per_gas: Some(base_fee.into()),
         ..Default::default()
     }
+}
+
+fn assert_gas_prices_and_timings(
+    nth_submission: usize,
+    start_time: Instant,
+    base_processing_delay: Duration,
+    inclusion_stage_processing_delay: Duration,
+    block_time: Duration,
+    tx: &TypedTransaction,
+    gas_price_expectations: Vec<u32>,
+) {
+    let actual_elapsed = start_time.elapsed();
+    let expected_elapsed = base_processing_delay
+        + (inclusion_stage_processing_delay + block_time) * (nth_submission as u32);
+    assert!(
+        actual_elapsed < expected_elapsed,
+        "elapsed {:?} was not < blocktime {:?}",
+        actual_elapsed,
+        expected_elapsed
+    );
+    assert_eq!(
+        tx.gas_price().unwrap(),
+        gas_price_expectations[nth_submission - 1].into(),
+        "gas price for submission {} doesn't match expected value",
+        nth_submission
+    );
 }
