@@ -2,7 +2,7 @@ use ethers_core::types::Address;
 
 use hyperlane_core::U256;
 
-use crate::dispatcher::test_utils::tmp_dbs;
+use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::TransactionUuid;
 
 use super::super::super::nonce::status::NonceStatus;

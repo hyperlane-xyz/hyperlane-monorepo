@@ -17,6 +17,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 
+use crate::tests::test_utils::tmp_dbs;
 use crate::{
     adapter::{
         chains::ethereum::{
@@ -26,7 +27,7 @@ use crate::{
         },
         EthereumTxPrecursor,
     },
-    dispatcher::{test_utils::tmp_dbs, DispatcherState, InclusionStage, PayloadDb, TransactionDb},
+    dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
     transaction::{Transaction, VmSpecificTxData},
     DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
 };

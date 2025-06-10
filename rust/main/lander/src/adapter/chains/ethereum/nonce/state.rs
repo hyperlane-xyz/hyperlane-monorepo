@@ -56,18 +56,18 @@ impl NonceManagerState {
 
     pub(crate) async fn update_nonce_status(
         &self,
-        nonce: U256,
-        nonce_status: NonceStatus,
+        nonce: &U256,
+        nonce_status: &NonceStatus,
     ) -> NonceResult<()> {
         use NonceStatus::{Committed, Freed, Taken};
 
-        let Some(tracked_nonce_status) = self.get_nonce_status(&nonce).await? else {
+        let Some(tracked_nonce_status) = self.get_nonce_status(nonce).await? else {
             // If the nonce is not tracked, we insert it with the new status.
             self.insert_nonce_status(nonce, nonce_status).await?;
             return Ok(());
         };
 
-        if tracked_nonce_status == nonce_status {
+        if &tracked_nonce_status == nonce_status {
             // If the nonce status is the same as the tracked one, we do nothing.
             return Ok(());
         }
@@ -102,7 +102,7 @@ impl NonceManagerState {
         );
 
         Err(NonceError::NonceAssignedToMultipleTransactions(
-            nonce,
+            *nonce,
             tracked_tx_uuid.clone(),
             tx_uuid.clone(),
         ))
@@ -203,9 +203,13 @@ impl NonceManagerState {
         Ok(next_nonce)
     }
 
-    async fn insert_nonce_status(&self, nonce: U256, nonce_status: NonceStatus) -> NonceResult<()> {
+    async fn insert_nonce_status(
+        &self,
+        nonce: &U256,
+        nonce_status: &NonceStatus,
+    ) -> NonceResult<()> {
         self.db
-            .store_nonce_status_by_nonce_and_signer_address(&nonce, &self.address, &nonce_status)
+            .store_nonce_status_by_nonce_and_signer_address(nonce, &self.address, nonce_status)
             .await?;
 
         let upper_nonce = self
@@ -214,7 +218,7 @@ impl NonceManagerState {
             .await?
             .unwrap_or_default();
 
-        if nonce >= upper_nonce {
+        if nonce >= &upper_nonce {
             self.db
                 .store_upper_nonce_by_signer_address(&self.address, &(nonce + 1))
                 .await?;

@@ -125,9 +125,19 @@ impl NonceManager {
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), tx_status);
 
         self.state
-            .update_nonce_status(nonce, nonce_status)
+            .update_nonce_status(&nonce, &nonce_status)
             .await
-            .map_err(|e| eyre::eyre!("Failed to update nonce status: {}", e))
+            .map_err(|e| eyre::eyre!("Failed to update nonce status: {}", e))?;
+
+        info!(
+            ?nonce,
+            ?nonce_status,
+            address = ?self.address,
+            ?tx_uuid,
+            "Updated nonce status for transaction"
+        );
+
+        Ok(())
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {

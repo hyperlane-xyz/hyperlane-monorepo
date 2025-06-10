@@ -257,20 +257,15 @@ impl FinalityStage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        dispatcher::{
-            metrics::DispatcherMetrics,
-            stages::{building_stage, finality_stage},
-            test_utils::{
-                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
-                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
-            },
-            PayloadDb, TransactionDb,
-        },
-        payload::{PayloadDetails, PayloadUuid},
-        transaction::{Transaction, TransactionUuid},
+    use crate::tests::test_utils::{
+        are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs,
+        MockAdapter,
     };
-    use eyre::Result;
+    use crate::{
+        dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
+        payload::PayloadDetails,
+        transaction::Transaction,
+    };
     use std::sync::Arc;
     use tokio::sync::mpsc;
 

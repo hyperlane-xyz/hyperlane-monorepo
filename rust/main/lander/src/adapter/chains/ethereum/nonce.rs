@@ -8,3 +8,6 @@ mod manager;
 mod state;
 mod status;
 mod updater;
+
+#[cfg(test)]
+mod tests;
