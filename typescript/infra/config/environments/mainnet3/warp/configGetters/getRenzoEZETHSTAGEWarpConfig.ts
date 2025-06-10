@@ -1,3 +1,6 @@
+import { ChainMap } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
+
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import {
@@ -51,6 +54,25 @@ export const ezEthStagingSafes: Record<
   worldchain: '0x3DA9AE6359Ad3eFFD33Ad334ae12bE55904BE4eA',
 };
 
+const ezEthStageExistingProtocolFee: ChainMap<Address> = {
+  arbitrum: '0x2Ef1A234D5dC658F0a4004a8783F3F12333c47d9',
+  base: '0x5fA5E930678a501259b5025B06f9af90DafcC862',
+  berachain: '0x6EFB7Fd2934db70dA2521Edc5AE5e5FcC59EaBB1',
+  blast: '0xe35342b3A3a9eEd61B87158CD5fE7C7ac2c87716',
+  bsc: '0x73c9627AEdBCe75247E1c8E05ED1A42b846a1d41',
+  ethereum: '0xbBfDc1E764Da75893C813Ce8315eD72f36f1b2C4',
+  fraxtal: '0x4E602f930a64CcaF3A270Da1c2223A9f5860AEE7',
+  linea: '0xcB5D5609902eef08b2B975ed9F1df0992b55C910',
+  mode: '0xAa4Be20E9957fE21602c74d7C3cF5CB1112EA9Ef',
+  optimism: '0x1A7F6e01103D920d210f25e122d22E1182411868',
+  sei: '0xB1150a7a1bc98d758eF9A364917A1309f2B18c63',
+  swell: '0x2944D3377fd9414d7Ca5701a861E5Ef341eE6DC7',
+  taiko: '0x9eEc4Bf68163b0AE77a58f3Fe48c8727C2269d6F',
+  unichain: '0x855B945366cF7c59B1136F8cF1B00f87e96cf7dD',
+  worldchain: '0xd16E378b0f2732E06f43b70Fa1B734C10B30BFCA',
+  zircuit: '0xF59775A9a8C272ED0b0adF2435EbA2369229551D',
+};
+
 const ezEthStagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
 export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: ezEthChainsToDeploy,
@@ -59,6 +81,7 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: ezEthStagingAddresses,
   xERC20Lockbox: ezEthStagingLockbox,
   tokenPrices: renzoTokenPrices,
+  existingProtocolFee: ezEthStageExistingProtocolFee,
 });
 
 export const getEZETHSTAGEGnosisSafeBuilderStrategyConfig =

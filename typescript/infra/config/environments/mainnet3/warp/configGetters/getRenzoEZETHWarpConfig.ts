@@ -66,7 +66,7 @@ export function getProtocolFee(chain: ChainName) {
 }
 
 // Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
-const chainProtocolFee: Record<ChainName, string> = {
+const chainProtocolFee: ChainMap<string> = {
   arbitrum: '400000000000000',
   base: '400000000000000',
   blast: '129871800000000',
@@ -82,6 +82,25 @@ const chainProtocolFee: Record<ChainName, string> = {
   unichain: '400000000000000',
   worldchain: '400000000000000',
   zircuit: '400000000000000',
+};
+
+const ezEthProdExistingProtocolFee = {
+  arbitrum: '0x592cd754B947396255E50Cac10c519c7ee313919',
+  base: '0xFA6A5Ab6a77dDdf2936b538Fdc39DAe314Cc5500',
+  berachain: '0x96003848cfc3C236d70661aF4722F404435a526d',
+  blast: '0x68a3963D2fE3427cfD044806B40AF41feCaae845',
+  bsc: '0x18431F422A9f32967054689673b7e1731Da233A7',
+  ethereum: '0x16198AD900a78360387CC2c5aCEaF21665508001',
+  fraxtal: '0xc2100BBF930f3A61c36d58c59453B422B929d2E8',
+  linea: '0xa2fd91b39926daBB5009C5e4ee237c1C0b677bCe',
+  mode: '0xD3378b419feae4e3A4Bb4f3349DBa43a1B511760',
+  optimism: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
+  sei: '0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49',
+  swell: '0x1604d2D3DaFba7D302F86BD7e79B3931414E4625',
+  taiko: '0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7',
+  unichain: '0x674f4698d063cE4C0d604c88dD7D542De72f327f',
+  worldchain: '0x4019404611325b06eC133bdf6907583E162D508c',
+  zircuit: '0x9dE36D2d60a81FaFDDC888595C822f9085B2cFB5',
 };
 
 export function getRenzoHook(params: {
