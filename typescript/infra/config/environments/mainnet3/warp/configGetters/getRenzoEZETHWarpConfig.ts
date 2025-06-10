@@ -87,7 +87,7 @@ export async function getRenzoLegacyHook(params: {
  *    - "0x68a3963D2fE3427cfD044806B40AF41feCaae845"
  *    - "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
  */
-const outBoundOnlyChain = 'blast';
+const OUTBOUND_ONLY_CHAIN = 'blast';
 export function getRenzoHook(params: {
   defaultHook: Address;
   origin: ChainName;
@@ -102,7 +102,7 @@ export function getRenzoHook(params: {
   let protocolFeeHook: HookConfig;
 
   routingHook =
-    origin === outBoundOnlyChain
+    origin === OUTBOUND_ONLY_CHAIN
       ? defaultHook
       : {
           type: HookType.ROUTING,
@@ -110,7 +110,7 @@ export function getRenzoHook(params: {
           domains: Object.fromEntries(
             destinationChains
               .filter((c) => c !== origin)
-              .filter((c) => c !== outBoundOnlyChain)
+              .filter((c) => c !== OUTBOUND_ONLY_CHAIN)
               .map((dest) => [dest, defaultHook]),
           ),
         };
@@ -130,7 +130,7 @@ function getRenzoIsmConfig(params: {
 }): AggregationIsmConfig | RoutingIsmConfig {
   const { origin, safes, chainsToDeploy, validators } = params;
 
-  if (origin === 'blast') {
+  if (origin === OUTBOUND_ONLY_CHAIN) {
     // If origin is blast, use routing ism without domains (restricts inbound from all chains).
     return {
       type: IsmType.ROUTING,
