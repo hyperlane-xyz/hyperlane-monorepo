@@ -5,6 +5,7 @@ import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
 } from '@hyperlane-xyz/sdk';
+import { isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -48,7 +49,7 @@ export class RebalancerHelmManager extends HelmManager {
     }
 
     const { ...chains } = validationResult.data;
-    if (!Object.keys(chains).length) {
+    if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
   }
