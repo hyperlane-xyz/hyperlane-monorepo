@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { Wallet, ethers } from 'ethers';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
@@ -21,7 +22,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
+import { inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { CommandContext } from '../../context/types.js';
@@ -30,7 +31,6 @@ import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
 import {
-  hyperlaneWarpApply,
   hyperlaneWarpApplyRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
@@ -224,39 +224,6 @@ export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
 }
 
 /**
- * Updates the owner of the Warp route deployment config, and then output to a file
- */
-export async function updateWarpOwnerConfig(
-  chain: string,
-  owner: Address,
-  warpCorePath: string,
-  warpDeployPath: string,
-): Promise<string> {
-  const warpDeployConfig = await readWarpConfig(
-    chain,
-    warpCorePath,
-    warpDeployPath,
-  );
-  warpDeployConfig[chain].owner = owner;
-  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-
-  return warpDeployPath;
-}
-
-/**
- * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
- */
-export async function updateOwner(
-  owner: Address,
-  chain: string,
-  warpConfigPath: string,
-  warpCoreConfigPath: string,
-) {
-  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
-  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
-}
-
-/**
  * Extends the Warp route deployment with a new warp config
  */
 export async function extendWarpConfig(params: {
@@ -296,6 +263,24 @@ export async function extendWarpConfig(params: {
   });
 
   return warpDeployPath;
+}
+
+export async function resetAnvilFork(
+  provider: JsonRpcProvider,
+  stateId: string,
+): Promise<string> {
+  await provider.send('evm_revert', [stateId]);
+  const newStateId = await provider.send('evm_snapshot', []);
+
+  return newStateId;
+}
+
+export async function resetAnvilForksBatch(
+  configs: [JsonRpcProvider, string][],
+): Promise<string[]> {
+  return Promise.all(
+    configs.map(([provider, stateId]) => resetAnvilFork(provider, stateId)),
+  );
 }
 
 /**
