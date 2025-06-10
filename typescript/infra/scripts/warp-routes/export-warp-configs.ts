@@ -1,4 +1,6 @@
 import chalk from 'chalk';
+import { ESLint } from 'eslint';
+import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -18,6 +20,12 @@ async function main() {
   const warpIdsToCheck = warpRouteId
     ? [warpRouteId]
     : Object.keys(warpConfigGetterMap);
+  const eslint = new ESLint({
+    fix: true,
+    overrideConfigFile:
+      '/Users/leyu/Desktop/Code/hyperlane/hyperlane-registry/eslint.config.js',
+  });
+
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`Generating Warp config for ${warpRouteId}`);
 
@@ -35,8 +43,19 @@ async function main() {
       },
     );
 
+    console.log(`Linting Warp config for ${warpRouteId}`);
+    // Convert the object to a YAML string for linting
+    const configString = yamlStringify(registryConfig);
+    const results = await eslint.lintText(configString, {
+      // Hack to trick eslint to run for yaml files.
+      // This is needed because eslint config filters by filepath (eg. chains/**/*.yaml)
+      filePath: `chains/not-real-file.yaml`,
+    });
+
     try {
-      registry.addWarpRouteConfig(registryConfig, { warpRouteId });
+      registry.addWarpRouteConfig(yamlParse(results[0].output!), {
+        warpRouteId,
+      });
     } catch (error) {
       console.error(
         chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
