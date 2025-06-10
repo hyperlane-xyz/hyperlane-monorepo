@@ -156,7 +156,8 @@ async fn test_inclusion_gas_underpriced() {
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(15);
-    let inclusion_stage_processing_delay = Duration::from_millis(10);
+    // assume 1 second more than usual because that's the retry delay when an error occurs
+    let inclusion_stage_processing_delay = Duration::from_millis(1010);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -174,9 +175,15 @@ async fn test_inclusion_gas_underpriced() {
             // Fourth submission, price matches the spike, because it was greater than 10%
             vec![200000, 220000],
         );
-        Err(ChainCommunicationError::CustomError(
-            "replacement transaction underpriced".to_string(),
-        ))
+        if send_call_counter < 2 {
+            // Simulate the "replacement transaction underpriced" error for the first submission
+            Err(ChainCommunicationError::CustomError(
+                "replacement transaction underpriced".to_string(),
+            ))
+        } else {
+            // For the second one, we assume it goes through successfully
+            Ok(H256::random())
+        }
     });
 
     mock_evm_provider
@@ -210,6 +217,8 @@ async fn run_and_expect_successful_inclusion(
     for tx in txs_created.iter() {
         tx_sender.send(tx.clone()).await.unwrap();
     }
+    // need to manually set this because panics don't propagate through the select! macro
+    let mut success = false;
     select! {
         _ = inclusion_stage.run() => {
             // inclusion stage should process the txs
@@ -217,11 +226,16 @@ async fn run_and_expect_successful_inclusion(
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
             assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
+            success = true;
         },
         _ = tokio::time::sleep(tokio::time::Duration::from_millis(5000)) => {
             panic!("Inclusion stage did not process the txs in time");
         }
     }
+    assert!(
+        success,
+        "Inclusion stage did not process the txs successfully"
+    );
 }
 
 fn mocked_evm_provider() -> MockEvmProvider {
