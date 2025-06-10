@@ -155,3 +155,6 @@ impl Encode for NonceAndSignerAddress {
         Ok(written)
     }
 }
+
+#[cfg(test)]
+mod tests;
