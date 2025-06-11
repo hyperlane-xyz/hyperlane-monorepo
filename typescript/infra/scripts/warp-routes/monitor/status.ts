@@ -60,6 +60,14 @@ async function main() {
   }
 }
 
+/**
+ * Parses and formats raw log output as JSON lines, then prints each entry with colorized and structured details.
+ *
+ * @param rawLogs - The raw log string, where each line is a JSON-formatted log entry.
+ *
+ * @remark
+ * If a log line cannot be parsed as JSON, an error is logged and processing continues for other lines.
+ */
 function formatAndPrintLogs(rawLogs: string) {
   try {
     const logs = rawLogs

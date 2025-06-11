@@ -124,7 +124,20 @@ async function pollAndUpdateWarpRouteMetrics(
   }
 }
 
-// Updates the metrics for a single token in a warp route.
+/**
+ * Updates all relevant metrics for a single token within a Warp route.
+ *
+ * Depending on the token type, this function updates bridged token balances, xERC20 mint/burn limits, Sealevel ATA payer balances, and managed lockbox balances and limits. For xERC20 tokens, it also processes any associated extra lockboxes defined in the deployment configuration.
+ *
+ * @param warpCore - The WarpCore instance for interacting with the Warp route.
+ * @param warpDeployConfig - The deployment configuration for the Warp route, or null if unavailable.
+ * @param token - The token for which metrics are being updated.
+ * @param tokenPriceGetter - Utility for fetching token prices from CoinGecko.
+ * @param warpRouteId - The identifier for the Warp route.
+ *
+ * @remark
+ * If the deployment configuration is missing or the token type does not match the expected xERC20 types, extra lockbox metrics are not updated for that token.
+ */
 async function updateTokenMetrics(
   warpCore: WarpCore,
   warpDeployConfig: WarpRouteDeployConfig | null,
@@ -252,7 +265,13 @@ async function updateTokenMetrics(
   await Promise.all(promises);
 }
 
-// Gets the bridged balance and value of a token in a warp route.
+/**
+ * Retrieves the bridged token balance and its USD value for a Hyperlane token in a Warp route.
+ *
+ * For collateralized and xERC20 lockbox tokens, also fetches the token price and computes the USD value.
+ *
+ * @returns An object containing the bridged balance, USD value (if available), and token address, or `undefined` if unsupported or unavailable.
+ */
 async function getTokenBridgedBalance(
   warpCore: WarpCore,
   token: Token,
@@ -471,6 +490,13 @@ async function getManagedLockBox(
   return new Contract(lockboxAddress, managedLockBoxMinimalABI, provider);
 }
 
+/**
+ * Retrieves the ERC20 token balance and USD value for a managed lockbox associated with an xERC20 Warp token.
+ *
+ * @param warpToken - The xERC20 Warp token whose lockbox balance is being queried.
+ * @param lockboxAddress - The address of the managed lockbox contract.
+ * @returns An object containing the lockbox's ERC20 token balance, its USD value if available, and the ERC20 token address, or undefined if the balance cannot be retrieved or the token is not xERC20.
+ */
 async function getExtraLockboxBalance(
   warpToken: Token,
   multiProtocolProvider: MultiProtocolProvider,
@@ -520,7 +546,15 @@ async function getExtraLockboxBalance(
 }
 
 // Tries to get the price of a token from CoinGecko. Returns undefined if there's no
-// CoinGecko ID for the token.
+/**
+ * Attempts to retrieve the current price of a token using its CoinGecko ID.
+ *
+ * @param token - The token for which to fetch the price.
+ * @param tokenPriceGetter - The CoinGecko price getter instance.
+ * @returns The token price if available, or undefined if the token lacks a CoinGecko ID.
+ *
+ * @remark If the token does not have a CoinGecko ID, a warning is logged and undefined is returned.
+ */
 async function tryGetTokenPrice(
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
@@ -547,6 +581,13 @@ async function getCoingeckoPrice(
   return prices[0];
 }
 
+/**
+ * Retrieves the CoinGecko API key from Google Cloud Platform secrets for the 'mainnet3' environment.
+ *
+ * @returns The CoinGecko API key if available, or undefined if retrieval fails.
+ *
+ * @remark If the API key cannot be fetched, the function logs an error and returns undefined, allowing the application to proceed using the public CoinGecko API tier.
+ */
 async function getCoinGeckoApiKey(): Promise<string | undefined> {
   const environment: DeployEnvironment = 'mainnet3';
   let apiKey: string | undefined;
@@ -565,6 +606,13 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   return apiKey;
 }
 
+/**
+ * Determines a deterministic symbol for a Warp route based on its tokens.
+ *
+ * If all tokens share the same symbol, returns that symbol. If there are collateral tokens, returns the alphabetically first collateral token symbol. If no collateral tokens exist, returns the alphabetically first symbol among all tokens.
+ *
+ * @returns The selected symbol representing the Warp route.
+ */
 function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
   // We need to have a deterministic way to determine the symbol of the warp route
   // as its used to identify the warp route in metrics. This method should support routes where:
