@@ -82,3 +82,73 @@ describe('TokenPriceGetter', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+  // Additional edge–case and failure–path tests
+  // ---------------------------------------------------------------------------
+
+  describe('edge cases & failure paths', () => {
+    let clock: sinon.SinonFakeTimers;
+
+    beforeEach(() => {
+      clock = sinon.useFakeTimers();
+    });
+
+    afterEach(() => {
+      clock.restore();
+    });
+
+    it('handles an empty array of ids gracefully', async () => {
+      // Empty fetch should not throw and should resolve to an empty array
+      stub?.restore();
+      stub = sinon.stub(tokenPriceGetter, 'fetchPriceData').resolves([]);
+      expect(await tokenPriceGetter.getTokenPriceByIds([])).to.eql([]);
+      sinon.assert.notCalled(stub); // fetchPriceData should short-circuit
+    });
+
+    it('throws when fetchPriceData rejects', async () => {
+      stub?.restore();
+      const err = new Error('network down');
+      stub = sinon.stub(tokenPriceGetter, 'fetchPriceData').rejects(err);
+      await expect(
+        tokenPriceGetter.getTokenPriceByIds([ethereum.name]),
+      ).to.be.rejectedWith('network down');
+    });
+
+    it('returns undefined for unknown / unsupported chain', async () => {
+      expect(await tokenPriceGetter.getTokenPrice('made-up-chain')).to.equal(
+        undefined,
+      );
+    });
+
+    it('returns cached values until expiry then refreshes', async () => {
+      // 1) Prime cache
+      const [first] = await tokenPriceGetter.getTokenPriceByIds([
+        ethereum.name,
+      ]);
+      expect(first).to.equal(priceA);
+
+      // 2) Change stub so that a different value would be returned if invoked
+      stub?.restore();
+      const newPrice = 999;
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .resolves([newPrice]);
+
+      // 3) Immediately read again -> cached value should still be returned
+      const [cached] = await tokenPriceGetter.getTokenPriceByIds([
+        ethereum.name,
+      ]);
+      expect(cached).to.equal(priceA);
+      sinon.assert.notCalled(stub);
+
+      // 4) Advance fake timer past expirySeconds and read again
+      clock.tick(10_000);
+      const [refreshed] = await tokenPriceGetter.getTokenPriceByIds([
+        ethereum.name,
+      ]);
+      expect(refreshed).to.equal(newPrice);
+      sinon.assert.calledOnce(stub);
+    });
+  });
+});
