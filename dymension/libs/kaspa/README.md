@@ -1,17 +1,8 @@
 # Kaspa
 
-## Structure
+## Contributing 
 
-```
-├──  demo
-│   ├──  multisig // self contained demo for most basic multisig + relayer kaspa TX flow
-│   ├──  relayer // self contained demo for relayer (no HL and only one of Hub/Kasp)
-│   └──  validator // self contained demo for validator (no HL and only one of Hub/Kasp)
-├──  lib
-│   ├──  core // shared by relayer and validator libs
-│   ├──  relayer // not used by validator lib
-│   └──  validator // not used by relayer lib
-```
+See [Contributing](./CONTRIBUTING.md)
 
 ## Kaspa Cheatsheet (v1.0.0)
 
