@@ -168,7 +168,14 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     }
 
     const resp = await fetch(url);
-    const idPrices = await resp.json();
+    let idPrices: any = {};
+    let jsonError: unknown;
+    try {
+      idPrices = await resp.json();
+    } catch (err) {
+      jsonError = err;
+      idPrices = {};
+    }
 
     if (!resp.ok) {
       rootLogger.warn(
@@ -179,6 +186,9 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
         },
         `Failed to fetch token prices: ${idPrices?.error}`,
       );
+    }
+    if (jsonError) {
+      rootLogger.warn(jsonError, 'Failed to parse token prices');
     }
 
     return ids.map((id) => {
