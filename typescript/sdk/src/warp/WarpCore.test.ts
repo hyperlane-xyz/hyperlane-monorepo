@@ -73,7 +73,6 @@ describe('WarpCore', () => {
       cwHypCollateral,
       cw20,
       cosmosIbc,
-      ,
       starknetHypSynthetic,
     ] = warpCore.tokens;
   });
