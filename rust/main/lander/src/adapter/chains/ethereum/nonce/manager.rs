@@ -21,7 +21,7 @@ use super::updater::NonceUpdater;
 pub struct NonceManager {
     pub address: Address,
     pub state: Arc<NonceManagerState>,
-    pub _nonce_updater: Option<NonceUpdater>,
+    pub nonce_updater: NonceUpdater,
 }
 
 impl NonceManager {
@@ -37,15 +37,14 @@ impl NonceManager {
         let db = db as Arc<dyn NonceDb>;
         let state = Arc::new(NonceManagerState::new(db, address));
 
-        let mut nonce_updater =
+        let nonce_updater =
             NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
-        nonce_updater.immediate().await;
-        nonce_updater.run();
+        nonce_updater.update_immediately().await;
 
         let manager = Self {
             address,
             state,
-            _nonce_updater: Some(nonce_updater),
+            nonce_updater,
         };
 
         Ok(manager)
@@ -71,6 +70,8 @@ impl NonceManager {
         }
 
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
+
+        self.nonce_updater.update().await;
 
         if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
             let action = self

@@ -1,16 +1,9 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
 use async_trait::async_trait;
 use ethers_core::abi::Function;
 use ethers_core::types::Address;
-
-use hyperlane_base::db::DbResult;
-use hyperlane_core::U256;
-
-use crate::adapter::EthereumTxPrecursor;
-use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
-use crate::TransactionDropReason;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use super::super::super::transaction::Precursor;
 use super::super::tests::MockNonceDb;
@@ -18,6 +11,14 @@ use super::NonceDb;
 use super::NonceManager;
 use super::NonceManagerState;
 use super::NonceStatus;
+use crate::adapter::chains::ethereum::nonce::NonceUpdater;
+use crate::adapter::chains::ethereum::tests::MockEvmProvider;
+use crate::adapter::EthereumTxPrecursor;
+use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
+use crate::TransactionDropReason;
+use hyperlane_base::db::DbResult;
+use hyperlane_core::U256;
+use hyperlane_ethereum::EthereumReorgPeriod;
 
 #[allow(deprecated)]
 fn make_tx(
@@ -58,16 +59,31 @@ fn make_tx(
     tx
 }
 
-#[tokio::test]
-async fn test_update_nonce_status_inserts_when_not_tracked() {
+fn init() -> (Arc<MockNonceDb>, Address, NonceManager) {
     let db = Arc::new(MockNonceDb::new());
     let address = Address::random();
     let state = Arc::new(NonceManagerState::new(db.clone(), address));
+
+    let nonce_updater = NonceUpdater::new(
+        address,
+        EthereumReorgPeriod::Blocks(1),
+        Duration::from_secs(12),
+        Arc::new(MockEvmProvider::default()),
+        state.clone(),
+    );
+
     let manager = NonceManager {
         address,
         state: state.clone(),
-        _nonce_updater: Default::default(),
+        nonce_updater,
     };
+
+    (db, address, manager)
+}
+
+#[tokio::test]
+async fn test_update_nonce_status_inserts_when_not_tracked() {
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(1);
@@ -89,14 +105,7 @@ async fn test_update_nonce_status_inserts_when_not_tracked() {
 
 #[tokio::test]
 async fn test_update_nonce_status_noop_when_same_status() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: Default::default(),
-    };
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(2);
@@ -126,14 +135,7 @@ async fn test_update_nonce_status_noop_when_same_status() {
 
 #[tokio::test]
 async fn test_update_nonce_status_freed_to_taken() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: Default::default(),
-    };
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(3);
@@ -163,14 +165,7 @@ async fn test_update_nonce_status_freed_to_taken() {
 
 #[tokio::test]
 async fn test_update_nonce_status_same_tx_uuid_updates_status() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: Default::default(),
-    };
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(4);
@@ -200,14 +195,7 @@ async fn test_update_nonce_status_same_tx_uuid_updates_status() {
 
 #[tokio::test]
 async fn test_update_nonce_status_different_tx_uuid_errors() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: Default::default(),
-    };
+    let (db, address, manager) = init();
 
     let uuid1 = TransactionUuid::random();
     let uuid2 = TransactionUuid::random();
@@ -230,14 +218,7 @@ async fn test_update_nonce_status_different_tx_uuid_errors() {
 
 #[tokio::test]
 async fn test_assign_nonce_sets_nonce_when_none_present() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: None,
-    };
+    let (_, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     // No nonce set, but from address matches manager
@@ -256,14 +237,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
 
 #[tokio::test]
 async fn test_assign_nonce_noop_when_action_is_noop() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: None,
-    };
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(1);
@@ -292,14 +266,7 @@ async fn test_assign_nonce_noop_when_action_is_noop() {
 
 #[tokio::test]
 async fn test_assign_nonce_assigns_when_action_is_assign() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: None,
-    };
+    let (db, address, manager) = init();
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(2);
@@ -328,14 +295,7 @@ async fn test_assign_nonce_assigns_when_action_is_assign() {
 
 #[tokio::test]
 async fn test_assign_nonce_error_when_from_address_missing() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: None,
-    };
+    let (_, _, manager) = init();
 
     let uuid = TransactionUuid::random();
     // None `from` address provided
@@ -352,15 +312,8 @@ async fn test_assign_nonce_error_when_from_address_missing() {
 
 #[tokio::test]
 async fn test_assign_nonce_error_when_from_address_mismatch() {
-    let db = Arc::new(MockNonceDb::new());
-    let address = Address::random();
+    let (_, _, manager) = init();
     let other_address = Address::random();
-    let state = Arc::new(NonceManagerState::new(db.clone(), address));
-    let manager = NonceManager {
-        address,
-        state: state.clone(),
-        _nonce_updater: None,
-    };
 
     let uuid = TransactionUuid::random();
     // From address does not match the manager address

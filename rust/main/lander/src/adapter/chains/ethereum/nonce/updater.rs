@@ -1,9 +1,11 @@
 use std::future::Future;
+use std::ops::Add;
 use std::sync::Arc;
 use std::time::Duration;
 
 use ethers_core::types::Address;
-use tokio::time::sleep;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Instant};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, Instrument};
 
@@ -18,7 +20,7 @@ pub struct NonceUpdater {
     block_time: Duration,
     provider: Arc<dyn EvmProviderForLander>,
     state: Arc<NonceManagerState>,
-    task: Option<tokio::task::JoinHandle<()>>,
+    updated: Arc<Mutex<Instant>>,
 }
 
 impl NonceUpdater {
@@ -29,74 +31,37 @@ impl NonceUpdater {
         provider: Arc<dyn EvmProviderForLander>,
         state: Arc<NonceManagerState>,
     ) -> Self {
+        let updated = Arc::new(Mutex::new(Instant::now()));
+
         NonceUpdater {
             address,
             reorg_period,
             block_time,
             provider,
             state,
-            task: None,
+            updated,
         }
     }
 
-    pub fn run(&mut self) {
-        let task_monitor = TaskMonitor::new();
-        let address = self.address;
-        let reorg_period = self.reorg_period;
-        let block_time = self.block_time;
-        let provider = self.provider.clone();
-        let state = self.state.clone();
-        let finalized_nonce_updater = tokio::task::Builder::new()
-            .name("nonce_manager::finalized_nonce_updater")
-            .spawn(TaskMonitor::instrument(
-                &task_monitor,
-                async move {
-                    info!(?address, "Started nonce updater for address");
-                    Self::update(address, reorg_period, block_time, provider, state).await;
-                    info!(?address, "Finished nonce updater for address");
-                }
-                .instrument(info_span!("NonceManagerFinalizedNonceUpdater")),
-            ))
-            .expect("spawning tokio task from Builder is infallible");
-
-        self.task = Some(finalized_nonce_updater);
-    }
-
-    pub async fn immediate(&self) {
-        Self::immediate_update(
-            &self.address,
-            &self.reorg_period,
-            &self.provider,
-            &self.state,
-        )
-        .await;
-    }
-
-    async fn update(
-        address: Address,
-        reorg_period: EthereumReorgPeriod,
-        block_time: Duration,
-        provider: Arc<dyn EvmProviderForLander>,
-        state: Arc<NonceManagerState>,
-    ) {
-        loop {
-            Self::immediate_update(&address, &reorg_period, &provider, &state).await;
-            sleep(block_time).await;
+    pub async fn update(&self) {
+        let duration = self.updated.lock().await.elapsed();
+        if duration >= self.block_time {
+            self.update_immediately().await;
         }
     }
 
-    async fn immediate_update(
-        address: &Address,
-        reorg_period: &EthereumReorgPeriod,
-        provider: &Arc<dyn EvmProviderForLander>,
-        state: &Arc<NonceManagerState>,
-    ) {
-        let next_nonce = provider
-            .get_next_nonce_on_finalized_block(address, reorg_period)
+    pub async fn update_immediately(&self) {
+        let mut guard = self.updated.lock().await;
+        *guard = Instant::now();
+
+        let next_nonce = self
+            .provider
+            .get_next_nonce_on_finalized_block(&self.address, &self.reorg_period)
             .await;
 
         if let Ok(next_nonce) = next_nonce {
-            let update_boundary_nonces_result = state.update_boundary_nonces(&next_nonce).await;
+            let update_boundary_nonces_result =
+                self.state.update_boundary_nonces(&next_nonce).await;
             if let Err(e) = update_boundary_nonces_result {
                 error!("Failed to update boundary nonces: {:?}", e);
             }

@@ -234,7 +234,7 @@ fn mock_ethereum_adapter(
     let nonce_manager = NonceManager {
         address: signer,
         state,
-        _nonce_updater: Some(nonce_updater),
+        nonce_updater,
     };
 
     EthereumAdapter {
