@@ -4,8 +4,6 @@
 
 import { describe, beforeEach, afterAll, test, expect, jest } from '@jest/globals';
 import axios from 'axios';
-import fs from 'fs/promises';
-import { exec } from 'child_process';
 import {
   checkRouteStatus,
   validateConfig,
@@ -65,11 +63,8 @@ describe('checkRouteStatus', () => {
   });
 
   test('Edge timing thresholds: exactly healthy and degraded boundaries', () => {
-    // exactly healthy threshold
     expect(calculateLatency(0, THRESHOLDS.healthy)).toEqual(THRESHOLDS.healthy);
-    // below healthy threshold
     expect(calculateLatency(0, THRESHOLDS.healthy - 1)).toEqual(THRESHOLDS.healthy - 1);
-    // above degraded threshold
     expect(calculateLatency(0, THRESHOLDS.degraded + 1)).toEqual(THRESHOLDS.degraded + 1);
   });
 

@@ -122,9 +122,9 @@ describe('TokenPriceGetter', () => {
 
     it('returns cached values until expiry then refreshes', async () => {
       // 1) Prime cache
-      const [first] = await tokenPriceGetter.getTokenPriceByIds([
+      const [first] = (await tokenPriceGetter.getTokenPriceByIds([
         ethereum.name,
-      ]);
+      ]))!;
       expect(first).to.equal(priceA);
 
       // 2) Change stub so that a different value would be returned if invoked
@@ -135,17 +135,17 @@ describe('TokenPriceGetter', () => {
         .resolves([newPrice]);
 
       // 3) Immediately read again -> cached value should still be returned
-      const [cached] = await tokenPriceGetter.getTokenPriceByIds([
+      const [cached] = (await tokenPriceGetter.getTokenPriceByIds([
         ethereum.name,
-      ]);
+      ]))!;
       expect(cached).to.equal(priceA);
       sinon.assert.notCalled(stub);
 
       // 4) Advance fake timer past expirySeconds and read again
       clock.tick(10_000);
-      const [refreshed] = await tokenPriceGetter.getTokenPriceByIds([
+      const [refreshed] = (await tokenPriceGetter.getTokenPriceByIds([
         ethereum.name,
-      ]);
+      ]))!;
       expect(refreshed).to.equal(newPrice);
       sinon.assert.calledOnce(stub);
     });
