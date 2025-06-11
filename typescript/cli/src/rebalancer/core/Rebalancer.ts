@@ -357,8 +357,9 @@ export class Rebalancer implements IRebalancer {
       { numTransactions: validTransactions.length },
       'Sending valid transactions.',
     );
-    const transactionResults = await Promise.allSettled(
-      validTransactions.map(async (transaction) => {
+    let transactionFailures = 0;
+    for (const transaction of validTransactions) {
+      try {
         const { origin, destination } = transaction.route;
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
@@ -386,29 +387,20 @@ export class Rebalancer implements IRebalancer {
           },
           'Transaction confirmed for route.',
         );
-        return { transaction, receipt };
-      }),
-    );
-
-    // 3. Process results and log errors
-    let transactionFailures = 0;
-    transactionResults.forEach((result, i) => {
-      if (result.status === 'rejected') {
+      } catch (error) {
         transactionFailures++;
-        const failedTransaction = validTransactions[i];
         rebalancerLogger.error(
           {
-            origin: failedTransaction.route.origin,
-            destination: failedTransaction.route.destination,
-            amount:
-              failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
-            tokenName: failedTransaction.originTokenAmount.token.name,
-            error: result.reason,
+            origin: transaction.route.origin,
+            destination: transaction.route.destination,
+            amount: transaction.originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: transaction.originTokenAmount.token.name,
+            error,
           },
           'Transaction failed for route.',
         );
       }
-    });
+    }
 
     return {
       gasEstimationFailures,
