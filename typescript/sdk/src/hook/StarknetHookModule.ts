@@ -161,7 +161,7 @@ export class StarknetHookModule {
         currentOwner = await hookContract
           .owner()
           .then((o: any) => num.toHex(o));
-      } catch (e) {
+      } catch {
         this.logger.debug(
           `Could not read owner of hook ${this.args.addresses.deployedHook}, it might not be ownable.`,
         );

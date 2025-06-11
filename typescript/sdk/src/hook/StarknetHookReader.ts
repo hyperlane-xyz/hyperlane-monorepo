@@ -107,7 +107,7 @@ export class StarknetHookReader {
         maxProtocolFee: max_protocol_fee,
         protocolFee: protocol_fee_amount,
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -126,7 +126,7 @@ export class StarknetHookReader {
         address,
         type: HookType.MERKLE_TREE,
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }

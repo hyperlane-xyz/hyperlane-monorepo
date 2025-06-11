@@ -7,8 +7,13 @@ import {
   StarknetJsProvider,
   getStarknetContract,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytesEvm, bytesToAddressEvm } from '@hyperlane-xyz/utils';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  addressToBytesEvm,
+  bytesToAddressEvm,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 

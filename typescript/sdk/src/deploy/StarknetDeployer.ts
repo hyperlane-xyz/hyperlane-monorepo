@@ -22,8 +22,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HookType, ProtocolFeeHookConfig } from '../hook/types.js';
-import { HookConfig } from '../hook/types.js';
+import { HookConfig, HookType, ProtocolFeeHookConfig } from '../hook/types.js';
 import {
   StarknetIsmContractName,
   SupportedIsmTypesOnStarknet,
@@ -231,7 +230,7 @@ export class StarknetDeployer {
         contractName = StarknetContractName.MERKLE_TREE_HOOK;
         constructorArgs = [mailboxAddress, owner];
         break;
-      case HookType.PROTOCOL_FEE:
+      case HookType.PROTOCOL_FEE: {
         // ProtocolFee is usually a required hook, set differently
         contractName = StarknetContractName.PROTOCOL_FEE;
         const pfConfig = hookConfig as ProtocolFeeHookConfig;
@@ -244,6 +243,7 @@ export class StarknetDeployer {
             .denom as MultiType,
         ];
         break;
+      }
       default:
         throw new Error(
           `Unsupported hook type for deployment: ${hookConfig.type}`,

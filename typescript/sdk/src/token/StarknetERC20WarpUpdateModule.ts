@@ -33,12 +33,13 @@ import {
 } from '../utils/starknet.js';
 
 import { StarknetERC20WarpRouteReader } from './StarknetERC20WarpRouteReader.js';
-import { derivedHookAddress, derivedIsmAddress } from './types.js';
 import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
+  derivedHookAddress,
+  derivedIsmAddress,
 } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
