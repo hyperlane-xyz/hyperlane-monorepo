@@ -146,8 +146,6 @@ impl Encode for NonceAndSignerAddress {
     where
         W: Write,
     {
-        use hyperlane_core::Encode;
-
         let (nonce, address) = (self.0, SignerAddress(self.1));
 
         let mut written = nonce.write_to(writer)?;
