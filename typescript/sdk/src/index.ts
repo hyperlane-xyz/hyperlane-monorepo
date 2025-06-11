@@ -565,6 +565,8 @@ export {
   resolveRouterMapConfig,
   RouterAddress,
   RouterConfig,
+  MissingRouterViolation,
+  MissingEnrolledRouterViolation,
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
