@@ -4,6 +4,7 @@ import {
   addBufferToGasLimit,
   addressToBytes32,
   concurrentMap,
+  eqAddress,
   objFilter,
   objMap,
   objMerge,
@@ -85,7 +86,7 @@ export abstract class HyperlaneRouterDeployer<
               const current =
                 await this.router(contracts).routers(remoteDomain);
               const expected = addressToBytes32(allRouters[remote]);
-              return current !== expected
+              return eqAddress(current, expected)
                 ? [remoteDomain, expected]
                 : undefined;
             },
