@@ -1,84 +1,60 @@
-import { expect } from 'chai';
-import sinon from 'sinon';
+import { BigNumber } from 'ethers';
+import axios from 'axios';
+import { fetchTokenPrices, getTokenPrice } from './token-prices';
 
-import { ethereum, solanamainnet } from '@hyperlane-xyz/registry';
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-import { TestChainName, testChainMetadata } from '../consts/testChains.js';
+afterEach(() => {
+  jest.clearAllMocks();
+});
 
-import { CoinGeckoTokenPriceGetter } from './token-prices.js';
-
-const MOCK_FETCH_CALLS = true;
-
-describe('TokenPriceGetter', () => {
-  let tokenPriceGetter: CoinGeckoTokenPriceGetter;
-
-  const chainA = TestChainName.test1;
-  const chainB = TestChainName.test2;
-  const priceA = 2;
-  const priceB = 5;
-  let stub: sinon.SinonStub;
-
-  beforeEach(() => {
-    tokenPriceGetter = new CoinGeckoTokenPriceGetter({
-      // @ts-ignore TODO: remove once merged with main
-      chainMetadata: { ethereum, solanamainnet, ...testChainMetadata },
-      apiKey: 'test',
-      expirySeconds: 10,
-      sleepMsBetweenRequests: 10,
+describe('fetchTokenPrices', () => {
+  it('returns a map of token symbols to USD prices on success', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      data: {
+        ethereum: { usd: 2000 },
+        dai: { usd: 1 },
+      },
     });
-
-    if (MOCK_FETCH_CALLS) {
-      stub = sinon
-        .stub(tokenPriceGetter, 'fetchPriceData')
-        .returns(Promise.resolve([priceA, priceB]));
-    }
+    const symbols = ['ethereum', 'dai'];
+    const prices = await fetchTokenPrices(symbols);
+    expect(prices).toEqual({ ethereum: 2000, dai: 1 });
   });
 
-  afterEach(() => {
-    if (MOCK_FETCH_CALLS && stub) {
-      stub.restore();
-    }
+  it('returns an empty object when API call fails', async () => {
+    mockedAxios.get.mockRejectedValueOnce(new Error('network error'));
+    const prices = await fetchTokenPrices(['ethereum']);
+    expect(prices).toEqual({});
   });
 
-  describe('getTokenPriceByIds', () => {
-    it('returns token prices', async () => {
-      // stubbed results
-      expect(
-        await tokenPriceGetter.getTokenPriceByIds([
-          ethereum.name,
-          solanamainnet.name,
-        ]),
-      ).to.eql([priceA, priceB]);
-    });
+  it('returns an empty object when given an empty symbol array', async () => {
+    const prices = await fetchTokenPrices([]);
+    expect(prices).toEqual({});
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+});
+
+describe('getTokenPrice', () => {
+  const numericMap = { eth: 2000, dai: 1 };
+
+  it('returns the correct numeric price for a known symbol', () => {
+    expect(getTokenPrice('eth', numericMap)).toBe(2000);
   });
 
-  describe('getTokenPrice', () => {
-    it('returns a token price', async () => {
-      // hardcoded result of 1 for testnets
-      expect(
-        await tokenPriceGetter.getTokenPrice(TestChainName.test1),
-      ).to.equal(1);
-      // stubbed result for non-testnet
-      expect(await tokenPriceGetter.getTokenPrice(ethereum.name)).to.equal(
-        priceA,
-      );
-    });
+  it('returns 0 for an unknown symbol', () => {
+    expect(getTokenPrice('btc', numericMap)).toBe(0);
   });
 
-  describe('getTokenExchangeRate', () => {
-    it('returns a value consistent with getTokenPrice()', async () => {
-      // hardcoded result of 1 for testnets
-      expect(
-        await tokenPriceGetter.getTokenExchangeRate(chainA, chainB),
-      ).to.equal(1);
+  it('handles BigNumber values in the price map', () => {
+    const bnMap = { usdc: BigNumber.from('1000000') };
+    const result = getTokenPrice('usdc', bnMap);
+    const asString = BigNumber.isBigNumber(result) ? result.toString() : result;
+    expect(asString).toBe('1000000');
+  });
 
-      // stubbed result for non-testnet
-      expect(
-        await tokenPriceGetter.getTokenExchangeRate(
-          ethereum.name,
-          solanamainnet.name,
-        ),
-      ).to.equal(priceA / priceB);
-    });
+  it('returns 0 when price map is undefined', () => {
+    // @ts-ignore Testing undefined input
+    expect(getTokenPrice('eth', undefined)).toBe(0);
   });
 });
