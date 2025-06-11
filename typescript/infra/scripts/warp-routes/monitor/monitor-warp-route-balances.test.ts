@@ -1,4 +1,13 @@
-it('should handle zero balance response correctly', async () => {
+import nock from 'nock';
+import { getWarpRouteBalances } from './monitor-warp-route-balances';
+
+describe('getWarpRouteBalances', () => {
+  afterEach(() => {
+    nock.cleanAll();
+    jest.useRealTimers();
+  });
+
+  it('should handle zero balance response correctly', async () => {
     const mockResponse = { balances: [{ route: 'route1', balance: 0 }] };
     nock('https://warp.api')
       .get('/balances')
@@ -56,5 +65,5 @@ it('should handle zero balance response correctly', async () => {
     const promise = getWarpRouteBalances();
     jest.advanceTimersByTime(5000);
     await expect(promise).rejects.toThrow(/timeout/);
-    jest.useRealTimers();
   });
+});
