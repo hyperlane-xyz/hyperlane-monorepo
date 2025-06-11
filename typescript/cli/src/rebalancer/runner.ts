@@ -37,6 +37,7 @@ interface ManualRebalanceArgs {
 type RebalancerCliArgs = SharedRebalanceArgs & Partial<ManualRebalanceArgs>;
 
 export class RebalancerRunner {
+  private isExiting = false;
   private constructor(
     private readonly contextFactory: RebalancerContextFactory,
     private readonly rebalancerConfig: RebalancerConfig,
@@ -183,6 +184,10 @@ export class RebalancerRunner {
       .on(MonitorEventType.Error, this.onMonitorError.bind(this))
       .on(MonitorEventType.Start, this.onMonitorStart.bind(this));
 
+    // Set up signal handlers for graceful shutdown.
+    process.on('SIGINT', () => this.gracefulShutdown());
+    process.on('SIGTERM', () => this.gracefulShutdown());
+
     try {
       await this.monitor.start();
     } catch (e: any) {
@@ -237,5 +242,21 @@ export class RebalancerRunner {
 
   private onMonitorStart(): void {
     logGreen('Rebalancer started successfully 🚀');
+  }
+
+  public stop(): Promise<void> {
+    return this.monitor.stop();
+  }
+
+  public async gracefulShutdown(): Promise<void> {
+    if (this.isExiting) return;
+    this.isExiting = true;
+
+    logGreen('Gracefully shutting down rebalancer...');
+    await this.stop();
+    // Unregister listeners to prevent them from being called again during shutdown
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    process.exit(0);
   }
 }

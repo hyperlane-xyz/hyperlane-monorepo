@@ -18,6 +18,8 @@ import { monitorLogger } from '../utils/logger.js';
 export class Monitor implements IMonitor {
   private readonly emitter = new EventEmitter();
   private isMonitorRunning = false;
+  private resolveStop: (() => void) | null = null;
+  private stopPromise: Promise<void> | null = null;
 
   /**
    * @param checkFrequency - The frequency to poll balances in ms.
@@ -106,6 +108,17 @@ export class Monitor implements IMonitor {
         ),
       );
     }
+
+    // After the loop has been gracefully terminated, we can clean up.
+    this.emitter.removeAllListeners();
+    monitorLogger.info('Monitor stopped');
+
+    // If stop() was called, resolve the promise to signal that we're done.
+    if (this.resolveStop) {
+      this.resolveStop();
+      this.resolveStop = null;
+      this.stopPromise = null;
+    }
   }
 
   private async getTokenBridgedSupply(
@@ -140,9 +153,21 @@ export class Monitor implements IMonitor {
     return bridgedSupply;
   }
 
-  stop() {
+  stop(): Promise<void> {
+    if (!this.isMonitorRunning) return Promise.resolve();
+
+    // If stop is already in progress, return the existing promise
+    if (this.stopPromise) return this.stopPromise;
+
+    monitorLogger.info('Stopping monitor...');
+    // Signal the while loop to terminate after its current iteration
     this.isMonitorRunning = false;
-    monitorLogger.info('Monitor stopped');
-    this.emitter.removeAllListeners();
+
+    // Create a promise that will be resolved by the start() method
+    // once the loop and cleanup are complete.
+    this.stopPromise = new Promise((resolve) => {
+      this.resolveStop = resolve;
+    });
+    return this.stopPromise;
   }
 }
