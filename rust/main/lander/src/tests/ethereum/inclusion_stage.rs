@@ -170,9 +170,7 @@ async fn test_inclusion_gas_underpriced() {
             block_time_clone,
             &tx,
             // First submission, price is 200000 - the default fee used by the ethers estimation logic
-            // Second submission, price is 10% higher, even though the spike was smaller
-            // Third submission, price is 10% higher again, even though the spike was smaller
-            // Fourth submission, price matches the spike, because it was greater than 10%
+            // Second submission, price is 10% higher, to due to the underpriced error
             vec![200000, 220000],
         );
         if send_call_counter < 2 {
@@ -227,7 +225,7 @@ async fn run_and_expect_successful_inclusion(
             assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
             success = true;
         },
-        _ = tokio::time::sleep(tokio::time::Duration::from_millis(5000)) => {
+        _ = tokio::time::sleep(Duration::from_millis(5000)) => {
             panic!("Inclusion stage did not process the txs in time");
         }
     }
