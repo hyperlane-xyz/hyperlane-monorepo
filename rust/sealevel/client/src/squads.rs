@@ -104,11 +104,11 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
             let registry = FileSystemRegistry::new(verify.registry.to_path_buf());
             let chain_metadatas = registry.get_metadata();
 
-            let chain_config = chain_metadatas
+            let chain_metadata = chain_metadatas
                 .get(&verify.chain)
                 .expect("No chain config found");
 
-            let client = chain_config.client();
+            let client = chain_metadata.client();
 
             // Read existing core program IDs
             let core_program_ids = read_core_program_ids(

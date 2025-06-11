@@ -89,7 +89,7 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &HelloWorldConfig,
         program_id: Pubkey,
     ) {
@@ -100,7 +100,7 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
             return;
         }
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id();
         let mailbox = app_config
             .router_config()
             .connection_client

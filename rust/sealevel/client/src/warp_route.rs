@@ -213,7 +213,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
@@ -239,7 +239,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             return;
         }
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id();
 
         // TODO: consider pulling the setting of defaults into router.rs,
         // and possibly have a more distinct connection client abstraction.
@@ -495,17 +495,17 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     ) {
         // Set gas amounts for each destination chain
         for chain_name in app_configs_to_deploy.keys() {
-            let chain_config = chain_metadatas
+            let chain_metadata = chain_metadatas
                 .get(*chain_name)
                 .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-            let domain_id = chain_config.domain_id();
+            let domain_id = chain_metadata.domain_id();
             let program_id: Pubkey =
                 Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
             // And set destination gas
             let configured_destination_gas =
-                get_destination_gas(&chain_config.client(), &program_id).unwrap();
+                get_destination_gas(&chain_metadata.client(), &program_id).unwrap();
 
             let expected_destination_gas = app_configs
                 .iter()
@@ -545,7 +545,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
 
-            let owner = self.get_owner(&chain_config.client(), &program_id);
+            let owner = self.get_owner(&chain_metadata.client(), &program_id);
 
             if let Some(owner) = owner {
                 if !destination_gas_configs.is_empty() {
@@ -559,7 +559,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                                 .unwrap(),
                             description,
                         )
-                        .with_client(&chain_config.client())
+                        .with_client(&chain_metadata.client())
                         .send_with_pubkey_signer(&owner);
                 } else {
                     println!(
