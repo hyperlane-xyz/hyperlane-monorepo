@@ -755,6 +755,7 @@ async function submitWarpApplyTransactions(
           100, // baseRetryMs
         );
       } catch (e) {
+        console.log(e);
         logBlue(`Error in submitWarpApplyTransactions`, e);
         console.dir(transactions);
       }

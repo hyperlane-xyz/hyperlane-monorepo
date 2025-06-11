@@ -344,7 +344,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
     const coreConfigChain3IcaConfig = coreConfigChain3.interchainAccountRouter!;
-    coreConfigChain2IcaConfig.remoteIcaRouters = {
+    coreConfigChain2IcaConfig.remoteRouters = {
       [chain3DomainId]: {
         address: coreConfigChain3IcaConfig.address,
       },
