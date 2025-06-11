@@ -82,3 +82,80 @@ describe('TokenPriceGetter', () => {
     });
   });
 });
+
+import { useFakeTimers } from 'sinon';
+
+  describe('caching & expiry', () => {
+    const now = Date.now();
+    let clock: sinon.SinonFakeTimers;
+
+    beforeEach(() => {
+      clock = useFakeTimers({ now });
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .onCall(0).resolves([priceA, priceB])          // first network hit
+        .onCall(1).resolves([priceA + 1, priceB + 1]); // second network hit
+    });
+
+    afterEach(() => {
+      clock.restore();
+      stub.restore();
+    });
+
+    it('returns cached values while not expired', async () => {
+      const first = await tokenPriceGetter.getTokenPriceByIds([ethereum.name, solanamainnet.name]);
+      expect(first).eql([priceA, priceB]);
+      const second = await tokenPriceGetter.getTokenPriceByIds([ethereum.name, solanamainnet.name]);
+      expect(second).eql(first);            // should come from cache
+      expect(stub.callCount).to.equal(1);   // only one network fetch
+    });
+
+    it('fetches fresh values after cache expiry', async () => {
+      await tokenPriceGetter.getTokenPriceByIds([ethereum.name, solanamainnet.name]);
+      clock.tick(11 * 1000); // advance past expirySeconds (10s)
+      const refreshed = await tokenPriceGetter.getTokenPriceByIds([ethereum.name, solanamainnet.name]);
+      expect(refreshed).eql([priceA + 1, priceB + 1]);
+      expect(stub.callCount).to.equal(2);
+    });
+  });
+
+  describe('error handling', () => {
+    it('throws when fetchPriceData rejects', async () => {
+      const error = new Error('network down');
+      stub = sinon.stub(tokenPriceGetter, 'fetchPriceData').rejects(error);
+      await expect(
+        tokenPriceGetter.getTokenPriceByIds([ethereum.name]),
+      ).to.be.rejectedWith('network down');
+    });
+
+    it('throws for unknown chain id', async () => {
+      await expect(
+        tokenPriceGetter.getTokenPrice('non-existent-chain'),
+      ).to.be.rejected;
+    });
+  });
+
+  describe('rate-limit sleep', () => {
+    it('waits sleepMsBetweenRequests between successive uncached calls', async () => {
+      const localGetter = new CoinGeckoTokenPriceGetter({
+        chainMetadata: { ethereum },
+        apiKey: 'key',
+        expirySeconds: 0,           // disable cache
+        sleepMsBetweenRequests: 50, // expect delay
+      });
+      const spy = sinon.spy(localGetter as any, 'sleep'); // sleep is internal helper
+      sinon.stub(localGetter, 'fetchPriceData').resolves([priceA]);
+      await localGetter.getTokenPrice(ethereum.name);
+      await localGetter.getTokenPrice(ethereum.name); // second call triggers sleep
+      expect(spy.calledOnce).to.be.true;
+      expect(spy.firstCall.args[0]).to.equal(50);
+    });
+  });
+
+  describe('precision of exchange rate', () => {
+    it('returns value with sufficient decimal precision', async () => {
+      stub = sinon.stub(tokenPriceGetter, 'fetchPriceData').resolves([1, 3]);
+      const rate = await tokenPriceGetter.getTokenExchangeRate(ethereum.name, solanamainnet.name);
+      expect(rate).to.be.closeTo(1 / 3, 0.000001);
+    });
+  });
