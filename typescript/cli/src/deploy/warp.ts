@@ -5,7 +5,10 @@ import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  AddWarpRouteConfigOptions,
+  ChainAddresses,
+} from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
@@ -38,6 +41,7 @@ import {
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenMetadataMap,
   TokenType,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
@@ -85,6 +89,7 @@ import {
   prepareDeploy,
   prepareStarknetDeploy,
   runPreflightChecksForChains,
+  validateWarpIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -96,19 +101,25 @@ interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  warpRouteId?: string;
 }
 
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
+  warpRouteId,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpRouteId?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
   const multiProtocolSigner = context.multiProtocolSigner;
   const multiProvider = await multiProtocolSigner?.getMultiProvider();
   assert(multiProvider, 'No MultiProvider found!');
+
+  // Validate ISM compatibility for all chains
+  validateWarpIsmCompatibility(warpDeployConfig, context);
 
   const chains = Object.keys(warpDeployConfig);
 
@@ -125,7 +136,7 @@ export async function runWarpRouteDeploy({
 
   const chainsByProtocol = groupChainsByProtocol(chains, context.multiProvider);
   const deployments: WarpCoreConfig = { tokens: [] };
-  let deploymentAddWarpRouteOptions: AddWarpRouteOptions | undefined;
+  let deploymentAddWarpRouteOptions: AddWarpRouteConfigOptions | undefined;
 
   const deployedContracts: {
     evm: ChainMap<Address>;
@@ -253,7 +264,7 @@ export async function runWarpRouteDeploy({
   await writeDeploymentArtifacts(
     deployments,
     context,
-    deploymentAddWarpRouteOptions,
+    warpRouteId ? { warpRouteId } : deploymentAddWarpRouteOptions,
   );
 
   // Compatible only with EVM and Starknet chains
@@ -305,7 +316,7 @@ async function executeDeploy(
 async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
-  addWarpRouteOptions?: AddWarpRouteOptions,
+  addWarpRouteOptions?: AddWarpRouteConfigOptions,
 ) {
   if (!context.isDryRun) {
     log('Writing deployment artifacts...');
@@ -319,32 +330,27 @@ async function getWarpCoreConfig(
   contracts: HyperlaneContractsMap<TokenFactories>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
-  addWarpRouteOptions?: AddWarpRouteOptions;
+  addWarpRouteOptions: AddWarpRouteConfigOptions;
 }> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
-  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    params.context.multiProvider,
-    params.warpDeployConfig,
-  );
-  assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
-    'Missing required token metadata',
-  );
-  const { decimals, symbol, name } = tokenMetadata;
-  assert(decimals, 'Missing decimals on token metadata');
+  const tokenMetadataMap: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(
+      params.context.multiProvider,
+      params.warpDeployConfig,
+    );
 
   generateTokenConfigs(
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
-    symbol,
-    name,
-    decimals,
+    tokenMetadataMap,
   );
 
   fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
+
+  const symbol = tokenMetadataMap.getDefaultSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -356,9 +362,7 @@ function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  symbol: string,
-  name: string,
-  decimals: number,
+  tokenMetadataMap: TokenMetadataMap,
 ): void {
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -366,6 +370,13 @@ function generateTokenConfigs(
       isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
+
+    const decimals: number | undefined =
+      tokenMetadataMap.getDecimals(chainName);
+    const name: any = tokenMetadataMap.getName(chainName);
+    const symbol: any = tokenMetadataMap.getSymbol(chainName);
+
+    assert(decimals, `Decimals for ${chainName} doesn't exist`);
 
     warpCoreConfig.tokens.push({
       chainName,
@@ -638,7 +649,9 @@ export async function extendWarpRoute(
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
-    addWarpRouteOptions,
+    params.warpRouteId
+      ? { warpRouteId: params.warpRouteId } // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
+      : addWarpRouteOptions,
   );
 
   return updatedWarpCoreConfig;
@@ -787,7 +800,7 @@ async function deriveMetadataFromExisting(
 
   return objMap(extendedConfigs, (_chain, extendedConfig) => {
     return {
-      ...existingTokenMetadata,
+      ...existingTokenMetadata.getMetadataForChain(_chain),
       ...extendedConfig,
     };
   });
@@ -1084,7 +1097,7 @@ async function getWarpCoreConfigForStarknet(
   contracts: ChainMap<string>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
-  addWarpRouteOptions?: AddWarpRouteOptions;
+  addWarpRouteOptions?: AddWarpRouteConfigOptions;
 }> {
   return getWarpCoreConfigCore(
     warpDeployConfig,
@@ -1156,7 +1169,7 @@ async function getWarpCoreConfigCore<T>(
   ) => void,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
-  addWarpRouteOptions?: AddWarpRouteOptions;
+  addWarpRouteOptions?: AddWarpRouteConfigOptions;
 }> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 

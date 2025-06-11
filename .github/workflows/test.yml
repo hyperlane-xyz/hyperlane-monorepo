@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -21,10 +21,14 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   RUSTC_WRAPPER: sccache
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
   yarn-install:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +79,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: lint
         run: yarn lint
@@ -169,7 +174,7 @@ jobs:
           echo "Push event to main detected. Setting only_rust to false."
 
   yarn-test-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [rust-only]
     timeout-minutes: 10
     if: needs.rust-only.outputs.only_rust == 'false'
@@ -187,7 +192,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
+          cache-provider: github
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
@@ -207,7 +212,7 @@ jobs:
           result: ${{ needs.yarn-test-run.result }}
 
   infra-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [yarn-install, set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
@@ -234,6 +239,7 @@ jobs:
         if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
@@ -278,7 +284,7 @@ jobs:
           result: ${{ needs.cli-install-test-run.result }}
 
   cli-e2e-matrix:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     strategy:
@@ -314,16 +320,12 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -346,7 +348,7 @@ jobs:
           result: ${{ needs.cli-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
@@ -360,6 +362,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Cosmos SDK e2e tests
         run: yarn --cwd typescript/cosmos-sdk test:e2e
@@ -377,7 +380,7 @@ jobs:
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
   agent-configs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -392,6 +395,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -412,7 +416,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -569,6 +573,13 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           RUST_BACKTRACE: 'full'
 
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
   e2e:
     runs-on: ubuntu-latest
     needs: e2e-matrix
@@ -581,7 +592,7 @@ jobs:
           exit 1
 
   env-test-matrix:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     env:
@@ -614,6 +625,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -654,7 +666,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 

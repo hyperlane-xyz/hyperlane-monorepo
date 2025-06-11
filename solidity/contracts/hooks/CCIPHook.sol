@@ -21,7 +21,6 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 // ============ External Imports ============
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title CCIPHook

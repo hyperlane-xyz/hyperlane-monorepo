@@ -1,5 +1,79 @@
 # @hyperlane-xyz/sdk
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/core@7.1.10
+  - @hyperlane-xyz/starknet-core@13.2.1
+  - @hyperlane-xyz/cosmos-sdk@13.2.1
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Add support for address in voyager block explorers
+- 4d66b73: Support for zksync on deployments and verifications
+- 4d66b73: Check for ZKSync contracts and functionalities support
+- 4d66b73: Add ZKSync contract verification with custom compiler options and refactor verification classes
+- 4d66b73: Add getTokenCollateral to WarpCore and reuse in isDestinationCollateralSufficient
+- 4d66b73: Update concurrentDeploy default to true for token deployments.
+
+### Patch Changes
+
+- 4d66b73: Account for zksync in legacy deployer logic.
+  - @hyperlane-xyz/starknet-core@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+  - @hyperlane-xyz/core@7.1.9
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+  - @hyperlane-xyz/starknet-core@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Minor Changes
+
+- 6e86efa: Remove `defaultRpcConsensusType` from the agent config schema
+- c42ea09: Deploy to new chains: neuratestnet, rometestnet.
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/core@7.1.7
+  - @hyperlane-xyz/starknet-core@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
+## 13.0.0
+
+### Minor Changes
+
+- 72b90f8: add cosmos native core module & reader
+- bc58283: feat: Starknet SDK logic integration
+- 2724559: add cosmos native routing ism cosmos-sdk and types
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+- Updated dependencies [f8696c7]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/starknet-core@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+  - @hyperlane-xyz/core@7.1.6
+
 ## 12.6.0
 
 ### Minor Changes

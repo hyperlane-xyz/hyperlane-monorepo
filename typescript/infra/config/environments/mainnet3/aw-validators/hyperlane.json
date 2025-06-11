@@ -2,6 +2,9 @@
   "abstract": {
     "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
   },
+  "zoramainnet": {
+    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -29,9 +32,6 @@
   },
   "artela": {
     "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
-  },
-  "arthera": {
-    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
   },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
@@ -70,6 +70,9 @@
   },
   "boba": {
     "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+  },
+  "botanix": {
+    "validators": ["0xc944176bc4d4e5c7b0598884478a27a2b1904664"]
   },
   "bouncebit": {
     "validators": ["0xaf38612d1e79ec67320d21c5f7e92419427cd154"]
@@ -222,6 +225,9 @@
   },
   "kaia": {
     "validators": ["0x9de0b3abb221d19719882fa4d61f769fdc2be9a4"]
+  },
+  "katana": {
+    "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
   },
   "kroma": {
     "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
@@ -487,8 +493,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "zoramainnet": {
-    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }
 }

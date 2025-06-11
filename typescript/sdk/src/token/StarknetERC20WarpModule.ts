@@ -39,15 +39,19 @@ export class StarknetERC20WarpModule {
       this.multiProvider,
       this.config,
     );
-    assert(
-      tokenMetadata && tokenMetadata.decimals,
-      "Token metadata can't be extracted",
-    );
+    assert(tokenMetadata, "Token metadata can't be extracted");
     const addresses: ChainMap<string> = {};
     for (const [
       chain,
       { mailbox, interchainSecurityModule, type, ...rest },
     ] of Object.entries(this.config)) {
+      const decimals = tokenMetadata.getDecimals(chain);
+      assert(decimals, `Decimals can't be extracted for chain ${chain}`);
+      const name = tokenMetadata.getName(chain);
+      assert(name, `Name can't be extracted for chain ${chain}`);
+      const symbol = tokenMetadata.getSymbol(chain);
+      assert(symbol, `Symbol can't be extracted for chain ${chain}`);
+
       //Ignore non-starknet chains
       if (
         this.multiProvider.getChainMetadata(chain).protocol !==
@@ -71,11 +75,11 @@ export class StarknetERC20WarpModule {
           const tokenAddress = await deployer.deployContract(
             StarknetContractName.HYP_ERC20,
             {
-              decimals: tokenMetadata.decimals,
+              decimals: decimals,
               mailbox: mailbox!,
               total_supply: 0,
-              name: [byteArray.byteArrayFromString(tokenMetadata.name)],
-              symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
+              name: [byteArray.byteArrayFromString(name)],
+              symbol: [byteArray.byteArrayFromString(symbol)],
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
               owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner

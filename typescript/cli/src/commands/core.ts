@@ -13,6 +13,7 @@ import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -104,6 +105,7 @@ export const deploy: CommandModuleWithWriteContext<{
   config: string;
   dryRun: string;
   fromAddress: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }> = {
   command: 'deploy',
   describe: 'Deploy Hyperlane contracts',

@@ -13,10 +13,10 @@ export {
 export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
 export { S3Validator } from './aws/validator.js';
 export {
-  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
-  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
   getProtocolExchangeRateDecimals,
   getProtocolExchangeRateScale,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export {
@@ -114,6 +114,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -125,8 +126,8 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { executeWarpDeploy } from './deploy/warp.js';
 export {
-  SealevelOverheadIgpAdapter,
   SealevelIgpAdapter,
+  SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
 export {
   SealevelInterchainGasPaymasterConfig,
@@ -140,10 +141,10 @@ export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker.js';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
-  StorageGasOracleConfig,
-  StorageGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  StorageGasOracleConfig,
+  StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
@@ -168,9 +169,9 @@ export {
   HookConfig,
   HookConfigSchema,
   HooksConfig,
-  HooksConfigSchema,
-  HooksConfigMapSchema,
   HooksConfigMap,
+  HooksConfigMapSchema,
+  HooksConfigSchema,
   HookType,
   IgpHookConfig,
   IgpSchema,
@@ -202,7 +203,6 @@ export {
   DeployedIsmType,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
-  IcaRoutingIsmConfig,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -224,10 +224,12 @@ export {
 } from './ism/types.js';
 export {
   collectValidators,
-  moduleCanCertainlyVerify,
-  isStaticDeploymentSupported,
   isIsmCompatible,
+  isStaticDeploymentSupported,
+  isStaticIsm,
+  moduleCanCertainlyVerify,
 } from './ism/utils.js';
+export { isHookCompatible } from './hook/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
@@ -272,8 +274,8 @@ export {
   ChainStatus,
   ChainTechnicalStack,
   DisabledChainSchema,
-  EthJsonRpcBlockParameterTag,
   EnabledChainSchema,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,
@@ -302,10 +304,7 @@ export {
 } from './middleware/account/contracts.js';
 export { InterchainAccount } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
-export {
-  InterchainAccountConfig,
-  InterchainAccountDeployer,
-} from './middleware/account/InterchainAccountDeployer.js';
+export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';
 export {
   AccountConfig,
   AccountConfigSchema,
@@ -450,6 +449,14 @@ export {
   EV5InterchainAccountTxTransformerPropsSchema,
 } from './providers/transactions/transformer/ethersV5/types.js';
 
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export {
+  CCIPContractCache,
+  getCCIPChains,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getChainNameFromCCIPSelector,
+} from './ccip/utils.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -469,19 +476,21 @@ export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
+export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
+export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
+  IcaRouterConfig as InterchainAccountConfig,
   IcaRouterConfigSchema,
-  RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
 export {
   chainMetadataToCosmosChain,
-  chainMetadataToViemChain,
   chainMetadataToStarknetChain,
+  chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
 export {
   AnnotatedEV5Transaction,
@@ -521,7 +530,6 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -538,19 +546,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
-  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypVSXERC20Adapter,
+  EvmHypVSXERC20LockboxAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
-  EvmHypVSXERC20LockboxAdapter,
-  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
+  EvmXERC20VSAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
-  IHypXERC20Adapter,
   IHypVSXERC20Adapter,
+  IHypXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -632,17 +640,20 @@ export {
   HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
-  isXERC20TokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,
   SyntheticTokenConfig,
   SyntheticTokenConfigSchema,
+  CctpTokenConfig,
+  CctpTokenConfigSchema,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
@@ -655,11 +666,14 @@ export {
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20TokenMetadata,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
+  XERC20TokenMetadata,
 } from './token/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   ChainMap,
+  ProtocolMap,
   ChainName,
   ChainNameOrId,
   Connection,
@@ -691,9 +705,9 @@ export {
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
+  extractIsmAndHookFactoryAddresses,
   multisigIsmVerificationCost,
   normalizeConfig,
-  extractIsmAndHookFactoryAddresses,
 } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
@@ -716,14 +730,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
-export {
-  getChainNameFromCCIPSelector,
-  getCCIPChainSelector,
-  getCCIPRouterAddress,
-  getCCIPChains,
-  CCIPContractCache,
-} from './ccip/utils.js';
-export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 export { StarknetCoreReader } from './core/StarknetCoreReader.js';
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
@@ -737,9 +744,9 @@ export {
   convertU128ArrayToBytes,
 } from './messaging/messageUtils.js';
 export {
-  StarknetContractName,
   StarknetIsmType,
   StarknetHookType,
+  StarknetContractName,
   getStarknetContract,
   getStarknetHypERC20Contract,
   getStarknetHypERC20CollateralContract,
@@ -756,3 +763,6 @@ export {
   MessageWithStatus,
   MessageBusConfig,
 } from './bus/types.js';
+
+export { resolveRouterMapConfig } from './router/types.js';
+export { verifyScale } from './utils/decimals.js';

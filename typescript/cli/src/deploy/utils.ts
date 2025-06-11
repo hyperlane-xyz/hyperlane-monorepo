@@ -5,11 +5,15 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoreConfig,
   IsmConfig,
+  IsmType,
   MultisigConfig,
+  WarpRouteDeployConfig,
   getLocalProvider,
   getStarknetEtherContract,
   getStarknetHypERC20Contract,
+  isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -267,4 +271,69 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
+}
+
+function validateIsmCompatibility({
+  chain,
+  ismType,
+  context,
+}: {
+  chain: ChainName;
+  ismType?: IsmType;
+  context: WriteCommandContext;
+}) {
+  const { technicalStack: chainTechnicalStack } =
+    context.multiProvider.getChainMetadata(chain);
+
+  if (ismType) {
+    assert(
+      isIsmCompatible({
+        ismType,
+        chainTechnicalStack,
+      }),
+      `Selected ISM of type ${ismType} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+    );
+  }
+}
+
+/**
+ * Validates that the ISM configuration is compatible with the chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured.
+ */
+export function validateCoreIsmCompatibility(
+  chain: ChainName,
+  config: CoreConfig,
+  context: WriteCommandContext,
+) {
+  if (typeof config.defaultIsm !== 'string') {
+    validateIsmCompatibility({
+      chain,
+      ismType: config.defaultIsm?.type,
+      context,
+    });
+  }
+}
+
+/**
+ * Validates that the ISM configurations are compatible with each chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured for a chain.
+ */
+export function validateWarpIsmCompatibility(
+  warpRouteConfig: WarpRouteDeployConfig,
+  context: WriteCommandContext,
+) {
+  for (const chain of Object.keys(warpRouteConfig)) {
+    const config = warpRouteConfig[chain];
+
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      validateIsmCompatibility({
+        chain,
+        ismType: config.interchainSecurityModule.type,
+        context,
+      });
+    }
+  }
 }

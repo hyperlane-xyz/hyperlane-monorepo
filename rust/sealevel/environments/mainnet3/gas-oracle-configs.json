@@ -32,6 +32,30 @@
       },
       "overhead": 333774
     },
+    "abstract": {
+      "oracleConfig": {
+        "tokenExchangeRate": "187056373229658428214",
+        "gasPrice": "193418836",
+        "tokenDecimals": 18
+      },
+      "overhead": 333774
+    },
+    "apechain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "49999132185504026",
+        "gasPrice": "1280415238976",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "subtensor": {
+      "oracleConfig": {
+        "tokenExchangeRate": "37301141202520865270",
+        "gasPrice": "10000000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "bsc": {
       "oracleConfig": {
         "tokenExchangeRate": "62110871980005554012",
@@ -55,14 +79,6 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
-    },
-    "abstract": {
-      "oracleConfig": {
-        "tokenExchangeRate": "187056373229658428214",
-        "gasPrice": "193418836",
-        "tokenDecimals": 18
-      },
-      "overhead": 333774
     },
     "artela": {
       "oracleConfig": {

@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { globby } from 'globby';
 import { basename, join } from 'path';
+import { CompiledContract } from 'starknet';
 
 import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
@@ -46,12 +47,8 @@ export class StarknetArtifactGenerator {
    */
   async getArtifactPaths() {
     const sierraPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
-    const casmPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.ASSEMBLY_JSON}`;
-    const [sierraFiles, casmFiles] = await Promise.all([
-      globby(sierraPattern),
-      globby(casmPattern),
-    ]);
-    return { sierraFiles, casmFiles };
+    const [sierraFiles] = await Promise.all([globby(sierraPattern)]);
+    return { sierraFiles };
   }
 
   /**
@@ -72,7 +69,26 @@ export class StarknetArtifactGenerator {
   /**
    * @notice Generates JavaScript content for a contract artifact
    */
-  generateJavaScriptContent(name: string, artifact: any) {
+  generateJavaScriptContent(
+    name: string,
+    artifact: any,
+    contractClass: ContractClass,
+  ) {
+    // For Sierra contracts, extract the ABI if the file contains contract_class in its name
+    if (contractClass === ContractClass.SIERRA) {
+      const abiOnly: CompiledContract = {
+        sierra_program: [],
+        contract_class_version: artifact.contract_class_version,
+        entry_points_by_type: artifact.entry_points_by_type,
+        abi:
+          typeof artifact.abi === 'string'
+            ? JSON.parse(artifact.abi)
+            : artifact.abi,
+      };
+
+      return Templates.jsArtifact(name, abiOnly);
+    }
+    // For other contract types, return the full artifact
     return Templates.jsArtifact(name, artifact);
   }
 
@@ -169,7 +185,11 @@ export class StarknetArtifactGenerator {
     const artifact = await this.readArtifactFile(filePath);
 
     // Generate and write files
-    const jsContent = this.generateJavaScriptContent(name, artifact);
+    const jsContent = this.generateJavaScriptContent(
+      name,
+      artifact,
+      contractClass,
+    );
     const dtsContent = this.generateDeclarationContent(
       name,
       contractClass === ContractClass.SIERRA,
@@ -217,12 +237,11 @@ export class StarknetArtifactGenerator {
     try {
       await this.createOutputDirectory();
 
-      const { sierraFiles, casmFiles } = await this.getArtifactPaths();
+      const { sierraFiles } = await this.getArtifactPaths();
 
-      const processingResults = await Promise.all([
-        ...sierraFiles.map((file) => this.processArtifact(file)),
-        ...casmFiles.map((file) => this.processArtifact(file)),
-      ]);
+      const processingResults = await Promise.all(
+        sierraFiles.map((file) => this.processArtifact(file)),
+      );
 
       const processedFilesMap =
         this._aggregateProcessingResults(processingResults);

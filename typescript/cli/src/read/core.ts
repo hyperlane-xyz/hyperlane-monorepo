@@ -1,5 +1,6 @@
 import {
   ChainName,
+  CosmosNativeCoreReader,
   DerivedCoreConfig,
   EvmCoreReader,
   StarknetCoreReader,
@@ -28,29 +29,54 @@ export async function executeCoreRead({
     );
   }
 
-  const protocol = context.multiProvider.getProtocol(chain);
-  if (protocol === ProtocolType.Ethereum) {
-    const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
-    try {
-      return evmCoreReader.deriveCoreConfig({
-        mailbox,
-        interchainAccountRouter: addresses?.interchainAccountRouter,
-      });
-    } catch (e: any) {
-      errorRed(
-        `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
-        e,
+  const protocolType = context.multiProvider.getProtocol(chain);
+
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
+      try {
+        return evmCoreReader.deriveCoreConfig({
+          mailbox,
+          interchainAccountRouter: addresses?.interchainAccountRouter,
+        });
+      } catch (e: any) {
+        errorRed(
+          `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
+          e,
+        );
+        process.exit(1);
+      }
+      break;
+    }
+    case ProtocolType.CosmosNative: {
+      const cosmosProvider =
+        await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
+      const cosmosCoreReader = new CosmosNativeCoreReader(
+        context.multiProvider,
+        cosmosProvider,
       );
+      try {
+        return cosmosCoreReader.deriveCoreConfig(mailbox);
+      } catch (e: any) {
+        errorRed(
+          `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
+          e,
+        );
+        process.exit(1);
+      }
+      break;
+    }
+    case ProtocolType.Starknet: {
+      assert(context.multiProtocolProvider, 'Starknet provider not found');
+      const starknetCoreReader = new StarknetCoreReader(
+        context.multiProtocolProvider,
+        chain,
+      );
+      return starknetCoreReader.deriveCoreConfig(mailbox);
+    }
+    default: {
+      errorRed(`❌ Core Read not supported for protocol type ${protocolType}:`);
       process.exit(1);
     }
-  } else if (protocol === ProtocolType.Starknet) {
-    assert(context.multiProtocolProvider, 'Starknet provider not found');
-    const starknetCoreReader = new StarknetCoreReader(
-      context.multiProtocolProvider,
-      chain,
-    );
-    return starknetCoreReader.deriveCoreConfig(mailbox);
   }
-
-  throw new Error(`Unsupported protocol: ${protocol}`);
 }

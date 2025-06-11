@@ -7,6 +7,7 @@ import {
   ChainName,
   ContractVerifier,
   CoreConfig,
+  CosmosNativeCoreModule,
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
@@ -27,6 +28,7 @@ import {
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
+  validateCoreIsmCompatibility,
 } from './utils.js';
 
 interface DeployParams {
@@ -55,6 +57,9 @@ export async function runCoreDeploy(params: DeployParams) {
     multiProvider,
     multiProtocolProvider,
   } = context;
+
+  // Validate ISM compatibility
+  validateCoreIsmCompatibility(chain, config, context);
 
   // Select a dry-run chain if it's not supplied
   if (dryRunChain) {
@@ -97,7 +102,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
         const contractVerifier = new ContractVerifier(
           multiProvider,
-          apiKeys,
+          apiKeys!,
           coreBuildArtifact,
           ExplorerLicenseType.MIT,
         );
@@ -133,6 +138,26 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
 
+    case ProtocolType.CosmosNative:
+      {
+        await multiProtocolSigner?.initSigner(chain);
+        const signer =
+          multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
+        assert(signer, 'Cosmos Native signer failed!');
+
+        logBlue('🚀 All systems ready, captain! Beginning deployment...');
+
+        const cosmosNativeCoreModule = await CosmosNativeCoreModule.create({
+          chain,
+          config,
+          multiProvider,
+          signer,
+        });
+
+        deployedAddresses = cosmosNativeCoreModule.serialize();
+      }
+      break;
+
     default:
       throw new Error('Chain protocol is not supported yet!');
   }
@@ -152,62 +177,104 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider, multiProtocolSigner, multiProtocolProvider } = context;
 
-  const protocol = multiProvider.getProtocol(chain);
+  switch (multiProvider.getProtocol(chain)) {
+    case ProtocolType.Ethereum: {
+      const evmCoreModule = new EvmCoreModule(multiProvider, {
+        chain,
+        config,
+        addresses: deployedCoreAddresses,
+      });
 
-  let transactions: any[] = [];
-  let module: EvmCoreModule | StarknetCoreModule;
+      const transactions = await evmCoreModule.update(config);
 
-  if (protocol === ProtocolType.Starknet) {
-    const account = multiProtocolSigner!.getStarknetSigner(chain);
-    assert(account, 'Starknet account failed!');
-    module = new StarknetCoreModule(account, multiProtocolProvider!, chain, {
-      addresses: deployedCoreAddresses,
-      config,
-      chain,
-    });
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        for (const transaction of transactions) {
+          await multiProvider.sendTransaction(
+            // Using the provided chain id because there might be remote chain transactions included in the batch
+            transaction.chainId ?? chain,
+            transaction,
+          );
+        }
 
-    transactions = await module.update(config);
-
-    if (transactions.length) {
-      logGray('Updating deployed core contracts');
-      for (const transaction of transactions as any[]) {
-        // Cast to any[] to match starknet transaction structure
-        const tx = await account.execute([
-          {
-            contractAddress: transaction.contractAddress,
-            calldata: transaction.calldata,
-            entrypoint: transaction.entrypoint!,
-          },
-        ]);
-        await account.waitForTransaction(tx.transaction_hash);
-      }
-    }
-  } else {
-    module = new EvmCoreModule(multiProvider, {
-      chain,
-      config,
-      addresses: deployedCoreAddresses,
-    });
-
-    transactions = await module.update(config);
-
-    if (transactions.length) {
-      logGray('Updating deployed core contracts');
-      for (const transaction of transactions) {
-        await multiProvider.sendTransaction(
-          // Using the provided chain id because there might be remote chain transactions included in the batch
-          transaction.chainId ?? chain,
-          transaction,
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
         );
       }
+      break;
     }
-  }
+    case ProtocolType.CosmosNative: {
+      await multiProtocolSigner?.initSigner(chain);
+      const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
+      assert(signer, 'Cosmos Native signer failed!');
 
-  if (transactions.length) {
-    logGreen(`Core config updated on ${chain}.`);
-  } else {
-    logGreen(
-      `Core config on ${chain} is the same as target. No updates needed.`,
-    );
+      const cosmosNativeCoreModule = new CosmosNativeCoreModule(
+        multiProvider,
+        signer,
+        {
+          chain,
+          config,
+          addresses: deployedCoreAddresses,
+        },
+      );
+
+      const transactions = await cosmosNativeCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        const response = await signer.signAndBroadcast(
+          signer.account.address,
+          transactions,
+          2,
+        );
+
+        assert(
+          response.code === 0,
+          `Transaction failed with status code ${response.code}`,
+        );
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
+      break;
+    }
+
+    case ProtocolType.Starknet: {
+      const account = multiProtocolSigner!.getStarknetSigner(chain);
+      assert(account, 'Starknet account failed!');
+      const starknetCoreModule = new StarknetCoreModule(
+        account,
+        multiProtocolProvider!,
+        chain,
+        {
+          addresses: deployedCoreAddresses,
+          config,
+          chain,
+        },
+      );
+
+      const transactions = await starknetCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        for (const transaction of transactions as any[]) {
+          // Cast to any[] to match starknet transaction structure
+          const tx = await account.execute([
+            {
+              contractAddress: transaction.contractAddress,
+              calldata: transaction.calldata,
+              entrypoint: transaction.entrypoint!,
+            },
+          ]);
+          await account.waitForTransaction(tx.transaction_hash);
+        }
+      }
+      break;
+    }
   }
 }

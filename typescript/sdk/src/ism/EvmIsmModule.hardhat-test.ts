@@ -169,12 +169,6 @@ describe('EvmIsmModule', async () => {
       });
     }
 
-    it(`deploys ${IsmType.ICA_ROUTING}`, async () => {
-      await createIsm({
-        type: IsmType.ICA_ROUTING,
-      });
-    });
-
     it(`deploys ${IsmType.AMOUNT_ROUTING}`, async () => {
       await createIsm({
         type: IsmType.AMOUNT_ROUTING,
@@ -434,7 +428,7 @@ describe('EvmIsmModule', async () => {
       });
 
       it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
-        // create a an initial ISM
+        // create an initial ISM
         const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
 
         // update the threshold for a domain

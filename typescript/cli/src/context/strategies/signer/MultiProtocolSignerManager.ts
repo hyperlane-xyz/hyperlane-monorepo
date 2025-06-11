@@ -8,6 +8,7 @@ import {
   ChainSubmissionStrategy,
   MultiProtocolProvider,
   MultiProvider,
+  ProtocolMap,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -22,7 +23,7 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
-  key?: string;
+  key?: string | ProtocolMap<string>;
 }
 
 /**
@@ -88,26 +89,6 @@ export class MultiProtocolSignerManager {
     return this.multiProvider;
   }
 
-  protected getSpecificSigner<T>(chain: ChainName): T {
-    return this.signers.get(chain) as T;
-  }
-
-  getEVMSigner(chain: ChainName): Signer {
-    const protocol = this.multiProvider.getChainMetadata(chain).protocol;
-    if (protocol !== ProtocolType.Ethereum) {
-      throw new Error(`Chain ${chain} is not an Ethereum chain`);
-    }
-    return this.getSpecificSigner<Signer>(chain);
-  }
-
-  getStarknetSigner(chain: ChainName): StarknetAccount {
-    const protocol = this.multiProvider.getChainMetadata(chain).protocol;
-    if (protocol !== ProtocolType.Starknet) {
-      throw new Error(`Chain ${chain} is not a Starknet chain`);
-    }
-    return this.getSpecificSigner<StarknetAccount>(chain);
-  }
-
   /**
    * @notice Creates signer for specific chain
    */
@@ -124,48 +105,14 @@ export class MultiProtocolSignerManager {
    * @notice Creates signers for all chains
    */
   async initAllSigners(): Promise<typeof this.signers> {
-    const signerConfigs = await this.resolveAllConfigs();
-
-    for (const { chain, privateKey, userAddress } of signerConfigs) {
+    for (const chain of this.compatibleChains) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
-        const { protocol } = this.multiProvider.getChainMetadata(chain);
-        if (protocol === ProtocolType.Starknet) {
-          const provider =
-            this.multiProtocolProvider?.getStarknetProvider(chain);
-          this.signers.set(
-            chain,
-            await signerStrategy.getSigner({
-              privateKey,
-              userAddress,
-              extraParams: { provider },
-            }),
-          );
-        } else {
-          // evm chains
-          this.signers.set(
-            chain,
-            await signerStrategy.getSigner({ privateKey }),
-          );
-        }
+        await this.initSigner(chain);
       }
     }
 
     return this.signers;
-  }
-
-  /**
-   * @notice Resolves all chain configurations sequentially to avoid event listener leaks
-   */
-  private async resolveAllConfigs(): Promise<
-    Array<{ chain: ChainName } & SignerConfig>
-  > {
-    const configs: Array<{ chain: ChainName } & SignerConfig> = [];
-    for (const chain of this.chains) {
-      const config = await this.resolveConfig(chain);
-      configs.push(config);
-    }
-    return configs;
   }
 
   /**
@@ -176,9 +123,19 @@ export class MultiProtocolSignerManager {
   ): Promise<{ chain: ChainName } & SignerConfig> {
     const { protocol } = this.multiProvider.getChainMetadata(chain);
 
-    // For Cosmos, we must use strategy config
+    let config = await this.extractPrivateKey(chain);
+
+    // For Cosmos, we get additional params
     if (protocol === ProtocolType.CosmosNative) {
-      return this.resolveCosmosNativeConfig(chain, this.options.key);
+      const provider =
+        await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
+      const { bech32Prefix, gasPrice } =
+        this.multiProvider.getChainMetadata(chain);
+
+      config = {
+        ...config,
+        extraParams: { provider, prefix: bech32Prefix, gasPrice },
+      };
     }
 
     // For Starknet, we must use strategy config
@@ -186,8 +143,6 @@ export class MultiProtocolSignerManager {
       return this.resolveStarknetConfig(chain);
     }
 
-    // For other protocols, try CLI/ENV keys first, then fallback to strategy
-    const config = await this.extractPrivateKey(chain);
     return { chain, ...config };
   }
 
@@ -195,16 +150,39 @@ export class MultiProtocolSignerManager {
    * @notice Gets private key from strategy
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
-    if (this.options.key) {
-      this.logger.info(
+    const protocol = this.multiProvider.getProtocol(chain);
+
+    if (
+      protocol === ProtocolType.Ethereum &&
+      typeof this.options.key === 'string'
+    ) {
+      this.logger.debug(
         `Using private key passed via CLI --key flag for chain ${chain}`,
       );
       return { privateKey: this.options.key };
     }
 
-    if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
-      return { privateKey: ENV.HYP_KEY };
+    if (typeof this.options.key === 'object') {
+      assert(
+        this.options.key[protocol],
+        `Key flag --key.${protocol} for chain ${chain} not provided`,
+      );
+      this.logger.debug(
+        `Using private key passed via CLI --key.${protocol} flag for chain ${chain}`,
+      );
+      return { privateKey: this.options.key[protocol] };
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
+      return { privateKey: process.env[`HYP_KEY_${protocol.toUpperCase()}`]! };
+    }
+
+    if (protocol === ProtocolType.Ethereum) {
+      if (ENV.HYP_KEY) {
+        this.logger.debug(`Using private key from .env for chain ${chain}`);
+        return { privateKey: ENV.HYP_KEY };
+      }
     }
 
     const signerStrategy = this.getSignerStrategyOrFail(chain);
@@ -213,38 +191,37 @@ export class MultiProtocolSignerManager {
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    this.logger.info(
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
+
     return { privateKey: strategyConfig.privateKey };
   }
 
-  private async resolveCosmosNativeConfig(
-    chain: ChainName,
-    key?: string,
-  ): Promise<{ chain: ChainName } & SignerConfig> {
-    const signerStrategy = this.getSignerStrategyOrFail(chain);
+  private getSignerStrategyOrFail(chain: ChainName): IMultiProtocolSigner {
+    const strategy = this.signerStrategies.get(chain);
+    assert(strategy, `No signer strategy found for chain ${chain}`);
+    return strategy;
+  }
 
-    if (!key) {
-      const strategyConfig = await signerStrategy.getSignerConfig(chain);
-      key = strategyConfig.privateKey;
+  protected getSpecificSigner<T>(chain: ChainName): T {
+    return this.signers.get(chain) as T;
+  }
+
+  getStarknetSigner(chain: ChainName): StarknetAccount {
+    const protocol = this.multiProvider.getChainMetadata(chain).protocol;
+    if (protocol !== ProtocolType.Starknet) {
+      throw new Error(`Chain ${chain} is not a Starknet chain`);
     }
-
-    const provider =
-      await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
-    const { bech32Prefix, gasPrice } =
-      this.multiProvider.getChainMetadata(chain);
-
-    assert(key, `No private key found for chain ${chain}`);
-    assert(provider, 'No Cosmos Native Provider found');
-
-    this.logger.info(`Using strategy config for Cosmos Native chain ${chain}`);
-
-    return {
-      chain,
-      privateKey: key,
-      extraParams: { provider, prefix: bech32Prefix, gasPrice },
-    };
+    return this.getSpecificSigner<StarknetAccount>(chain);
+  }
+  getEVMSigner(chain: ChainName): Signer {
+    const protocolType = this.multiProvider.getChainMetadata(chain).protocol;
+    assert(
+      protocolType === ProtocolType.Ethereum,
+      `Chain ${chain} is not an Ethereum chain`,
+    );
+    return this.getSpecificSigner<Signer>(chain);
   }
 
   getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
@@ -278,11 +255,5 @@ export class MultiProtocolSignerManager {
       userAddress: strategyConfig.userAddress,
       extraParams: { provider },
     };
-  }
-
-  private getSignerStrategyOrFail(chain: ChainName): IMultiProtocolSigner {
-    const strategy = this.signerStrategies.get(chain);
-    assert(strategy, `No signer strategy found for chain ${chain}`);
-    return strategy;
   }
 }
