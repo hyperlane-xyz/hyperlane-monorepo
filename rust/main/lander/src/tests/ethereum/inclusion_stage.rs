@@ -147,10 +147,10 @@ async fn test_inclusion_gas_underpriced() {
         .expect_fee_history()
         .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
 
-    // return receipts without a block, to trigger tx submission
+    // after the tx is sent and gets a tx hash, immediately report it as included
     mock_evm_provider
         .expect_get_transaction_receipt()
-        .returning(move |_| Ok(Some(mock_tx_receipt(None))));
+        .returning(move |_| Ok(Some(mock_tx_receipt(Some(42)))));
 
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;

@@ -216,17 +216,20 @@ impl InclusionStage {
         )
         .await?;
 
+        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
+        // set by previous retries when calling `adapter.submit`
+        let tx_shared = Arc::new(Mutex::new(tx.clone()));
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
         tx = call_until_success_or_nonretryable_error(
             || {
-                let tx_clone = tx.clone();
+                let tx_shared_clone = tx_shared.clone();
                 async move {
-                    let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.submit(&mut tx_clone_inner).await?;
-                    Ok(tx_clone_inner)
+                    let mut tx_guard = tx_shared_clone.lock().await;
+                    state.adapter.submit(&mut tx_guard).await?;
+                    Ok(tx_guard.clone())
                 }
             },
             "Submitting transaction",
