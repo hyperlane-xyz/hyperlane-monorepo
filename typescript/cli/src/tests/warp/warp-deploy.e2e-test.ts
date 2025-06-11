@@ -47,7 +47,6 @@ import {
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
-  getCombinedWarpRoutePath,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
@@ -764,6 +763,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(fs.existsSync(expectedWarpCorePath)).to.be.true;
     });
+
     it('should set the allowed bridges and the related token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
@@ -787,10 +787,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        await tokenChain2.symbol(),
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
 
       const coreConfig: WarpCoreConfig = readYamlOrJson(
         COMBINED_WARP_CORE_CONFIG_PATH,
