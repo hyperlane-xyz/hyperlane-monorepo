@@ -180,8 +180,8 @@ async function updateTokenMetrics(
 
     if (!warpDeployConfig) {
       logger.warn(
-        `Failed to read warp deploy config for token ${token.symbol}` +
-          ` on chain ${token.chainName} skipping extra lockboxes`,
+        { token: token.symbol, chain: token.chainName },
+        'Failed to read warp deploy config, skipping extra lockboxes',
       );
       return;
     }
@@ -193,8 +193,13 @@ async function updateTokenMetrics(
       currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
     ) {
       logger.error(
-        `Token is xERC20 but token deploy config is ${currentTokenDeployConfig.type} ` +
-          `for token ${token.symbol} on chain ${token.chainName}`,
+        {
+          expected: 'XERC20|XERC20Lockbox',
+          actual: currentTokenDeployConfig.type,
+          token: token.symbol,
+          chain: token.chainName,
+        },
+        'Invalid deploy config type for xERC20 token',
       );
       return;
     }
@@ -260,7 +265,8 @@ async function getTokenBridgedBalance(
 ): Promise<WarpRouteBalance | undefined> {
   if (!token.isHypToken()) {
     logger.warn(
-      `No support for getting bridged balance for a non-Hyperlane token ${token.symbol}`,
+      { token: token.symbol, chain: token.chainName },
+      'No support for bridged balance on non-Hyperlane token',
     );
     return undefined;
   }
@@ -269,7 +275,10 @@ async function getTokenBridgedBalance(
   let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
   const bridgedSupply = await adapter.getBridgedSupply();
   if (bridgedSupply === undefined) {
-    logger.warn(`Failed to get bridged supply for token ${token.symbol}`);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Failed to get bridged supply',
+    );
     return undefined;
   }
   const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
@@ -501,9 +510,14 @@ async function getExtraLockboxBalance(
     balance = await erc20tokenAdapter.getBalance(lockboxAddress);
   } catch (err) {
     logger.error(
-      err,
-      `Failed to get balance for contract at "${lockboxAddress}"` +
-        ` on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
+      {
+        err,
+        chain: warpToken.chainName,
+        token: warpToken.symbol,
+        lockboxAddress,
+        erc20TokenAddress,
+      },
+      'Failed to get balance for contract at lockbox address',
     );
     return;
   }
@@ -531,7 +545,10 @@ async function tryGetTokenPrice(
   const coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
-    logger.warn(`Missing CoinGecko ID for token ${token.symbol}`);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Missing CoinGecko ID for token',
+    );
     return undefined;
   }
 
