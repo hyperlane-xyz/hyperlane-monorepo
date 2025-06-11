@@ -1,6 +1,7 @@
+import { describe, it, expect, jest, afterEach } from '@jest/globals';
 import { BigNumber } from 'ethers';
 import axios from 'axios';
-import { fetchTokenPrices, getTokenPrice } from './token-prices';
+import { fetchTokenPrices, getTokenPrice } from './token-prices.js';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;

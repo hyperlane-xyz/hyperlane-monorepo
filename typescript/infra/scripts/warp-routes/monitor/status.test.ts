@@ -1,42 +1,74 @@
-• Verify Jest setup:
-  – Ensure `jest.config.js` or `package.json` contains Jest entries.
-  – Confirm `ts-jest` is configured for TypeScript.
+/// <reference types="jest" />
+import axios from 'axios';
+import type { AxiosResponse } from 'axios';
+import { fetchStatus, parseStatus, StatusError, type Status } from './status.js';
 
-• Identify SUT (typescript/infra/scripts/warp-routes/monitor/status.ts):
-  – Exports:
-    • `fetchStatus(id: string): Promise<Status>`
-    • `parseStatus(raw: any): Status`
-    • `StatusError` (custom error class)
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-• Test cases:
+describe('status module', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
 
-  1. Happy‐path for fetchStatus:
-     – Mock HTTP client (e.g., `jest.mock('axios')`) to return HTTP 200 with valid payload.
-     – Assert `await fetchStatus('abc')` resolves to expected `Status` object.
+  describe('parseStatus', () => {
+    it('returns a Status object when all required fields are present', () => {
+      const raw = { id: '123', status: 'online', message: 'All good' };
+      const result = parseStatus(raw);
+      expect(result).toEqual({
+        id: '123',
+        status: 'online',
+        message: 'All good',
+      });
+    });
 
-  2. Edge cases for parseStatus:
-     – Valid payload missing optional fields → default values applied.
-     – Empty/null input → throws `StatusError` with descriptive message.
+    it('applies default values for missing optional fields', () => {
+      const raw = { id: '123', status: 'offline' };
+      const result = parseStatus(raw);
+      expect(result).toEqual({
+        id: '123',
+        status: 'offline',
+        message: '',
+      });
+    });
 
-  3. Failure paths for fetchStatus:
-     – HTTP 4xx/5xx response → rejects with `StatusError` including status code.
-     – Network error (e.g., timeout) → rejects with underlying error or wrapped `StatusError`.
+    it('throws StatusError when input is null or undefined', () => {
+      expect(() => parseStatus(null)).toThrow(StatusError);
+      expect(() => parseStatus(undefined)).toThrow(StatusError);
+    });
+  });
 
-  4. Input validation:
-     – Call `fetchStatus('')` (empty ID) → immediate rejection with `StatusError`.
+  describe('fetchStatus', () => {
+    const dummyStatus: Status = { id: 'abc', status: 'ok', message: 'test' };
+    const axiosResponse: AxiosResponse = {
+      data: dummyStatus,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    };
 
-  5. Concurrency/timing (if applicable):
-     – If retry/backoff logic exists, use `jest.useFakeTimers()` and `jest.advanceTimersByTime()` to simulate delays and retries.
+    it('resolves with parsed Status on successful HTTP 200 response', async () => {
+      mockedAxios.get.mockResolvedValue(axiosResponse);
+      await expect(fetchStatus('abc')).resolves.toEqual(dummyStatus);
+      expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('/abc'));
+    });
 
-• Mocking & lifecycle:
-  – Use `jest.mock('axios')` or equivalent.
-  – In `beforeEach`, reset and configure mocks.
-  – In `afterEach`, `jest.resetAllMocks()` and restore any modified `process.env`.
+    it('throws StatusError when HTTP status is not 200', async () => {
+      const badResponse = { ...axiosResponse, status: 404, statusText: 'Not Found' };
+      mockedAxios.get.mockResolvedValue(badResponse);
+      await expect(fetchStatus('abc')).rejects.toThrow(StatusError);
+      await expect(fetchStatus('abc')).rejects.toThrow('404');
+    });
 
-• Async assertions:
-  – Use `await expect(fetchStatus(...)).resolves.toEqual(...)`.
-  – Use `await expect(fetchStatus(...)).rejects.toThrow(StatusError)`.
+    it('throws underlying error for network failures', async () => {
+      const networkError = new Error('Network Error');
+      mockedAxios.get.mockRejectedValue(networkError);
+      await expect(fetchStatus('abc')).rejects.toThrow(networkError);
+    });
 
-• Coverage goals:
-  – Target >90% branch coverage on `status.ts`.
-  – Run via `npm test` or `yarn test`; use `jest.setTimeout()` if any test is long‐running.
+    it('throws StatusError on empty id input', async () => {
+      await expect(fetchStatus('')).rejects.toThrow(StatusError);
+    });
+  });
+});

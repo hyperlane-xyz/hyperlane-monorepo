@@ -1,10 +1,12 @@
-import { jest } from '@jest/globals';
-import monitorWarpRouteBalances, { isBelowThreshold } from './monitor-warp-route-balances';
+import { jest, describe, it, expect, beforeEach, afterAll } from '@jest/globals';
+import monitorWarpRouteBalances, { isBelowThreshold } from './monitor-warp-route-balances.js';
+import * as someClient from '../../../lib/someClient.js';
 
-jest.mock('../../../lib/someClient', () => ({
+jest.mock('../../../lib/someClient.js', () => ({
   getBalances: jest.fn(),
 }));
-const mockedClient = require('../../../lib/someClient') as jest.Mocked<typeof import('../../../lib/someClient')>;
+
+const mockedClient = someClient as jest.Mocked<typeof someClient>;
 
 const DEFAULT_THRESHOLD = '10';
 const OLD_ENV = process.env;
