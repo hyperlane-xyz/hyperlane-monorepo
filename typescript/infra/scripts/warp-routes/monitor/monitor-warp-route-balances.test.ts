@@ -1,7 +1,7 @@
-import { jest } from '@jest/globals';
-import { monitorWarpRouteBalances, __private__ } from './monitor-warp-route-balances';
-import * as warpSdk from '../../warp-client';
-import * as loggerModule from '../../logger';
+import { beforeEach, afterAll, describe, it, expect, jest } from '@jest/globals';
+import { monitorWarpRouteBalances, __private__ } from './monitor-warp-route-balances.js';
+import * as warpSdk from '../../warp-client.js';
+import * as loggerModule from '../../logger.js';
 
 describe('monitorWarpRouteBalances', () => {
   const mockFetchBalances = jest.fn();
@@ -23,25 +23,25 @@ describe('monitorWarpRouteBalances', () => {
   });
 
   it('resolves successfully when all balances >= threshold', async () => {
-    mockFetchBalances.mockResolvedValue([{ token: 'USDC', balance: 1500 }]);
+    mockFetchBalances.mockImplementation(() => Promise.resolve([{ token: 'USDC', balance: 1500 }]));
     await expect(monitorWarpRouteBalances()).resolves.toBeUndefined();
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('All routes healthy'));
   });
 
   it('detects deficits and exits with non-zero code', async () => {
-    mockFetchBalances.mockResolvedValue([{ token: 'DAI', balance: 500 }]);
+    mockFetchBalances.mockImplementation(() => Promise.resolve([{ token: 'DAI', balance: 500 }]));
     await expect(monitorWarpRouteBalances()).rejects.toThrow('process.exit:1');
     expect(mockError).toHaveBeenCalledWith(expect.stringContaining('Deficit detected'));
   });
 
   it('handles SDK failure by logging and exiting', async () => {
-    mockFetchBalances.mockRejectedValue(new Error('network error'));
+    mockFetchBalances.mockImplementation(() => Promise.reject(new Error('network error')));
     await expect(monitorWarpRouteBalances()).rejects.toThrow('process.exit:1');
     expect(mockError).toHaveBeenCalledWith(expect.stringContaining('Error fetching balances'));
   });
 
   it('handles empty route list gracefully', async () => {
-    mockFetchBalances.mockResolvedValue([]);
+    mockFetchBalances.mockImplementation(() => Promise.resolve([]));
     await expect(monitorWarpRouteBalances()).resolves.toBeUndefined();
     expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('No routes to monitor'));
   });
@@ -50,13 +50,17 @@ describe('monitorWarpRouteBalances', () => {
 describe('calculateDeficit (unit)', () => {
   const { calculateDeficit } = __private__;
 
-  test.each([
+  const cases: Array<[number, number, number]> = [
     [1500, 1000, 0],
     [999,  1000, 1],
     [0,    1000, 1000],
     [-100, 1000, 1100],
     [NaN,  1000, NaN],
-  ])('balances %p vs min %p -> deficit %p', (balance, min, expected) => {
-    expect(calculateDeficit(balance, min)).toStrictEqual(expected);
-  });
+  ];
+
+  for (const [balance, min, expected] of cases) {
+    it(`balances ${balance} vs min ${min} -> deficit ${expected}`, () => {
+      expect(calculateDeficit(balance, min)).toStrictEqual(expected);
+    });
+  }
 });

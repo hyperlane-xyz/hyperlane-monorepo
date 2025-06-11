@@ -1,9 +1,10 @@
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
   parseRoute,
   buildEventMessage,
   filterInvalidRecords,
   groupByService,
-} from './utils';
+} from './utils.js';
 
 describe('utils', () => {
   beforeEach(() => {

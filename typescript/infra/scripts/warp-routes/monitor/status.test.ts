@@ -1,7 +1,8 @@
-import { getStatus as getStatusClient, StatusResponse } from '../client';
-import { getStatus, parseStatusResponse } from './status';
+import { jest, describe, beforeEach, afterAll, it, expect, test } from '@jest/globals';
+import { getStatus as getStatusClient, StatusResponse } from '../client.js';
+import { getStatus, parseStatusResponse } from './status.js';
 
-jest.mock('../client', () => ({
+jest.mock('../client.js', () => ({
   getStatus: jest.fn(),
 }));
 
@@ -77,11 +78,11 @@ describe('parseStatusResponse edge cases', () => {
 });
 
 describe('parseStatusResponse parameterized HTTP codes', () => {
-  test.each([
+  ;(test as any).each([
     [200, true],
     [500, false],
     [404, false],
-  ])('status code %i → healthy=%s', (code, expectedHealthy) => {
+  ])('status code %i → healthy=%s', (code: number, expectedHealthy: boolean) => {
     const raw = makeResponse({ code, healthy: undefined as any });
     const parsed = parseStatusResponse(raw);
     expect(parsed.healthy).toBe(expectedHealthy);
