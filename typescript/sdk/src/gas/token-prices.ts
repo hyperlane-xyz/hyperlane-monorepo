@@ -161,7 +161,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     ids: string[],
     currency: string,
   ): Promise<number[]> {
-    const tokenIds = Object.entries(ids).join(',');
+    const tokenIds = ids.join(',');
     let url = `${COINGECKO_PRICE_API}?ids=${tokenIds}&vs_currencies=${currency}`;
     if (this.apiKey) {
       url += `&x-cg-pro-api-key=${this.apiKey}`;
