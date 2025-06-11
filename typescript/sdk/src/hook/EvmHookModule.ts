@@ -67,6 +67,7 @@ import {
   AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   CCIPHookConfig,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -149,6 +150,7 @@ export class EvmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
+    actualConfig?: DerivedHookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     // Nothing to do if its the default hook
     if (targetConfig === zeroAddress) {
@@ -162,7 +164,9 @@ export class EvmHookModule extends HyperlaneModule<
     this.args.config = targetConfig;
 
     // We need to normalize the current and target configs to compare.
-    const normalizedCurrentConfig = normalizeConfig(await this.read());
+    const normalizedCurrentConfig = normalizeConfig(
+      actualConfig ?? (await this.read()),
+    );
     const normalizedTargetConfig = normalizeConfig(targetConfig);
 
     // If configs match, no updates needed
