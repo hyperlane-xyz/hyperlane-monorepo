@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "12.1.0",
+  "version": "13.2.1",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -11,6 +11,8 @@
   "engines": {
     "node": ">=16"
   },
+  "type": "module",
+  "moduleResolution": "nodenext",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/server.ts",
@@ -22,12 +24,13 @@
   "author": "brolee",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@jest/globals": "^29.7.0",
     "@types/node": "^18.14.5",
     "eslint": "^9.15.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.3",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
@@ -35,7 +38,9 @@
   },
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
+    "@eth-optimism/sdk": "^3.3.3",
+    "@hyperlane-xyz/core": "7.1.10",
     "dotenv-flow": "^4.1.0",
-    "ethers": "^5.7.2"
+    "ethers": "^5.8.0"
   }
 }

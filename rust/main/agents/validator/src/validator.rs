@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::server as validator_server;
 use async_trait::async_trait;
+use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
 use eyre::{eyre, Result};
@@ -15,12 +15,11 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{ChainConf, CheckpointSyncerBuildError},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
-
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
@@ -28,6 +27,8 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
+use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
+use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
@@ -58,6 +59,7 @@ pub struct Validator {
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
+    reorg_reporter: Arc<dyn ReorgReporter>,
 }
 
 /// Metadata for `validator`
@@ -123,12 +125,22 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(raw_signer.clone());
 
         let core = settings.build_hyperlane_core(metrics.clone());
-        // Be extra sure to panic checkpoint syncer fails, which indicates
+
+        let reorg_reporter =
+            LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?;
+        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
+
+        let checkpoint_syncer_result = settings.checkpoint_syncer.build_and_validate(None).await;
+
+        Self::report_latest_checkpoints_from_each_endpoint(
+            &reorg_reporter,
+            &checkpoint_syncer_result,
+        )
+        .await;
+
+        // Be extra sure to panic when checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = settings
-            .checkpoint_syncer
-            .build_and_validate(None)
-            .await
+        let checkpoint_syncer = checkpoint_syncer_result
             .expect("Failed to build checkpoint syncer")
             .into();
 
@@ -184,6 +196,7 @@ impl BaseAgent for Validator {
             runtime_metrics,
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
+            reorg_reporter,
         })
     }
 
@@ -192,8 +205,18 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let custom_routes =
-            validator_server::routes(self.origin_chain.clone(), self.core.metrics.clone());
+        let router = Router::new()
+            .merge(validator_server::router(
+                self.origin_chain.clone(),
+                self.core.metrics.clone(),
+            ))
+            .merge(
+                merkle_tree_insertions::list_merkle_tree_insertions::ServerState::new(
+                    self.db.clone(),
+                )
+                .router(),
+            );
+
         let server = self
             .core
             .settings
@@ -201,7 +224,7 @@ impl BaseAgent for Validator {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(router);
             }
             .instrument(info_span!("Validator server")),
         );
@@ -255,9 +278,9 @@ impl BaseAgent for Validator {
                     }
                     break;
                 }
-                _ => {
-                    // Future that immediately resolves
-                    return;
+                Err(err) => {
+                    error!(?err, "Error getting merkle tree hook count");
+                    sleep(self.interval).await;
                 }
             }
         }
@@ -306,6 +329,7 @@ impl Validator {
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
+            self.reorg_reporter.clone(),
         );
 
         let tip_tree = self
@@ -318,7 +342,7 @@ impl Validator {
         // merkle tree hook has count > 0, but we assert to be extra sure this is
         // the case.
         assert!(tip_tree.count() > 0, "merkle tree is empty");
-        let backfill_target = submitter.checkpoint(&tip_tree);
+        let backfill_target = submitter.checkpoint_at_block(&tip_tree);
 
         let backfill_submitter = submitter.clone();
 
@@ -333,7 +357,7 @@ impl Validator {
         ));
 
         tasks.push(tokio::spawn(
-            async move { submitter.checkpoint_submitter(tip_tree).await }
+            async move { submitter.checkpoint_submitter(tip_tree.tree).await }
                 .instrument(info_span!("TipCheckpointSubmitter")),
         ));
 
@@ -425,18 +449,21 @@ impl Validator {
                     .chain_signer()
                     .await?
                 {
-                    let chain_signer = chain_signer.address_string();
-                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
+                    let chain_signer_string = chain_signer.address_string();
+                    let chain_signer_h256 = chain_signer.address_h256();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+
                     let balance_delta = self
                         .validator_announce
-                        .announce_tokens_needed(signed_announcement.clone())
+                        .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
                         .await
                         .unwrap_or_default();
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            ?chain_signer,
+                            ?chain_signer_string,
+                            ?chain_signer_h256,
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
@@ -444,7 +471,7 @@ impl Validator {
                             .validator_announce
                             .announce(signed_announcement.clone())
                             .await;
-                        Self::log_on_announce_failure(result, &chain_signer);
+                        Self::log_on_announce_failure(result, &chain_signer_string);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
@@ -454,5 +481,18 @@ impl Validator {
             }
         }
         Ok(())
+    }
+
+    async fn report_latest_checkpoints_from_each_endpoint(
+        reorg_reporter: &Arc<dyn ReorgReporter>,
+        checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
+    ) {
+        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+            checkpoint_syncer_result.as_ref()
+        {
+            reorg_reporter
+                .report_with_reorg_period(&reorg_event.reorg_period)
+                .await;
+        }
     }
 }

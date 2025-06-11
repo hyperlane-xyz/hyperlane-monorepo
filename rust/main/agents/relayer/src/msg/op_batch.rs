@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use derive_new::new;
 use hyperlane_core::{
@@ -26,7 +26,7 @@ pub(crate) struct OperationBatch {
 }
 
 impl OperationBatch {
-    #[instrument(skip_all, fields(domain=%self.domain, batch_size=self.operations.len()))]
+    #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
         prepare_queue: &mut OpQueue,
@@ -68,8 +68,16 @@ impl OperationBatch {
         let outcome = self
             .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, BATCH_RETRY_SLEEP_DURATION)
             .await?;
-        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
-        metrics.ops_submitted.inc_by(ops_submitted as u64);
+
+        let failed_indexes: HashSet<usize> = outcome.failed_indexes.iter().cloned().collect();
+        for (i, op) in self.operations.iter().enumerate() {
+            if failed_indexes.contains(&i) {
+                continue;
+            }
+            let app_context = op.app_context();
+            metrics.inc_submitted(app_context);
+        }
+
         Ok(outcome)
     }
 
@@ -169,13 +177,12 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{
-                dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
-            },
+            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
         },
+        test_utils::dummy_data::dummy_submission_metrics,
     };
     use ethers::utils::hex;
     use hyperlane_base::{
@@ -253,11 +260,9 @@ mod tests {
         ));
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
@@ -311,13 +316,10 @@ mod tests {
         )
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     #[ignore]
     async fn benchmarking_with_real_rpcs() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-
         let arb_chain_conf = ChainConf {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
@@ -353,6 +355,7 @@ mod tests {
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
+            ignore_reorg_reports: false,
         };
 
         // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
@@ -392,6 +395,8 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
+            false,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

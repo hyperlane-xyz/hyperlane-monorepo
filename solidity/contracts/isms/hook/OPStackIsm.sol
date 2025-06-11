@@ -16,10 +16,8 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
-
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 // ============ External Imports ============
 import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";

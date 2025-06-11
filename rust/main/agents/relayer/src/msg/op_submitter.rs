@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use maplit::hashmap;
 use num_traits::Zero;
-use prometheus::{IntCounter, IntGaugeVec};
+use prometheus::{IntCounterVec, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -18,14 +19,15 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ConfirmReason::{self, *},
-    HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult, PendingOperationStatus,
-    QueueOperation, ReprepareReason,
+    ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
+    PendingOperationStatus, QueueOperation, ReprepareReason,
 };
-use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
+use lander::{
+    DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
+};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::MessageRetryRequest;
+use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
@@ -99,7 +101,7 @@ pub struct SerialSubmitter {
     prepare_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
-    payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+    payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
 }
 
@@ -113,7 +115,7 @@ impl SerialSubmitter {
         max_batch_size: u32,
         max_submit_queue_len: Option<u32>,
         task_monitor: TaskMonitor,
-        payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+        payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
         db: HyperlaneRocksDB,
     ) -> Self {
         let prepare_queue = OpQueue::new(
@@ -170,19 +172,18 @@ impl SerialSubmitter {
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
+        let prepare_task = self.create_classic_prepare_task();
+
         let submit_task = match &entrypoint {
             None => self.create_classic_submit_task(),
             Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = match &entrypoint {
-            None => self.create_classic_confirm_task(),
-            Some(entrypoint) => self.create_lander_confirm_task(entrypoint.clone()),
-        };
+        let confirm_task = self.create_classic_confirm_task();
 
         let tasks = [
             self.create_receive_task(rx_prepare),
-            self.create_prepare_task(),
+            prepare_task,
             submit_task,
             confirm_task,
         ];
@@ -190,7 +191,7 @@ impl SerialSubmitter {
         if let Err(err) = try_join_all(tasks).await {
             error!(
                 error=?err,
-                domain=?self.domain,
+                domain=?self.domain.name(),
                 "SerialSubmitter task panicked for domain"
             );
         }
@@ -210,13 +211,13 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_prepare_task(&self) -> JoinHandle<()> {
-        let name = Self::task_name("prepare::", &self.domain);
+    fn create_classic_prepare_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("prepare_classic::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
-                prepare_task(
+                prepare_classic_task(
                     self.domain.clone(),
                     self.prepare_queue.clone(),
                     self.submit_queue.clone(),
@@ -264,10 +265,29 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_submit_task(
-        &self,
-        entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    ) -> JoinHandle<()> {
+    #[allow(unused)]
+    fn create_lander_prepare_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
+        let name = Self::task_name("prepare_lander::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                prepare_lander_task(
+                    entrypoint,
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.max_submit_queue_len,
+                    self.metrics.clone(),
+                    self.db.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_lander_submit_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
         let name = Self::task_name("submit_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -287,10 +307,8 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_confirm_task(
-        &self,
-        entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    ) -> JoinHandle<()> {
+    #[allow(unused)]
+    fn create_lander_confirm_task(&self, entrypoint: Arc<DispatcherEntrypoint>) -> JoinHandle<()> {
         let name = Self::task_name("confirm_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
@@ -332,7 +350,7 @@ async fn receive_task(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn prepare_task(
+async fn prepare_classic_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
     submit_queue: OpQueue,
@@ -341,83 +359,217 @@ async fn prepare_task(
     max_submit_queue_len: Option<u32>,
     metrics: SerialSubmitterMetrics,
 ) {
-    // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
-    let ops_to_prepare = max_batch_size as usize;
     loop {
-        // Apply backpressure to the prepare queue if the submit queue is too long.
-        if let Some(max_len) = max_submit_queue_len {
-            let submit_queue_len = submit_queue.len().await as u32;
-            if submit_queue_len >= max_len {
-                debug!(
-                    %submit_queue_len,
-                    max_submit_queue_len=%max_len,
-                    "Submit queue is too long, waiting to prepare more ops"
-                );
-                // The submit queue is too long, so give some time before checking again
-                sleep(Duration::from_millis(150)).await;
-                continue;
-            }
-        }
-        // Pop messages here according to the configured batch.
-        let mut batch = prepare_queue.pop_many(ops_to_prepare).await;
-        if batch.is_empty() {
-            // queue is empty so give some time before checking again to prevent burning CPU
-            sleep(Duration::from_millis(100)).await;
+        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
+            // The submit queue is too long, so give some time before checking again
+            sleep(Duration::from_millis(150)).await;
             continue;
         }
-        let mut task_prep_futures = vec![];
-        let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
-        for op in op_refs {
-            trace!(?op, "Preparing operation");
-            debug_assert_eq!(*op.destination_domain(), domain);
-            task_prep_futures.push(op.prepare());
+
+        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
+            continue;
+        };
+
+        process_batch(
+            domain.clone(),
+            batch,
+            &mut prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+        )
+        .await;
+    }
+}
+
+#[instrument(skip_all, fields(%domain))]
+#[allow(clippy::too_many_arguments)]
+async fn prepare_lander_task(
+    entrypoint: Arc<DispatcherEntrypoint>,
+    domain: HyperlaneDomain,
+    mut prepare_queue: OpQueue,
+    submit_queue: OpQueue,
+    confirm_queue: OpQueue,
+    max_batch_size: u32,
+    max_submit_queue_len: Option<u32>,
+    metrics: SerialSubmitterMetrics,
+    db: Arc<dyn HyperlaneDb>,
+) {
+    loop {
+        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
+            // The submit queue is too long, so give some time before checking again
+            sleep(Duration::from_millis(150)).await;
+            continue;
         }
-        let res = join_all(task_prep_futures).await;
-        let not_ready_count = res
-            .iter()
-            .filter(|r| {
-                matches!(
-                    r,
-                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare(_)
-                )
-            })
-            .count();
-        let batch_len = batch.len();
-        for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
-            match prepare_result {
-                PendingOperationResult::Success => {
-                    debug!(?op, "Operation prepared");
-                    metrics.ops_prepared.inc();
-                    // TODO: push multiple messages at once
-                    submit_queue
-                        .push(op, Some(PendingOperationStatus::ReadyToSubmit))
-                        .await;
-                }
-                PendingOperationResult::NotReady => {
-                    prepare_queue.push(op, None).await;
-                }
-                PendingOperationResult::Reprepare(reason) => {
-                    metrics.ops_failed.inc();
-                    prepare_queue
-                        .push(op, Some(PendingOperationStatus::Retry(reason)))
-                        .await;
-                }
-                PendingOperationResult::Drop => {
-                    metrics.ops_dropped.inc();
-                    op.decrement_metric_if_exists();
-                }
-                PendingOperationResult::Confirm(reason) => {
-                    debug!(?op, "Pushing operation to confirm queue");
-                    confirm_queue
-                        .push(op, Some(PendingOperationStatus::Confirm(reason)))
-                        .await;
-                }
+
+        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
+            continue;
+        };
+
+        let batch_to_process = confirm_already_submitted_operations(
+            entrypoint.clone(),
+            &confirm_queue,
+            db.clone(),
+            batch,
+        )
+        .await;
+
+        process_batch(
+            domain.clone(),
+            batch_to_process,
+            &mut prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+        )
+        .await;
+    }
+}
+
+/// This function checks the status of the payloads associated with the operations in the batch.
+/// If the payload is not dropped, the operation is pushed to the confirmation queue.
+/// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
+async fn confirm_already_submitted_operations(
+    entrypoint: Arc<DispatcherEntrypoint>,
+    confirm_queue: &OpQueue,
+    db: Arc<dyn HyperlaneDb>,
+    batch: Vec<QueueOperation>,
+) -> Vec<QueueOperation> {
+    use ConfirmReason::AlreadySubmitted;
+    use PendingOperationStatus::Confirm;
+
+    let mut ops_to_prepare = vec![];
+    for op in batch.into_iter() {
+        if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
+            let status = Some(Confirm(AlreadySubmitted));
+            confirm_queue.push(op, status).await;
+        } else {
+            ops_to_prepare.push(op);
+        }
+    }
+    ops_to_prepare
+}
+
+async fn has_operation_been_submitted(
+    entrypoint: Arc<DispatcherEntrypoint>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> bool {
+    let id = op.id();
+
+    let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
+        Ok(uuids) => uuids,
+        Err(_) => return false,
+    };
+
+    let payload_uuids = match payload_uuids {
+        None => return false,
+        Some(uuids) if uuids.is_empty() => return false,
+        Some(uuids) => uuids,
+    };
+
+    // TODO checking only the first payload uuid since we support a single payload per message at this point
+    let payload_uuid = payload_uuids[0].clone();
+    let status = entrypoint.payload_status(payload_uuid).await;
+
+    match status {
+        Ok(PayloadStatus::Dropped(_)) => false,
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+/// Applies backpressure to the prepare queue if the submit queue is too long.
+async fn apply_backpressure(submit_queue: &OpQueue, max_len: &Option<u32>) -> bool {
+    if let Some(max_len) = max_len {
+        let submit_queue_len = submit_queue.len().await as u32;
+        if submit_queue_len >= *max_len {
+            debug!(
+                %submit_queue_len,
+                max_submit_queue_len=%max_len,
+                "Submit queue is too long, waiting to prepare more ops"
+            );
+            return true;
+        }
+    }
+    false
+}
+
+/// Helper method to get a batch from the queue or wait if the queue is empty.
+async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Option<Vec<QueueOperation>> {
+    let batch = queue.pop_many(batch_size as usize).await;
+    if batch.is_empty() {
+        // Queue is empty, wait before retrying to prevent burning CPU.
+        sleep(Duration::from_millis(100)).await;
+        None
+    } else {
+        Some(batch)
+    }
+}
+
+async fn process_batch(
+    domain: HyperlaneDomain,
+    mut batch: Vec<QueueOperation>,
+    prepare_queue: &mut OpQueue,
+    submit_queue: &OpQueue,
+    confirm_queue: &OpQueue,
+    metrics: &SerialSubmitterMetrics,
+) {
+    let mut task_prep_futures = vec![];
+    let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
+    for op in op_refs {
+        trace!(?op, "Preparing operation");
+        debug_assert_eq!(*op.destination_domain(), domain);
+        task_prep_futures.push(op.prepare());
+    }
+    let res = join_all(task_prep_futures).await;
+    let not_ready_count = res
+        .iter()
+        .filter(|r| {
+            matches!(
+                r,
+                PendingOperationResult::NotReady | PendingOperationResult::Reprepare(_)
+            )
+        })
+        .count();
+
+    let batch_len = batch.len();
+    for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
+        let app_context = op.app_context();
+        match prepare_result {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation prepared");
+
+                metrics.inc_prepared(app_context);
+                // TODO: push multiple messages at once
+                submit_queue
+                    .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                    .await;
+            }
+            PendingOperationResult::NotReady => {
+                prepare_queue.push(op, None).await;
+            }
+            PendingOperationResult::Reprepare(reason) => {
+                metrics.inc_failed(app_context);
+                prepare_queue
+                    .push(op, Some(PendingOperationStatus::Retry(reason)))
+                    .await;
+            }
+            PendingOperationResult::Drop => {
+                metrics.inc_dropped(app_context);
+                op.decrement_metric_if_exists();
+            }
+            PendingOperationResult::Confirm(reason) => {
+                debug!(?op, "Pushing operation to confirm queue");
+                confirm_queue
+                    .push(op, Some(PendingOperationStatus::Confirm(reason)))
+                    .await;
             }
         }
-        if not_ready_count == batch_len {
-            // none of the operations are ready yet, so wait for a little bit
-            sleep(Duration::from_millis(500)).await;
-        }
+    }
+    if not_ready_count == batch_len {
+        // none of the operations are ready yet, so wait for a little bit
+        sleep(Duration::from_millis(500)).await;
     }
 }
 
@@ -456,7 +608,7 @@ async fn submit_classic_task(
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(domain=%_domain))]
 async fn submit_lander_task(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -484,7 +636,7 @@ async fn submit_lander_task(
 
 async fn submit_via_lander(
     op: QueueOperation,
-    entrypoint: &Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: &Arc<DispatcherEntrypoint>,
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
@@ -500,14 +652,30 @@ async fn submit_via_lander(
         }
     };
 
+    let operation_success_criteria = match op.success_criteria() {
+        Ok(s) => s,
+        Err(e) => {
+            let reason = ReprepareReason::ErrorCreatingPayloadSuccessCriteria;
+            let msg = "Error creating payload success criteria";
+            prepare_op(op, prepare_queue, e, msg, reason).await;
+            return;
+        }
+    };
+
     let message_id = op.id();
     let metadata = format!("{message_id:?}");
     let mailbox = op
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
         .address();
-    let payload_id = PayloadId::random();
-    let payload = FullPayload::new(payload_id, metadata, operation_payload, mailbox);
+    let payload_uuid = PayloadUuid::random();
+    let payload = FullPayload::new(
+        payload_uuid,
+        metadata,
+        operation_payload,
+        operation_success_criteria,
+        mailbox,
+    );
 
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;
@@ -516,9 +684,9 @@ async fn submit_via_lander(
         return;
     }
 
-    if let Err(e) = db.store_payload_id_by_message_id(&message_id, &payload.details.id) {
-        let reason = ReprepareReason::ErrorStoringPayloadIdByMessageId;
-        let msg = "Error storing mapping from message id to payload id";
+    if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![payload.details.uuid]) {
+        let reason = ReprepareReason::ErrorStoringPayloadUuidsByMessageId;
+        let msg = "Error storing mapping from message id to payload uuids";
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
@@ -582,13 +750,16 @@ async fn confirm_op(
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
+    use ConfirmReason::SubmittedBySelf;
+
+    let app_context = op.app_context();
     let destination = op.destination_domain().clone();
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
     confirm_queue
         .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
         .await;
-    metrics.ops_submitted.inc();
+    metrics.inc_submitted(app_context);
 
     if matches!(
         destination.domain_protocol(),
@@ -645,7 +816,7 @@ async fn confirm_classic_task(
 
 #[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
-    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    entrypoint: Arc<DispatcherEntrypoint>,
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
@@ -664,31 +835,37 @@ async fn confirm_lander_task(
             continue;
         }
         // cannot use `join_all` here because db reads are blocking
-        let payload_id_results = batch
+        let payload_uuid_results = batch
             .into_iter()
             .map(|op| {
                 let message_id = op.id();
-                (op, db.retrieve_payload_id_by_message_id(&message_id))
+                (op, db.retrieve_payload_uuids_by_message_id(&message_id))
             })
             .collect::<Vec<_>>();
 
-        let payload_status_result_futures = payload_id_results
+        let payload_status_result_futures = payload_uuid_results
             .into_iter()
             .map(|(op, result)| async {
                 let message_id = op.id();
                 match result {
-                    Ok(Some(payload_id)) => Some((op, entrypoint.payload_status(payload_id).await)),
-                    Ok(None) | Err(_) => {
-                        error!(
-                            ?op,
-                            %message_id,
-                            "Error retrieving payload id by message id",
-                        );
-                        send_back_on_failed_submisison(
+                    Ok(Some(ids)) if !ids.is_empty() => {
+                        let op_futures = ids
+                            .into_iter()
+                            .map(|id| async {
+                                let status = entrypoint.payload_status(id.clone()).await;
+                                (id, status)
+                            })
+                            .collect::<Vec<_>>();
+                        let op_results = join_all(op_futures).await;
+                        Some((op, op_results))
+                    }
+                    Ok(Some(_)) | Ok(None) | Err(_) => {
+                        debug!(?op, ?message_id, "No payload uuid found for message id",);
+                        send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
                             &metrics,
-                            Some(&ReprepareReason::ErrorRetrievingPayloadId),
+                            Some(&ReprepareReason::ErrorRetrievingPayloadUuids),
                         )
                         .await;
                         None
@@ -706,19 +883,25 @@ async fn confirm_lander_task(
         let confirmed_operations = Arc::new(Mutex::new(0));
         let confirm_futures = payload_status_results
             .into_iter()
-            .map(|(op, status_result)| async {
-                let Ok(payload_status) = status_result else {
+            .map(|(op, status_results)| async {
+                let status_results_len = status_results.len();
+                let successes = filter_status_results(status_results);
+
+                if status_results_len - successes.len() > 0 {
                     warn!(?op, "Error retrieving payload status",);
-                    send_back_on_failed_submisison(
+                    send_back_on_failed_submission(
                         op,
                         prepare_queue.clone(),
                         &metrics,
-                        Some(&ReprepareReason::ErrorRetrievingPayloadId),
+                        Some(&ReprepareReason::ErrorRetrievingPayloadStatus),
                     )
                     .await;
                     return;
-                };
-                if payload_status.is_finalized() {
+                }
+
+                let finalized = !successes.iter().any(|(_, status)| !status.is_finalized());
+
+                if finalized {
                     {
                         let mut lock = confirmed_operations.lock().await;
                         *lock += 1;
@@ -732,7 +915,7 @@ async fn confirm_lander_task(
                     )
                     .await;
                 } else {
-                    info!(?op, ?payload_status, "Operation not finalized yet");
+                    info!(?op, ?successes, "Operation not finalized yet");
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
@@ -751,6 +934,15 @@ async fn confirm_lander_task(
             sleep(Duration::from_millis(500)).await;
         }
     }
+}
+
+fn filter_status_results(
+    status_results: Vec<(PayloadUuid, Result<PayloadStatus, LanderError>)>,
+) -> Vec<(PayloadUuid, PayloadStatus)> {
+    status_results
+        .into_iter()
+        .filter_map(|(id, result)| Some((id, result.ok()?)))
+        .collect::<Vec<_>>()
 }
 
 async fn confirm_operation(
@@ -774,10 +966,12 @@ async fn process_confirm_result(
     metrics: SerialSubmitterMetrics,
     operation_result: PendingOperationResult,
 ) -> PendingOperationResult {
+    let app_context = op.app_context();
+
     match &operation_result {
         PendingOperationResult::Success => {
-            debug!(?op, "Operation confirmed");
-            metrics.ops_confirmed.inc();
+            debug!(id=?op.id(), ?op, "Operation confirmed");
+            metrics.inc_confirmed(app_context);
             op.decrement_metric_if_exists();
         }
         PendingOperationResult::NotReady => {
@@ -790,23 +984,25 @@ async fn process_confirm_result(
                 .await;
         }
         PendingOperationResult::Reprepare(reason) => {
-            send_back_on_failed_submisison(op, prepare_queue.clone(), &metrics, Some(reason)).await;
+            send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
-            metrics.ops_dropped.inc();
+            metrics.inc_dropped(app_context);
             op.decrement_metric_if_exists();
         }
     }
     operation_result
 }
 
-async fn send_back_on_failed_submisison(
+async fn send_back_on_failed_submission(
     op: QueueOperation,
     prepare_queue: OpQueue,
     metrics: &SerialSubmitterMetrics,
     maybe_reason: Option<&ReprepareReason>,
 ) {
-    metrics.ops_failed.inc();
+    let app_context = op.app_context();
+    metrics.inc_failed(app_context);
+
     let reason = maybe_reason.unwrap_or(&ReprepareReason::ErrorSubmitting);
     prepare_queue
         .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
@@ -815,39 +1011,64 @@ async fn send_back_on_failed_submisison(
 
 #[derive(Debug, Clone)]
 pub struct SerialSubmitterMetrics {
+    pub destination: String,
     pub(crate) submitter_queue_length: IntGaugeVec,
-    pub(crate) ops_prepared: IntCounter,
-    pub(crate) ops_submitted: IntCounter,
-    pub(crate) ops_confirmed: IntCounter,
-    pub(crate) ops_failed: IntCounter,
-    pub(crate) ops_dropped: IntCounter,
+    pub(crate) ops_prepared: IntCounterVec,
+    pub(crate) ops_submitted: IntCounterVec,
+    pub(crate) ops_confirmed: IntCounterVec,
+    pub(crate) ops_failed: IntCounterVec,
+    pub(crate) ops_dropped: IntCounterVec,
 }
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: impl AsRef<CoreMetrics>, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
+
         Self {
+            destination: destination.to_string(),
             submitter_queue_length: metrics.as_ref().submitter_queue_length(),
-            ops_prepared: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["prepared", destination]),
-            ops_submitted: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["submitted", destination]),
-            ops_confirmed: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["confirmed", destination]),
-            ops_failed: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["failed", destination]),
-            ops_dropped: metrics
-                .as_ref()
-                .operations_processed_count()
-                .with_label_values(&["dropped", destination]),
+            ops_prepared: metrics.as_ref().operations_processed_count(),
+            ops_submitted: metrics.as_ref().operations_processed_count(),
+            ops_confirmed: metrics.as_ref().operations_processed_count(),
+            ops_failed: metrics.as_ref().operations_processed_count(),
+            ops_dropped: metrics.as_ref().operations_processed_count(),
+        }
+    }
+
+    pub fn inc_prepared(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("prepared", app_context);
+    }
+
+    pub fn inc_submitted(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("submitted", app_context);
+    }
+
+    pub fn inc_confirmed(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("confirmed", app_context);
+    }
+
+    pub fn inc_dropped(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("dropped", app_context);
+    }
+
+    pub fn inc_failed(&self, app_context: Option<String>) {
+        self.inc_phase_with_app_context("failed", app_context);
+    }
+
+    fn inc_phase_with_app_context(&self, phase: &str, app_context: Option<String>) {
+        let labels = hashmap! {
+            "app_context" => app_context.as_deref().unwrap_or("Unknown"),
+            "phase" => phase,
+            "chain" => self.destination.as_str(),
+        };
+
+        match phase {
+            "prepared" => self.ops_prepared.with(&labels).inc(),
+            "submitted" => self.ops_submitted.with(&labels).inc(),
+            "confirmed" => self.ops_confirmed.with(&labels).inc(),
+            "failed" => self.ops_failed.with(&labels).inc(),
+            "dropped" => self.ops_dropped.with(&labels).inc(),
+            _ => {}
         }
     }
 }

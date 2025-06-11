@@ -1,4 +1,5 @@
 import { checkbox, select } from '@inquirer/prompts';
+import chalk from 'chalk';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -15,12 +16,12 @@ import {
 import {
   Address,
   ProtocolType,
+  difference,
   inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
-  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
@@ -493,18 +494,34 @@ export function ensureValidatorConfigConsistency(
       )
       .map(([chain]) => chain),
   );
-  const symDiff = symmetricDifference(
+
+  // Only error if there are context chains missing from the config
+  // (context ⊆ config is OK, but not the other way around)
+  const missingInConfig = difference(
     validatorContextChainNames,
     validatorConfigChains,
   );
-  if (symDiff.size > 0) {
-    throw new Error(
-      `Validator config invalid.\nValidator context chain names: ${[
-        ...validatorContextChainNames,
-      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
-        ...symDiff,
-      ]}`,
-    );
+  if (missingInConfig.size > 0) {
+    const errorMessage = `Validator context chain names:\n - ${[
+      ...validatorContextChainNames,
+    ]}\nValidator config chains:\n - ${[...validatorConfigChains]}\nChains in context but not in config:\n - ${[
+      ...missingInConfig,
+    ]}`;
+
+    // So only throw if there are missing chains in the Hyperlane context.
+    // Only a subset of chains will have ephemeral validators in RC/Neutron contexts.
+    if (context === Contexts.Hyperlane) {
+      throw new Error(
+        chalk.bold.red(`Validator config invalid.\n${errorMessage}`),
+      );
+    } else {
+      rootLogger.info(chalk.grey(errorMessage));
+      rootLogger.info(
+        chalk.bold.grey(
+          'This is expected for RC/Neutron contexts, as we only run validators for a subset of chains in them.',
+        ),
+      );
+    }
   }
 }
 

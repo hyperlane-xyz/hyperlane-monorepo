@@ -545,26 +545,31 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
 
-            if !destination_gas_configs.is_empty() {
-                let description = format!(
+            let owner = self.get_owner(&chain_config.client(), &program_id);
+
+            if let Some(owner) = owner {
+                if !destination_gas_configs.is_empty() {
+                    let description = format!(
                     "Setting destination gas amounts for chain: {}, program_id {}, destination gas: {:?}",
                     chain_name, program_id, destination_gas_configs,
                 );
-                ctx.new_txn()
-                    .add_with_description(
-                        set_destination_gas_configs(
-                            program_id,
-                            ctx.payer_pubkey,
-                            destination_gas_configs,
+                    ctx.new_txn()
+                        .add_with_description(
+                            set_destination_gas_configs(program_id, owner, destination_gas_configs)
+                                .unwrap(),
+                            description,
                         )
-                        .unwrap(),
-                        description,
-                    )
-                    .with_client(&chain_config.client())
-                    .send_with_payer();
+                        .with_client(&chain_config.client())
+                        .send_with_pubkey_signer(&owner);
+                } else {
+                    println!(
+                        "No destination gas amount changes for chain: {}, program_id {}",
+                        chain_name, program_id
+                    );
+                }
             } else {
                 println!(
-                    "No destination gas amount changes for chain: {}, program_id {}",
+                    "Cannot set destination gas amounts for chain: {}, program_id {} because owner is None",
                     chain_name, program_id
                 );
             }
@@ -746,7 +751,7 @@ pub fn install_spl_token_cli() {
             "--branch",
             "dan/create-token-for-mint",
             "--rev",
-            "ae4c8ac46",
+            "e101cca",
             "--locked",
         ])
         .stdout(Stdio::inherit())

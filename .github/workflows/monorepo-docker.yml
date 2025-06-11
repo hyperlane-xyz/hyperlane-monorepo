@@ -10,8 +10,15 @@ on:
       - 'typescript/infra/**'
       - '.registryrc'
       - 'Dockerfile'
+      - 'docker-entrypoint.sh'
       - '.dockerignore'
       - '.github/workflows/monorepo-docker.yml'
+  workflow_dispatch:
+    inputs:
+      include_arm64:
+        description: 'Include arm64 in the build'
+        required: false
+        default: 'false'
 
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
@@ -80,6 +87,15 @@ jobs:
           REGISTRY_VERSION=$(cat .registryrc)
           echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
 
+      - name: Determine platforms
+        id: determine-platforms
+        run: |
+          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push
         uses: depot/build-push-action@v1
         with:
@@ -91,4 +107,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.determine-platforms.outputs.platforms }}

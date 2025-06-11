@@ -60,7 +60,7 @@ export const skipConfirmationOption: Options = {
 export const keyCommandOption: Options = {
   type: 'string',
   description:
-    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var. Use --key.{protocol} or HYP_KEY_{PROTOCOL} for chain specific key inputs',
   alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
@@ -113,7 +113,7 @@ export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+  demandOption: false,
   alias: 'wd',
 };
 
@@ -264,4 +264,10 @@ export const avsChainCommandOption: Options = {
   description: 'Chain to interact with the AVS on',
   demandOption: true,
   choices: ['holesky', 'ethereum'],
+};
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
 };

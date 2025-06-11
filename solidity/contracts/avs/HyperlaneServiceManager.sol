@@ -73,7 +73,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     // ============ Internal Storage ============
 
     // Mapping of operators to challengers they are enrolled in (enumerable required for remove-all)
-    mapping(address => EnumerableMapEnrollment.AddressToEnrollmentMap)
+    mapping(address operator => EnumerableMapEnrollment.AddressToEnrollmentMap enrollmentMap)
         internal enrolledChallengers;
 
     // ============ Modifiers ============

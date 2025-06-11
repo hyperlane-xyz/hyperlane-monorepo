@@ -11,7 +11,7 @@ spec:
     matchLabels:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: relayer
-  replicas: 1 
+  replicas: 1
   serviceName: {{ include "agent-common.fullname" . }}-relayer
   template:
     metadata:
@@ -119,7 +119,7 @@ spec:
           mountPath: {{ .Values.hyperlane.dbPath }}
         - name: relayer-configmap
           mountPath: /relayer-configmap
-        ports: 
+        ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
       volumes:

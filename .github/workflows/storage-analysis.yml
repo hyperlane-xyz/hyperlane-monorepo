@@ -6,6 +6,11 @@ on:
     paths:
       - 'solidity/**'
   workflow_dispatch:
+    inputs:
+      base:
+        description: 'Branch to compare against'
+        required: true
+        default: 'main'
 
 jobs:
   diff-check:
@@ -21,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version-file: .nvmrc
 
       - name: yarn-cache
         uses: buildjet/cache@v4
@@ -46,10 +51,10 @@ jobs:
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
         env:
-          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
         run: |
           git fetch origin $BASE_REF
-          git checkout $BASE_REF -- solidity/contracts
+          git checkout origin/$BASE_REF -- solidity/contracts
 
       # Run the command on the target branch
       - name: Run command on target branch

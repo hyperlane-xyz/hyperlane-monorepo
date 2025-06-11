@@ -11,6 +11,8 @@ import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
+  CosmJsNativeTransaction,
   CosmJsProvider,
   CosmJsTransaction,
   CosmJsWasmProvider,
@@ -20,6 +22,8 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  StarknetJsProvider,
+  StarknetJsTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -222,6 +226,35 @@ export async function estimateTransactionFeeCosmJsWasm({
   });
 }
 
+export async function estimateTransactionFeeCosmJsNative({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  senderPubKey,
+  memo,
+}: {
+  transaction: CosmJsNativeTransaction;
+  provider: CosmJsNativeProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  senderPubKey: HexString;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
+  const client = await provider.provider;
+  const message = client.registry.encodeAsAny(transaction.transaction);
+  const pubKey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
+
+  const gasUnits = await client.simulate(sender, pubKey, [message], memo);
+  const gasPrice = parseFloat(estimatedGasPrice.toString());
+
+  return {
+    gasUnits,
+    gasPrice,
+    fee: Math.floor(gasUnits * gasPrice),
+  };
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -280,9 +313,43 @@ export function estimateTransactionFee({
       sender,
       senderPubKey,
     });
+  } else if (
+    transaction.type === ProviderType.CosmJsNative &&
+    provider.type === ProviderType.CosmJsNative
+  ) {
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJsNative({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      sender,
+      senderPubKey,
+    });
+  } else if (
+    transaction.type === ProviderType.Starknet &&
+    provider.type === ProviderType.Starknet
+  ) {
+    return estimateTransactionFeeStarknet({ transaction, provider, sender });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
+}
+
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
+export async function estimateTransactionFeeStarknet({
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }

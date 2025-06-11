@@ -227,6 +227,11 @@ export class WarpCore {
       interchainFee,
     });
 
+    // Starknet does not support gas estimation without starknet account
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
+
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
       try {
@@ -486,6 +491,23 @@ export class WarpCore {
     else return originToken.amount(0);
   }
 
+  async getTokenCollateral(token: IToken): Promise<bigint> {
+    if (
+      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
+      const adapter = token.getAdapter(
+        this.multiProvider,
+      ) as EvmHypXERC20LockboxAdapter;
+      const tokenCollateral = await adapter.getBridgedSupply();
+      return tokenCollateral;
+    } else {
+      const adapter = token.getAdapter(this.multiProvider);
+      const tokenCollateral = await adapter.getBalance(token.addressOrDenom);
+      return tokenCollateral;
+    }
+  }
+
   /**
    * Checks if destination chain's collateral is sufficient to cover the transfer
    */
@@ -513,22 +535,7 @@ export class WarpCore {
       return true;
     }
 
-    let destinationBalance: bigint = 0n;
-
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
-      const adapter = destinationToken.getAdapter(
-        this.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
-      destinationBalance = await adapter.getBridgedSupply();
-    } else {
-      const adapter = destinationToken.getAdapter(this.multiProvider);
-      destinationBalance = await adapter.getBalance(
-        destinationToken.addressOrDenom,
-      );
-    }
+    const destinationBalance = await this.getTokenCollateral(destinationToken);
 
     const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
@@ -614,9 +621,8 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError = await this.validateOriginCollateral(
-      originTokenAmount,
-    );
+    const originCollateralError =
+      await this.validateOriginCollateral(originTokenAmount);
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -672,7 +678,10 @@ export class WarpCore {
       return { recipient: 'Invalid recipient' };
 
     // Also ensure the address denom is correct if the dest protocol is Cosmos
-    if (protocol === ProtocolType.Cosmos) {
+    if (
+      protocol === ProtocolType.Cosmos ||
+      protocol === ProtocolType.CosmosNative
+    ) {
       if (!bech32Prefix) {
         this.logger.error(`No bech32 prefix found for chain ${destination}`);
         return { destination: 'Invalid chain data' };

@@ -27,6 +27,7 @@ export type SolidityStandardJsonInput = {
 export type BuildArtifact = {
   input: SolidityStandardJsonInput;
   solcLongVersion: string;
+  zk_version?: string; //only for zksync
 };
 
 // see https://etherscan.io/contract-license-types
@@ -51,6 +52,14 @@ export type CompilerOptions = {
   codeformat: 'solidity-standard-json-input';
   compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
   licenseType?: ExplorerLicenseType;
+  zksolcversion?: string; //only for zksync chains
+};
+
+export type ZKSyncCompilerOptions = {
+  codeFormat: 'solidity-standard-json-input';
+  compilerSolcVersion: string;
+  compilerZksolcVersion: string;
+  optimizationUsed: boolean;
 };
 
 export enum ExplorerApiActions {
@@ -66,6 +75,12 @@ export const EXPLORER_GET_ACTIONS = [
   ExplorerApiActions.CHECK_PROXY_STATUS,
   ExplorerApiActions.GETSOURCECODE,
 ];
+
+export enum VerifyContractTypes {
+  Proxy = 'proxy',
+  ProxyAdmin = 'proxyAdmin',
+  Implementation = 'implementation',
+}
 
 export enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
@@ -84,24 +99,24 @@ export type FormOptions<Action extends ExplorerApiActions> =
         address: string;
       }
     : Action extends ExplorerApiActions.VERIFY_IMPLEMENTATION
-    ? CompilerOptions & {
-        contractaddress: string;
-        sourceCode: string;
-        contractname: string;
-        /* TYPO IS ENFORCED BY API */
-        constructorArguements?: string;
-      }
-    : Action extends ExplorerApiActions.VERIFY_PROXY
-    ? {
-        address: string;
-        expectedimplementation: string;
-      }
-    : Action extends ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS
-    ? {
-        guid: string;
-      }
-    : Action extends ExplorerApiActions.CHECK_PROXY_STATUS
-    ? {
-        guid: string;
-      }
-    : never;
+      ? CompilerOptions & {
+          contractaddress: string;
+          sourceCode: string;
+          contractname: string;
+          /* TYPO IS ENFORCED BY API */
+          constructorArguements?: string;
+        }
+      : Action extends ExplorerApiActions.VERIFY_PROXY
+        ? {
+            address: string;
+            expectedimplementation: string;
+          }
+        : Action extends ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS
+          ? {
+              guid: string;
+            }
+          : Action extends ExplorerApiActions.CHECK_PROXY_STATUS
+            ? {
+                guid: string;
+              }
+            : never;

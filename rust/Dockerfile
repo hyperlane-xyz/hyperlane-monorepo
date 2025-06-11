@@ -5,9 +5,11 @@
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
-FROM rust:1.80.1 AS base
+FROM rust:1.81.0 AS base
 RUN apt-get update && \
-    apt-get install -y musl-tools clang && \
+    apt-get install -y --no-install-recommends musl-tools clang && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
     rustup target add x86_64-unknown-linux-musl && \
     cargo install --locked sccache
 
@@ -37,7 +39,7 @@ COPY rust/main/hyperlane-base ./hyperlane-base
 COPY rust/main/hyperlane-core ./hyperlane-core
 COPY rust/main/hyperlane-metric ./hyperlane-metric
 COPY rust/main/hyperlane-test ./hyperlane-test
-COPY rust/main/submitter ./submitter
+COPY rust/main/lander ./lander
 COPY rust/main/utils ./utils
 COPY rust/main/Cargo.toml ./
 COPY rust/main/Cargo.lock ./
@@ -67,7 +69,8 @@ COPY --from=builder /release/* .
 # Install runtime dependencies
 # remove /var/lib/apt/lists/* to clean up the package lists
 RUN apt-get update && \
-    apt-get install -y openssl ca-certificates tini && \
+    apt-get install -y --no-install-recommends openssl ca-certificates tini && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     chmod 777 /app && \
     mkdir -p /usr/share/hyperlane && chmod 1000 /usr/share/hyperlane && \

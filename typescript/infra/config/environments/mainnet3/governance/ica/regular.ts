@@ -2,6 +2,8 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 export const regularIcas: ChainMap<Address> = {
+  // Apr 19, 2025 batch
+  // ----------------------------------------------------------
   ancient8: '0xf789D8a609247c448E28d3af5b8EFC6Cb786C4ee',
   alephzeroevmmainnet: '0xA3dfBa2447F0A50706F22e38f2785e0Bf30BC069',
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
@@ -49,7 +51,6 @@ export const regularIcas: ChainMap<Address> = {
   hemi: '0xa16C2860414e52945Bae3eb957cC0897A21f04a6',
   immutablezkevmmainnet: '0x97827F6191296077587929Ca870620bD5D79F9e7',
   inevm: '0x8427F6021a84a992008DA6a949cad986CEB0d0b3',
-  infinityvm: '0xf0c8600D83dC8B517C347cb1D45e02B1F95057bb',
   ink: '0xf36dC13eE34034709390b6dF3de7305eA298BFec',
   kaia: '0x83be90021870A93ff794E00E8CFe454547877E3E',
   kroma: '0xBd887119d776f0c990e9a03B1A157A107CD45033',
@@ -66,7 +67,6 @@ export const regularIcas: ChainMap<Address> = {
   moonbeam: '0xb3178E470E959340206AD9d9eE4E53d0911b2ba9',
   morph: '0x83be90021870A93ff794E00E8CFe454547877E3E',
   nero: '0x4601d6260C532E73187248D0608cB88D446149AD',
-  // nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318', // temporary while looking into decimals
   oortmainnet: '0xBc2cc7372C018C2a0b1F78E29D8B49d21bc5f3bA',
   opbnb: '0x1fbE174fc6B1d3123B890f34aBd982577377Bec8',
   orderly: '0x83be90021870A93ff794E00E8CFe454547877E3E',
@@ -107,4 +107,21 @@ export const regularIcas: ChainMap<Address> = {
   xpla: '0x0Fb0635eAbB9332eDc2544A57e7C15fBc5204C0B',
   zetachain: '0x33d8605D4dF6661259640268DD32BC99A2F55a83',
   zoramainnet: '0xdbB6E8FDe96dE3a1604b93884d8fF9Cb521059fC',
+
+  // May 18, 2025 batch
+  // ----------------------------------------------------------
+  hashkey: '0x51e43Fe2Db5B950e115a9f5ad7603E07c656fBe9',
+  infinityvmmainnet: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  game7: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  fluence: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  peaq: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',
+  miraclechain: '0x4733050AdC12BCaad14A239418aAdD06cce2fB7d',
+  nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318',
+  blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
+
+  // Jun 4, 2025 batch
+  // ----------------------------------------------------------
+  // botanix: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
+  // katana: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
 };

@@ -37,7 +37,7 @@ use hyperlane_core::{
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForSubmitter};
+use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForLander};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -551,5 +551,9 @@ impl Mailbox for SealevelMailbox {
     ) -> ChainResult<Vec<u8>> {
         let process_instruction = self.get_process_instruction(message, metadata).await?;
         serde_json::to_vec(&process_instruction).map_err(Into::into)
+    }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        Ok(None)
     }
 }

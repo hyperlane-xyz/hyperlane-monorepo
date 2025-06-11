@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
+    hash::Hash,
     sync::Arc,
     time::Instant,
 };
@@ -8,6 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
+use futures::future::join_all;
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{
@@ -23,21 +25,22 @@ use tracing::{debug, error, info, info_span, warn, Instrument};
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
+    cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::{ChainConf, IndexSettings},
+    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
-    QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
+    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use submitter::{
-    DatabaseOrPath, DispatcherMetrics, PayloadDispatcher, PayloadDispatcherEntrypoint,
-    PayloadDispatcherSettings,
+use lander::{
+    DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
 use crate::{
@@ -65,6 +68,7 @@ use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -106,8 +110,8 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
-    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>,
-    payload_dispatchers: HashMap<HyperlaneDomain, PayloadDispatcher>,
+    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
+    payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
 }
 
 impl Debug for Relayer {
@@ -216,63 +220,52 @@ impl BaseAgent for Relayer {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         start_entity_init = Instant::now();
-        let message_syncs: HashMap<_, Arc<dyn ContractSyncer<HyperlaneMessage>>> = settings
-            .contract_syncs::<HyperlaneMessage, _>(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
-                    .collect(),
-                false,
-                settings.tx_id_indexing_enabled,
-            )
-            .await?
-            .into_iter()
-            .map(|(k, v)| (k, v as _))
+
+        let stores: HashMap<_, _> = dbs
+            .iter()
+            .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
+
+        let message_syncs = Self::build_contract_syncs(
+            &settings,
+            &core_metrics,
+            &chain_metrics,
+            &contract_sync_metrics,
+            stores.clone(),
+            "message",
+        )
+        .await;
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let interchain_gas_payment_syncs = if settings.igp_indexing_enabled {
-            Some(
-                settings
-                    .contract_syncs::<InterchainGasPayment, _>(
-                        settings.origin_chains.iter(),
-                        &core_metrics,
-                        &contract_sync_metrics,
-                        dbs.iter()
-                            .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
-                            .collect(),
-                        false,
-                        settings.tx_id_indexing_enabled,
-                    )
-                    .await?
-                    .into_iter()
-                    .map(|(k, v)| (k, v as _))
-                    .collect(),
+            let igp_syncs = Self::build_contract_syncs(
+                &settings,
+                &core_metrics,
+                &chain_metrics,
+                &contract_sync_metrics,
+                stores.clone(),
+                "interchain gas payments",
             )
+            .await;
+            Some(igp_syncs)
         } else {
             None
         };
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let merkle_tree_hook_syncs = settings
-            .contract_syncs::<MerkleTreeInsertion, _>(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
-                    .collect(),
-                false,
-                settings.tx_id_indexing_enabled,
-            )
-            .await?
-            .into_iter()
-            .map(|(k, v)| (k, v as _))
-            .collect();
+        let merkle_tree_hook_syncs = Self::build_contract_syncs(
+            &settings,
+            &core_metrics,
+            &chain_metrics,
+            &contract_sync_metrics,
+            stores.clone(),
+            "merkle tree hook syncs",
+        )
+        .await;
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized merkle tree hook syncs", "Relayer startup duration measurement");
 
         let message_whitelist = Arc::new(settings.whitelist);
@@ -312,25 +305,66 @@ impl BaseAgent for Relayer {
         let gas_payment_enforcers: HashMap<_, _> = settings
             .origin_chains
             .iter()
-            .map(|domain| {
-                (
-                    domain.clone(),
-                    Arc::new(GasPaymentEnforcer::new(
+            .filter_map(|domain| match dbs.get(domain) {
+                Some(db) => {
+                    let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
                         settings.gas_payment_enforcement.clone(),
-                        dbs.get(domain).unwrap().clone(),
-                    )),
-                )
+                        db.clone(),
+                    ));
+                    Some((domain.clone(), gas_payment_enforcer))
+                }
+                None => {
+                    tracing::error!(?domain, "Missing DB");
+                    None
+                }
             })
             .collect();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
         let mut msg_ctxs = HashMap::new();
-        let mut destination_chains = HashMap::new();
+
+        start_entity_init = Instant::now();
 
         // only iterate through destination chains that were successfully instantiated
-        start_entity_init = Instant::now();
+        let ccip_signer_futures = mailboxes
+            .keys()
+            .map(|destination| {
+                let destination_chain_setup =
+                    core.settings.chain_setup(destination).unwrap().clone();
+                let signer = destination_chain_setup.signer.clone();
+                async move {
+                    if !matches!(destination.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+                        return (destination, None);
+                    }
+                    let signer = if let Some(builder) = signer {
+                        match builder.build::<hyperlane_ethereum::Signers>().await {
+                            Ok(signer) => Some(signer),
+                            Err(err) => {
+                                warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    (destination, signer)
+                }
+            })
+            .collect::<Vec<_>>();
+        let ccip_signers = join_all(ccip_signer_futures)
+            .await
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let mut destination_chains = HashMap::new();
         for (destination, dest_mailbox) in mailboxes.iter() {
-            let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
+            let destination_chain_setup = match core.settings.chain_setup(destination) {
+                Ok(setup) => setup.clone(),
+                Err(err) => {
+                    tracing::error!(?destination, ?err, "Destination chain setup failed");
+                    continue;
+                }
+            };
             destination_chains.insert(destination.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination.id()) {
@@ -343,8 +377,22 @@ impl BaseAgent for Relayer {
 
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
-                let db = dbs.get(origin).unwrap().clone();
+                let db = match dbs.get(origin) {
+                    Some(db) => db.clone(),
+                    None => {
+                        tracing::error!(origin=?origin.name(), "DB missing");
+                        continue;
+                    }
+                };
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let origin_chain_setup = match core.settings.chain_setup(origin) {
+                    Ok(chain_setup) => chain_setup.clone(),
+                    Err(err) => {
+                        tracing::error!(origin=?origin.name(), ?err, "Origin chain setup failed");
+                        continue;
+                    }
+                };
+                // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -353,7 +401,7 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     cache.clone(),
-                    db,
+                    db.clone(),
                     IsmAwareAppContextClassifier::new(
                         default_ism_getter.clone(),
                         settings.metric_app_contexts.clone(),
@@ -362,6 +410,8 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
+                    ccip_signers.get(destination).cloned().flatten(),
+                    origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
@@ -371,7 +421,7 @@ impl BaseAgent for Relayer {
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
-                        origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
+                        origin_db: Arc::new(db),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
@@ -453,27 +503,31 @@ impl BaseAgent for Relayer {
             let payload_dispatcher_entrypoint =
                 self.payload_dispatcher_entrypoints.remove(dest_domain);
 
-            let db = self
-                .dbs
-                .get(dest_domain)
-                .expect("DB should be created for every chain")
-                .clone();
+            let db = match self.dbs.get(dest_domain) {
+                Some(db) => db.clone(),
+                None => {
+                    tracing::error!(domain=?dest_domain.name(), "DB missing");
+                    continue;
+                }
+            };
 
+            // Default to submitting one message at a time if there is no batch config
+            let match_batch_size = self.core.settings.chains[dest_domain.name()]
+                .connection
+                .operation_submission_config()
+                .map(|c| c.max_batch_size)
+                .unwrap_or(1);
+            let max_submit_queue_len = self.core.settings.chains[dest_domain.name()]
+                .connection
+                .operation_submission_config()
+                .and_then(|c| c.max_submit_queue_length);
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
                 receive_channel,
                 &sender,
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
-                // Default to submitting one message at a time if there is no batch config
-                self.core.settings.chains[dest_domain.name()]
-                    .connection
-                    .operation_submission_config()
-                    .map(|c| c.max_batch_size)
-                    .unwrap_or(1),
-                self.core.settings.chains[dest_domain.name()]
-                    .connection
-                    .operation_submission_config()
-                    .and_then(|c| c.max_submit_queue_length),
+                match_batch_size,
+                max_submit_queue_len,
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
@@ -542,10 +596,16 @@ impl BaseAgent for Relayer {
 
         // run server
         start_entity_init = Instant::now();
-        let custom_routes = relayer_server::Server::new(self.destination_chains.len())
+
+        // create a db mapping for server handlers
+        let dbs: HashMap<u32, HyperlaneRocksDB> =
+            self.dbs.iter().map(|(k, v)| (k.id(), v.clone())).collect();
+        let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
-            .routes();
+            .with_dbs(dbs)
+            .router();
+
         let server = self
             .core
             .settings
@@ -553,7 +613,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(relayer_router);
             }
             .instrument(info_span!("Relayer server")),
         );
@@ -576,11 +636,11 @@ impl BaseAgent for Relayer {
 impl Relayer {
     fn record_critical_error(
         origin: &HyperlaneDomain,
-        err: ChainCommunicationError,
+        chain_metrics: &ChainMetrics,
+        err: &impl Debug,
         message: &str,
-        chain_metrics: ChainMetrics,
     ) {
-        error!(?err, origin=?origin, "{message}");
+        error!(?err, origin=?origin.name(), "{message}");
         chain_metrics.set_critical_error(origin.name(), true);
     }
 
@@ -598,6 +658,7 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
+            None,
         )
         .await
     }
@@ -637,7 +698,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -694,7 +755,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -751,7 +812,7 @@ impl Relayer {
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                Self::record_critical_error(origin, &chain_metrics, &err, CURSOR_BUILDING_ERROR);
                 return;
             }
         };
@@ -799,9 +860,9 @@ impl Relayer {
                     );
                     Self::record_critical_error(
                         origin,
-                        ChainCommunicationError::CustomError(err_msg.clone()),
+                        &self.chain_metrics,
+                        &ChainCommunicationError::CustomError(err_msg.clone()),
                         &err_msg,
-                        self.chain_metrics.clone(),
                     );
                 }
 
@@ -889,8 +950,12 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building mailbox");
-                    chain_metrics.set_critical_error(origin.name(), true);
+                    Self::record_critical_error(
+                        &origin,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building mailbox",
+                    );
                     None
                 }
             })
@@ -907,22 +972,42 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
-    ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
-        settings.destination_chains.iter()
+    ) -> HashMap<HyperlaneDomain, DispatcherEntrypoint> {
+        let entrypoint_futures: Vec<_> = settings
+            .destination_chains
+            .iter()
             .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
-            .map(|chain| (chain.clone(), PayloadDispatcherSettings {
-                chain_conf: settings.chains[&chain.to_string()].clone(),
-                raw_chain_conf: Default::default(),
-                domain: chain.clone(),
-                db: DatabaseOrPath::Database(db.clone()),
-                metrics: core_metrics.clone(),
-            }))
-            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())))
+            .map(|chain| {
+                (
+                    chain.clone(),
+                    DispatcherSettings {
+                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        raw_chain_conf: Default::default(),
+                        domain: chain.clone(),
+                        db: DatabaseOrPath::Database(db.clone()),
+                        metrics: core_metrics.clone(),
+                    },
+                )
+            })
+            .map(|(chain, s)| async {
+                (
+                    chain,
+                    DispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone()).await,
+                )
+            })
+            .collect();
+        let results = futures::future::join_all(entrypoint_futures).await;
+        results
+            .into_iter()
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
-                    error!(?err, origin=?chain, "Critical error when building payload dispatcher endpoint");
-                    chain_metrics.set_critical_error(chain.name(), true);
+                    Self::record_critical_error(
+                        &chain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building payload dispatcher endpoint",
+                    );
                     None
                 }
             })
@@ -939,15 +1024,15 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
-    ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
-        settings
+    ) -> HashMap<HyperlaneDomain, Dispatcher> {
+        let dispatcher_futures: Vec<_> = settings
             .destination_chains
             .iter()
             .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
             .map(|chain| {
                 (
                     chain.clone(),
-                    PayloadDispatcherSettings {
+                    DispatcherSettings {
                         chain_conf: settings.chains[&chain.to_string()].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
@@ -956,18 +1041,26 @@ impl Relayer {
                     },
                 )
             })
-            .map(|(chain, s)| {
+            .map(|(chain, s)| async {
                 let chain_name = chain.to_string();
                 (
                     chain,
-                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()),
+                    Dispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()).await,
                 )
             })
+            .collect();
+        let results = futures::future::join_all(dispatcher_futures).await;
+        results
+            .into_iter()
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
-                    error!(?err, origin=?chain, "Critical error when building payload dispatcher");
-                    chain_metrics.set_critical_error(chain.name(), true);
+                    Self::record_critical_error(
+                        &chain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building payload dispatcher",
+                    );
                     None
                 }
             })
@@ -990,8 +1083,12 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building validator announce");
-                    chain_metrics.set_critical_error(origin.name(), true);
+                    Self::record_critical_error(
+                        &origin,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building validator announce",
+                    );
                     None
                 }
             })
@@ -1011,11 +1108,58 @@ impl Relayer {
             .build_application_operation_verifiers(settings.origin_chains.iter(), core_metrics)
             .await
             .into_iter()
-            .filter_map(|(origin, app_context_verifier_res)| match app_context_verifier_res {
-                Ok(app_context_verifier) => Some((origin, app_context_verifier)),
+            .filter_map(
+                |(origin, app_context_verifier_res)| match app_context_verifier_res {
+                    Ok(app_context_verifier) => Some((origin, app_context_verifier)),
+                    Err(err) => {
+                        Self::record_critical_error(
+                            &origin,
+                            chain_metrics,
+                            &err,
+                            "Critical error when building application operation verifier",
+                        );
+                        None
+                    }
+                },
+            )
+            .collect()
+    }
+
+    pub async fn build_contract_syncs<T, S>(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+        contract_sync_metrics: &ContractSyncMetrics,
+        stores: HashMap<HyperlaneDomain, Arc<S>>,
+        data_type: &str,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>
+    where
+        T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
+    {
+        settings
+            .contract_syncs(
+                core_metrics,
+                contract_sync_metrics,
+                stores,
+                ADVANCED_LOG_META,
+                settings.tx_id_indexing_enabled,
+            )
+            .await
+            .into_iter()
+            .filter_map(|(domain, sync)| match sync {
+                Ok(s) => Some((domain, s)),
                 Err(err) => {
-                    error!(?err, origin=?origin, "Critical error when building application operation verifier");
-                    chain_metrics.set_critical_error(origin.name(), true);
+                    Self::record_critical_error(
+                        &domain,
+                        chain_metrics,
+                        &err,
+                        &format!("Critical error when building {data_type} contract sync"),
+                    );
                     None
                 }
             })
@@ -1127,6 +1271,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 

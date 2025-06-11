@@ -1,5 +1,80 @@
 # @hyperlane-xyz/cli
 
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+- 0ca8676: Update warp apply to specify a warp route Id to read/write to using --warpRouteId
+- 4d66b73: Add support for zksync based networks
+
+### Patch Changes
+
+- 4d66b73: Reuse existing signer in CLI warp transfer instead of connecting a new signer from the multiprovider.
+- 4d66b73: Only prompt for API key for etherscan explorer type.
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- ac13dde: add cosmos native core cli commands
+
+### Patch Changes
+
+- 754f7ba: disable cosmos native signers and only allow evm signers for now again
+- 86a8502: Change info logs to debug logs in MultiProtocolSignerManager.extractPrivateKey().
+
+## 13.0.0
+
+## 12.6.0
+
+### Minor Changes
+
+- 2ae0f72: Add contract verification to CLI Warp Checker
+- 672d6d1: adds logic to expand an ism or hook config if it is partially defined in the input file for the warp checker
+- aec8961: Updates the `warp check` command output to only show fields that have diffs with the expected config
+- e25af4b: Fixed warp route ID lookup to use deployment configs instead of warp routes when prompting users for selection on warp deployment
+- ce0b173: Refactored warp route configuration functions to use object parameters instead of positional parameters for improved clarity and flexibility.
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- 6a70b8d: Move executeDeploy logic from CLI to SDK
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+- de7c6ae: Added registry based warp configs support
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- 166f849: Remove outputting isNft in warp init config
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+
+## 12.5.0
+
+### Minor Changes
+
+- 862f14f: feat(cli): Add registry-based warp route lookup and config validation
+
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+
+## 12.2.0
+
 ## 12.1.0
 
 ### Patch Changes

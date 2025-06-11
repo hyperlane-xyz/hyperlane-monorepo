@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 
-import { HyperlaneService } from './HyperlaneService';
-import { LightClientService, SuccinctConfig } from './LightClientService';
-import { ProofResult, RPCService } from './RPCService';
-import { ProofStatus } from './common/ProofStatusEnum';
+import { HyperlaneService } from './HyperlaneService.js';
+import { LightClientService, SuccinctConfig } from './LightClientService.js';
+import { ProofResult, RPCService } from './RPCService.js';
+import { ProofStatus } from './common/ProofStatusEnum.js';
 
 type RPCConfig = {
   readonly url: string;
@@ -94,9 +94,8 @@ class ProofsService {
    * @returns the proofId
    */
   async requestProofFromSuccinct(messageId: string) {
-    const { timestamp } = await this.hyperlaneService.getOriginBlockByMessageId(
-      messageId,
-    );
+    const { timestamp } =
+      await this.hyperlaneService.getOriginBlockByMessageId(messageId);
     const slot = await this.lightClientService.calculateSlot(BigInt(timestamp));
     const syncCommitteePoseidon = ''; // TODO get from LC
     return this.lightClientService.requestProof(syncCommitteePoseidon, slot);

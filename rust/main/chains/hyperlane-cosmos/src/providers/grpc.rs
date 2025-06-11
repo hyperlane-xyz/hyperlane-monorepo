@@ -379,7 +379,7 @@ impl WasmGrpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.account_query(signer.address.clone()).await?;
+        let account_info = self.account_query(signer.address_string.clone()).await?;
         let current_height = self.latest_block_height().await?;
         let timeout_height = current_height + TIMEOUT_BLOCKS;
 
@@ -628,7 +628,7 @@ impl WasmProvider for WasmGrpcProvider {
         let signer = self.get_signer()?;
         let contract_address = self.get_contract_address();
         let msg = MsgExecuteContract {
-            sender: signer.address.clone(),
+            sender: signer.address_string.clone(),
             contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
@@ -649,7 +649,7 @@ impl WasmProvider for WasmGrpcProvider {
         // Check if the signer has enough funds to pay for the fee so we can get
         // a more informative error.
         let signer_balance = self
-            .get_balance(signer.address.clone(), fee.denom.to_string())
+            .get_balance(signer.address_string.clone(), fee.denom.to_string())
             .await?;
         let fee_amount: U256 = fee.amount.into();
         if signer_balance < fee_amount {
@@ -667,7 +667,7 @@ impl WasmProvider for WasmGrpcProvider {
                 Box::pin(future)
             })
             .await?;
-        debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
+        debug!(tx_result=?tx_res, domain=?self.domain.name(), ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }
 
@@ -680,7 +680,7 @@ impl WasmProvider for WasmGrpcProvider {
         let signer = self.get_signer()?;
         let contract_address = self.get_contract_address();
         let msg = MsgExecuteContract {
-            sender: signer.address.clone(),
+            sender: signer.address_string.clone(),
             contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

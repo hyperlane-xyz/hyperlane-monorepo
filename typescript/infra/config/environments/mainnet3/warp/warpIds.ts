@@ -1,7 +1,8 @@
 export enum WarpRouteIds {
+  BscMilkywayMILK = 'MILK/bsc-milkyway',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
-  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH = 'EZETH/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
-  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE = 'EZETHSTAGE/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
+  RenzoEZETH = 'EZETH/renzo-prod',
+  RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
@@ -41,13 +42,13 @@ export enum WarpRouteIds {
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
   BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
-  EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
-  BaseEthereumREZ = 'REZ/base-ethereum',
+  BaseEthereumREZ = 'REZ/base-ethereum-unichain',
+  BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
   ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork',
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
@@ -76,13 +77,12 @@ export enum WarpRouteIds {
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
-  ArbitrumEthereumSolanaTreasureSMOL = 'SMOL/arbitrum-ethereum-solanamainnet-treasure',
+  EthereumSolanaTreasureSMOL = 'SMOL/ethereum-solanamainnet-treasure',
+  EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
-  // TODO: uncomment after merging the staging route to registry
-  // this has been commented out as it leads to check-warp-deploy cron job failing
-  // SuperTokenStaging = 'USDTSTAGING/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
-  SuperUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
+  oUSDT = 'oUSDT/production',
+  oUSDTSTAGE = 'oUSDTSTAGE/staging',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
@@ -99,6 +99,8 @@ export enum WarpRouteIds {
   SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
