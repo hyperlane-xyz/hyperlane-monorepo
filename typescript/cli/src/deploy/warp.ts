@@ -344,7 +344,7 @@ export async function runWarpRouteApply(
   // Then create and submit update transactions
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
     {
-      params,
+      applyParams: params,
       apiKeys,
       warpDeployConfig,
       actualWarpDeployConfig,
@@ -462,7 +462,7 @@ export async function extendWarpRoute(
 
 // Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(updateParams: {
-  params: WarpApplyParams;
+  applyParams: WarpApplyParams;
   apiKeys: ChainMap<string>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
@@ -470,13 +470,13 @@ async function updateExistingWarpRoute(updateParams: {
 }) {
   logBlue('Updating deployed Warp Routes');
   const {
-    params,
+    applyParams,
     apiKeys,
     warpDeployConfig,
     warpCoreConfig,
     actualWarpDeployConfig,
   } = updateParams;
-  const { multiProvider, registry } = params.context;
+  const { multiProvider, registry } = applyParams.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);

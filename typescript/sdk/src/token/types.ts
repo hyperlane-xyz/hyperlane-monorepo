@@ -244,9 +244,6 @@ export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
   z.infer<typeof GasRouterConfigSchema> &
   DerivedRouterConfig;
 
-export const DerivedWarpRouteDeployConfigSchema = z.record(
-  DerivedTokenRouterConfig,
-);
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
 
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
