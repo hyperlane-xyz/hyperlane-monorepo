@@ -149,8 +149,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       try {
         const prices = await this.fetchPriceData(toQuery, currency);
         prices.forEach((price, i) => this.cache.put(toQuery[i], price));
-      } catch (e) {
-        rootLogger.warn('Error when querying token prices', e);
+      } catch (err) {
+        rootLogger.warn(err, 'Failed to fetch token prices');
         return undefined;
       }
     }
@@ -161,15 +161,25 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     ids: string[],
     currency: string,
   ): Promise<number[]> {
-    let url = `${COINGECKO_PRICE_API}?ids=${Object.entries(ids).join(
-      ',',
-    )}&vs_currencies=${currency}`;
+    const tokenIds = Object.entries(ids).join(',');
+    let url = `${COINGECKO_PRICE_API}?ids=${tokenIds}&vs_currencies=${currency}`;
     if (this.apiKey) {
       url += `&x-cg-pro-api-key=${this.apiKey}`;
     }
 
     const resp = await fetch(url);
     const idPrices = await resp.json();
+
+    if (!resp.ok) {
+      rootLogger.warn(
+        {
+          status: resp.status,
+          statusText: resp.statusText,
+          url,
+        },
+        `Failed to fetch token prices: ${idPrices?.error}`,
+      );
+    }
 
     return ids.map((id) => {
       const price = idPrices[id]?.[currency];
