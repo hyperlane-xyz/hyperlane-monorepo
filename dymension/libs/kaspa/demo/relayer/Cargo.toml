@@ -1,0 +1,9 @@
+[package]
+name = "demo-relayer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+core = { path = "../../lib/core" }
+relayer = { path = "../../lib/relayer" }
+

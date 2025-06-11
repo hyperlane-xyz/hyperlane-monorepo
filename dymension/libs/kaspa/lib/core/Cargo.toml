@@ -1,0 +1,20 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kaspa-addresses = { workspace = true }
+kaspa-consensus-core = { workspace = true }
+kaspa-grpc-client = { workspace = true }
+kaspa-rpc-core = { workspace = true }
+kaspa-core = { workspace = true }
+kaspa-wrpc-client = { workspace = true }
+kaspa-wallet-core = { workspace = true }
+kaspa-wallet-keys = { workspace = true }
+kaspa-wallet-pskt = { workspace = true }
+kaspa-txscript = { workspace = true }
+secp256k1 = { workspace = true }
+workflow-core = { workspace = true }
+clap = { workspace = true }
+log = { workspace = true }

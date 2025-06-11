@@ -1,0 +1,9 @@
+[package]
+name = "demo-validator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+core = { path = "../../lib/core" }
+validator = { path = "../../lib/validator" }
+
