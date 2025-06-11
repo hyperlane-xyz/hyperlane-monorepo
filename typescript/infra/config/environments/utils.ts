@@ -10,6 +10,10 @@ import {
 } from '../../src/config/agent/validator.js';
 import { Contexts } from '../contexts.js';
 
+export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
+  'https://offchain-lookup.services.hyperlane.xyz/callCommitments/getCallsFromRevealMessage',
+];
+
 export type ValidatorKey = {
   identifier: string;
   address: string;
