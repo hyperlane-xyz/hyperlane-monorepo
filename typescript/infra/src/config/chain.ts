@@ -51,7 +51,6 @@ export const chainsToSkip: ChainName[] = [
   'conflux',
   'viction',
   'ontology',
-  'coredao',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
