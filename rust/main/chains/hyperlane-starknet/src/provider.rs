@@ -10,7 +10,7 @@ use starknet::core::types::{
     BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePendingBlockWithTxHashes,
     Transaction, TransactionReceipt,
 };
-use starknet::macros::{felt, selector};
+use starknet::macros::selector;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use tracing::instrument;
@@ -32,17 +32,8 @@ impl StarknetProvider {
         let provider =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
 
-        // Hardcoded Ethereum address for the fee token - which is somewhat consistent across Starknet chains
-        // More information: https://docs.starknet.io/resources/chain-info/#tokens
-        let eth_address =
-            felt!("0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7");
-
-        // If a fee token address is provided, use it; otherwise, default to the Ethereum address.
-        let fee_token_address = conf
-            .native_token_address
-            .map(|addr| Felt::from_bytes_be(addr.as_fixed_bytes()))
-            .unwrap_or(eth_address);
-
+        // Fee token address is used to check balances
+        let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
         Self {
             domain,
             rpc_client: Arc::new(provider),
@@ -108,7 +99,7 @@ impl HyperlaneProvider for StarknetProvider {
         let receipt = match receipt.receipt {
             TransactionReceipt::Invoke(invoke_receipt) => invoke_receipt,
             _ => {
-                return Err(HyperlaneStarknetError::InvalidBlock.into());
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
             }
         };
 

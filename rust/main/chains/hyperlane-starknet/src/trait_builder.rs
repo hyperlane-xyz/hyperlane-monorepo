@@ -8,7 +8,7 @@ pub struct ConnectionConf {
     pub url: Url,
 
     /// Native token address that is used to pay for transaction fees.
-    pub native_token_address: Option<H256>,
+    pub native_token_address: H256,
 }
 
 /// An error type when parsing a connection configuration.

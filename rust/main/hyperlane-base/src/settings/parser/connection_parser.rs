@@ -317,6 +317,14 @@ fn build_starknet_connection_conf(
         .parse_address_hash()
         .end();
 
+    let Some(native_token_address) = native_token_address else {
+        err.push(
+            &chain.cwp + "nativeToken.denom",
+            eyre!("nativeToken denom required"),
+        );
+        return None;
+    };
+
     let Some(url) = urls.first() else {
         err.push(
             &chain.cwp + "urls",

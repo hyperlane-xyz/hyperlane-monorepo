@@ -178,7 +178,7 @@ impl Mailbox for StarknetMailbox {
             .map_err(HyperlaneStarknetError::from)?;
 
         Ok(TxCostEstimate {
-            gas_limit: fee_estimate.overall_fee.into(),
+            gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant
             gas_price: FixedPointNumber::zero(),
             l2_gas_limit: Some(fee_estimate.l2_gas_consumed.into()),
         })
