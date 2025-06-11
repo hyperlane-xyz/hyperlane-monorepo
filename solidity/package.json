@@ -84,7 +84,7 @@
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",
-    "test:forge": "yarn fixtures && forge test -vvv",
+    "test:forge": "yarn fixtures && forge test -vvv --decode-internal",
     "test:ci": "yarn version:changed && yarn test:hardhat && yarn test:forge --no-match-test testFork",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",

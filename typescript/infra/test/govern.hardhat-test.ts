@@ -18,18 +18,19 @@ import {
   HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  IcaRouterConfig,
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainAccountFactories,
+  IsmType,
   MultiProvider,
   OwnableConfig,
-  RouterConfig,
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedCallData,
@@ -97,7 +98,7 @@ describe('ICA governance', async () => {
   let coreApp: TestCoreApp;
   // let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
-  let routerConfig: ChainMap<RouterConfig>;
+  let routerConfig: ChainMap<IcaRouterConfig>;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let icaApp: InterchainAccount;
   let recipient: TestRecipient;
@@ -115,7 +116,17 @@ describe('ICA governance', async () => {
     );
 
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
-    routerConfig = coreApp.getRouterConfig(signer.address);
+    routerConfig = objMap(
+      coreApp.getRouterConfig(signer.address),
+      (_, config): IcaRouterConfig => ({
+        ...config,
+        commitmentIsm: {
+          type: IsmType.OFFCHAIN_LOOKUP,
+          urls: ['https://commitment-read-ism.hyperlane.xyz'],
+          owner: signer.address,
+        },
+      }),
+    );
   });
 
   beforeEach(async () => {

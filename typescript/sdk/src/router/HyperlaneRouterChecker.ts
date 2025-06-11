@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 
+import { Router } from '@hyperlane-xyz/core';
 import {
   AddressBytes32,
   addressToBytes32,
@@ -53,11 +54,11 @@ export class HyperlaneRouterChecker<
     );
   }
 
-  async checkMailboxClient(chain: ChainName): Promise<void> {
-    const router = this.app.router(this.app.getContracts(chain));
-
-    const config = this.configMap[chain];
-
+  protected async checkMailbox(
+    chain: ChainName,
+    router: Router,
+    config: RouterConfig,
+  ): Promise<void> {
     const mailboxAddr = await router.mailbox();
     if (!eqAddress(mailboxAddr, config.mailbox)) {
       this.addViolation({
@@ -81,9 +82,18 @@ export class HyperlaneRouterChecker<
         });
       }
     }
+  }
 
+  protected async checkMailboxIsm(
+    chain: ChainName,
+    router: Router,
+    config: RouterConfig,
+  ): Promise<void> {
+    const mailboxAddr = await router.mailbox();
     const actualIsmAddress = await router.interchainSecurityModule();
 
+    // If the router is its own ism (e.g. the ICA router, skip checking configs)
+    if (eqAddress(actualIsmAddress, router.address)) return;
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
@@ -97,7 +107,7 @@ export class HyperlaneRouterChecker<
       const ismReader = new EvmIsmReader(this.multiProvider, chain);
       let actualConfig: string | DerivedIsmConfig =
         ethers.constants.AddressZero;
-      if (actualIsmAddress !== ethers.constants.AddressZero) {
+      if (!isZeroishAddress(actualIsmAddress)) {
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
 
@@ -124,6 +134,13 @@ export class HyperlaneRouterChecker<
       };
       this.addViolation(violation);
     }
+  }
+
+  async checkMailboxClient(chain: ChainName): Promise<void> {
+    const router = this.app.router(this.app.getContracts(chain));
+    const config = this.configMap[chain];
+    await this.checkMailbox(chain, router, config);
+    await this.checkMailboxIsm(chain, router, config);
   }
 
   async checkEnrolledRouters(
