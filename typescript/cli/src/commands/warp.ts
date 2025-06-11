@@ -437,7 +437,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   manual?: boolean;
   origin?: string;
   destination?: string;
-  amount?: string;
+  amount?: number;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',

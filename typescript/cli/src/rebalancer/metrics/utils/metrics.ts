@@ -1,5 +1,5 @@
 import http from 'http';
-import { Gauge, Registry } from 'prom-client';
+import { Registry } from 'prom-client';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 

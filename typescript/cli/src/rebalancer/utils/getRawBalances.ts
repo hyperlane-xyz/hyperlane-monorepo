@@ -10,15 +10,17 @@ import { isCollateralizedTokenEligibleForRebalancing } from './isCollateralizedT
  * Returns the raw balances required by the strategies from the monitor event
  * @param chains - The chains that should be included in the raw balances (e.g. the chains in the rebalancer config)
  * @param event - The monitor event to extract the raw balances from
+ * @returns An object mapping chain names to their raw balances.
  */
 export function getRawBalances(
   chains: ChainName[],
   event: MonitorEvent,
 ): RawBalances {
-  return event.tokensInfo.reduce((acc, tokenInfo) => {
-    const { token, bridgedSupply } = tokenInfo;
+  const balances: RawBalances = {};
+  const chainSet = new Set(chains);
 
-    const chainSet = new Set(chains);
+  for (const tokenInfo of event.tokensInfo) {
+    const { token, bridgedSupply } = tokenInfo;
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
@@ -31,10 +33,10 @@ export function getRawBalances(
         },
         'Skipping token: not in configured chains list',
       );
-      return acc;
+      continue;
     }
 
-    // Ignore tokens that are not collateralized
+    // Ignore tokens that are not collateralized or are otherwise ineligible
     if (!isCollateralizedTokenEligibleForRebalancing(token)) {
       rebalancerLogger.debug(
         {
@@ -45,7 +47,7 @@ export function getRawBalances(
         },
         'Skipping token: not collateralized or ineligible for rebalancing',
       );
-      return acc;
+      continue;
     }
 
     if (bridgedSupply === undefined) {
@@ -54,8 +56,8 @@ export function getRawBalances(
       );
     }
 
-    acc[token.chainName] = bridgedSupply;
+    balances[token.chainName] = bridgedSupply;
+  }
 
-    return acc;
-  }, {} as RawBalances);
+  return balances;
 }

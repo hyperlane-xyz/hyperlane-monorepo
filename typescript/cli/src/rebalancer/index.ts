@@ -3,3 +3,4 @@ export * from './interfaces/IMonitor.js';
 export * from './interfaces/IStrategy.js';
 export * from './config/RebalancerConfig.js';
 export * from './factories/RebalancerContextFactory.js';
+export * from './run.js';

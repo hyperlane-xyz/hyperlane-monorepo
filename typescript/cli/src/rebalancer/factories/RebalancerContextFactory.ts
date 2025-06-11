@@ -1,21 +1,20 @@
 import {
   type ChainMap,
   type ChainMetadata,
-  MultiProtocolProvider,
   type Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { Rebalancer } from '../core/Rebalancer.js';
+import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
-import { Rebalancer } from '../rebalancer/Rebalancer.js';
-import { WithSemaphore } from '../rebalancer/WithSemaphore.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
 import { rebalancerLogger } from '../utils/logger.js';
@@ -57,7 +56,9 @@ export class RebalancerContextFactory {
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-    const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
+    const provider =
+      context.multiProtocolProvider.extendChainMetadata(mailboxes);
+
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
@@ -86,6 +87,10 @@ export class RebalancerContextFactory {
 
   public getWarpCore(): WarpCore {
     return this.warpCore;
+  }
+
+  public getTokenForChain(chainName: string): Token | undefined {
+    return this.tokensByChainName[chainName];
   }
 
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
@@ -134,7 +139,7 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(metrics?: Metrics): IRebalancer {
+  public createRebalancer(): IRebalancer {
     rebalancerLogger.debug(
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
@@ -150,7 +155,6 @@ export class RebalancerContextFactory {
       this.metadata,
       this.tokensByChainName,
       this.context.multiProvider,
-      metrics,
     );
 
     return new WithSemaphore(this.config, rebalancer);

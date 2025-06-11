@@ -40,6 +40,8 @@ interface OpL2toL1Service {
 abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     using Message for bytes;
     using TypeCasts for address;
+    using TypeCasts for bytes32;
+    using OPL2ToL1Withdrawal for IOptimismPortal.WithdrawalTransaction;
 
     // the OP Portal contract on L1
     IOptimismPortal public immutable opPortal;
@@ -69,9 +71,9 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external override returns (bool) {
         if (_isProve(_message)) {
-            _proveWithdrawal(_metadata);
+            _proveWithdrawal(_message, _metadata);
         } else {
-            _finalizeWithdrawal(_metadata);
+            _finalizeWithdrawal(_message, _metadata);
         }
 
         return true;
@@ -81,7 +83,10 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) internal view virtual returns (bool);
 
-    function _proveWithdrawal(bytes calldata _metadata) internal {
+    function _proveWithdrawal(
+        bytes calldata _message,
+        bytes calldata _metadata
+    ) internal {
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -97,7 +102,17 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
                 )
             );
 
-        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
+        require(
+            _tx.sender == _message.sender().bytes32ToAddress(),
+            "OPL2ToL1CcipReadIsm: sender mismatch"
+        );
+
+        require(
+            _tx.proveMessageId() == _message.id(),
+            "OPL2ToL1CcipReadIsm: prove message id mismatch"
+        );
+
+        bytes32 withdrawalHash = _tx.hashWithdrawal();
 
         // Proving only if the withdrawal wasn't
         // proven already by this contract
@@ -115,13 +130,26 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes32 _withdrawalHash
     ) internal view virtual returns (bool);
 
-    function _finalizeWithdrawal(bytes calldata _metadata) internal {
+    function _finalizeWithdrawal(
+        bytes calldata _message,
+        bytes calldata _metadata
+    ) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
             _metadata,
             (IOptimismPortal.WithdrawalTransaction)
         );
 
-        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
+        require(
+            _tx.sender == _message.sender().bytes32ToAddress(),
+            "OPL2ToL1CcipReadIsm: sender mismatch"
+        );
+
+        require(
+            _tx.finalizeMessageId() == _message.id(),
+            "OPL2ToL1CcipReadIsm: finalize message id mismatch"
+        );
+
+        bytes32 withdrawalHash = _tx.hashWithdrawal();
 
         if (!opPortal.finalizedWithdrawals(withdrawalHash)) {
             opPortal.finalizeWithdrawalTransaction(_tx);

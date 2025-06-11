@@ -7,6 +7,7 @@ import {
   RebalancerConfigSchema,
   type RebalancerStrategyOptions,
 } from '@hyperlane-xyz/sdk';
+import { isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../utils/env.js';
 import { readYamlOrJson } from '../../utils/files.js';
@@ -33,7 +34,7 @@ export class RebalancerConfig {
 
     const { warpRouteId, rebalanceStrategy, ...chains } = validationResult.data;
 
-    if (!Object.keys(chains).length) {
+    if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
 

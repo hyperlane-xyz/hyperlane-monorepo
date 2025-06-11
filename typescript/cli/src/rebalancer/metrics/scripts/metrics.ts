@@ -10,7 +10,6 @@ import {
   WarpRouteBalance,
   XERC20Limit,
 } from '../types.js';
-import { getWalletBalanceGauge } from '../utils/metrics.js';
 
 export const metricsRegister = new Registry();
 
@@ -79,26 +78,12 @@ export const rebalancerExecutionTotal = new Counter({
   name: 'hyperlane_rebalancer_executions_total',
   help: 'Total number of rebalance execution attempts.',
   registers: [metricsRegister],
-  labelNames: ['warp_route_id'],
-});
-
-export const rebalancerExecutionErrorsTotal = new Counter({
-  name: 'hyperlane_rebalancer_execution_errors_total',
-  help: 'Total number of errors during rebalance execution attempts.',
-  registers: [metricsRegister],
-  labelNames: ['warp_route_id'],
+  labelNames: ['warp_route_id', 'succeeded'],
 });
 
 export const rebalancerPollingErrorsTotal = new Counter({
   name: 'hyperlane_rebalancer_polling_errors_total',
   help: 'Total number of errors during the monitor polling phase.',
-  registers: [metricsRegister],
-  labelNames: ['warp_route_id'],
-});
-
-export const rebalancerLastExecutionStatus = new Gauge({
-  name: 'hyperlane_rebalancer_last_execution_status',
-  help: 'Status of the last rebalance execution attempt (0 for success, 1 for failure).',
   registers: [metricsRegister],
   labelNames: ['warp_route_id'],
 });

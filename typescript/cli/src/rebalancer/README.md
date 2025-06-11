@@ -114,7 +114,7 @@ Requires providing the following options to the execution command:
 For instance, if you need to move `100` USDC from `sepolia` to `arbitrumsepolia`:
 
 ```bash
-hyperlane warp rebalance \
+hyperlane warp rebalancer \
   --config ./rebalancer-config.yaml \
   --manual \
   --origin sepolia \
