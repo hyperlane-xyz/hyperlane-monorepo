@@ -52,8 +52,6 @@ export const chainsToSkip: ChainName[] = [
   'viction',
   'ontology',
   'coredao',
-  // temp
-  'deepbrainchain',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
