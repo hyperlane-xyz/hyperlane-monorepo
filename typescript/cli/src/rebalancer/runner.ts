@@ -101,7 +101,7 @@ export class RebalancerRunner {
 
     // Instantiates the rebalancer in charge of executing the rebalancing transactions
     const rebalancer = !monitorOnly
-      ? contextFactory.createRebalancer(metrics)
+      ? contextFactory.createRebalancer()
       : undefined;
 
     if (monitorOnly) {
