@@ -347,8 +347,8 @@ export async function runWarpRouteApply(
       params,
       apiKeys,
       warpDeployConfig,
-      warpCoreConfig: updatedWarpCoreConfig,
       actualWarpDeployConfig,
+      warpCoreConfig: updatedWarpCoreConfig,
     },
   );
 
