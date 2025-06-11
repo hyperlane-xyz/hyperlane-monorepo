@@ -148,21 +148,20 @@ function validateCompatibility(
     standard: TokenStandard;
   }>,
 ): void {
+  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.Starknet];
+
   const nonCompatibleChains = Object.entries(addresses)
     .filter(([_, { standard }]) => {
       const protocol = TOKEN_STANDARD_TO_PROTOCOL[standard];
-      return (
-        protocol !== ProtocolType.Ethereum && protocol !== ProtocolType.Starknet
-      );
+      return !supportedProtocols.includes(protocol);
     })
     .map(([chain]) => chain);
 
   if (nonCompatibleChains.length > 0) {
     const chainList = nonCompatibleChains.join(', ');
+    const verb = nonCompatibleChains.length > 1 ? 'are' : 'is';
     logRed(
-      `${chainList} ${
-        nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/Starknet and not compatible with the cli`,
+      `${chainList} ${verb} non-EVM/Starknet and not compatible with the cli`,
     );
     process.exit(1);
   }

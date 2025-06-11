@@ -166,7 +166,6 @@ export async function createWarpRouteDeployConfig({
   context,
   outPath,
   advanced = false,
-  multiProtocolSigner,
 }: {
   context: CommandContext;
   outPath?: string;
@@ -189,9 +188,7 @@ export async function createWarpRouteDeployConfig({
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
     const owner = await detectAndConfirmOrPrompt(
-      async () =>
-        (await multiProtocolSigner?.getEVMSigner(chain))?.getAddress() ||
-        (await multiProtocolSigner?.getStarknetSigner(chain))?.address,
+      async () => context.signerAddress,
       'Enter the desired',
       'owner address',
       'signer',
