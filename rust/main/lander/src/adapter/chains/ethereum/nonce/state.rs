@@ -5,7 +5,7 @@ use std::sync::Arc;
 use ethers_core::types::Address;
 use futures_util::FutureExt;
 use tokio::sync::{Mutex, MutexGuard};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use hyperlane_base::db::DbError;
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
@@ -63,12 +63,23 @@ impl NonceManagerState {
 
         let Some(tracked_nonce_status) = self.get_nonce_status(nonce).await? else {
             // If the nonce is not tracked, we insert it with the new status.
+            info!(
+                ?nonce,
+                ?nonce_status,
+                "Nonce is not tracked, inserting with new status"
+            );
             self.insert_nonce_status(nonce, nonce_status).await?;
             return Ok(());
         };
 
         if &tracked_nonce_status == nonce_status {
             // If the nonce status is the same as the tracked one, we do nothing.
+            info!(
+                ?nonce,
+                ?nonce_status,
+                ?tracked_nonce_status,
+                "Nonce status is already tracked, no action needed"
+            );
             return Ok(());
         }
 
@@ -77,6 +88,12 @@ impl NonceManagerState {
             Freed(_) => {
                 // If the tracked nonce status is Freed, and it differs from the nonce status,
                 // we track nonce as assigned to the given transaction.
+                info!(
+                    ?nonce,
+                    ?nonce_status,
+                    ?tracked_nonce_status,
+                    "Nonce is Freed, updating to new status"
+                );
                 self.insert_nonce_status(nonce, nonce_status).await?;
                 return Ok(());
             }
@@ -88,6 +105,12 @@ impl NonceManagerState {
 
         if tracked_tx_uuid == tx_uuid {
             // If the nonce is assigned to the same transaction, we update the status.
+            info!(
+                ?nonce,
+                ?nonce_status,
+                ?tracked_nonce_status,
+                "Nonce is assigned to the same transaction, updating status"
+            );
             self.insert_nonce_status(nonce, nonce_status).await?;
             return Ok(());
         }
@@ -129,6 +152,12 @@ impl NonceManagerState {
         let Some(tracked_nonce_status) = tracked_nonce_status else {
             // If the nonce currently assigned to the transaction is not tracked,
             // we should assign the new nonce.
+            info!(
+                ?nonce,
+                ?nonce_status,
+                ?tx_uuid,
+                "Nonce is not tracked, assigning new nonce"
+            );
             return Ok(Assign);
         };
 
@@ -140,6 +169,12 @@ impl NonceManagerState {
         if tracked_tx_uuid != tx_uuid {
             // If the tracked nonce is assigned to a different transaction,
             // we should assign the new nonce.
+            warn!(
+                ?nonce,
+                ?nonce_status,
+                ?tracked_nonce_status,
+                "Nonce is assigned to a different transaction, assigning new nonce"
+            );
             return Ok(Assign);
         }
 
@@ -148,16 +183,34 @@ impl NonceManagerState {
                 // If the nonce which is currently assigned to the transaction, is Freed,
                 // then the transaction was dropped, and we need to submit the transaction again.
                 // We should assign the new nonce.
+                info!(
+                    ?nonce,
+                    ?nonce_status,
+                    ?tracked_nonce_status,
+                    "Nonce is Freed, assigning new nonce"
+                );
                 Ok(Assign)
             }
             Taken(_) if nonce < &lowest_nonce => {
                 // If the nonce is taken, but it is below the lowest nonce,
                 // it means that the current nonce is outdated.
                 // We should assign the new nonce.
+                info!(
+                    ?nonce,
+                    ?nonce_status,
+                    ?tracked_nonce_status,
+                    "Nonce is Taken but below the lowest nonce, assigning new nonce"
+                );
                 Ok(Assign)
             }
             Taken(_) | Committed(_) => {
                 // If the nonce is taken or committed, we don't need to do anything.
+                info!(
+                    ?nonce,
+                    ?nonce_status,
+                    ?tracked_nonce_status,
+                    "Nonce is already assigned to the transaction, no action needed"
+                );
                 Ok(Noop)
             }
         }

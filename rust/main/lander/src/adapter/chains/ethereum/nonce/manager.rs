@@ -80,9 +80,24 @@ impl NonceManager {
                 .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
             if matches!(action, Noop) {
+                info!(
+                    ?nonce_status,
+                    address = ?from,
+                    ?tx_uuid,
+                    precursor = ?precursor,
+                    "No action needed for transaction nonce"
+                );
                 return Ok(());
             }
         }
+
+        info!(
+            ?nonce_status,
+            address = ?from,
+            ?tx_uuid,
+            precursor = ?precursor,
+            "Assigning nonce for transaction"
+        );
 
         let next_nonce = self
             .state
