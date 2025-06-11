@@ -73,7 +73,7 @@ export class StarknetERC20WarpModule {
             {
               decimals: tokenMetadata.decimals,
               mailbox: mailbox!,
-              total_supply: 0,
+              total_supply: uint256.bnToUint256(0),
               name: [byteArray.byteArrayFromString(tokenMetadata.name)],
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
               hook: getChecksumAddress(0),
