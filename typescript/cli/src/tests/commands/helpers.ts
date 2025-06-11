@@ -60,7 +60,8 @@ export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/me
 
 export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
-export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
+export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
+export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_DEPLOY_2_ID = 'ETH/anvil2';
 export const WARP_CORE_CONFIG_PATH_2 = getCombinedWarpRoutePath('ETH', [
   CHAIN_NAME_2,

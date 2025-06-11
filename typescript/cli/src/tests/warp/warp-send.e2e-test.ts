@@ -31,6 +31,7 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
@@ -248,7 +249,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  it.only(`should be able to bridge between ${TokenType.collateral} and ${TokenType.collateral}`, async function () {
+  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.collateral}`, async function () {
     const [tokenChain2, tokenChain3] = await Promise.all([
       deployToken(ANVIL_KEY, CHAIN_NAME_2),
       deployToken(ANVIL_KEY, CHAIN_NAME_3),
@@ -257,7 +258,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
       tokenSymbolChain2,
-      [CHAIN_NAME_3],
+      [WARP_DEPLOY_DEFAULT_FILE_NAME],
     );
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -315,7 +316,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.synthetic}`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -371,8 +372,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.native}`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -427,8 +427,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should not be able to bridge between ${TokenType.native} and ${TokenType.native} when the token on the destination chain does not have enough collateral`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -479,7 +478,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
       tokenSymbolChain2,
-      [CHAIN_NAME_2, CHAIN_NAME_3],
+      [WARP_DEPLOY_DEFAULT_FILE_NAME],
     );
 
     const warpConfig: WarpRouteDeployConfig = {
