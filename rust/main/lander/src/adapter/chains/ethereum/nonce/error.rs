@@ -11,7 +11,7 @@ pub(crate) enum NonceError {
     #[error("Database error: {0}")]
     DatabaseError(DbError),
     /// The nonce is already assigned to a transaction.
-    #[error("Nonce {0} is assigned to transactions {1} and {2}")]
+    #[error("Nonce {0} is assigned to transactions {1:?} and {2:?}")]
     NonceAssignedToMultipleTransactions(U256, TransactionUuid, TransactionUuid),
 }
 

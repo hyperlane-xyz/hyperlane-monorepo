@@ -105,7 +105,7 @@ impl NonceManager {
             .await
             .map_err(|e| {
                 eyre::eyre!(
-                    "Failed to assign next nonce for transaction {}: {}",
+                    "Failed to assign next nonce for transaction {:?}: {}",
                     tx_uuid,
                     e
                 )
