@@ -94,12 +94,12 @@ function formatAndPrintLogs(rawLogs: string) {
 
       rootLogger.info(logMessage);
     });
-  } catch (error) {
-    rootLogger.error(`Failed to parse logs: ${error}`);
+  } catch (err) {
+    rootLogger.error(err, 'Failed to parse logs');
   }
 }
 
 main().catch((err) => {
-  rootLogger.error('Error in main:', err);
+  rootLogger.error(err);
   process.exit(1);
 });
