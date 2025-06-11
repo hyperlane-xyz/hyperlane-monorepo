@@ -1,8 +1,8 @@
 import { jest, describe, beforeEach, afterAll, it, expect, test } from '@jest/globals';
-import { getStatus as getStatusClient, StatusResponse } from '../client.js';
-import { getStatus, parseStatusResponse } from './status.js';
+import { getStatus as getStatusClient, StatusResponse } from '../client';
+import { getStatus, parseStatusResponse } from './status';
 
-jest.mock('../client.js', () => ({
+jest.mock('../client', () => ({
   getStatus: jest.fn(),
 }));
 

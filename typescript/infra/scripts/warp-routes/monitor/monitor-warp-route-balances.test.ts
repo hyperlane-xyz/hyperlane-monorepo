@@ -1,7 +1,7 @@
 import { beforeEach, afterAll, describe, it, expect, jest } from '@jest/globals';
-import { monitorWarpRouteBalances, __private__ } from './monitor-warp-route-balances.js';
-import * as warpSdk from '../../warp-client.js';
-import * as loggerModule from '../../logger.js';
+import { monitorWarpRouteBalances, __private__ } from './monitor-warp-route-balances';
+import * as warpSdk from '../warp-client';
+import * as loggerModule from '../logger';
 
 describe('monitorWarpRouteBalances', () => {
   const mockFetchBalances = jest.fn();
