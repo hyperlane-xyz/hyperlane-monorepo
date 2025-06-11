@@ -18,7 +18,7 @@ import {
   REGISTRY_PATH,
 } from '../commands/helpers.js';
 
-describe('hyperlane core read e2e tests', async function () {
+describe('hyperlane cosmosnative core read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: SigningHyperlaneModuleClient;

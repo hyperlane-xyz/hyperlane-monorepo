@@ -18,7 +18,7 @@ export function hyperlaneCoreDeployRaw(
   hypKey?: string,
 ): ProcessPromise {
   return $`${
-    hypKey ? ['HYP_KEY=' + hypKey] : ''
+    hypKey ? ['HYP_KEY_COSMOSNATIVE=' + hypKey] : ''
   } ${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${registryPath} \
         --config ${coreInputPath} \

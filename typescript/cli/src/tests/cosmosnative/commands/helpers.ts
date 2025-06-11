@@ -1,4 +1,6 @@
-import { inCIMode } from '@hyperlane-xyz/utils';
+import { ProcessOutput, ProcessPromise } from 'zx';
+
+import { inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/hyp`;
@@ -26,4 +28,64 @@ export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tes
 // in the current env
 export function localTestRunCmdPrefix() {
   return inCIMode() ? [] : ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run'];
+}
+
+export enum KeyBoardKeys {
+  ARROW_DOWN = '\x1b[B',
+  ARROW_UP = '\x1b[A',
+  ENTER = '\n',
+  TAB = '\t',
+  ACCEPT = 'y',
+  DECLINE = 'n',
+}
+
+export type TestPromptAction = {
+  check: (currentOutput: string) => boolean;
+  input: string;
+};
+
+export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Select network type'),
+  // Select mainnet chains
+  input: KeyBoardKeys.ENTER,
+};
+
+export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput) =>
+    currentOutput.includes('Please enter the private key for chain'),
+  input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+};
+
+/**
+ * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
+ * in the provided order when the check in the {@link TestPromptAction} matches the output
+ * of the {@link ProcessPromise}.
+ */
+export async function handlePrompts(
+  processPromise: Readonly<ProcessPromise>,
+  actions: TestPromptAction[],
+): Promise<ProcessOutput> {
+  let expectedStep = 0;
+  for await (const out of processPromise.stdout) {
+    const currentLine: string = out.toString();
+
+    const currentAction = actions[expectedStep];
+    if (currentAction && currentAction.check(currentLine)) {
+      // Select mainnet chains
+      await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
+      expectedStep++;
+    }
+  }
+
+  return processPromise;
+}
+
+export async function asyncStreamInputWrite(
+  stream: NodeJS.WritableStream,
+  data: string | Buffer,
+): Promise<void> {
+  stream.write(data);
+  // Adding a slight delay to allow the buffer to update the output
+  await sleep(500);
 }
