@@ -49,7 +49,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters } from '../router/types.js';
+import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
@@ -455,10 +455,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      actualConfig.allowedRebalancingBridges ?? {},
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.allowedRebalancingBridges ?? {},
+      ),
     );
+
     const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      expectedConfig.allowedRebalancingBridges,
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
     );
     const rebalancingBridgesToAddByDomain = objMap(
       expectedAllowedBridges,
@@ -508,10 +515,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const actualAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      actualConfig.allowedRebalancingBridges ?? {},
+      resolveRouterMapConfig(
+        this.multiProvider,
+        actualConfig.allowedRebalancingBridges ?? {},
+      ),
     );
     const expectedAllowedBridges = getAllowedRebalancingBridgesByDomain(
-      expectedConfig.allowedRebalancingBridges,
+      resolveRouterMapConfig(
+        this.multiProvider,
+        expectedConfig.allowedRebalancingBridges,
+      ),
     );
     const rebalancingBridgesToAddByDomain = objMap(
       actualAllowedBridges,
@@ -556,10 +569,19 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
-    assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(
+      expectedConfig.destinationGas,
+      'expectedDestinationGas is undefined',
+    );
 
-    const { destinationGas: actualDestinationGas } = actualConfig;
-    const { destinationGas: expectedDestinationGas } = expectedConfig;
+    const actualDestinationGas = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.destinationGas,
+    );
+    const expectedDestinationGas = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.destinationGas,
+    );
 
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
       const contractToUpdate = GasRouter__factory.connect(
@@ -570,7 +592,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
         [];
-      objMap(expectedDestinationGas, (domain: string, gas: string) => {
+      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,
@@ -838,24 +860,38 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    // This should be impossible since we try catch the call to `PACKAGE_VERSION`
+    // in `EvmERC20WarpRouteReader.fetchPackageVersion`
     assert(
       actualConfig.contractVersion,
       'Actual contract version is undefined',
     );
 
-    const shouldUpgrade =
-      expectedConfig.contractVersion &&
-      compareVersions(
-        expectedConfig.contractVersion,
-        actualConfig.contractVersion,
-      ) === 1;
+    // Only upgrade if the user specifies a version
+    if (!expectedConfig.contractVersion) {
+      return [];
+    }
 
-    if (!shouldUpgrade) return [];
+    const comparisonValue = compareVersions(
+      expectedConfig.contractVersion,
+      actualConfig.contractVersion,
+    );
 
+    // Expected version is lower than actual version, no upgrade is possible
+    if (comparisonValue === -1) {
+      throw new Error(
+        `Expected contract version ${expectedConfig.contractVersion} is lower than actual contract version ${actualConfig.contractVersion}`,
+      );
+    }
+    // Versions are the same, no upgrade needed
+    if (comparisonValue === 0) {
+      return [];
+    }
+
+    // You can only upgrade to the contract version (see `PackageVersioned`)
+    // defined by the @hyperlane-xyz/core package
     assert(
-      contractVersionMatchesDependency(
-        expectedConfig.contractVersion as string, // this definitely exists at this point
-      ),
+      contractVersionMatchesDependency(expectedConfig.contractVersion),
       VERSION_ERROR_MESSAGE,
     );
 

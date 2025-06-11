@@ -89,7 +89,7 @@ impl ForwardBackwardIterator {
             let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
 
             match (high_nonce_message_status, low_nonce_message_status) {
-                // Always prioritize advancing the the high nonce iterator, as
+                // Always prioritize advancing the high nonce iterator, as
                 // we have a preference for higher nonces
                 (MessageStatus::Processed, _) => {
                     self.high_nonce_iter.iterate();
@@ -733,9 +733,9 @@ pub mod test {
             /// Retrieve the nonce of the highest processed message we're aware of
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 
-            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
 
-            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+            fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

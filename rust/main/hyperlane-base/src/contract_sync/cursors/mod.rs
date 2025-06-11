@@ -11,14 +11,18 @@ pub(crate) use rate_limited::RateLimitedContractSyncCursor;
 pub(crate) mod metrics;
 pub(crate) use metrics::CursorMetrics;
 
+/// CursorType
 pub enum CursorType {
+    /// Sequence aware cursor
     SequenceAware,
+    /// Rate limited cursor
     RateLimited,
 }
 
 // H512 * 30k =~ 2MB per origin chain
 const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(30_000);
 
+/// Indexable cursor
 pub trait Indexable {
     /// Returns the configured cursor type of this type for the given domain, (e.g. `SequenceAware` or `RateLimited`)
     fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType;
@@ -38,6 +42,7 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
         }
     }
@@ -59,6 +64,7 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
         }
     }
@@ -75,6 +81,7 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
         }
     }
@@ -91,6 +98,7 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
         }
     }
