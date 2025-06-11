@@ -1,24 +1,27 @@
-use async_trait::async_trait;
-use ethers_core::abi::Function;
-use ethers_core::types::Address;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use async_trait::async_trait;
+use ethers_core::abi::Function;
+use ethers_core::types::Address;
+use hyperlane_base::db::DbResult;
+use hyperlane_core::U256;
+use hyperlane_ethereum::EthereumReorgPeriod;
+use mockall::mock;
+
+use crate::adapter::EthereumTxPrecursor;
+use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
+use crate::TransactionDropReason;
+
+use super::super::super::tests::MockEvmProvider;
 use super::super::super::transaction::Precursor;
 use super::super::tests::MockNonceDb;
 use super::NonceDb;
 use super::NonceManager;
 use super::NonceManagerState;
 use super::NonceStatus;
-use crate::adapter::chains::ethereum::nonce::NonceUpdater;
-use crate::adapter::chains::ethereum::tests::MockEvmProvider;
-use crate::adapter::EthereumTxPrecursor;
-use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
-use crate::TransactionDropReason;
-use hyperlane_base::db::DbResult;
-use hyperlane_core::U256;
-use hyperlane_ethereum::EthereumReorgPeriod;
+use super::NonceUpdater;
 
 #[allow(deprecated)]
 fn make_tx(
@@ -59,7 +62,7 @@ fn make_tx(
     tx
 }
 
-fn init() -> (Arc<MockNonceDb>, Address, NonceManager) {
+fn init(mock_evm_provider: MockEvmProvider) -> (Arc<MockNonceDb>, Address, NonceManager) {
     let db = Arc::new(MockNonceDb::new());
     let address = Address::random();
     let state = Arc::new(NonceManagerState::new(db.clone(), address));
@@ -68,7 +71,7 @@ fn init() -> (Arc<MockNonceDb>, Address, NonceManager) {
         address,
         EthereumReorgPeriod::Blocks(1),
         Duration::from_secs(12),
-        Arc::new(MockEvmProvider::default()),
+        Arc::new(mock_evm_provider),
         state.clone(),
     );
 
@@ -83,7 +86,8 @@ fn init() -> (Arc<MockNonceDb>, Address, NonceManager) {
 
 #[tokio::test]
 async fn test_update_nonce_status_inserts_when_not_tracked() {
-    let (db, address, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(1);
@@ -105,7 +109,8 @@ async fn test_update_nonce_status_inserts_when_not_tracked() {
 
 #[tokio::test]
 async fn test_update_nonce_status_noop_when_same_status() {
-    let (db, address, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(2);
@@ -135,7 +140,8 @@ async fn test_update_nonce_status_noop_when_same_status() {
 
 #[tokio::test]
 async fn test_update_nonce_status_freed_to_taken() {
-    let (db, address, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(3);
@@ -165,7 +171,8 @@ async fn test_update_nonce_status_freed_to_taken() {
 
 #[tokio::test]
 async fn test_update_nonce_status_same_tx_uuid_updates_status() {
-    let (db, address, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(4);
@@ -195,7 +202,8 @@ async fn test_update_nonce_status_same_tx_uuid_updates_status() {
 
 #[tokio::test]
 async fn test_update_nonce_status_different_tx_uuid_errors() {
-    let (db, address, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid1 = TransactionUuid::random();
     let uuid2 = TransactionUuid::random();
@@ -218,7 +226,12 @@ async fn test_update_nonce_status_different_tx_uuid_errors() {
 
 #[tokio::test]
 async fn test_assign_nonce_sets_nonce_when_none_present() {
-    let (_, address, manager) = init();
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::one()));
+
+    let (_, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     // No nonce set, but from address matches manager
@@ -232,15 +245,20 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     // Should assign nonce 0
     manager.assign_nonce(&mut tx).await.unwrap();
     let nonce: U256 = tx.precursor().tx.nonce().unwrap().into();
-    assert_eq!(nonce, U256::zero());
+    assert_eq!(nonce, U256::one());
 }
 
 #[tokio::test]
 async fn test_assign_nonce_noop_when_action_is_noop() {
-    let (db, address, manager) = init();
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(1)));
+
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
-    let nonce = U256::from(1);
+    let nonce = U256::from(2);
 
     // Pre-store status so validate_assigned_nonce returns Noop
     db.store_nonce_status_by_nonce_and_signer_address(
@@ -266,7 +284,12 @@ async fn test_assign_nonce_noop_when_action_is_noop() {
 
 #[tokio::test]
 async fn test_assign_nonce_assigns_when_action_is_assign() {
-    let (db, address, manager) = init();
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(3)));
+
+    let (db, address, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     let nonce = U256::from(2);
@@ -287,15 +310,16 @@ async fn test_assign_nonce_assigns_when_action_is_assign() {
         Some(address),
     );
 
-    // Should assign a new nonce (0, since nothing else is tracked)
+    // Should assign the new nonce
     manager.assign_nonce(&mut tx).await.unwrap();
     let tx_nonce: U256 = tx.precursor().tx.nonce().unwrap().into();
-    assert_eq!(tx_nonce, U256::zero());
+    assert_eq!(tx_nonce, U256::from(3));
 }
 
 #[tokio::test]
 async fn test_assign_nonce_error_when_from_address_missing() {
-    let (_, _, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (_, _, manager) = init(mock_evm_provider);
 
     let uuid = TransactionUuid::random();
     // None `from` address provided
@@ -312,7 +336,8 @@ async fn test_assign_nonce_error_when_from_address_missing() {
 
 #[tokio::test]
 async fn test_assign_nonce_error_when_from_address_mismatch() {
-    let (_, _, manager) = init();
+    let mock_evm_provider = MockEvmProvider::new();
+    let (_, _, manager) = init(mock_evm_provider);
     let other_address = Address::random();
 
     let uuid = TransactionUuid::random();

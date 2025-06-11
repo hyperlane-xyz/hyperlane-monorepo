@@ -1,5 +1,5 @@
 use hyperlane_base::db::DbError;
-use hyperlane_core::U256;
+use hyperlane_core::{ChainCommunicationError, U256};
 
 use crate::transaction::TransactionUuid;
 
@@ -13,6 +13,9 @@ pub(crate) enum NonceError {
     /// The nonce is already assigned to a transaction.
     #[error("Nonce {0} is assigned to transactions {1} and {2}")]
     NonceAssignedToMultipleTransactions(U256, TransactionUuid, TransactionUuid),
+    /// Provider error
+    #[error("Provider error")]
+    ProviderError(ChainCommunicationError),
 }
 
 impl From<DbError> for NonceError {

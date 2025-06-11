@@ -13,7 +13,7 @@ use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, KnownHyperlaneDomain, H256,
+    config::OpSubmissionConfig, identifiers::UniqueIdentifier, KnownHyperlaneDomain, H256, U256,
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 
@@ -71,11 +71,6 @@ async fn test_evm_tx_underpriced() {
 
 fn mocked_evm_provider() -> MockEvmProvider {
     let mut mock_evm_provider = MockEvmProvider::new();
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_reorg_period| {
-            Ok(42) // Mocked block number
-        });
     mock_evm_provider.expect_get_block().returning(|_| {
         Ok(Some(Default::default())) // Mocked block retrieval
     });
@@ -105,6 +100,10 @@ fn mocked_evm_provider() -> MockEvmProvider {
     mock_evm_provider
         .expect_get_finalized_block_number()
         .returning(|_| Ok(43)); // Mocked finalized block number
+
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::one()));
 
     mock_evm_provider
 }
@@ -226,7 +225,7 @@ fn mock_ethereum_adapter(
     let nonce_updater = NonceUpdater::new(
         signer,
         reorg_period,
-        Duration::from_millis(10),
+        Duration::from_millis(0),
         provider.clone(),
         state.clone(),
     );

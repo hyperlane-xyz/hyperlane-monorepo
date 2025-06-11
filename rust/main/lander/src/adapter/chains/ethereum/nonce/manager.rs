@@ -39,7 +39,6 @@ impl NonceManager {
 
         let nonce_updater =
             NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
-        nonce_updater.update_immediately().await;
 
         let manager = Self {
             address,
@@ -71,7 +70,10 @@ impl NonceManager {
 
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
-        self.nonce_updater.update().await;
+        self.nonce_updater
+            .update()
+            .await
+            .map_err(|e| eyre::eyre!("Failed to update lowest nonce: {}", e))?;
 
         if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
             let action = self

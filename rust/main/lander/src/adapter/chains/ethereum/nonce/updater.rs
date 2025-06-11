@@ -12,6 +12,7 @@ use tracing::{error, info, info_span, Instrument};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 
+use super::error::{NonceError, NonceResult};
 use super::state::NonceManagerState;
 
 pub struct NonceUpdater {
@@ -31,7 +32,15 @@ impl NonceUpdater {
         provider: Arc<dyn EvmProviderForLander>,
         state: Arc<NonceManagerState>,
     ) -> Self {
-        let updated = Arc::new(Mutex::new(Instant::now()));
+        let instant = Instant::now()
+            // Subtract the block time to ensure the first update happens
+            // on the first request to update the lowest nonce.
+            .checked_sub(block_time)
+            // If the subtraction fails (which is unlikely), use the current time
+            // In this case, the lowest nonce will be updated after
+            // the block time has passed.
+            .unwrap_or_else(Instant::now);
+        let updated = Arc::new(Mutex::new(instant));
 
         NonceUpdater {
             address,
@@ -43,33 +52,24 @@ impl NonceUpdater {
         }
     }
 
-    pub async fn update(&self) {
+    pub async fn update(&self) -> NonceResult<()> {
         let duration = self.updated.lock().await.elapsed();
         if duration >= self.block_time {
-            self.update_immediately().await;
+            self.update_immediately().await?;
+            *self.updated.lock().await = Instant::now();
         }
+
+        Ok(())
     }
 
-    pub async fn update_immediately(&self) {
-        let mut guard = self.updated.lock().await;
-        *guard = Instant::now();
-
+    async fn update_immediately(&self) -> NonceResult<()> {
         let next_nonce = self
             .provider
             .get_next_nonce_on_finalized_block(&self.address, &self.reorg_period)
-            .await;
+            .await
+            .map_err(NonceError::ProviderError)?;
 
-        if let Ok(next_nonce) = next_nonce {
-            let update_boundary_nonces_result =
-                self.state.update_boundary_nonces(&next_nonce).await;
-            if let Err(e) = update_boundary_nonces_result {
-                error!("Failed to update boundary nonces: {:?}", e);
-            }
-        } else {
-            error!(
-                "Failed to get next nonce on finalized block: {:?}",
-                next_nonce
-            );
-        }
+        self.state.update_boundary_nonces(&next_nonce).await?;
+        Ok(())
     }
 }
