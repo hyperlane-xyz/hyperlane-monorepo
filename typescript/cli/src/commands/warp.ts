@@ -1,22 +1,29 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainSubmissionStrategySchema,
+  expandVirtualWarpDeployConfig,
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
-import {
-  createWarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   CommandModuleWithContext,
+  CommandModuleWithWarpApplyContext,
+  CommandModuleWithWarpDeployContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logCommandHeader, logGreen } from '../logger.js';
-import { runWarpRouteRead } from '../read/warp.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -24,7 +31,11 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpCoreConfigOrExit } from '../utils/warp.js';
+import {
+  filterWarpConfigsToMatchingChains,
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -39,6 +50,7 @@ import {
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
+  warpRouteIdCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
@@ -63,10 +75,11 @@ export const warpCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const apply: CommandModuleWithWriteContext<{
-  config: string;
+export const apply: CommandModuleWithWarpApplyContext<{
+  config?: string;
+  warp?: string;
   symbol?: string;
-  warp: string;
+  warpRouteId?: string;
   strategy?: string;
   receiptsDir: string;
   relay?: boolean;
@@ -75,12 +88,13 @@ export const apply: CommandModuleWithWriteContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
+    warpRouteId: warpRouteIdCommandOption,
     warp: {
       ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    symbol: {
+      ...symbolCommandOption,
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
@@ -99,41 +113,36 @@ export const apply: CommandModuleWithWriteContext<{
   },
   handler: async ({
     context,
-    config,
-    symbol,
-    warp,
     strategy: strategyUrl,
     receiptsDir,
     relay,
+    warpRouteId,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
-      context,
-    });
-
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     await runWarpRouteApply({
       context,
-      warpDeployConfig,
-      warpCoreConfig,
+      // Already fetched in the resolveWarpApplyChains
+      warpDeployConfig: context.warpDeployConfig,
+      warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
       selfRelay: relay,
+      warpRouteId,
     });
     process.exit(0);
   },
 };
 
-export const deploy: CommandModuleWithWriteContext<{
-  config: string;
+export const deploy: CommandModuleWithWarpDeployContext<{
+  config?: string;
   'dry-run': string;
   'from-address': string;
+  symbol?: string;
+  warpRouteId?: string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
@@ -141,8 +150,13 @@ export const deploy: CommandModuleWithWriteContext<{
     config: warpDeploymentConfigCommandOption,
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, dryRun }) => {
+  handler: async ({ context, dryRun, warpRouteId }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -150,7 +164,9 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
-        warpRouteDeploymentConfigPath: config,
+        // Already fetched in the resolveWarpRouteConfigChains
+        warpDeployConfig: context.warpDeployConfig,
+        warpRouteId,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -172,7 +188,7 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
+    out: outputFileCommandOption(),
   },
   handler: async ({ context, advanced, out }) => {
     logCommandHeader('Hyperlane Warp Configure');
@@ -284,6 +300,7 @@ const send: CommandModuleWithWriteContext<
     warp,
     amount,
     recipient,
+    roundTrip,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -291,25 +308,61 @@ const send: CommandModuleWithWriteContext<
       context,
     });
 
+    let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
+    if (roundTrip) {
+      // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
+      const reversed = [...chains].reverse().slice(1, chains.length + 1); // We make a copy because .reverse() is mutating
+      chains.push(...reversed);
+    } else {
+      // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
+      const chainMetadata = objFilter(
+        context.chainMetadata,
+        (key, _metadata): _metadata is any => chains.includes(key),
+      );
+
+      if (!origin)
+        origin = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the origin chain:',
+        );
+
+      if (!destination)
+        destination = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the destination chain:',
+        );
+
+      chains = [origin, destination].filter((c) => chains.includes(c));
+
+      assert(
+        chains.length === 2,
+        `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
+      );
+    }
+
+    logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
     await sendTestTransfer({
       context,
       warpCoreConfig,
-      origin,
-      destination,
+      chains,
       amount,
       recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
+    logGreen(
+      `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
+    );
     process.exit(0);
   },
 };
 
 export const check: CommandModuleWithContext<{
-  config: string;
+  config?: string;
   symbol?: string;
   warp?: string;
+  warpRouteId?: string;
 }> = {
   command: 'check',
   describe:
@@ -324,23 +377,66 @@ export const check: CommandModuleWithContext<{
       demandOption: false,
     },
     config: inputFileCommandOption({
-      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
       description: 'The path to a warp route deployment configuration file',
+      demandOption: false,
+      alias: 'wd',
     }),
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, symbol, warp }) => {
+  handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    const warpRouteConfig = await readWarpRouteDeployConfig(config, context);
-    const onChainWarpConfig = await runWarpRouteRead({
+    let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
-      warp,
+      warpRouteId,
       symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
     });
 
-    await runWarpRouteCheck({
+    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
+      warpDeployConfig,
+      warpCoreConfig,
+    ));
+
+    const deployedRoutersAddresses =
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+
+    // Remove any non EVM chain configs to avoid the checker crashing
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config) =>
+        context.multiProvider.getProtocol(config.chainName) ===
+        ProtocolType.Ethereum,
+    );
+
+    // Get on-chain config
+    const onChainWarpConfig = await getWarpRouteConfigsByCore({
+      context,
+      warpCoreConfig,
+    });
+
+    // get virtual on-chain config
+    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
+      multiProvider: context.multiProvider,
       onChainWarpConfig,
-      warpRouteConfig,
+      deployedRoutersAddresses,
+    });
+
+    let expandedWarpDeployConfig = await expandWarpDeployConfig({
+      multiProvider: context.multiProvider,
+      warpDeployConfig,
+      deployedRoutersAddresses,
+      expandedOnChainWarpConfig,
+    });
+    expandedWarpDeployConfig = objFilter(
+      expandedWarpDeployConfig,
+      (chain, _config): _config is any =>
+        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+
+    await runWarpRouteCheck({
+      onChainWarpConfig: expandedOnChainWarpConfig,
+      warpRouteConfig: expandedWarpDeployConfig,
     });
 
     process.exit(0);

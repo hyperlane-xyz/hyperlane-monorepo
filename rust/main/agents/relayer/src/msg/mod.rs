@@ -30,9 +30,12 @@
 pub(crate) mod blacklist;
 pub(crate) mod gas_payment;
 pub(crate) mod metadata;
+pub(crate) mod op_batch;
 pub(crate) mod op_queue;
 pub(crate) mod op_submitter;
-pub(crate) mod pending_message;
 pub(crate) mod processor;
+mod utils;
+
+pub mod pending_message;
 
 pub use gas_payment::GAS_EXPENDITURE_LOG_MESSAGE;

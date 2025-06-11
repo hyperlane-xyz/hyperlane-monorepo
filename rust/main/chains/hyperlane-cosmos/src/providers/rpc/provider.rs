@@ -5,6 +5,9 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::rpc::client::Client;
 use futures::StreamExt;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 use sha256::digest;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
@@ -89,15 +92,21 @@ impl CosmosWasmRpcProvider {
 
     /// create new Cosmwasm RPC Provider
     pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
         event_type: String,
         reorg_period: u32,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(CosmosRpcClient::new)
+            .map(|url| {
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
+                CosmosRpcClient::from_url(url, metrics.clone(), metrics_config)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let mut builder = FallbackProvider::builder();
         builder = builder.add_providers(providers);
@@ -252,7 +261,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
-    #[instrument(err, skip(self, parser))]
+    #[instrument(err, fields(domain = self.domain.name()), skip(self, parser))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_logs_in_block<T>(
         &self,
@@ -266,7 +275,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
         // than indexing latency, so we do them sequentially.
         let block = self.get_block(block_number).await?;
-        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain.name(), "Getting logs in block with hash");
         let block_results = self
             .rpc_client
             .call(|provider| {
@@ -296,8 +305,11 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         let block = self.get_block(block_number).await?;
         let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
-        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in transaction: block info");
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain.name(), "Getting logs in transaction: block info");
 
         Ok(self.handle_tx(tx, block_hash, parser).collect())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -6,7 +6,7 @@ use cosmrs::crypto::PublicKey;
 use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
-use hyperlane_core::rpc_clients::FallbackProvider;
+
 use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -17,12 +17,18 @@ use time::OffsetDateTime;
 use tracing::{error, warn};
 
 use crypto::decompress_public_key;
+
+use hyperlane_core::rpc_clients::FallbackProvider;
 use hyperlane_core::{
     bytes_to_h512, h512_to_bytes, utils::to_atto, AccountAddressType, BlockInfo,
     ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
     H512, U256,
 };
+use hyperlane_metric::prometheus_metric::{
+    ClientConnectionType, NodeInfo, PrometheusClientMetrics, PrometheusConfig,
+};
+use hyperlane_metric::utils::url_to_host_info;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::providers::cosmos::provider::parse::PacketData;
@@ -51,8 +57,10 @@ impl CosmosProvider {
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
-        locator: ContractLocator,
+        locator: &ContractLocator,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
         let grpc_provider = WasmGrpcProvider::new(
@@ -61,12 +69,18 @@ impl CosmosProvider {
             gas_price.clone(),
             locator,
             signer,
+            metrics.clone(),
+            chain.clone(),
         )?;
 
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(CosmosRpcClient::new)
+            .map(|url| {
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
+                CosmosRpcClient::from_url(url, metrics.clone(), metrics_config)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let provider = CosmosFallbackProvider::new(
             FallbackProvider::builder().add_providers(providers).build(),
@@ -156,8 +170,8 @@ impl CosmosProvider {
                             value: pk.value,
                         };
 
-                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        let proto: proto::cosmos::crypto::secp256k1::PubKey =
+                            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
 
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
@@ -250,9 +264,9 @@ impl CosmosProvider {
             let msg = "could not find contract execution message";
             HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
-        let proto =
-            ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
-        let msg = MsgExecuteContract::try_from(proto)?;
+        let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
+            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
+        let msg = MsgExecuteContract::try_from(proto).map_err(Box::new)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
         Ok(contract)
@@ -272,7 +286,7 @@ impl CosmosProvider {
                 HyperlaneCosmosError::ParsingFailed(msg.to_owned())
             })?;
 
-        let account_id = AccountId::from_str(&packet_data.receiver)?;
+        let account_id = AccountId::from_str(&packet_data.receiver).map_err(Box::new)?;
         let address = H256::try_from(CosmosAccountId::new(&account_id))?;
 
         Ok(address)
@@ -354,21 +368,8 @@ impl CosmosProvider {
 
         Ok(fee / gas_limit)
     }
-}
 
-impl HyperlaneChain for CosmosProvider {
-    fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
-    }
-
-    fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(self.clone())
-    }
-}
-
-#[async_trait]
-impl HyperlaneProvider for CosmosProvider {
-    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+    async fn block_info_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self
             .rpc_client
             .call(|provider| Box::pin(async move { provider.get_block(height as u32).await }))
@@ -392,7 +393,24 @@ impl HyperlaneProvider for CosmosProvider {
             timestamp: time.unix_timestamp() as u64,
             number: block_height,
         };
+        Ok(block_info)
+    }
+}
 
+impl HyperlaneChain for CosmosProvider {
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(self.clone())
+    }
+}
+
+#[async_trait]
+impl HyperlaneProvider for CosmosProvider {
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block_info = self.block_info_by_height(height).await?;
         Ok(block_info)
     }
 
@@ -459,6 +477,12 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+        let height = self.grpc_provider.latest_block_height().await?;
+        let latest_block = self.block_info_by_height(height).await?;
+        let chain_info = ChainInfo {
+            latest_block,
+            min_gas_price: None,
+        };
+        Ok(Some(chain_info))
     }
 }

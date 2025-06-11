@@ -169,7 +169,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
 }
 
 export function writeYamlAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'yaml');
+  const content = stringifyObject(obj, 'yaml', 2);
   writeToFile(filepath, content);
 }
 
@@ -288,10 +288,6 @@ export function isEthereumProtocolChain(chainName: ChainName) {
 
 export function getInfraPath() {
   return join(dirname(fileURLToPath(import.meta.url)), '../../');
-}
-
-export function inCIMode() {
-  return process.env.CI === 'true';
 }
 
 // Filter out chains that are not supported by the multiProvider

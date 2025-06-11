@@ -8,30 +8,26 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { log } from '../../../logger.js';
+import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
   extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import {
-  isFile,
-  readYamlOrJson,
-  runFileSelectionStep,
-} from '../../../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
+import { getWarpConfigs } from '../../../utils/warp.js';
+import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
-  WARP_READ,
+  WARP_APPLY,
   STRATEGY,
   CORE_APPLY,
+  CORE_DEPLOY,
   DEFAULT,
 }
 
@@ -48,14 +44,16 @@ export class MultiChainResolver implements ChainResolver {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
-      case ChainSelectionMode.WARP_READ:
-        return this.resolveWarpCoreConfigChains(argv);
+      case ChainSelectionMode.WARP_APPLY:
+        return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
         return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
+      case ChainSelectionMode.CORE_DEPLOY:
+        return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
       default:
         return this.resolveRelayerChains(argv);
@@ -65,33 +63,40 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveWarpRouteConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
-    argv.context.chains = await this.getWarpRouteConfigChains(
-      argv.config.trim(),
-      argv.skipConfirmation,
+    const warpDeployConfig = await getWarpRouteDeployConfig({
+      context: argv.context,
+      warpRouteDeployConfigPath: argv.config,
+      warpRouteId: argv.warpRouteId,
+      symbol: argv.symbol,
+    });
+    argv.context.warpDeployConfig = warpDeployConfig;
+    argv.context.chains = Object.keys(warpDeployConfig);
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
     );
     return argv.context.chains;
   }
 
-  private async resolveWarpCoreConfigChains(
+  private async resolveWarpApplyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    if (argv.symbol || argv.warp) {
-      const warpCoreConfig = await getWarpCoreConfigOrExit({
-        context: argv.context,
-        warp: argv.warp,
-        symbol: argv.symbol,
-      });
-      argv.context.warpCoreConfig = warpCoreConfig;
-      const chains = extractChainsFromObj(warpCoreConfig);
-      return chains;
-    } else if (argv.chain) {
-      return [argv.chain];
-    } else {
-      throw new Error(
-        `Please specify either a symbol, chain and address or warp file`,
-      );
-    }
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      symbol: argv.symbol,
+      warpDeployConfigPath: argv.config,
+      warpCoreConfigPath: argv.warp,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    argv.context.warpDeployConfig = warpDeployConfig;
+    argv.context.chains = Object.keys(warpDeployConfig);
+
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
+    );
+    return argv.context.chains;
   }
 
   private async resolveAgentChains(
@@ -128,58 +133,33 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const { multiProvider } = argv.context;
-    const chains = [];
+    const chains = new Set<ChainName>();
 
     if (argv.origin) {
-      chains.push(argv.origin);
+      chains.add(argv.origin);
     }
 
-    if (argv.destination) {
-      chains.push(argv.destination);
+    if (argv.chain) {
+      chains.add(argv.chain);
     }
 
-    if (!argv.chains) {
-      return Array.from(
-        new Set([...chains, ...this.getEvmChains(multiProvider)]),
-      );
+    if (argv.chains) {
+      const additionalChains = argv.chains
+        .split(',')
+        .map((item: string) => item.trim());
+      return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    return Array.from(
-      new Set([
-        ...chains,
-        ...argv.chains.split(',').map((item: string) => item.trim()),
-      ]),
-    );
-  }
-
-  private async getWarpRouteConfigChains(
-    configPath: string,
-    skipConfirmation: boolean,
-  ): Promise<ChainName[]> {
-    if (!configPath || !isFile(configPath)) {
-      assert(!skipConfirmation, 'Warp route deployment config is required');
-      configPath = await runFileSelectionStep(
-        './configs',
-        'Warp route deployment config',
-        'warp',
-      );
-    } else {
-      log(`Using warp route deployment config at ${configPath}`);
+    // If no destination is specified, return all EVM and Cosmos Native chains
+    if (!argv.destination) {
+      return [
+        ...this.getEvmChains(multiProvider),
+        ...this.getCosmosNativeChains(multiProvider),
+      ];
     }
 
-    // Alternative to readWarpRouteDeployConfig that doesn't use context for signer and zod validation
-    const warpRouteConfig = (await readYamlOrJson(configPath)) as Record<
-      string,
-      any
-    >;
-
-    const chains = Object.keys(warpRouteConfig) as ChainName[];
-    assert(
-      chains.length !== 0,
-      'No chains found in warp route deployment config',
-    );
-
-    return chains;
+    chains.add(argv.destination);
+    return Array.from(chains);
   }
 
   private async resolveCoreApplyChains(
@@ -199,19 +179,68 @@ export class MultiChainResolver implements ChainResolver {
         addresses,
       ) as DeployedCoreAddresses;
 
-      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
-        chain: argv.chain,
-        config,
-        addresses: coreAddresses,
-      });
+      const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
-      const transactions = await evmCoreModule.update(config);
+      switch (protocolType) {
+        case ProtocolType.Ethereum: {
+          const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+            chain: argv.chain,
+            config,
+            addresses: coreAddresses,
+          });
 
-      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-        (chainId) => argv.context.multiProvider.getChainName(chainId),
-      );
+          const transactions = await evmCoreModule.update(config);
+
+          return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+            (chainId) => argv.context.multiProvider.getChainName(chainId),
+          );
+        }
+        case ProtocolType.CosmosNative: {
+          return [argv.chain];
+        }
+        default: {
+          throw new Error(`Protocol type ${protocolType} not supported`);
+        }
+      }
     } catch (error) {
       throw new Error(`Failed to resolve core apply chains`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async resolveCoreDeployChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const { chainMetadata, dryRunChain, registry, skipConfirmation } =
+        argv.context;
+
+      let chain: string;
+
+      if (argv.chain) {
+        chain = argv.chain;
+      } else if (dryRunChain) {
+        chain = dryRunChain;
+      } else {
+        if (skipConfirmation) throw new Error('No chain provided');
+        chain = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to connect:',
+        );
+      }
+      if (!skipConfirmation) {
+        argv.context.apiKeys = await requestAndSaveApiKeys(
+          [chain],
+          chainMetadata,
+          registry,
+        );
+      }
+
+      argv.chain = chain;
+      return [chain];
+    } catch (error) {
+      throw new Error(`Failed to resolve core deploy chains`, {
         cause: error,
       });
     }
@@ -222,6 +251,14 @@ export class MultiChainResolver implements ChainResolver {
 
     return chains.filter(
       (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+  }
+
+  private getCosmosNativeChains(multiProvider: MultiProvider): ChainName[] {
+    const chains = multiProvider.getKnownChainNames();
+
+    return chains.filter(
+      (chain) => multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
     );
   }
 
@@ -240,13 +277,16 @@ export class MultiChainResolver implements ChainResolver {
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
   }
-
-  static forWarpCoreConfig(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
+  static forWarpApply(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
   }
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static forCoreDeploy(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
   }
 
   static default(): MultiChainResolver {

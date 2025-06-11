@@ -1,0 +1,14 @@
+{
+  "ethereum": {
+    "hex": "0x00000000000000000000000053cce6d10e43d1b3d11872ad22ec2acd8d2537b8",
+    "base58": "1111111111112AiQS3n2KbbCMk79wztk755Lfqs5"
+  },
+  "solanamainnet": {
+    "hex": "0x61605c3783a32809c002f1719041366834e65640f70aa53717c966c271a34241",
+    "base58": "7Z7mZ4d31sfC3mcQYQXUNo6j9snByT2gs5eDkXYmZAyn"
+  },
+  "treasure": {
+    "hex": "0x000000000000000000000000b73e4f558f7d4436d77a18f56e4ee9d01764c641",
+    "base58": "1111111111113Z4vBo5KW5a8tmA37vUtatteAsiQ"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/github-proxy",
   "description": "Github proxy that adds the API key to requests",
-  "version": "7.3.0",
+  "version": "13.2.1",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
@@ -27,8 +27,9 @@
     "@cloudflare/vitest-pool-workers": "^0.4.5",
     "@cloudflare/workers-types": "^4.20240821.1",
     "@faker-js/faker": "^8.4.1",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "chai": "^4.5.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
     "typescript": "5.3.3",
     "vitest": "1.4.0",
     "wrangler": "^3.74.0"

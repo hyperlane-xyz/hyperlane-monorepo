@@ -14,7 +14,7 @@ pub enum HyperlaneSealevelError {
     ParsePubkeyError(#[from] ParsePubkeyError),
     /// ClientError error
     #[error("{0}")]
-    ClientError(#[from] ClientError),
+    ClientError(#[from] Box<ClientError>),
     /// Decoding error
     #[error("{0}")]
     Decoding(#[from] solana_sdk::bs58::decode::Error),
@@ -26,13 +26,13 @@ pub enum HyperlaneSealevelError {
     TooManyTransactions(String),
     /// Unsupported transaction encoding
     #[error("{0:?}")]
-    UnsupportedTransactionEncoding(EncodedTransaction),
+    UnsupportedTransactionEncoding(Box<EncodedTransaction>),
     /// Unsupported message encoding
     #[error("{0:?}")]
-    UnsupportedMessageEncoding(UiMessage),
+    UnsupportedMessageEncoding(Box<UiMessage>),
     /// Unsigned transaction
     #[error("{0}")]
-    UnsignedTransaction(H512),
+    UnsignedTransaction(Box<H512>),
     /// Incorrect transaction
     #[error("received incorrect transaction, expected hash: {0:?}, received hash: {1:?}")]
     IncorrectTransaction(Box<H512>, Box<H512>),
@@ -44,10 +44,10 @@ pub enum HyperlaneSealevelError {
     EmptyComputeUnitsConsumed,
     /// Too many non-native programs
     #[error("transaction contains too many non-native programs, hash: {0:?}")]
-    TooManyNonNativePrograms(H512),
+    TooManyNonNativePrograms(Box<H512>),
     /// No non-native programs
     #[error("transaction contains no non-native programs, hash: {0:?}")]
-    NoNonNativePrograms(H512),
+    NoNonNativePrograms(Box<H512>),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {

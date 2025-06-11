@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 
+import { ModuleType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -49,6 +50,7 @@ export enum AgentSignerKeyType {
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',
+  Starknet = 'starkKey',
 }
 
 export enum AgentSealevelPriorityFeeOracleType {
@@ -234,6 +236,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         break;
 
       case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative:
         if (![AgentSignerKeyType.Cosmos].includes(signerType)) {
           return false;
         }
@@ -250,7 +253,10 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     }
 
     // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
-    if (metadata.protocol === ProtocolType.Cosmos) {
+    if (
+      metadata.protocol === ProtocolType.Cosmos ||
+      metadata.protocol === ProtocolType.CosmosNative
+    ) {
       if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
         return false;
       }
@@ -290,12 +296,6 @@ export const AgentConfigSchema = z.object({
   defaultSigner: AgentSignerSchema.optional().describe(
     'Default signer to use for any chains that have not defined their own.',
   ),
-  defaultRpcConsensusType: z
-    .nativeEnum(RpcConsensusType)
-    .describe(
-      'The default consensus type to use for any chains that have not defined their own.',
-    )
-    .optional(),
   log: z
     .object({
       format: z
@@ -310,8 +310,8 @@ export const AgentConfigSchema = z.object({
     .optional(),
 });
 
-const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
-const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
+const CommaSeparatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
+const CommaSeparatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
 export enum GasPaymentEnforcementPolicyType {
   None = 'none',
@@ -349,13 +349,52 @@ const MetricAppContextSchema = z.object({
   ),
 });
 
+export enum IsmCachePolicy {
+  MessageSpecific = 'messageSpecific',
+  IsmSpecific = 'ismSpecific',
+}
+
+export enum IsmCacheSelectorType {
+  DefaultIsm = 'defaultIsm',
+  AppContext = 'appContext',
+}
+
+const IsmCacheSelector = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(IsmCacheSelectorType.DefaultIsm),
+  }),
+  z.object({
+    type: z.literal(IsmCacheSelectorType.AppContext),
+    context: z.string(),
+  }),
+]);
+
+const IsmCacheConfigSchema = z.object({
+  selector: IsmCacheSelector.describe(
+    'The selector to use for the ISM cache policy',
+  ),
+  moduleTypes: z
+    .array(z.nativeEnum(ModuleType))
+    .describe('The ISM module types to use the cache policy for.'),
+  chains: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'The chains to use the cache policy for. If not specified, all chains will be used.',
+    ),
+  cachePolicy: z
+    .nativeEnum(IsmCachePolicy)
+    .describe('The cache policy to use.'),
+});
+export type IsmCacheConfig = z.infer<typeof IsmCacheConfigSchema>;
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
     .min(1)
     .optional()
     .describe('The path to the relayer database.'),
-  relayChains: CommaSeperatedChainList.describe(
+  relayChains: CommaSeparatedChainList.describe(
     'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
@@ -383,7 +422,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
-  skipTransactionGasLimitFor: CommaSeperatedDomainList.optional().describe(
+  skipTransactionGasLimitFor: CommaSeparatedDomainList.optional().describe(
     'Comma separated List of chain names to skip applying the transaction gas limit to.',
   ),
   allowLocalCheckpointSyncers: z
@@ -398,13 +437,35 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
     ),
+  ismCacheConfigs: z
+    .union([z.array(IsmCacheConfigSchema), z.string().min(1)])
+    .optional()
+    .describe(
+      'The ISM cache configs to be used. If not specified, default caching will be used.',
+    ),
+  allowContractCallCaching: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, allows caching of certain contract calls that can be appropriately cached.',
+    ),
+  txIdIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to enable TX ID based indexing for hook events given indexed messages',
+    ),
+  igpIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe('Whether to enable IGP indexing'),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   db: z.string().min(1).describe('Database connection string'),
-  chainsToScrape: CommaSeperatedChainList.describe(
+  chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
 });
@@ -486,11 +547,18 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
+    // Cosmos Native chains have the correct gRPC URL format in the registry. So only delete the gRPC URL for legacy Cosmos chains.
     if (metadata?.protocol === ProtocolType.Cosmos) {
       // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
       // which is expected by the agents. For now, we intentionally skip this.
       delete metadata.grpcUrls;
+    }
 
+    // Delete transaction overrides for all Cosmos chains.
+    if (
+      metadata?.protocol === ProtocolType.Cosmos ||
+      metadata?.protocol === ProtocolType.CosmosNative
+    ) {
       // The agents expect gasPrice.amount and gasPrice.denom and ignore the transaction overrides.
       // To reduce confusion when looking at the config, we remove the transaction overrides.
       delete metadata.transactionOverrides;
@@ -511,6 +579,5 @@ export function buildAgentConfig(
 
   return {
     chains: chainConfigs,
-    defaultRpcConsensusType: RpcConsensusType.Fallback,
   };
 }

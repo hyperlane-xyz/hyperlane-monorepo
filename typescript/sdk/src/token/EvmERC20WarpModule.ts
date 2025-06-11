@@ -1,4 +1,5 @@
 import { BigNumberish } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
@@ -21,6 +22,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -32,16 +34,22 @@ import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
-import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { RemoteRouters } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
-import { HypTokenRouterConfig, HypTokenRouterConfigSchema } from './types.js';
+import {
+  DerivedTokenRouterConfig,
+  HypTokenRouterConfig,
+  HypTokenRouterConfigSchema,
+  derivedHookAddress,
+  derivedIsmAddress,
+} from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
@@ -62,6 +70,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
@@ -84,7 +93,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  async read(): Promise<HypTokenRouterConfig> {
+  async read(): Promise<DerivedTokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
@@ -139,7 +148,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
   createEnrollRemoteRoutersUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -153,12 +162,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    const routesToEnroll = Array.from(
-      difference(
-        new Set(Object.keys(expectedRemoteRouters)),
-        new Set(Object.keys(actualRemoteRouters)),
-      ),
-    );
+    const routesToEnroll = Object.entries(expectedRemoteRouters)
+      .map(([domain, rawRouter]): [string, RemoteRouters[string]] => [
+        domain,
+        { address: addressToBytes32(rawRouter.address) },
+      ])
+      .filter(([domain, expectedRouter]) => {
+        const actualRouter = actualRemoteRouters[domain];
+        // Enroll if router doesn't exist for domain or has different address
+        return !actualRouter || actualRouter.address !== expectedRouter.address;
+      })
+      .map(([domain]) => domain);
 
     if (routesToEnroll.length === 0) {
       return updateTransactions;
@@ -188,7 +202,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   createUnenrollRemoteRoutersUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -239,7 +253,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
   createSetDestinationGasUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -290,17 +304,18 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
   async createIsmUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (!expectedConfig.interchainSecurityModule) {
+    if (
+      !expectedConfig.interchainSecurityModule ||
+      expectedConfig.interchainSecurityModule === zeroAddress
+    ) {
       return [];
     }
 
-    const actualDeployedIsm = (
-      actualConfig.interchainSecurityModule as DerivedIsmConfig
-    ).address;
+    const actualDeployedIsm = derivedIsmAddress(actualConfig);
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -332,17 +347,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   async createHookUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    if (!expectedConfig.hook) {
+    if (!expectedConfig.hook || expectedConfig.hook === zeroAddress) {
       return [];
     }
 
-    const actualDeployedHook = (actualConfig.hook as DerivedHookConfig)
-      ?.address;
+    const actualDeployedHook = derivedHookAddress(actualConfig);
 
     // Try to deploy or update Hook with the expected config
     const {
@@ -380,7 +394,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
   createOwnershipUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
@@ -398,7 +412,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns Object with deployedIsm address, and update Transactions
    */
   async deployOrUpdateIsm(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
@@ -414,11 +428,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         addresses: {
           ...this.args.addresses,
           mailbox: expectedConfig.mailbox,
-          deployedIsm: (
-            actualConfig.interchainSecurityModule as DerivedIsmConfig
-          ).address,
+          deployedIsm: derivedIsmAddress(actualConfig),
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
     this.logger.info(
@@ -438,15 +451,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns Object with deployedHook address, and update Transactions
    */
   async deployOrUpdateHook(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
     assert(expectedConfig.hook, 'No hook config');
-
-    if (!actualConfig.hook) {
+    if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
       return this.deployNewHook(expectedConfig);
     }
 
@@ -461,16 +473,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       `No hook deployed for warp route, deploying new hook on ${this.args.chain} chain`,
     );
 
-    const {
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticAggregationIsmFactory,
-      staticAggregationHookFactory,
-      domainRoutingIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    } = this.args.addresses;
-
     assert(expectedConfig.hook, 'Hook is undefined');
     assert(
       expectedConfig.proxyAdmin?.address,
@@ -480,15 +482,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const hookModule = await EvmHookModule.create({
       chain: this.args.chain,
       config: expectedConfig.hook,
-      proxyFactoryFactories: {
-        staticMerkleRootMultisigIsmFactory,
-        staticMessageIdMultisigIsmFactory,
-        staticAggregationIsmFactory,
-        staticAggregationHookFactory,
-        domainRoutingIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory,
-      },
+      proxyFactoryFactories: extractIsmAndHookFactoryAddresses(
+        this.args.addresses,
+      ),
       coreAddresses: {
         mailbox: expectedConfig.mailbox,
         proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
@@ -502,21 +498,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   async updateExistingHook(
     expectedConfig: HypTokenRouterConfig,
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
   ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
-    const {
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticAggregationIsmFactory,
-      staticAggregationHookFactory,
-      domainRoutingIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    } = this.args.addresses;
-
     assert(actualConfig.proxyAdmin?.address, 'ProxyAdmin address is undefined');
     assert(actualConfig.hook, 'Hook is undefined');
 
@@ -526,18 +512,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chain: this.args.chain,
         config: actualConfig.hook,
         addresses: {
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-          staticAggregationIsmFactory,
-          staticAggregationHookFactory,
-          domainRoutingIsmFactory,
-          staticMerkleRootWeightedMultisigIsmFactory,
-          staticMessageIdWeightedMultisigIsmFactory,
+          ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
           proxyAdmin: actualConfig.proxyAdmin?.address,
-          deployedHook: (actualConfig.hook as DerivedHookConfig).address,
+          deployedHook: derivedHookAddress(actualConfig),
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
 
@@ -562,6 +543,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
   }): Promise<EvmERC20WarpModule> {
@@ -569,6 +551,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       chain,
       config,
       multiProvider,
+      ccipContractCache,
       contractVerifier,
       proxyFactoryFactories,
     } = params;
@@ -586,6 +569,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 

@@ -1,0 +1,10 @@
+{
+  "trumpchain": {
+    "hex": "0x000000000000000000000000d84981ecd4c411a86e1ccda77f944c8f3d9737ab",
+    "base58": "11111111111141mYwaip4dprGDBXbJZAr5Bs17qL"
+  },
+  "solanamainnet": {
+    "hex": "0x9425c4caefa3e2a616aac1f4f53a05c34107dd2f28ea028702fe2b2c3877d520",
+    "base58": "AyJk3V2SjswRv1ppDazVofXnFgjCTeydNEDSyA2UyVNX"
+  }
+}

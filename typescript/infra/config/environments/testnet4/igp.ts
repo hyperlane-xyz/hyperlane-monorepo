@@ -1,18 +1,17 @@
 import {
   ChainMap,
+  ChainName,
   HookType,
   IgpConfig,
-  getTokenExchangeRateFromValues,
+  StorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
-  EXCHANGE_RATE_MARGIN_PCT,
   getAllStorageGasOracleConfigs,
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
-import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
@@ -22,21 +21,57 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
+const romeTestnetConnectedChains = [
+  'sepolia',
+  'arbitrumsepolia',
+  'basesepolia',
+  'optimismsepolia',
+  'bsctestnet',
+];
+
+export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
+  let overhead = getOverhead(local, remote, ethereumChainNames);
+
+  // Special case for rometestnet due to non-standard gas metering.
+  if (remote === 'rometestnet') {
+    overhead *= 12;
+  }
+
+  return overhead;
+}
+
+function getOracleConfigWithOverrides(origin: ChainName) {
+  let oracleConfig = storageGasOracleConfig[origin];
+
+  // Special case for rometestnet due to non-standard gas metering.
+  if (origin === 'rometestnet') {
+    oracleConfig = objFilter(
+      storageGasOracleConfig[origin],
+      (remoteChain, _): _ is StorageGasOracleConfig =>
+        romeTestnetConnectedChains.includes(remoteChain),
+    );
+  }
+
+  if (origin === 'infinityvmmonza') {
+    // For InfinityVM Monza, override all remote chain gas configs to use 0 gas
+    for (const remoteConfig of Object.values(oracleConfig)) {
+      remoteConfig.gasPrice = '0';
+    }
+  }
+  // Solana Testnet -> InfinityVM Monza, similarly don't charge gas
+  if (origin === 'solanatestnet') {
+    oracleConfig['infinityvmmonza'].gasPrice = '0';
+  }
+  return oracleConfig;
+}
+
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
+    tokenPrices,
     gasPrices,
-    (local, remote) =>
-      getTokenExchangeRateFromValues({
-        local,
-        remote,
-        tokenPrices,
-        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
-        decimals: {
-          local: mustGetChainNativeToken(local).decimals,
-          remote: mustGetChainNativeToken(remote).decimals,
-        },
-      }),
+    (local, remote) => getOverheadWithOverrides(local, remote),
+    false,
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
@@ -47,12 +82,17 @@ export const igp: ChainMap<IgpConfig> = objMap(
       ...ownerConfig,
       oracleKey: ownerConfig.owner as Address,
       beneficiary: ownerConfig.owner as Address,
-      oracleConfig: storageGasOracleConfig[chain],
+      oracleConfig: getOracleConfigWithOverrides(chain),
       overhead: Object.fromEntries(
-        exclude(chain, supportedChainNames).map((remote) => [
-          remote,
-          getOverhead(chain, remote, ethereumChainNames),
-        ]),
+        // no need to set overhead for chain to itself
+        exclude(chain, supportedChainNames)
+          // Special case for rometestnet due to non-standard gas metering.
+          .filter(
+            (remote) =>
+              chain !== 'rometestnet' ||
+              romeTestnetConnectedChains.includes(remote),
+          )
+          .map((remote) => [remote, getOverheadWithOverrides(chain, remote)]),
       ),
     };
   },

@@ -2,20 +2,26 @@ import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
+import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
+import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
   ViemProvider,
+  ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
@@ -109,12 +115,49 @@ export function defaultCosmJsWasmProviderBuilder(
   };
 }
 
+export function defaultCosmJsNativeProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): CosmJsNativeProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  return {
+    type: ProviderType.CosmJsNative,
+    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
+  };
+}
+
+export function defaultStarknetJsProviderBuilder(
+  rpcUrls: RpcUrl[],
+): StarknetJsProvider {
+  const provider = new StarknetRpcProvider({
+    nodeUrl: rpcUrls[0].http,
+  });
+  return { provider, type: ProviderType.Starknet };
+}
+
+export function defaultZKSyncProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: providers.Networkish,
+): ZKSyncProvider {
+  assert(rpcUrls.length, 'No RPC URLs provided');
+  const url = rpcUrls[0].http;
+  const provider = new ZKProvider(url, network);
+  return { type: ProviderType.ZkSync, provider };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
 ): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
+}
+
+export function defaultZKProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): ZKProvider {
+  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 
 export type ProviderBuilderMap = Record<
@@ -128,6 +171,9 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
+  [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
+  [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
+  [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -137,4 +183,6 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
+  [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
+  [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
 };

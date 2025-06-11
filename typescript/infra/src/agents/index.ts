@@ -1,4 +1,3 @@
-import fs from 'fs';
 import { join } from 'path';
 
 import {
@@ -23,6 +22,7 @@ import {
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
+  RelayerDbBootstrapConfig,
   RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
@@ -30,9 +30,12 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
+  createServiceAccountIfNotExists,
+  createServiceAccountKey,
   fetchGCPSecret,
   gcpSecretExistsUsingClient,
   getGcpSecretLatestVersionName,
+  grantServiceAccountStorageRoleIfNotExists,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
 import { HelmManager } from '../utils/helm.js';
@@ -49,10 +52,11 @@ const HELM_CHART_PATH = join(
   '/../../rust/main/helm/hyperlane-agent/',
 );
 
-if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
-  console.warn(
-    `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
-  );
+export interface BatchConfig {
+  maxBatchSize: number;
+  bypassBatchSimulation: boolean;
+  maxSubmitQueueLength?: number;
+}
 
 export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;
@@ -112,12 +116,18 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
               );
           }
 
+          const batchConfig = this.batchConfig(chain);
+
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
-            maxBatchSize: 32,
+            maxBatchSize: batchConfig.maxBatchSize,
+            bypassBatchSimulation: batchConfig.bypassBatchSimulation,
+            ...(batchConfig.maxSubmitQueueLength
+              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              : {}),
             priorityFeeOracle,
             transactionSubmitter,
           };
@@ -141,6 +151,13 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
 
   kubernetesResources(): KubernetesResources | undefined {
     return this.config.agentRoleConfig.resources;
+  }
+
+  batchConfig(_: ChainName): BatchConfig {
+    return {
+      maxBatchSize: 32,
+      bypassBatchSimulation: false,
+    };
   }
 }
 
@@ -191,6 +208,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       addressBlacklist: config.addressBlacklist,
       metricAppContexts: config.metricAppContexts,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
+      ismCacheConfigs: config.ismCacheConfigs,
     };
     const envConfig = objOmitKeys<RelayerConfig>(
       config,
@@ -203,6 +221,15 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       envConfig,
       configMapConfig,
       resources: this.kubernetesResources(),
+      dbBootstrap: await this.dbBootstrapConfig(
+        this.config.relayerConfig.dbBootstrap,
+      ),
+      mixing: this.config.relayerConfig.mixing ?? { enabled: false },
+      // Enable by default in our infra
+      environmentVariableEndpointEnabled:
+        this.config.relayerConfig.environmentVariableEndpointEnabled ?? true,
+      cacheDefaultExpirationSeconds:
+        this.config.relayerConfig.cache?.defaultExpirationSeconds,
     };
 
     const signers = await this.config.signers();
@@ -224,7 +251,80 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       effect: 'NoSchedule',
     });
 
+    if (this.context.includes('vanguard')) {
+      values.tolerations.push({
+        key: 'context-family',
+        operator: 'Equal',
+        value: 'vanguard',
+        effect: 'NoSchedule',
+      });
+    }
+
     return values;
+  }
+
+  batchConfig(chain: ChainName): BatchConfig {
+    const defaultBatchConfig = super.batchConfig(chain);
+
+    let maxBatchSize =
+      this.config.relayerConfig.batch?.defaultBatchSize ??
+      defaultBatchConfig.maxBatchSize;
+    const chainBatchSizeOverride =
+      this.config.relayerConfig.batch?.batchSizeOverrides?.[chain];
+    if (chainBatchSizeOverride) {
+      maxBatchSize = chainBatchSizeOverride;
+    }
+
+    return {
+      maxBatchSize,
+      bypassBatchSimulation:
+        this.config.relayerConfig.batch?.bypassBatchSimulation ??
+        defaultBatchConfig.bypassBatchSimulation,
+      maxSubmitQueueLength:
+        this.config.relayerConfig.batch?.maxSubmitQueueLength?.[chain],
+    };
+  }
+
+  async dbBootstrapConfig(
+    enabled: boolean = false,
+  ): Promise<RelayerDbBootstrapConfig | undefined> {
+    if (!enabled) {
+      return undefined;
+    }
+
+    await this.ensureDbBootstrapGcpServiceAccount('relayer-db-backups');
+
+    return {
+      enabled: true,
+      bucket: 'relayer-db-backups',
+      object_targz: `${this.environment}-latest.tar.gz`,
+    };
+  }
+
+  async ensureDbBootstrapGcpServiceAccount(bucket: string) {
+    const secretName = this.dbBootstrapServiceAccountKeySecretName();
+
+    if (await gcpSecretExistsUsingClient(secretName)) {
+      // The secret already exists, no need to create it again
+      return;
+    }
+
+    const STORAGE_OBJECT_VIEWER_ROLE = 'roles/storage.objectViewer';
+
+    const serviceAccountEmail = await createServiceAccountIfNotExists(
+      `${this.environment}-db-bootstrap-reader`,
+    );
+    await grantServiceAccountStorageRoleIfNotExists(
+      serviceAccountEmail,
+      bucket,
+      STORAGE_OBJECT_VIEWER_ROLE,
+    );
+    const key = await createServiceAccountKey(serviceAccountEmail);
+    await setGCPSecretUsingClient(secretName, JSON.stringify(key));
+  }
+
+  dbBootstrapServiceAccountKeySecretName(): string {
+    return `${this.environment}-relayer-db-bootstrap-viewer-key`;
   }
 }
 
@@ -272,6 +372,12 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
+
+    // Only care about the origin chain for the helm values. This
+    // prevents getting secret endpoints for all chains in the environment.
+    helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
+      (chain) => chain.name === cfg.originChainName,
+    );
 
     helmValues.hyperlane.validator = {
       enabled: true,

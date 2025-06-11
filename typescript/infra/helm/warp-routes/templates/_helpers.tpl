@@ -68,12 +68,14 @@ The warp-routes container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
-   - name: LOG_FORMAT
-     value: json
-  command:
+  - name: LOG_FORMAT
+    value: json
+  - name: REGISTRY_COMMIT
+    value: {{ .Values.hyperlane.registryCommit }}
+  args:
   - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
-  - -v 
+  - -v
   - "30000"
   - --warpRouteId
   - {{ .Values.warpRouteId }}

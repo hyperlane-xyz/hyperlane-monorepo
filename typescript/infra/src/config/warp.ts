@@ -1,8 +1,7 @@
 import { ChainMap, OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 // Common collateral tokens to be used by warp route deployments.
-export const tokens: ChainMap<Record<string, Address>> = {
+export const tokens: ChainMap<Record<string, string>> = {
   ethereum: {
     amphrETH: '0x5fD13359Ba15A84B76f7F87568309040176167cd',
     apxETH: '0x9ba021b0a9b958b5e75ce9f6dff97c7ee52cb3e6',
@@ -14,6 +13,12 @@ export const tokens: ChainMap<Record<string, Address>> = {
     weETHs: '0x917cee801a67f933f2e6b33fc0cd1ed2d5909d88',
     pumpBTCsei: '0xe9ebd666954B7F0B5B044704c86B126651f6235d',
     Re7LRT: '0x84631c0d0081FDe56DeB72F6DE77abBbF6A9f93a',
+    PNDR: '0x73624d2dEF952C77a1f3B5AD995eef53E49639EC',
+    rstETH: '0x7a4EffD87C2f3C55CA251080b1343b605f327E3a',
+    WSTETH: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
+    ES: '0x6055Dc6Ff1077eebe5e6D2BA1a1f53d7Ef8430dE',
+    FORM: '0xE7deE4823EE18F1347F1Cf7997f70B94eFDe2E1F',
+    Turtle: '0x2BE3be1D8A556954320c2252dF4f891F64699d50',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
@@ -21,6 +26,10 @@ export const tokens: ChainMap<Record<string, Address>> = {
   base: {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    AIXBT: '0x4F9Fd6Be4a90f2620860d680c0d4d5Fb53d1A825',
+    GAME: '0x1C4CcA7C5DB003824208aDDA61Bd749e55F463a3',
+    WETH: '0x4200000000000000000000000000000000000006',
+    TONY: '0xb22a793a81ff5b6ad37f40d5fe1e0ac4184d52f3',
   },
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
@@ -32,6 +41,8 @@ export const tokens: ChainMap<Record<string, Address>> = {
   bsc: {
     USDT: '0x55d398326f99059fF775485246999027B3197955',
     WETH: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8',
+    enzoBTC: '0x6A9A65B84843F5fD4aC9a0471C4fc11AFfFBce4a',
+    stBTC: '0xf6718b2701d4a6498ef77d7c152b2137ab28b8a3',
   },
   mantle: {
     USDT: '0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',
@@ -50,12 +61,22 @@ export const tokens: ChainMap<Record<string, Address>> = {
   },
   optimism: {
     USDC: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    OP: '0x4200000000000000000000000000000000000042',
   },
   gnosis: {
     WETH: '0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1',
   },
   zeronetwork: {
     USDC: '0x6a6394F47DD0BAF794808F2749C09bd4Ee874E70',
+  },
+  mint: {
+    MINT: '0x8511138208529fe1b9a37b863c7EEE3Fe234b7Ab',
+  },
+  ink: {
+    USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
+  },
+  solanamainnet: {
+    USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   },
 };
 

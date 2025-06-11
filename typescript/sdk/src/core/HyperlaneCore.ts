@@ -31,8 +31,11 @@ import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
 } from '../contracts/types.js';
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { DerivedHookConfig } from '../hook/types.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { DerivedIsmConfig } from '../ism/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
@@ -252,6 +255,13 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   async estimateHandle(message: DispatchedMessage): Promise<string> {
+    // This estimation is not possible on zksync as it is overriding transaction.from
+    // transaction.from must be a signer on zksync
+    if (
+      this.multiProvider.getChainMetadata(this.getDestination(message))
+        .technicalStack === ChainTechnicalStack.ZkSync
+    )
+      return '0';
     return (
       await this.getRecipient(message).estimateGas.handle(
         message.parsed.origin,

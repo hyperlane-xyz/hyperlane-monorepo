@@ -12,6 +12,8 @@ pub mod settings;
 mod agent;
 pub use agent::*;
 
+/// The local cache used by agents
+pub mod cache;
 /// The local database used by agents
 pub mod db;
 
@@ -22,7 +24,6 @@ pub use metrics::*;
 
 /// Hyperlane server utils
 pub mod server;
-pub use server::*;
 
 mod contract_sync;
 pub use contract_sync::*;

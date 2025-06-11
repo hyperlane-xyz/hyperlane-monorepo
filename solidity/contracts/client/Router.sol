@@ -145,7 +145,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
-     * @notice Assert that the given domain has a Application Router registered and return its address
+     * @notice Assert that the given domain has an Application Router registered and return its address
      * @param _domain The domain of the chain for which to get the Application Router
      * @return _router The address of the remote Application Router on _domain
      */

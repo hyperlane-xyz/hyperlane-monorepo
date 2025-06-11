@@ -32,10 +32,15 @@ import { HookConfig } from '../hook/types.js';
 import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
+import {
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
   UpgradeConfig,
@@ -46,6 +51,7 @@ import {
   proxyImplementation,
 } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
+import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
 import {
   ContractVerificationInput,
   ExplorerLicenseType,
@@ -53,6 +59,7 @@ import {
 import {
   buildVerificationInput,
   getContractVerificationInput,
+  getContractVerificationInputForZKSync,
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
@@ -78,6 +85,8 @@ export abstract class HyperlaneDeployer<
   protected logger: Logger;
   chainTimeoutMs: number;
 
+  private zkSyncContractVerifier: ZKSyncContractVerifier;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
@@ -101,6 +110,8 @@ export abstract class HyperlaneDeployer<
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
+
+    this.zkSyncContractVerifier = new ZKSyncContractVerifier(multiProvider);
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -112,7 +123,12 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    return this.options.contractVerifier?.verifyContract(chain, input, logger);
+    const explorerFamily = this.multiProvider.tryGetExplorerApi(chain)?.family;
+    const verifier =
+      explorerFamily === ExplorerFamily.ZkSync
+        ? this.zkSyncContractVerifier
+        : this.options.contractVerifier;
+    return verifier?.verifyContract(chain, input, logger);
   }
 
   abstract deployContracts(
@@ -139,9 +155,8 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-        chain,
-      );
+      const signerUrl =
+        await this.multiProvider.tryGetExplorerAddressUrl(chain);
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
@@ -291,10 +306,13 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-        await this.multiProvider.sendTransaction(
-          chain,
-          setIsm(contract, targetIsm),
-        );
+        const populatedTx = await setIsm(contract, targetIsm);
+        const estimatedGas = await this.multiProvider
+          .getSigner(chain)
+          .estimateGas(populatedTx);
+        populatedTx.gasLimit = addBufferToGasLimit(estimatedGas);
+        await this.multiProvider.sendTransaction(chain, populatedTx);
+
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -396,10 +414,17 @@ export abstract class HyperlaneDeployer<
         ', ',
       )})...`,
     );
+
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZkSync;
+    const signer = this.multiProvider.getSigner(chain);
+    const artifact = await getZKSyncArtifactByContractName(contractName);
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {
@@ -417,17 +442,20 @@ export abstract class HyperlaneDeployer<
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
 
-        // Estimate gas for the initialize transaction
-        const estimatedGas = await contract.estimateGas.initialize(
-          ...initializeArgs,
-        );
-
-        // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+        // Estimate gas for the initialize transaction
+        const estimatedGas = await contract
+          .connect(signer)
+          .estimateGas.initialize(...initializeArgs);
+
         const initTx = await contract.initialize(...initializeArgs, {
           gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         });
+        this.logger.info(
+          `Initializing contract ${contractName} on chain ${chain}...`,
+        );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
@@ -435,20 +463,34 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    const verificationInput = getContractVerificationInput({
-      name: contractName,
-      contract,
-      bytecode: factory.bytecode,
-      expectedimplementation: implementationAddress,
-    });
+    let verificationInput: ContractVerificationInput;
+    if (isZKSyncChain) {
+      if (!artifact) {
+        throw new Error(
+          `No ZkSync artifact found for contract: ${contractName}`,
+        );
+      }
+      verificationInput = await getContractVerificationInputForZKSync({
+        name: contractName,
+        contract,
+        constructorArgs: constructorArgs,
+        artifact: artifact,
+        expectedimplementation: implementationAddress,
+      });
+    } else {
+      verificationInput = getContractVerificationInput({
+        name: contractName,
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: implementationAddress,
+      });
+    }
+
     this.addVerificationArtifacts(chain, [verificationInput]);
 
     // try verifying contract
     try {
-      await this.options.contractVerifier?.verifyContract(
-        chain,
-        verificationInput,
-      );
+      await this.verifyContract(chain, verificationInput);
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
@@ -619,6 +661,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
+    const TimelockZkArtifact =
+      await getZKSyncArtifactByContractName('TimelockController');
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
@@ -629,6 +673,7 @@ export abstract class HyperlaneDeployer<
         [timelockConfig.roles.executor],
         ethers.constants.AddressZero,
       ],
+      TimelockZkArtifact,
     );
   }
 
@@ -775,16 +820,18 @@ export abstract class HyperlaneDeployer<
           { contractName, current, desiredOwner: owner },
           'Current owner and config owner do not match',
         );
-        const receipt = await this.runIfOwner(chain, ownable, () => {
+        const receipt = await this.runIfOwner(chain, ownable, async () => {
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
+          const estimatedGas =
+            await ownable.estimateGas.transferOwnership(owner);
           return this.multiProvider.handleTx(
             chain,
-            ownable.transferOwnership(
-              owner,
-              this.multiProvider.getTransactionOverrides(chain),
-            ),
+            ownable.transferOwnership(owner, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...this.multiProvider.getTransactionOverrides(chain),
+            }),
           );
         });
         if (receipt) receipts.push(receipt);

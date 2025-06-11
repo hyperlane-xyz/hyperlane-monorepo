@@ -1,124 +1,31 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { formatUnits } from 'ethers/lib/utils.js';
 import yargs from 'yargs';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { LogFormat, LogLevel, configureRootLogger } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { safes } from '../../config/environments/mainnet3/owners.js';
+import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
-import { executeTx, getSafeAndService } from '../../src/utils/safe.js';
+import {
+  SafeTxStatus,
+  executeTx,
+  getPendingTxsForChains,
+} from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-export enum SafeTxStatus {
-  NO_CONFIRMATIONS = '🔴',
-  PENDING = '🟡',
-  ONE_AWAY = '🔵',
-  READY_TO_EXECUTE = '🟢',
-}
-
-type SafeStatus = {
-  chain: string;
-  nonce: number;
-  submissionDate: string;
-  shortTxHash: string;
-  fullTxHash: string;
-  confs: number;
-  threshold: number;
-  status: string;
-  balance: string;
-};
-
-export async function getPendingTxsForChains(
-  chains: string[],
-  multiProvider: MultiProvider,
-): Promise<SafeStatus[]> {
-  const txs: SafeStatus[] = [];
-  await Promise.all(
-    chains.map(async (chain) => {
-      if (!safes[chain]) {
-        console.error(chalk.red.bold(`No safe found for ${chain}`));
-        return;
-      }
-
-      if (chain === 'endurance') {
-        console.info(
-          chalk.gray.italic(
-            `Skipping chain ${chain} as it does not have a functional safe API`,
-          ),
-        );
-        return;
-      }
-
-      let safeSdk, safeService;
-      try {
-        ({ safeSdk, safeService } = await getSafeAndService(
-          chain,
-          multiProvider,
-          safes[chain],
-        ));
-      } catch (error) {
-        console.warn(
-          chalk.yellow(
-            `Skipping chain ${chain} as there was an error getting the safe service: ${error}`,
-          ),
-        );
-        return;
-      }
-
-      const threshold = await safeSdk.getThreshold();
-      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
-      if (pendingTxs.results.length === 0) {
-        return;
-      }
-
-      const balance = await safeSdk.getBalance();
-      const nativeToken = await multiProvider.getNativeToken(chain);
-      const formattedBalance = formatUnits(balance, nativeToken.decimals);
-
-      pendingTxs.results.forEach(
-        ({ nonce, submissionDate, safeTxHash, confirmations }) => {
-          const confs = confirmations?.length ?? 0;
-          const status =
-            confs >= threshold
-              ? SafeTxStatus.READY_TO_EXECUTE
-              : confs === 0
-              ? SafeTxStatus.NO_CONFIRMATIONS
-              : threshold - confs
-              ? SafeTxStatus.ONE_AWAY
-              : SafeTxStatus.PENDING;
-
-          txs.push({
-            chain,
-            nonce,
-            submissionDate: new Date(submissionDate).toDateString(),
-            shortTxHash: `${safeTxHash.slice(0, 6)}...${safeTxHash.slice(-4)}`,
-            fullTxHash: safeTxHash,
-            confs,
-            threshold,
-            status,
-            balance: `${Number(formattedBalance).toFixed(5)} ${
-              nativeToken.symbol
-            }`,
-          });
-        },
-      );
-    }),
-  );
-  return txs.sort(
-    (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
-  );
-}
-
 async function main() {
-  const safeChains = Object.keys(safes);
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { chains, fullTxHash } = await withChains(
-    yargs(process.argv.slice(2)),
-    safeChains,
+
+  const { chains, fullTxHash, governanceType } = await withGovernanceType(
+    withChains(yargs(process.argv.slice(2))),
   )
     .describe(
       'fullTxHash',
@@ -127,9 +34,12 @@ async function main() {
     .boolean('fullTxHash')
     .default('fullTxHash', false).argv;
 
+  const safes = getGovernanceSafes(governanceType);
+  const safeChains = Object.keys(safes);
+
   const chainsToCheck = chains || safeChains;
   if (chainsToCheck.length === 0) {
-    console.error('No chains provided');
+    rootLogger.error('No chains provided');
     process.exit(1);
   }
 
@@ -141,11 +51,16 @@ async function main() {
     chainsToCheck,
   );
 
-  const pendingTxs = await getPendingTxsForChains(chainsToCheck, multiProvider);
+  const pendingTxs = await getPendingTxsForChains(
+    chainsToCheck,
+    multiProvider,
+    safes,
+  );
   if (pendingTxs.length === 0) {
-    console.info(chalk.green('No pending transactions found!'));
+    rootLogger.info(chalk.green('No pending transactions found!'));
     process.exit(0);
   }
+  // eslint-disable-next-line no-console
   console.table(pendingTxs, [
     'chain',
     'nonce',
@@ -161,7 +76,7 @@ async function main() {
     (tx) => tx.status === SafeTxStatus.READY_TO_EXECUTE,
   );
   if (executableTxs.length === 0) {
-    console.info(chalk.green('No transactions to execute!'));
+    rootLogger.info(chalk.green('No transactions to execute!'));
     process.exit(0);
   }
 
@@ -171,7 +86,7 @@ async function main() {
   });
 
   if (!shouldExecute) {
-    console.info(
+    rootLogger.info(
       chalk.blue(
         `${executableTxs.length} transactions available for execution`,
       ),
@@ -179,7 +94,7 @@ async function main() {
     process.exit(0);
   }
 
-  console.info(chalk.blueBright('Executing transactions...'));
+  rootLogger.info(chalk.blueBright('Executing transactions...'));
 
   for (const tx of executableTxs) {
     const confirmExecuteTx = await confirm({
@@ -187,7 +102,7 @@ async function main() {
       default: false,
     });
     if (confirmExecuteTx) {
-      console.log(
+      rootLogger.info(
         `Executing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
       );
       try {
@@ -198,7 +113,7 @@ async function main() {
           tx.fullTxHash,
         );
       } catch (error) {
-        console.error(chalk.red(`Error executing transaction: ${error}`));
+        rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
         return;
       }
     }
@@ -210,6 +125,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    rootLogger.error(e);
     process.exit(1);
   });

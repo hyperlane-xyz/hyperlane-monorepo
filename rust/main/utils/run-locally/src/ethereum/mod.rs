@@ -10,15 +10,19 @@ use crate::config::Config;
 use crate::ethereum::multicall::{DEPLOYER_ADDRESS, SIGNED_DEPLOY_MULTICALL_TX};
 use crate::logging::log;
 use crate::program::Program;
-use crate::utils::{as_task, AgentHandles, TaskHandle};
-use crate::{INFRA_PATH, MONOREPO_ROOT_PATH};
+use crate::utils::{as_task, get_ts_infra_path, get_workspace_path, AgentHandles, TaskHandle};
 
 mod multicall;
+pub mod termination_invariants;
 
 #[apply(as_task)]
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Installing typescript dependencies...");
-    let yarn_monorepo = Program::new("yarn").working_dir(MONOREPO_ROOT_PATH);
+
+    let workspace_path = get_workspace_path();
+    let ts_infra_path = get_ts_infra_path();
+
+    let yarn_monorepo = Program::new("yarn").working_dir(workspace_path);
     if !config.is_ci_env {
         // test.yaml workflow installs dependencies
         yarn_monorepo.clone().cmd("install").run().join();
@@ -42,7 +46,7 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
 
     sleep(Duration::from_secs(10));
 
-    let yarn_infra = Program::new("yarn").working_dir(INFRA_PATH);
+    let yarn_infra = Program::new("yarn").working_dir(&ts_infra_path);
 
     log!("Deploying hyperlane ism contracts...");
     yarn_infra.clone().cmd("deploy-ism").run().join();

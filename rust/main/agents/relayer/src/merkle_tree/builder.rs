@@ -38,6 +38,12 @@ impl Display for MerkleTreeBuilder {
     }
 }
 
+impl Default for MerkleTreeBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// MerkleTreeBuilder errors
 #[derive(Debug, thiserror::Error)]
 pub enum MerkleTreeBuilderError {
@@ -85,7 +91,7 @@ impl MerkleTreeBuilder {
         self.prover.count() as u32
     }
 
-    pub async fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
+    pub fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
         const CTX: &str = "When ingesting message id";
         debug!(?message_id, "Ingesting leaf");
         self.prover.ingest(message_id).expect("tree full");

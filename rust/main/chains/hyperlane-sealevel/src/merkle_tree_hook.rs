@@ -2,13 +2,14 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use derive_new::new;
+use tracing::instrument;
+
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, HyperlaneChain,
+    HyperlaneMessage, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
-use tracing::instrument;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
 
@@ -16,32 +17,70 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         assert!(
             reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
+        self.get_tree().await
+    }
+
+    #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        assert!(
+            reorg_period.is_none(),
+            "Sealevel does not support querying point-in-time"
+        );
+
+        self.get_latest_checkpoint().await
+    }
+
+    /// Returns the latest checkpoint at the given block height.
+    /// Sealevel does not support querying point-in-time, so this will always return
+    /// the latest checkpoint regardless of the block height.
+    #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
+        self.get_latest_checkpoint().await
+    }
+
+    #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let tree = self.tree(reorg_period).await?;
+
+        tree.count()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)
+    }
+}
+
+impl SealevelMailbox {
+    async fn get_tree(&self) -> ChainResult<IncrementalMerkleAtBlock> {
         let outbox_account = self
-            .rpc()
-            .get_account_with_finalized_commitment(&self.outbox.0)
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment(self.outbox.0)
             .await?;
         let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        Ok(outbox.tree)
+        let incremental = IncrementalMerkleAtBlock {
+            tree: outbox.tree,
+            block_height: None,
+        };
+
+        Ok(incremental)
     }
 
-    #[instrument(err, ret, skip(self))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        assert!(
-            reorg_period.is_none(),
-            "Sealevel does not support querying point-in-time"
-        );
-
-        let tree = self.tree(reorg_period).await?;
+    async fn get_latest_checkpoint(&self) -> ChainResult<CheckpointAtBlock> {
+        let tree = self.get_tree().await?;
 
         let root = tree.root();
         let count: u32 = tree
@@ -59,17 +98,11 @@ impl MerkleTreeHook for SealevelMailbox {
             root,
             index,
         };
-        Ok(checkpoint)
-    }
 
-    #[instrument(err, ret, skip(self))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let tree = self.tree(reorg_period).await?;
-
-        tree.count()
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: None,
+        })
     }
 }
 

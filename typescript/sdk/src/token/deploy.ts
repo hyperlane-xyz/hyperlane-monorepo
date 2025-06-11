@@ -7,7 +7,13 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objKeys,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -16,6 +22,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
@@ -28,14 +35,15 @@ import {
 } from './contracts.js';
 import {
   HypTokenRouterConfig,
-  TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
 } from './types.js';
 
 abstract class TokenDeployer<
@@ -47,7 +55,7 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
+    concurrentDeploy = true,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
@@ -61,18 +69,21 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
-    if (isCollateralTokenConfig(config)) {
-      return [config.token, config.mailbox];
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
+    const scale = config.scale ?? 1;
+
+    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+      return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+      return [scale, config.mailbox];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, config.mailbox];
+      return [config.decimals, scale, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, config.mailbox, collateralDomain];
+      return [config.decimals, scale, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -89,10 +100,19 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (isCollateralTokenConfig(config) || isNativeTokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isNativeTokenConfig(config)
+    ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.initialSupply ?? 0,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {
@@ -103,26 +123,40 @@ abstract class TokenDeployer<
   static async deriveTokenMetadata(
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
-  ): Promise<TokenMetadata | undefined> {
-    // this is used for synthetic token metadata and should always be 0
-    const DERIVED_TOKEN_SUPPLY = 0;
+  ): Promise<TokenMetadataMap> {
+    const metadataMap = new TokenMetadataMap();
 
-    for (const [chain, config] of Object.entries(configMap)) {
+    const priorityGetter = (type: string) => {
+      return ['collateral', 'native'].indexOf(type);
+    };
+
+    const sortedEntries = Object.entries(configMap).sort(
+      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
+    );
+
+    for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
-        return TokenMetadataSchema.parse(config);
+        metadataMap.set(chain, TokenMetadataSchema.parse(config));
+      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        // If the config didn't specify the token metadata, we can only now
+        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
+        continue;
       }
 
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return TokenMetadataSchema.parse({
-            totalSupply: DERIVED_TOKEN_SUPPLY,
-            ...nativeToken,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
+          continue;
         }
       }
 
-      if (isCollateralTokenConfig(config)) {
+      if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {
@@ -134,11 +168,14 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          return TokenMetadataSchema.parse({
-            name,
-            symbol,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
+          continue;
         }
 
         let token: string;
@@ -167,22 +204,25 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        return TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-          totalSupply: DERIVED_TOKEN_SUPPLY,
-        });
+        metadataMap.set(
+          chain,
+          TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+          }),
+        );
       }
     }
 
-    return undefined;
+    metadataMap.finalize();
+    return metadataMap;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
-    let tokenMetadata: TokenMetadata | undefined;
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
+    let tokenMetadataMap: TokenMetadataMap;
     try {
-      tokenMetadata = await TokenDeployer.deriveTokenMetadata(
+      tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
         this.multiProvider,
         configMap,
       );
@@ -191,8 +231,13 @@ abstract class TokenDeployer<
       throw err;
     }
 
-    const resolvedConfigMap = objMap(configMap, (_, config) => ({
-      ...tokenMetadata,
+    const resolvedConfigMap = objMap(configMap, (chain, config) => ({
+      name: tokenMetadataMap.getName(chain),
+      decimals: tokenMetadataMap.getDecimals(chain),
+      symbol:
+        tokenMetadataMap.getSymbol(chain) ||
+        tokenMetadataMap.getDefaultSymbol(),
+      scale: tokenMetadataMap.getScale(chain),
       gas: gasOverhead(config.type),
       ...config,
     }));
@@ -205,7 +250,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
+    concurrentDeploy = true,
   ) {
     super(
       multiProvider,

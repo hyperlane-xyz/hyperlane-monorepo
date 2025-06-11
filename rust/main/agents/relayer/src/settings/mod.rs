@@ -22,7 +22,10 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::settings::matching_list::MatchingList;
+use crate::{
+    msg::{metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES},
+    settings::matching_list::MatchingList,
+};
 
 pub mod matching_list;
 
@@ -33,7 +36,7 @@ pub struct RelayerSettings {
     #[as_mut]
     #[deref]
     #[deref_mut]
-    base: Settings,
+    pub base: Settings,
 
     /// Database path
     pub db: PathBuf,
@@ -61,6 +64,16 @@ pub struct RelayerSettings {
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
+    /// Whether to allow contract call caching at all.
+    pub allow_contract_call_caching: bool,
+    /// The ISM cache policies to use
+    pub ism_cache_configs: Vec<IsmCacheConfig>,
+    /// Maximum number of retries per operation
+    pub max_retries: u32,
+    /// Whether to enable indexing of hook events given tx ids from indexed messages.
+    pub tx_id_indexing_enabled: bool,
+    /// Whether to enable IGP indexing.
+    pub igp_indexing_enabled: bool,
 }
 
 /// Config for gas payment enforcement
@@ -77,12 +90,19 @@ pub struct GasPaymentEnforcementConf {
 #[derive(Debug, Clone, Default)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
+    /// and regardless of whether a payment for the message was processed by the specified IGP.
     #[default]
     None,
-    /// Messages that have paid a minimum amount will be processed
+    /// `Minimum` requires a payment to exist on the IGP specified in the config,
+    /// even if the payment is zero. For example, a policy of Minimum { payment: 0 }
+    /// will only relay messages that send a zero payment to the IGP specified in the config.
+    /// This is different from not requiring message senders to make any payment at all to
+    /// the configured IGP to get relayed. To relay regardless of the existence of a payment,
+    /// the `None` IGP policy should be used.
     Minimum { payment: U256 },
     /// The required amount of gas on the foreign chain has been paid according
-    /// to on-chain fee quoting.
+    /// to on-chain fee quoting. OnChainFeeQuoting requires a payment to exist
+    /// on the IGP specified in the config.
     OnChainFeeQuoting {
         gas_fraction_numerator: u64,
         gas_fraction_denominator: u64,
@@ -100,6 +120,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -116,6 +137,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
@@ -125,16 +147,50 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_str("Expected database path")
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = p
-            .get_opt_key("gasPaymentEnforcement")
-            .take_config_err_flat(&mut err)
-            .and_then(parse_json_array)
-            .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
+        // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
+        let (
+            raw_gas_payment_enforcement_path,
+            raw_gas_payment_enforcement,
+            is_gas_payment_enforcement_set,
+        ) = {
+            match p.get_opt_key("gasPaymentEnforcement") {
+                Ok(Some(parser)) => match parse_json_array(parser) {
+                    Some((path, value)) => (path, value, true),
+                    None => (
+                        &p.cwp + "gas_payment_enforcement",
+                        Value::Array(vec![]),
+                        true,
+                    ),
+                },
+                Ok(None) => (
+                    &p.cwp + "gas_payment_enforcement",
+                    Value::Array(vec![]),
+                    false,
+                ),
+                Err(_) => (
+                    &p.cwp + "gas_payment_enforcement",
+                    Value::Array(vec![]),
+                    false,
+                ),
+            }
+        };
 
         let gas_payment_enforcement_parser = ValueParser::new(
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
+
+        if is_gas_payment_enforcement_set
+            && gas_payment_enforcement_parser
+                .val
+                .as_array()
+                .unwrap()
+                .is_empty()
+        {
+            Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
+                .take_err(&mut err, || cwp + "gas_payment_enforcement");
+        }
+
         let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
             itr.filter_map(|policy| {
                 let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
@@ -242,7 +298,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .filter_map(|chain| {
                 base.lookup_domain(chain)
                     .context("Missing configuration for a chain in `relayChains`")
-                    .into_config_result(|| cwp + "relayChains")
+                    .into_config_result(|| cwp + "relay_chains")
                     .take_config_err(&mut err)
             })
             .collect();
@@ -273,6 +329,36 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
+        let allow_contract_call_caching = p
+            .chain(&mut err)
+            .get_opt_key("allowLocalCheckpointSyncers")
+            .parse_bool()
+            .unwrap_or(true);
+
+        let ism_cache_configs = p
+            .chain(&mut err)
+            .get_opt_key("ismCacheConfigs")
+            .and_then(parse_ism_cache_configs)
+            .unwrap_or_default();
+
+        let max_message_retries = p
+            .chain(&mut err)
+            .get_opt_key("maxMessageRetries")
+            .parse_u32()
+            .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
+
+        let tx_id_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("txIdIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
+
+        let igp_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("igpIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -286,6 +372,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
             metric_app_contexts,
+            allow_contract_call_caching,
+            ism_cache_configs,
+            max_retries: max_message_retries,
+            tx_id_indexing_enabled,
+            igp_indexing_enabled,
         })
     }
 }
@@ -320,6 +411,22 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
     let p = ValueParser::new(p.cwp.clone(), &raw_list);
     let ml = p
         .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
+}
+
+fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(Default::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<Vec<IsmCacheConfig>>("Expected ISM cache configs")
         .take_config_err(&mut err)
         .unwrap_or_default();
 
@@ -373,5 +480,35 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
+    }
+
+    #[test]
+    fn test_parse_ism_cache_configs() {
+        let raw = r#"
+        [
+            {
+                "selector": {
+                    "type": "defaultIsm"
+                },
+                "moduletypes": [2],
+                "chains": ["foochain"],
+                "cachepolicy": "ismSpecific"
+            },
+            {
+                "selector": {
+                    "type": "appContext",
+                    "context": "foo"
+                },
+                "moduletypes": [2],
+                "chains": ["foochain"],
+                "cachepolicy": "ismSpecific"
+            }
+        ]
+        "#;
+
+        let value = serde_json::from_str::<Value>(raw).unwrap();
+        let p = ValueParser::new(ConfigPath::default(), &value);
+        let configs = parse_ism_cache_configs(p).unwrap();
+        assert_eq!(configs.len(), 2);
     }
 }

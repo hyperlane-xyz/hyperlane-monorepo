@@ -1,5 +1,391 @@
 # @hyperlane-xyz/widgets
 
+## 13.2.1
+
+### Patch Changes
+
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/sdk@13.2.1
+  - @hyperlane-xyz/cosmos-sdk@13.2.1
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+
+### Patch Changes
+
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+  - @hyperlane-xyz/sdk@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/sdk@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Patch Changes
+
+- Updated dependencies [6e86efa]
+- Updated dependencies [c42ea09]
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/sdk@13.1.0
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
+## 13.0.0
+
+### Patch Changes
+
+- 1a7222b: Compress Starknet logo
+- Updated dependencies [72b90f8]
+- Updated dependencies [bc58283]
+- Updated dependencies [0de63e0]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/sdk@13.0.0
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+
+## 12.6.0
+
+### Minor Changes
+
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [2ae0f72]
+- Updated dependencies [672d6d1]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [6a70b8d]
+- Updated dependencies [d182d7d]
+- Updated dependencies [248d2e1]
+- Updated dependencies [e2a4727]
+- Updated dependencies [b360802]
+- Updated dependencies [f6ed6ad]
+- Updated dependencies [31ee1c6]
+- Updated dependencies [a36d5c1]
+  - @hyperlane-xyz/cosmos-sdk@12.6.0
+  - @hyperlane-xyz/sdk@12.6.0
+  - @hyperlane-xyz/utils@12.6.0
+
+## 12.5.0
+
+### Patch Changes
+
+- Updated dependencies [c8ace88]
+  - @hyperlane-xyz/sdk@12.5.0
+  - @hyperlane-xyz/cosmos-sdk@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+
+## 12.4.0
+
+### Patch Changes
+
+- Updated dependencies [d2babb7]
+  - @hyperlane-xyz/sdk@12.4.0
+  - @hyperlane-xyz/cosmos-sdk@12.4.0
+  - @hyperlane-xyz/utils@12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 2edb767f2: improve how cosmos addresses are displayed
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
+## 12.2.0
+
+### Patch Changes
+
+- Updated dependencies [c7934f711]
+- Updated dependencies [ecbacbdf2]
+  - @hyperlane-xyz/sdk@12.2.0
+  - @hyperlane-xyz/utils@12.2.0
+
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- 7b0e2fed6: Add BinanceLogo to WalletLogo component
+
+### Patch Changes
+
+- 86685505f: Revert bundler module resolution and update starknetkit imports
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Minor Changes
+
+- 3e66e8f12: Utils for fetching Starknet chains
+
+### Patch Changes
+
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
+## 9.1.0
+
+### Patch Changes
+
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Patch Changes
+
+- Updated dependencies [05f89650b]
+- Updated dependencies [d121c1cb8]
+- Updated dependencies [3518f8901]
+- Updated dependencies [d6ddf5b9e]
+- Updated dependencies [766f50695]
+- Updated dependencies [e78060d73]
+- Updated dependencies [cb7c157f0]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [1955579cf]
+- Updated dependencies [57137dad4]
+- Updated dependencies [3518f8901]
+- Updated dependencies [500249649]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [cb93c13a4]
+- Updated dependencies [456407dc7]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/utils@8.9.0
+  - @hyperlane-xyz/sdk@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- c68529807: Update registry dependency.
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
+## 8.8.0
+
+### Minor Changes
+
+- ae8f7c642: Allow chains to be disabled in ChainSearchMenu
+
+### Patch Changes
+
+- Updated dependencies [719d022ec]
+- Updated dependencies [c61546cb7]
+  - @hyperlane-xyz/sdk@8.8.0
+  - @hyperlane-xyz/utils@8.8.0
+
+## 8.7.0
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@8.6.1
+- @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Patch Changes
+
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 25df8a35f: Refresh Icon and Tooltip class Name
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Patch Changes
+
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- a2b5efbf9: Hide outline in button and text input components
+- e3f5a0a37: Allow empty data field in ethers5TxToWagmiTx
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Patch Changes

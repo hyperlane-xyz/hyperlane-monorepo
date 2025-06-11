@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    time::Duration,
 };
 
 use convert_case::{Case, Casing};
@@ -19,7 +20,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod,
+    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
@@ -41,11 +42,21 @@ const DEFAULT_CHUNK_SIZE: u32 = 1999;
 #[serde(transparent)]
 pub struct RawAgentConf(Value);
 
+fn agent_name_to_default_rpc_consensus_type(agent_name: &str) -> String {
+    match agent_name {
+        "validator" => "quorum".to_string(),
+        "relayer" => "fallback".to_string(),
+        "scraper" => "fallback".to_string(),
+        _ => "fallback".to_string(),
+    }
+}
+
 impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
         raw: RawAgentConf,
         cwp: &ConfigPath,
         filter: Option<&HashSet<&str>>,
+        agent_name: &str,
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 
@@ -90,16 +101,12 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .and_then(parse_signer)
             .end();
 
-        let default_rpc_consensus_type = p
-            .chain(&mut err)
-            .get_opt_key("defaultRpcConsensusType")
-            .parse_string()
-            .unwrap_or("fallback");
+        let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
         let chains: HashMap<String, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name, default_rpc_consensus_type)
+                parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
@@ -133,6 +140,21 @@ fn parse_chain(
         .get_opt_key("signer")
         .and_then(parse_signer)
         .end();
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .unwrap_or_default();
+
+    // measured in seconds (with fractions)
+    let estimated_block_time = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_key("estimateBlockTime")
+        .parse_value("Invalid estimateBlockTime")
+        .map(Duration::from_secs_f64)
+        .unwrap_or(Duration::from_secs(1));
 
     let reorg_period = chain
         .chain(&mut err)
@@ -204,6 +226,24 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
+    let bypass_batch_simulation = chain
+        .chain(&mut err)
+        .get_opt_key("bypassBatchSimulation")
+        .parse_bool()
+        .unwrap_or(false);
+
+    let max_submit_queue_length = chain
+        .chain(&mut err)
+        .get_opt_key("maxSubmitQueueLength")
+        .parse_u32()
+        .end();
+
+    let ignore_reorg_reports = chain
+        .chain(&mut err)
+        .get_opt_key("ignoreReorgReports")
+        .parse_bool()
+        .unwrap_or(false);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -211,9 +251,11 @@ fn parse_chain(
         &chain,
         &mut err,
         default_rpc_consensus_type,
-        OperationBatchConfig {
+        OpSubmissionConfig {
             batch_contract_address,
             max_batch_size,
+            bypass_batch_simulation,
+            max_submit_queue_length,
         },
     );
 
@@ -221,6 +263,8 @@ fn parse_chain(
     err.into_result(ChainConf {
         domain,
         signer,
+        submitter,
+        estimated_block_time,
         reorg_period,
         addresses: CoreContractAddresses {
             mailbox,
@@ -235,6 +279,7 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        ignore_reorg_reports,
     })
 }
 
@@ -346,12 +391,35 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (starkKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let address = signer
+                .chain(&mut err)
+                .get_opt_key("address")
+                .parse_address_hash()
+                .unwrap_or_default();
+            let is_legacy = signer
+                .chain(&mut err)
+                .get_opt_key("legacy")
+                .parse_bool()
+                .unwrap_or(false);
+            err.into_result(SignerConf::StarkKey {
+                key,
+                address,
+                is_legacy,
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("starkKey") => parse_signer!(starkKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }
@@ -371,6 +439,7 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         raw: RawAgentSignerConf,
         cwp: &ConfigPath,
         _filter: (),
+        _agent_name: &str,
     ) -> ConfigResult<Self> {
         parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
@@ -468,11 +537,11 @@ fn parse_base_and_override_urls(
 
     if combined.is_empty() {
         err.push(
-            &chain.cwp + base_key,
+            &chain.cwp + base_key.to_ascii_lowercase(),
             eyre!("Missing base {} definitions for chain", base_key),
         );
         err.push(
-            &chain.cwp + "custom_rpc_urls",
+            &chain.cwp + override_key.to_lowercase(),
             eyre!("Also missing {} overrides for chain", base_key),
         );
     }

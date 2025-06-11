@@ -21,6 +21,8 @@ export enum TokenStandard {
   EvmHypSyntheticRebase = 'EvmHypSyntheticRebase',
   EvmHypXERC20 = 'EvmHypXERC20',
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
+  EvmHypVSXERC20 = 'EvmHypVSXERC20',
+  EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -43,6 +45,15 @@ export enum TokenStandard {
   CwHypNative = 'CwHypNative',
   CwHypCollateral = 'CwHypCollateral',
   CwHypSynthetic = 'CwHypSynthetic',
+
+  // Cosmos Native
+  CosmNativeHypCollateral = 'CosmosNativeHypCollateral',
+  CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
+
+  //Starknet
+  StarknetHypNative = 'StarknetHypNative',
+  StarknetHypCollateral = 'StarknetHypCollateral',
+  StarknetHypSynthetic = 'StarknetHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -60,6 +71,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypSyntheticRebase: ProtocolType.Ethereum,
   EvmHypXERC20: ProtocolType.Ethereum,
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
+  EvmHypVSXERC20: ProtocolType.Ethereum,
+  EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -75,6 +88,10 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CosmosNative: ProtocolType.Cosmos,
   CosmosIbc: ProtocolType.Cosmos,
 
+  // Cosmos Native
+  CosmosNativeHypCollateral: ProtocolType.CosmosNative,
+  CosmosNativeHypSynthetic: ProtocolType.CosmosNative,
+
   // CosmWasm
   CW20: ProtocolType.Cosmos,
   CWNative: ProtocolType.Cosmos,
@@ -82,13 +99,24 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CwHypNative: ProtocolType.Cosmos,
   CwHypCollateral: ProtocolType.Cosmos,
   CwHypSynthetic: ProtocolType.Cosmos,
+
+  // Starknet
+  StarknetHypCollateral: ProtocolType.Starknet,
+  StarknetHypNative: ProtocolType.Starknet,
+  StarknetHypSynthetic: ProtocolType.Starknet,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
   TokenStandard,
   ProviderType
 > = objMap(TOKEN_STANDARD_TO_PROTOCOL, (k, v) => {
-  if (k.startsWith('Cosmos')) return ProviderType.CosmJs;
+  if (k.startsWith('CosmosNative')) {
+    return ProviderType.CosmJsNative;
+  }
+  if (k.startsWith('Cosmos')) {
+    return ProviderType.CosmJs;
+  }
+
   return PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[v];
 });
 
@@ -106,14 +134,24 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.SealevelHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypNative,
+  TokenStandard.CosmNativeHypCollateral,
+  TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20Lockbox,
 ];
 
 export const XERC20_STANDARDS = [
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20,
+  TokenStandard.EvmHypVSXERC20Lockbox,
 ];
 
-export const MINT_LIMITED_STANDARDS = [...XERC20_STANDARDS];
+export const MINT_LIMITED_STANDARDS = [
+  TokenStandard.EvmHypXERC20,
+  TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20,
+  TokenStandard.EvmHypVSXERC20Lockbox,
+];
 
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
@@ -125,12 +163,19 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypSyntheticRebase,
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20,
+  TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
+  TokenStandard.CosmNativeHypCollateral,
+  TokenStandard.CosmNativeHypSynthetic,
+  TokenStandard.StarknetHypNative,
+  TokenStandard.StarknetHypCollateral,
+  TokenStandard.StarknetHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -158,17 +203,36 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.collateralVault]: TokenStandard.EvmHypOwnerCollateral,
   [TokenType.collateralVaultRebase]: TokenStandard.EvmHypRebaseCollateral,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
-  [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
-  [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+};
+
+// Starknet supported token types
+export const STARKNET_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.native,
+  TokenType.synthetic,
+] as const;
+
+type StarknetSupportedTokenTypes =
+  (typeof STARKNET_SUPPORTED_TOKEN_TYPES)[number];
+
+export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
+  StarknetSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.StarknetHypCollateral,
+  [TokenType.native]: TokenStandard.StarknetHypNative,
+  [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
     [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
+    [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
+    [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
   };

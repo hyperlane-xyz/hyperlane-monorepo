@@ -8,7 +8,12 @@ use std::{
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::Instruction;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{
+    account_utils::StateMut,
+    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+};
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -17,7 +22,7 @@ use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, Overhead
 use crate::{
     adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids, warp_route, Context, CoreProgramIds,
 };
 
@@ -118,6 +123,7 @@ pub struct ChainMetadata {
     name: String,
     /// Collection of RPC endpoints
     rpc_urls: Vec<RpcUrlConfig>,
+    pub is_testnet: Option<bool>,
 }
 
 impl ChainMetadata {
@@ -183,17 +189,12 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                 })
             })
             .unwrap_or_else(|| {
-                let (keypair, keypair_path) = create_and_write_keypair(
-                    key_dir,
-                    format!("{}-{}.json", program_name, chain_config.name).as_str(),
-                    true,
-                );
-                let program_id = keypair.pubkey();
+                let chain_program_name = format!("{}-{}", program_name, chain_config.name);
 
-                deploy_program_idempotent(
+                let program_id = deploy_program(
                     ctx.payer_keypair_path(),
-                    &keypair,
-                    keypair_path.to_str().unwrap(),
+                    key_dir,
+                    &chain_program_name,
                     built_so_dir
                         .join(format!("{}.so", program_name))
                         .to_str()
@@ -218,6 +219,16 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         );
 
         program_id
+    }
+
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, Config>,
+        _app_configs_to_deploy: &HashMap<&String, &Config>,
+        _chain_configs: &HashMap<String, ChainMetadata>,
+    ) {
+        // By default, do nothing.
     }
 
     fn init_program_idempotent(
@@ -363,6 +374,11 @@ pub(crate) fn deploy_routers<
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
 
+    // Verify the configuration.
+    println!("Verifying configuration...");
+    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_configs);
+    println!("Configuration successfully verified!");
+
     warp_route::install_spl_token_cli();
 
     // Now we deploy to chains that don't have a foreign deployment
@@ -370,12 +386,6 @@ pub(crate) fn deploy_routers<
         let chain_config = chain_configs
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
-
-        if let Some(configured_owner) = app_config.router_config().ownable.owner {
-            if configured_owner != ctx.payer_pubkey {
-                println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
-            }
-        }
 
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
@@ -412,6 +422,8 @@ pub(crate) fn deploy_routers<
             app_config.router_config(),
             chain_config,
         );
+
+        configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_config);
     }
 
     // Now enroll all the routers.
@@ -465,23 +477,34 @@ fn configure_connection_client(
     let actual_ism = deployer.get_interchain_security_module(&client, program_id);
     let expected_ism = router_config.connection_client.interchain_security_module();
 
+    let owner = deployer.get_owner(&client, program_id);
+
     if actual_ism != expected_ism {
-        ctx.new_txn()
-            .add_with_description(
-                deployer.set_interchain_security_module_instruction(
-                    &client,
-                    program_id,
-                    expected_ism,
-                ),
-                format!(
-                    "Setting ISM for chain: {} ({}) to {:?}",
-                    chain_config.name,
-                    chain_config.domain_id(),
-                    expected_ism
-                ),
-            )
-            .with_client(&client)
-            .send_with_payer();
+        if let Some(owner) = owner {
+            ctx.new_txn()
+                .add_with_description(
+                    deployer.set_interchain_security_module_instruction(
+                        &client,
+                        program_id,
+                        expected_ism,
+                    ),
+                    format!(
+                        "Setting ISM for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_ism
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&owner);
+        } else {
+            println!(
+                "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
+                chain_config.name,
+                chain_config.domain_id(),
+                expected_ism
+            );
+        }
     }
 
     let actual_igp = deployer.get_interchain_gas_paymaster(&client, program_id);
@@ -496,18 +519,25 @@ fn configure_connection_client(
             expected_igp.clone(),
         );
         if let Some(instruction) = instruction {
-            ctx.new_txn()
-                .add_with_description(
-                    instruction,
-                    format!(
-                        "Setting IGP for chain: {} ({}) to {:?}",
-                        chain_config.name,
-                        chain_config.domain_id(),
-                        expected_igp
-                    ),
-                )
-                .with_client(&client)
-                .send_with_payer();
+            if let Some(owner) = owner {
+                ctx.new_txn()
+                    .add_with_description(
+                        instruction,
+                        format!(
+                            "Setting IGP for chain: {} ({}) to {:?}",
+                            chain_config.name,
+                            chain_config.domain_id(),
+                            expected_igp
+                        ),
+                    )
+                    .with_client(&client)
+                    .send_with_pubkey_signer(&owner);
+            } else {
+                println!(
+                    "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
+                    chain_config.name, chain_config.domain_id(), expected_igp
+                );
+            }
         } else {
             println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_config.name, chain_config.domain_id());
         }
@@ -529,19 +559,131 @@ fn configure_owner(
     let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
 
     if actual_owner != expected_owner {
-        ctx.new_txn()
-            .add_with_description(
-                deployer.set_owner_instruction(&client, program_id, expected_owner),
-                format!(
-                    "Setting owner for chain: {} ({}) to {:?}",
-                    chain_config.name,
-                    chain_config.domain_id(),
-                    expected_owner,
-                ),
-            )
-            .with_client(&client)
-            .send_with_payer();
+        if let Some(actual_owner) = actual_owner {
+            ctx.new_txn()
+                .add_with_description(
+                    deployer.set_owner_instruction(&client, program_id, expected_owner),
+                    format!(
+                        "Setting owner for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_owner,
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&actual_owner);
+        } else {
+            // Flag if we can't change the owner
+            println!(
+                "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is None",
+                chain_config.name,
+                chain_config.domain_id(),
+                actual_owner,
+                expected_owner,
+            );
+            return;
+        }
+
+        // Sanity check that it was updated!
+
+        // Sleep 5 seconds for the owner to update
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let new_owner = deployer.get_owner(&client, program_id);
+        assert_eq!(new_owner, expected_owner);
     }
+}
+
+/// Idempotent. Attempts to set the upgrade authority to the intended owner if
+/// the payer can change the upgrade authority.
+fn configure_upgrade_authority(
+    ctx: &mut Context,
+    program_id: &Pubkey,
+    router_config: &RouterConfig,
+    chain_config: &ChainMetadata,
+) {
+    let client = chain_config.client();
+
+    let actual_upgrade_authority = get_program_upgrade_authority(&client, program_id).unwrap();
+    let expected_upgrade_authority = Some(router_config.ownable.owner(ctx.payer_pubkey));
+
+    // And the upgrade authority is not what we expect...
+    if actual_upgrade_authority.is_some() && actual_upgrade_authority != expected_upgrade_authority
+    {
+        if let Some(actual_upgrade_authority) = actual_upgrade_authority {
+            // Then set the upgrade authority to what we expect.
+            ctx.new_txn()
+                .add_with_description(
+                    bpf_loader_upgradeable::set_upgrade_authority(
+                        program_id,
+                        &actual_upgrade_authority,
+                        expected_upgrade_authority.as_ref(),
+                    ),
+                    format!(
+                        "Setting upgrade authority for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_upgrade_authority,
+                    ),
+                )
+                .with_client(&client)
+                .send_with_pubkey_signer(&actual_upgrade_authority);
+        } else {
+            // Flag if we can't change the upgrade authority
+            println!(
+                "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is None",
+                chain_config.name,
+                chain_config.domain_id(),
+                actual_upgrade_authority,
+                expected_upgrade_authority,
+            );
+            return;
+        }
+
+        // Sanity check that it was updated!
+
+        // Sleep 5 seconds for the upgrade authority to update
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let new_upgrade_authority = get_program_upgrade_authority(&client, program_id).unwrap();
+        assert_eq!(new_upgrade_authority, expected_upgrade_authority);
+    }
+}
+
+fn get_program_upgrade_authority(
+    client: &RpcClient,
+    program_id: &Pubkey,
+) -> Result<Option<Pubkey>, &'static str> {
+    let program_account = client.get_account(program_id).unwrap();
+    // If the program isn't upgradeable, exit
+    if program_account.owner != bpf_loader_upgradeable::id() {
+        return Err("Program is not upgradeable");
+    }
+
+    // The program id must actually be a program
+    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
+        programdata_address,
+    }) = program_account.state()
+    {
+        programdata_address
+    } else {
+        return Err("Unable to deserialize program account");
+    };
+
+    let program_data_account = client.get_account(&programdata_address).unwrap();
+
+    // If the program data account somehow isn't deserializable, exit
+    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
+        upgrade_authority_address,
+        slot: _,
+    }) = program_data_account.state()
+    {
+        upgrade_authority_address
+    } else {
+        return Err("Unable to deserialize program data account");
+    };
+
+    Ok(actual_upgrade_authority)
 }
 
 /// For each chain in app_configs_to_deploy, enrolls all the remote routers.
@@ -557,10 +699,10 @@ fn enroll_all_remote_routers<
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
-
         let chain_config = chain_configs
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
+        let client = chain_config.client();
 
         let domain_id = chain_config.domain_id();
         let program_id: Pubkey =
@@ -604,20 +746,31 @@ fn enroll_all_remote_routers<
             .collect::<Vec<RemoteRouterConfig>>();
 
         if !router_configs.is_empty() {
-            ctx.new_txn()
-                .add_with_description(
-                    deployer.enroll_remote_routers_instruction(
-                        program_id,
-                        ctx.payer_pubkey,
-                        router_configs.clone(),
-                    ),
-                    format!(
-                        "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
-                        chain_name, program_id, router_configs,
-                    ),
-                )
-                .with_client(&chain_config.client())
-                .send_with_payer();
+            adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+
+            let owner = deployer.get_owner(&client, &program_id);
+
+            if let Some(owner) = owner {
+                ctx.new_txn()
+                    .add_with_description(
+                        deployer.enroll_remote_routers_instruction(
+                            program_id,
+                            owner,
+                            router_configs.clone(),
+                        ),
+                        format!(
+                            "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
+                            chain_name, program_id, router_configs,
+                        ),
+                    )
+                    .with_client(&chain_config.client())
+                    .send_with_pubkey_signer(&owner);
+            } else {
+                println!(
+                    "WARNING: Cannot enroll routers for chain: {} ({}) with program_id {}, the existing owner is None",
+                    chain_name, domain_id, program_id
+                );
+            }
         } else {
             println!(
                 "No router changes for chain: {}, program_id {}",

@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "sonickAJFiVLcYXx25X9vpF293udaWqDMUCiGtk7dg2",
+    "owner": "9hixEzn9pBzYG1MVWNq3jAuG7RP3vBT5ijN4UFWDVsfD"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Sonic Restaked SOL",
+    "symbol": "sonicSOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f3462afc9c4f4bb58903608a6890489b29eb5078/deployments/warp_routes/sonicSOL/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "G8v8LHQw2pWuJiQbbPRHehsNEneMkCzRHz7vSPP2ttiZ"
+  }
+}

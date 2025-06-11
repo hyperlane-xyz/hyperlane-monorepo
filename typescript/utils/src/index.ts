@@ -5,10 +5,12 @@ export {
   addressToBytesCosmos,
   addressToBytesEvm,
   addressToBytesSol,
+  addressToBytesStarknet,
   bytes32ToAddress,
   bytesToAddressCosmos,
   bytesToAddressEvm,
   bytesToAddressSol,
+  bytesToAddressStarknet,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -17,32 +19,40 @@ export {
   eqAddressCosmos,
   eqAddressEvm,
   eqAddressSol,
+  eqAddressStarknet,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
+  isCosmosIbcDenomAddress,
   isAddressEvm,
   isAddressSealevel,
+  isAddressStarknet,
   isValidAddress,
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
+  isValidAddressStarknet,
   isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
+  isValidTransactionHashStarknet,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
+  normalizeAddressStarknet,
   padBytesToLength,
   shortenAddress,
   strip0x,
+  ZERO_ADDRESS_HEX_32,
 } from './addresses.js';
 export {
   addBufferToGasLimit,
   convertDecimals,
+  convertDecimalsToIntegerString,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -78,7 +88,7 @@ export {
   isS3CheckpointWithId,
 } from './checkpoints.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar } from './env.js';
+export { safelyAccessEnvVar, inCIMode } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -111,6 +121,7 @@ export {
   deepEquals,
   deepFind,
   diffObjMerge,
+  keepOnlyDiffObjects,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
@@ -126,6 +137,9 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
+  transformObj,
+  TransformObjectTransformer,
+  sortArraysInObject,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {

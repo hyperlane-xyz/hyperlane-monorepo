@@ -13,11 +13,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -29,8 +28,7 @@ export const WarpSendLogs = {
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
-  origin,
-  destination,
+  chains,
   amount,
   recipient,
   timeoutSec,
@@ -39,51 +37,41 @@ export async function sendTestTransfer({
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
-  origin?: ChainName; // resolved in signerMiddleware
-  destination?: ChainName; // resolved in signerMiddleware
+  chains: ChainName[];
   amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { chainMetadata } = context;
-
-  if (!origin) {
-    origin = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the origin chain',
-    );
-  }
-
-  if (!destination) {
-    destination = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the destination chain',
-    );
-  }
-
   await runPreflightChecksForChains({
     context,
-    chains: [origin, destination],
-    chainsToGasCheck: [origin],
+    chains,
     minGas: MINIMUM_TEST_SEND_GAS,
   });
 
-  await timeout(
-    executeDelivery({
-      context,
-      origin,
-      destination,
-      warpCoreConfig,
-      amount,
-      recipient,
-      skipWaitForDelivery,
-      selfRelay,
-    }),
-    timeoutSec * 1000,
-    'Timed out waiting for messages to be delivered',
-  );
+  for (let i = 0; i < chains.length; i++) {
+    const origin = chains[i];
+    const destination = chains[i + 1];
+
+    if (destination) {
+      logBlue(`Sending a message from ${origin} to ${destination}`);
+      await timeout(
+        executeDelivery({
+          context,
+          origin,
+          destination,
+          warpCoreConfig,
+          amount,
+          recipient,
+          skipWaitForDelivery,
+          selfRelay,
+        }),
+        timeoutSec * 1000,
+        'Timed out waiting for messages to be delivered',
+      );
+    }
+  }
 }
 
 async function executeDelivery({
@@ -118,9 +106,6 @@ async function executeDelivery({
   const chainAddresses = await registry.getAddresses();
 
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-
-  const provider = multiProvider.getProvider(origin);
-  const connectedSigner = signer.connect(provider);
 
   const warpCore = WarpCore.FromConfig(
     MultiProtocolProvider.fromMultiProvider(multiProvider),
@@ -162,7 +147,7 @@ async function executeDelivery({
   const txReceipts = [];
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5) {
-      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+      const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     }
@@ -178,6 +163,7 @@ async function executeDelivery({
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
+  logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
   log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
@@ -194,5 +180,5 @@ async function executeDelivery({
 
   // Max wait 10 minutes
   await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
-  logGreen(`Transfer sent to destination chain!`);
+  logGreen(`Transfer sent to ${destination} chain!`);
 }

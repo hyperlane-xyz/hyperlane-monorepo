@@ -8,6 +8,7 @@ use std::{
     marker::PhantomData,
 };
 
+use derive_new::new;
 use hyperlane_core::{
     config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, QueueOperation, H256,
 };
@@ -25,10 +26,10 @@ use serde::{
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
 #[derive(Debug, Default, Clone)]
-pub struct MatchingList(Option<Vec<ListElement>>);
+pub struct MatchingList(pub Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
-enum Filter<T> {
+pub enum Filter<T> {
     Wildcard,
     Enumerated(Vec<T>),
 }
@@ -222,9 +223,9 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, new)]
 #[serde(tag = "type")]
-struct ListElement {
+pub struct ListElement {
     #[serde(default, rename = "messageid")]
     message_id: Filter<H256>,
     #[serde(default, rename = "origindomain")]

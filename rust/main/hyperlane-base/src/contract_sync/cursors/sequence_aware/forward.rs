@@ -101,17 +101,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         }
     }
 
-    /// Get target sequence or return 0 if request failed
-    pub async fn target_sequence(&self) -> u32 {
-        let (count, _) = self
-            .latest_sequence_querier
-            .latest_sequence_count_and_tip()
-            .await
-            .ok()
-            .unwrap_or((None, 0));
-        count.unwrap_or(0).saturating_sub(1)
-    }
-
     /// Get the last indexed sequence or 0 if no logs have been indexed yet.
     pub fn last_sequence(&self) -> u32 {
         self.last_indexed_snapshot.sequence.unwrap_or(0)
@@ -133,6 +122,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         else {
             return Ok(None);
         };
+
+        // for updating metrics even if there's no indexable events available
+        let max_sequence = onchain_sequence_count.saturating_sub(1) as i64;
+        self.update_metrics(max_sequence);
 
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
@@ -432,7 +425,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     }
 
     // Updates the cursor metrics.
-    async fn update_metrics(&self) {
+    fn update_metrics(&self, max_sequence: i64) {
         let mut labels = hashmap! {
             "event_type" => T::name(),
             "chain" => self.domain.name(),
@@ -452,7 +445,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             .set(sequence as i64);
 
         labels.remove("cursor_type");
-        let max_sequence = self.target_sequence().await as i64;
         self.metrics
             .cursor_max_sequence
             .with(&labels)
@@ -501,7 +493,6 @@ impl<T: Send + Sync + Clone + Debug + Indexable + 'static> ContractSyncCursor<T>
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
-        self.update_metrics().await;
         // Remove any sequence duplicates, filter out any logs preceding our current snapshot,
         // and sort in ascending order.
         let logs = indexed_to_sequence_indexed_array(logs)?

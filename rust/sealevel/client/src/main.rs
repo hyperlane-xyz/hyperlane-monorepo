@@ -21,7 +21,9 @@ use solana_sdk::{
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
 use hyperlane_sealevel_igp::{
     accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
@@ -46,7 +48,10 @@ use hyperlane_sealevel_token_collateral::{
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
+    instruction::{
+        enroll_remote_routers_instruction, set_destination_gas_configs,
+        Instruction as HtInstruction, TransferRemote as HtTransferRemote,
+    },
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
@@ -58,6 +63,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
 mod artifacts;
@@ -69,6 +75,7 @@ mod igp;
 mod multisig_ism;
 mod router;
 mod serde;
+mod squads;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
@@ -113,10 +120,11 @@ enum HyperlaneSealevelCmd {
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
+    Squads(SquadsCmd),
 }
 
 #[derive(Args)]
-struct EnvironmentArgs {
+pub struct EnvironmentArgs {
     #[arg(long)]
     environment: String,
     #[arg(long)]
@@ -184,8 +192,6 @@ struct CoreDeploy {
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     chain: String,
-    #[arg(long)]
-    use_existing_keys: bool,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
@@ -295,6 +301,7 @@ enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
+    SetDestinationGas(TokenSetDestinationGas),
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
     Igp(Igp),
@@ -322,7 +329,6 @@ struct TokenTransferRemote {
     // Note this is the keypair for normal account not the derived associated token account or delegate.
     sender: String,
     amount: u64,
-    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination_domain: u32,
     recipient: String,
     #[arg(value_enum)]
@@ -335,6 +341,14 @@ struct TokenEnrollRemoteRouter {
     program_id: Pubkey,
     domain: u32,
     router: H256,
+}
+
+#[derive(Args)]
+struct TokenSetDestinationGas {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    domain: u32,
+    gas: u64,
 }
 
 #[derive(Args)]
@@ -406,6 +420,7 @@ enum IgpSubCmd {
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+    Configure(ConfigureIgpArgs),
 }
 
 #[derive(Args)]
@@ -427,11 +442,9 @@ struct InitIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     context: Option<String>,
     #[arg(long)]
-    gas_oracle_config_file: Option<PathBuf>,
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -443,13 +456,11 @@ struct InitOverheadIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     inner_igp_account: Pubkey,
     #[arg(long)]
     context: Option<String>,
     #[arg(long)]
-    overhead_config_file: Option<PathBuf>,
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -483,6 +494,8 @@ struct PayForGasArgs {
     destination_domain: u32,
     #[arg(long)]
     gas: u64,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for paying gas to a deterministically derived account
 }
 
 #[derive(Args)]
@@ -549,6 +562,20 @@ enum GasOverheadSubCmd {
 struct SetGasOverheadArgs {
     #[arg(long)]
     gas_overhead: u64,
+}
+
+#[derive(Args)]
+struct ConfigureIgpArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    gas_oracle_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    account_salt: Option<H256>,
 }
 
 #[derive(Args)]
@@ -619,6 +646,8 @@ struct MultisigIsmMessageIdDeploy {
     chain: String,
     #[arg(long)]
     context: String,
+    #[arg(long)]
+    chain_config_file: PathBuf,
 }
 
 #[derive(Args)]
@@ -765,6 +794,7 @@ fn main() {
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Squads(cmd) => process_squads_cmd(ctx, cmd),
     }
 }
 
@@ -1203,30 +1233,45 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
-                &*ctx.payer_signer(),
-                &sender,
-                &unique_message_account_keypair,
-            ]);
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(
+                &[
+                    ctx.payer_signer().as_deref(),
+                    Some(&sender),
+                    Some(&unique_message_account_keypair),
+                ],
+                &ctx.payer_pubkey,
+            );
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
-            let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
-                domain: enroll.domain,
-                router: enroll.router.into(),
-            });
-            let (token_account, _token_bump) =
-                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &enroll.program_id);
+            let instruction = enroll_remote_routers_instruction(
+                enroll.program_id,
+                ctx.payer_pubkey,
+                vec![RemoteRouterConfig {
+                    domain: enroll.domain,
+                    router: enroll.router.into(),
+                }],
+            )
+            .expect("Should build instruction correctly");
 
-            let instruction = Instruction {
-                program_id: enroll.program_id,
-                data: enroll_instruction.encode().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(token_account, false),
-                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
-                ],
-            };
+            ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::SetDestinationGas(TokenSetDestinationGas {
+            domain,
+            gas,
+            program_id,
+        }) => {
+            let instruction = set_destination_gas_configs(
+                program_id,
+                ctx.payer_pubkey,
+                vec![GasRouterConfig {
+                    domain,
+                    gas: Some(gas),
+                }],
+            )
+            .expect("Failed to build set remote gas instruction");
+
             ctx.new_txn().add(instruction).send_with_payer();
         }
         TokenSubCmd::TransferOwnership(transfer) => {
@@ -1247,12 +1292,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::SetInterchainSecurityModule(set_ism) => {
             let instruction =
-                hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
-                    set_ism.program_id,
-                    ctx.payer_pubkey,
-                    set_ism.ism
-                )
-                .unwrap();
+                    hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
+                        set_ism.program_id,
+                        ctx.payer_pubkey,
+                        set_ism.ism
+                    )
+                    .unwrap();
 
             ctx.new_txn()
                 .add_with_description(instruction, format!("Set ISM to {:?}", set_ism.ism))

@@ -172,7 +172,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         assertTrue(ism.verify(metadata, message));
     }
 
-    function testFailVerify(
+    function test_RevertWhen_badMetadata(
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
@@ -187,7 +187,8 @@ abstract contract AbstractMultisigIsmTest is Test {
         // changing single byte in metadata should fail signature verification
         uint256 index = uint256(seed) % metadata.length;
         metadata[index] = ~metadata[index];
-        assertFalse(ism.verify(metadata, message));
+        vm.expectRevert();
+        ism.verify(metadata, message);
     }
 
     function test_verify_revertWhen_duplicateSignatures(

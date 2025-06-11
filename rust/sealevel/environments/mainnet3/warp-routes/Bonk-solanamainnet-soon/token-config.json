@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 5,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 5,
+    "name": "Bonk",
+    "symbol": "Bonk",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/9a11b8b53eda0473ea415d63043b13ad92454e82/deployments/warp_routes/Bonk/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A"
+  }
+}

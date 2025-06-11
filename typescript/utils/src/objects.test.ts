@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import {
+  TransformObjectTransformer,
   arrayToObject,
   deepCopy,
   deepEquals,
@@ -9,6 +10,7 @@ import {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  keepOnlyDiffObjects,
   mustGet,
   objFilter,
   objKeys,
@@ -19,7 +21,9 @@ import {
   objOmit,
   pick,
   promiseObjAll,
+  sortArraysInObject,
   stringifyObject,
+  transformObj,
 } from './objects.js';
 
 describe('Object utilities', () => {
@@ -352,5 +356,309 @@ describe('Object utilities', () => {
       const obj = { a: 1, b: 2 };
       expect(() => mustGet(obj, 'c')).to.Throw();
     });
+  });
+
+  describe(transformObj.name, () => {
+    it('should format a string', () => {
+      const actual = 'HELLO';
+      const expected = 'hello';
+      const formatter: TransformObjectTransformer = (obj: any) =>
+        typeof obj === 'string' ? obj.toLowerCase() : obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should format a number', () => {
+      const actual = 42;
+      const expected = 84;
+      const formatter: TransformObjectTransformer = (obj: any) =>
+        typeof obj === 'number' ? obj * 2 : obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty object when given an empty object', () => {
+      const actual = {};
+      const expected = {};
+      const formatter: TransformObjectTransformer = (obj: any) => obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty array when given an empty array', () => {
+      const actual: any[] = [];
+      const expected: any[] = [];
+      const formatter: TransformObjectTransformer = (obj) => obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should remove values when shouldInclude is false', () => {
+      const actual = {
+        keep: 'value',
+        remove: 'this should be removed',
+      };
+
+      const expected = {
+        keep: 'value',
+      };
+
+      const formatter: TransformObjectTransformer = (
+        obj: any,
+        propPath: ReadonlyArray<string>,
+      ) => {
+        const parentKey = propPath[propPath.length - 1];
+
+        if (parentKey === 'remove') {
+          return undefined;
+        }
+
+        return obj;
+      };
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should throw an error when maximum depth is exceeded', () => {
+      // Build a nested object with depth > 15.
+      const obj: any = {};
+      let current = obj;
+      for (let i = 0; i < 16; i++) {
+        current['level' + i] = {};
+        current = current['level' + i];
+      }
+      const formatter: TransformObjectTransformer = (obj) => obj;
+
+      expect(() => transformObj(obj, formatter)).to.throw(
+        'transformObj went too deep. Max depth is 15',
+      );
+    });
+
+    const testCases: Array<{ actual: any; expected: any }> = [
+      { actual: { a: 'Henlo', b: 2 }, expected: { a: 'henlo', b: 2 } },
+      {
+        actual: {
+          a: {
+            b: 'Test',
+          },
+          c: {
+            d: {
+              e: 'TeSt 2',
+            },
+          },
+        },
+        expected: {
+          a: {
+            b: 'test',
+          },
+          c: {
+            d: {
+              e: 'test 2',
+            },
+          },
+        },
+      },
+    ];
+
+    for (const { actual, expected } of testCases) {
+      it('should successfully apply the formatter function to an object', () => {
+        const formatter: TransformObjectTransformer = (obj: any) => {
+          return typeof obj === 'string' ? obj.toLowerCase() : obj;
+        };
+
+        const formatted = transformObj(actual, formatter);
+
+        expect(formatted).to.eql(expected);
+      });
+    }
+  });
+
+  describe(sortArraysInObject.name, () => {
+    [1, 'hello', true, null, undefined].map((value) => {
+      it(`should return the same primitive value if the input is a primitive ${value}`, () => {
+        expect(sortArraysInObject(value)).to.equal(value);
+      });
+    });
+
+    it('should return an empty array if the input is an empty array', () => {
+      expect(sortArraysInObject([])).to.deep.equal([]);
+    });
+
+    it('should recursively sort arrays within an array', () => {
+      const input = [
+        [3, 1, 2],
+        [6, 4, 5],
+      ];
+      const expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+      ];
+
+      expect(sortArraysInObject(input)).to.deep.equal(expected);
+    });
+
+    it('should return an empty object if the input is an empty object', () => {
+      expect(sortArraysInObject({})).to.deep.equal({});
+    });
+
+    it('should recursively sort arrays within an object', () => {
+      const input = {
+        a: [3, 1, 2],
+        b: { c: [6, 4, 5] },
+      };
+      const expected = {
+        a: [1, 2, 3],
+        b: { c: [4, 5, 6] },
+      };
+
+      expect(sortArraysInObject(input)).to.deep.equal(expected);
+    });
+  });
+
+  describe(keepOnlyDiffObjects.name, () => {
+    const testCases: { input: any; expected: any }[] = [
+      {
+        input: {
+          a: {
+            foo: { expected: 1, actual: 2 },
+            bar: { something: true },
+            nested: {
+              baz: { expected: 'x', actual: 'y' },
+              qux: { nope: 0 },
+            },
+          },
+          arr: [
+            { alpha: { expected: 10, actual: 20 } },
+            { beta: { wrong: true } },
+          ],
+          plain: 123,
+        },
+        expected: {
+          a: {
+            foo: { expected: 1, actual: 2 },
+            nested: {
+              baz: { expected: 'x', actual: 'y' },
+            },
+          },
+          arr: [{ alpha: { expected: 10, actual: 20 } }],
+        },
+      },
+      {
+        input: {
+          ethereum: {
+            mailbox: '0xc005dc82818d67af737725bd4bf75435d065d239',
+            owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+            hook: {
+              type: 'aggregationHook',
+              hooks: [
+                {
+                  type: 'protocolFee',
+                  protocolFee: {
+                    expected: '158365200000000',
+                    actual: '129871800000000',
+                  },
+                  beneficiary: '0x8410927c286a38883bc23721e640f31d3e3e79f8',
+                },
+              ],
+            },
+            interchainSecurityModule: {
+              type: 'staticAggregationIsm',
+              modules: [
+                {
+                  owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+                  type: 'defaultFallbackRoutingIsm',
+                  domains: {},
+                },
+                {
+                  owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+                  type: 'domainRoutingIsm',
+                  domains: {
+                    berachain: {
+                      type: 'staticAggregationIsm',
+                      modules: [
+                        {
+                          type: 'merkleRootMultisigIsm',
+                          validators: [
+                            '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+                            '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+                          ],
+                          threshold: 1,
+                        },
+                        {
+                          type: 'messageIdMultisigIsm',
+                          validators: [
+                            '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+                            '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+                          ],
+                          threshold: 1,
+                        },
+                      ],
+                      threshold: 1,
+                    },
+                  },
+                },
+              ],
+              threshold: 2,
+            },
+            decimals: {
+              expected: 18,
+              actual: 10,
+            },
+            isNft: false,
+            type: 'xERC20Lockbox',
+            token: '0xbc5511354c4a9a50de928f56db01dd327c4e56d5',
+            remoteRouters: {
+              '80094': {
+                address: {
+                  expected:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b0',
+                  actual:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b1',
+                },
+              },
+            },
+          },
+        },
+        expected: {
+          ethereum: {
+            type: 'xERC20Lockbox',
+            hook: {
+              type: 'aggregationHook',
+              hooks: [
+                {
+                  type: 'protocolFee',
+                  protocolFee: {
+                    expected: '158365200000000',
+                    actual: '129871800000000',
+                  },
+                },
+              ],
+            },
+            decimals: {
+              expected: 18,
+              actual: 10,
+            },
+            remoteRouters: {
+              '80094': {
+                address: {
+                  expected:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b0',
+                  actual:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b1',
+                },
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    for (const { expected, input } of testCases) {
+      it(`should keep only the fields that have diff objects`, () => {
+        const act = keepOnlyDiffObjects(input);
+
+        expect(act).to.eql(expected);
+      });
+    }
   });
 });

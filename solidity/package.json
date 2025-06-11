@@ -1,17 +1,21 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "5.8.3",
+  "version": "7.1.10",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
+    "@chainlink/contracts-ccip": "^1.5.0",
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "7.3.0",
+    "@hyperlane-xyz/utils": "13.2.1",
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
+    "@matterlabs/hardhat-zksync-solc": "1.2.5",
+    "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "fx-portal": "^1.0.3"
   },
   "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
     "@layerzerolabs/solidity-examples": "^1.1.0",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
@@ -20,22 +24,24 @@
     "@typechain/hardhat": "^9.1.0",
     "@types/node": "^18.14.5",
     "chai": "^4.5.0",
+    "eslint": "^9.15.0",
     "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2",
+    "ethers": "^5.8.0",
     "hardhat": "^2.22.2",
     "hardhat-gas-reporter": "^1.0.9",
     "hardhat-ignore-warnings": "^0.2.11",
-    "prettier": "^2.8.8",
-    "prettier-plugin-solidity": "^1.1.3",
-    "solhint": "^4.5.4",
-    "solhint-plugin-prettier": "^0.0.5",
+    "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^1.4.2",
+    "solhint": "^5.0.5",
+    "solhint-plugin-prettier": "^0.1.0",
     "solidity-bytes-utils": "^0.8.0",
     "solidity-coverage": "^0.8.3",
     "ts-generator": "^0.1.1",
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typechain": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "zksync-ethers": "^5.10.0"
   },
   "directories": {
     "test": "test"
@@ -43,9 +49,10 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./mailbox": "./dist/contracts/Mailbox.js",
+    "./mailbox": "./dist/typechain/contracts/Mailbox.js",
     "./buildArtifact.js": "./dist/buildArtifact.js",
     "./buildArtifact.json": "./dist/buildArtifact.json",
+    "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
     "./contracts": "./contracts"
   },
   "types": "./dist/index.d.ts",
@@ -65,12 +72,15 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
-    "lint": "solhint contracts/**/*.sol",
-    "clean": "yarn hardhat-esm clean && rm -rf ./dist ./cache ./types ./coverage ./out ./forge-cache ./fixtures",
+    "build:zk": "yarn hardhat-zk compile && tsc && ts-node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
+    "prepublishOnly": "yarn build && yarn build:zk",
+    "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
+    "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",
     "docs": "forge doc",
     "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-zk": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config zk-hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",
@@ -81,7 +91,7 @@
     "slither": "slither .",
     "storage": "./storage.sh",
     "version:update": "sh ./bytecodeversion.sh",
-    "version:changed": "yarn version:update && git diff --exit-code",
+    "version:changed": "yarn version:update && git diff --exit-code contracts/PackageVersioned.sol",
     "version:exhaustive": "yarn tsx ./test/exhaustiveversion.test.ts"
   },
   "peerDependencies": {

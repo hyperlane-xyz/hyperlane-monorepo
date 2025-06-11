@@ -5,7 +5,12 @@ import {
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { Address, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -59,6 +64,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
     this.hookDeployer.cacheAddressesMap(addressesMap);
+    this.testRecipient.cacheAddressesMap(addressesMap);
     super.cacheAddressesMap(addressesMap);
   }
 
@@ -118,6 +124,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       // If the default ISM is the zero address, the mailbox hasn't been initialized
       this.logger.debug('Initializing mailbox');
       try {
+        const estimatedGas = await mailbox.estimateGas.initialize(
+          config.owner,
+          defaultIsm,
+          defaultHook.address,
+          requiredHook.address,
+        );
         await this.multiProvider.handleTx(
           chain,
           mailbox.initialize(
@@ -125,7 +137,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
             defaultIsm,
             defaultHook.address,
             requiredHook.address,
-            txOverrides,
+            {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...txOverrides,
+            },
           ),
         );
       } catch (e: any) {

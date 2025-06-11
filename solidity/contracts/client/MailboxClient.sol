@@ -58,7 +58,7 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     }
 
     /**
-     * @notice Only accept messages from an Hyperlane Mailbox contract
+     * @notice Only accept messages from a Hyperlane Mailbox contract
      */
     modifier onlyMailbox() {
         require(

@@ -1,0 +1,194 @@
+{
+  "abstracttestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e"
+    ]
+  },
+  "alephzeroevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"
+    ]
+  },
+  "alfajores": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
+      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
+      "0x86485dcec5f7bb8478dd251676372d054dea6653"
+    ]
+  },
+  "arbitrumsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"
+    ]
+  },
+  "arcadiatestnet2": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"
+    ]
+  },
+  "basesepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
+    ]
+  },
+  "berabartio": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x541dd3cb282cf869d72883557badae245b63e1fd"
+    ]
+  },
+  "bsctestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
+      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
+      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
+    ]
+  },
+  "citreatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x60d7380a41eb95c49be18f141efd2fde5e3dba20"
+    ]
+  },
+  "connextsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xffbbec8c499585d80ef69eb613db624d27e089ab"
+    ]
+  },
+  "eclipsetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf344f34abca9a444545b5295066348a0ae22dda3"
+    ]
+  },
+  "ecotestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xb3191420d463c2af8bd9b4a395e100ec5c05915a"
+    ]
+  },
+  "formtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x72ad7fddf16d17ff902d788441151982fa31a7bc"
+    ]
+  },
+  "fuji": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
+      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
+      "0x43e915573d9f1383cbf482049e4a012290759e7f"
+    ]
+  },
+  "holesky": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
+    ]
+  },
+  "inksepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xe61c846aee275070207fcbf43674eb254f06097a"
+    ]
+  },
+  "odysseytestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"
+    ]
+  },
+  "optimismsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x03efe4d0632ee15685d7e8f46dea0a874304aa29"
+    ]
+  },
+  "polygonamoy": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
+    ]
+  },
+  "scrollsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
+      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
+      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
+    ]
+  },
+  "sepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
+      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
+      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  },
+  "solanatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ]
+  },
+  "soneiumtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"
+    ]
+  },
+  "suavetoliman": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"
+    ]
+  },
+  "superpositiontestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"
+    ]
+  },
+  "unichaintestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"
+    ]
+  }
+}

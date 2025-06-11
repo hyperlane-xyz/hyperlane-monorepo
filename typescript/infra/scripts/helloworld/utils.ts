@@ -127,7 +127,7 @@ export async function getHelloWorldMultiProtocolApp(
   );
 
   // TODO we need a MultiProtocolIgp
-  // Using an standard IGP for just evm chains for now
+  // Using a standard IGP for just evm chains for now
   // Unfortunately this requires hacking surgically around certain addresses
   const filteredAddresses = filterChainMapToProtocol(
     envAddresses,

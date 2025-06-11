@@ -5,7 +5,10 @@ import type { IToken } from './IToken.js';
 export class TokenAmount {
   public readonly amount: bigint;
 
-  constructor(_amount: Numberish, public readonly token: IToken) {
+  constructor(
+    _amount: Numberish,
+    public readonly token: IToken,
+  ) {
     this.amount = BigInt(_amount);
   }
 

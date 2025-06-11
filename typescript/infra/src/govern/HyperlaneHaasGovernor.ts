@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+
 import {
   ChainName,
   CheckerViolation,
@@ -5,7 +7,11 @@ import {
   HyperlaneCore,
   HyperlaneCoreChecker,
   InterchainAccount,
+  ViolationType,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+
+import { chainsToSkip } from '../config/chain.js';
 
 import {
   AnnotatedCallData,
@@ -71,8 +77,52 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   }
 
   async check(chainsToCheck?: ChainName[]) {
-    await this.icaChecker.check(chainsToCheck);
-    await this.coreChecker.check(chainsToCheck);
+    // Get all EVM chains from core config
+    const evmChains = this.coreChecker.getEvmChains();
+
+    // Mark any EVM chains that are not deployed
+    const appChains = this.coreChecker.app.chains();
+    for (const chain of evmChains) {
+      if (!appChains.includes(chain)) {
+        this.coreChecker.addViolation({
+          type: ViolationType.NotDeployed,
+          chain,
+          expected: '',
+          actual: '',
+        });
+      }
+    }
+
+    // Finally, check the chains that were explicitly requested
+    // If no chains were requested, check all app chains
+    const chains =
+      !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
+    const failedChains: ChainName[] = [];
+    if (chainsToSkip.length > 0) {
+      rootLogger.info(
+        chalk.yellow('Skipping chains:', chainsToSkip.join(', ')),
+      );
+    }
+    await Promise.allSettled(
+      chains
+        .filter(
+          (chain) =>
+            this.coreChecker.multiProvider.getChainMetadata(chain).protocol ===
+              ProtocolType.Ethereum && !chainsToSkip.includes(chain),
+        )
+        .map(async (chain) => {
+          try {
+            await this.checkChain(chain);
+          } catch (err) {
+            rootLogger.error(chalk.red(`Failed to check chain ${chain}:`, err));
+            failedChains.push(chain);
+          }
+        }),
+    );
+
+    if (failedChains.length > 0) {
+      rootLogger.error(chalk.red('Failed chains:', failedChains.join(', ')));
+    }
   }
 
   async checkChain(chain: ChainName) {

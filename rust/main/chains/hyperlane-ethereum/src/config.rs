@@ -1,9 +1,10 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use hyperlane_core::{
-    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
-};
 use url::Url;
+
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+};
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -30,15 +31,34 @@ pub enum RpcConnectionConf {
     },
 }
 
+impl Default for RpcConnectionConf {
+    fn default() -> Self {
+        RpcConnectionConf::HttpFallback { urls: vec![] }
+    }
+}
+
 /// Ethereum connection configuration
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct ConnectionConf {
     /// RPC connection configuration
     pub rpc_connection: RpcConnectionConf,
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
+}
+
+impl ConnectionConf {
+    /// Returns the RPC urls for this connection configuration
+    pub fn rpc_urls(&self) -> Vec<Url> {
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
+
+        match &self.rpc_connection {
+            HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
+            Http { url } => vec![url.clone()],
+            Ws { url: _ } => panic!("Websocket connection is not supported"),
+        }
+    }
 }
 
 /// Ethereum transaction overrides.
@@ -55,6 +75,26 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+
+    /// Min gas price to use for Legacy transactions, in wei.
+    pub min_gas_price: Option<U256>,
+    /// Min fee per gas to use for EIP-1559 transactions.
+    pub min_fee_per_gas: Option<U256>,
+    /// Min priority fee per gas to use for EIP-1559 transactions.
+    pub min_priority_fee_per_gas: Option<U256>,
+
+    /// Gas limit multiplier denominator to use for transactions, eg 110
+    pub gas_limit_multiplier_denominator: Option<U256>,
+    /// Gas limit multiplier numerator to use for transactions, eg 100
+    pub gas_limit_multiplier_numerator: Option<U256>,
+
+    /// Gas price multiplier denominator to use for transactions, eg 110
+    pub gas_price_multiplier_denominator: Option<U256>,
+    /// Gas price multiplier numerator to use for transactions, eg 100
+    pub gas_price_multiplier_numerator: Option<U256>,
+
+    /// Gas price cap, in wei.
+    pub gas_price_cap: Option<U256>,
 }
 
 /// Ethereum reorg period
@@ -104,3 +144,6 @@ impl EthereumReorgPeriod {
         Ok(block_id)
     }
 }
+
+#[cfg(test)]
+mod tests;

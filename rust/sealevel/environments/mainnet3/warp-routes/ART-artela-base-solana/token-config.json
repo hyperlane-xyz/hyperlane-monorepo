@@ -1,0 +1,23 @@
+{
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Artela",
+    "symbol": "ART",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/98722745395495f9a5780fa268da3971abbc6642/deployments/warp_routes/ART/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "remoteDecimals": 18
+  },
+  "artela": {
+    "type": "native",
+    "decimals": 18,
+    "foreignDeployment": "0x0a78BC3CBBC79C4C6E5d4e5b2bbD042E58e93484"
+  },
+  "base": {
+    "type": "synthetic",
+    "name": "Artela",
+    "symbol": "ART",
+    "decimals": 18,
+    "foreignDeployment": "0x228c5101b2C63b9d620a3e8FEa7eC14263F82569"
+  }
+}

@@ -20,7 +20,7 @@ use crate::utils::{
 use crate::{ConnectionConf, CosmosMailbox, HyperlaneCosmosError, Signer};
 
 /// The message dispatch event type from the CW contract.
-const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
+pub const MESSAGE_DISPATCH_EVENT_TYPE: &str = "mailbox_dispatch";
 const MESSAGE_ATTRIBUTE_KEY: &str = "message";
 static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ATTRIBUTE_KEY));
@@ -35,23 +35,10 @@ pub struct CosmosMailboxDispatchIndexer {
 impl CosmosMailboxDispatchIndexer {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
-    ) -> ChainResult<Self> {
-        let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())?;
-        let provider = CosmosWasmRpcProvider::new(
-            conf,
-            locator,
-            MESSAGE_DISPATCH_EVENT_TYPE.into(),
-            reorg_period,
-        )?;
-
+    pub fn new(wasm_provider: CosmosWasmRpcProvider, mailbox: CosmosMailbox) -> ChainResult<Self> {
         Ok(Self {
             mailbox,
-            provider: Box::new(provider),
+            provider: Box::new(wasm_provider),
         })
     }
 
@@ -63,39 +50,47 @@ impl CosmosMailboxDispatchIndexer {
         let mut message: Option<HyperlaneMessage> = None;
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                        }
+
+                        MESSAGE_ATTRIBUTE_KEY => {
+                            // Intentionally using read_from to get a Result::Err if there's
+                            // an issue with the message.
+                            let mut reader = Cursor::new(hex::decode(value)?);
+                            message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                        }
+                        v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
+                            // Intentionally using read_from to get a Result::Err if there's
+                            // an issue with the message.
+                            let mut reader = Cursor::new(hex::decode(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?)?);
+                            message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                        }
+
+                        _ => {}
+                    }
                 }
 
-                MESSAGE_ATTRIBUTE_KEY => {
-                    // Intentionally using read_from to get a Result::Err if there's
-                    // an issue with the message.
-                    let mut reader = Cursor::new(hex::decode(value)?);
-                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
-                    // Intentionally using read_from to get a Result::Err if there's
-                    // an issue with the message.
-                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?)?);
-                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
-                }
-
-                _ => {}
             }
         }
 
@@ -148,7 +143,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosMailboxDispatchIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
-        let sequence = self.mailbox.nonce_at_block(Some(tip.into())).await?;
+        let sequence = self.mailbox.nonce_at_block(tip.into()).await?;
 
         Ok((Some(sequence), tip))
     }

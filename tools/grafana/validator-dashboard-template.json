@@ -1,35 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_GRAFANACLOUD-ABACUSWORKS-PROM",
-      "label": "grafanacloud-abacusworks-prom",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
-  "__elements": {},
-  "__requires": [
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "11.2.0-72576"
-    },
-    {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -49,14 +18,15 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 72,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+        "uid": "grafanacloud-prom"
       },
+      "description": "The number of signed checkpoints during last 30 minutes. If the metric is zero, it is worth to check if the validator makes any progress. If the metrics is huge, probably, validator is catching up with the chain. It is worth a check as well.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -69,6 +39,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -126,32 +97,35 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81311",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+            "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "max by(chain) (increase (hyperlane_latest_checkpoint{agent=\"validator\", phase=\"validator_processed\"}[30m]))",
+          "expr": "max by(chain) (increase (hyperlane_latest_checkpoint{\n    agent=\"validator\", \n    phase=\"validator_processed\",\n    chain=~\"${chain:regex}\"\n}[30m]))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Signed checkpoint diffs (30m)",
+      "title": "Signed Checkpoint Diffs (30m)",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+        "uid": "grafanacloud-prom"
       },
+      "description": "This metric is the difference between the number of observed checkpoints and the number of processed (signed and published) checkpoints. The metric may be positive for a short period of time. If the metric is positive for an extended period time, it indicate an issue with signing and publishing checkpoints.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -164,6 +138,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -212,7 +187,7 @@
         "x": 12,
         "y": 0
       },
-      "id": 2,
+      "id": 5,
       "options": {
         "legend": {
           "calcs": [],
@@ -221,32 +196,35 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81311",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+            "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "max by (chain) (increase(hyperlane_block_height{agent=\"validator\"}[30m]))",
+          "expr": "max by(chain) (hyperlane_latest_checkpoint{\n    agent=\"validator\", \n    phase=\"validator_observed\",\n    chain=~\"${chain:regex}\"\n})\n-\nmax by(chain) (hyperlane_latest_checkpoint{\n    agent=\"validator\", \n    phase=\"validator_processed\",\n    chain=~\"${chain:regex}\"\n})",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Latest block diffs (30m)",
+      "title": "Diff observed - processed checkpoints",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+        "uid": "grafanacloud-prom"
       },
+      "description": "This metric reports the number of blocks confirmed by a chain during last 30 mins. This metric is updated every 60 seconds directly from RPC endpoint. Depending on an average block confirmation time, this metrics should follow what is happening on the chain.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -259,6 +237,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -307,7 +286,7 @@
         "x": 0,
         "y": 8
       },
-      "id": 3,
+      "id": 2,
       "options": {
         "legend": {
           "calcs": [],
@@ -316,32 +295,35 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81311",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+            "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "max by (pod) (increase(hyperlane_span_events_total{agent=\"validator\", event_level=\"error\"}[30m]))",
+          "expr": "max by (chain) (increase(hyperlane_block_height{agent=\"validator\", chain=~\"${chain:regex}\"}[30m]))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Error log count diffs (30m)",
+      "title": "Latest Block Diffs (30m)",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+        "uid": "grafanacloud-prom"
       },
+      "description": "This metrics grows as validator synchronizes with chain. The values of the metrics is the current timestamp of the last iteration done by the validator. If the metrics is constant, it means that validator does not make any progress and the issue should be investigated.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -354,6 +336,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -402,6 +385,402 @@
         "x": 12,
         "y": 8
       },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0-81311",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "editorMode": "code",
+          "expr": "max by(chain) (hyperlane_contract_sync_liveness{\n    agent=\"validator\", \n    chain=~\"${chain:regex}\"\n})",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Contract Sync Liveness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "The metric reports the number of blocks indexed by validator during last 30 minutes. It should approximately match the number of blocks produced by the chain during last 30 minutes. If the metric deviate significantly in any direction, becomes zero, it should be investigated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0-81311",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "editorMode": "code",
+          "expr": "max by (chain) (increase(hyperlane_contract_sync_block_height{agent=\"validator\", chain=~\"${chain:regex}\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Contract Sync Block Diffs (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "The metric reports the number of blocks indexed by validator during last 30 minutes. It should approximately match the number of blocks produced by the chain during last 30 minutes. If the metric deviate significantly in any direction, becomes zero, it should be investigated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0-81311",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "editorMode": "code",
+          "expr": "max by (chain) (increase(hyperlane_cursor_current_block{agent=\"validator\", cursor_type=\"forward_sequenced\", chain=~\"${chain:regex}\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Cursor Block Diffs (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "This metric report the number of errors in the log of validator. If there is an unexplained spike, it should be investigated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0-81311",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "editorMode": "code",
+          "expr": "max by (pod) (increase(hyperlane_span_events_total{\n    agent=\"validator\", \n    event_level=\"error\",\n    app_kubernetes_io_instance=~\"${chain:regex}-.*\"\n}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Error log count diffs (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "This metric report the number of warnings in the log of validator. If there is an unexplained spike, it should be investigated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
       "id": 4,
       "options": {
         "legend": {
@@ -411,18 +790,20 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81311",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+            "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "max by (pod) (increase(hyperlane_span_events_total{agent=\"validator\", event_level=\"warn\"}[30m]))",
+          "expr": "max by (pod) (increase(hyperlane_span_events_total{agent=\"validator\", event_level=\"warn\", app_kubernetes_io_instance=~\"${chain:regex}-.*\"}[30m]))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -433,10 +814,36 @@
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 39,
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 40,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "definition": "label_values(chain)",
+        "description": "Origin chain, namely the chain which validator is indexing.",
+        "includeAll": true,
+        "label": "Origin Chain",
+        "multi": true,
+        "name": "chain",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(chain)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-3h",
@@ -446,6 +853,6 @@
   "timezone": "browser",
   "title": "Validator Dashboard (External Sharing Template)",
   "uid": "cdqntgxna4vswd",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }

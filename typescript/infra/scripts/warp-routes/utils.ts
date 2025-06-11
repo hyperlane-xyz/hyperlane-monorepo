@@ -19,7 +19,7 @@ export async function getRouterConfig() {
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  let multiProvider = await envConfig.getMultiProvider(
+  const multiProvider = await envConfig.getMultiProvider(
     context,
     Role.Deployer,
     true,

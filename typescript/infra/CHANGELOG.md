@@ -1,5 +1,434 @@
 # @hyperlane-xyz/infra
 
+## 13.2.1
+
+### Patch Changes
+
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/helloworld@13.2.1
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/sdk@13.2.1
+
+## 13.2.0
+
+### Patch Changes
+
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+  - @hyperlane-xyz/helloworld@13.2.0
+  - @hyperlane-xyz/sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/helloworld@13.1.1
+  - @hyperlane-xyz/sdk@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Patch Changes
+
+- Updated dependencies [6e86efa]
+- Updated dependencies [c42ea09]
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/sdk@13.1.0
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/helloworld@13.1.0
+
+## 13.0.0
+
+### Patch Changes
+
+- Updated dependencies [72b90f8]
+- Updated dependencies [bc58283]
+- Updated dependencies [0de63e0]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/sdk@13.0.0
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/helloworld@13.0.0
+
+## 12.6.0
+
+### Minor Changes
+
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [2ae0f72]
+- Updated dependencies [672d6d1]
+- Updated dependencies [1770318]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [6a70b8d]
+- Updated dependencies [d182d7d]
+- Updated dependencies [248d2e1]
+- Updated dependencies [e2a4727]
+- Updated dependencies [b360802]
+- Updated dependencies [e381a8d]
+- Updated dependencies [f6ed6ad]
+- Updated dependencies [31ee1c6]
+- Updated dependencies [a36d5c1]
+  - @hyperlane-xyz/sdk@12.6.0
+  - @hyperlane-xyz/helloworld@12.6.0
+  - @hyperlane-xyz/utils@12.6.0
+
+## 12.5.0
+
+### Patch Changes
+
+- Updated dependencies [c8ace88]
+  - @hyperlane-xyz/sdk@12.5.0
+  - @hyperlane-xyz/helloworld@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+
+## 12.4.0
+
+### Patch Changes
+
+- Updated dependencies [d2babb7]
+  - @hyperlane-xyz/sdk@12.4.0
+  - @hyperlane-xyz/helloworld@12.4.0
+  - @hyperlane-xyz/utils@12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 6101959f7: Enhanced the router enrollment check to support non-fully connected warp routes using the `remoteRouters` property from the deployment config.
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/helloworld@12.3.0
+
+## 12.2.0
+
+### Patch Changes
+
+- Updated dependencies [c7934f711]
+- Updated dependencies [ecbacbdf2]
+  - @hyperlane-xyz/sdk@12.2.0
+  - @hyperlane-xyz/helloworld@12.2.0
+  - @hyperlane-xyz/utils@12.2.0
+
+## 12.1.0
+
+### Minor Changes
+
+- acbf5936a: New check: HyperlaneRouterChecker now compares the list of domains
+  the Router is enrolled with against the warp route expectations.
+  It will raise a violation for missing remote domains.
+  `check-deploy` and `check-warp-deploy` scripts use this new check.
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/helloworld@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- d478ffd08: updated warp ids and added new soon routes
+
+### Patch Changes
+
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/helloworld@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Minor Changes
+
+- 888d180b6: Fixes a small bug when initializing a token adapter that caused the wrong adapter to be chosen when interacting with svm chains + add new warp ids for new soon wr deployments
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+  - @hyperlane-xyz/helloworld@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- 4fd5623b8: Fixes a bug where `SealevelHypCollateralAdapter` initialization logic erroneously set the `isSpl2022` property to false.
+
+  It updates the `Token.getHypAdapter` and `Token.getAdapter` methods to be async so that before creating an instance of the `SealevelHypCollateralAdapter` class, the collateral account info can be retrieved on chain to set the correct spl standard.
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+  - @hyperlane-xyz/helloworld@10.0.0
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/helloworld@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Minor Changes
+
+- ebc320c78: Updated the UBTC config getter to sync it with the soneium extension
+
+### Patch Changes
+
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/helloworld@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
+## 9.1.0
+
+### Patch Changes
+
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/helloworld@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+  - @hyperlane-xyz/helloworld@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 768b601da: updated the warp monitor to monitor extra lock boxes
+- 33178eaa8: Move getRegistry function from the CLI to `@hyperlane-xyz/registry` package.
+
+### Patch Changes
+
+- Updated dependencies [05f89650b]
+- Updated dependencies [d121c1cb8]
+- Updated dependencies [3518f8901]
+- Updated dependencies [d6ddf5b9e]
+- Updated dependencies [766f50695]
+- Updated dependencies [e78060d73]
+- Updated dependencies [cb7c157f0]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [1955579cf]
+- Updated dependencies [57137dad4]
+- Updated dependencies [3518f8901]
+- Updated dependencies [500249649]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [cb93c13a4]
+- Updated dependencies [456407dc7]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/utils@8.9.0
+  - @hyperlane-xyz/sdk@8.9.0
+  - @hyperlane-xyz/helloworld@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- Updated dependencies [c68529807]
+  - @hyperlane-xyz/cli@8.8.1
+  - @hyperlane-xyz/helloworld@8.8.1
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
+## 8.8.0
+
+### Patch Changes
+
+- Updated dependencies [719d022ec]
+- Updated dependencies [c61546cb7]
+- Updated dependencies [d82d24cc7]
+- Updated dependencies [b054b0424]
+  - @hyperlane-xyz/sdk@8.8.0
+  - @hyperlane-xyz/cli@8.8.0
+  - @hyperlane-xyz/helloworld@8.8.0
+  - @hyperlane-xyz/utils@8.8.0
+
+## 8.7.0
+
+### Minor Changes
+
+- db832b803: Added support for multiple registries in CLI with prioritization.
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [db832b803]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [7dd1f64a6]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/cli@8.7.0
+  - @hyperlane-xyz/helloworld@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@8.6.1
+- @hyperlane-xyz/sdk@8.6.1
+- @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Patch Changes
+
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/helloworld@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/helloworld@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/helloworld@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- fed42c325: updated zero ETH warp route config getter
+- 31c89a3c1: Add support for Artela config
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/helloworld@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 28becff74: Add Artela/Base USDC and WETH warp route config
+
+### Patch Changes
+
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/helloworld@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d4963c62: Add USDC between Ink and Ethereum
+- fc80df5b4: Add rstETH/ethereum-zircuit warp config
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/helloworld@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 0e83758f4: added ubtc route extension config + usdc from appchain to base
+
+### Patch Changes
+
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/helloworld@8.0.0
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Minor Changes

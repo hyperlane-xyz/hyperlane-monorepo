@@ -4,15 +4,25 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+  DocumentOptions,
   LineCounter,
+  ParseOptions,
+  SchemaOptions,
+  ToJSOptions,
   parse,
-  parse as yamlParse,
   stringify as yamlStringify,
 } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
+
+const yamlParse = (
+  content: string,
+  options?: ParseOptions & DocumentOptions & SchemaOptions & ToJSOptions,
+) =>
+  // See stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
+  parse(content, { maxAliasCount: -1, ...options });
 
 export const MAX_READ_LINE_OUTPUT = 250;
 
@@ -250,7 +260,7 @@ export function logYamlIfUnderMaxLines(
 ): void {
   const asYamlString = yamlStringify(obj, null, margin);
   const lineCounter = new LineCounter();
-  parse(asYamlString, { lineCounter });
+  yamlParse(asYamlString, { lineCounter });
 
   log(lineCounter.lineStarts.length < maxLines ? asYamlString : '');
 }
