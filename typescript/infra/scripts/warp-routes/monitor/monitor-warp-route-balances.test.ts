@@ -3,8 +3,9 @@
 
 import sinon from 'sinon';
 import { expect } from 'chai';
-import * as CloudWatch from 'aws-sdk/clients/cloudwatch';
-import * as monitorModule from './monitor-warp-route-balances';
+import AWS from 'aws-sdk';
+const { CloudWatch } = AWS;
+import * as monitorModule from './monitor-warp-route-balances.js';
 
 interface BalanceData {
   routeId: string;

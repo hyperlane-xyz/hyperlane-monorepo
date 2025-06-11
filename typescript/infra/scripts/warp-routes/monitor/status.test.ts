@@ -1,12 +1,9 @@
-// Test suite using Jest
-import { getStatus, fetchRemoteStatus, parseWarpResponse, WarpError } from './status';
-import { get } from '../../utils/http';
+import { describe, it, test, expect, beforeEach, jest } from '@jest/globals';
+import type { MockedFunction } from 'jest-mock';
+import { getStatus, fetchRemoteStatus, parseWarpResponse, WarpError } from './status.js';
+import { get } from '../../utils/http.js';
 
-jest.mock('../../utils/http', () => ({
-  get: jest.fn(),
-}));
-
-const mockedGet = get as jest.Mock;
+const mockedGet = get as MockedFunction<typeof get>;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -50,7 +47,23 @@ describe('getStatus', () => {
 });
 
 describe('parseWarpResponse', () => {
-  const cases = [
+  interface RawResponse {
+    status?: any;
+    uptime?: number;
+    nodes?: number;
+    [key: string]: any;
+  }
+  interface ParsedResponse {
+    status: string;
+    uptime: number;
+    nodes: number;
+  }
+
+  const cases: Array<{
+    name: string;
+    input: RawResponse;
+    expected: ParsedResponse;
+  }> = [
     {
       name: 'full data',
       input: { status: 'healthy', uptime: 120, nodes: 3 },
@@ -73,7 +86,7 @@ describe('parseWarpResponse', () => {
     },
   ];
 
-  test.each(cases)('$name', ({ input, expected }) => {
+  test.each(cases)('$name', ({ input, expected }: { input: RawResponse; expected: ParsedResponse }) => {
     expect(parseWarpResponse(input)).toEqual(expected);
   });
 
