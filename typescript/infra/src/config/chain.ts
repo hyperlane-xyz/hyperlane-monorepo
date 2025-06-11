@@ -72,10 +72,15 @@ export const chainsToSkip: ChainName[] = [
   // special case for arcadia as it's currently under maintenance.
   // will update this separately in the next batch.
   'arcadia',
-  // special case for viction, ontology as there are RPC issues currently
-  // will update this separately in the next batch
+
+  // legacy ICAs
   'viction',
   'ontology',
+
+  // legacy icas
+  'carrchaintestnet',
+  'infinityvmmonza',
+  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
