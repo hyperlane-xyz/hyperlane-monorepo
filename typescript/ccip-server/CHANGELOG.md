@@ -1,5 +1,21 @@
 # @hyperlane-xyz/ccip-server
 
+## 13.3.0
+
+### Patch Changes
+
+- Updated dependencies [e61bd2f]
+- Updated dependencies [db19435]
+- Updated dependencies [b977a28]
+- Updated dependencies [fd3bb39]
+- Updated dependencies [4544120]
+- Updated dependencies [7a3165f]
+- Updated dependencies [119a1a8]
+- Updated dependencies [b977a28]
+- Updated dependencies [88fe35f]
+- Updated dependencies [3327a6e]
+  - @hyperlane-xyz/core@8.0.0
+
 ## 13.2.1
 
 ### Patch Changes
