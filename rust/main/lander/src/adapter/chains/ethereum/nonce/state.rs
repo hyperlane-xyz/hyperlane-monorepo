@@ -1,19 +1,10 @@
-use std::collections::HashMap;
-use std::io::Write;
 use std::sync::Arc;
 
 use ethers_core::types::Address;
-use futures_util::FutureExt;
-use tokio::sync::{Mutex, MutexGuard};
 use tracing::{error, info, warn};
 
-use hyperlane_base::db::DbError;
-use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256, U256};
+use hyperlane_core::U256;
 
-use crate::transaction::{Transaction, TransactionUuid};
-use crate::TransactionStatus;
-
-use super::super::transaction::Precursor;
 use super::db::NonceDb;
 use super::error::{NonceError, NonceResult};
 use super::status::NonceStatus;
