@@ -82,7 +82,7 @@ export class WithSemaphore implements IRebalancer {
 
       const bridgeLockTime = origin.bridgeLockTime;
       const overrideLockTime =
-        origin.override?.[route.destination].bridgeLockTime ?? 0;
+        origin.override?.[route.destination]?.bridgeLockTime ?? 0;
 
       return Math.max(highest, bridgeLockTime, overrideLockTime);
     }, 0);
