@@ -31,7 +31,7 @@ interface SharedRebalanceArgs {
 interface ManualRebalanceArgs {
   origin: string;
   destination: string;
-  amount: string;
+  amount: number;
 }
 
 type RebalancerCliArgs = SharedRebalanceArgs & Partial<ManualRebalanceArgs>;
