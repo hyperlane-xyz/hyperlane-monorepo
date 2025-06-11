@@ -1,16 +1,17 @@
-// @ts-nocheck
-/**
- * Test suite for monitor-warp-route-balances.ts
- * Uses Mocha for the test framework, Chai for assertions, and Sinon for mocking/spying.
- */
+// Test suite for monitor-warp-route-balances.ts
+// Uses Mocha for the test framework, Chai for assertions, and Sinon for mocking/spying.
 
 import sinon from 'sinon';
 import { expect } from 'chai';
-import * as AwsSdk from 'aws-sdk';
 import * as CloudWatch from 'aws-sdk/clients/cloudwatch';
 import * as monitorModule from './monitor-warp-route-balances';
 
-function mockBalanceData(balances: Array<{ routeId: string; balance: string }>) {
+interface BalanceData {
+  routeId: string;
+  balance: string;
+}
+
+function mockBalanceData(balances: BalanceData[]): BalanceData[] {
   return balances;
 }
 
@@ -18,9 +19,9 @@ describe('monitorWarpRouteBalances', () => {
   let cwPutMetricStub: sinon.SinonStub;
 
   beforeEach(() => {
-    cwPutMetricStub = sinon.stub(CloudWatch.prototype, 'putMetricData').returns({
-      promise: () => Promise.resolve({}),
-    } as any);
+    cwPutMetricStub = sinon
+      .stub(CloudWatch.prototype, 'putMetricData')
+      .returns({ promise: () => Promise.resolve({}) } as any);
   });
 
   afterEach(() => {
@@ -30,7 +31,7 @@ describe('monitorWarpRouteBalances', () => {
   it('reports each warp-route balance to CloudWatch successfully', async () => {
     const mockBalances = mockBalanceData([
       { routeId: 'ETH/USDC', balance: '1000000000000000000' },
-      { routeId: 'ETH/DAI',  balance: '500000000000000000' },
+      { routeId: 'ETH/DAI', balance: '500000000000000000' },
     ]);
     sinon.stub(monitorModule, 'getWarpRouteBalances').resolves(mockBalances);
     await monitorModule.monitorWarpRouteBalances();
@@ -65,21 +66,22 @@ describe('monitorWarpRouteBalances', () => {
   });
 
   it('propagates errors from AWS putMetricData', async () => {
-    // Override stub to simulate AWS error
     sinon.restore();
-    cwPutMetricStub = sinon.stub(CloudWatch.prototype, 'putMetricData').returns({
-      promise: () => Promise.reject(new Error('AWS failure')),
-    } as any);
-    sinon.stub(monitorModule, 'getWarpRouteBalances').resolves(mockBalanceData([{ routeId: 'X/TEST', balance: '1' }]));
+    cwPutMetricStub = sinon
+      .stub(CloudWatch.prototype, 'putMetricData')
+      .returns({ promise: () => Promise.reject(new Error('AWS failure')) } as any);
+    sinon.stub(monitorModule, 'getWarpRouteBalances').resolves(
+      mockBalanceData([{ routeId: 'X/TEST', balance: '1' }])
+    );
 
-    let caughtError: any;
+    let caughtError: Error | undefined;
     try {
       await monitorModule.monitorWarpRouteBalances();
     } catch (err) {
-      caughtError = err;
+      caughtError = err as Error;
     }
     expect(caughtError).to.be.instanceOf(Error);
-    expect(caughtError.message).to.equal('AWS failure');
+    expect(caughtError!.message).to.equal('AWS failure');
   });
 
   it('logs and exits on balance fetch JSON errors', async () => {
