@@ -23,7 +23,7 @@
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
-    "preserveSymlinks": false,
+    "preserveSymlinks": true,
     "preserveWatchOutput": true,
     "pretty": false,
     "resolveJsonModule": true,
