@@ -1,10 +1,10 @@
 import { describe, it, expect, jest, afterEach } from '@jest/globals';
 import { BigNumber } from 'ethers';
 import axios from 'axios';
-import { fetchTokenPrices, getTokenPrice } from './token-prices.js';
+import { fetchTokenPrices, getTokenPrice } from './token-prices';
 
 jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios: any = axios;
 
 afterEach(() => {
   jest.clearAllMocks();
