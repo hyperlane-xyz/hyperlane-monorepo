@@ -87,7 +87,7 @@ where
 
 /// Methods of provider which are used in submitter
 #[async_trait]
-pub trait EvmProviderForSubmitter: Send + Sync {
+pub trait EvmProviderForLander: Send + Sync {
     /// Get the transaction receipt for a given transaction hash
     async fn get_transaction_receipt(
         &self,
@@ -138,7 +138,7 @@ pub trait EvmProviderForSubmitter: Send + Sync {
 }
 
 #[async_trait]
-impl<M> EvmProviderForSubmitter for EthereumProvider<M>
+impl<M> EvmProviderForLander for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
@@ -394,7 +394,7 @@ pub struct SubmitterProviderBuilder {}
 
 #[async_trait]
 impl BuildableWithProvider for SubmitterProviderBuilder {
-    type Output = Box<dyn EvmProviderForSubmitter>;
+    type Output = Box<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 
     // the submitter does not use the ethers submission middleware.

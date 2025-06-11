@@ -87,6 +87,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   milkyway: {
     owner: 'TODO: configure milkyway owner',
   },
+  paradex: {
+    owner: '0x41e326bf455461926b9c334d02039cb0d4f09698c5158ef8d939b33b240a0e0',
+  },
   kyve: {
     owner: 'TODO: configure kyve owner',
   },

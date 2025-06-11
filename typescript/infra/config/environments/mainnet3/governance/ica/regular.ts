@@ -119,4 +119,9 @@ export const regularIcas: ChainMap<Address> = {
   miraclechain: '0x4733050AdC12BCaad14A239418aAdD06cce2fB7d',
   nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318',
   blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
+
+  // Jun 4, 2025 batch
+  // ----------------------------------------------------------
+  // botanix: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
+  // katana: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
 };
