@@ -15,7 +15,9 @@ use hyperlane_core::{
     CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
-use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
+use hyperlane_core::{
+    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
+};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::reorg_reporter::ReorgReporter;
@@ -343,23 +345,25 @@ impl ValidatorSubmitter {
             "Fetched checkpoint from checkpoint storage",
         );
 
-        let signed_checkpoint = self.sign_checkpoint(checkpoint).await?;
-
-        match existing {
-            Some(existing) if existing.signature == signed_checkpoint.signature => {
+        if let Some(existing) = existing.as_ref() {
+            let existing_signer = existing.recover()?;
+            let signer = self.signer.eth_address();
+            if existing_signer == signer && existing.value == checkpoint {
                 debug!(index = checkpoint.index, "Checkpoint already submitted");
                 return Ok(());
-            }
-            Some(existing) => {
+            } else {
                 warn!(
                     index = checkpoint.index,
-                    old_signature = format!("{}", existing.signature),
-                    new_signature = format!("{}", signed_checkpoint.signature),
-                    "Checkpoint already submitted, but with different signature, overwriting"
+                    existing_checkpoint = ?existing.value,
+                    existing_signer = ?existing_signer,
+                    new_checkpoint = ?checkpoint,
+                    new_signer = ?signer,
+                    "Checkpoint already submitted, but with different values, overwriting"
                 );
             }
-            None => {}
         }
+
+        let signed_checkpoint = self.sign_checkpoint(checkpoint).await?;
 
         let start = Instant::now();
         tracing::trace!(
