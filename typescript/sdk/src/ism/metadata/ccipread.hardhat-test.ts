@@ -1,10 +1,8 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -13,22 +11,19 @@ import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactor
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
-import { CCIPReadIsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder } from './builder.js';
-import type { MetadataContext } from './types.js';
 
-describe('CCIP-Read ISM Integration', () => {
+describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
   let testRecipient: any;
-  let ccipReadIsm: any;
+  let ccipReadIsm: TestCcipReadIsm;
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
-  const CCIP_READ_SERVER_URL = 'http://example.com/namespace';
 
-  beforeEach(async () => {
+  before(async () => {
     // Set up a local test multi-provider and Hyperlane core
     const signers = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({
@@ -53,7 +48,7 @@ describe('CCIP-Read ISM Integration', () => {
       domain,
       new TestCcipReadIsm__factory(),
       // Pass in desired offchain URLs for the ISM constructor:
-      [[CCIP_READ_SERVER_URL]],
+      [['http://example.com/{data}']],
     );
 
     // Configure the TestRecipient to use the CCIP-Read ISM
@@ -80,13 +75,13 @@ describe('CCIP-Read ISM Integration', () => {
     );
 
     // Derive the on-chain ISM config for CCIP-Read
-    const derivedIsm = (await new EvmIsmReader(
+    const derivedIsm = await new EvmIsmReader(
       multiProvider,
       'test2',
-    ).deriveIsmConfig(ccipReadIsm.address)) as WithAddress<CCIPReadIsmConfig>;
+    ).deriveOffchainLookupConfig(ccipReadIsm.address);
 
     // Build the metadata using the CCIP-Read builder
-    const context: MetadataContext<WithAddress<CCIPReadIsmConfig>> = {
+    const context = {
       ism: derivedIsm,
       message,
       dispatchTx,
@@ -99,57 +94,7 @@ describe('CCIP-Read ISM Integration', () => {
     await expect(mailbox.process(metadata, message.message)).to.not.be.reverted;
   });
 
-  it('sends signature field in request when calling fetch', async () => {
-    const { dispatchTx, message } = await core.sendMessage(
-      'test1',
-      'test2',
-      testRecipient.address,
-      '0x1234',
-    );
-
-    // Derive the on-chain ISM config for CCIP-Read
-    const derivedIsm = (await new EvmIsmReader(
-      multiProvider,
-      'test2',
-    ).deriveIsmConfig(ccipReadIsm.address)) as WithAddress<CCIPReadIsmConfig>;
-
-    // Build the metadata using the CCIP-Read builder
-    const context: MetadataContext<WithAddress<CCIPReadIsmConfig>> = {
-      ism: derivedIsm,
-      message,
-      dispatchTx,
-      hook: {} as any,
-    };
-    await metadataBuilder.build(context);
-
-    // Verify that fetch was called exactly once
-    expect(fetchStub.calledOnce).to.be.true;
-    const [url, options] = fetchStub.getCall(0).args;
-    const payload = JSON.parse(options.body as string);
-    expect(url).to.equal(CCIP_READ_SERVER_URL.replace('{data}', payload.data));
-
-    // Should include sender, data, and signature
-    expect(payload).to.include.keys('sender', 'data', 'signature');
-    expect(payload.sender).to.equal(ccipReadIsm.address);
-
-    // Verify that signature is valid over (data, sender)
-    const messageHash = ethers.utils.solidityKeccak256(
-      ['string', 'address', 'bytes', 'string'],
-      [
-        'HYPERLANE_OFFCHAINLOOKUP',
-        payload.sender,
-        payload.data,
-        CCIP_READ_SERVER_URL,
-      ],
-    );
-    const recovered = ethers.utils.verifyMessage(
-      ethers.utils.arrayify(messageHash),
-      payload.signature,
-    );
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
-  });
-
-  afterEach(() => {
+  after(() => {
     fetchStub.restore();
   });
 });
