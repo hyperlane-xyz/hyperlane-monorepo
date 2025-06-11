@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use futures_util::future::join_all;
 use tokio::sync::mpsc::error::SendError;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 use uuid::Uuid;
 
 use hyperlane_core::{H256, H512, U256};
