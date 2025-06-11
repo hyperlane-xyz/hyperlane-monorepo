@@ -1,0 +1,64 @@
+{
+  "chains": {
+    "dymension": {
+      "bech32Prefix": "dym",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "adym",
+      "chainId": "dymension_100-1",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "DYMENSION",
+        "url": "https://example.com"
+      },
+      "displayName": "Dymension Hub Local",
+      "gasCurrencyCoinGeckoId": "dymension",
+      "domainId": 1260813472,
+      "gasPrice": {
+        "amount": "100000000000.0",
+        "denom": "adym"
+      },
+      "index": {
+        "from": 10
+      },
+      "grpcUrls": [
+        {
+          "http": "http://127.0.0.1:8090"
+        }
+      ], 
+      "isTestnet": true,
+      "name": "dymension",
+      "nativeToken": {
+        "decimals": 18,
+        "denom": "adym",
+        "name": "ADYM",
+        "symbol": "ADYM"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "http://localhost:1318"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://localhost:36657"
+        }
+      ],
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000000000000000000000",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000000000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+    },
+    "kaspa-testnet-10": {
+      
+    }
+  },
+  "defaultRpcConsensusType": "fallback"
+}
