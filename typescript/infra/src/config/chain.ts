@@ -41,6 +41,19 @@ export const chainsToSkip: ChainName[] = [
 
   // Removal TBD
   'arthera',
+
+  // testnet ica v2
+  'carrchaintestnet',
+  'infinityvmmonza',
+  'rometestnet',
+
+  // mainnet ica v2
+  'conflux',
+  'viction',
+  'ontology',
+  'coredao',
+  // temp
+  'deepbrainchain',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
