@@ -383,6 +383,10 @@ export abstract class HyperlaneDeployer<
     this.logger.debug(`Mailbox client on ${local} initialized...`);
   }
 
+  initializeFnSignature(_contractName: string): string {
+    return 'initialize';
+  }
+
   public async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
@@ -442,19 +446,21 @@ export abstract class HyperlaneDeployer<
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
 
-        const overrides = this.multiProvider.getTransactionOverrides(chain);
-
         // Estimate gas for the initialize transaction
         const estimatedGas = await contract
           .connect(signer)
-          .estimateGas.initialize(...initializeArgs);
+          .estimateGas[
+            this.initializeFnSignature(contractName)
+          ](...initializeArgs);
 
-        const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        });
-        this.logger.info(
-          `Initializing contract ${contractName} on chain ${chain}...`,
+        // deploy with buffer on gas limit
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+        const initTx = await contract[this.initializeFnSignature(contractName)](
+          ...initializeArgs,
+          {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+            ...overrides,
+          },
         );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
@@ -629,6 +635,7 @@ export abstract class HyperlaneDeployer<
     implementation: C,
     proxyAdmin: string,
     initializeArgs?: Parameters<C['initialize']>,
+    contractName?: string,
   ): Promise<C> {
     const isProxied = await isProxy(
       this.multiProvider.getProvider(chain),
@@ -643,6 +650,7 @@ export abstract class HyperlaneDeployer<
       implementation,
       proxyAdmin,
       initializeArgs,
+      this.initializeFnSignature(contractName ?? ''),
     );
     const proxy = await this.deployContractFromFactory(
       chain,
@@ -742,6 +750,7 @@ export abstract class HyperlaneDeployer<
       cachedContract.attach(implementation),
       admin,
       initializeArgs,
+      contractName,
     );
     const proxyInput = buildVerificationInput(
       'TransparentUpgradeableProxy',
@@ -780,6 +789,7 @@ export abstract class HyperlaneDeployer<
       implementation,
       proxyAdmin,
       initializeArgs,
+      contractName,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;

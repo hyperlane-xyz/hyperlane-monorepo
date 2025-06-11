@@ -344,6 +344,9 @@ export function generateWarpConfigs(
     TokenType.syntheticUri,
     // TODO Fix: sender not mailbox or relaying simply fails
     TokenType.collateralVault,
+    TokenType.collateralCctp,
+    TokenType.nativeOpL1,
+    TokenType.nativeOpL2,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

@@ -7,6 +7,7 @@ import {MockToken} from "./MockToken.sol";
 contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
+    uint32 public version;
 
     constructor(MockToken _token) {
         token = _token;
@@ -37,5 +38,9 @@ contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
 
     function usedNonces(bytes32 _nonceId) external view returns (bool) {
         return processedNonces[_nonceId];
+    }
+
+    function setVersion(uint32 _version) external {
+        version = _version;
     }
 }
