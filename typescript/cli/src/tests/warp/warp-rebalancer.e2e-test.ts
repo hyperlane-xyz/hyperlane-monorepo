@@ -355,7 +355,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     rmSync(REBALANCER_CONFIG_PATH);
 
     await startRebalancerAndExpectLog(
-      `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
+      `Rebalancer startup error: Error: File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
     );
   });
 
@@ -384,7 +384,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type`,
+      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type"`,
     );
   });
 
@@ -410,7 +410,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(`Cannot convert weight to a BigInt`);
+    await startRebalancerAndExpectLog(
+      `Rebalancer startup error: SyntaxError: Cannot convert weight to a BigInt`,
+    );
   });
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
@@ -435,7 +437,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(`Cannot convert tolerance to a BigInt`);
+    await startRebalancerAndExpectLog(
+      `Rebalancer startup error: SyntaxError: Cannot convert tolerance to a BigInt`,
+    );
   });
 
   it('should throw if a bridge value is not a valid address', async () => {
@@ -461,7 +465,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Validation error: Invalid at "anvil2.bridge"`,
+      `Rebalancer startup error: Error: Validation error: Invalid at "anvil2.bridge"`,
     );
   });
 

@@ -99,31 +99,27 @@ export class RebalancerContextFactory {
       'Creating Metrics',
     );
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
-    const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
-      this.warpCore,
-    );
     const warpDeployConfig = await this.context.registry.getWarpDeployConfig(
       this.config.warpRouteId,
     );
 
     return new Metrics(
       tokenPriceGetter,
-      collateralTokenSymbol,
       warpDeployConfig,
       this.warpCore,
       this.config.warpRouteId,
     );
   }
 
-  public createMonitor(): Monitor {
+  public createMonitor(checkFrequency: number): Monitor {
     rebalancerLogger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        checkFrequency: this.config.checkFrequency,
+        checkFrequency: checkFrequency,
       },
       'Creating Monitor',
     );
-    return new Monitor(this.config.checkFrequency, this.warpCore);
+    return new Monitor(checkFrequency, this.warpCore);
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
