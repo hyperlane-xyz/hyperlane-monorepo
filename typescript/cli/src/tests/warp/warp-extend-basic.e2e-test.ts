@@ -6,7 +6,6 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   DerivedCoreConfig,
-  HookType,
   HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
@@ -14,6 +13,7 @@ import {
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { hyperlaneCoreApply, readCoreConfig } from '../commands/core.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -44,8 +44,6 @@ import {
   hyperlaneWarpDeploy,
   readWarpConfig,
 } from '../commands/warp.js';
-
-import { hyperlaneCoreApply, readCoreConfig } from './commands/core.js';
 
 describe('hyperlane warp apply basic extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

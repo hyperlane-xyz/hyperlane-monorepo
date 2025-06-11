@@ -142,7 +142,6 @@ export function hyperlaneWarpApplyRaw({
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --strategy ${strategyUrl} \
         ${relay ? '--relay' : ''} \
         --yes`;
 }
