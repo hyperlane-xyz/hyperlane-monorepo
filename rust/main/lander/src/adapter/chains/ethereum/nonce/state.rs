@@ -16,16 +16,7 @@ use crate::TransactionStatus;
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
 use super::error::{NonceError, NonceResult};
-
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub(crate) enum NonceStatus {
-    /// The nonce which we track, but is not currently assigned to any transaction.
-    Freed(TransactionUuid),
-    /// The nonce is currently assigned to a transaction but not finalised.
-    Taken(TransactionUuid),
-    /// The nonce is assigned to a transaction that has been finalised.
-    Committed(TransactionUuid),
-}
+use super::status::NonceStatus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
@@ -274,34 +265,6 @@ impl NonceManagerState {
             .unwrap_or_default();
 
         Ok(nonce)
-    }
-}
-
-impl Encode for NonceStatus {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: Write,
-    {
-        // Serialize to JSON and write to the writer to avoid having to implement the encoding manually
-        let serialized = serde_json::to_vec(self)
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
-        writer.write(&serialized)
-    }
-}
-
-impl Decode for NonceStatus {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        // Deserialize from JSON and read from the reader to avoid having to implement the encoding / decoding manually
-        serde_json::from_reader(reader).map_err(|err| {
-            HyperlaneProtocolError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to deserialize. Error: {}", err),
-            ))
-        })
     }
 }
 

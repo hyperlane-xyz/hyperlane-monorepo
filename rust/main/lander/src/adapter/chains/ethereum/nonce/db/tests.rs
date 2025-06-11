@@ -5,7 +5,7 @@ use hyperlane_core::U256;
 use crate::dispatcher::test_utils::tmp_dbs;
 use crate::transaction::TransactionUuid;
 
-use super::super::super::nonce::state::NonceStatus;
+use super::super::super::nonce::status::NonceStatus;
 
 #[tokio::test]
 async fn test_nonce_db_lowest_and_upper() {

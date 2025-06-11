@@ -9,7 +9,7 @@ use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, U256};
 
 use crate::transaction::TransactionUuid;
 
-use super::super::nonce::state::NonceStatus;
+use super::super::nonce::status::NonceStatus;
 
 const NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
     "nonce_status_by_nonce_and_signer_address_";

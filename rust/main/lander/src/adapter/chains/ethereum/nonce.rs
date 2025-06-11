@@ -6,4 +6,5 @@ pub mod db;
 mod error;
 mod manager;
 mod state;
+mod status;
 mod updater;

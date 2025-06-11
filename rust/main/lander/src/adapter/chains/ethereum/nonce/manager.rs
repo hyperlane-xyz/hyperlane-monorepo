@@ -14,13 +14,14 @@ use crate::{LanderError, TransactionStatus};
 
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
-use super::state::{NonceAction, NonceManagerState, NonceStatus};
+use super::state::{NonceAction, NonceManagerState};
+use super::status::NonceStatus;
 use super::updater::NonceUpdater;
 
 pub struct NonceManager {
     pub address: Address,
     pub state: Arc<NonceManagerState>,
-    pub _nonce_updater: NonceUpdater,
+    pub _nonce_updater: Option<NonceUpdater>,
 }
 
 impl NonceManager {
@@ -44,7 +45,7 @@ impl NonceManager {
         let manager = Self {
             address,
             state,
-            _nonce_updater: nonce_updater,
+            _nonce_updater: Some(nonce_updater),
         };
 
         Ok(manager)
@@ -69,7 +70,7 @@ impl NonceManager {
             ));
         }
 
-        let nonce_status = Self::calculate_nonce_status(tx_uuid.clone(), &tx_status);
+        let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
         if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
             let action = self
@@ -121,26 +122,12 @@ impl NonceManager {
             return Ok(());
         };
 
-        let nonce_status = Self::calculate_nonce_status(tx_uuid.clone(), tx_status);
+        let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), tx_status);
 
         self.state
             .update_nonce_status(nonce, nonce_status)
             .await
             .map_err(|e| eyre::eyre!("Failed to update nonce status: {}", e))
-    }
-
-    fn calculate_nonce_status(
-        tx_uuid: TransactionUuid,
-        tx_status: &TransactionStatus,
-    ) -> NonceStatus {
-        use NonceStatus::{Committed, Freed, Taken};
-        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
-
-        match tx_status {
-            PendingInclusion | Mempool | Included => Taken(tx_uuid),
-            Finalized => Committed(tx_uuid),
-            Dropped(_) => Freed(tx_uuid),
-        }
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
