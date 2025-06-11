@@ -70,7 +70,7 @@ export class WithSemaphore implements IRebalancer {
 
   private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
-      const origin = this.config.chains[route.origin];
+      const origin = this.config.strategyConfig.chains[route.origin];
 
       if (!origin) {
         rebalancerLogger.error(

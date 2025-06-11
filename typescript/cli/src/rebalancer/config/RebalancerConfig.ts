@@ -1,11 +1,9 @@
 import { fromZodError } from 'zod-validation-error';
 
 import {
-  type ChainMap,
-  type RebalancerChainConfig,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
-  type RebalancerStrategyOptions,
+  type StrategyConfig,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 
@@ -19,8 +17,7 @@ export class RebalancerConfig {
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
     public readonly coingeckoApiKey: string | undefined,
-    public readonly rebalanceStrategy: RebalancerStrategyOptions,
-    public readonly chains: ChainMap<RebalancerChainConfig>,
+    public readonly strategyConfig: StrategyConfig,
   ) {}
 
   /**
@@ -36,15 +33,16 @@ export class RebalancerConfig {
     },
   ) {
     const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
+
     const validationResult = RebalancerConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, rebalanceStrategy, ...chains } = validationResult.data;
+    const { warpRouteId, strategy } = validationResult.data;
 
-    if (isObjEmpty(chains)) {
+    if (isObjEmpty(strategy.chains)) {
       throw new Error('No chains configured');
     }
 
@@ -54,8 +52,7 @@ export class RebalancerConfig {
       extraArgs.monitorOnly,
       extraArgs.withMetrics,
       ENV.COINGECKO_API_KEY,
-      rebalanceStrategy,
-      chains,
+      strategy,
     );
   }
 }

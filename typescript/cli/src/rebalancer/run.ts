@@ -156,7 +156,7 @@ export async function runRebalancer(options: RunRebalancerOptions) {
         }
 
         const rawBalances = getRawBalances(
-          Object.keys(rebalancerConfig.chains),
+          Object.keys(rebalancerConfig.strategyConfig.chains),
           event,
         );
 

@@ -718,14 +718,20 @@ export {
   RebalancerMinAmountConfigSchema,
   RebalancerBaseChainConfigSchema,
   RebalancerChainConfigSchema,
-  RebalancerBaseConfigSchema,
   RebalancerConfigSchema,
+  StrategyConfigSchema,
+} from './rebalancer/types.js';
+export type {
   RebalancerWeightedChainConfig,
   RebalancerMinAmountChainConfig,
   RebalancerChainConfig,
   RebalancerChainConfigInput,
-  RebalancerBaseConfig,
-  RebalancerBaseConfigInput,
+  RebalancerConfig,
   RebalancerConfigFileInput,
+  StrategyConfig,
+  MinAmountStrategy,
+  MinAmountStrategyConfig,
+  WeightedStrategy,
+  WeightedStrategyConfig,
 } from './rebalancer/types.js';
 export { resolveRouterMapConfig } from './router/types.js';

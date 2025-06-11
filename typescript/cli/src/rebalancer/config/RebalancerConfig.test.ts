@@ -24,22 +24,26 @@ describe('RebalancerConfig', () => {
 
     data = {
       warpRouteId: 'warpRouteId',
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      chain1: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          chain2: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      chain2: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     };
 
@@ -77,31 +81,32 @@ describe('RebalancerConfig', () => {
       monitorOnly: extraArgs.monitorOnly,
       withMetrics: extraArgs.withMetrics,
       coingeckoApiKey: ENV.COINGECKO_API_KEY,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      chains: {
-        chain1: {
-          weighted: {
-            weight: 100n,
-            tolerance: 0n,
+      strategyConfig: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: {
+              weight: 100n,
+              tolerance: 0n,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1_000,
           },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1_000,
-        },
-        chain2: {
-          weighted: {
-            weight: 100n,
-            tolerance: 0n,
+          chain2: {
+            weighted: {
+              weight: 100n,
+              tolerance: 0n,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1_000,
           },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1_000,
         },
       },
     });
   });
 
   it('should throw if chains are not configured', () => {
-    delete data.chain1;
-    delete data.chain2;
+    data.strategy.chains = {};
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
@@ -122,58 +127,64 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load relative params without modifications', () => {
-    data.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
-    delete data.chain1.weighted;
+    data.strategy.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
+    delete data.strategy.chains.chain1.weighted;
+    delete data.strategy.chains.chain2.weighted;
 
-    data.chain1 = {
-      ...data.chain1,
-      minAmount: {
-        min: '0.2',
-        target: 0.3,
-        type: RebalancerMinAmountType.Relative,
-      },
+    const minAmount = {
+      min: '0.2',
+      target: 0.3,
+      type: RebalancerMinAmountType.Relative,
+    };
+
+    data.strategy.chains.chain1 = {
+      ...data.strategy.chains.chain1,
+      minAmount,
+    };
+    data.strategy.chains.chain2 = {
+      ...data.strategy.chains.chain2,
+      minAmount,
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs).chains.chain1,
+      RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs).strategyConfig
+        .chains.chain1,
     ).to.deep.equal({
-      ...data.chain1,
+      ...data.strategy.chains.chain1,
       bridgeLockTime: 1_000,
-      minAmount: {
-        min: '0.2',
-        target: 0.3,
-        type: RebalancerMinAmountType.Relative,
-      },
     });
   });
 
   it('should load absolute params without modifications', () => {
-    data.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
-    delete data.chain1.weighted;
+    data.strategy.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
+    delete data.strategy.chains.chain1.weighted;
+    delete data.strategy.chains.chain2.weighted;
 
-    data.chain1 = {
-      ...data.chain1,
-      minAmount: {
-        min: '100000',
-        target: 140000,
-        type: RebalancerMinAmountType.Absolute,
-      },
+    const minAmount = {
+      min: '100000',
+      target: 140000,
+      type: RebalancerMinAmountType.Absolute,
+    };
+
+    data.strategy.chains.chain1 = {
+      ...data.strategy.chains.chain1,
+      minAmount,
+    };
+    data.strategy.chains.chain2 = {
+      ...data.strategy.chains.chain2,
+      minAmount,
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs).chains.chain1,
+      RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs).strategyConfig
+        .chains.chain1,
     ).to.deep.equal({
-      ...data.chain1,
+      ...data.strategy.chains.chain1,
       bridgeLockTime: 1_000,
-      minAmount: {
-        min: '100000',
-        target: 140000,
-        type: RebalancerMinAmountType.Absolute,
-      },
     });
   });
 
@@ -181,47 +192,51 @@ describe('RebalancerConfig', () => {
     it('should parse a config with overrides', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-        chain1: {
-          minAmount: {
-            min: 1000,
-            target: 1100,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
-          override: {
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+          chains: {
+            chain1: {
+              minAmount: {
+                min: 1000,
+                target: 1100,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+              override: {
+                chain2: {
+                  bridge: '0x1234567890123456789012345678901234567890',
+                },
+              },
+            },
             chain2: {
-              bridge: '0x1234567890123456789012345678901234567890',
+              minAmount: {
+                min: 2000,
+                target: 2200,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            chain3: {
+              minAmount: {
+                min: 3000,
+                target: 3300,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           },
-        },
-        chain2: {
-          minAmount: {
-            min: 2000,
-            target: 2200,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
-        },
-        chain3: {
-          minAmount: {
-            min: 3000,
-            target: 3300,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
         },
       };
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
       const config = RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs);
-      expect(config.chains.chain1).to.have.property('override');
+      expect(config.strategyConfig.chains.chain1).to.have.property('override');
 
-      const override = config.chains.chain1.override;
+      const override = config.strategyConfig.chains.chain1.override;
       expect(override).to.not.be.undefined;
       expect(override).to.have.property('chain2');
 
@@ -235,32 +250,36 @@ describe('RebalancerConfig', () => {
     it('should throw when an override references a non-existent chain', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-        chain1: {
-          minAmount: {
-            min: 1000,
-            target: 1100,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
-          override: {
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+          chains: {
+            chain1: {
+              minAmount: {
+                min: 1000,
+                target: 1100,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+              override: {
+                chain2: {
+                  bridge: '0x1234567890123456789012345678901234567890',
+                },
+                chain3: {
+                  bridgeMinAcceptedAmount: 1000,
+                },
+              },
+            },
             chain2: {
-              bridge: '0x1234567890123456789012345678901234567890',
-            },
-            chain3: {
-              bridgeMinAcceptedAmount: 1000,
+              minAmount: {
+                min: 2000,
+                target: 2200,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           },
-        },
-        chain2: {
-          minAmount: {
-            min: 2000,
-            target: 2200,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
         },
       };
 
@@ -276,29 +295,33 @@ describe('RebalancerConfig', () => {
     it('should throw when an override references itself', () => {
       data = {
         warpRouteId: 'warpRouteId',
-        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-        chain1: {
-          minAmount: {
-            min: 1000,
-            target: 1100,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
-          override: {
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+          chains: {
             chain1: {
-              bridgeMinAcceptedAmount: 1000,
+              minAmount: {
+                min: 1000,
+                target: 1100,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+              override: {
+                chain1: {
+                  bridgeMinAcceptedAmount: 1000,
+                },
+              },
+            },
+            chain2: {
+              minAmount: {
+                min: 2000,
+                target: 2200,
+                type: RebalancerMinAmountType.Absolute,
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
             },
           },
-        },
-        chain2: {
-          minAmount: {
-            min: 2000,
-            target: 2200,
-            type: RebalancerMinAmountType.Absolute,
-          },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
         },
       };
 
@@ -312,7 +335,7 @@ describe('RebalancerConfig', () => {
     });
 
     it('should allow multiple chain overrides', () => {
-      data.chain1 = {
+      data.strategy.chains.chain1 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
@@ -330,7 +353,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.chain2 = {
+      data.strategy.chains.chain2 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
@@ -340,7 +363,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.chain3 = {
+      data.strategy.chains.chain3 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
@@ -354,7 +377,7 @@ describe('RebalancerConfig', () => {
 
       const config = RebalancerConfig.load(REBALANCER_CONFIG_PATH, extraArgs);
 
-      const chain1Overrides = config.chains.chain1.override;
+      const chain1Overrides = config.strategyConfig.chains.chain1.override;
       expect(chain1Overrides).to.not.be.undefined;
       expect(chain1Overrides).to.have.property('chain2');
       expect(chain1Overrides).to.have.property('chain3');

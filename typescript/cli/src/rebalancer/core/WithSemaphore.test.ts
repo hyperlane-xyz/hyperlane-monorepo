@@ -19,9 +19,11 @@ class MockRebalancer implements IRebalancer {
 describe('WithSemaphore', () => {
   it('should call the underlying rebalancer', async () => {
     const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
+      strategyConfig: {
+        chains: {
+          chain1: {
+            bridgeLockTime: 1,
+          },
         },
       },
     } as any as RebalancerConfig;
@@ -43,9 +45,11 @@ describe('WithSemaphore', () => {
 
   it('should return early if there are no routes', async () => {
     const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
+      strategyConfig: {
+        chains: {
+          chain1: {
+            bridgeLockTime: 1,
+          },
         },
       },
     } as any as RebalancerConfig;
@@ -60,9 +64,11 @@ describe('WithSemaphore', () => {
 
   it('should return early if rebalance occurs before waitUntil is reached', async () => {
     const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
+      strategyConfig: {
+        chains: {
+          chain1: {
+            bridgeLockTime: 1,
+          },
         },
       },
     } as any as RebalancerConfig;
@@ -89,7 +95,9 @@ describe('WithSemaphore', () => {
 
   it('should throw if a chain is missing', async () => {
     const config = {
-      chains: {},
+      strategyConfig: {
+        chains: {},
+      },
     } as any as RebalancerConfig;
 
     const routes = [
@@ -108,9 +116,11 @@ describe('WithSemaphore', () => {
 
   it('should not execute if another rebalance is currently executing', async () => {
     const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
+      strategyConfig: {
+        chains: {
+          chain1: {
+            bridgeLockTime: 1,
+          },
         },
       },
     } as any as RebalancerConfig;

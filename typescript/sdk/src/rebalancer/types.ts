@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import type { ChainMap } from '@hyperlane-xyz/sdk';
-
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
@@ -62,65 +60,94 @@ export const RebalancerChainConfigSchema =
       .optional(),
   });
 
-export const RebalancerBaseConfigSchema = z.object({
-  warpRouteId: z.string(),
-  rebalanceStrategy: z.nativeEnum(RebalancerStrategyOptions),
+// Schemas for strategy-specific chain configs
+const WeightedChainConfigSchema = RebalancerChainConfigSchema.extend({
+  weighted: RebalancerWeightedChainConfigSchema,
+});
+const MinAmountChainConfigSchema = RebalancerChainConfigSchema.extend({
+  minAmount: RebalancerMinAmountConfigSchema,
 });
 
-export const RebalancerConfigSchema = RebalancerBaseConfigSchema.catchall(
-  RebalancerChainConfigSchema,
-).superRefine((config, ctx) => {
-  // Get all chain names from the config
-  const chainNames = new Set(
-    Object.keys(config).filter(
-      (key) => !Object.keys(RebalancerBaseConfigSchema.shape).includes(key),
-    ),
-  );
+const WeightedStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
+  chains: z.record(z.string(), WeightedChainConfigSchema),
+});
 
-  // Check each chain's overrides
-  for (const chainName of chainNames) {
-    const chain = config[chainName] as RebalancerChainConfig;
+const MinAmountStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.MinAmount),
+  chains: z.record(z.string(), MinAmountChainConfigSchema),
+});
 
-    if (chain.override) {
-      for (const overrideChainName of Object.keys(chain.override)) {
-        // Each override key must reference a valid chain
-        if (!chainNames.has(overrideChainName)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
-            path: [chainName, 'override', overrideChainName],
-          });
-        }
+export type WeightedStrategy = z.infer<typeof WeightedStrategySchema>;
+export type MinAmountStrategy = z.infer<typeof MinAmountStrategySchema>;
 
-        // Override shouldn't be self-referencing
-        if (chainName === overrideChainName) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
-            path: [chainName, 'override', overrideChainName],
-          });
+export type WeightedStrategyConfig = WeightedStrategy['chains'];
+export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
+
+export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
+  WeightedStrategySchema,
+  MinAmountStrategySchema,
+]);
+
+export const RebalancerConfigSchema = z
+  .object({
+    warpRouteId: z.string(),
+    strategy: StrategyConfigSchema,
+  })
+  .superRefine((config, ctx) => {
+    const chainNames = new Set(Object.keys(config.strategy.chains));
+    // Check each chain's overrides
+    for (const [chainName, chain] of Object.entries(config.strategy.chains)) {
+      if (chain.override) {
+        for (const overrideChainName of Object.keys(chain.override)) {
+          // Each override key must reference a valid chain
+          if (!chainNames.has(overrideChainName)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+              path: [
+                'strategy',
+                'chains',
+                chainName,
+                'override',
+                overrideChainName,
+              ],
+            });
+          }
+
+          // Override shouldn't be self-referencing
+          if (chainName === overrideChainName) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
+              path: [
+                'strategy',
+                'chains',
+                chainName,
+                'override',
+                overrideChainName,
+              ],
+            });
+          }
         }
       }
     }
-  }
 
-  const minAmountChainsTypes: RebalancerMinAmountType[] = [];
-  for (const chainName of chainNames) {
-    const chain = config[chainName];
-
-    if (chain.minAmount) {
-      minAmountChainsTypes.push(chain.minAmount.type);
+    if (
+      config.strategy.rebalanceStrategy === RebalancerStrategyOptions.MinAmount
+    ) {
+      const minAmountChainsTypes = Object.values(config.strategy.chains).map(
+        (c) => c.minAmount.type,
+      );
+      if (new Set(minAmountChainsTypes).size > 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `All chains must use the same minAmount type.`,
+          path: ['strategy', 'chains'],
+        });
+      }
     }
-  }
-
-  if (minAmountChainsTypes.length && new Set(minAmountChainsTypes).size > 1) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `All chains must use the same minAmount type.`,
-      path: ['minAmount', 'type'],
-    });
-  }
-});
+  });
 
 // Define separate types for each strategy config
 export type RebalancerWeightedChainConfig = z.infer<
@@ -136,18 +163,7 @@ export type RebalancerChainConfigInput = z.input<
   typeof RebalancerChainConfigSchema
 >;
 
-export type RebalancerBaseConfig = z.infer<typeof RebalancerBaseConfigSchema>;
-export type RebalancerBaseConfigInput = z.input<
-  typeof RebalancerBaseConfigSchema
->;
+export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;
 
-// TODO: Simplify this typing structure by modifying `BaseConfigSchema` to have a `chains` entry
-//  `chains: z.record(z.string(), ChainConfigSchema),`
-//  Thus we avoid having mixed "specific" vs "index signature", and migrate all to "specific".
-//  An example of what the issue is can be found at: https://tsplay.dev/NljqOW
-export type RebalancerConfigFileInput = RebalancerBaseConfigInput &
-  ChainMap<
-    | RebalancerChainConfigInput
-    // to allow "specific" and "index signature" mix
-    | any
-  >;
+export type RebalancerConfig = z.infer<typeof RebalancerConfigSchema>;
+export type RebalancerConfigFileInput = z.input<typeof RebalancerConfigSchema>;

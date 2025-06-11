@@ -176,22 +176,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   beforeEach(async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '100',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '100',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '100',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '100',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -362,51 +366,59 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if theres a mix of minAmount types', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-      [CHAIN_NAME_2]: {
-        minAmount: {
-          min: 9,
-          target: 10,
-          type: RebalancerMinAmountType.Absolute,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+        chains: {
+          [CHAIN_NAME_2]: {
+            minAmount: {
+              min: 9,
+              target: 10,
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            minAmount: {
+              min: 0.5,
+              target: 0.55,
+              type: RebalancerMinAmountType.Relative,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        minAmount: {
-          min: 0.5,
-          target: 0.55,
-          type: RebalancerMinAmountType.Relative,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "minAmount.type`,
+      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "strategy.chains"`,
     );
   });
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: 'weight',
-          tolerance: 0,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: 'weight',
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -416,22 +428,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: 100,
+              tolerance: 'tolerance',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: 100,
-          tolerance: 'tolerance',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -441,27 +457,31 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if a bridge value is not a valid address', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: 'bridge',
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: 100,
+              tolerance: 0,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: 'bridge',
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
     await startRebalancerAndExpectLog(
-      `Validation error: Invalid at "anvil2.bridge"`,
+      `Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
     );
   });
 
@@ -474,22 +494,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should not rebalance if mode is monitorOnly', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -502,22 +526,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should skip chains that are not in the config', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -529,30 +557,34 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should skip chains that are not supported collaterals', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_4]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_4]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -564,22 +596,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -591,22 +627,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if the destination is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -635,22 +675,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if the bridge is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -679,22 +723,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw if rebalance quotes cannot be obtained', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -755,24 +803,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-      [CHAIN_NAME_2]: {
-        minAmount: {
-          min: 7,
-          target: 11,
-          type: RebalancerMinAmountType.Absolute,
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+        chains: {
+          [CHAIN_NAME_2]: {
+            minAmount: {
+              min: 7,
+              target: 11,
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            minAmount: {
+              min: 8,
+              target: 12,
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: bridgeContract.address,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        minAmount: {
-          min: 8,
-          target: 12,
-          type: RebalancerMinAmountType.Absolute,
-        },
-        bridge: bridgeContract.address,
-        bridgeLockTime: 1,
       },
     });
 
@@ -812,22 +864,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: bridgeContract.address,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: bridgeContract.address,
-        bridgeLockTime: 1,
       },
     });
 
@@ -865,23 +921,27 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: bridgeContract.address,
+            bridgeLockTime: 1,
+            bridgeMinAcceptedAmount: '5.000001',
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: bridgeContract.address,
-        bridgeLockTime: 1,
-        bridgeMinAcceptedAmount: '5.000001',
       },
     });
 
@@ -948,22 +1008,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // we need to add the address of the allowed bridge to chain 3
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: bridgeContract.address,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: bridgeContract.address,
-        bridgeLockTime: 1,
       },
     });
 
@@ -1077,22 +1141,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 10,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: bridgeContract.address,
+            bridgeLockTime: 10,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 10,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: bridgeContract.address,
-        bridgeLockTime: 10,
       },
     });
 
@@ -1109,22 +1177,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
         },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
-        },
-        bridge: ethers.constants.AddressZero,
-        bridgeLockTime: 1,
       },
     });
 
@@ -1246,24 +1318,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      [CHAIN_NAME_2]: {
-        weighted: {
-          weight: '25',
-          tolerance: '0',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          [CHAIN_NAME_2]: {
+            weighted: {
+              weight: '25',
+              tolerance: '0',
+            },
+            bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
+            bridgeLockTime: 60,
+            bridgeIsWarp: true,
+          },
+          [CHAIN_NAME_3]: {
+            weighted: {
+              weight: '75',
+              tolerance: '0',
+            },
+            bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
+            bridgeLockTime: 60,
+            bridgeIsWarp: true,
+          },
         },
-        bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-        bridgeLockTime: 60,
-        bridgeIsWarp: true,
-      },
-      [CHAIN_NAME_3]: {
-        weighted: {
-          weight: '75',
-          tolerance: '0',
-        },
-        bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-        bridgeLockTime: 60,
-        bridgeIsWarp: true,
       },
     });
 
@@ -1359,22 +1435,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // we need to add the address of the allowed bridge to chain 3
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
         warpRouteId,
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        [CHAIN_NAME_2]: {
-          weighted: {
-            weight: '75',
-            tolerance: '0',
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            [CHAIN_NAME_2]: {
+              weighted: {
+                weight: '75',
+                tolerance: '0',
+              },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [CHAIN_NAME_3]: {
+              weighted: {
+                weight: '25',
+                tolerance: '0',
+              },
+              bridge: bridgeContract.address,
+              bridgeLockTime: 1,
+            },
           },
-          bridge: ethers.constants.AddressZero,
-          bridgeLockTime: 1,
-        },
-        [CHAIN_NAME_3]: {
-          weighted: {
-            weight: '25',
-            tolerance: '0',
-          },
-          bridge: bridgeContract.address,
-          bridgeLockTime: 1,
         },
       });
 
@@ -1543,24 +1623,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
         warpRouteId,
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        [CHAIN_NAME_2]: {
-          weighted: {
-            weight: '25',
-            tolerance: '0',
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            [CHAIN_NAME_2]: {
+              weighted: {
+                weight: '25',
+                tolerance: '0',
+              },
+              bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
+              bridgeLockTime: 60,
+              bridgeIsWarp: true,
+            },
+            [CHAIN_NAME_3]: {
+              weighted: {
+                weight: '75',
+                tolerance: '0',
+              },
+              bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
+              bridgeLockTime: 60,
+              bridgeIsWarp: true,
+            },
           },
-          bridge: otherWarpCoreConfig.tokens[0].addressOrDenom!,
-          bridgeIsWarp: true,
-          bridgeLockTime: 60000,
-        },
-        [CHAIN_NAME_3]: {
-          weighted: {
-            weight: '75',
-            tolerance: '0',
-          },
-          bridge: otherWarpCoreConfig.tokens[1].addressOrDenom!,
-          bridgeIsWarp: true,
-          bridgeLockTime: 60000,
         },
       });
 

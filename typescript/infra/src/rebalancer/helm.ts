@@ -48,7 +48,7 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { ...chains } = validationResult.data;
+    const { chains } = validationResult.data.strategy;
     if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }

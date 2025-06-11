@@ -2,7 +2,7 @@ import { BigNumber } from 'bignumber.js';
 
 import {
   type ChainMap,
-  type RebalancerChainConfig,
+  type MinAmountStrategyConfig,
   RebalancerMinAmountType,
   type Token,
 } from '@hyperlane-xyz/sdk';
@@ -12,10 +12,6 @@ import type { RawBalances } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
-
-export type MinAmountStrategyConfig = ChainMap<
-  RebalancerChainConfig & Required<Pick<RebalancerChainConfig, 'minAmount'>>
->;
 
 /**
  * Strategy implementation that rebalance based on minimum amounts
