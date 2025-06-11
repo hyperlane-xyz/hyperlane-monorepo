@@ -8,17 +8,17 @@ import { errorRed, logGreen, warnYellow } from '../logger.js';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
-import type { IRebalancer } from './interfaces/IRebalancer.js';
-import type { IStrategy } from './interfaces/IStrategy.js';
-import { Metrics } from './metrics/Metrics.js';
 import {
-  Monitor,
+  MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
-} from './monitor/Monitor.js';
+} from './interfaces/IMonitor.js';
+import type { IRebalancer } from './interfaces/IRebalancer.js';
+import type { IStrategy } from './interfaces/IStrategy.js';
+import { Metrics } from './metrics/Metrics.js';
+import { Monitor } from './monitor/Monitor.js';
 import { getRawBalances } from './utils/getRawBalances.js';
-import { rebalancerLogger } from './utils/logger.js';
 
 interface SharedRebalanceArgs {
   config: string;
@@ -130,16 +130,10 @@ export class RebalancerRunner {
   }
 
   public async run(): Promise<void> {
-    try {
-      if (this.manualArgs) {
-        await this.runManual();
-      } else {
-        await this.runDaemon();
-      }
-    } catch (e) {
-      rebalancerLogger.error(e, 'Rebalancer runner failed');
-      errorRed('Rebalancer startup error:', format(e));
-      process.exit(1);
+    if (this.manualArgs) {
+      await this.runManual();
+    } else {
+      await this.runDaemon();
     }
   }
 
@@ -157,12 +151,17 @@ export class RebalancerRunner {
       (t: Token) => t.chainName === origin,
     );
 
+    if (!originToken) {
+      errorRed(`❌ Origin token not found for chain ${origin}`);
+      process.exit(1);
+    }
+
     try {
       await this.rebalancer.rebalance([
         {
           origin,
           destination,
-          amount: BigInt(toWei(amount, originToken!.decimals)),
+          amount: BigInt(toWei(amount, originToken.decimals)),
         },
       ]);
       logGreen(
@@ -185,19 +184,14 @@ export class RebalancerRunner {
       .on(MonitorEventType.Start, this.onMonitorStart.bind(this));
 
     try {
-      // Finally, starts the monitor to begin polling balances.
       await this.monitor.start();
     } catch (e: any) {
-      if (e instanceof MonitorStartError) {
-        errorRed('Rebalancer startup error:', format(e));
-      } else {
-        errorRed('Unexpected error:', format(e));
-      }
+      errorRed('Rebalancer startup error:', format(e));
       process.exit(1);
     }
   }
 
-  private onTokenInfo(event: any): void {
+  private onTokenInfo(event: MonitorEvent): void {
     if (this.metrics) {
       for (const tokenInfo of event.tokensInfo) {
         this.metrics.processToken(tokenInfo).catch((e) => {
@@ -233,9 +227,11 @@ export class RebalancerRunner {
     if (e instanceof MonitorPollingError) {
       errorRed(e.message);
       this.metrics?.recordPollingError();
+    } else if (e instanceof MonitorStartError) {
+      errorRed(e.message);
+      process.exit(1);
     } else {
-      // This will catch `MonitorStartError` and generic errors
-      throw e;
+      errorRed('An unexpected error occurred in the monitor:', format(e));
     }
   }
 

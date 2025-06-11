@@ -12,12 +12,6 @@ import {
 } from '../interfaces/IMonitor.js';
 import { monitorLogger } from '../utils/logger.js';
 
-export {
-  MonitorEventType,
-  MonitorPollingError,
-  MonitorStartError,
-} from '../interfaces/IMonitor.js';
-
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
  */

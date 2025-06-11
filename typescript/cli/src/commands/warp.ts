@@ -1,3 +1,4 @@
+import { format } from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -20,7 +21,13 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -495,9 +502,17 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
   },
   handler: async (args) => {
-    const { context, ...rest } = args;
-    const runner = await RebalancerRunner.create(rest, context);
-    return runner.run();
+    let runner: RebalancerRunner;
+    try {
+      const { context, ...rest } = args;
+      runner = await RebalancerRunner.create(rest, context);
+    } catch (e: any) {
+      // exit on startup errors
+      errorRed('Rebalancer startup error:', format(e));
+      process.exit(1);
+    }
+
+    await runner.run();
   },
 };
 
