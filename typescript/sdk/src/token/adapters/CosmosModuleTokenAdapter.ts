@@ -204,12 +204,15 @@ export class CosmNativeHypCollateralAdapter
 
   async quoteTransferRemoteGas(
     destination: Domain,
-    _sender?: Address,
+    _?: Address,
+    customHook?: Address,
   ): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
     const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
       id: this.tokenId,
       destination_domain: destination.toString(),
+      custom_hook_id: customHook || '',
+      custom_hook_metadata: '',
     });
 
     return {
@@ -224,6 +227,8 @@ export class CosmNativeHypCollateralAdapter
     if (!params.interchainGas) {
       params.interchainGas = await this.quoteTransferRemoteGas(
         params.destination,
+        '',
+        params.customHook,
       );
     }
 

@@ -14,6 +14,7 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   interchainGas?: InterchainGasQuote;
+  customHook?: Address;
 }
 
 export interface InterchainGasQuote {
