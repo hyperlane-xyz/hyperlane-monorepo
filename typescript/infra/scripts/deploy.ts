@@ -18,14 +18,18 @@ import {
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   InterchainAccount,
+  InterchainAccountConfig,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
+  IsmType,
+  RouterConfig,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
 import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
+import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
 import { chainsToSkip } from '../src/config/chain.js';
@@ -159,7 +163,20 @@ async function main() {
     );
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
+    config = objMap(
+      core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
+      (_, routerConfig): InterchainAccountConfig => {
+        return {
+          ...routerConfig,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: routerConfig.owner,
+            ownerOverrides: routerConfig.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      },
+    );
     deployer = new InterchainAccountDeployer(
       multiProvider,
       contractVerifier,
