@@ -7,7 +7,12 @@ use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
 use tokio::sync::Mutex;
 
 use super::*;
-use crate::{adapter::*, error::LanderError, payload::*, transaction::*};
+use crate::{
+    adapter::{chains::ethereum::nonce::db::NonceDb, *},
+    error::LanderError,
+    payload::*,
+    transaction::*,
+};
 
 mockall::mock! {
     pub Adapter {
@@ -30,7 +35,7 @@ mockall::mock! {
     }
 }
 
-pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>) {
+pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>, Arc<dyn NonceDb>) {
     let temp_dir = tempfile::tempdir().unwrap();
     let db = DB::from_path(temp_dir.path()).unwrap();
     let domain = KnownHyperlaneDomain::Arbitrum.into();
@@ -38,7 +43,8 @@ pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>) {
 
     let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
     let tx_db = rocksdb.clone() as Arc<dyn TransactionDb>;
-    (payload_db, tx_db)
+    let nonce_db = rocksdb.clone() as Arc<dyn NonceDb>;
+    (payload_db, tx_db, nonce_db)
 }
 
 pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) -> Transaction {
@@ -47,7 +53,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
         .map(|payload| payload.details)
         .collect();
     Transaction {
-        id: UniqueIdentifier::random(),
+        uuid: UniqueIdentifier::random(),
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
@@ -68,30 +74,30 @@ pub(crate) async fn create_random_txs_and_store_them(
     for _ in 0..num {
         let mut payload = FullPayload::random();
         payload.status = PayloadStatus::InTransaction(status.clone());
-        payload_db.store_payload_by_id(&payload).await.unwrap();
+        payload_db.store_payload_by_uuid(&payload).await.unwrap();
         let tx = dummy_tx(vec![payload], status.clone());
-        tx_db.store_transaction_by_id(&tx).await.unwrap();
+        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
         txs.push(tx);
     }
     txs
 }
 
 pub(crate) async fn initialize_payload_db(payload_db: &Arc<dyn PayloadDb>, payload: &FullPayload) {
-    payload_db.store_payload_by_id(payload).await.unwrap();
+    payload_db.store_payload_by_uuid(payload).await.unwrap();
 }
 
 pub async fn are_all_txs_in_pool(
     txs: Vec<Transaction>,
-    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+    pool: &Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
 ) -> bool {
     let pool = pool.lock().await;
-    txs.iter().all(|tx| pool.contains_key(&tx.id))
+    txs.iter().all(|tx| pool.contains_key(&tx.uuid))
 }
 
 pub async fn are_no_txs_in_pool(
     txs: Vec<Transaction>,
-    pool: &Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+    pool: &Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
 ) -> bool {
     let pool = pool.lock().await;
-    txs.iter().all(|tx| !pool.contains_key(&tx.id))
+    txs.iter().all(|tx| !pool.contains_key(&tx.uuid))
 }

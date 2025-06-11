@@ -4,5 +4,5 @@
 pub use chains::{AdapterFactory, EthereumTxPrecursor, SealevelTxPrecursor};
 pub use core::{AdaptsChain, GasLimit, TxBuildingResult};
 
-mod chains;
+pub mod chains;
 mod core;

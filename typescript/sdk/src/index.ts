@@ -655,6 +655,7 @@ export {
   WarpRouteDeployConfigSchemaErrors,
   XERC20TokenMetadata,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
 } from './token/types.js';
 export {
   ChainMap,
@@ -732,3 +733,4 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export { verifyScale } from './utils/decimals.js';
