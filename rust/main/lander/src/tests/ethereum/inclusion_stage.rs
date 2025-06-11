@@ -176,7 +176,6 @@ async fn test_inclusion_gas_underpriced() {
             vec![200000, 220000],
         );
         if send_call_counter < 2 {
-            // Simulate the "replacement transaction underpriced" error for the first submission
             Err(ChainCommunicationError::CustomError(
                 "replacement transaction underpriced".to_string(),
             ))
