@@ -2,12 +2,18 @@
 # Consists of a map of chain names to metadata
 # Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
 ---
+bech32Prefix: hyp
 chainId: hyperlane-local
 domainId: 75898669
 name: hyp1
 protocol: cosmosnative
+slip44: 118
+restUrls:
+  - http: http://127.0.0.1:1317
 rpcUrls:
   - http: http://127.0.0.1:26657
+grpcUrls:
+  - http: http://127.0.0.1:9090
 blockExplorers: # Array: List of BlockExplorer configs
   # Required fields:
   - name: My Chain Explorer # String: Human-readable name for the explorer
@@ -22,5 +28,5 @@ nativeToken:
   name: TEST
   symbol: TEST
 gasPrice:
-  amount: '0.01'
+  amount: '1'
   denom: uhyp

@@ -4,13 +4,14 @@ import { expect } from 'chai';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainMetadata, CoreConfig, IgpConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { hyperlaneCoreDeploy, readCoreConfig } from '../commands/core.js';
 import {
   CHAIN_1_METADATA_PATH,
   CHAIN_NAME_1,
+  CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_1,
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY,
@@ -31,6 +32,8 @@ describe('hyperlane core read e2e tests', async function () {
       'hyp',
     );
 
+    assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
+
     signer = await SigningHyperlaneModuleClient.connectWithSigner(
       chainMetadata.rpcUrls[0].http,
       wallet,
@@ -49,7 +52,7 @@ describe('hyperlane core read e2e tests', async function () {
       REGISTRY_PATH,
       HYP_KEY,
       CHAIN_NAME_1,
-      CORE_READ_CONFIG_PATH_1,
+      CORE_CONFIG_PATH,
     );
 
     const coreConfig: CoreConfig = await readCoreConfig(
@@ -59,7 +62,7 @@ describe('hyperlane core read e2e tests', async function () {
     );
 
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
-    expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
+    expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
     expect(coreConfig.requiredHook).not.to.be.undefined;
     expect(coreConfig.defaultHook).not.to.be.undefined;
     expect(coreConfig.defaultIsm).not.to.be.undefined;
