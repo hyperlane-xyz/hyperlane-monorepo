@@ -3,9 +3,11 @@
 
 import sinon from 'sinon';
 import { expect } from 'chai';
+// @ts-ignore
 import AWS from 'aws-sdk';
 const { CloudWatch } = AWS;
-import * as monitorModule from './monitor-warp-route-balances.js';
+// @ts-ignore
+const monitorModule: any = require('./monitor-warp-route-balances.js');
 
 interface BalanceData {
   routeId: string;
@@ -17,7 +19,7 @@ function mockBalanceData(balances: BalanceData[]): BalanceData[] {
 }
 
 describe('monitorWarpRouteBalances', () => {
-  let cwPutMetricStub: sinon.SinonStub;
+  let cwPutMetricStub: any;
 
   beforeEach(() => {
     cwPutMetricStub = sinon

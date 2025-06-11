@@ -1,7 +1,7 @@
 import { describe, it, test, expect, beforeEach, jest } from '@jest/globals';
 import type { MockedFunction } from 'jest-mock';
-import { getStatus, fetchRemoteStatus, parseWarpResponse, WarpError } from './status.js';
-import { get } from '../../utils/http.js';
+import { getStatus, fetchRemoteStatus, parseWarpResponse, WarpError } from './status';
+import { get } from '../../../../utils/http';
 
 const mockedGet = get as MockedFunction<typeof get>;
 
