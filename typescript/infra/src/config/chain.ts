@@ -37,6 +37,16 @@ export const chainsToSkip: ChainName[] = [
 
   // Oct 16 batch
   'lumia',
+
+  // legacy icas
+  'carrchaintestnet',
+  'infinityvmmonza',
+  'rometestnet',
+
+  // legacy icas
+  'conflux',
+  'viction',
+  'ontology',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
