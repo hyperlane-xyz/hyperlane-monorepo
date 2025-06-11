@@ -103,9 +103,13 @@ export abstract class HyperlaneRouterDeployer<
 
           await super.runIfOwner(chain, this.router(contracts), async () => {
             const router = this.router(contracts);
-            for (let i = 0; i < domains.length; i += BATCH_SIZE) {
-              const batchDomains = domains.slice(i, i + BATCH_SIZE);
-              const batchAddresses = addresses.slice(i, i + BATCH_SIZE);
+            const enrollBatchSize =
+              chain === 'unitzero' || chain === 'rootstockmainnet'
+                ? Math.ceil(BATCH_SIZE / 4)
+                : BATCH_SIZE;
+            for (let i = 0; i < domains.length; i += enrollBatchSize) {
+              const batchDomains = domains.slice(i, i + enrollBatchSize);
+              const batchAddresses = addresses.slice(i, i + enrollBatchSize);
 
               const chains = batchDomains.map((id) =>
                 this.multiProvider.getChainName(id),
