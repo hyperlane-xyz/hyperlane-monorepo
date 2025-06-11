@@ -47,9 +47,9 @@ async function main() {
     // Convert the object to a YAML string for linting
     const configString = yamlStringify(registryConfig);
     const results = await eslint.lintText(configString, {
-      // Hack to trick eslint to run for yaml files.
-      // This is needed because eslint config filters by filepath (eg. chains/**/*.yaml)
-      filePath: `chains/not-real-file.yaml`,
+      // The `filePath` is required for ESLint to work with in-memory text
+      // This filepath does not need to exist. It simply matches one of the filepaths pattern in the eslint config
+      filePath: `chains/${warpRouteId}-nonexistent-file.yaml`,
     });
 
     try {
