@@ -140,7 +140,7 @@ async function deriveWarpRouteConfigs(
   );
 }
 
-// Validate that all chains are EVM or Starknet compatible
+// Validate that all chains are EVM, CosmosNative, or Starknet compatible
 // by token standard
 function validateCompatibility(
   addresses: ChainMap<{
@@ -148,7 +148,11 @@ function validateCompatibility(
     standard: TokenStandard;
   }>,
 ): void {
-  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.Starknet];
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ProtocolType.CosmosNative,
+    ProtocolType.Starknet,
+  ];
 
   const nonCompatibleChains = Object.entries(addresses)
     .filter(([_, { standard }]) => {
@@ -161,7 +165,7 @@ function validateCompatibility(
     const chainList = nonCompatibleChains.join(', ');
     const verb = nonCompatibleChains.length > 1 ? 'are' : 'is';
     logRed(
-      `${chainList} ${verb} non-EVM/Starknet and not compatible with the cli`,
+      `${chainList} ${verb} non-EVM/CosmosNative/Starknet and not compatible with the cli`,
     );
     process.exit(1);
   }
