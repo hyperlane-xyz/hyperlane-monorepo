@@ -157,6 +157,7 @@ export class WarpCore {
       const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
         sender,
+        originToken.igpTokenAddressOrDenom,
       );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;

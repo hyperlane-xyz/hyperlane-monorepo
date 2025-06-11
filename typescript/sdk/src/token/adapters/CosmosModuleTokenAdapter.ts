@@ -216,8 +216,8 @@ export class CosmNativeHypCollateralAdapter
     });
 
     return {
-      addressOrDenom: gas_payment[0].denom,
-      amount: BigInt(gas_payment[0].amount),
+      addressOrDenom: gas_payment[0]?.denom ?? '',
+      amount: BigInt(gas_payment[0]?.amount ?? '0'),
     };
   }
 
