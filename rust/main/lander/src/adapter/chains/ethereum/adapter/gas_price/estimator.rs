@@ -44,6 +44,10 @@ pub async fn estimate_gas_price(
 
     if let Some(gas_price) = transaction_overrides.gas_price {
         // If the gas price is set, we treat as a non-EIP-1559 chain.
+        debug!(
+            ?gas_price,
+            "Using gas price override for transaction, which assumes a non-EIP-1559 chain",
+        );
         tx_precursor.tx.set_gas_price(gas_price);
         return Ok(());
     }
@@ -52,8 +56,10 @@ pub async fn estimate_gas_price(
     let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
         Ok(result) => result,
         Err(err) => {
-            warn!(?err, "Failed to estimate EIP-1559 fees");
-            // Assume it's not an EIP 1559 chain
+            warn!(
+                ?err,
+                "Failed to estimate EIP-1559 fees, assuming non-EIP-1559 chain"
+            );
             apply_legacy_overrides(tx_precursor, transaction_overrides);
             return Ok(());
         }
@@ -65,6 +71,7 @@ pub async fn estimate_gas_price(
     // fee lower than 3 gwei because of privileged transactions being included by block
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
+        debug!("Base fee is zero, assuming non-EIP-1559 chain",);
         apply_legacy_overrides(tx_precursor, transaction_overrides);
         return Ok(());
     }
