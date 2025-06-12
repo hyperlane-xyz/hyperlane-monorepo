@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use ethers::{contract::builders::ContractCall, prelude::U64, providers::Middleware, types::H256};
 use eyre::eyre;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -147,7 +147,18 @@ impl AdaptsChain for EthereumAdapter {
         todo!()
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn estimate_tx(
+        &self,
+        tx: &mut Transaction,
+        skip_if_already_estimated: bool,
+    ) -> Result<(), LanderError> {
+        if skip_if_already_estimated && tx.precursor().tx.gas_price().is_some() {
+            debug!(
+                ?tx,
+                "skipping gas limit estimation for transaction, as it was already estimated"
+            );
+            return Ok(());
+        }
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
             &self.provider,
