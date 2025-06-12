@@ -465,7 +465,13 @@ export async function extendWarpRoute(
 }
 
 // Updates Warp routes with new configurations.
-async function updateExistingWarpRoute(updateParams: {
+async function updateExistingWarpRoute({
+  applyParams,
+  apiKeys,
+  warpDeployConfig,
+  warpCoreConfig,
+  actualWarpDeployConfig,
+}: {
   applyParams: WarpApplyParams;
   apiKeys: ChainMap<string>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
@@ -473,13 +479,6 @@ async function updateExistingWarpRoute(updateParams: {
   actualWarpDeployConfig?: DerivedWarpRouteDeployConfig;
 }) {
   logBlue('Updating deployed Warp Routes');
-  const {
-    applyParams,
-    apiKeys,
-    warpDeployConfig,
-    warpCoreConfig,
-    actualWarpDeployConfig,
-  } = updateParams;
   const { multiProvider, registry } = applyParams.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
