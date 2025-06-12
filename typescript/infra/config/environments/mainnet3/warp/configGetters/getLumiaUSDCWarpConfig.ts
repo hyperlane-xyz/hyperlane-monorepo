@@ -13,10 +13,9 @@ const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 const owners = {
   ethereum: '0x18da35630c84fCD9d9c947fC61cA7a6d9b841577',
   lumiaprism: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
-  // TODO: add safes
-  arbitrum: '',
-  base: '',
-  optimism: '',
+  arbitrum: '0xc8A9Dea7359Bd6FDCAD3B8EDE108416C25cF4CE9',
+  base: '0xcEC53d6fF9B4C7b8E77f0C0D3f8828Bb872f2377',
+  optimism: '0x914931eBb5638108651455F50C1F784d3E5fd3EC',
 } as const;
 
 export const getLumiaUSDCWarpConfig = async (
