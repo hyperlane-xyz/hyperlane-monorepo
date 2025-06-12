@@ -170,6 +170,19 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
+    // Special handling for aggregation hooks
+    if (
+      typeof normalizedCurrentConfig === 'object' &&
+      typeof normalizedTargetConfig === 'object' &&
+      normalizedCurrentConfig.type === HookType.AGGREGATION &&
+      normalizedTargetConfig.type === HookType.AGGREGATION
+    ) {
+      return this.updateAggregationHook({
+        current: normalizedCurrentConfig,
+        target: normalizedTargetConfig,
+      });
+    }
+
     if (
       this.shouldDeployNewHook(normalizedCurrentConfig, normalizedTargetConfig)
     ) {
@@ -245,6 +258,118 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return updateTxs;
+  }
+
+  /**
+   * Updates an aggregation hook by updating mutable components in-place when possible
+   */
+  protected async updateAggregationHook({
+    current,
+    target,
+  }: {
+    current: AggregationHookConfig;
+    target: AggregationHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const logger = this.logger.child({
+      destination: this.chain,
+      hookType: 'aggregation',
+    });
+
+    // If hook count changed, redeploy the entire aggregation
+    if (current.hooks.length !== target.hooks.length) {
+      logger.debug('Hook count changed, redeploying aggregation hook');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedHook = contract.address;
+      return [];
+    }
+
+    let hasStructuralChange = false;
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    // Check each hook to see if we can update in place
+    for (let i = 0; i < target.hooks.length; i++) {
+      const currentHook = normalizeConfig(current.hooks[i]);
+      const targetHook = normalizeConfig(target.hooks[i]);
+
+      // If hooks are identical, skip
+      if (deepEquals(currentHook, targetHook)) {
+        continue;
+      }
+
+      // If hook types are different or hook is not mutable, mark as structural change
+      if (
+        typeof currentHook === 'string' ||
+        typeof targetHook === 'string' ||
+        currentHook.type !== targetHook.type ||
+        !MUTABLE_HOOK_TYPE.includes(targetHook.type)
+      ) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      // Hook is mutable and only config changed - update in place
+      logger.debug(`Updating hook ${i} (${targetHook.type}) in place`);
+
+      // Create a temporary hook module instance for this component
+      const moduleInstance = new EvmHookModule(
+        this.multiProvider,
+        {
+          addresses: this.args.addresses,
+          chain: this.args.chain,
+          config: currentHook,
+        },
+        undefined, // ccipContractCache
+        this.contractVerifier,
+      );
+
+      // Get the current deployed address for this hook from the aggregation
+      const currentHookAddress = await this.getAggregationHookAddress(i);
+      moduleInstance.args.addresses.deployedHook = currentHookAddress;
+
+      // Update the hook in place
+      const hookTxs = await moduleInstance.update(targetHook);
+      updateTxs.push(...hookTxs);
+    }
+
+    // If there were structural changes, redeploy the entire aggregation
+    if (hasStructuralChange) {
+      logger.debug('Structural changes detected, redeploying aggregation hook');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedHook = contract.address;
+      return [];
+    }
+
+    return updateTxs;
+  }
+
+  /**
+   * Gets the address of a specific hook within an aggregation hook
+   */
+  protected async getAggregationHookAddress(
+    hookIndex: number,
+  ): Promise<Address> {
+    // This would need to be implemented based on the aggregation hook contract interface
+    // For now, we'll need to read from the aggregation contract
+    const reader = this.reader;
+    const currentConfig = await reader.deriveHookConfig(
+      this.args.addresses.deployedHook,
+    );
+
+    if (
+      typeof currentConfig === 'object' &&
+      currentConfig.type === HookType.AGGREGATION
+    ) {
+      // The reader should return the actual hook addresses
+      // This assumes the reader properly populates the hook addresses
+      const hook = currentConfig.hooks[hookIndex];
+      if (typeof hook === 'string') {
+        return hook;
+      }
+    }
+
+    throw new Error(
+      `Could not determine address for aggregation hook at index ${hookIndex}`,
+    );
   }
 
   // manually write static create function

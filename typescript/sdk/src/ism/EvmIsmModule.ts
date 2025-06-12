@@ -30,6 +30,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  AggregationIsmConfig,
   DeployedIsm,
   DomainRoutingIsmConfig,
   IsmConfig,
@@ -118,14 +119,23 @@ export class EvmIsmModule extends HyperlaneModule<
       'normalized targetConfig should be an object',
     );
 
-    // if it's a fallback routing ISM, do a mailbox diff check
-
     // If configs match, no updates needed
     if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
-    // Else, we have to figure out what an update for this ISM entails
+    // Special handling for aggregation ISMs
+    if (
+      typeof currentConfig === 'object' &&
+      currentConfig.type === IsmType.AGGREGATION &&
+      targetConfig.type === IsmType.AGGREGATION
+    ) {
+      return this.updateAggregationIsm({
+        current: currentConfig,
+        target: targetConfig,
+      });
+    }
+
     // Check if we need to deploy a new ISM
     if (
       // if updating from an address/custom config to a proper ISM config, do a new deploy
@@ -182,6 +192,123 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     return updateTxs;
+  }
+
+  /**
+   * Updates an aggregation ISM by updating mutable components in-place when possible
+   */
+  protected async updateAggregationIsm({
+    current,
+    target,
+  }: {
+    current: AggregationIsmConfig;
+    target: AggregationIsmConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const logger = this.logger.child({
+      destination: this.chain,
+      ismType: 'aggregation',
+    });
+
+    // If threshold changed or module count changed, redeploy the entire aggregation
+    if (
+      current.threshold !== target.threshold ||
+      current.modules.length !== target.modules.length
+    ) {
+      logger.debug(
+        'Threshold or module count changed, redeploying aggregation ISM',
+      );
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedIsm = contract.address;
+      return [];
+    }
+
+    let hasStructuralChange = false;
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    // Check each module to see if we can update in place
+    for (let i = 0; i < target.modules.length; i++) {
+      const currentModule = normalizeConfig(current.modules[i]);
+      const targetModule = normalizeConfig(target.modules[i]);
+
+      // If modules are identical, skip
+      if (deepEquals(currentModule, targetModule)) {
+        continue;
+      }
+
+      // If module types are different or module is not mutable, mark as structural change
+      if (
+        typeof currentModule === 'string' ||
+        typeof targetModule === 'string' ||
+        currentModule.type !== targetModule.type ||
+        !MUTABLE_ISM_TYPE.includes(targetModule.type)
+      ) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      // Module is mutable and only config changed - update in place
+      logger.debug(`Updating module ${i} (${targetModule.type}) in place`);
+
+      // Create a temporary ISM module instance for this component
+      const moduleInstance = new EvmIsmModule(
+        this.multiProvider,
+        {
+          addresses: this.args.addresses,
+          chain: this.args.chain,
+          config: currentModule,
+        },
+        undefined, // ccipContractCache
+        this.contractVerifier,
+      );
+
+      // Get the current deployed address for this module from the aggregation
+      const currentModuleAddress = await this.getAggregationModuleAddress(i);
+      moduleInstance.args.addresses.deployedIsm = currentModuleAddress;
+
+      // Update the module in place
+      const moduleTxs = await moduleInstance.update(targetModule);
+      updateTxs.push(...moduleTxs);
+    }
+
+    // If there were structural changes, redeploy the entire aggregation
+    if (hasStructuralChange) {
+      logger.debug('Structural changes detected, redeploying aggregation ISM');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedIsm = contract.address;
+      return [];
+    }
+
+    return updateTxs;
+  }
+
+  /**
+   * Gets the address of a specific module within an aggregation ISM
+   */
+  protected async getAggregationModuleAddress(
+    moduleIndex: number,
+  ): Promise<Address> {
+    // This would need to be implemented based on the aggregation ISM contract interface
+    // For now, we'll need to read from the aggregation contract
+    const reader = this.reader;
+    const currentConfig = await reader.deriveIsmConfig(
+      this.args.addresses.deployedIsm,
+    );
+
+    if (
+      typeof currentConfig === 'object' &&
+      currentConfig.type === IsmType.AGGREGATION
+    ) {
+      // The reader should return the actual module addresses
+      // This assumes the reader properly populates the module addresses
+      const module = currentConfig.modules[moduleIndex];
+      if (typeof module === 'string') {
+        return module;
+      }
+    }
+
+    throw new Error(
+      `Could not determine address for aggregation module at index ${moduleIndex}`,
+    );
   }
 
   // manually write static create function
