@@ -14,6 +14,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -241,10 +242,32 @@ export class EvmIsmModule extends HyperlaneModule<
       this.multiProvider.getProvider(this.chain),
     ).modulesAndThreshold(ZERO_ADDRESS_HEX_32);
 
+    const ismConfigMap: Record<string, number> = {};
+
+    for (const ism of ismAddresses) {
+      const derivedIsmConfig =
+        await this.reader.deriveIsmConfigFromAddress(ism);
+      const normalizedIsmConfig = normalizeConfig(derivedIsmConfig);
+
+      const ismIndex = current.modules.findIndex((h) =>
+        deepEquals(h, normalizedIsmConfig),
+      );
+      if (ismIndex === -1) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      ismConfigMap[ism] = ismIndex;
+    }
+
     // Check each module to see if we can update in place
-    for (let i = 0; i < target.modules.length; i++) {
-      const currentModule = normalizeConfig(current.modules[i]);
-      const targetModule = normalizeConfig(target.modules[i]);
+    for (const [ismAddress, ismIndex] of Object.entries(ismConfigMap)) {
+      if (hasStructuralChange) {
+        break;
+      }
+
+      const currentModule = normalizeConfig(current.modules[ismIndex]);
+      const targetModule = normalizeConfig(target.modules[ismIndex]);
 
       // If modules are identical, skip
       if (deepEquals(currentModule, targetModule)) {
@@ -263,7 +286,9 @@ export class EvmIsmModule extends HyperlaneModule<
       }
 
       // Module is mutable and only config changed - update in place
-      logger.debug(`Updating module ${i} (${targetModule.type}) in place`);
+      logger.debug(
+        `Updating module ${ismIndex} (${targetModule.type}) in place`,
+      );
 
       // Create a temporary ISM module instance for this component
       const moduleInstance = new EvmIsmModule(
@@ -271,7 +296,7 @@ export class EvmIsmModule extends HyperlaneModule<
         {
           addresses: {
             ...this.args.addresses,
-            deployedIsm: ismAddresses[i],
+            deployedIsm: ismAddress,
           },
           chain: this.args.chain,
           config: currentModule,
@@ -282,6 +307,16 @@ export class EvmIsmModule extends HyperlaneModule<
 
       // Update the module in place
       const moduleTxs = await moduleInstance.update(targetModule);
+
+      // If the address changed, update the config to reuse the deployed module
+      if (!eqAddress(moduleInstance.args.addresses.deployedIsm, ismAddress)) {
+        hasStructuralChange = true;
+        // Update the target config to reuse the existing deployed module address
+        target.modules[ismIndex] = moduleInstance.args.addresses.deployedIsm;
+        break;
+      }
+
+      // Finally, push the module updates
       updateTxs.push(...moduleTxs);
     }
 

@@ -291,10 +291,32 @@ export class EvmHookModule extends HyperlaneModule<
       this.multiProvider.getProvider(this.chain),
     ).hooks(ZERO_ADDRESS_HEX_32);
 
+    const hookConfigMap: Record<string, number> = {};
+
+    for (const hook of hookAddresses) {
+      const derivedHookConfig =
+        await this.reader.deriveHookConfigFromAddress(hook);
+      const normalizedHookConfig = normalizeConfig(derivedHookConfig);
+
+      const hookIndex = current.hooks.findIndex((h) =>
+        deepEquals(h, normalizedHookConfig),
+      );
+      if (hookIndex === -1) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      hookConfigMap[hook] = hookIndex;
+    }
+
     // Check each hook to see if we can update in place
-    for (let i = 0; i < target.hooks.length; i++) {
-      const currentHook = normalizeConfig(current.hooks[i]);
-      const targetHook = normalizeConfig(target.hooks[i]);
+    for (const [hookAddress, hookIndex] of Object.entries(hookConfigMap)) {
+      if (hasStructuralChange) {
+        break;
+      }
+
+      const currentHook = normalizeConfig(current.hooks[hookIndex]);
+      const targetHook = normalizeConfig(target.hooks[hookIndex]);
 
       // If hooks are identical, skip
       if (deepEquals(currentHook, targetHook)) {
@@ -313,7 +335,7 @@ export class EvmHookModule extends HyperlaneModule<
       }
 
       // Hook is mutable and only config changed - update in place
-      logger.debug(`Updating hook ${i} (${targetHook.type}) in place`);
+      logger.debug(`Updating hook ${hookIndex} (${targetHook.type}) in place`);
 
       // Create a temporary hook module instance for this component
       const moduleInstance = new EvmHookModule(
@@ -321,7 +343,7 @@ export class EvmHookModule extends HyperlaneModule<
         {
           addresses: {
             ...this.args.addresses,
-            deployedHook: hookAddresses[i],
+            deployedHook: hookAddress,
           },
           chain: this.args.chain,
           config: currentHook,
@@ -332,6 +354,16 @@ export class EvmHookModule extends HyperlaneModule<
 
       // Update the hook in place
       const hookTxs = await moduleInstance.update(targetHook);
+
+      // If the address changed, update the config to reuse the deployed hook
+      if (!eqAddress(moduleInstance.args.addresses.deployedHook, hookAddress)) {
+        hasStructuralChange = true;
+        // Update the target config to reuse the existing deployed hook address
+        target.hooks[hookIndex] = moduleInstance.args.addresses.deployedHook;
+        break;
+      }
+
+      // Finally, push the hook updates
       updateTxs.push(...hookTxs);
     }
 
