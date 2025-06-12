@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "7.1.10",
+  "version": "8.0.0",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
     "@chainlink/contracts-ccip": "^1.5.0",
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "13.2.1",
+    "@hyperlane-xyz/utils": "13.3.0",
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
     "@matterlabs/hardhat-zksync-solc": "1.2.5",
     "@matterlabs/hardhat-zksync-verify": "1.7.1",
@@ -84,7 +84,7 @@
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",
-    "test:forge": "yarn fixtures && forge test -vvv",
+    "test:forge": "yarn fixtures && forge test -vvv --decode-internal",
     "test:ci": "yarn version:changed && yarn test:hardhat && yarn test:forge --no-match-test testFork",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",

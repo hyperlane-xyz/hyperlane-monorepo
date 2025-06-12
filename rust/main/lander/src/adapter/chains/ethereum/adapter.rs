@@ -28,7 +28,7 @@ use crate::{
 use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
 
 mod gas_limit_estimator;
-mod gas_price_estimator;
+mod gas_price;
 mod tx_status_checker;
 
 pub struct EthereumAdapter {
@@ -86,16 +86,24 @@ impl EthereumAdapter {
     }
 
     async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        if tx.precursor().tx.gas_price().is_none() {
-            gas_price_estimator::estimate_gas_price(
-                &self.provider,
-                tx.precursor_mut(),
-                &self.transaction_overrides,
-                &self.domain,
-            )
-            .await?;
-            info!(?tx, "estimated gas price for transaction");
-        }
+        // even if the gas price is already set, we still want to (re-)estimate it
+        // to be resilient to gas spikes
+        let old_tx_precursor = tx.precursor().clone();
+        let new_tx_precursor = tx.precursor_mut();
+
+        // first, estimate the gas price and set it on the new transaction precursor
+        gas_price::estimator::estimate_gas_price(
+            &self.provider,
+            new_tx_precursor,
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
+
+        // then, compare the estimated gas price with `current * escalation_multiplier`
+        gas_price::escalator::escalate_gas_price_if_needed(&old_tx_precursor, new_tx_precursor);
+
+        info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
         Ok(())
     }
 }

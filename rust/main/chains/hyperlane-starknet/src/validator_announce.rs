@@ -7,8 +7,8 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, TxOutcome, H256, U256,
 };
-use starknet::accounts::{Account, Execution, SingleOwnerAccount};
-use starknet::core::types::FieldElement;
+use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
+use starknet::core::types::Felt;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
@@ -16,7 +16,7 @@ use tracing::{instrument, warn};
 
 use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
-use crate::types::{HyH256, HyU256};
+use crate::types::HyH256;
 use crate::utils::send_and_confirm;
 use crate::{
     build_single_owner_account, string_to_cairo_long_string, ConnectionConf, Signer,
@@ -48,19 +48,11 @@ impl StarknetValidatorAnnounce {
     pub async fn new(
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(
-            &conn.url,
-            signer.local_wallet(),
-            &signer.address,
-            signer.is_legacy,
-        )
-        .await?;
+        let account = build_single_owner_account(&conn.url, signer).await?;
 
-        let va_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+        let va_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetValidatorAnnounceInternal::new(va_address, account);
 
@@ -75,12 +67,8 @@ impl StarknetValidatorAnnounce {
     async fn announce_contract_call(
         &self,
         announcement: SignedType<Announcement>,
-    ) -> ChainResult<(
-        Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
-        FieldElement,
-    )> {
-        let validator = FieldElement::from_byte_slice_be(&announcement.value.validator.to_vec())
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
+        let validator = Felt::from_bytes_be_slice(&announcement.value.validator.to_vec());
         let storage_location = string_to_cairo_long_string(&announcement.value.storage_location)
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signature_bytes = announcement.signature.to_vec();
@@ -89,18 +77,8 @@ impl StarknetValidatorAnnounce {
         let tx = self
             .contract
             .announce(&EthAddress(validator), &storage_location, &signature);
-        let gas_estimate = tx
-            .estimate_fee()
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to estimate gas in announce_contract_call: {:?}", e);
-                HyperlaneStarknetError::from(e)
-            })?
-            .overall_fee;
 
-        let max_cost = gas_estimate * FieldElement::TWO;
-
-        Ok((tx.max_fee(max_cost), max_cost))
+        Ok(tx)
     }
 
     #[allow(unused)]
@@ -135,12 +113,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     ) -> ChainResult<Vec<Vec<String>>> {
         let validators_calldata: Vec<EthAddress> = validators
             .iter()
-            .map(|v| {
-                TryInto::<FieldElement>::try_into(HyH256(*v))
-                    .map_err(Into::<HyperlaneStarknetError>::into)
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
+            .map(|v| Into::<Felt>::into(HyH256(*v)))
             .map(EthAddress)
             .collect();
 
@@ -185,8 +158,12 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         announcement: SignedType<Announcement>,
         _chain_signer: H256, // TODO: use chain signer instead of contract address
     ) -> Option<U256> {
-        let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
+        let Ok(tx) = self.announce_contract_call(announcement).await else {
             warn!("Unable to get announce contract call");
+            return None;
+        };
+        let Ok(estimate) = tx.estimate_fee().await else {
+            warn!("Unable to estimate announce contract call");
             return None;
         };
 
@@ -199,13 +176,16 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             return None;
         };
 
-        let max_cost_u256: HyU256 = max_cost.into();
-
-        Some(max_cost_u256.0.saturating_sub(balance))
+        Some(
+            estimate
+                .overall_fee
+                .saturating_sub(balance.as_u128())
+                .into(),
+        )
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let (contract_call, _) = self.announce_contract_call(announcement).await?;
+        let contract_call = self.announce_contract_call(announcement).await?;
         send_and_confirm(&self.provider.rpc_client(), contract_call).await
     }
 }

@@ -3,19 +3,27 @@ import { Wallet, ethers } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMetadata,
   HookType,
   HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptionalSchema,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
+import {
+  addressToBytes32,
+  assert,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -42,11 +50,14 @@ import {
 
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
-  let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
+  let chain2Metadata: ChainMetadata;
+
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+    chain2Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    chain2Addresses = await deployOrUseExistingCore(
+    chain3Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_3,
       CORE_CONFIG_PATH,
       ANVIL_KEY,
@@ -227,7 +238,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -286,7 +297,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -360,5 +371,158 @@ describe('hyperlane warp apply owner update tests', async function () {
     );
 
     expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
+  });
+
+  it('should add a new rebalancer and remove an existing one', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      WARP_CONFIG_PATH_EXAMPLE,
+    );
+
+    // Add the first address as rebalancer and then remove it and add the second one
+    const allowedRebalancers = [randomAddress(), randomAddress()].map(
+      normalizeAddressEvm,
+    );
+
+    for (const rebalancer of allowedRebalancers) {
+      const anvil2Config = {
+        anvil2: { ...warpConfig.anvil1, allowedRebalancers: [rebalancer] },
+      };
+      writeYamlOrJson(warpConfigPath, anvil2Config);
+
+      await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+      const updatedWarpDeployConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2,
+        warpConfigPath,
+      );
+
+      assert(
+        updatedWarpDeployConfig.anvil2.type === TokenType.native,
+        `Config on chain ${CHAIN_NAME_2} must be a ${TokenType.native}`,
+      );
+      expect(
+        updatedWarpDeployConfig.anvil2.allowedRebalancers?.length,
+      ).to.equal(1);
+
+      const [currentRebalancer] =
+        updatedWarpDeployConfig.anvil2.allowedRebalancers ?? [];
+      expect(currentRebalancer).to.equal(rebalancer);
+    }
+  });
+
+  const addAndRemoveBridgeTestCases = () => {
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+
+    return [
+      [chain3Metadata.domainId, chain3Metadata.domainId],
+      [chain3Metadata.domainId, chain3Metadata.name],
+    ];
+  };
+
+  for (const [
+    chain3DomainId,
+    domainIdOrChainName,
+  ] of addAndRemoveBridgeTestCases()) {
+    it(`should add a new allowed bridge and remove an existing one for domain ${domainIdOrChainName}`, async () => {
+      const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+      const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_CONFIG_PATH_EXAMPLE,
+      );
+
+      // Add the first address as rebalancer and then remove it and add the second one
+      const allowedRebalancerBridges = [randomAddress(), randomAddress()].map(
+        normalizeAddressEvm,
+      );
+
+      for (const rebalancer of allowedRebalancerBridges) {
+        const anvil2Config: WarpRouteDeployConfig = {
+          anvil2: HypTokenRouterConfigMailboxOptionalSchema.parse({
+            ...warpConfig.anvil1,
+            owner: ANVIL_DEPLOYER_ADDRESS,
+            remoteRouters: {
+              [chain3DomainId]: { address: randomAddress() },
+            },
+            allowedRebalancingBridges: {
+              [domainIdOrChainName]: [{ bridge: rebalancer }],
+            },
+          }),
+        };
+        writeYamlOrJson(warpConfigPath, anvil2Config);
+
+        await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+        const updatedWarpDeployConfig = await readWarpConfig(
+          CHAIN_NAME_2,
+          WARP_CORE_CONFIG_PATH_2,
+          warpConfigPath,
+        );
+
+        assert(
+          updatedWarpDeployConfig.anvil2.type === TokenType.native,
+          `Config on chain ${CHAIN_NAME_2} must be a ${TokenType.native}`,
+        );
+        expect(
+          (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
+            chain3DomainId
+          ].length,
+        ).to.equal(1);
+
+        const [currentRebalancer] =
+          (updatedWarpDeployConfig.anvil2.allowedRebalancingBridges ?? {})[
+            chain3DomainId
+          ] ?? [];
+        expect(currentRebalancer.bridge).to.equal(rebalancer);
+      }
+    });
+  }
+
+  it('should update the remote gas and routers configuration when specified using the domain name', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    // First read the existing config
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    const expectedRemoteGasSetting = '30000';
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = {
+      [CHAIN_NAME_3]: expectedRemoteGasSetting,
+    };
+
+    const expectedRemoteRouter = randomAddress();
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = {
+      [CHAIN_NAME_3]: {
+        address: expectedRemoteRouter,
+      },
+    };
+
+    // Write the updated config
+    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    const updatedConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    expect(
+      (updatedConfig[CHAIN_NAME_2].destinationGas ?? {})[
+        chain2Metadata.domainId
+      ],
+    ).to.deep.equal(expectedRemoteGasSetting);
+    expect(
+      normalizeAddressEvm(
+        (updatedConfig[CHAIN_NAME_2].remoteRouters ?? {})[
+          chain2Metadata.domainId
+        ].address,
+      ),
+    ).to.deep.equal(addressToBytes32(expectedRemoteRouter));
   });
 });

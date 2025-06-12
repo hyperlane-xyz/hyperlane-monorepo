@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
 ## 13.2.1
 
 ### Patch Changes
