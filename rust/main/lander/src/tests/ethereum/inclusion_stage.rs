@@ -167,16 +167,18 @@ async fn test_inclusion_gas_underpriced() {
 
 #[tokio::test]
 #[traced_test]
-async fn test_tx_fails_simulation_after_submission() {
+async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
     let mut estimate_gas_call_counter = 0;
     mock_evm_provider
         .expect_estimate_gas_limit()
         .returning(move |_, _| {
             estimate_gas_call_counter += 1;
+            // simulation passes on the first call, but fails on the second
             if estimate_gas_call_counter < 2 {
                 Ok(21000.into())
             } else {
@@ -186,23 +188,24 @@ async fn test_tx_fails_simulation_after_submission() {
             }
         });
 
-    mock_default_fee_history(&mut mock_evm_provider);
-
-    // assume the tx never gets included, so it stays in the inclusion stage
+    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
+    // we keep resubmitting it until it finally gets included
+    let mut tx_receipt_call_counter = 0;
     mock_evm_provider
         .expect_get_transaction_receipt()
-        .returning(move |_| Ok(Some(mock_tx_receipt(None))));
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42)))) // Block number for the last submission
+            }
+        });
 
-    // assert each expected price by mocking the `send` method of the provider
-    let mut send_call_counter = 0;
-    let elapsed = Instant::now();
-    let base_processing_delay = Duration::from_millis(100);
-    // assume 1 second more than usual because that's the retry delay when an error occurs
-    let inclusion_stage_processing_delay = Duration::from_millis(1030);
-    let block_time_clone = block_time.clone();
+    // assert sending the tx always works
     mock_evm_provider
         .expect_send()
-        .returning(move |tx, _| Ok(H256::random()));
+        .returning(move |_tx, _| Ok(H256::random()));
 
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
