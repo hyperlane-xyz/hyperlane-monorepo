@@ -353,6 +353,367 @@ describe('EvmHookModule', async () => {
         .false;
     });
 
+    it('should update mutable hook in-place within aggregation', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: '1000',
+            protocolFee: '100',
+            beneficiary: owner,
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Update the protocol fee hook (should update in-place)
+      const protocolFeeHook = config.hooks[1] as ProtocolFeeHookConfig;
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            ...protocolFeeHook,
+            protocolFee: '200', // change protocol fee
+          },
+        ],
+      };
+
+      // expect 1 tx to update the protocol fee hook in-place
+      await expectTxsAndUpdate(hook, updatedConfig, 1);
+
+      // expect the aggregation hook address to be the same
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
+    });
+
+    it('should update mutable IGP hook in-place within aggregation', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.INTERCHAIN_GAS_PAYMASTER,
+            beneficiary: randomAddress(),
+            oracleKey: owner,
+            overhead: {
+              test1: 50,
+              test2: 60,
+            },
+            oracleConfig: {
+              test1: {
+                tokenExchangeRate: '1000000000000',
+                gasPrice: '1000000000',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
+              },
+              test2: {
+                tokenExchangeRate: '2000000000000',
+                gasPrice: '2000000000',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
+              },
+            },
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Update the IGP hook beneficiary (should update in-place)
+      const igpHook = config.hooks[1] as IgpHookConfig;
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            ...igpHook,
+            beneficiary: randomAddress(), // change beneficiary
+          },
+        ],
+      };
+
+      // expect 1 tx to update the IGP hook in-place
+      await expectTxsAndUpdate(hook, updatedConfig, 1);
+
+      // expect the aggregation hook address to be the same
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
+    });
+
+    it('should update mutable pausable hook in-place within aggregation', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.PAUSABLE,
+            paused: false,
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Update the pausable hook state (should update in-place)
+      const pausableHook = config.hooks[1] as PausableHookConfig;
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            ...pausableHook,
+            paused: true, // change paused state
+          },
+        ],
+      };
+
+      // expect 1 tx to update the pausable hook in-place
+      await expectTxsAndUpdate(hook, updatedConfig, 1);
+
+      // expect the aggregation hook address to be the same
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
+    });
+
+    it('should update mutable routing hook in-place within aggregation', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.ROUTING,
+            domains: {
+              test1: {
+                type: HookType.MERKLE_TREE,
+              },
+            },
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Update the routing hook by adding a domain (should update in-place)
+      const routingHook = config.hooks[1] as DomainRoutingHookConfig;
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            ...routingHook,
+            domains: {
+              ...routingHook.domains,
+              test2: {
+                type: HookType.MERKLE_TREE,
+              },
+            },
+          },
+        ],
+      };
+
+      // expect 1 tx to update the routing hook in-place
+      await expectTxsAndUpdate(hook, updatedConfig, 1);
+
+      // expect the aggregation hook address to be the same
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
+    });
+
+    it('should redeploy aggregation when hook types change', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: '1000',
+            protocolFee: '100',
+            beneficiary: owner,
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Change the type of the second hook (structural change)
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            owner,
+            type: HookType.PAUSABLE,
+            paused: false,
+          },
+        ],
+      };
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(hook, updatedConfig, 0);
+
+      // expect the aggregation hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    it('should redeploy aggregation when hook count changes', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: '1000',
+            protocolFee: '100',
+            beneficiary: owner,
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Add another hook (structural change)
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          ...config.hooks,
+          {
+            owner,
+            type: HookType.PAUSABLE,
+            paused: false,
+          },
+        ],
+      };
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(hook, updatedConfig, 0);
+
+      // expect the aggregation hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    it('should redeploy aggregation when non-mutable hook changes', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.ROUTING,
+            domains: {
+              test1: {
+                type: HookType.MERKLE_TREE,
+              },
+            },
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Change the non-mutable merkle tree hook to a different type (structural change)
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: '1000',
+            protocolFee: '100',
+            beneficiary: owner,
+          },
+          config.hooks[1], // routing unchanged
+        ],
+      };
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(hook, updatedConfig, 0);
+
+      // expect the aggregation hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    it('should redeploy aggregation when mutable hook has max fee change', async () => {
+      // Test specific case where protocol fee hook needs redeployment
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            type: HookType.MERKLE_TREE,
+          },
+          {
+            owner,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: '1000',
+            protocolFee: '100',
+            beneficiary: owner,
+          },
+        ],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // Change the max protocol fee (requires redeployment)
+      const protocolFeeHook = config.hooks[1] as ProtocolFeeHookConfig;
+      const updatedConfig: AggregationHookConfig = {
+        ...config,
+        hooks: [
+          config.hooks[0], // merkle tree unchanged
+          {
+            ...protocolFeeHook,
+            maxProtocolFee: '2000', // change max protocol fee
+          },
+        ],
+      };
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(hook, updatedConfig, 0);
+
+      // expect the aggregation hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
     it('should not update if aggregation hook includes an address of an existing hook', async () => {
       const config: AggregationHookConfig = {
         type: HookType.AGGREGATION,
