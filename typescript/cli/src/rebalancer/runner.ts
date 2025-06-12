@@ -196,15 +196,13 @@ export class RebalancerRunner {
     }
   }
 
-  private onTokenInfo(event: MonitorEvent): void {
+  private async onTokenInfo(event: MonitorEvent): Promise<void> {
     if (this.metrics) {
-      for (const tokenInfo of event.tokensInfo) {
-        this.metrics.processToken(tokenInfo).catch((e) => {
-          errorRed(
-            `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
-          );
-        });
-      }
+      await Promise.all(
+        event.tokensInfo.map((tokenInfo) =>
+          this.metrics!.processToken(tokenInfo),
+        ),
+      );
     }
 
     const rawBalances = getRawBalances(
