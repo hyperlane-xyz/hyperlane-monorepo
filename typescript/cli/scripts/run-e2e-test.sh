@@ -42,7 +42,7 @@ function run_cosmosnative() {
     echo "Running only ${CLI_E2E_TEST} test"
     yarn mocha --config .mocharc-e2e.json "src/tests/cosmosnative/**/${CLI_E2E_TEST}.e2e-test.ts"
   else
-    yarn mocha --config .mocharc-e2e.json "src/tests/cosmosnative/**/core-apply.e2e-test.ts"
+    yarn mocha --config .mocharc-e2e.json "src/tests/cosmosnative/**/*.e2e-test.ts"
   fi
 }
 
