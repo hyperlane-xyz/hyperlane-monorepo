@@ -102,6 +102,22 @@ export class StarknetERC20WarpModule {
           addresses[chain] = tokenAddress;
           break;
         }
+        case TokenType.collateral: {
+          const tokenAddress = await deployer.deployContract(
+            StarknetContractName.HYP_ERC20_COLLATERAL,
+            {
+              mailbox: mailbox!,
+              // @ts-ignore
+              erc20: rest.token,
+              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+              hook: getChecksumAddress(0),
+              interchain_security_module: ismAddress,
+            },
+            ContractType.TOKEN,
+          );
+          addresses[chain] = tokenAddress;
+          break;
+        }
         case TokenType.collateralDex: {
           const tokenAddress = await deployer.deployContract(
             StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
