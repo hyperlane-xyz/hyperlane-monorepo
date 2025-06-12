@@ -152,7 +152,7 @@ impl AdaptsChain for EthereumAdapter {
         tx: &mut Transaction,
         skip_if_already_estimated: bool,
     ) -> Result<(), LanderError> {
-        if skip_if_already_estimated && tx.precursor().tx.gas_price().is_some() {
+        if skip_if_already_estimated && tx.precursor().tx.gas().is_some() {
             debug!(
                 ?tx,
                 "skipping gas limit estimation for transaction, as it was already estimated"
