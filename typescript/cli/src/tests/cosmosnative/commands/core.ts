@@ -89,7 +89,7 @@ export function hyperlaneCoreInit(
   hyp_key?: string,
 ): ProcessPromise {
   return $`${
-    hyp_key ? ['HYP_KEY=' + hyp_key] : ''
+    hyp_key ? ['HYP_KEY_COSMOSNATIVE=' + hyp_key] : ''
   } ${localTestRunCmdPrefix()} hyperlane core init \
         --registry ${registryPath} \
         --config ${coreOutputPath} \

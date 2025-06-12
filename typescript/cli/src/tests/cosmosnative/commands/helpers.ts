@@ -62,6 +62,12 @@ export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
   input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
 };
 
+export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Using owner address as'),
+  input: KeyBoardKeys.ENTER,
+};
+
 /**
  * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
  * in the provided order when the check in the {@link TestPromptAction} matches the output
