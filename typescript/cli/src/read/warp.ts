@@ -13,7 +13,6 @@ import {
   HypTokenRouterConfig,
   MultiProvider,
   StarknetERC20WarpRouteReader,
-  TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -102,13 +101,12 @@ async function deriveWarpRouteConfigs(
   context: CommandContext,
   addresses: ChainMap<{
     address: string;
-    standard: TokenStandard;
   }>,
   warpCoreConfig?: WarpCoreConfig,
 ): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider, multiProtocolProvider } = context;
 
-  validateCompatibility(addresses);
+  validateCompatibility(context, Object.keys(addresses));
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -117,8 +115,9 @@ async function deriveWarpRouteConfigs(
 
   // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, { address, standard }) => {
-      switch (TOKEN_STANDARD_TO_PROTOCOL[standard]) {
+    objMap(addresses, async (chain, { address }) => {
+      const protocol = context.chainMetadata[chain].protocol;
+      switch (protocol) {
         case ProtocolType.Ethereum: {
           return new EvmERC20WarpRouteReader(
             multiProvider,
@@ -133,30 +132,23 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default:
-          logRed(`token standard ${standard} not supported`);
+          logRed(`protocol type ${protocol} not supported`);
           process.exit(1);
       }
     }),
   );
 }
 
-// Validate that all chains are EVM, CosmosNative, or Starknet compatible
-// by token standard
+// Validate that all chains are EVM or Starknet compatible
 function validateCompatibility(
-  addresses: ChainMap<{
-    address: string;
-    standard: TokenStandard;
-  }>,
+  { chainMetadata }: CommandContext,
+  chains: ChainName[],
 ): void {
-  const supportedProtocols = [
-    ProtocolType.Ethereum,
-    ProtocolType.CosmosNative,
-    ProtocolType.Starknet,
-  ];
+  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.Starknet];
 
-  const nonCompatibleChains = Object.entries(addresses)
-    .filter(([_, { standard }]) => {
-      const protocol = TOKEN_STANDARD_TO_PROTOCOL[standard];
+  const nonCompatibleChains = chains
+    .filter((chain) => {
+      const protocol = chainMetadata[chain].protocol;
       return !supportedProtocols.includes(protocol);
     })
     .map(([chain]) => chain);
@@ -165,7 +157,7 @@ function validateCompatibility(
     const chainList = nonCompatibleChains.join(', ');
     const verb = nonCompatibleChains.length > 1 ? 'are' : 'is';
     logRed(
-      `${chainList} ${verb} non-EVM/CosmosNative/Starknet and not compatible with the cli`,
+      `${chainList} ${verb} non-EVM/Starknet and not compatible with the cli`,
     );
     process.exit(1);
   }
