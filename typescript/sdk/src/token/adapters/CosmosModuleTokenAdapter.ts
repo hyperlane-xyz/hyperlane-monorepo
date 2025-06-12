@@ -25,6 +25,7 @@ import {
 } from './ITokenAdapter.js';
 
 const COSMOS_TYPE_URL_SEND = '/cosmos.bank.v1beta1.MsgSend';
+const COSMOS_EMPTY_VALUE = '';
 
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
@@ -211,12 +212,12 @@ export class CosmNativeHypCollateralAdapter
     const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
       id: this.tokenId,
       destination_domain: destination.toString(),
-      custom_hook_id: customHook || '',
-      custom_hook_metadata: '',
+      custom_hook_id: customHook || COSMOS_EMPTY_VALUE,
+      custom_hook_metadata: COSMOS_EMPTY_VALUE,
     });
 
     return {
-      addressOrDenom: gas_payment[0]?.denom ?? '',
+      addressOrDenom: gas_payment[0]?.denom,
       amount: BigInt(gas_payment[0]?.amount ?? '0'),
     };
   }
@@ -227,7 +228,7 @@ export class CosmNativeHypCollateralAdapter
     if (!params.interchainGas) {
       params.interchainGas = await this.quoteTransferRemoteGas(
         params.destination,
-        '',
+        undefined,
         params.customHook,
       );
     }
