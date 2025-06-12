@@ -4,7 +4,7 @@ use futures_util::future::join_all;
 
 use derive_new::new;
 use itertools::{Either, Itertools};
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
@@ -289,6 +289,7 @@ impl AggregationIsmMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[instrument(err, skip(self, message), ret)]
     async fn build(
         &self,
         ism_address: H256,
