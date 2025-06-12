@@ -1,0 +1,64 @@
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import { assert, objMap } from '@hyperlane-xyz/utils';
+
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getRegistry } from '../../../../registry.js';
+import { usdcTokenAddresses } from '../cctp.js';
+import { WarpRouteIds } from '../warpIds.js';
+
+const SYNTHETIC_CHAIN = 'lumiaprism';
+
+const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+
+const owners = {
+  ethereum: '0x18da35630c84fCD9d9c947fC61cA7a6d9b841577',
+  lumiaprism: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
+  // TODO: add safes
+  arbitrum: '',
+  base: '',
+  optimism: '',
+} as const;
+
+export const getLumiaUSDCWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const registry = getRegistry();
+  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
+
+  assert(mainnetCCTP, 'MainnetCCTP warp route not found');
+
+  const cctpBridges = Object.fromEntries(
+    mainnetCCTP.tokens.map(({ chainName, addressOrDenom }) => [
+      chainName,
+      addressOrDenom!,
+    ]),
+  );
+
+  return objMap(owners, (chain, owner): HypTokenRouterConfig => {
+    if (chain === SYNTHETIC_CHAIN) {
+      return {
+        ...routerConfig[chain],
+        type: TokenType.synthetic,
+        owner,
+      };
+    }
+
+    const cctpBridge = cctpBridges[chain];
+    const remotes = Object.keys(owners).filter((c) => c !== chain);
+
+    const allowedRebalancingBridges = Object.fromEntries(
+      remotes.map((remote) => [remote, [{ bridge: cctpBridge }]]),
+    );
+
+    const config: HypTokenRouterConfig = {
+      ...routerConfig[chain],
+      type: TokenType.collateral,
+      token: usdcTokenAddresses[chain],
+      owner,
+      allowedRebalancers: [REBALANCER],
+      allowedRebalancingBridges,
+    };
+
+    return config;
+  });
+};
