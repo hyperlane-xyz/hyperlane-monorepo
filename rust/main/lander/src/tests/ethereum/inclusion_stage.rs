@@ -267,7 +267,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
                 ..Default::default()
             }))
         });
-
     mock_evm_provider
 }
 

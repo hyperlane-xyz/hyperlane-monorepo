@@ -43,15 +43,9 @@ impl StarknetMailbox {
     pub async fn new(
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(
-            &conn.url,
-            signer.local_wallet(),
-            &signer.address,
-            signer.is_legacy,
-        )
-        .await?;
+        let account = build_single_owner_account(&conn.url, signer).await?;
 
         let mailbox_address: FieldElement = HyH256(locator.address)
             .try_into()

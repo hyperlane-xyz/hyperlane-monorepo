@@ -24,6 +24,7 @@ use crate::contracts::{
     validator_announce,
 };
 use crate::types::{tx_receipt_to_outcome, HyH256};
+use crate::Signer;
 use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
@@ -71,27 +72,29 @@ pub async fn get_transaction_receipt(
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
     rpc_url: &Url,
-    signer: LocalWallet,
-    account_address: &FieldElement,
-    is_legacy: bool,
+    signer: Option<Signer>,
 ) -> ChainResult<SingleOwnerAccount<AnyProvider, LocalWallet>> {
     let rpc_client =
         AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
-
-    let execution_encoding = if is_legacy {
-        starknet::accounts::ExecutionEncoding::Legacy
-    } else {
-        starknet::accounts::ExecutionEncoding::New
-    };
 
     let chain_id = rpc_client.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
+    // fallback to the default signer, as the starknet SDK requires the SignleOwnerAccount
+    // and therefore a signer to perform state queries
+    let signer = signer.unwrap_or_default();
+
+    let execution_encoding = if signer.is_legacy {
+        starknet::accounts::ExecutionEncoding::Legacy
+    } else {
+        starknet::accounts::ExecutionEncoding::New
+    };
+
     Ok(SingleOwnerAccount::new(
         rpc_client,
-        signer,
-        *account_address,
+        signer.local_wallet(),
+        signer.address,
         chain_id,
         execution_encoding,
     ))

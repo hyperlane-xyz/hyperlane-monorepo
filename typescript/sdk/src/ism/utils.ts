@@ -35,6 +35,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import {
   DomainRoutingIsmConfig,
+  InterchainAccountRouterIsm,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -475,11 +476,8 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  // The ICA_ROUTING and AMOUNT_ROUTING ISMs are immutable routing ISMs.
-  if (
-    config.type === IsmType.ICA_ROUTING ||
-    config.type === IsmType.AMOUNT_ROUTING
-  ) {
+  // The AMOUNT_ROUTING ISMs are immutable routing ISMs.
+  if (config.type === IsmType.AMOUNT_ROUTING) {
     return {
       domainsToEnroll: [],
       domainsToUnenroll: [],
@@ -499,7 +497,7 @@ export async function routingModuleDelta(
 async function domainRoutingModuleDelta(
   destination: ChainName,
   moduleAddress: Address,
-  config: DomainRoutingIsmConfig,
+  config: DomainRoutingIsmConfig | InterchainAccountRouterIsm,
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
@@ -527,8 +525,13 @@ async function domainRoutingModuleDelta(
     if (mailbox && !eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
   }
 
+  const ismByDomainName =
+    config.type === IsmType.INTERCHAIN_ACCOUNT_ROUTING
+      ? config.isms
+      : config.domains;
+
   // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(config.domains, (chainName) =>
+  const safeConfigDomains = objMap(ismByDomainName, (chainName) =>
     multiProvider.getDomainId(chainName),
   );
 
@@ -537,7 +540,7 @@ async function domainRoutingModuleDelta(
     (domain) => !Object.values(safeConfigDomains).includes(domain),
   );
   // check for inclusion of domains in the config
-  for (const [origin, subConfig] of Object.entries(config.domains)) {
+  for (const [origin, subConfig] of Object.entries(ismByDomainName)) {
     const originDomain = safeConfigDomains[origin];
     if (!deployedDomains.includes(originDomain)) {
       delta.domainsToEnroll.push(originDomain);

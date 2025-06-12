@@ -1,19 +1,23 @@
+import chalk from 'chalk';
+
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
-import { getArgs } from '../agent-utils.js';
+import { getArgs, withWarpRouteId } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 // Writes the warp configs into the Registry
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
   const envConfig = getEnvironmentConfig(environment);
   const registry = getRegistry();
 
-  const warpIdsToCheck = Object.keys(warpConfigGetterMap);
+  const warpIdsToCheck = warpRouteId
+    ? [warpRouteId]
+    : Object.keys(warpConfigGetterMap);
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`Generating Warp config for ${warpRouteId}`);
 
@@ -31,7 +35,13 @@ async function main() {
       },
     );
 
-    registry.addWarpRouteConfig(registryConfig, { warpRouteId });
+    try {
+      registry.addWarpRouteConfig(registryConfig, { warpRouteId });
+    } catch (error) {
+      console.error(
+        chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
+      );
+    }
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
