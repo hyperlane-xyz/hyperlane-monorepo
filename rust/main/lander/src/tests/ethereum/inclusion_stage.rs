@@ -98,7 +98,7 @@ async fn test_inclusion_gas_spike() {
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
-    let base_processing_delay = Duration::from_millis(15);
+    let base_processing_delay = Duration::from_millis(100);
     let inclusion_stage_processing_delay = Duration::from_millis(30);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
@@ -155,7 +155,7 @@ async fn test_inclusion_gas_underpriced() {
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
-    let base_processing_delay = Duration::from_millis(15);
+    let base_processing_delay = Duration::from_millis(100);
     // assume 1 second more than usual because that's the retry delay when an error occurs
     let inclusion_stage_processing_delay = Duration::from_millis(1030);
     let block_time_clone = block_time.clone();
