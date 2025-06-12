@@ -1,15 +1,20 @@
 defaultHook:
-  type: merkleTreeHook
+  beneficiary: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  oracleConfig:
+    hyp:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+  oracleKey: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  overhead:
+    hyp: 200000
+  owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  type: interchainGasPaymaster
 defaultIsm:
-  relayer: hyp1m00smkf5g3f584dyladps8czvt2fa2cucrgqva
-  type: trustedRelayerIsm
-owner: hyp1m00smkf5g3f584dyladps8czvt2fa2cucrgqva
-proxyAdmin:
-  owner: hyp1m00smkf5g3f584dyladps8czvt2fa2cucrgqva
+  threshold: 1
+  type: merkleRootMultisigIsm
+  validators:
+    - '0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'
+owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
 requiredHook:
-  beneficiary: hyp1jhvrqxueknwgqfpsdpkaq2u6q9elwvcfc7pm73
-  maxProtocolFee: "100000000000000000"
-  owner: hyp1jhvrqxueknwgqfpsdpkaq2u6q9elwvcfc7pm73
-  protocolFee: "0"
-  type: protocolFee
-
+  type: merkleTreeHook

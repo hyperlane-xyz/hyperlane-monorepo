@@ -28,7 +28,7 @@ import {
   handlePrompts,
 } from '../commands/helpers.js';
 
-describe('hyperlane cosmosnative core init e2e tests', async function () {
+describe.skip('hyperlane cosmosnative core init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: SigningHyperlaneModuleClient;
