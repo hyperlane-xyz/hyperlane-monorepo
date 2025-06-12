@@ -11,21 +11,19 @@ use crate::transaction::TransactionUuid;
 
 use super::super::nonce::status::NonceStatus;
 
-const NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
-    "nonce_status_by_nonce_and_signer_address_";
-const LOWEST_AVAILABLE_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
-    "lowest_available_nonce_by_signer_address_";
-const UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
-    "upper_available_nonce_by_signer_address_";
+const FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "finalized_nonce_by_signer_address_";
+const UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "upper_nonce_by_signer_address_";
+const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
+    "transaction_uuid_by_nonce_and_signer_address_";
 
 #[async_trait]
 pub trait NonceDb: Send + Sync {
-    async fn retrieve_lowest_available_nonce_by_signer_address(
+    async fn retrieve_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
     ) -> DbResult<Option<U256>>;
 
-    async fn store_lowest_available_nonce_by_signer_address(
+    async fn store_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
         nonce: &U256,
@@ -42,39 +40,39 @@ pub trait NonceDb: Send + Sync {
         nonce: &U256,
     ) -> DbResult<()>;
 
-    async fn retrieve_nonce_status_by_nonce_and_signer_address(
+    async fn retrieve_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-    ) -> DbResult<Option<NonceStatus>>;
+    ) -> DbResult<Option<TransactionUuid>>;
 
-    async fn store_nonce_status_by_nonce_and_signer_address(
+    async fn store_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-        nonce_status: &NonceStatus,
+        nonce_status: &TransactionUuid,
     ) -> DbResult<()>;
 }
 
 #[async_trait]
 impl NonceDb for HyperlaneRocksDB {
-    async fn retrieve_lowest_available_nonce_by_signer_address(
+    async fn retrieve_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
     ) -> DbResult<Option<U256>> {
         self.retrieve_value_by_key(
-            LOWEST_AVAILABLE_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
         )
     }
 
-    async fn store_lowest_available_nonce_by_signer_address(
+    async fn store_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
         nonce: &U256,
     ) -> DbResult<()> {
         self.store_value_by_key(
-            LOWEST_AVAILABLE_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
+            FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX,
             &SignerAddress(*signer_address),
             nonce,
         )
@@ -102,25 +100,25 @@ impl NonceDb for HyperlaneRocksDB {
         )
     }
 
-    async fn retrieve_nonce_status_by_nonce_and_signer_address(
+    async fn retrieve_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-    ) -> DbResult<Option<NonceStatus>> {
+    ) -> DbResult<Option<TransactionUuid>> {
         self.retrieve_value_by_key(
-            NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
+            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, *signer_address),
         )
     }
 
-    async fn store_nonce_status_by_nonce_and_signer_address(
+    async fn store_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-        nonce_status: &NonceStatus,
+        nonce_status: &TransactionUuid,
     ) -> DbResult<()> {
         self.store_value_by_key(
-            NONCE_STATUS_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
+            TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, *signer_address),
             nonce_status,
         )

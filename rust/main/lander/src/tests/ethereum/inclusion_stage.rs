@@ -321,7 +321,7 @@ pub fn mock_dispatcher_state_with_provider(
     signer: H160,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, signer);
+    let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer);
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -334,11 +334,12 @@ pub fn mock_dispatcher_state_with_provider(
 fn mock_ethereum_adapter(
     provider: MockEvmProvider,
     nonce_db: Arc<dyn NonceDb>,
+    tx_db: Arc<dyn TransactionDb>,
     signer: H160,
 ) -> EthereumAdapter {
     let provider = Arc::new(provider);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
-    let state = Arc::new(NonceManagerState::new(nonce_db, signer));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer));
 
     let nonce_updater = NonceUpdater::new(
         signer,

@@ -9,6 +9,7 @@ use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
+use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
 
@@ -34,8 +35,9 @@ impl NonceManager {
         let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
         let block_time = chain_conf.estimated_block_time;
 
-        let db = db as Arc<dyn NonceDb>;
-        let state = Arc::new(NonceManagerState::new(db, address));
+        let nonce_db = db.clone() as Arc<dyn NonceDb>;
+        let tx_db = db.clone() as Arc<dyn TransactionDb>;
+        let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address));
 
         let nonce_updater =
             NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
@@ -73,9 +75,9 @@ impl NonceManager {
         self.nonce_updater
             .update()
             .await
-            .map_err(|e| eyre::eyre!("Failed to update lowest nonce: {}", e))?;
+            .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
-        if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
+        let nonce = if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
             let action = self
                 .state
                 .validate_assigned_nonce(&nonce, &nonce_status)
@@ -92,7 +94,11 @@ impl NonceManager {
                 );
                 return Ok(());
             }
-        }
+
+            Some(nonce)
+        } else {
+            None
+        };
 
         info!(
             ?nonce_status,
@@ -104,7 +110,7 @@ impl NonceManager {
 
         let next_nonce = self
             .state
-            .assign_next_nonce(&nonce_status)
+            .assign_next_nonce(&tx_uuid, &nonce)
             .await
             .map_err(|e| {
                 eyre::eyre!(
@@ -128,36 +134,6 @@ impl NonceManager {
         Ok(())
     }
 
-    pub(crate) async fn update_nonce_status(
-        &self,
-        tx: &Transaction,
-        tx_status: &TransactionStatus,
-    ) -> eyre::Result<()> {
-        let tx_uuid = &tx.uuid;
-        let precursor = tx.precursor();
-
-        let Some(nonce) = precursor.tx.nonce().map(Into::into) else {
-            return Ok(());
-        };
-
-        let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), tx_status);
-
-        self.state
-            .update_nonce_status(&nonce, &nonce_status)
-            .await
-            .map_err(|e| eyre::eyre!("Failed to update nonce status: {}", e))?;
-
-        info!(
-            ?nonce,
-            ?nonce_status,
-            address = ?self.address,
-            ?tx_uuid,
-            "Updated nonce status for transaction"
-        );
-
-        Ok(())
-    }
-
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {
         let signer_conf = chain_conf
             .signer
@@ -168,6 +144,3 @@ impl NonceManager {
         Ok(address)
     }
 }
-
-#[cfg(test)]
-mod tests;

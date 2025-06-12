@@ -69,7 +69,12 @@ impl NonceUpdater {
             .await
             .map_err(NonceError::ProviderError)?;
 
-        self.state.update_boundary_nonces(&next_nonce).await?;
+        let finalized_nonce = next_nonce.checked_sub(U256::one());
+
+        if let Some(finalized_nonce) = finalized_nonce {
+            self.state.update_boundary_nonces(&finalized_nonce).await?;
+        }
+
         Ok(())
     }
 }

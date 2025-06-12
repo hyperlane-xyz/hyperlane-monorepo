@@ -193,18 +193,6 @@ impl AdaptsChain for EthereumAdapter {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
-    async fn on_tx_status(
-        &self,
-        tx: &Transaction,
-        tx_status: &TransactionStatus,
-    ) -> Result<(), LanderError> {
-        self.nonce_manager
-            .update_nonce_status(tx, tx_status)
-            .await?;
-
-        Ok(())
-    }
-
     async fn reverted_payloads(
         &self,
         tx: &Transaction,

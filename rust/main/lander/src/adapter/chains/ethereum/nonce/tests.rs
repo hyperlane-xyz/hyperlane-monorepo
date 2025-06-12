@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -16,7 +18,7 @@ use super::status::NonceStatus;
 
 // Common mock NonceDb for tests
 pub struct MockNonceDb {
-    pub lowest: Mutex<HashMap<Address, U256>>,
+    pub finalized: Mutex<HashMap<Address, U256>>,
     pub upper: Mutex<HashMap<Address, U256>>,
     pub status: Mutex<HashMap<(U256, Address), NonceStatus>>,
 }
@@ -24,7 +26,7 @@ pub struct MockNonceDb {
 impl MockNonceDb {
     pub fn new() -> Self {
         Self {
-            lowest: Mutex::new(HashMap::new()),
+            finalized: Mutex::new(HashMap::new()),
             upper: Mutex::new(HashMap::new()),
             status: Mutex::new(HashMap::new()),
         }
@@ -33,19 +35,22 @@ impl MockNonceDb {
 
 #[async_trait]
 impl NonceDb for MockNonceDb {
-    async fn retrieve_lowest_available_nonce_by_signer_address(
+    async fn retrieve_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
     ) -> DbResult<Option<U256>> {
-        Ok(self.lowest.lock().unwrap().get(signer_address).cloned())
+        Ok(self.finalized.lock().unwrap().get(signer_address).cloned())
     }
 
-    async fn store_lowest_available_nonce_by_signer_address(
+    async fn store_finalized_nonce_by_signer_address(
         &self,
         signer_address: &Address,
         nonce: &U256,
     ) -> DbResult<()> {
-        self.lowest.lock().unwrap().insert(*signer_address, *nonce);
+        self.finalized
+            .lock()
+            .unwrap()
+            .insert(*signer_address, *nonce);
         Ok(())
     }
 
@@ -65,29 +70,20 @@ impl NonceDb for MockNonceDb {
         Ok(())
     }
 
-    async fn retrieve_nonce_status_by_nonce_and_signer_address(
+    async fn retrieve_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-    ) -> DbResult<Option<NonceStatus>> {
-        Ok(self
-            .status
-            .lock()
-            .unwrap()
-            .get(&(*nonce, *signer_address))
-            .cloned())
+    ) -> DbResult<Option<TransactionUuid>> {
+        todo!()
     }
 
-    async fn store_nonce_status_by_nonce_and_signer_address(
+    async fn store_transaction_uuid_by_nonce_and_signer_address(
         &self,
         nonce: &U256,
         signer_address: &Address,
-        nonce_status: &NonceStatus,
+        nonce_status: &TransactionUuid,
     ) -> DbResult<()> {
-        self.status
-            .lock()
-            .unwrap()
-            .insert((*nonce, *signer_address), nonce_status.clone());
-        Ok(())
+        todo!()
     }
 }

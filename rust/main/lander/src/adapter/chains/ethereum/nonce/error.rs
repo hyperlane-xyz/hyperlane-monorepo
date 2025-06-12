@@ -10,9 +10,6 @@ pub(crate) enum NonceError {
     /// An error occurred while storing to or retrieving from a database.
     #[error("Database error: {0}")]
     DatabaseError(DbError),
-    /// The nonce is already assigned to a transaction.
-    #[error("Nonce {0} is assigned to transactions {1} and {2}")]
-    NonceAssignedToMultipleTransactions(U256, TransactionUuid, TransactionUuid),
     /// Provider error
     #[error("Provider error")]
     ProviderError(ChainCommunicationError),
