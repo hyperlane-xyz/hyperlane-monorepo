@@ -22,6 +22,7 @@ use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
     CosmosProvider, Signer,
 };
+// use dymension_kaspa
 use hyperlane_cosmos_native::{self as h_cosmos_native, CosmosNativeProvider};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -175,6 +176,8 @@ pub enum ChainConnectionConf {
     Starknet(h_starknet::ConnectionConf),
     /// Cosmos native configuration
     CosmosNative(h_cosmos_native::ConnectionConf),
+    /// Kaspa configuration
+    Kaspa(h_kaspa::ConnectionConf),
 }
 
 impl ChainConnectionConf {
