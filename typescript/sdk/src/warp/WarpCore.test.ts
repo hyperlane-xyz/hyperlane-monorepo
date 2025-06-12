@@ -119,6 +119,7 @@ describe('WarpCore', () => {
       destination: ChainName,
       standard: TokenStandard,
       interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
+      expectedLocalFee: bigint = MOCK_LOCAL_QUOTE.fee,
     ) => {
       const result = await warpCore.estimateTransferRemoteFees({
         originToken: token,
@@ -132,7 +133,7 @@ describe('WarpCore', () => {
       expect(
         result.localQuote.amount,
         `token local amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(MOCK_LOCAL_QUOTE.fee);
+      ).to.equal(expectedLocalFee);
       expect(
         result.interchainQuote.token.standard,
         `token interchain standard check for ${token.chainName} to ${destination}`,
@@ -170,6 +171,8 @@ describe('WarpCore', () => {
       starknetHypSynthetic,
       test1.name,
       TokenStandard.StarknetHypNative,
+      MOCK_INTERCHAIN_QUOTE,
+      0n, // Starknet returns 0n for local gas estimation without a Starknet account
     );
   });
 
