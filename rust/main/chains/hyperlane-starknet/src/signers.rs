@@ -1,10 +1,8 @@
 use hyperlane_core::{ChainResult, H256};
 use starknet::{
-    core::types::FieldElement,
+    core::types::Felt,
     signers::{LocalWallet, SigningKey},
 };
-
-use crate::error::HyperlaneStarknetError;
 
 #[derive(Clone)]
 /// A signer for Starknet accounts
@@ -12,7 +10,7 @@ pub struct Signer {
     /// signing key
     pub signing_key: SigningKey,
     /// account address
-    pub address: FieldElement,
+    pub address: Felt,
     /// version of the signer
     pub is_legacy: bool,
     /// H256 address of the signer
@@ -37,8 +35,7 @@ impl Signer {
     /// * `address` - address for signer
     /// * `is_legacy` - whether the signer is legacy
     pub fn new(private_key: &H256, address: &H256, is_legacy: bool) -> ChainResult<Self> {
-        let contract_address = FieldElement::from_bytes_be(address.as_fixed_bytes())
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let contract_address = Felt::from_bytes_be(address.as_fixed_bytes());
         let signing_key = Self::build_signing_key(private_key)?;
 
         Ok(Self {
@@ -61,10 +58,9 @@ impl Signer {
     }
 
     fn build_signing_key(private_key: &H256) -> ChainResult<SigningKey> {
-        Ok(SigningKey::from_secret_scalar(
-            FieldElement::from_bytes_be(private_key.as_fixed_bytes())
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-        ))
+        Ok(SigningKey::from_secret_scalar(Felt::from_bytes_be(
+            private_key.as_fixed_bytes(),
+        )))
     }
 }
 
@@ -72,7 +68,7 @@ impl Default for Signer {
     fn default() -> Self {
         // default signer is just all zeros
         Self {
-            signing_key: SigningKey::from_secret_scalar(FieldElement::ZERO),
+            signing_key: SigningKey::from_secret_scalar(Felt::ZERO),
             address: Default::default(),
             is_legacy: Default::default(),
             address_h256: Default::default(),

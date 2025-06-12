@@ -7,7 +7,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
+use starknet::core::types::Felt;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -36,9 +36,7 @@ impl StarknetRoutingIsm {
     ) -> ChainResult<Self> {
         let account = build_single_owner_account(&conn.url, signer).await?;
 
-        let ism_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+        let ism_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetRoutingIsmInternal::new(ism_address, account);
 
