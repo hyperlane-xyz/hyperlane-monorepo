@@ -224,7 +224,7 @@ impl InclusionStage {
                 let tx_clone = tx.clone();
                 async move {
                     let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    state.adapter.estimate_tx(&mut tx_clone_inner, true).await?;
                     Ok(tx_clone_inner)
                 }
             },

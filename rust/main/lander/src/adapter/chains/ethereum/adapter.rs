@@ -80,7 +80,7 @@ impl EthereumAdapter {
 
     async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         if tx.precursor().tx.gas().is_none() {
-            self.estimate_tx(tx).await?;
+            self.estimate_tx(tx, true).await?;
         }
         Ok(())
     }

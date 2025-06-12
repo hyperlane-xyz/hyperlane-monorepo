@@ -23,7 +23,7 @@ mockall::mock! {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, LanderError>;
         async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError>;
-        async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError>;
+        async fn estimate_tx(&self, tx: &mut Transaction, _skip_if_already_estimated: bool,) -> Result<(), LanderError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError>;
         async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, LanderError>;
