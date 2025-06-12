@@ -76,6 +76,7 @@ export const getLumiaUSDCWarpConfig = async (
       type: TokenType.collateral,
       token: usdcTokenAddresses[chain],
       owner,
+      contractVersion: '8.0.0',
       allowedRebalancers: [REBALANCER],
       allowedRebalancingBridges,
     };
