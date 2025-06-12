@@ -65,7 +65,9 @@ export const getLumiaUSDCWarpConfig = async (
     }
 
     const cctpBridge = cctpBridges[chain];
-    const remotes = Object.keys(owners).filter((c) => c !== chain);
+    const remotes = Object.keys(owners).filter(
+      (c) => c !== chain && c !== SYNTHETIC_CHAIN,
+    );
 
     const allowedRebalancingBridges = Object.fromEntries(
       remotes.map((remote) => [remote, [{ bridge: cctpBridge }]]),
