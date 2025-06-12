@@ -3,8 +3,10 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  ChainTechnicalStack,
   DeployedOwnableConfig,
   HypERC20Deployer,
+  HypTokenRouterConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -15,6 +17,8 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
+  isMovableCollateralTokenConfig,
+  resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -29,6 +33,7 @@ import {
 } from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
+  getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
 import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
@@ -40,6 +45,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
+  [TokenType.collateralCctp]:
+    'A collateral token that can be transferred via CCTP',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
@@ -52,6 +59,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 with Warp Route functionality',
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
+  [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
+  [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -112,6 +121,38 @@ export async function readWarpRouteDeployConfig({
 
   config = await fillDefaults(context, config as any);
 
+  config = objMap(
+    config as any,
+    (_chain, chainConfig: HypTokenRouterConfig) => {
+      if (chainConfig.destinationGas) {
+        chainConfig.destinationGas = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.destinationGas,
+        );
+      }
+
+      if (chainConfig.remoteRouters) {
+        chainConfig.remoteRouters = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.remoteRouters,
+        );
+      }
+
+      if (!isMovableCollateralTokenConfig(chainConfig)) {
+        return chainConfig;
+      }
+
+      if (chainConfig.allowedRebalancingBridges) {
+        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.allowedRebalancingBridges,
+        );
+      }
+
+      return chainConfig;
+    },
+  );
+
   //fillDefaults would have added a mailbox to the config if it was missing
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
@@ -154,6 +195,10 @@ export async function createWarpRouteDeployConfig({
     const proxyAdmin: DeployedOwnableConfig | undefined =
       await setProxyAdminConfig(context, chain);
 
+    const excludeStaticIsms =
+      context.multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.ZkSync;
+
     /**
      * The logic from the cli is as follows:
      *  --yes flag is provided: set ism to undefined (default ISM config)
@@ -166,13 +211,19 @@ export async function createWarpRouteDeployConfig({
     if (context.skipConfirmation) {
       interchainSecurityModule = undefined;
     } else if (advanced) {
-      interchainSecurityModule = await createAdvancedIsmConfig(context);
+      interchainSecurityModule = await createAdvancedIsmConfig(
+        context,
+        excludeStaticIsms,
+      );
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+      interchainSecurityModule = createDefaultWarpIsmConfig(
+        owner,
+        excludeStaticIsms,
+      );
     }
 
     const type = await select({
@@ -253,13 +304,18 @@ export async function createWarpRouteDeployConfig({
           isNft: true,
         };
         break;
-      default:
+      case TokenType.native:
+      case TokenType.synthetic:
         result[chain] = {
           type,
           owner,
           proxyAdmin,
           interchainSecurityModule,
+          isNft: false,
         };
+        break;
+      default:
+        throw new Error(`Token type ${type} is not supported`);
     }
   }
 
@@ -274,14 +330,25 @@ export async function createWarpRouteDeployConfig({
         context.multiProvider,
         warpRouteDeployConfig,
       );
-
       const symbol: string = tokenMetadata.getDefaultSymbol();
 
+      let warpRouteId;
+      if (!context.skipConfirmation) {
+        warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
+          context.registry,
+          warpRouteDeployConfig,
+          symbol,
+        );
+      }
+
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
-        symbol: symbol,
+        symbol,
+        warpRouteId, // Will default to SYMBOL/chain1 if `undefined`
       });
+      logGreen(
+        `✅ Successfully created new warp route deployment config with warp route id: ${warpRouteId}`,
+      );
     }
-    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
@@ -323,23 +390,36 @@ export async function readWarpCoreConfig(
 }
 
 /**
- * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
+ * Creates a default configuration for an ISM.
  *
- * Properties relayer and owner are both set as input owner.
+ * When excludeStaticIsms is false (default):
+ * - Creates an AGGREGATION ISM with TRUSTED_RELAYER and FALLBACK_ROUTING modules
+ * - Properties relayer and owner are both set as input owner
  *
- * @param owner - The address of the owner of the ISM.
- * @returns The default Aggregation ISM configuration.
+ * When excludeStaticIsms is true:
+ * - Creates only a TRUSTED_RELAYER ISM (as static ISMs like AGGREGATION are not supported)
+ * - Properties relayer is set as input owner
+ *
+ * @param owner - The address of the owner of the ISM
+ * @param excludeStaticIsms - Whether to exclude static ISM types (default: false)
+ * @returns The ISM configuration
  */
-function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
+function createDefaultWarpIsmConfig(
+  owner: Address,
+  excludeStaticIsms: boolean = false,
+): IsmConfig {
+  const trustedRelayerModule: IsmConfig = {
+    type: IsmType.TRUSTED_RELAYER,
+    relayer: owner,
+  };
+
+  if (excludeStaticIsms) {
+    return trustedRelayerModule;
+  }
+
   return {
     type: IsmType.AGGREGATION,
-    modules: [
-      {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: owner,
-      },
-      createFallbackRoutingConfig(owner),
-    ],
+    modules: [trustedRelayerModule, createFallbackRoutingConfig(owner)],
     threshold: 1,
   };
 }

@@ -108,9 +108,6 @@ async function executeDelivery({
 
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const provider = multiProvider.getProvider(origin);
-  const connectedSigner = signer.connect(provider);
-
   const warpCore = WarpCore.FromConfig(
     MultiProtocolProvider.fromMultiProvider(multiProvider),
     warpCoreConfig,
@@ -151,7 +148,7 @@ async function executeDelivery({
   const txReceipts = [];
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5) {
-      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+      const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     }

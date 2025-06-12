@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "13.0.0",
+  "version": "13.3.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
     "bignumber.js": "^9.1.1",
-    "ethers": "^5.7.2",
+    "ethers": "^5.8.0",
     "lodash-es": "^4.17.21",
     "pino": "^8.19.0",
     "starknet": "^6.24.1",
@@ -26,7 +26,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
-    "mocha": "^10.2.0",
+    "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
     "typescript": "5.3.3"

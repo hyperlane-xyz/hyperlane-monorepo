@@ -37,7 +37,7 @@ const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_"
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
-const PAYLOAD_IDS_BY_MESSAGE_ID: &str = "payload_ids_by_message_id_";
+const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -77,7 +77,7 @@ impl HyperlaneRocksDB {
         &self.0
     }
 
-    /// Store a raw committed message
+    /// Store a raw committed message. If message already exists, then do nothing.
     ///
     /// Keys --> Values:
     /// - `nonce` --> `id`
@@ -92,7 +92,21 @@ impl HyperlaneRocksDB {
             trace!(hyp_message=?message, "Message already stored in db");
             return Ok(false);
         }
+        self.upsert_message(message, dispatched_block_number)?;
+        Ok(true)
+    }
 
+    /// Store a raw committed message.
+    ///
+    /// Keys --> Values:
+    /// - `nonce` --> `id`
+    /// - `id` --> `message`
+    /// - `nonce` --> `dispatched block number`
+    pub fn upsert_message(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
         let id = message.id();
         debug!(hyp_message=?message,  "Storing new message in db",);
 
@@ -104,7 +118,7 @@ impl HyperlaneRocksDB {
         self.try_update_max_seen_message_nonce(message.nonce)?;
         // - `nonce` --> `dispatched block number`
         self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
-        Ok(true)
+        Ok(())
     }
 
     /// Retrieve a message by its nonce
@@ -201,7 +215,16 @@ impl HyperlaneRocksDB {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
         }
+        self.store_tree_insertion(insertion, insertion_block_number)
+    }
 
+    /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index.
+    /// Overwrites existing insertions
+    pub fn store_tree_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
@@ -659,19 +682,19 @@ impl HyperlaneDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default())
     }
 
-    fn store_payload_ids_by_message_id(
+    fn store_payload_uuids_by_message_id(
         &self,
         message_id: &H256,
-        payload_ids: Vec<UniqueIdentifier>,
+        payload_uuids: Vec<UniqueIdentifier>,
     ) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_IDS_BY_MESSAGE_ID, message_id, &payload_ids)
+        self.store_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id, &payload_uuids)
     }
 
-    fn retrieve_payload_ids_by_message_id(
+    fn retrieve_payload_uuids_by_message_id(
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
-        self.retrieve_value_by_key(PAYLOAD_IDS_BY_MESSAGE_ID, message_id)
+        self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
     }
 }
 

@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
 
-import { HyperlaneService } from './HyperlaneService';
-import { LightClientService, SuccinctConfig } from './LightClientService';
-import { ProofResult, RPCService } from './RPCService';
-import { ProofStatus } from './common/ProofStatusEnum';
+import { HyperlaneService } from './HyperlaneService.js';
+import { LightClientService, SuccinctConfig } from './LightClientService.js';
+import { ProofResult, RPCService } from './RPCService.js';
+import { ProofStatus } from './common/ProofStatusEnum.js';
 
 type RPCConfig = {
   readonly url: string;

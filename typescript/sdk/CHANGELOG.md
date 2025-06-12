@@ -1,5 +1,95 @@
 # @hyperlane-xyz/sdk
 
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- f8fd7b4: Support using MultiSend when proposing txs via the EV5GnosisSafeTxSubmitter.
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
+### Patch Changes
+
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+- 1e137df: Improved logging around fetching prices from CoinGecko
+- Updated dependencies [e61bd2f]
+- Updated dependencies [db19435]
+- Updated dependencies [b977a28]
+- Updated dependencies [fd3bb39]
+- Updated dependencies [4544120]
+- Updated dependencies [7a3165f]
+- Updated dependencies [119a1a8]
+- Updated dependencies [b977a28]
+- Updated dependencies [88fe35f]
+- Updated dependencies [3327a6e]
+  - @hyperlane-xyz/core@8.0.0
+  - @hyperlane-xyz/starknet-core@13.3.0
+  - @hyperlane-xyz/cosmos-sdk@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/core@7.1.10
+  - @hyperlane-xyz/starknet-core@13.2.1
+  - @hyperlane-xyz/cosmos-sdk@13.2.1
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Add support for address in voyager block explorers
+- 4d66b73: Support for zksync on deployments and verifications
+- 4d66b73: Check for ZKSync contracts and functionalities support
+- 4d66b73: Add ZKSync contract verification with custom compiler options and refactor verification classes
+- 4d66b73: Add getTokenCollateral to WarpCore and reuse in isDestinationCollateralSufficient
+- 4d66b73: Update concurrentDeploy default to true for token deployments.
+
+### Patch Changes
+
+- 4d66b73: Account for zksync in legacy deployer logic.
+  - @hyperlane-xyz/starknet-core@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+  - @hyperlane-xyz/core@7.1.9
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+  - @hyperlane-xyz/starknet-core@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Minor Changes
+
+- 6e86efa: Remove `defaultRpcConsensusType` from the agent config schema
+- c42ea09: Deploy to new chains: neuratestnet, rometestnet.
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/core@7.1.7
+  - @hyperlane-xyz/starknet-core@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
 ## 13.0.0
 
 ### Minor Changes

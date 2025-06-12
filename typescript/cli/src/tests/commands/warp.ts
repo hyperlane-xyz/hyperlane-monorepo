@@ -22,15 +22,41 @@ import {
 $.verbose = true;
 
 /**
- * Deploys the Warp route to the specified chain using the provided config.
+ * Creates a warp route configuration with raw parameters.
+ */
+export function hyperlaneWarpInitRaw({
+  warpCorePath,
+  hypKey,
+  skipConfirmationPrompts,
+  privateKey,
+  advanced,
+}: {
+  warpCorePath?: string;
+  hypKey?: string;
+  skipConfirmationPrompts?: boolean;
+  privateKey?: string;
+  advanced?: boolean;
+}): ProcessPromise {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } ${localTestRunCmdPrefix()} hyperlane warp init \
+        --registry ${REGISTRY_PATH} \
+        ${warpCorePath ? ['--out', warpCorePath] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
+        ${advanced ? ['--advanced'] : ''} \
+        --verbosity debug \
+        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+}
+
+/**
+ * Creates a warp route configuration.
  */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp init \
-        --registry ${REGISTRY_PATH} \
-        --out ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
+  return hyperlaneWarpInitRaw({
+    privateKey: ANVIL_KEY,
+    warpCorePath: warpCorePath,
+    skipConfirmationPrompts: true,
+  });
 }
 
 /**
@@ -38,33 +64,43 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
  */
 export function hyperlaneWarpDeployRaw({
   warpCorePath,
+  warpDeployPath,
   hypKey,
   skipConfirmationPrompts,
   privateKey,
+  warpRouteId,
 }: {
   warpCorePath?: string;
+  warpDeployPath?: string;
   hypKey?: string;
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${
     hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--config', warpCorePath] : []} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCorePath ? ['--warp', warpCorePath] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export function hyperlaneWarpDeploy(warpCorePath: string): ProcessPromise {
+export function hyperlaneWarpDeploy(
+  warpDeployPath: string,
+  warpRouteId?: string,
+): ProcessPromise {
   return hyperlaneWarpDeployRaw({
     privateKey: ANVIL_KEY,
-    warpCorePath: warpCorePath,
+    warpDeployPath,
     skipConfirmationPrompts: true,
+    warpRouteId,
   });
 }
 
@@ -76,13 +112,32 @@ export async function hyperlaneWarpApply(
   warpCorePath: string,
   strategyUrl = '',
 ) {
+  return hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+  });
+}
+
+export function hyperlaneWarpApplyRaw({
+  warpDeployPath,
+  warpCorePath,
+  strategyUrl,
+  warpRouteId,
+}: {
+  warpDeployPath?: string;
+  warpCorePath?: string;
+  strategyUrl?: string;
+  warpRouteId?: string;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        --config ${warpDeployPath} \
-        --warp ${warpCorePath} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCorePath ? ['--warp', warpCorePath] : ''} \
+        ${strategyUrl ? ['--strategy', strategyUrl] : ''} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --strategy ${strategyUrl} \
         --yes`;
 }
 
@@ -287,6 +342,9 @@ export function generateWarpConfigs(
     TokenType.syntheticUri,
     // TODO Fix: sender not mailbox or relaying simply fails
     TokenType.collateralVault,
+    TokenType.collateralCctp,
+    TokenType.nativeOpL1,
+    TokenType.nativeOpL2,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

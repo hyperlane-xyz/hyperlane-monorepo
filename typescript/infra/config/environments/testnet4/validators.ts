@@ -382,6 +382,31 @@ export const validatorChainConfig = (
         'sonicblaze',
       ),
     },
+    paradexsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('paradexsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'paradexsepolia',
+      ),
+    },
+
+    starknetsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('starknetsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'starknetsepolia',
+      ),
+    },
 
     subtensortestnet: {
       interval: 5,
