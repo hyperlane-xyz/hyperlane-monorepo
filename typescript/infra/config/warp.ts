@@ -41,6 +41,7 @@ import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/co
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
 import { getBscMilkywayMILKWarpConfig } from './environments/mainnet3/warp/configGetters/getBscMilkywayMILKWarpConfig.js';
 import { getCCTPWarpConfig as getMainnetCCTPWarpConfig } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
+import { getCotiUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getCotiUSDCWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -154,6 +155,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
   [WarpRouteIds.MainnetRebalancingUSDC]: getRebalancingUSDCConfig,
+  [WarpRouteIds.CotiUSDC]: getCotiUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
