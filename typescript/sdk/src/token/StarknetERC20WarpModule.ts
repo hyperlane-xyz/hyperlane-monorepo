@@ -104,7 +104,7 @@ export class StarknetERC20WarpModule {
         }
 
         case TokenType.collateral: {
-          if (chain === 'paradexsepolia') {
+          if (chain === 'paradex') {
             const dexContract =
               '0x0286003f7c7bfc3f94e8f0af48b48302e7aee2fb13c23b141479ba00832ef2c6';
 

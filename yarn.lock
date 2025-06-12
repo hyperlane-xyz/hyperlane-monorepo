@@ -7914,7 +7914,7 @@ __metadata:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:6.1.0"
-    "@hyperlane-xyz/starknet-core": "npm:0.3.2"
+    "@hyperlane-xyz/starknet-core": "npm:0.3.10"
     "@hyperlane-xyz/utils": "npm:11.0.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7959,7 +7959,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:0.3.2, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:0.3.10, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
