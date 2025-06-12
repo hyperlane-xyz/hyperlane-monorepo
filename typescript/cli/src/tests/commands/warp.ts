@@ -38,14 +38,14 @@ export function hyperlaneWarpInitRaw({
   advanced?: boolean;
 }): ProcessPromise {
   return $`${
-    hypKey ? ['HYP_KEY=' + hypKey] : ''
+    hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--out', warpCorePath] : ''} \
-        ${privateKey ? ['--key', privateKey] : ''} \
-        ${advanced ? ['--advanced'] : ''} \
+        ${warpCorePath ? ['--out', warpCorePath] : []} \
+        ${privateKey ? ['--key', privateKey] : []} \
+        ${advanced ? ['--advanced'] : []} \
         --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+        ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
 /**
@@ -132,10 +132,10 @@ export function hyperlaneWarpApplyRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
-        ${warpCorePath ? ['--warp', warpCorePath] : ''} \
-        ${strategyUrl ? ['--strategy', strategyUrl] : ''} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCorePath ? ['--warp', warpCorePath] : []} \
+        ${strategyUrl ? ['--strategy', strategyUrl] : []} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
