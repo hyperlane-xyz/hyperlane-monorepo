@@ -99,7 +99,7 @@ async fn test_inclusion_gas_spike() {
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(15);
-    let inclusion_stage_processing_delay = Duration::from_millis(10);
+    let inclusion_stage_processing_delay = Duration::from_millis(30);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -157,7 +157,7 @@ async fn test_inclusion_gas_underpriced() {
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(15);
     // assume 1 second more than usual because that's the retry delay when an error occurs
-    let inclusion_stage_processing_delay = Duration::from_millis(1010);
+    let inclusion_stage_processing_delay = Duration::from_millis(1030);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -418,6 +418,7 @@ fn mock_block(block_number: u64, base_fee: u32) -> ethers::types::Block<EthersH2
     ethers::types::Block {
         number: Some(block_number.into()),
         base_fee_per_gas: Some(base_fee.into()),
+        gas_limit: 30000000.into(),
         ..Default::default()
     }
 }
