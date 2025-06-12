@@ -63,3 +63,15 @@ impl Signer {
         )))
     }
 }
+
+impl Default for Signer {
+    fn default() -> Self {
+        // default signer is just all zeros
+        Self {
+            signing_key: SigningKey::from_secret_scalar(Felt::ZERO),
+            address: Default::default(),
+            is_legacy: Default::default(),
+            address_h256: Default::default(),
+        }
+    }
+}

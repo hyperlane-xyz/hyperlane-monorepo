@@ -47,11 +47,9 @@ impl StarknetMerkleTreeHook {
     pub async fn new(
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account =
-            build_single_owner_account(&conn.url, signer.local_wallet(), &signer.address, false)
-                .await?;
+        let account = build_single_owner_account(&conn.url, signer).await?;
 
         let hook_address: Felt = HyH256(locator.address).into();
 

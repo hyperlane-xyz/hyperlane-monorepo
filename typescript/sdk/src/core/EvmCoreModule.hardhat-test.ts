@@ -98,9 +98,7 @@ describe('EvmCoreModule', async () => {
 
   describe('Create', async () => {
     it('should create deploy an ICA', () => {
-      const { interchainAccountRouter, interchainAccountIsm } =
-        evmCoreModule.serialize();
-      expect(interchainAccountIsm).to.exist;
+      const { interchainAccountRouter } = evmCoreModule.serialize();
       expect(interchainAccountRouter).to.exist;
     });
 

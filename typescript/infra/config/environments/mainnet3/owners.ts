@@ -1,7 +1,5 @@
-import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
-
-import { getMainnetAddresses } from '../../registry.js';
+import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
 import { awIcas } from './governance/ica/aw.js';
@@ -17,19 +15,6 @@ export const timelocks: ChainMap<Address> = {
   ...upgradeTimelocks,
   ethereum: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2', // symbiotic network timelock
 };
-
-export function localAccountRouters(): ChainMap<Address> {
-  const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
-  const filteredAddresses = objFilter(
-    coreAddresses,
-    (_, addressMap): addressMap is AddressesMap =>
-      addressMap.interchainAccountRouter !== undefined,
-  );
-  return objMap(
-    filteredAddresses,
-    (_, addressMap) => addressMap.interchainAccountRouter,
-  );
-}
 
 export const icaOwnerChain = 'ethereum';
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
