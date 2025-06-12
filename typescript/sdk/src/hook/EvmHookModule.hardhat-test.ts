@@ -353,7 +353,7 @@ describe('EvmHookModule', async () => {
         .false;
     });
 
-    it('should update mutable hook in-place within aggregation', async () => {
+    it('should update mutable protocol fee hook in-place within aggregation', async () => {
       const owner = await multiProvider.getSignerAddress(chain);
       const config: AggregationHookConfig = {
         type: HookType.AGGREGATION,
@@ -614,7 +614,7 @@ describe('EvmHookModule', async () => {
         .false;
     });
 
-    it('should redeploy aggregation when mutable hook has max fee change', async () => {
+    it('should redeploy aggregation when mutable protocol hook has immutable max fee change', async () => {
       // Test specific case where protocol fee hook needs redeployment
       const owner = await multiProvider.getSignerAddress(chain);
       const config: AggregationHookConfig = {

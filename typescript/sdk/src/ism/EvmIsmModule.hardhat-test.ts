@@ -551,7 +551,7 @@ describe('EvmIsmModule', async () => {
         .true;
     });
 
-    it(`updates mutable module in-place within aggregation ISM`, async () => {
+    it(`updates mutable routing ism in-place within aggregation ISM`, async () => {
       // create aggregation with a mutable routing ISM
       const config: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
@@ -603,7 +603,7 @@ describe('EvmIsmModule', async () => {
         .true;
     });
 
-    it(`updates mutable pausable module in-place within aggregation ISM`, async () => {
+    it(`updates mutable pausable ism in-place within aggregation ISM`, async () => {
       // create aggregation with a pausable ISM
       const config: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
