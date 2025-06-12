@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import fs from 'fs';
 import path from 'path';
 import prompts from 'prompts';
 
@@ -35,6 +36,7 @@ import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
+import { DEPLOYERS } from '../src/governance.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 import { writeYamlAtPath } from '../src/utils/utils.js';
@@ -95,12 +97,7 @@ async function main() {
     });
     await useLocalProvider(multiProvider, fork);
 
-    // const deployers = await envConfig.getKeys(
-    //   Contexts.Hyperlane,
-    //   Role.Deployer,
-    // );
-    // const deployer = deployers[fork].address;
-    const deployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+    const deployer = DEPLOYERS[environment];
     const signer = await impersonateAccount(deployer);
 
     multiProvider.setSharedSigner(signer);
@@ -294,9 +291,22 @@ async function main() {
           )
         : config;
 
-    const deployPlanPath = path.join(modulePath, 'deployment-plan.yaml');
-    writeYamlAtPath(deployPlanPath, confirmConfig);
-    console.log(`Deployment Plan written to ${deployPlanPath}`);
+    // Have to print plan per chain because full plan is too big
+    const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
+    if (!fs.existsSync(deploymentPlansDir)) {
+      fs.mkdirSync(deploymentPlansDir, { recursive: true });
+    }
+
+    Object.entries(confirmConfig).forEach(([chain, config]) => {
+      const chainDeployPlanPath = path.join(
+        deploymentPlansDir,
+        `${chain}.yaml`,
+      );
+      writeYamlAtPath(chainDeployPlanPath, config);
+      console.log(
+        `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
+      );
+    });
 
     const { value: confirmed } = await prompts({
       type: 'confirm',

@@ -167,8 +167,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   }
 
   const remoteMinCostOverrides: ChainMap<number> = {
-    ethereum: 0.5,
-
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
     arbitrum: 0.5,
@@ -181,11 +179,11 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     polygonzkevm: 0.5,
 
     // op stack chains
-    base: 0.5,
+    base: 0.2,
     fraxtal: 0.2,
     lisk: 0.2,
     mode: 0.2,
-    optimism: 0.5,
+    optimism: 0.2,
     soneium: 0.2,
     superseed: 0.2,
     unichain: 0.2,
@@ -197,7 +195,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     neutron: 0.5,
     // For Solana, special min cost
     solanamainnet: 1.2,
-    bsc: 0.5,
   };
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {

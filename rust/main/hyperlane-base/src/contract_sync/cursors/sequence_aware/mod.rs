@@ -89,6 +89,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
         store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
+        lowest_block_height_or_sequence: u32,
         mode: IndexMode,
     ) -> Result<Self> {
         let (sequence_count, tip) = latest_sequence_querier
@@ -112,6 +113,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         );
         let backward_cursor = BackwardSequenceAwareSyncCursor::new(
             chunk_size,
+            lowest_block_height_or_sequence,
             store,
             sequence_count,
             tip,

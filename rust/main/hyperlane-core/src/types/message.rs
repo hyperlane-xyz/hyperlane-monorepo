@@ -1,6 +1,7 @@
-use serde::Serialize;
-use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
+
+use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
@@ -22,7 +23,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Clone, Eq, PartialEq, Hash, Serialize)]
+#[derive(Clone, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,

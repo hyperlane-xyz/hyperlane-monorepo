@@ -667,7 +667,7 @@ impl WasmProvider for WasmGrpcProvider {
                 Box::pin(future)
             })
             .await?;
-        debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
+        debug!(tx_result=?tx_res, domain=?self.domain.name(), ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }
 

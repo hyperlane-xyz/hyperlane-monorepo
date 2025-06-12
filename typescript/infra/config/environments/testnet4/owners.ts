@@ -32,6 +32,12 @@ export const owners: ChainMap<OwnableConfig> = {
   nobletestnet: {
     owner: 'n/a - CSDK not supported here',
   },
+  starknetsepolia: {
+    owner: 'n/a - Starknet not supported here',
+  },
+  paradexsepolia: {
+    owner: 'n/a - Starknet not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(

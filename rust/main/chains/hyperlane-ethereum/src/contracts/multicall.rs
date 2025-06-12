@@ -14,7 +14,7 @@ use crate::{ConnectionConf, EthereumProvider};
 
 use super::EthereumMailboxCache;
 
-const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 80;
+const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 100;
 const MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR: u64 = 100;
 const ALLOW_BATCH_FAILURES: bool = true;
 

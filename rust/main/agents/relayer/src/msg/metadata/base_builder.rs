@@ -6,6 +6,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 use derive_new::new;
 use eyre::Context;
 use futures::{stream, StreamExt};
+use hyperlane_ethereum::Signers;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -42,6 +43,8 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
+    signer: Option<Signers>,
+    ignore_reorg_reports: bool,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -61,6 +64,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
+    fn get_signer(&self) -> Option<&Signers>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -218,25 +222,9 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        match config.build_and_validate(None).await {
-                            Ok(checkpoint_syncer) => {
-                                // found the syncer for this validator
-                                return Ok(Some((*validator, checkpoint_syncer)));
-                            }
-                            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-                                // If a reorg event has been posted to a checkpoint syncer,
-                                // we refuse to build
-                                // This will result in a short circuit and return an error for the entire build process of all syncers 
-                                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
-                            }
-                            Err(err) => {
-                                debug!(
-                                    error=%err,
-                                    ?config,
-                                    ?validator,
-                                    "Error when loading checkpoint syncer; will attempt to use the next config"
-                                );
-                            }
+                        if let Some(syncer) = self.build_and_validate(&config, validator).await? {
+                            // found the syncer for this validator
+                            return Ok(Some((*validator, syncer)));
                         }
                     }
                     warn!(
@@ -255,7 +243,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()? // Collect results into a single vector and return if any of them returns an error
+            .collect::<Result<Vec<_>, CheckpointSyncerBuildError>>()? // Collect results into a single vector and return if any of them returns an error
             .into_iter()
             .flatten() // Flatten Option<_>
             .collect::<Vec<_>>();
@@ -269,6 +257,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             app_context.map(|ctx| (self.metrics.clone(), ctx)),
         ))
     }
+
+    fn get_signer(&self) -> Option<&Signers> {
+        self.signer.as_ref()
+    }
 }
 
 impl BaseMetadataBuilder {
@@ -279,5 +271,41 @@ impl BaseMetadataBuilder {
     ) -> eyre::Result<Vec<Vec<String>>> {
         fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
             .await
+    }
+
+    async fn build_and_validate(
+        &self,
+        config: &CheckpointSyncerConf,
+        validator: &H256,
+    ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
+        match config.build_and_validate(None).await {
+            Ok(checkpoint_syncer) => {
+                return Ok(Some(checkpoint_syncer));
+            }
+            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+                if self.ignore_reorg_reports {
+                    warn!(
+                        ?reorg_event,
+                        ?config,
+                        ?validator,
+                        "Ignoring reorg event for checkpoint syncer build"
+                    );
+                    return Ok(None);
+                }
+                // If a reorg event has been posted to a checkpoint syncer,
+                // we refuse to build
+                // This will result in a short circuit and return an error for the entire build process of all syncers
+                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+            }
+            Err(err) => {
+                debug!(
+                    error=%err,
+                    ?config,
+                    ?validator,
+                    "Error when loading checkpoint syncer; will attempt to use the next config"
+                );
+            }
+        }
+        Ok(None)
     }
 }

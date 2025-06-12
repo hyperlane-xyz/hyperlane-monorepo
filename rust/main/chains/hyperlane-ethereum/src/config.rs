@@ -1,9 +1,10 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
+use url::Url;
+
 use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
 };
-use url::Url;
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -30,8 +31,14 @@ pub enum RpcConnectionConf {
     },
 }
 
+impl Default for RpcConnectionConf {
+    fn default() -> Self {
+        RpcConnectionConf::HttpFallback { urls: vec![] }
+    }
+}
+
 /// Ethereum connection configuration
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct ConnectionConf {
     /// RPC connection configuration
     pub rpc_connection: RpcConnectionConf,
@@ -39,6 +46,19 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
+}
+
+impl ConnectionConf {
+    /// Returns the RPC urls for this connection configuration
+    pub fn rpc_urls(&self) -> Vec<Url> {
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
+
+        match &self.rpc_connection {
+            HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
+            Http { url } => vec![url.clone()],
+            Ws { url: _ } => panic!("Websocket connection is not supported"),
+        }
+    }
 }
 
 /// Ethereum transaction overrides.
@@ -124,3 +144,6 @@ impl EthereumReorgPeriod {
         Ok(block_id)
     }
 }
+
+#[cfg(test)]
+mod tests;

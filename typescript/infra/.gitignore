@@ -4,6 +4,7 @@ dist/
 .env*
 cache/
 deployment-plan.yaml
+deployment-plans/
 test/outputs
 config/environments/test/core/
 config/environments/test/igp/

@@ -37,7 +37,7 @@ export const getCCTPWarpConfig = async (
         token: usdcTokenAddresses[chain],
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
-        urls: ['https://offchain-lookup.web3tools.net/cctp/getProofs'],
+        urls: ['https://testnet-offchain-lookup.services.hyperlane.xyz/'],
       };
       return [chain, config];
     }),

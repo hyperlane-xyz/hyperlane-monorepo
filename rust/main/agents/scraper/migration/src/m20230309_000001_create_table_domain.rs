@@ -513,6 +513,22 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "starknettest23448593",
+        token: "ETH",
+        domain: 23448593,
+        chain_id: 23448593,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "starknettest23448594",
+        token: "ETH",
+        domain: 23448594,
+        chain_id: 23448594,
+        is_test_net: true,
+        is_deprecated: false,
+    },
     // ---------- End: E2E tests chains ----------------
 ];
 

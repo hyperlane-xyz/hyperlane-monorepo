@@ -24,14 +24,14 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Settings for RPCs
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
     pub url: String,
     pub public: bool,
 }
 
 /// Settings for `Validator`
-#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut, Clone)]
 pub struct ValidatorSettings {
     #[as_ref]
     #[as_mut]
@@ -70,6 +70,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -93,6 +94,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
@@ -111,6 +113,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
+                agent_name.to_string(),
             )
             .end();
 
@@ -336,7 +339,7 @@ mod test {
 
     #[test]
     fn test_get_rpc_urls_explicit() {
-        let expected = vec![
+        let expected = [
             RpcConfig {
                 url: "http://my-rpc-url.com".to_string(),
                 public: true,
@@ -393,9 +396,9 @@ mod test {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url.com");
-        assert_eq!(parsed[0].public, false);
+        assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
-        assert_eq!(parsed[1].public, false);
+        assert!(!parsed[1].public);
     }
 
     #[test]
@@ -421,8 +424,8 @@ mod test {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
-        assert_eq!(parsed[0].public, false);
+        assert!(!parsed[0].public);
         assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
-        assert_eq!(parsed[1].public, false);
+        assert!(!parsed[1].public);
     }
 }

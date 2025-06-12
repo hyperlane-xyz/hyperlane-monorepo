@@ -24,11 +24,11 @@
     "decimals": 9
   },
   "basecamptestnet": {
-    "amount": "10.000000007",
+    "amount": "1.000000007",
     "decimals": 9
   },
   "basesepolia": {
-    "amount": "0.001000422",
+    "amount": "0.001272294",
     "decimals": 9
   },
   "bepolia": {
@@ -56,7 +56,7 @@
     "decimals": 9
   },
   "cotitestnet": {
-    "amount": "1.500000003",
+    "amount": "1.500000004",
     "decimals": 9
   },
   "ecotestnet": {
@@ -80,7 +80,7 @@
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.000470476",
+    "amount": "0.00349607",
     "decimals": 9
   },
   "hyperliquidevmtestnet": {
@@ -115,6 +115,10 @@
     "amount": "52.0",
     "decimals": 9
   },
+  "neuratestnet": {
+    "amount": "0.000000007",
+    "decimals": 9
+  },
   "nobletestnet": {
     "amount": "0.001",
     "decimals": 1
@@ -124,7 +128,11 @@
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.687270693",
+    "amount": "0.001000273",
+    "decimals": 9
+  },
+  "paradexsepolia": {
+    "amount": "0.01",
     "decimals": 9
   },
   "plumetestnet2": {
@@ -132,15 +140,19 @@
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "45.000000018",
+    "amount": "47.0",
+    "decimals": 9
+  },
+  "rometestnet": {
+    "amount": "0.000000001",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.016203984",
+    "amount": "0.015955864",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "16.264909839",
+    "amount": "8.437050817",
     "decimals": 9
   },
   "solanatestnet": {
@@ -148,7 +160,7 @@
     "decimals": 1
   },
   "somniatestnet": {
-    "amount": "30.0",
+    "amount": "6.0",
     "decimals": 9
   },
   "soneiumtestnet": {
@@ -163,8 +175,8 @@
     "amount": "0.01",
     "decimals": 1
   },
-  "suavetoliman": {
-    "amount": "1.0",
+  "starknetsepolia": {
+    "amount": "0.01",
     "decimals": 9
   },
   "subtensortestnet": {
@@ -176,7 +188,7 @@
     "decimals": 9
   },
   "unichaintestnet": {
-    "amount": "0.001000253",
+    "amount": "0.001000422",
     "decimals": 9
   },
   "weavevmtestnet": {

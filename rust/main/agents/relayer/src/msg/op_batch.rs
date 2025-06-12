@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use derive_new::new;
 use hyperlane_core::{
@@ -26,7 +26,7 @@ pub(crate) struct OperationBatch {
 }
 
 impl OperationBatch {
-    #[instrument(skip_all, fields(domain=%self.domain, batch_size=self.operations.len()))]
+    #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
         prepare_queue: &mut OpQueue,
@@ -68,8 +68,16 @@ impl OperationBatch {
         let outcome = self
             .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, BATCH_RETRY_SLEEP_DURATION)
             .await?;
-        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
-        metrics.ops_submitted.inc_by(ops_submitted as u64);
+
+        let failed_indexes: HashSet<usize> = outcome.failed_indexes.iter().cloned().collect();
+        for (i, op) in self.operations.iter().enumerate() {
+            if failed_indexes.contains(&i) {
+                continue;
+            }
+            let app_context = op.app_context();
+            metrics.inc_submitted(app_context);
+        }
+
         Ok(outcome)
     }
 
@@ -347,6 +355,7 @@ mod tests {
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
+            ignore_reorg_reports: false,
         };
 
         // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
@@ -386,6 +395,8 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
+            false,
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,

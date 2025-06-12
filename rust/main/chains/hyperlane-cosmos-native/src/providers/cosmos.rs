@@ -142,7 +142,7 @@ impl CosmosNativeProvider {
     }
 
     /// parses the message recipient if the transaction contains a MsgRemoteTransfer
-    fn parse_msg_remote_trasnfer_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
+    fn parse_msg_remote_transfer_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
         // check for all remote transfers
         let remote_transfers: Vec<Any> = tx
             .body
@@ -163,7 +163,8 @@ impl CosmosNativeProvider {
         })?;
         let result =
             MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
-        let recipient: H256 = result.recipient.parse()?;
+        // the recipient is the token id of the transfer, which is the address that the user interacts with
+        let recipient: H256 = result.token_id.parse()?;
         Ok(Some(recipient))
     }
 
@@ -176,7 +177,7 @@ impl CosmosNativeProvider {
             return Ok(recipient);
         }
         // if not found check for the remote transfer
-        if let Some(recipient) = Self::parse_msg_remote_trasnfer_recipient(tx)? {
+        if let Some(recipient) = Self::parse_msg_remote_transfer_recipient(tx)? {
             return Ok(recipient);
         }
         // if both are missing we return an error
@@ -393,6 +394,9 @@ impl HyperlaneProvider for CosmosNativeProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        if hash.is_zero() {
+            return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
+        }
         let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 

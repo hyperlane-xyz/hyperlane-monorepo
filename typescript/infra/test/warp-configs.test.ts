@@ -7,9 +7,11 @@ import {
   HypTokenRouterConfig,
   MultiProvider,
   WarpRouteDeployConfig,
+  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
   getEnvironmentConfig,
@@ -21,12 +23,7 @@ chai.use(chaiAsPromised);
 chai.should();
 const DEFAULT_TIMEOUT = 100000;
 
-const warpIdsToSkip = [
-  'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'USDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-  'USDTSTAGING/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
-];
+const warpIdsToSkip: string[] = [WarpRouteIds.oUSDT, WarpRouteIds.oUSDTSTAGE];
 
 async function getConfigsForBranch(branch: string) {
   return getRegistry({
@@ -81,7 +78,9 @@ describe.skip('Warp Configs', async function () {
       expect(warpConfig).to.have.keys(Object.keys(expectedConfig));
       for (const key in warpConfig) {
         if (warpConfig[key]) {
-          expect(warpConfig[key]).to.deep.equal(expectedConfig[key]);
+          expect(normalizeConfig(warpConfig[key])).to.deep.equal(
+            normalizeConfig(expectedConfig[key]),
+          );
         }
       }
     });

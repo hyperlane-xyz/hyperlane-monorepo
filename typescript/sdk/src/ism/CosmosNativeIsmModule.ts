@@ -1,4 +1,9 @@
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { Logger } from 'pino';
+
+import {
+  COSMOS_MODULE_MESSAGE_REGISTRY as R,
+  SigningHyperlaneModuleClient,
+} from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
   ChainId,
@@ -6,6 +11,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -19,7 +25,15 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { CosmosNativeIsmReader } from './CosmosNativeIsmReader.js';
-import { IsmConfig, IsmConfigSchema, IsmType } from './types.js';
+import {
+  DomainRoutingIsmConfig,
+  IsmConfig,
+  IsmConfigSchema,
+  IsmType,
+  MultisigIsmConfig,
+  STATIC_ISM_TYPES,
+} from './types.js';
+import { calculateDomainRoutingDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -55,7 +69,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     this.chainId = multiProvider.getChainId(this.chain);
     this.domainId = multiProvider.getDomainId(this.chain);
 
-    this.reader = new CosmosNativeIsmReader(signer);
+    this.reader = new CosmosNativeIsmReader(this.multiProvider, this.signer);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -85,16 +99,40 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       'normalized expectedConfig should be an object',
     );
 
+    // Update the config
+    this.args.config = expectedConfig;
+
     // If configs match, no updates needed
     if (deepEquals(actualConfig, expectedConfig)) {
       return [];
     }
 
-    this.args.addresses.deployedIsm = await this.deploy({
-      config: expectedConfig,
-    });
+    // if the ISM is a static ISM we can not update it, instead
+    // it needs to be recreated with the expected config
+    if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
+      this.args.addresses.deployedIsm = await this.deploy({
+        config: expectedConfig,
+      });
 
-    return [];
+      return [];
+    }
+
+    let updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+    if (expectedConfig.type === IsmType.ROUTING) {
+      const logger = this.logger.child({
+        destination: this.chain,
+        ismType: expectedConfig.type,
+      });
+      logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
+
+      updateTxs = await this.updateRoutingIsm({
+        actual: actualConfig,
+        expected: expectedConfig,
+        logger,
+      });
+    }
+
+    return updateTxs;
   }
 
   // manually write static create function
@@ -134,27 +172,165 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     switch (ismType) {
       case IsmType.MERKLE_ROOT_MULTISIG: {
-        const { response: merkleRootResponse } =
-          await this.signer.createMerkleRootMultisigIsm({
-            validators: config.validators,
-            threshold: config.threshold,
-          });
-        return merkleRootResponse.id;
+        return this.deployMerkleRootMultisigIsm(config);
       }
       case IsmType.MESSAGE_ID_MULTISIG: {
-        const { response: messageIdResponse } =
-          await this.signer.createMessageIdMultisigIsm({
-            validators: config.validators,
-            threshold: config.threshold,
-          });
-        return messageIdResponse.id;
+        return this.deployMessageIdMultisigIsm(config);
+      }
+      case IsmType.ROUTING: {
+        return this.deployRoutingIsm(config);
       }
       case IsmType.TEST_ISM: {
-        const { response: noopResponse } = await this.signer.createNoopIsm({});
-        return noopResponse.id;
+        return this.deployNoopIsm();
       }
       default:
-        throw new Error(`ISM type ${ismType} is not supported on Cosmos`);
+        throw new Error(
+          `ISM type ${ismType} is not supported on Cosmos Native`,
+        );
     }
+  }
+
+  protected async deployMerkleRootMultisigIsm(
+    config: MultisigIsmConfig,
+  ): Promise<Address> {
+    assert(
+      config.threshold <= config.validators.length,
+      `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
+    );
+    const { response } = await this.signer.createMerkleRootMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
+    return response.id;
+  }
+
+  protected async deployMessageIdMultisigIsm(
+    config: MultisigIsmConfig,
+  ): Promise<Address> {
+    assert(
+      config.threshold <= config.validators.length,
+      `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
+    );
+    const { response } = await this.signer.createMessageIdMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
+    return response.id;
+  }
+
+  protected async deployRoutingIsm(
+    config: DomainRoutingIsmConfig,
+  ): Promise<Address> {
+    const routes = [];
+
+    // deploy ISMs for each domain
+    for (const chainName of Object.keys(config.domains)) {
+      const domainId = this.multiProvider.tryGetDomainId(chainName);
+      if (!domainId) {
+        this.logger.warn(
+          `Unknown chain ${chainName}, skipping ISM configuration`,
+        );
+        continue;
+      }
+
+      const address = await this.deploy({ config: config.domains[chainName] });
+      routes.push({
+        ism: address,
+        domain: domainId,
+      });
+    }
+
+    const { response } = await this.signer.createRoutingIsm({
+      routes,
+    });
+    return response.id;
+  }
+
+  protected async updateRoutingIsm({
+    actual,
+    expected,
+    logger,
+  }: {
+    actual: DomainRoutingIsmConfig;
+    expected: DomainRoutingIsmConfig;
+    logger: Logger;
+  }): Promise<AnnotatedCosmJsNativeTransaction[]> {
+    const updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+
+    const knownChains = new Set(this.multiProvider.getKnownChainNames());
+
+    const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
+      actual,
+      expected,
+    );
+
+    const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
+
+    // Enroll domains
+    for (const origin of knownEnrolls) {
+      logger.debug(
+        `Reconfiguring preexisting routing ISM for origin ${origin}...`,
+      );
+      const ism = await this.deploy({
+        config: expected.domains[origin],
+      });
+
+      const domain = this.multiProvider.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Setting new ISM for origin ${origin}...`,
+        typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
+        value: R.MsgSetRoutingIsmDomain.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          route: {
+            ism,
+            domain,
+          },
+        }),
+      });
+    }
+
+    const knownUnenrolls = intersection(
+      knownChains,
+      new Set(domainsToUnenroll),
+    );
+
+    // Unenroll domains
+    for (const origin of knownUnenrolls) {
+      const domain = this.multiProvider.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Unenrolling originDomain ${domain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
+        value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          domain,
+        }),
+      });
+    }
+
+    // Update ownership
+    if (actual.owner !== expected.owner) {
+      updateTxs.push({
+        annotation: `Transferring ownership of ISM from ${
+          actual.owner
+        } to ${expected.owner}`,
+        typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
+        value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          new_owner: expected.owner,
+          // if the new owner is empty we renounce the ownership
+          renounce_ownership: !expected.owner,
+        }),
+      });
+    }
+
+    return updateTxs;
+  }
+
+  protected async deployNoopIsm(): Promise<Address> {
+    const { response } = await this.signer.createNoopIsm({});
+    return response.id;
   }
 }

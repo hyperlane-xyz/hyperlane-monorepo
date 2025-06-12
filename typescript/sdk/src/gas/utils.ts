@@ -82,7 +82,20 @@ export async function getCosmosChainGasPrice(
     throw new Error(`Chain ${chain} is not a Cosmos chain`);
   }
 
-  const cosmosRegistryChain = await getCosmosRegistryChain(chain);
+  // Use the cosmos registry gas price first.
+  let cosmosRegistryChain;
+  try {
+    cosmosRegistryChain = await getCosmosRegistryChain(chain);
+  } catch {
+    // Fallback to our registry gas price from the metadata.
+    if (metadata.gasPrice) {
+      return metadata.gasPrice;
+    }
+    throw new Error(
+      `No gas price found for Cosmos chain ${chain} in the registry or metadata`,
+    );
+  }
+
   const nativeToken = metadata.nativeToken;
   if (!nativeToken) {
     throw new Error(`No native token found for Cosmos chain ${chain}`);

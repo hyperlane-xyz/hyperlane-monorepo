@@ -65,7 +65,7 @@ impl Default for SealevelTxCostEstimate {
 
 /// Methods of provider which are used in submitter
 #[async_trait]
-pub trait SealevelProviderForSubmitter: Send + Sync {
+pub trait SealevelProviderForLander: Send + Sync {
     /// Creates Sealevel transaction for instruction
     async fn create_transaction_for_instruction(
         &self,
@@ -108,7 +108,7 @@ pub struct SealevelProvider {
 }
 
 #[async_trait]
-impl SealevelProviderForSubmitter for SealevelProvider {
+impl SealevelProviderForLander for SealevelProvider {
     /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
     /// If `sign` is true, the transaction will be signed.
     async fn create_transaction_for_instruction(

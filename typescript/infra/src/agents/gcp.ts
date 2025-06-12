@@ -2,11 +2,13 @@ import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 import { Logger } from 'pino';
+import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
@@ -14,6 +16,12 @@ import { execCmd, include } from '../utils/utils.js';
 
 import { isValidatorKey, keyIdentifier } from './agent.js';
 import { CloudAgentKey } from './keys.js';
+
+// Helper function to determine if a chain is Starknet
+function isStarknetChain(chainName: ChainName): boolean {
+  const metadata = getChain(chainName);
+  return metadata?.protocol === ProtocolType.Starknet;
+}
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -61,8 +69,17 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
       this.logger.debug('Key already exists');
     } catch (err) {
-      this.logger.debug('Key does not exist, creating new key');
+      this.logger.warn('Key does not exist, creating new key');
       await this.create();
+    }
+  }
+
+  async exists() {
+    try {
+      await this.fetch();
+      return true;
+    } catch (err) {
+      return false;
     }
   }
 
@@ -137,6 +154,14 @@ export class AgentGCPKey extends CloudAgentKey {
     const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
       this.identifier,
     )) as any;
+
+    // For Starknet chains, we just read the key but never create or update
+    if (this.chainName && isStarknetChain(this.chainName)) {
+      this.logger.debug(
+        `Fetched Starknet key for ${this.chainName}: ${secret.address}`,
+      );
+    }
+
     this.remoteKey = {
       fetched: true,
       privateKey: secret.privateKey,
@@ -146,12 +171,40 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async create() {
+    // For Starknet chains, we don't create keys - they're read-only from GCP
+    if (this.chainName && isStarknetChain(this.chainName)) {
+      this.logger.debug(
+        `Skipping creation for Starknet key ${this.identifier}`,
+      );
+      // Try to fetch instead - if it exists, use it
+      try {
+        await this.fetch();
+        this.logger.debug(`Found existing Starknet key: ${this.identifier}`);
+      } catch (error) {
+        this.logger.warn(
+          `Cannot create Starknet key for ${this.chainName}. Please manually add it to GCP Secret Manager.`,
+        );
+        throw new Error(
+          `Starknet keys must be manually added to GCP Secret Manager: ${this.identifier}`,
+        );
+      }
+      return;
+    }
+
     this.logger.debug('Creating new key');
     this.remoteKey = await this._create(false);
     this.logger.debug('Key created successfully');
   }
 
   async update() {
+    // For Starknet chains, we don't update keys - they're read-only from GCP
+    if (this.chainName && isStarknetChain(this.chainName)) {
+      this.logger.debug(`Skipping update for Starknet key ${this.identifier}`);
+      throw new Error(
+        `Cannot update Starknet key for ${this.chainName}. Please update it manually in GCP Secret Manager.`,
+      );
+    }
+
     this.logger.debug('Updating key');
     this.remoteKey = await this._create(true);
     this.logger.debug('Key updated successfully');
@@ -165,12 +218,16 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider?: ethers.providers.Provider,
-  ): Promise<ethers.Signer> {
+    provider?: ethers.providers.Provider | ZkProvider,
+  ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key not fetched, fetching now');
       await this.fetch();
+    }
+
+    if (provider instanceof ZkProvider) {
+      return new ZkWallet(this.privateKey, provider);
     }
     return new Wallet(this.privateKey, provider);
   }

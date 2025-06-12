@@ -1,0 +1,15 @@
+{
+  "apechain": {
+    "type": "synthetic",
+    "name": "Solana",
+    "symbol": "SOL",
+    "decimals": 9,
+    "foreignDeployment": "0x16eE589E237f2c70aBE91F87a6C0712C836941bb"
+  },
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "B1q2dsjCE4F6wi5ktn4anmFq9572JpziBUg2TqCS2dFn"
+  }
+}
