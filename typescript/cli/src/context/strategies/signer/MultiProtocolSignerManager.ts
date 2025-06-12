@@ -80,7 +80,12 @@ export class MultiProtocolSignerManager {
    */
   async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.compatibleChains) {
-      const signer = await this.initSigner(chain);
+      // Check if signer already exists to avoid double initialization
+      let signer = this.signers.get(chain);
+      if (!signer) {
+        signer = await this.initSigner(chain);
+      }
+
       if (this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
         this.multiProvider.setSigner(chain, signer as Signer);
       }
