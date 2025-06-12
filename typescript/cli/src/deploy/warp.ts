@@ -333,6 +333,10 @@ export async function runWarpRouteApply(
   // Try to read the actualWarpDeployConfig path
   let actualWarpDeployConfig: DerivedWarpRouteDeployConfig | undefined;
   if (actualWarpDeployConfigPath) {
+    warnYellow(
+      'Using local file as on-chain state. This may result in incorrect updates if the file is stale.',
+    );
+
     actualWarpDeployConfig = readYamlOrJson<DerivedWarpRouteDeployConfig>(
       actualWarpDeployConfigPath,
     );
@@ -527,11 +531,11 @@ async function updateExistingWarpRoute(updateParams: {
           contractVerifier,
         );
 
-        const actualConfig = actualWarpDeployConfig?.[chain];
-        if (actualConfig) warnYellow(`Using cached config for chain ${chain}!`);
-
         transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox, actualConfig)),
+          ...(await evmERC20WarpModule.update(
+            configWithMailbox,
+            actualWarpDeployConfig?.[chain],
+          )),
         );
       });
     }),

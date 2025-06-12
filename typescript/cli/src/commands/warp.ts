@@ -91,7 +91,7 @@ export const apply: CommandModuleWithWarpApplyContext<{
     actualConfig: {
       type: 'string',
       description:
-        'A path to a JSON or YAML file with a derived warp route deployment config (warp read).',
+        'A path to a warp route config file that was previously fetched with `warp read`. WARNING: This may result in incorrect updates if the file is stale.',
       demandOption: false,
     },
     warpRouteId: warpRouteIdCommandOption,
