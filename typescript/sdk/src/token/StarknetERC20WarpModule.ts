@@ -35,10 +35,17 @@ export class StarknetERC20WarpModule {
   ) {}
 
   public async deployToken(): Promise<ChainMap<string>> {
-    const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+    let tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       this.multiProvider,
       this.config,
     );
+    tokenMetadata = {
+      symbol: 'USDC',
+      name: 'USDC',
+      decimals: 6,
+    };
+    console.log('tokenMetadata', JSON.stringify(tokenMetadata, null, 2));
+    console.log('this.config', JSON.stringify(this.config, null, 2));
     assert(
       tokenMetadata && tokenMetadata.decimals,
       "Token metadata can't be extracted",
@@ -106,7 +113,7 @@ export class StarknetERC20WarpModule {
         case TokenType.collateral: {
           if (chain === 'paradex') {
             const dexContract =
-              '0x0286003f7c7bfc3f94e8f0af48b48302e7aee2fb13c23b141479ba00832ef2c6';
+              '0x3ca9388f8d4e04adecbd7b06b9b24a33030a593522248a7bddd87afc0b61a0c';
 
             const tokenAddress = await deployer.deployContract(
               StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
@@ -194,6 +201,15 @@ export class StarknetERC20WarpModule {
       const domains: number[] = [];
       const routers: Uint256[] = [];
 
+      routerAddresses = {
+        ethereum: '0x6912088890254E69970baEdB03284fB3D8fBCDA0',
+        arbitrum: '0xF5f93d26229482adCA3e42F84D08d549cF131658',
+        base: '0x0BA30bdd7D3C510De16c47385102c0B7068f4f33',
+        solanamainnet:
+          '0x660b444593997d9465c9a9337eb5d92ca29c43ed71038b300829d689199773d1',
+        mode: '0xcA4b9B3b6Dae4E5Dc2D749b2bD400ef62E7ae642',
+      };
+
       // Collect all remote chains' data
       Object.entries(routerAddresses).forEach(
         ([remoteChain, remoteAddress]) => {
@@ -233,6 +249,24 @@ export class StarknetERC20WarpModule {
       } else {
         this.logger.error(
           `Failed to enroll all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+        );
+      }
+
+      const tx2 = await routerContract.invoke('set_hook', [
+        uint256.bnToUint256(
+          '0x032601b74dcd3e45dc022d953aaab48fe8a926d96607f07176de191bb0ace617',
+        ),
+      ]);
+
+      const receipt2 = await account.waitForTransaction(tx2.transaction_hash);
+
+      if (receipt2.isSuccess()) {
+        this.logger.info(
+          `Successfully set hook on ${chain}. Transaction: ${tx2.transaction_hash}`,
+        );
+      } else {
+        this.logger.error(
+          `Failed to set hook on ${chain}. Transaction: ${tx2.transaction_hash}`,
         );
       }
     }
