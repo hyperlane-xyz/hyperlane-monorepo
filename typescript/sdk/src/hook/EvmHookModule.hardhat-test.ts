@@ -376,19 +376,10 @@ describe('EvmHookModule', async () => {
 
       // Update the protocol fee hook (should update in-place)
       const protocolFeeHook = config.hooks[1] as ProtocolFeeHookConfig;
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            ...protocolFeeHook,
-            protocolFee: '200', // change protocol fee
-          },
-        ],
-      };
+      protocolFeeHook.protocolFee = '200'; // change protocol fee
 
       // expect 1 tx to update the protocol fee hook in-place
-      await expectTxsAndUpdate(hook, updatedConfig, 1);
+      await expectTxsAndUpdate(hook, config, 1);
 
       // expect the aggregation hook address to be the same
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -433,19 +424,10 @@ describe('EvmHookModule', async () => {
 
       // Update the IGP hook beneficiary (should update in-place)
       const igpHook = config.hooks[1] as IgpHookConfig;
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            ...igpHook,
-            beneficiary: randomAddress(), // change beneficiary
-          },
-        ],
-      };
+      igpHook.beneficiary = randomAddress(); // change beneficiary
 
       // expect 1 tx to update the IGP hook in-place
-      await expectTxsAndUpdate(hook, updatedConfig, 1);
+      await expectTxsAndUpdate(hook, config, 1);
 
       // expect the aggregation hook address to be the same
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -473,19 +455,10 @@ describe('EvmHookModule', async () => {
 
       // Update the pausable hook state (should update in-place)
       const pausableHook = config.hooks[1] as PausableHookConfig;
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            ...pausableHook,
-            paused: true, // change paused state
-          },
-        ],
-      };
+      pausableHook.paused = true; // change paused state
 
       // expect 1 tx to update the pausable hook in-place
-      await expectTxsAndUpdate(hook, updatedConfig, 1);
+      await expectTxsAndUpdate(hook, config, 1);
 
       // expect the aggregation hook address to be the same
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -517,24 +490,12 @@ describe('EvmHookModule', async () => {
 
       // Update the routing hook by adding a domain (should update in-place)
       const routingHook = config.hooks[1] as DomainRoutingHookConfig;
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            ...routingHook,
-            domains: {
-              ...routingHook.domains,
-              test2: {
-                type: HookType.MERKLE_TREE,
-              },
-            },
-          },
-        ],
+      routingHook.domains.test2 = {
+        type: HookType.MERKLE_TREE,
       };
 
       // expect 1 tx to update the routing hook in-place
-      await expectTxsAndUpdate(hook, updatedConfig, 1);
+      await expectTxsAndUpdate(hook, config, 1);
 
       // expect the aggregation hook address to be the same
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -563,20 +524,14 @@ describe('EvmHookModule', async () => {
       const { hook, initialHookAddress } = await createHook(config);
 
       // Change the type of the second hook (structural change)
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            owner,
-            type: HookType.PAUSABLE,
-            paused: false,
-          },
-        ],
+      config.hooks[1] = {
+        owner,
+        type: HookType.PAUSABLE,
+        paused: false,
       };
 
       // expect 0 tx because it redeploys the entire aggregation
-      await expectTxsAndUpdate(hook, updatedConfig, 0);
+      await expectTxsAndUpdate(hook, config, 0);
 
       // expect the aggregation hook address to be different
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -605,20 +560,14 @@ describe('EvmHookModule', async () => {
       const { hook, initialHookAddress } = await createHook(config);
 
       // Add another hook (structural change)
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          ...config.hooks,
-          {
-            owner,
-            type: HookType.PAUSABLE,
-            paused: false,
-          },
-        ],
-      };
+      config.hooks.push({
+        owner,
+        type: HookType.PAUSABLE,
+        paused: false,
+      });
 
       // expect 0 tx because it redeploys the entire aggregation
-      await expectTxsAndUpdate(hook, updatedConfig, 0);
+      await expectTxsAndUpdate(hook, config, 0);
 
       // expect the aggregation hook address to be different
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -649,22 +598,16 @@ describe('EvmHookModule', async () => {
       const { hook, initialHookAddress } = await createHook(config);
 
       // Change the non-mutable merkle tree hook to a different type (structural change)
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          {
-            owner,
-            type: HookType.PROTOCOL_FEE,
-            maxProtocolFee: '1000',
-            protocolFee: '100',
-            beneficiary: owner,
-          },
-          config.hooks[1], // routing unchanged
-        ],
+      config.hooks[1] = {
+        owner,
+        type: HookType.PROTOCOL_FEE,
+        maxProtocolFee: '1000',
+        protocolFee: '100',
+        beneficiary: owner,
       };
 
       // expect 0 tx because it redeploys the entire aggregation
-      await expectTxsAndUpdate(hook, updatedConfig, 0);
+      await expectTxsAndUpdate(hook, config, 0);
 
       // expect the aggregation hook address to be different
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
@@ -695,19 +638,10 @@ describe('EvmHookModule', async () => {
 
       // Change the max protocol fee (requires redeployment)
       const protocolFeeHook = config.hooks[1] as ProtocolFeeHookConfig;
-      const updatedConfig: AggregationHookConfig = {
-        ...config,
-        hooks: [
-          config.hooks[0], // merkle tree unchanged
-          {
-            ...protocolFeeHook,
-            maxProtocolFee: '2000', // change max protocol fee
-          },
-        ],
-      };
+      protocolFeeHook.maxProtocolFee = '2000'; // change max protocol fee
 
       // expect 0 tx because it redeploys the entire aggregation
-      await expectTxsAndUpdate(hook, updatedConfig, 0);
+      await expectTxsAndUpdate(hook, config, 0);
 
       // expect the aggregation hook address to be different
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be

@@ -286,6 +286,11 @@ export class EvmHookModule extends HyperlaneModule<
     let hasStructuralChange = false;
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
+    const hookAddresses = await StaticAggregationHook__factory.connect(
+      this.args.addresses.deployedHook,
+      this.multiProvider.getProvider(this.chain),
+    ).hooks(ZERO_ADDRESS_HEX_32);
+
     // Check each hook to see if we can update in place
     for (let i = 0; i < target.hooks.length; i++) {
       const currentHook = normalizeConfig(current.hooks[i]);
@@ -314,17 +319,16 @@ export class EvmHookModule extends HyperlaneModule<
       const moduleInstance = new EvmHookModule(
         this.multiProvider,
         {
-          addresses: this.args.addresses,
+          addresses: {
+            ...this.args.addresses,
+            deployedHook: hookAddresses[i],
+          },
           chain: this.args.chain,
           config: currentHook,
         },
         undefined, // ccipContractCache
         this.contractVerifier,
       );
-
-      // Get the current deployed address for this hook from the aggregation
-      const currentHookAddress = await this.getAggregationHookAddress(i);
-      moduleInstance.args.addresses.deployedHook = currentHookAddress;
 
       // Update the hook in place
       const hookTxs = await moduleInstance.update(targetHook);
@@ -340,36 +344,6 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return updateTxs;
-  }
-
-  /**
-   * Gets the address of a specific hook within an aggregation hook
-   */
-  protected async getAggregationHookAddress(
-    hookIndex: number,
-  ): Promise<Address> {
-    // This would need to be implemented based on the aggregation hook contract interface
-    // For now, we'll need to read from the aggregation contract
-    const reader = this.reader;
-    const currentConfig = await reader.deriveHookConfig(
-      this.args.addresses.deployedHook,
-    );
-
-    if (
-      typeof currentConfig === 'object' &&
-      currentConfig.type === HookType.AGGREGATION
-    ) {
-      // The reader should return the actual hook addresses
-      // This assumes the reader properly populates the hook addresses
-      const hook = currentConfig.hooks[hookIndex];
-      if (typeof hook === 'string') {
-        return hook;
-      }
-    }
-
-    throw new Error(
-      `Could not determine address for aggregation hook at index ${hookIndex}`,
-    );
   }
 
   // manually write static create function

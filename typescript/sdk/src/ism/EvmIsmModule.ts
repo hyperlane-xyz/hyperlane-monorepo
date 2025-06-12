@@ -1,12 +1,17 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
+import {
+  DomainRoutingIsm__factory,
+  PausableIsm__factory,
+  StaticAggregationIsm__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   assert,
   deepEquals,
   intersection,
@@ -37,6 +42,7 @@ import {
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
+  PausableIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -179,6 +185,11 @@ export class EvmIsmModule extends HyperlaneModule<
         target: targetConfig,
         logger,
       });
+    } else if (targetConfig.type === IsmType.PAUSABLE) {
+      updateTxs = await this.updatePausableIsm({
+        current: currentConfig,
+        target: targetConfig,
+      });
     }
 
     // Lastly, check if the resolved owner is different from the current owner
@@ -225,6 +236,11 @@ export class EvmIsmModule extends HyperlaneModule<
     let hasStructuralChange = false;
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
+    const [ismAddresses, _] = await StaticAggregationIsm__factory.connect(
+      this.args.addresses.deployedIsm,
+      this.multiProvider.getProvider(this.chain),
+    ).modulesAndThreshold(ZERO_ADDRESS_HEX_32);
+
     // Check each module to see if we can update in place
     for (let i = 0; i < target.modules.length; i++) {
       const currentModule = normalizeConfig(current.modules[i]);
@@ -253,17 +269,16 @@ export class EvmIsmModule extends HyperlaneModule<
       const moduleInstance = new EvmIsmModule(
         this.multiProvider,
         {
-          addresses: this.args.addresses,
+          addresses: {
+            ...this.args.addresses,
+            deployedIsm: ismAddresses[i],
+          },
           chain: this.args.chain,
           config: currentModule,
         },
         undefined, // ccipContractCache
         this.contractVerifier,
       );
-
-      // Get the current deployed address for this module from the aggregation
-      const currentModuleAddress = await this.getAggregationModuleAddress(i);
-      moduleInstance.args.addresses.deployedIsm = currentModuleAddress;
 
       // Update the module in place
       const moduleTxs = await moduleInstance.update(targetModule);
@@ -279,36 +294,6 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return updateTxs;
-  }
-
-  /**
-   * Gets the address of a specific module within an aggregation ISM
-   */
-  protected async getAggregationModuleAddress(
-    moduleIndex: number,
-  ): Promise<Address> {
-    // This would need to be implemented based on the aggregation ISM contract interface
-    // For now, we'll need to read from the aggregation contract
-    const reader = this.reader;
-    const currentConfig = await reader.deriveIsmConfig(
-      this.args.addresses.deployedIsm,
-    );
-
-    if (
-      typeof currentConfig === 'object' &&
-      currentConfig.type === IsmType.AGGREGATION
-    ) {
-      // The reader should return the actual module addresses
-      // This assumes the reader properly populates the module addresses
-      const module = currentConfig.modules[moduleIndex];
-      if (typeof module === 'string') {
-        return module;
-      }
-    }
-
-    throw new Error(
-      `Could not determine address for aggregation module at index ${moduleIndex}`,
-    );
   }
 
   // manually write static create function
@@ -348,6 +333,34 @@ export class EvmIsmModule extends HyperlaneModule<
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;
+  }
+
+  protected async updatePausableIsm({
+    current,
+    target,
+  }: {
+    current: PausableIsmConfig;
+    target: PausableIsmConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    if (current.paused !== target.paused) {
+      // Have to encode separately otherwise tsc will complain
+      // about being unable to infer types correctly
+      const pausableInterface = PausableIsm__factory.createInterface();
+      const data = target.paused
+        ? pausableInterface.encodeFunctionData('pause')
+        : pausableInterface.encodeFunctionData('unpause');
+
+      updateTxs.push({
+        annotation: `Updating paused state to ${target.paused}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data,
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async updateRoutingIsm({
