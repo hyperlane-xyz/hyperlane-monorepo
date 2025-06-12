@@ -1,4 +1,10 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfig,
+  SubmitterMetadata,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
@@ -17,6 +23,22 @@ const owners = {
   base: '0xcEC53d6fF9B4C7b8E77f0C0D3f8828Bb872f2377',
   optimism: '0x914931eBb5638108651455F50C1F784d3E5fd3EC',
 } as const;
+
+const submitterConfig = objMap(
+  owners,
+  (chain, owner): { submitter: SubmitterMetadata } => {
+    return {
+      submitter: {
+        safeAddress: owner,
+        version: '1.0',
+        type: TxSubmitterType.GNOSIS_TX_BUILDER,
+        chain,
+      },
+    };
+  },
+);
+
+console.log(JSON.stringify(submitterConfig, null, 2));
 
 export const getLumiaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
