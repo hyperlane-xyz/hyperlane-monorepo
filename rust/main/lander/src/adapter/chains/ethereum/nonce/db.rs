@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use async_trait::async_trait;
 use ethers_core::types::Address;
-use futures_util::FutureExt;
+use futures_util::{FutureExt, StreamExt};
 
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, U256};
@@ -50,7 +50,7 @@ pub trait NonceDb: Send + Sync {
         &self,
         nonce: &U256,
         signer_address: &Address,
-        nonce_status: &TransactionUuid,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()>;
 }
 
@@ -115,12 +115,12 @@ impl NonceDb for HyperlaneRocksDB {
         &self,
         nonce: &U256,
         signer_address: &Address,
-        nonce_status: &TransactionUuid,
+        tx_uuid: &TransactionUuid,
     ) -> DbResult<()> {
         self.store_value_by_key(
             TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX,
             &NonceAndSignerAddress(*nonce, *signer_address),
-            nonce_status,
+            tx_uuid,
         )
     }
 }

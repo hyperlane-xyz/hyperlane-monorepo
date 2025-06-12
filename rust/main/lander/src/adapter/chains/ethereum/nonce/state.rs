@@ -49,6 +49,9 @@ impl NonceManagerState {
             .unwrap_or_default();
 
         if nonce >= &upper_nonce {
+            // If the finalized nonce is greater than or equal to the upper nonce, it means that
+            // some transactions were finalized by a service different from Lander.
+            // And we need to update the upper nonce.
             self.nonce_db
                 .store_upper_nonce_by_signer_address(&self.address, &(nonce + 1))
                 .await?;
@@ -59,84 +62,26 @@ impl NonceManagerState {
 
     pub(crate) async fn validate_assigned_nonce(
         &self,
-        nonce: &U256,
-        nonce_status: &NonceStatus,
-    ) -> NonceResult<NonceAction> {
+        tx: &Transaction,
+    ) -> NonceResult<(NonceAction, Option<U256>)> {
         use NonceAction::{Assign, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
+        let tx_uuid = tx.uuid.clone();
+        let tx_status = tx.status.clone();
+        let Some(nonce): Option<U256> = tx.precursor().tx.nonce().map(Into::into) else {
+            return Ok((Assign, None));
+        };
+        let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
+
         // Fetching the tracked transaction uuid
-        let tracked_tx_uuid = self.get_tracked_tx_uuid(&nonce.into()).await?;
+        let tracked_tx_uuid = self.get_tracked_tx_uuid(&nonce).await?;
 
         if tracked_tx_uuid == TransactionUuid::default() {
             // If the nonce, which currently assigned to the transaction, is not tracked,
             // we should assign the new nonce.
-            info!(?nonce, "Nonce is not tracked, assigning new nonce");
-            return Ok(Assign);
-        };
-
-        let Some(tracked_tx) = self.get_tracked_tx(&tracked_tx_uuid).await? else {
-            // If the transaction is not found, it means that the nonce was assigned to
-            // a non-existing transaction. This should never happen. We assign new nonce.
-            // If this happens, it means that nonce is in undefined state, and we should not
-            // re-use it. We report an error and keep the nonce assigned to the non-existing transaction.
-            error!(
-                ?nonce,
-                ?tracked_tx_uuid,
-                "Nonce was assigned to a non-existing transaction, assigning new nonce"
-            );
-            return Ok(Assign);
-        };
-
-        let tracked_tx_status = &tracked_tx.status;
-        let tracked_nonce_status =
-            NonceStatus::calculate_nonce_status(tracked_tx_uuid.clone(), tracked_tx_status);
-
-        let Some(tracked_nonce): Option<U256> = tracked_tx.precursor().tx.nonce().map(Into::into)
-        else {
-            // If the tracked transaction does not have nonce, we cannot validate its status.
-            // This should never happen, but if it does, we assign new nonce.
-            error!(
-                ?nonce,
-                ?tracked_tx_uuid,
-                "Tracked transaction does not have a nonce, assigning new nonce to new transaction"
-            );
-            return Ok(Assign);
-        };
-
-        if &tracked_nonce != nonce {
-            // If the tracked nonce is different from the assigned nonce,
-            // we should assign the new nonce. It should never happen.
-            error!(
-                ?nonce,
-                ?tracked_nonce,
-                ?tracked_tx_uuid,
-                "Tracked nonce is different from the assigned nonce, assigning new nonce to new transaction"
-            );
-            return Ok(Assign);
-        }
-
-        self.validate_assigned_nonce_against_tracked(nonce, nonce_status, &tracked_nonce_status)
-            .await
-    }
-
-    pub(crate) async fn validate_assigned_nonce_against_tracked(
-        &self,
-        nonce: &U256,
-        nonce_status: &NonceStatus,
-        tracked_nonce_status: &NonceStatus,
-    ) -> NonceResult<NonceAction> {
-        use NonceAction::{Assign, Noop};
-        use NonceStatus::{Committed, Freed, Taken};
-
-        // Getting transaction UUID from the nonce status.
-        let tx_uuid = match nonce_status {
-            Freed(uuid) | Taken(uuid) | Committed(uuid) => uuid,
-        };
-
-        // Getting the transaction UUID from the tracked nonce status.
-        let tracked_tx_uuid = match &tracked_nonce_status {
-            Freed(uuid) | Taken(uuid) | Committed(uuid) => uuid,
+            warn!(?nonce, "Nonce is not tracked, assigning new nonce");
+            return Ok((Assign, Some(nonce)));
         };
 
         if tracked_tx_uuid != tx_uuid {
@@ -148,48 +93,50 @@ impl NonceManagerState {
             warn!(
                 ?nonce,
                 ?nonce_status,
-                ?tracked_nonce_status,
                 "Nonce is assigned to a different transaction, assigning new nonce"
             );
-            return Ok(Assign);
+            return Ok((Assign, Some(nonce)));
         }
 
         let finalized_nonce = self.get_finalized_nonce().await?;
 
-        match (nonce_status, finalized_nonce) {
+        match (&nonce_status, finalized_nonce) {
             (Freed(_), _) => {
                 // If the nonce, which is currently assigned to the transaction, is Freed,
                 // then the transaction was dropped. But we are validating the nonce just before
                 // we submit the transaction again. It means that we should assign the new nonce.
-                info!(
-                    ?nonce,
-                    ?nonce_status,
-                    ?tracked_nonce_status,
-                    "Nonce is freed, assigning new nonce"
-                );
-                Ok(Assign)
+                warn!(?nonce, ?nonce_status, "Nonce is freed, assigning new nonce");
+                Ok((Assign, Some(nonce)))
             }
-            (Taken(_), Some(finalized_nonce)) if nonce <= &finalized_nonce => {
+            (Taken(_), Some(finalized_nonce)) if nonce <= finalized_nonce => {
                 // If the nonce is taken, but it is below or equal to the finalized nonce,
                 // it means that the current nonce is outdated.
                 // We should assign the new nonce.
                 info!(
                     ?nonce,
                     ?nonce_status,
-                    ?tracked_nonce_status,
                     "Nonce is taken by the transaction but below or equal to the finalized nonce, assigning new nonce"
                 );
-                Ok(Assign)
+                Ok((Assign, Some(nonce)))
             }
-            (Taken(_), _) | (Committed(_), _) => {
+            (Taken(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
                 info!(
                     ?nonce,
                     ?nonce_status,
-                    ?tracked_nonce_status,
                     "Nonce is already assigned to the transaction, no action needed"
                 );
-                Ok(Noop)
+                Ok((Noop, Some(nonce)))
+            }
+            (Committed(_), _) => {
+                // If the nonce is taken or committed, we don't need to do anything.
+                warn!(
+                    ?nonce,
+                    ?nonce_status,
+                    "Nonce is already assigned to the transaction, no action needed, \
+                    but transaction should not be committed at this point"
+                );
+                Ok((Noop, Some(nonce)))
             }
         }
     }
@@ -204,6 +151,10 @@ impl NonceManagerState {
         if let Some(nonce) = nonce {
             // If different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
+            warn!(
+                ?nonce,
+                "Reassigning nonce to transaction, clearing currently tracked nonce"
+            );
             self.clear_tracked_tx_uuid(nonce).await?;
         }
 

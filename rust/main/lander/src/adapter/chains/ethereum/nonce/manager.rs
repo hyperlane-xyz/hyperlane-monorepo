@@ -56,9 +56,7 @@ impl NonceManager {
         use NonceStatus::{Committed, Freed, Taken};
 
         let tx_uuid = tx.uuid.clone();
-        let tx_status = tx.status.clone();
-
-        let precursor = tx.precursor_mut();
+        let precursor = tx.precursor();
 
         let from = *precursor.tx.from().ok_or(LanderError::TxSubmissionError(
             "Transaction missing address".to_string(),
@@ -70,43 +68,20 @@ impl NonceManager {
             ));
         }
 
-        let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
-
         self.nonce_updater
             .update()
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
-        let nonce = if let Some(nonce) = precursor.tx.nonce().map(Into::into) {
-            let action = self
-                .state
-                .validate_assigned_nonce(&nonce, &nonce_status)
-                .await
-                .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
+        let (action, nonce) = self
+            .state
+            .validate_assigned_nonce(tx)
+            .await
+            .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
-            if matches!(action, Noop) {
-                info!(
-                    ?nonce_status,
-                    address = ?from,
-                    ?tx_uuid,
-                    precursor = ?precursor,
-                    "No action needed for transaction nonce"
-                );
-                return Ok(());
-            }
-
-            Some(nonce)
-        } else {
-            None
-        };
-
-        info!(
-            ?nonce_status,
-            address = ?from,
-            ?tx_uuid,
-            precursor = ?precursor,
-            "Assigning nonce for transaction"
-        );
+        if matches!(action, Noop) {
+            return Ok(());
+        }
 
         let next_nonce = self
             .state
@@ -120,11 +95,11 @@ impl NonceManager {
                 )
             })?;
 
+        let precursor = tx.precursor_mut();
         precursor.tx.set_nonce(next_nonce);
 
         info!(
             nonce = ?next_nonce,
-            ?nonce_status,
             address = ?from,
             ?tx_uuid,
             precursor = ?precursor,
