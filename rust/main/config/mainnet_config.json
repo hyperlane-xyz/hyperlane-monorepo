@@ -7234,23 +7234,20 @@
       "name": "starknet",
       "nativeToken": {
         "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH",
-        "denom": "0x049D36570D4e46f48e99674bd3fcc84644DdD6b96F7C741B1562B82f9e004dC7"
+        "name": "StarkNet Token",
+        "symbol": "STRK",
+        "denom": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
       },
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://starknet-mainnet.public.blastapi.io"
+          "http": "https://starknet-mainnet.public.blastapi.io/rpc/v0_8"
         },
         {
-          "http": "https://rpc.starknet.lava.build:443"
+          "http": "https://rpc.starknet.lava.build:443/"
         },
         {
-          "http": "https://starknet.api.onfinality.io/public"
-        },
-        {
-          "http": "https://api.zan.top/public/starknet-mainnet"
+          "http": "https://api.zan.top/public/starknet-mainnet/rpc/v0_8"
         }
       ],
       "defaultHook": "0x03de4fa3b415b90bd11749f6c0e5fc610a02db2ff903182c446c965975988869",
@@ -9945,10 +9942,10 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://juno.api.prod.paradex.trade/rpc/v0_7"
+          "http": "https://juno.api.prod.paradex.trade/rpc/v0_8"
         },
         {
-          "http": "https://pathfinder.api.prod.paradex.trade/rpc/v0_7"
+          "http": "https://pathfinder.api.prod.paradex.trade/rpc/v0_8"
         }
       ],
       "technicalStack": "other",
