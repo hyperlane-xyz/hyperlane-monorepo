@@ -10,12 +10,16 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
+    HyperlaneMessage, InterchainSecurityModule, Mailbox, MultisigIsm, RoutingIsm, H256,
 };
 use hyperlane_ethereum::Signers;
+use hyperlane_test::mocks::MockMailboxContract;
 
-use crate::msg::metadata::{
-    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+use crate::{
+    msg::metadata::{
+        BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+    },
+    settings::matching_list::{Filter, ListElement, MatchingList},
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
@@ -226,6 +230,41 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .pop_front()
             .expect("No mock build_checkpoint_syncer response set")
     }
+}
+
+pub fn build_mock_base_builder(
+    origin_domain: HyperlaneDomain,
+    destination_domain: HyperlaneDomain,
+) -> MockBaseMetadataBuilder {
+    let cache = OptionalCache::new(None);
+
+    let mut base_builder = MockBaseMetadataBuilder::new();
+    base_builder.responses.origin_domain = Some(origin_domain.clone());
+    base_builder.responses.destination_domain = Some(destination_domain);
+    base_builder.responses.cache = Some(cache);
+
+    let mock_mailbox = MockMailboxContract::new_with_default_ism(H256::zero());
+    let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+    let default_ism_getter = DefaultIsmCache::new(mailbox);
+    let app_context_classifier = IsmAwareAppContextClassifier::new(
+        default_ism_getter.clone(),
+        vec![(
+            MatchingList(Some(vec![ListElement::new(
+                Filter::Wildcard,
+                Filter::Wildcard,
+                Filter::Wildcard,
+                Filter::Wildcard,
+                Filter::Wildcard,
+            )])),
+            "abcd".to_string(),
+        )],
+    );
+    base_builder.responses.app_context_classifier = Some(app_context_classifier);
+    base_builder.responses.ism_cache_policy_classifier = Some(IsmCachePolicyClassifier::new(
+        default_ism_getter,
+        Default::default(),
+    ));
+    base_builder
 }
 
 #[cfg(test)]

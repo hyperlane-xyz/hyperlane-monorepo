@@ -84,3 +84,145 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         )))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
+    use hyperlane_base::mock_checkpoint_syncer::{
+        build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint, TestValidator,
+    };
+    use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
+    use hyperlane_core::accumulator::merkle::Proof;
+    use hyperlane_core::accumulator::TREE_DEPTH;
+    use hyperlane_core::{
+        Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneMessage,
+        KnownHyperlaneDomain, H160, H256,
+    };
+
+    use crate::msg::metadata::multisig::{MultisigIsmMetadataBuilder, MultisigMetadata};
+    use crate::msg::metadata::{
+        multisig::MerkleRootMultisigMetadataBuilder, MessageMetadataBuilder,
+    };
+    use crate::test_utils::mock_base_builder::build_mock_base_builder;
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_fetch_metadata() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+
+        let validators = [
+            TestValidator {
+                private_key: "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb"
+                    .into(),
+                public_key: H160::from_str("c4bED0DD629b734C96779D30e1fcFa5346863C4C").unwrap(),
+                latest_index: Some(1010),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb"
+                    .into(),
+                public_key: H160::from_str("96DE69f859ed40FB625454db3BFc4f2Da4848dcF").unwrap(),
+                latest_index: Some(1008),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd"
+                    .into(),
+                public_key: H160::from_str("c7504D7F7FC865Ba69abad3b18c639372AE687Ec").unwrap(),
+                latest_index: Some(1006),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a"
+                    .into(),
+                public_key: H160::from_str("197325f955852A61a5b2DEFb7BAffB8763D1acE8").unwrap(),
+                latest_index: Some(1004),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077"
+                    .into(),
+                public_key: H160::from_str("2C8Ac45c649C1d242706FB1fc078bc0759c02f80").unwrap(),
+                latest_index: Some(1002),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+        ];
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| validator.public_key.clone().into())
+            .collect::<Vec<_>>();
+
+        let signed_checkpoint = generate_multisig_signed_checkpoint(&validators, checkpoint).await;
+
+        let syncers: HashMap<_, _> = syncers
+            .into_iter()
+            .map(|(k, v)| (k, Arc::new(v) as Arc<dyn CheckpointSyncer>))
+            .collect();
+        // Create a multisig checkpoint syncer
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let base_builder = build_mock_base_builder(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
+        base_builder
+            .responses
+            .get_merkle_leaf_id_by_message_id
+            .lock()
+            .unwrap()
+            .push_back(Ok(Some(100)));
+        base_builder
+            .responses
+            .highest_known_leaf_index
+            .lock()
+            .unwrap()
+            .push_back(Some(1000));
+
+        let proof = Proof {
+            leaf: H256::zero(),
+            index: 100,
+            path: [H256::zero(); TREE_DEPTH],
+        };
+        base_builder
+            .responses
+            .get_proof
+            .lock()
+            .unwrap()
+            .push_back(Ok(proof.clone()));
+
+        let ism_address = H256::zero();
+        let message = HyperlaneMessage::default();
+        let message_builder = {
+            let builder =
+                MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
+                    .await
+                    .expect("Failed to build MessageMetadataBuilder");
+            builder
+        };
+        let builder = MerkleRootMultisigMetadataBuilder::new(message_builder);
+
+        let threshold = 3;
+        let resp = builder
+            .fetch_metadata(&validator_addresses, threshold, &message, &multisig_syncer)
+            .await
+            .expect("Failed to fetch metadata")
+            .expect("Expected MultisigMetadata");
+
+        let expected = MultisigMetadata::new(signed_checkpoint, 100, Some(proof));
+        assert_eq!(resp.checkpoint, expected.checkpoint);
+        assert_eq!(resp.signatures, expected.signatures);
+    }
+}
