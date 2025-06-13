@@ -49,59 +49,23 @@ impl HyperlaneChain for KaspaValidatorAnnounce {
 
 #[async_trait]
 impl ValidatorAnnounce for KaspaValidatorAnnounce {
+
+    // called by validator to check he announced before he starts
+    // needs to return the location for the calling validator at least
     async fn get_announced_storage_locations(
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let validators = validators
-            .iter()
-            .map(|v| H160::from(*v))
-            .map(|v| v.encode_hex())
-            .collect::<Vec<String>>();
-        let mut validator_locations = vec![];
-        for validator in validators {
-            let locations = self
-                .provider
-                .grpc()
-                .announced_storage_locations(self.address.encode_hex(), validator.clone())
-                .await;
-            if let Ok(locations) = locations {
-                validator_locations.push(locations.storage_locations);
-            } else {
-                validator_locations.push(vec![])
-            }
-        }
-        Ok(validator_locations)
+        // TODO: can arguably return the server URL here
+        Ok(vec![])
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let signer = self.provider.rpc().get_signer()?.address_string.to_owned();
-        let announce = MsgAnnounceValidator {
-            validator: announcement.value.validator.encode_hex(),
-            storage_location: announcement.value.storage_location.clone(),
-            signature: hex::encode(announcement.signature.to_vec()),
-            mailbox_id: "0x".to_owned() + &hex::encode(announcement.value.mailbox_address.to_vec()), // has to be prefixed with 0x
-            creator: signer,
-        };
-
-        let any_msg = Any {
-            type_url: MsgAnnounceValidator::type_url(),
-            value: announce.encode_to_vec(),
-        };
-
-        let response = self.provider.rpc().send(vec![any_msg], None).await?;
-
-        // we assume that the underlying kaspa chain does not have gas refunds
-        // in that case the gas paid will always be:
-        // gas_wanted * gas_price
-        let gas_price =
-            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
-
         Ok(TxOutcome {
-            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
-            executed: response.check_tx.code.is_ok() && response.tx_result.code.is_ok(),
-            gas_used: response.tx_result.gas_used.into(),
-            gas_price,
+            transaction_id: announcement.value.signing_hash().into(),
+            executed: true, 
+            gas_used: 0.into(),
+            gas_price: 0.into(),
         })
     }
 
@@ -110,8 +74,6 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
         _announcement: SignedType<Announcement>,
         _chain_signer: H256,
     ) -> Option<U256> {
-        // TODO: check user balance. For now, just try announcing and
-        // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())
     }
 }
