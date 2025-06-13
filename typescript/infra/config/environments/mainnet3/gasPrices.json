@@ -380,8 +380,8 @@
     "decimals": 1
   },
   "paradex": {
-    "amount": "0.000000001",
-    "decimals": 18
+    "amount": "0.000000100",
+    "decimals": 9
   },
   "peaq": {
     "amount": "100.0",
@@ -485,7 +485,7 @@
   },
   "starknet": {
     "amount": "0.000000145",
-    "decimals": 18
+    "decimals": 9
   },
   "story": {
     "amount": "0.001001252",
