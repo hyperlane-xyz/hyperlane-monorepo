@@ -9,13 +9,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 
-import { ENV } from '../../utils/env.js';
 import { readYamlOrJson } from '../../utils/files.js';
 
 export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
-    public readonly coingeckoApiKey: string | undefined,
     public readonly rebalanceStrategy: RebalancerStrategyOptions,
     public readonly chains: ChainMap<RebalancerChainConfig>,
   ) {}
@@ -38,11 +36,6 @@ export class RebalancerConfig {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(
-      warpRouteId,
-      ENV.COINGECKO_API_KEY,
-      rebalanceStrategy,
-      chains,
-    );
+    return new RebalancerConfig(warpRouteId, rebalanceStrategy, chains);
   }
 }

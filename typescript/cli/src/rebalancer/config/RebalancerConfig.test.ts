@@ -9,18 +9,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
-import { ENV } from '../../utils/env.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 
 describe('RebalancerConfig', () => {
-  let coingeckoApiKeyBackup: string | undefined;
   let data: RebalancerConfigFileInput;
 
   beforeEach(() => {
-    coingeckoApiKeyBackup = ENV.COINGECKO_API_KEY;
-
     data = {
       warpRouteId: 'warpRouteId',
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
@@ -43,13 +39,10 @@ describe('RebalancerConfig', () => {
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
-    ENV.COINGECKO_API_KEY = 'coingeckoApiKey';
   });
 
   afterEach(() => {
     rmSync(REBALANCER_CONFIG_PATH, { force: true });
-
-    ENV.COINGECKO_API_KEY = coingeckoApiKeyBackup;
   });
 
   it('should throw when the config file does not exist', () => {
@@ -63,7 +56,6 @@ describe('RebalancerConfig', () => {
   it('should load config from file', () => {
     expect(RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.deep.equal({
       warpRouteId: 'warpRouteId',
-      coingeckoApiKey: ENV.COINGECKO_API_KEY,
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         chain1: {

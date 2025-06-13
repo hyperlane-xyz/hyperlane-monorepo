@@ -5,6 +5,7 @@ import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../context/types.js';
 import { errorRed, logGreen, warnYellow } from '../logger.js';
+import { ENV } from '../utils/env.js';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
@@ -55,6 +56,7 @@ export class RebalancerRunner {
       args.origin && args.destination && args.amount,
       'Origin, destination, and amount are required for a manual run',
     );
+    assert(args.amount > 0, 'Amount must be greater than 0');
     return {
       origin: args.origin,
       destination: args.destination,
@@ -76,7 +78,7 @@ export class RebalancerRunner {
 
     let manualArgs: ManualRebalanceArgs | undefined;
     if (manual) {
-      manualArgs = this.validateManualArgs(args);
+      manualArgs = RebalancerRunner.validateManualArgs(args);
     }
 
     // Load rebalancer config from disk
@@ -94,7 +96,7 @@ export class RebalancerRunner {
 
     // Instantiates the metrics that will publish stats from the monitored data
     const metrics = withMetrics
-      ? await contextFactory.createMetrics()
+      ? await contextFactory.createMetrics(ENV.COINGECKO_API_KEY)
       : undefined;
 
     // Instantiates the strategy that will compute how rebalance routes should be performed
