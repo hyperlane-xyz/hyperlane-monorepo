@@ -68,7 +68,7 @@ async fn test_unincluded_txs_reach_mempool() {
 
     mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
 
-    mock_adapter.expect_estimate_tx().returning(|_, _| Ok(()));
+    mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
 
     mock_adapter.expect_submit().returning(|_| Ok(()));
 
@@ -103,7 +103,7 @@ async fn test_failed_simulation() {
 
     mock_adapter
         .expect_estimate_tx()
-        .returning(|_, _| Err(LanderError::SimulationFailed));
+        .returning(|_| Err(LanderError::SimulationFailed));
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;

@@ -109,7 +109,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
 
     let mut adapter = MockAdapter::new();
     let mut counter = 0;
-    adapter.expect_estimate_tx().returning(move |_, _| {
+    adapter.expect_estimate_tx().returning(move |_| {
         counter += 1;
         if counter == 1 {
             // simulation is successful the first time around, and the payload makes it into a tx
@@ -167,7 +167,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     // the payload always fails simulation
     adapter
         .expect_estimate_tx()
-        .returning(move |_, _| Err(LanderError::SimulationFailed));
+        .returning(move |_| Err(LanderError::SimulationFailed));
     let adapter = mock_adapter_methods(adapter, payload.clone());
     let adapter = Arc::new(adapter);
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
@@ -288,7 +288,7 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
 
     adapter.expect_simulate_tx().returning(|_| Ok(true));
 
-    adapter.expect_estimate_tx().returning(|_, _| Ok(()));
+    adapter.expect_estimate_tx().returning(|_| Ok(()));
 
     adapter.expect_submit().returning(|_| Ok(()));
     adapter
