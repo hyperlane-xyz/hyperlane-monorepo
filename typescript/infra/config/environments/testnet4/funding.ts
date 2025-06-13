@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'rometestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
@@ -64,7 +64,7 @@ export const keyFunderConfig: KeyFunderConfig<
     paradexsepolia: '0',
     plumetestnet2: '0.1',
     polygonamoy: '0.2',
-    rometestnet: '0.1',
+    rometestnet2: '0.1',
     scrollsepolia: '1',
     sepolia: '5',
     starknetsepolia: '0',
