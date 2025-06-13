@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f7: Update starknet dependency from v6 to v7.
+- fe1d8ab: Remove SG-1 from manta, neutron validators. Add botanix, katana, paradex, starknet validators. Remove arthera, corn, glue, trumpchain.
+
+### Patch Changes
+
+- Updated dependencies [0ec92f7]
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/starknet-core@13.4.0
+  - @hyperlane-xyz/core@8.0.1
+  - @hyperlane-xyz/cosmos-sdk@13.4.0
+
 ## 13.3.0
 
 ### Minor Changes

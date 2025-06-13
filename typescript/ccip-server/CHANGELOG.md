@@ -1,5 +1,11 @@
 # @hyperlane-xyz/ccip-server
 
+## 13.4.0
+
+### Patch Changes
+
+- @hyperlane-xyz/core@8.0.1
+
 ## 13.3.0
 
 ### Patch Changes
