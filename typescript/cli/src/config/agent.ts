@@ -6,11 +6,18 @@ import {
   AgentConfig,
   AgentConfigSchema,
   ChainMap,
+  ChainMetadata,
   HyperlaneCore,
   HyperlaneDeploymentArtifacts,
   buildAgentConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, pick, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objMap,
+  pick,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
@@ -36,8 +43,46 @@ export async function createAgentConfig({
 
   const chainAddresses = filterChainAddresses(addresses, chains);
 
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-  const startBlocks = await getStartBlocks(chainAddresses, core, chainMetadata);
+  // Categorize chains by protocol
+  const chainsByProtocol: Record<string, string[]> = {
+    ethereum: [],
+    starknet: [],
+  };
+
+  Object.keys(chainMetadata).forEach((chain) => {
+    const protocol = chainMetadata[chain].protocol;
+    if (protocol === ProtocolType.Starknet) {
+      chainsByProtocol.starknet.push(chain);
+    } else {
+      chainsByProtocol.ethereum.push(chain);
+    }
+  });
+
+  // Initialize core for Ethereum chains
+  const ethereumChainAddresses = pick(
+    chainAddresses,
+    chainsByProtocol.ethereum,
+  );
+  const core = HyperlaneCore.fromAddressesMap(
+    ethereumChainAddresses,
+    multiProvider,
+  );
+  const ethereumStartBlocks = await getStartBlocks(
+    ethereumChainAddresses,
+    core,
+    chainMetadata,
+  );
+
+  const starknetStartBlocks = await getStartBlocksForStarknetChains(
+    chainsByProtocol.starknet,
+    pick(chainAddresses, chainsByProtocol.starknet),
+    chainMetadata,
+  );
+
+  const startBlocks: ChainMap<number | undefined> = {
+    ...ethereumStartBlocks,
+    ...starknetStartBlocks,
+  };
 
   await handleMissingInterchainGasPaymaster(chainAddresses, skipConfirmation);
 
@@ -86,7 +131,7 @@ function filterChainAddresses(
 async function getStartBlocks(
   chainAddresses: ChainMap<ChainAddresses>,
   core: HyperlaneCore,
-  chainMetadata: any,
+  chainMetadata: ChainMap<ChainMetadata>,
 ): Promise<ChainMap<number | undefined>> {
   return promiseObjAll(
     objMap(chainAddresses, async (chain, _) => {
@@ -154,4 +199,50 @@ async function validateAgentConfig(
   } else {
     logGreen('✅ Agent config successfully created');
   }
+}
+
+async function getStartBlocksForStarknetChains(
+  starknetChains: string[],
+  starknetChainAddresses: ChainMap<ChainAddresses>,
+  chainMetadata: ChainMap<ChainMetadata>,
+): Promise<ChainMap<number | undefined>> {
+  const startBlocks: ChainMap<number | undefined> = {};
+
+  for (const chain of starknetChains) {
+    try {
+      // Assert chain data and explorer existence
+      const chainData = chainMetadata[chain];
+      assert(chainData, `No chain metadata found for ${chain}`);
+      assert(chainData.blockExplorers?.[0], `No explorer found for ${chain}`);
+
+      // Assert mailbox address existence
+      const mailboxAddress = starknetChainAddresses[chain]?.mailbox;
+      assert(mailboxAddress, `No mailbox address found for ${chain}`);
+
+      const explorer = chainData.blockExplorers[0];
+      const response = await fetch(
+        `${explorer.apiUrl}/contract/${mailboxAddress}`,
+      );
+
+      // Assert response status
+      assert(
+        response.ok,
+        `API request failed for ${chain}: ${response.statusText}`,
+      );
+
+      const data = await response.json();
+      // Assert block number existence and type
+      assert(
+        typeof data.blockNumber === 'number',
+        `Invalid block number format for ${chain}`,
+      );
+
+      startBlocks[chain] = data.blockNumber;
+    } catch (error) {
+      console.error(`Failed to fetch start block for ${chain}:`, error);
+      startBlocks[chain] = undefined;
+    }
+  }
+
+  return startBlocks;
 }

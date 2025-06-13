@@ -258,6 +258,10 @@ export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
+export type AnnotatedStarknetTransaction = Annotated<
+  StarknetInvocation & { chainId?: string }
+>;
+
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
   transaction: VTransaction;

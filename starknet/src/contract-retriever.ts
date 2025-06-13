@@ -1,9 +1,9 @@
-import { CompiledContract } from 'starknet';
+import { CairoAssembly, CompiledContract } from 'starknet';
 
 import { starknetContracts } from './artifacts/index.js';
 import { ERR_CODES } from './const.js';
 import { ContractError } from './errors.js';
-import { ContractType, StarknetContractGroup } from './types.js';
+import { ContractClass, ContractType, StarknetContractGroup } from './types.js';
 
 /**
  * @notice Retrieves a compiled contract
@@ -16,6 +16,36 @@ export function getCompiledContract(
   name: string,
   contractType: ContractType = ContractType.CONTRACT,
 ): CompiledContract {
+  return getContractData(name, contractType, ContractClass.SIERRA);
+}
+
+/**
+ * @notice Retrieves a CASM compiled contract
+ * @param name The name of the contract to retrieve
+ * @param contractType The type of contract to retrieve
+ * @returns {CairoAssembly} The CASM contract data
+ * @throws {ContractError} If the contract is not found
+ */
+export function getCompiledContractCasm(
+  name: string,
+  contractType: ContractType = ContractType.CONTRACT,
+): CairoAssembly {
+  return getContractData(name, contractType, ContractClass.CASM);
+}
+
+/**
+ * @notice Internal helper to retrieve contract data
+ * @param name The name of the contract to retrieve
+ * @param contractType The type of contract to retrieve
+ * @param dataType The type of contract data to retrieve
+ * @returns The requested contract data
+ * @throws {ContractError} If the contract is not found
+ */
+function getContractData<T>(
+  name: string,
+  contractType: ContractType,
+  dataType: ContractClass,
+): T {
   const group = getContractGroup(contractType);
   const contract = group[name];
 
@@ -26,14 +56,14 @@ export function getCompiledContract(
     });
   }
 
-  if (!contract.contract_class) {
+  if (!contract[dataType]) {
     throw new ContractError(ERR_CODES.SIERRA_NOT_FOUND, {
       name,
       type: contractType,
     });
   }
 
-  return contract.contract_class;
+  return contract[dataType] as T;
 }
 
 /**

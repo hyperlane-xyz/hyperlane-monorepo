@@ -224,6 +224,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypSynthetic]: null,
+  [TokenStandard.StarknetHypDexCollateral]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<

@@ -12,10 +12,16 @@ import {
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
+  StarknetERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
@@ -26,11 +32,13 @@ export async function runWarpRouteRead({
   chain,
   address,
   symbol,
+  standard,
 }: {
   context: CommandContext;
   chain?: ChainName;
   address?: string;
   symbol?: string;
+  standard?: TokenStandard;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
   const hasTokenSymbol = Boolean(symbol);
   const hasChainAddress = Boolean(chain && address);
@@ -51,9 +59,20 @@ export async function runWarpRouteRead({
 
   const addresses = warpCoreConfig
     ? Object.fromEntries(
-        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+        warpCoreConfig.tokens.map((t) => [
+          t.chainName,
+          {
+            address: t.addressOrDenom!,
+            standard: t.standard,
+          },
+        ]),
       )
-    : { [chain!]: address! };
+    : {
+        [chain!]: {
+          address: address!,
+          standard: standard!,
+        },
+      };
 
   return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
 }
@@ -66,7 +85,13 @@ export async function getWarpRouteConfigsByCore({
   warpCoreConfig: WarpCoreConfig;
 }): Promise<DerivedWarpRouteDeployConfig> {
   const addresses = Object.fromEntries(
-    warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    warpCoreConfig.tokens.map((t) => [
+      t.chainName,
+      {
+        address: t.addressOrDenom!,
+        standard: t.standard,
+      },
+    ]),
   );
 
   return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
@@ -74,12 +99,14 @@ export async function getWarpRouteConfigsByCore({
 
 async function deriveWarpRouteConfigs(
   context: CommandContext,
-  addresses: ChainMap<string>,
+  addresses: ChainMap<{
+    address: string;
+  }>,
   warpCoreConfig?: WarpCoreConfig,
 ): Promise<DerivedWarpRouteDeployConfig> {
-  const { multiProvider } = context;
+  const { multiProvider, multiProtocolProvider } = context;
 
-  validateEvmCompatibility(addresses);
+  validateCompatibility(context, Object.keys(addresses));
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -88,26 +115,49 @@ async function deriveWarpRouteConfigs(
 
   // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, address) =>
-      new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
-        address,
-      ),
-    ),
+    objMap(addresses, async (chain, { address }) => {
+      const protocol = context.chainMetadata[chain].protocol;
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          return new EvmERC20WarpRouteReader(
+            multiProvider,
+            chain,
+          ).deriveWarpRouteConfig(address);
+        }
+        case ProtocolType.Starknet: {
+          assert(multiProtocolProvider, 'Multi Protocol Provider not defined');
+          return new StarknetERC20WarpRouteReader(
+            multiProtocolProvider,
+            chain,
+          ).deriveWarpRouteConfig(address);
+        }
+        default:
+          logRed(`protocol type ${protocol} not supported`);
+          process.exit(1);
+      }
+    }),
   );
 }
 
-// Validate that all chains are EVM compatible
-function validateEvmCompatibility(addresses: ChainMap<string>): void {
-  const nonEvmChains = Object.entries(addresses)
-    .filter(([_, address]) => !isAddressEvm(address))
+// Validate that all chains are EVM or Starknet compatible
+function validateCompatibility(
+  { chainMetadata }: CommandContext,
+  chains: ChainName[],
+): void {
+  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.Starknet];
+
+  const nonCompatibleChains = chains
+    .filter((chain) => {
+      const protocol = chainMetadata[chain].protocol;
+      return !supportedProtocols.includes(protocol);
+    })
     .map(([chain]) => chain);
 
-  if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
+  if (nonCompatibleChains.length > 0) {
+    const chainList = nonCompatibleChains.join(', ');
+    const verb = nonCompatibleChains.length > 1 ? 'are' : 'is';
     logRed(
-      `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
+      `${chainList} ${verb} non-EVM/Starknet and not compatible with the cli`,
     );
     process.exit(1);
   }

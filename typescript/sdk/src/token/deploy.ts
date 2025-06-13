@@ -1,4 +1,5 @@
 import { constants } from 'ethers';
+import { shortString } from 'starknet';
 
 import {
   ERC20__factory,
@@ -29,9 +30,11 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { defaultStarknetJsProviderBuilder } from '../providers/providerBuilders.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getStarknetHypERC20Contract } from '../utils/starknet.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
@@ -241,7 +244,19 @@ abstract class TokenDeployer<
         isXERC20TokenConfig(config) ||
         isCctpTokenConfig(config)
       ) {
-        const provider = multiProvider.getProvider(chain);
+        // Add chain type checking
+        const chainMetadata = multiProvider.getChainMetadata(chain);
+        const isStarknet = chainMetadata.protocol === ProtocolType.Starknet;
+        let provider;
+
+        // Handle different chain types
+        if (isStarknet) {
+          provider = defaultStarknetJsProviderBuilder(
+            chainMetadata.rpcUrls,
+          ).provider;
+        } else {
+          provider = multiProvider.getProvider(chain) as any;
+        }
 
         if (config.isNft) {
           const erc721 = ERC721Enumerable__factory.connect(
@@ -281,12 +296,30 @@ abstract class TokenDeployer<
             break;
         }
 
-        const erc20 = ERC20__factory.connect(token, provider);
-        const [name, symbol, decimals] = await Promise.all([
-          erc20.name(),
-          erc20.symbol(),
-          erc20.decimals(),
-        ]);
+        let name: string;
+        let symbol: string;
+        let decimals: number;
+
+        if (isStarknet) {
+          const erc20 = getStarknetHypERC20Contract(token, provider);
+          const [nameResult, symbolResult, decimalsResult] = await Promise.all([
+            erc20.name(),
+            erc20.symbol(),
+            erc20.decimals(),
+          ]);
+
+          // Parse the results - extract the values and convert them properly
+          name = shortString.decodeShortString(nameResult['']);
+          symbol = shortString.decodeShortString(symbolResult['']);
+          decimals = Number(decimalsResult['']); // Convert BigInt to number
+        } else {
+          const erc20 = ERC20__factory.connect(token, provider);
+          [name, symbol, decimals] = await Promise.all([
+            erc20.name(),
+            erc20.symbol(),
+            erc20.decimals(),
+          ]);
+        }
 
         metadataMap.set(
           chain,

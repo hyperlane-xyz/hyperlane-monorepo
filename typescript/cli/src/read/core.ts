@@ -1,8 +1,9 @@
 import {
   ChainName,
-  CoreConfig,
   CosmosNativeCoreReader,
+  DerivedCoreConfig,
   EvmCoreReader,
+  StarknetCoreReader,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -17,7 +18,7 @@ export async function executeCoreRead({
   context: CommandContext;
   chain: ChainName;
   mailbox?: Address;
-}): Promise<CoreConfig> {
+}): Promise<DerivedCoreConfig> {
   const addresses = await context.registry.getChainAddresses(chain);
   if (!mailbox) {
     mailbox = addresses?.mailbox;
@@ -64,6 +65,14 @@ export async function executeCoreRead({
         process.exit(1);
       }
       break;
+    }
+    case ProtocolType.Starknet: {
+      assert(context.multiProtocolProvider, 'Starknet provider not found');
+      const starknetCoreReader = new StarknetCoreReader(
+        context.multiProtocolProvider,
+        chain,
+      );
+      return starknetCoreReader.deriveCoreConfig(mailbox);
     }
     default: {
       errorRed(`❌ Core Read not supported for protocol type ${protocolType}:`);

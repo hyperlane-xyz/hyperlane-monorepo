@@ -70,6 +70,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
     argv.context;
 
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+  argv.context.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
   const strategyConfig = await safeReadChainSubmissionStrategyConfig(
@@ -96,6 +97,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
     multiProtocolProvider,
     { key },
   );
+
+  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider

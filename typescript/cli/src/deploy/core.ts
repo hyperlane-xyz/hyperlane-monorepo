@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
@@ -10,13 +11,16 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  StarknetCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -43,15 +47,37 @@ interface ApplyParams extends DeployParams {
  */
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
-  const chain = params.chain;
-  const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
-    context;
+  let chain = params.chain;
+  const {
+    isDryRun,
+    chainMetadata,
+    dryRunChain,
+    registry,
+    skipConfirmation,
+    multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
+  } = context;
 
   // Validate ISM compatibility
   validateCoreIsmCompatibility(chain, config, context);
 
+  // Select a dry-run chain if it's not supplied
+  if (dryRunChain) {
+    chain = dryRunChain;
+  } else if (!chain) {
+    if (skipConfirmation) throw new Error('No chain provided');
+    chain = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select chain to connect:',
+    );
+  }
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
+
   const deploymentParams: DeployParams = {
-    context: { ...context },
+    context,
     chain,
     config,
   };
@@ -97,6 +123,22 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
 
+    case ProtocolType.Starknet:
+      {
+        const account = multiProtocolSigner!.getStarknetSigner(chain);
+        assert(account, 'Starknet account failed!');
+        const starknetCoreModule = new StarknetCoreModule(
+          account,
+          multiProtocolProvider!,
+          chain,
+        );
+        deployedAddresses = await starknetCoreModule.deploy({
+          chain,
+          config,
+        });
+      }
+      break;
+
     case ProtocolType.CosmosNative:
       {
         await multiProtocolSigner?.initSigner(chain);
@@ -134,7 +176,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
 export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
-  const { multiProvider, multiProtocolSigner } = context;
+  const { multiProvider, multiProtocolSigner, multiProtocolProvider } = context;
 
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
@@ -199,6 +241,39 @@ export async function runCoreApply(params: ApplyParams) {
         logGreen(
           `Core config on ${chain} is the same as target. No updates needed.`,
         );
+      }
+      break;
+    }
+
+    case ProtocolType.Starknet: {
+      const account = multiProtocolSigner!.getStarknetSigner(chain);
+      assert(account, 'Starknet account failed!');
+      const starknetCoreModule = new StarknetCoreModule(
+        account,
+        multiProtocolProvider!,
+        chain,
+        {
+          addresses: deployedCoreAddresses,
+          config,
+          chain,
+        },
+      );
+
+      const transactions = await starknetCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        for (const transaction of transactions as any[]) {
+          // Cast to any[] to match starknet transaction structure
+          const tx = await account.execute([
+            {
+              contractAddress: transaction.contractAddress,
+              calldata: transaction.calldata,
+              entrypoint: transaction.entrypoint!,
+            },
+          ]);
+          await account.waitForTransaction(tx.transaction_hash);
+        }
       }
       break;
     }

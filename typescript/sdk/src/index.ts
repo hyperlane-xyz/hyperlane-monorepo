@@ -102,6 +102,8 @@ export {
   DeployerOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
+export { StarknetDeployer } from './deploy/StarknetDeployer.js';
+
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
@@ -490,7 +492,10 @@ export {
   chainMetadataToStarknetChain,
   chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export {
+  AnnotatedEV5Transaction,
+  AnnotatedStarknetTransaction,
+} from './providers/ProviderType.js';
 export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
@@ -618,6 +623,8 @@ export {
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TOKEN_TYPE_TO_STANDARD,
+  STARKNET_TOKEN_TYPE_TO_STANDARD,
+  STARKNET_SUPPORTED_TOKEN_TYPES,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -724,13 +731,38 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
+export { StarknetCoreModule } from './core/StarknetCoreModule.js';
+export { StarknetCoreReader } from './core/StarknetCoreReader.js';
+export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
+export { StarknetAdapter } from './bus/adapters/StarknetAdapter.js';
+export { StarknetCore } from './core/StarknetCore.js';
+export { StarknetERC20WarpRouteReader } from './token/StarknetERC20WarpRouteReader.js';
+export { MessageService } from './messaging/MessageService.js';
 export {
+  formatEthereumMessageForStarknet,
+  formatStarknetMessageForEthereum,
+  convertU128ArrayToBytes,
+} from './messaging/messageUtils.js';
+export {
+  StarknetIsmType,
+  StarknetHookType,
   StarknetContractName,
   getStarknetContract,
   getStarknetHypERC20Contract,
   getStarknetHypERC20CollateralContract,
   getStarknetMailboxContract,
+  getStarknetHypNativeContract,
   getStarknetEtherContract,
+  getStarknetIsmContract,
 } from './utils/starknet.js';
+export { StarknetERC20WarpUpdateModule } from './token/StarknetERC20WarpUpdateModule.js';
+export { MessageBus } from './bus/MessageBus.js';
+export { EvmAdapter } from './bus/adapters/EvmAdapter.js';
+export {
+  MessageHandler,
+  MessageWithStatus,
+  MessageBusConfig,
+} from './bus/types.js';
+
 export { resolveRouterMapConfig } from './router/types.js';
 export { verifyScale } from './utils/decimals.js';

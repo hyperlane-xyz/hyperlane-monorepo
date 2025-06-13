@@ -8,6 +8,7 @@ const envScheme = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   GH_AUTH_TOKEN: z.string().optional(),
+  STARKNET_TRANSACTION_VERSION: z.string().optional(),
 });
 
 const parsedEnv = envScheme.safeParse(process.env);

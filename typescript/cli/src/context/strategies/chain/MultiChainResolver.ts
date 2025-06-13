@@ -135,12 +135,13 @@ export class MultiChainResolver implements ChainResolver {
     const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
-    if (argv.origin) {
-      chains.add(argv.origin);
-    }
-
     if (argv.chain) {
       chains.add(argv.chain);
+      return Array.from(chains);
+    }
+
+    if (argv.origin) {
+      chains.add(argv.origin);
     }
 
     if (argv.chains) {
