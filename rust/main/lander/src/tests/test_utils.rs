@@ -2,11 +2,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
 use tokio::sync::Mutex;
 
-use super::*;
+use hyperlane_base::db::{HyperlaneRocksDB, DB};
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::KnownHyperlaneDomain;
+
+use crate::dispatcher::*;
 use crate::{
     adapter::{chains::ethereum::nonce::db::NonceDb, *},
     error::LanderError,

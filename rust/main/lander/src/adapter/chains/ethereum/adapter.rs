@@ -41,7 +41,7 @@ pub struct EthereumAdapter {
     pub domain: HyperlaneDomain,
     pub transaction_overrides: hyperlane_ethereum::TransactionOverrides,
     pub submission_config: OpSubmissionConfig,
-    pub provider: Box<dyn EvmProviderForLander>,
+    pub provider: Arc<dyn EvmProviderForLander>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
 }
@@ -66,15 +66,20 @@ impl EthereumAdapter {
                 SubmitterProviderBuilder {},
             )
             .await?;
+
+        let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone()).await?;
+
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,
             domain: conf.domain.clone(),
             transaction_overrides: connection_conf.transaction_overrides.clone(),
             submission_config: connection_conf.op_submission_config.clone(),
             provider,
-            reorg_period: EthereumReorgPeriod::try_from(&conf.reorg_period)?,
-            nonce_manager: NonceManager::new(&conf, db).await?,
+            reorg_period,
+            nonce_manager,
         };
+
         Ok(adapter)
     }
 
@@ -162,7 +167,7 @@ impl AdaptsChain for EthereumAdapter {
         }
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
-            &self.provider,
+            self.provider.clone(),
             precursor,
             &self.transaction_overrides,
             &self.domain,
@@ -198,10 +203,6 @@ impl AdaptsChain for EthereumAdapter {
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, LanderError> {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
-    }
-
-    async fn on_tx_status(&self, tx: &Transaction, tx_status: &TransactionStatus) {
-        self.nonce_manager.update_nonce_status(tx, tx_status).await;
     }
 
     async fn reverted_payloads(

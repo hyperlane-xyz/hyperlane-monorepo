@@ -56,6 +56,22 @@
       },
       "overhead": 166887
     },
+    "starknet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "256398338094001558036",
+        "gasPrice": "77905462",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
+    "paradex": {
+      "oracleConfig": {
+        "tokenExchangeRate": "97377304596208776",
+        "gasPrice": "205128195447",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
     "bsc": {
       "oracleConfig": {
         "tokenExchangeRate": "62110871980005554012",
@@ -233,6 +249,14 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
+    },
+    "katana": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "233936987",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
     },
     "ethereum": {
       "oracleConfig": {
