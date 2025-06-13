@@ -612,7 +612,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos, CosmosNative, Starknet],
+            IndexMode::Block: [Ethereum, Cosmos, CosmosNative, Starknet, Kaspa], // TODO: check kaspa
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

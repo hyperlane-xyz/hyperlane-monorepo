@@ -7,7 +7,7 @@ use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
 };
 
-/// Cosmos connection configuration
+/// Kaspa connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// gRPC urls to connect to
@@ -20,14 +20,14 @@ pub struct ConnectionConf {
     bech32_prefix: String,
     /// Canonical Assets Denom
     canonical_asset: String,
-    /// The gas price set by the cosmos-sdk validator. Note that this represents the
+    /// The gas price set by the kaspa-sdk validator. Note that this represents the
     /// minimum price set by the validator.
-    /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
-    gas_price: RawCosmosAmount,
+    /// More details here: https://docs.kaspa.network/main/learn/beginner/gas-fees#antehandler
+    gas_price: RawKaspaAmount,
     /// The gas multiplier is used to estimate gas cost. The gas limit of the simulated transaction will be multiplied by this modifier.
     gas_multiplier: f64,
     /// The number of bytes used to represent a contract address.
-    /// Cosmos address lengths are sometimes less than 32 bytes, so this helps to serialize it in
+    /// Kaspa address lengths are sometimes less than 32 bytes, so this helps to serialize it in
     /// bech32 with the appropriate length.
     contract_address_bytes: usize,
     /// Operation batching configuration
@@ -36,27 +36,27 @@ pub struct ConnectionConf {
     native_token: NativeToken,
 }
 
-/// Untyped cosmos amount
+/// Untyped kaspa amount
 #[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
-pub struct RawCosmosAmount {
+pub struct RawKaspaAmount {
     /// Coin denom (e.g. `untrn`)
     pub denom: String,
     /// Amount in the given denom
     pub amount: String,
 }
 
-/// Typed cosmos amount
+/// Typed kaspa amount
 #[derive(Clone, Debug)]
-pub struct CosmosAmount {
+pub struct KaspaAmount {
     /// Coin denom (e.g. `untrn`)
     pub denom: String,
     /// Amount in the given denom
     pub amount: FixedPointNumber,
 }
 
-impl TryFrom<RawCosmosAmount> for CosmosAmount {
+impl TryFrom<RawKaspaAmount> for KaspaAmount {
     type Error = ChainCommunicationError;
-    fn try_from(raw: RawCosmosAmount) -> Result<Self, ChainCommunicationError> {
+    fn try_from(raw: RawKaspaAmount) -> Result<Self, ChainCommunicationError> {
         Ok(Self {
             denom: raw.denom,
             amount: FixedPointNumber::from_str(&raw.amount)?,
@@ -106,7 +106,7 @@ impl ConnectionConf {
     }
 
     /// Get the minimum gas price
-    pub fn get_minimum_gas_price(&self) -> RawCosmosAmount {
+    pub fn get_minimum_gas_price(&self) -> RawKaspaAmount {
         self.gas_price.clone()
     }
 
@@ -138,7 +138,7 @@ impl ConnectionConf {
         chain_id: String,
         bech32_prefix: String,
         canonical_asset: String,
-        minimum_gas_price: RawCosmosAmount,
+        minimum_gas_price: RawKaspaAmount,
         gas_multiplier: f64,
         contract_address_bytes: usize,
         operation_batch: OpSubmissionConfig,

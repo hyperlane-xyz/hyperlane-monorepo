@@ -26,23 +26,23 @@ use hyperlane_metric::prometheus_metric::{
 };
 
 use crate::prometheus::metrics_channel::MetricsChannel;
-use crate::{ConnectionConf, HyperlaneCosmosError};
+use crate::{ConnectionConf, HyperlaneKaspaError};
 
 const REQUEST_TIMEOUT: u64 = 30;
 
 /// Grpc Provider
 #[derive(Clone, Debug)]
 pub struct GrpcProvider {
-    fallback: FallbackProvider<CosmosGrpcClient, CosmosGrpcClient>,
+    fallback: FallbackProvider<KaspaGrpcClient, KaspaGrpcClient>,
 }
 
 #[derive(Debug, Clone, new)]
-struct CosmosGrpcClient {
+struct KaspaGrpcClient {
     channel: MetricsChannel<Channel>,
 }
 
 #[async_trait]
-impl BlockNumberGetter for CosmosGrpcClient {
+impl BlockNumberGetter for KaspaGrpcClient {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let mut client = ServiceClient::new(self.channel.clone());
         let mut request = tonic::Request::new(GetLatestBlockRequest {});
@@ -79,11 +79,11 @@ impl GrpcProvider {
                     .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
                     .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
                     .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
-                    .map(CosmosGrpcClient::new)
-                    .map_err(Into::<HyperlaneCosmosError>::into)
+                    .map(KaspaGrpcClient::new)
+                    .map_err(Into::<HyperlaneKaspaError>::into)
             })
-            .collect::<Result<Vec<CosmosGrpcClient>, _>>()
-            .map_err(HyperlaneCosmosError::from)?;
+            .collect::<Result<Vec<KaspaGrpcClient>, _>>()
+            .map_err(HyperlaneKaspaError::from)?;
 
         let fallback = FallbackProvider::new(clients);
         Ok(Self { fallback })
@@ -98,7 +98,7 @@ impl GrpcProvider {
         if let Some(height) = height {
             request
                 .metadata_mut()
-                .insert("x-cosmos-block-height", height.into());
+                .insert("x-kaspa-block-height", height.into());
         }
         request
     }
@@ -117,7 +117,7 @@ impl GrpcProvider {
                     let result = service
                         .mailbox(Self::request_at_height(QueryMailboxRequest { id }, height))
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };
@@ -146,7 +146,7 @@ impl GrpcProvider {
                             validator_address: validator,
                         })
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };
@@ -168,7 +168,7 @@ impl GrpcProvider {
                     let result = service
                         .recipient_ism(QueryRecipientIsmRequest { recipient })
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };
@@ -196,7 +196,7 @@ impl GrpcProvider {
                             height,
                         ))
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };
@@ -223,7 +223,7 @@ impl GrpcProvider {
                             message_id,
                         })
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };
@@ -234,9 +234,9 @@ impl GrpcProvider {
 
     /// ism for a given id
     ///
-    /// Note: this query will only ever work for the core ISMs that are directly supported by the cosmos module
-    /// because the cosmos module forces extensions to be stored in external keepers (Cosmos SDK specific).
-    /// As a result, extensions have to provide custom queries for their types, meaning if we want to support a custom ISM at some point - that is not provided by the default hyperlane cosmos module -
+    /// Note: this query will only ever work for the core ISMs that are directly supported by the kaspa module
+    /// because the kaspa module forces extensions to be stored in external keepers (Kaspa SDK specific).
+    /// As a result, extensions have to provide custom queries for their types, meaning if we want to support a custom ISM at some point - that is not provided by the default hyperlane kaspa module -
     /// we'd have to query a custom endpoint for the ISMs as well.
     pub async fn ism(&self, id: String) -> ChainResult<QueryIsmResponse> {
         self.fallback
@@ -247,7 +247,7 @@ impl GrpcProvider {
                     let result = service
                         .ism(QueryIsmRequest { id })
                         .await
-                        .map_err(HyperlaneCosmosError::from)?
+                        .map_err(HyperlaneKaspaError::from)?
                         .into_inner();
                     Ok(result)
                 };

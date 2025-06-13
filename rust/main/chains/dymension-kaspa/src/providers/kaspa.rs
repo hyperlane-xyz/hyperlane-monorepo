@@ -27,18 +27,18 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
-    ConnectionConf, CosmosAccountId, CosmosAddress, GrpcProvider, HyperlaneCosmosError, Signer,
+    ConnectionConf, KaspaAccountId, KaspaAddress, GrpcProvider, HyperlaneKaspaError, Signer,
 };
 
 use super::RpcProvider;
 
-/// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos-native`
+/// Wrapper of `FallbackProvider` for use in `hyperlane-kaspa-native`
 #[derive(new, Clone)]
-pub(crate) struct CosmosFallbackProvider<T> {
+pub(crate) struct KaspaFallbackProvider<T> {
     fallback_provider: FallbackProvider<T, T>,
 }
 
-impl<T> Deref for CosmosFallbackProvider<T> {
+impl<T> Deref for KaspaFallbackProvider<T> {
     type Target = FallbackProvider<T, T>;
 
     fn deref(&self) -> &Self::Target {
@@ -46,7 +46,7 @@ impl<T> Deref for CosmosFallbackProvider<T> {
     }
 }
 
-impl<C> std::fmt::Debug for CosmosFallbackProvider<C>
+impl<C> std::fmt::Debug for KaspaFallbackProvider<C>
 where
     C: std::fmt::Debug,
 {
@@ -55,19 +55,19 @@ where
     }
 }
 
-/// Cosmos Native Provider
+/// Kaspa Native Provider
 ///
 /// implements the HyperlaneProvider trait
 #[derive(Debug, Clone)]
-pub struct CosmosNativeProvider {
+pub struct KaspaProvider {
     conf: ConnectionConf,
     rpc: RpcProvider,
     domain: HyperlaneDomain,
     grpc: GrpcProvider,
 }
 
-impl CosmosNativeProvider {
-    /// Create a new Cosmos Provider instance
+impl KaspaProvider {
+    /// Create a new Kaspa Provider instance
     pub fn new(
         conf: &ConnectionConf,
         locator: &ContractLocator,
@@ -78,7 +78,7 @@ impl CosmosNativeProvider {
         let rpc = RpcProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let grpc = GrpcProvider::new(conf.clone(), metrics, chain)?;
 
-        Ok(CosmosNativeProvider {
+        Ok(KaspaProvider {
             domain: locator.domain.clone(),
             conf: conf.clone(),
             rpc,
@@ -105,7 +105,7 @@ impl CosmosNativeProvider {
         let height = self.rpc.get_block_number().await? as u32;
         match reorg {
             ReorgPeriod::None => Ok(height),
-            // height has to be at least 1 -> block 0 does not exist in cosmos
+            // height has to be at least 1 -> block 0 does not exist in kaspa
             ReorgPeriod::Blocks(blocks) => Ok(height.checked_sub(blocks.get()).unwrap_or(1)),
             ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),
         }
@@ -125,14 +125,14 @@ impl CosmosNativeProvider {
         // right now one transaction can include max. one process
         if processed_messages.len() > 1 {
             let msg = "transaction contains multiple execution messages";
-            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
+            Err(HyperlaneKaspaError::ParsingFailed(msg.to_owned()))?
         }
 
         let msg = processed_messages.first();
         match msg {
             Some(msg) => {
                 let result = MsgProcessMessage::decode(msg.value.as_slice())
-                    .map_err(HyperlaneCosmosError::from)?;
+                    .map_err(HyperlaneKaspaError::from)?;
                 let message: RawHyperlaneMessage = hex::decode(result.message)?;
                 let message = HyperlaneMessage::from(message);
                 Ok(Some(message.recipient))
@@ -155,14 +155,14 @@ impl CosmosNativeProvider {
         // right now one transaction can include max. one transfer
         if remote_transfers.len() > 1 {
             let msg = "transaction contains multiple execution messages";
-            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
+            Err(HyperlaneKaspaError::ParsingFailed(msg.to_owned()))?
         }
 
         let msg = remote_transfers.first().ok_or_else(|| {
             ChainCommunicationError::from_other_str("tx does not contain any remote transfers")
         })?;
         let result =
-            MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
+            MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneKaspaError::from)?;
         // the recipient is the token id of the transfer, which is the address that the user interacts with
         let recipient: H256 = result.token_id.parse()?;
         Ok(Some(recipient))
@@ -181,7 +181,7 @@ impl CosmosNativeProvider {
             return Ok(recipient);
         }
         // if both are missing we return an error
-        Err(HyperlaneCosmosError::ParsingFailed(
+        Err(HyperlaneKaspaError::ParsingFailed(
             "transaction does not contain any process message or remote transfer".to_owned(),
         ))?
     }
@@ -211,13 +211,13 @@ impl CosmosNativeProvider {
         signer_info: &SignerInfo,
     ) -> ChainResult<(AccountId, SequenceNumber)> {
         let signer_public_key = signer_info.public_key.clone().ok_or_else(|| {
-            HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
+            HyperlaneKaspaError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
         let (key, account_address_type) = self.normalize_public_key(signer_public_key)?;
         let public_key = PublicKey::try_from(key)?;
 
-        let account_id = CosmosAccountId::account_id_from_pubkey(
+        let account_id = KaspaAccountId::account_id_from_pubkey(
             public_key,
             &self.conf.get_bech32_prefix(),
             &account_address_type,
@@ -245,7 +245,7 @@ impl CosmosNativeProvider {
                         PublicKey::SECP256K1_TYPE_URL,
                     );
                     warn!(pk.type_url, msg);
-                    Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
+                    Err(HyperlaneKaspaError::PublicKeyError(msg.to_owned()))?
                 }
 
                 let (pub_key, account_address_type) =
@@ -274,7 +274,7 @@ impl CosmosNativeProvider {
                 || {
                     #[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
                     let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
-                        HyperlaneCosmosError::SignerInfoError(
+                        HyperlaneKaspaError::SignerInfoError(
                             "no signer info in default signer".to_owned(),
                         )
                     })?;
@@ -282,7 +282,7 @@ impl CosmosNativeProvider {
                 },
                 |p| p,
             )
-            .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
+            .map(|(a, n)| KaspaAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
         Ok((sender, nonce))
     }
 
@@ -355,7 +355,7 @@ impl CosmosNativeProvider {
     }
 }
 
-impl HyperlaneChain for CosmosNativeProvider {
+impl HyperlaneChain for KaspaProvider {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -368,7 +368,7 @@ impl HyperlaneChain for CosmosNativeProvider {
 }
 
 #[async_trait]
-impl HyperlaneProvider for CosmosNativeProvider {
+impl HyperlaneProvider for KaspaProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self.rpc.get_block(height as u32).await?;
         let block = response.block;

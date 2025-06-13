@@ -33,43 +33,43 @@ use hyperlane_metric::prometheus_metric::{
 };
 use url::Url;
 
-use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+use crate::{ConnectionConf, KaspaAmount, HyperlaneKaspaError, Signer};
 
-use super::cosmos::CosmosFallbackProvider;
+use super::kaspa::KaspaFallbackProvider;
 
 #[derive(Debug)]
-struct CosmosHttpClient {
+struct KaspaHttpClient {
     client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
 }
 
-/// RPC Provider for Cosmos
+/// RPC Provider for Kaspa
 ///
 /// Responsible for chain communication
 #[derive(Debug, Clone)]
 pub struct RpcProvider {
-    provider: CosmosFallbackProvider<CosmosHttpClient>,
+    provider: KaspaFallbackProvider<KaspaHttpClient>,
     conf: ConnectionConf,
     signer: Option<Signer>,
-    gas_price: CosmosAmount,
+    gas_price: KaspaAmount,
 }
 
 #[async_trait]
-impl BlockNumberGetter for CosmosHttpClient {
+impl BlockNumberGetter for KaspaHttpClient {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let block = self
             .client
             .latest_block()
             .await
-            .map_err(HyperlaneCosmosError::from)?;
+            .map_err(HyperlaneKaspaError::from)?;
 
         Ok(block.block.header.height.value())
     }
 }
 
-impl CosmosHttpClient {
-    /// Create new `CosmosHttpClient`
+impl KaspaHttpClient {
+    /// Create new `KaspaHttpClient`
     pub fn new(
         client: HttpClient,
         metrics: PrometheusClientMetrics,
@@ -86,7 +86,7 @@ impl CosmosHttpClient {
         }
     }
 
-    /// Creates a CosmosHttpClient from a url
+    /// Creates a KaspaHttpClient from a url
     pub fn from_url(
         url: &Url,
         metrics: PrometheusClientMetrics,
@@ -110,7 +110,7 @@ impl CosmosHttpClient {
     }
 }
 
-impl Drop for CosmosHttpClient {
+impl Drop for KaspaHttpClient {
     fn drop(&mut self) {
         // decrement provider metric count
         let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
@@ -118,7 +118,7 @@ impl Drop for CosmosHttpClient {
     }
 }
 
-impl Clone for CosmosHttpClient {
+impl Clone for KaspaHttpClient {
     fn clone(&self) -> Self {
         Self::new(
             self.client.clone(),
@@ -142,13 +142,13 @@ impl RpcProvider {
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
-                CosmosHttpClient::from_url(url, metrics.clone(), metrics_config)
+                KaspaHttpClient::from_url(url, metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         let provider = FallbackProvider::new(clients);
-        let provider = CosmosFallbackProvider::new(provider);
-        let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
+        let provider = KaspaFallbackProvider::new(provider);
+        let gas_price = KaspaAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
         Ok(RpcProvider {
             provider,
@@ -158,9 +158,9 @@ impl RpcProvider {
         })
     }
 
-    // mostly copy pasted from `hyperlane-cosmos/src/providers/rpc/client.rs`
+    // mostly copy pasted from `hyperlane-kaspa/src/providers/rpc/client.rs`
     async fn track_metric_call<F, Fut, T>(
-        client: &CosmosHttpClient,
+        client: &KaspaHttpClient,
         method: &str,
         call: F,
     ) -> ChainResult<T>
@@ -175,7 +175,7 @@ impl RpcProvider {
             .metrics
             .increment_metrics(&client.metrics_config, method, start, res.is_ok());
 
-        res.map_err(|e| ChainCommunicationError::from(HyperlaneCosmosError::from(e)))
+        res.map_err(|e| ChainCommunicationError::from(HyperlaneKaspaError::from(e)))
     }
 
     /// Get the transaction by hash
@@ -238,7 +238,7 @@ impl RpcProvider {
     }
 
     /// abci query is low level function that only gets called by higher level ones like 'get_balance'
-    /// it performs raw state queries on the cosmos sdk
+    /// it performs raw state queries on the kaspa sdk
     async fn abci_query<T, R>(&self, path: &str, request: T) -> ChainResult<R>
     where
         T: Message + hyperlane_cosmos_rs::prost::Name,
@@ -271,7 +271,7 @@ impl RpcProvider {
             )));
         }
 
-        let response = R::decode(response.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
+        let response = R::decode(response.value.as_slice()).map_err(HyperlaneKaspaError::from)?;
         Ok(response)
     }
 
@@ -279,7 +279,7 @@ impl RpcProvider {
     pub async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let response: QueryBalanceResponse = self
             .abci_query(
-                "/cosmos.bank.v1beta1.Query/Balance",
+                "/kaspa.bank.v1beta1.Query/Balance",
                 QueryBalanceRequest {
                     address,
                     denom: self.conf.get_canonical_asset(),
@@ -303,7 +303,7 @@ impl RpcProvider {
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
         let response: QueryAccountResponse = self
             .abci_query(
-                "/cosmos.auth.v1beta1.Query/Account",
+                "/kaspa.auth.v1beta1.Query/Account",
                 QueryAccountRequest { address },
             )
             .await?;
@@ -314,7 +314,7 @@ impl RpcProvider {
                 .value
                 .as_slice(),
         )
-        .map_err(HyperlaneCosmosError::from)?;
+        .map_err(HyperlaneKaspaError::from)?;
         Ok(account)
     }
 
@@ -347,7 +347,7 @@ impl RpcProvider {
             amount,
             self.conf.get_canonical_asset().as_str(),
         )
-        .map_err(HyperlaneCosmosError::from)?;
+        .map_err(HyperlaneKaspaError::from)?;
 
         let auth_info =
             signer_info.auth_info(Fee::from_amount_and_gas(fee_coin.clone(), gas_limit));
@@ -356,11 +356,11 @@ impl RpcProvider {
             .conf
             .get_chain_id()
             .parse()
-            .map_err(HyperlaneCosmosError::from)?;
+            .map_err(HyperlaneKaspaError::from)?;
 
         Ok(
             SignDoc::new(&tx_body, &auth_info, &chain_id, account_info.account_number)
-                .map_err(HyperlaneCosmosError::from)?,
+                .map_err(HyperlaneKaspaError::from)?,
         )
     }
 
@@ -383,7 +383,7 @@ impl RpcProvider {
         #[allow(deprecated)]
         let response: SimulateResponse = self
             .abci_query(
-                "/cosmos.tx.v1beta1.Service/Simulate",
+                "/kaspa.tx.v1beta1.Service/Simulate",
                 SimulateRequest { tx_bytes, tx: None },
             )
             .await?;
@@ -418,7 +418,7 @@ impl RpcProvider {
 
         let signed_tx = sign_doc
             .sign(&signer.signing_key()?)
-            .map_err(HyperlaneCosmosError::from)?;
+            .map_err(HyperlaneKaspaError::from)?;
         let signed_tx = signed_tx.to_bytes()?;
 
         // broadcast tx commit blocks until the tx is included in a block
