@@ -10,6 +10,3 @@ mod validate;
 
 #[cfg(test)]
 pub(crate) use core::NonceManagerState;
-
-#[cfg(test)]
-mod tests;

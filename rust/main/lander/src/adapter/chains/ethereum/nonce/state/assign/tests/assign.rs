@@ -5,11 +5,11 @@ use hyperlane_core::U256;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
 
-use super::super::super::tests;
+use super::super::super::super::tests::make_tx;
 use super::super::NonceManagerState;
 
-fn make_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
-    tests::make_tx(uuid, status, None, None)
+fn create_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
+    make_tx(uuid, status, None, None)
 }
 
 #[tokio::test]
@@ -72,7 +72,7 @@ async fn test_assign_next_nonce_extends_upper_nonce() {
         let nonce = U256::from(i);
         let uuid = TransactionUuid::random();
         state.set_tracked_tx_uuid(&nonce, &uuid).await.unwrap();
-        let tx = make_tx(uuid, TransactionStatus::PendingInclusion);
+        let tx = create_tx(uuid, TransactionStatus::PendingInclusion);
         state.tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     }
 
@@ -104,14 +104,14 @@ async fn test_assign_next_nonce_reuses_freed_nonce() {
         .set_tracked_tx_uuid(&U256::from(0), &uuid0)
         .await
         .unwrap();
-    let tx0 = make_tx(uuid0, TransactionStatus::PendingInclusion);
+    let tx0 = create_tx(uuid0, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx0).await.unwrap();
 
     state
         .set_tracked_tx_uuid(&U256::from(1), &uuid1)
         .await
         .unwrap();
-    let tx1 = make_tx(
+    let tx1 = create_tx(
         uuid1,
         TransactionStatus::Dropped(DropReason::DroppedByChain),
     );
@@ -121,7 +121,7 @@ async fn test_assign_next_nonce_reuses_freed_nonce() {
         .set_tracked_tx_uuid(&U256::from(2), &uuid2)
         .await
         .unwrap();
-    let tx2 = make_tx(uuid2, TransactionStatus::PendingInclusion);
+    let tx2 = create_tx(uuid2, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx2).await.unwrap();
 
     // Should assign 1 (the Freed nonce)
@@ -149,14 +149,14 @@ async fn test_assign_next_nonce_gap_in_tracked_nonces() {
         .set_tracked_tx_uuid(&U256::from(0), &uuid0)
         .await
         .unwrap();
-    let tx0 = make_tx(uuid0, TransactionStatus::PendingInclusion);
+    let tx0 = create_tx(uuid0, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx0).await.unwrap();
 
     state
         .set_tracked_tx_uuid(&U256::from(2), &uuid2)
         .await
         .unwrap();
-    let tx2 = make_tx(uuid2, TransactionStatus::PendingInclusion);
+    let tx2 = create_tx(uuid2, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx2).await.unwrap();
 
     // Should assign 1 (first not tracked)
@@ -208,7 +208,7 @@ async fn test_assign_next_nonce_all_taken_extends_upper() {
             .set_tracked_tx_uuid(&U256::from(i), &uuid)
             .await
             .unwrap();
-        let tx = make_tx(uuid, TransactionStatus::PendingInclusion);
+        let tx = create_tx(uuid, TransactionStatus::PendingInclusion);
         state.tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     }
 

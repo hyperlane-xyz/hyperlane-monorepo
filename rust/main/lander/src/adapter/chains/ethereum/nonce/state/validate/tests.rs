@@ -6,7 +6,7 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, TransactionStatus, TransactionUuid};
 use crate::TransactionDropReason;
 
-use super::super::tests::make_tx;
+use super::super::super::super::nonce::tests::make_tx;
 use super::NonceAction;
 use super::NonceManagerState;
 

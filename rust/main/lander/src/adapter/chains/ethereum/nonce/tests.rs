@@ -1,89 +1,43 @@
-#![allow(unused)]
-
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-use async_trait::async_trait;
-use ethers_core::abi::Function;
 use ethers_core::types::Address;
-use hyperlane_base::db::DbResult;
+
 use hyperlane_core::U256;
 
 use crate::adapter::EthereumTxPrecursor;
-use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
+use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
+use crate::TransactionStatus;
 
-use super::db::NonceDb;
-use super::state::NonceManagerState;
-use super::status::NonceStatus;
-
-// Common mock NonceDb for tests
-pub struct MockNonceDb {
-    pub finalized: Mutex<HashMap<Address, U256>>,
-    pub upper: Mutex<HashMap<Address, U256>>,
-    pub status: Mutex<HashMap<(U256, Address), NonceStatus>>,
-}
-
-impl MockNonceDb {
-    pub fn new() -> Self {
-        Self {
-            finalized: Mutex::new(HashMap::new()),
-            upper: Mutex::new(HashMap::new()),
-            status: Mutex::new(HashMap::new()),
-        }
+#[allow(deprecated)]
+pub fn make_tx(
+    uuid: TransactionUuid,
+    status: TransactionStatus,
+    nonce: Option<U256>,
+    address: Option<Address>,
+) -> Transaction {
+    use ethers_core::abi::Function;
+    let mut precursor = EthereumTxPrecursor {
+        tx: Default::default(),
+        function: Function {
+            name: "".to_string(),
+            inputs: vec![],
+            outputs: vec![],
+            constant: None,
+            state_mutability: Default::default(),
+        },
+    };
+    if let Some(n) = nonce {
+        precursor.tx.set_nonce(n);
     }
-}
-
-#[async_trait]
-impl NonceDb for MockNonceDb {
-    async fn retrieve_finalized_nonce_by_signer_address(
-        &self,
-        signer_address: &Address,
-    ) -> DbResult<Option<U256>> {
-        Ok(self.finalized.lock().unwrap().get(signer_address).cloned())
+    if let Some(addr) = address {
+        precursor.tx.set_from(addr);
     }
-
-    async fn store_finalized_nonce_by_signer_address(
-        &self,
-        signer_address: &Address,
-        nonce: &U256,
-    ) -> DbResult<()> {
-        self.finalized
-            .lock()
-            .unwrap()
-            .insert(*signer_address, *nonce);
-        Ok(())
-    }
-
-    async fn retrieve_upper_nonce_by_signer_address(
-        &self,
-        signer_address: &Address,
-    ) -> DbResult<Option<U256>> {
-        Ok(self.upper.lock().unwrap().get(signer_address).cloned())
-    }
-
-    async fn store_upper_nonce_by_signer_address(
-        &self,
-        signer_address: &Address,
-        nonce: &U256,
-    ) -> DbResult<()> {
-        self.upper.lock().unwrap().insert(*signer_address, *nonce);
-        Ok(())
-    }
-
-    async fn retrieve_transaction_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &Address,
-    ) -> DbResult<Option<TransactionUuid>> {
-        todo!()
-    }
-
-    async fn store_transaction_uuid_by_nonce_and_signer_address(
-        &self,
-        nonce: &U256,
-        signer_address: &Address,
-        nonce_status: &TransactionUuid,
-    ) -> DbResult<()> {
-        todo!()
+    Transaction {
+        uuid,
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Evm(precursor),
+        payload_details: vec![],
+        status,
+        submission_attempts: 0,
+        creation_timestamp: Default::default(),
+        last_submission_attempt: None,
     }
 }

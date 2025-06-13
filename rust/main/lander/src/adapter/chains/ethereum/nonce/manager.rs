@@ -119,3 +119,6 @@ impl NonceManager {
         Ok(address)
     }
 }
+
+#[cfg(test)]
+mod tests;
