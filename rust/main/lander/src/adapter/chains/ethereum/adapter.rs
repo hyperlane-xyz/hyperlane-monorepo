@@ -1,7 +1,12 @@
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use ethers::{contract::builders::ContractCall, prelude::U64, providers::Middleware, types::H256};
+use ethers::{
+    contract::builders::ContractCall,
+    prelude::U64,
+    providers::Middleware,
+    types::{transaction::eip2718::TypedTransaction, H256},
+};
 use eyre::eyre;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
@@ -21,8 +26,8 @@ use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterPro
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     payload::{FullPayload, PayloadDetails},
-    transaction::{Transaction, TransactionStatus},
-    LanderError,
+    transaction::{Transaction, TransactionStatus, VmSpecificTxData},
+    DispatcherMetrics, LanderError,
 };
 
 use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
@@ -216,6 +221,32 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
+        let VmSpecificTxData::Evm(precursor) = &tx.vm_specific_data else {
+            warn!(
+                ?tx,
+                "Transaction does not have EVM-specific data, skipping metrics update"
+            );
+            return;
+        };
+        if let Some(gas_price) = precursor.tx.gas_price() {
+            let gas_price = gas_price.as_u64();
+            metrics.update_gas_price_metric(gas_price, self.domain.as_ref());
+        } else {
+            warn!(
+                ?tx,
+                "Transaction does not have gas price set, skipping gas price metric update"
+            );
+        }
+        // if a priority fee is set, update the priority fee metric
+        if let TypedTransaction::Eip1559(precursor) = &precursor.tx {
+            if let Some(max_prio_fee) = precursor.max_priority_fee_per_gas {
+                let max_prio_fee = max_prio_fee.as_u64();
+                metrics.update_priority_fee_metric(max_prio_fee, self.domain.as_ref());
+            }
+        }
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
