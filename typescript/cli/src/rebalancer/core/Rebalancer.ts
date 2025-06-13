@@ -7,26 +7,21 @@ import {
   InterchainGasQuote,
   type MultiProvider,
   type Token,
-  TokenAmount,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { toWei } from '@hyperlane-xyz/utils';
 
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  PreparedTransaction,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfig,
   getBridgeConfig,
   rebalancerLogger,
 } from '../utils/index.js';
-
-type PreparedTransaction = {
-  populatedTx: Awaited<
-    ReturnType<EvmHypCollateralAdapter['populateRebalanceTx']>
-  >;
-  route: RebalancingRoute;
-  originTokenAmount: TokenAmount;
-};
 
 export class Rebalancer implements IRebalancer {
   constructor(
@@ -35,9 +30,10 @@ export class Rebalancer implements IRebalancer {
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly metrics?: Metrics,
   ) {}
 
-  async rebalance(routes: RebalancingRoute[]) {
+  async rebalance(routes: RebalancingRoute[]): Promise<void> {
     if (routes.length === 0) {
       rebalancerLogger.info('No routes to execute, exiting');
       return;
@@ -53,14 +49,17 @@ export class Rebalancer implements IRebalancer {
 
     let gasEstimationFailures = 0;
     let transactionFailures = 0;
+    let successfulTransactions: PreparedTransaction[] = [];
 
     if (preparedTransactions.length > 0) {
       const filteredTransactions =
         this.filterTransactions(preparedTransactions);
-
       if (filteredTransactions.length > 0) {
-        ({ gasEstimationFailures, transactionFailures } =
-          await this.executeTransactions(filteredTransactions));
+        ({
+          gasEstimationFailures,
+          transactionFailures,
+          successfulTransactions,
+        } = await this.executeTransactions(filteredTransactions));
       }
     }
 
@@ -80,7 +79,17 @@ export class Rebalancer implements IRebalancer {
       throw new Error('❌ Some rebalance transaction failed');
     }
 
+    if (this.metrics && successfulTransactions.length > 0) {
+      for (const transaction of successfulTransactions) {
+        this.metrics.recordRebalanceAmount(
+          transaction.route,
+          transaction.originTokenAmount,
+        );
+      }
+    }
+
     rebalancerLogger.info('✅ Rebalance successful');
+    return;
   }
 
   private async prepareTransactions(routes: RebalancingRoute[]): Promise<{
@@ -307,6 +316,7 @@ export class Rebalancer implements IRebalancer {
   ): Promise<{
     gasEstimationFailures: number;
     transactionFailures: number;
+    successfulTransactions: PreparedTransaction[];
   }> {
     rebalancerLogger.info(
       { numTransactions: transactions.length },
@@ -352,6 +362,7 @@ export class Rebalancer implements IRebalancer {
       return {
         gasEstimationFailures,
         transactionFailures: 0,
+        successfulTransactions: [],
       };
     }
 
@@ -361,6 +372,7 @@ export class Rebalancer implements IRebalancer {
       'Sending valid transactions.',
     );
     let transactionFailures = 0;
+    const successfulTransactions: PreparedTransaction[] = [];
     for (const transaction of validTransactions) {
       try {
         const { origin, destination } = transaction.route;
@@ -390,6 +402,7 @@ export class Rebalancer implements IRebalancer {
           },
           'Transaction confirmed for route.',
         );
+        successfulTransactions.push(transaction);
       } catch (error) {
         transactionFailures++;
         rebalancerLogger.error(
@@ -408,6 +421,7 @@ export class Rebalancer implements IRebalancer {
     return {
       gasEstimationFailures,
       transactionFailures,
+      successfulTransactions,
     };
   }
 

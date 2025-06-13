@@ -81,6 +81,13 @@ export const rebalancerExecutionTotal = new Counter({
   labelNames: ['warp_route_id', 'succeeded'],
 });
 
+export const rebalancerExecutionAmount = new Counter({
+  name: 'hyperlane_rebalancer_execution_amount',
+  help: 'Total amount of tokens rebalanced.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'origin', 'destination', 'token'],
+});
+
 export const rebalancerPollingErrorsTotal = new Counter({
   name: 'hyperlane_rebalancer_polling_errors_total',
   help: 'Total number of errors during the monitor polling phase.',

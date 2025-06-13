@@ -21,7 +21,7 @@ export class WithSemaphore implements IRebalancer {
    * Rebalance with timing control
    * @param routes - Routes to process
    */
-  async rebalance(routes: RebalancingRoute[]) {
+  async rebalance(routes: RebalancingRoute[]): Promise<void> {
     if (this.executing) {
       rebalancerLogger.info('Currently executing rebalance. Skipping.');
 

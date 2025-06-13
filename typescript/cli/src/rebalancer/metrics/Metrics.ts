@@ -9,6 +9,7 @@ import {
   IHypXERC20Adapter,
   SealevelHypTokenAdapter,
   Token,
+  TokenAmount,
   TokenStandard,
   TokenType,
   WarpCore,
@@ -18,12 +19,14 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
+import { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { formatBigInt, monitorLogger, tryFn } from '../utils/index.js';
 
 import { PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
   rebalancerConsecutiveExecutionFailures,
+  rebalancerExecutionAmount,
   rebalancerExecutionTotal,
   rebalancerPollingErrorsTotal,
   updateManagedLockboxBalanceMetrics,
@@ -71,6 +74,20 @@ export class Metrics implements IMetrics {
     rebalancerConsecutiveExecutionFailures
       .labels({ warp_route_id: this.warpRouteId })
       .set(0);
+  }
+
+  recordRebalanceAmount(
+    route: RebalancingRoute,
+    originTokenAmount: TokenAmount,
+  ) {
+    rebalancerExecutionAmount
+      .labels({
+        warp_route_id: this.warpRouteId,
+        origin: route.origin,
+        destination: route.destination,
+        token: originTokenAmount.token.symbol,
+      })
+      .inc(originTokenAmount.getDecimalFormattedAmount());
   }
 
   recordRebalancerFailure() {
