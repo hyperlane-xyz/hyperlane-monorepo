@@ -16,8 +16,8 @@ impl NonceManagerState {
         &self,
         tx_uuid: &TransactionUuid,
     ) -> NonceResult<Option<Transaction>> {
-        let tx_uuid = self.tx_db.retrieve_transaction_by_uuid(tx_uuid).await?;
-        Ok(tx_uuid)
+        let tx = self.tx_db.retrieve_transaction_by_uuid(tx_uuid).await?;
+        Ok(tx)
     }
 
     pub(super) async fn clear_tracked_tx_uuid(&self, nonce: &U256) -> NonceResult<()> {
