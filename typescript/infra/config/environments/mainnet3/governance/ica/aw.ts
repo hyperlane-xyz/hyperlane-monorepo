@@ -164,4 +164,8 @@ export const awIcas: ChainMap<Address> = {
   // nibiru: '0x40cD75e80d04663FAe0CE30687504074F163C346', // temporary while looking into decimals
   opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
+
+  // Jun 5, 2025 - oUSDT
+  // ----------------------------------------------------------
+  hashkey: '0xEE01c007f89c9255f43b91B591b93cD1459048D1',
 } as const;

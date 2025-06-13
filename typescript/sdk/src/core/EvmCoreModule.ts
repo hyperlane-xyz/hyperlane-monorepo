@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   Mailbox,
   Mailbox__factory,
@@ -41,7 +39,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -85,12 +83,7 @@ export class EvmCoreModule extends HyperlaneModule<
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
         addresses: {
-          interchainAccountIsm: args.addresses.interchainAccountIsm,
           interchainAccountRouter: args.addresses.interchainAccountRouter,
-          // TODO: fix this even though is not used at the moment internally
-          proxyAdmin: ethers.constants.AddressZero,
-          timelockController:
-            args.addresses.timelockController ?? ethers.constants.AddressZero,
         },
         config: args.config.interchainAccountRouter,
       });
@@ -325,13 +318,18 @@ export class EvmCoreModule extends HyperlaneModule<
     });
 
     // Deploy ICA ISM and Router
-    const { interchainAccountRouter, interchainAccountIsm } = (
+    const { interchainAccountRouter } = (
       await EvmIcaModule.create({
         chain: chainName,
         multiProvider: multiProvider,
         config: {
           mailbox: mailbox.address,
           owner: await multiProvider.getSigner(chain).getAddress(),
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            urls: ['https://commitment-read-ism.hyperlane.xyz'],
+            owner: await multiProvider.getSigner(chain).getAddress(),
+          },
         },
         contractVerifier,
       })
@@ -390,7 +388,6 @@ export class EvmCoreModule extends HyperlaneModule<
       proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
-      interchainAccountIsm,
       validatorAnnounce,
       timelockController,
       testRecipient,
