@@ -1,16 +1,27 @@
+use std::sync::Arc;
+
 use ethers_core::types::Address;
 
-use hyperlane_core::U256;
+use hyperlane_core::{HyperlaneDomain, U256};
 
 use crate::tests::test_utils::tmp_dbs;
 
+use super::super::super::super::metrics::EthereumAdapterMetrics;
+use super::super::super::super::tests::DOMAIN;
 use super::super::NonceManagerState;
 
 #[tokio::test]
 async fn test_update_boundary_nonces_sets_finalized_and_upper_when_upper_missing() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     let finalized = U256::from(5);
 
@@ -28,7 +39,14 @@ async fn test_update_boundary_nonces_sets_finalized_and_upper_when_upper_missing
 async fn test_update_boundary_nonces_does_not_update_upper_when_finalized_below_upper() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     let upper = U256::from(10);
     let finalized = U256::from(5);
@@ -50,7 +68,14 @@ async fn test_update_boundary_nonces_does_not_update_upper_when_finalized_below_
 async fn test_update_boundary_nonces_updates_upper_when_finalized_equals_upper() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     let upper = U256::from(7);
     let finalized = U256::from(7);
@@ -72,7 +97,14 @@ async fn test_update_boundary_nonces_updates_upper_when_finalized_equals_upper()
 async fn test_update_boundary_nonces_updates_upper_when_finalized_above_upper() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     let upper = U256::from(3);
     let finalized = U256::from(10);
@@ -94,7 +126,14 @@ async fn test_update_boundary_nonces_updates_upper_when_finalized_above_upper() 
 async fn test_update_boundary_nonces_finalized_decreases() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     // Set upper and finalized to higher value first
     let upper = U256::from(10);
@@ -118,7 +157,14 @@ async fn test_update_boundary_nonces_finalized_decreases() {
 async fn test_update_boundary_nonces_multiple_calls_and_idempotency() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        (*DOMAIN).clone(),
+        nonce_db,
+        tx_db,
+        address,
+        metrics,
+    ));
 
     let finalized1 = U256::from(2);
     let finalized2 = U256::from(5);

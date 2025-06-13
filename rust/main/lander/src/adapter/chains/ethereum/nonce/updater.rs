@@ -9,11 +9,11 @@ use tokio::time::{sleep, Instant};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, Instrument};
 
-use hyperlane_core::U256;
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
-
 use super::error::{NonceError, NonceResult};
 use super::state::NonceManagerState;
+use crate::adapter::chains::ethereum::metrics::EthereumAdapterMetrics;
+use hyperlane_core::U256;
+use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 
 pub struct NonceUpdater {
     address: Address,
