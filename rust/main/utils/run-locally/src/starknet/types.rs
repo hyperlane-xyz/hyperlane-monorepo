@@ -115,9 +115,20 @@ impl AgentConfig {
                     .to_string(),
             }, // We use STARK as the native token for the E2E tests
             protocol: "starknet".to_string(),
-            rpc_urls: vec![AgentUrl {
-                http: format!("{}", network.launch_resp.endpoint.rpc_addr),
-            }],
+            rpc_urls: vec![
+                AgentUrl {
+                    http: "http://127.0.0.1:1337".to_owned(), // invalid url to test fallback provider
+                },
+                AgentUrl {
+                    http: "http://127.0.0.1:1338".to_owned(), // invalid url to test fallback provider
+                },
+                AgentUrl {
+                    http: network.launch_resp.endpoint.rpc_addr.to_owned(),
+                },
+                AgentUrl {
+                    http: "http://127.0.0.1:1347".to_owned(), // invalid url to test fallback provider
+                },
+            ],
             signer: AgentConfigSigner {
                 typ: "starkKey".to_string(),
                 key: validator.private_key.clone(),

@@ -10,7 +10,6 @@ use hyperlane_core::{
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
-use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::{instrument, warn};
 
@@ -19,7 +18,7 @@ use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::utils::send_and_confirm;
 use crate::{
-    build_single_owner_account, string_to_cairo_long_string, ConnectionConf, Signer,
+    build_single_owner_account, string_to_cairo_long_string, ConnectionConf, JsonProvider, Signer,
     StarknetProvider,
 };
 use cainome::cairo_serde::EthAddress;
@@ -37,7 +36,7 @@ where
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetValidatorAnnounce {
-    contract: StarknetValidatorAnnounceInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: StarknetValidatorAnnounceInternal<SingleOwnerAccount<JsonProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -50,7 +49,7 @@ impl StarknetValidatorAnnounce {
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
+        let account = build_single_owner_account(conn.urls.clone(), signer).await?;
 
         let va_address: Felt = HyH256(locator.address).into();
 
@@ -67,7 +66,7 @@ impl StarknetValidatorAnnounce {
     async fn announce_contract_call(
         &self,
         announcement: SignedType<Announcement>,
-    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
+    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<JsonProvider, LocalWallet>>> {
         let validator = Felt::from_bytes_be_slice(&announcement.value.validator.to_vec());
         let storage_location = string_to_cairo_long_string(&announcement.value.storage_location)
             .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -79,13 +78,6 @@ impl StarknetValidatorAnnounce {
             .announce(&EthAddress(validator), &storage_location, &signature);
 
         Ok(tx)
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetValidatorAnnounceInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-        &self.contract
     }
 }
 

@@ -1,8 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::sync::Arc;
-
 use byteorder::{BigEndian, ByteOrder};
 
 use async_trait::async_trait;
@@ -16,7 +14,6 @@ use hyperlane_core::{FixedPointNumber, ReorgPeriod};
 use starknet::accounts::{ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 
-use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -25,14 +22,14 @@ use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
-    ConnectionConf, Signer, StarknetProvider,
+    ConnectionConf, JsonProvider, Signer, StarknetProvider,
 };
 
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMailbox {
-    contract: Arc<StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    contract: StarknetMailboxInternal<SingleOwnerAccount<JsonProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -45,14 +42,14 @@ impl StarknetMailbox {
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
+        let account = build_single_owner_account(conn.urls.clone(), signer).await?;
 
         let mailbox_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetMailboxInternal::new(mailbox_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
@@ -64,15 +61,8 @@ impl StarknetMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
+    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<JsonProvider, LocalWallet>>> {
         Ok(self.contract.process(&metadata.into(), &message.into()))
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-        &self.contract
     }
 }
 

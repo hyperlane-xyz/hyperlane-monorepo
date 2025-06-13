@@ -46,7 +46,8 @@ impl CodeSource {
                 (entry.file_name().into_string().unwrap(), entry.path())
             })
             .filter(|(filename, _)| filename.ends_with(".contract_class.json"))
-            .filter(|(filename, _)| !filename.contains("Mock"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("mock"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("test"))
             .map(|v| (v.0.replace(".contract_class.json", ""), v.1))
             .collect()
     }
@@ -80,7 +81,8 @@ impl CodeSource {
                 (entry.file_name().into_string().unwrap(), entry.path())
             })
             .filter(|(filename, _)| filename.ends_with(".contract_class.json"))
-            .filter(|(filename, _)| !filename.contains("Mock"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("test"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("mock"))
             .map(|v| (v.0.replace(".contract_class.json", ""), v.1))
             .collect()
     }

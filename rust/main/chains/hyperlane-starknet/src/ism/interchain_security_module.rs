@@ -6,25 +6,21 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
-use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::Felt;
-use starknet::providers::AnyProvider;
-use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::interchain_security_module::InterchainSecurityModule as StarknetInterchainSecurityModuleInternal;
+use crate::contracts::interchain_security_module::InterchainSecurityModuleReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetProvider,
+    build_json_provider, to_hpl_module_type, ConnectionConf, JsonProvider, StarknetProvider,
 };
 
 /// A reference to a ISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetInterchainSecurityModule {
-    contract:
-        StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: InterchainSecurityModuleReader<JsonProvider>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -32,30 +28,16 @@ pub struct StarknetInterchainSecurityModule {
 impl StarknetInterchainSecurityModule {
     /// Create a reference to a ISM at a specific Starknet address on some
     /// chain
-    pub async fn new(
-        conn: &ConnectionConf,
-        locator: &ContractLocator<'_>,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
-
+    pub async fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+        let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
-
-        let contract = StarknetInterchainSecurityModuleInternal::new(ism_address, account);
+        let contract = InterchainSecurityModuleReader::new(ism_address, provider);
 
         Ok(Self {
             contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>
-    {
-        &self.contract
     }
 }
 

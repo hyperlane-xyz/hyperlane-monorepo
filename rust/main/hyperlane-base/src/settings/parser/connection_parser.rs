@@ -325,16 +325,8 @@ fn build_starknet_connection_conf(
         return None;
     };
 
-    let Some(url) = urls.first() else {
-        err.push(
-            &chain.cwp + "urls",
-            eyre!("No URLs provided for Starknet connection"),
-        );
-        return None;
-    };
-
     Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
-        url: url.clone(),
+        urls: urls.to_vec(),
         native_token_address,
     }))
 }

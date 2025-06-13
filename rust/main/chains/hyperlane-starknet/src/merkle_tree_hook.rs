@@ -9,34 +9,22 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod,
     H256,
 };
-use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::Felt;
-use starknet::providers::AnyProvider;
-use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::merkle_tree_hook::MerkleTreeHook as StarknetMerkleTreeHookInternal;
+use crate::contracts::merkle_tree_hook::MerkleTreeHookReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, get_block_height_for_reorg_period, ConnectionConf, Signer,
+    build_json_provider, get_block_height_for_reorg_period, ConnectionConf, JsonProvider,
     StarknetProvider,
 };
-
-impl<A> std::fmt::Display for StarknetMerkleTreeHookInternal<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
 
 /// A reference to a Merkle Tree Hook contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMerkleTreeHook {
-    contract: StarknetMerkleTreeHookInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: MerkleTreeHookReader<JsonProvider>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -44,29 +32,16 @@ pub struct StarknetMerkleTreeHook {
 impl StarknetMerkleTreeHook {
     /// Create a reference to a merkle tree hook at a specific Starknet address on some
     /// chain
-    pub async fn new(
-        conn: &ConnectionConf,
-        locator: &ContractLocator<'_>,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
-
+    pub async fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+        let provider = build_json_provider(conn);
         let hook_address: Felt = HyH256(locator.address).into();
-
-        let contract = StarknetMerkleTreeHookInternal::new(hook_address, account);
+        let contract = MerkleTreeHookReader::new(hook_address, provider);
 
         Ok(Self {
             contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetMerkleTreeHookInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-        &self.contract
     }
 }
 
