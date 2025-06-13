@@ -74,7 +74,7 @@ impl NonceManager {
         }
 
         self.nonce_updater
-            .update()
+            .update_boundaries()
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 

@@ -52,17 +52,17 @@ impl NonceUpdater {
         }
     }
 
-    pub async fn update(&self) -> NonceResult<()> {
+    pub async fn update_boundaries(&self) -> NonceResult<()> {
         let duration = self.updated.lock().await.elapsed();
         if duration >= self.block_time {
-            self.update_immediately().await?;
+            self.update_boundaries_immediately().await?;
             *self.updated.lock().await = Instant::now();
         }
 
         Ok(())
     }
 
-    async fn update_immediately(&self) -> NonceResult<()> {
+    async fn update_boundaries_immediately(&self) -> NonceResult<()> {
         let next_nonce = self
             .provider
             .get_next_nonce_on_finalized_block(&self.address, &self.reorg_period)
