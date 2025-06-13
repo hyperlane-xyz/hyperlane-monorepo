@@ -16,6 +16,7 @@ use crate::{
     error::LanderError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
+    DispatcherMetrics,
 };
 
 pub type GasLimit = U256;
@@ -102,6 +103,9 @@ pub trait AdaptsChain: Send + Sync {
     /// Returns the maximum batch size for this chain. Used to decide how many payloads to batch together, as well as
     /// how many network calls to perform in parallel
     fn max_batch_size(&self) -> u32;
+
+    /// Update any metrics related to sent transactions, such as gas price, nonce, etc.
+    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
 
     // methods below are excluded from the MVP
 
