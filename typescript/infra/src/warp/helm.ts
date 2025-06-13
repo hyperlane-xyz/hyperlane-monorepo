@@ -129,9 +129,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   // will be prompted for uninstallation.
   static async uninstallUnknownWarpMonitorReleases(namespace: string) {
     const localRegistry = getRegistry();
-    const allExpectedHelmReleaseNames = Object.values(
-      Object.keys(await localRegistry.getWarpRoutes()),
-    ).map(WarpRouteMonitorHelmManager.getHelmReleaseName);
+    const warpRouteIds = Object.keys(localRegistry.getWarpRoutes());
+    const allExpectedHelmReleaseNames = warpRouteIds.map(
+      WarpRouteMonitorHelmManager.getHelmReleaseName,
+    );
     const helmReleases =
       await WarpRouteMonitorHelmManager.getWarpMonitorHelmReleases(namespace);
 
