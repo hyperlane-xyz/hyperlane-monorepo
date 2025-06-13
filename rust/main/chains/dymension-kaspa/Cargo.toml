@@ -1,0 +1,51 @@
+[package]
+name = "dymension-kaspa"
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bech32 = { workspace = true }
+cosmrs = { workspace = true, features = ["tokio", "grpc", "rpc"] }
+crypto = { path = "../../utils/crypto" }
+derive-new = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+hyper = { workspace = true }
+hyper-tls = { workspace = true }
+itertools = { workspace = true }
+once_cell = { workspace = true }
+protobuf = { workspace = true }
+ripemd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sha256 = { workspace = true }
+tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
+tendermint-rpc = { workspace = true }
+time = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true, features = [
+    "transport",
+    "tls",
+    "tls-roots",
+    "tls-native-roots",
+] }
+tower.workspace = true
+pin-project.workspace = true
+tracing = { workspace = true }
+tracing-futures = { workspace = true }
+url = { workspace = true }
+hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub
+# TODO: dymension-kaspa
+
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-cosmwasm-interface = { workspace = true }

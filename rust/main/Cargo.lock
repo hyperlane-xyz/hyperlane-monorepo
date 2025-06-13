@@ -3274,6 +3274,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
+name = "dymension-kaspa"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.21.7",
+ "bech32 0.11.0",
+ "cosmrs",
+ "crypto",
+ "derive-new",
+ "futures",
+ "hex 0.4.3",
+ "http 1.2.0",
+ "hyper 0.14.30",
+ "hyper-tls",
+ "hyperlane-core",
+ "hyperlane-cosmos-rs",
+ "hyperlane-cosmwasm-interface",
+ "hyperlane-metric",
+ "itertools 0.10.5",
+ "once_cell",
+ "pin-project",
+ "protobuf",
+ "ripemd",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "sha256",
+ "tendermint",
+ "tendermint-rpc",
+ "thiserror 1.0.63",
+ "time",
+ "tokio",
+ "tonic 0.12.3",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-futures",
+ "url",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5349,6 +5389,7 @@ dependencies = [
  "dashmap",
  "derive-new",
  "derive_builder",
+ "dymension-kaspa",
  "ed25519-dalek 1.0.1",
  "ethers",
  "ethers-prometheus",
