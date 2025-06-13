@@ -8432,7 +8432,7 @@ __metadata:
     eslint-plugin-import: "npm:^2.31.0"
     globby: "npm:^14.1.0"
     prettier: "npm:^3.5.3"
-    starknet: "npm:^7.4.0"
+    starknet: "npm:6.23.1"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
   languageName: unknown
@@ -15334,7 +15334,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@starknet-io/types-js@npm:^0.7.10, @starknet-io/types-js@npm:^0.7.7, starknet-types-07@npm:@starknet-io/types-js@^0.7.10, starknet-types-07@npm:@starknet-io/types-js@~0.7.10":
+"@starknet-io/types-js@npm:^0.7.10, @starknet-io/types-js@npm:^0.7.7, starknet-types-07@npm:@starknet-io/types-js@^0.7.10":
   version: 0.7.10
   resolution: "@starknet-io/types-js@npm:0.7.10"
   checksum: 10/e7e10878d6d576dcd30c6910a819e8e9cbd72102c71a93be7e0282f229d75c5765d2b5d152f7ae0693987cdb00e3d04f02bad371d91f420ddbbed435aadfbe3e
@@ -18573,7 +18573,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"abi-wan-kanabi@npm:2.2.4, abi-wan-kanabi@npm:^2.2.3, abi-wan-kanabi@npm:^2.2.4":
+"abi-wan-kanabi@npm:^2.2.3, abi-wan-kanabi@npm:^2.2.4":
   version: 2.2.4
   resolution: "abi-wan-kanabi@npm:2.2.4"
   dependencies:
@@ -36196,13 +36196,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"starknet-types-08@npm:@starknet-io/types-js@~0.8.3":
-  version: 0.8.4
-  resolution: "@starknet-io/types-js@npm:0.8.4"
-  checksum: 10/af9a5cd47244c69d41b84179be112631d9b8d6324ffca366b06d62bcf95f38c3696a1f2583636f05e450ffeb20ad757889fc2b0211b90c11e98695f3fb895bf2
-  languageName: node
-  linkType: hard
-
 "starknet@npm:6.23.1":
   version: 6.23.1
   resolution: "starknet@npm:6.23.1"
@@ -36219,24 +36212,6 @@ __metadata:
     starknet-types-07: "npm:@starknet-io/types-js@^0.7.10"
     ts-mixer: "npm:^6.0.3"
   checksum: 10/ad02fddad1f24bc9b107ca8ef894264176297a59b65b6db6f1d28c9af3900035373b01f002443295bcd2c70968665f206790e4eadd4a601a3639c5da6bb719a3
-  languageName: node
-  linkType: hard
-
-"starknet@npm:^7.4.0":
-  version: 7.4.0
-  resolution: "starknet@npm:7.4.0"
-  dependencies:
-    "@noble/curves": "npm:1.7.0"
-    "@noble/hashes": "npm:1.6.0"
-    "@scure/base": "npm:1.2.1"
-    "@scure/starknet": "npm:1.1.0"
-    abi-wan-kanabi: "npm:2.2.4"
-    lossless-json: "npm:^4.0.1"
-    pako: "npm:^2.0.4"
-    starknet-types-07: "npm:@starknet-io/types-js@~0.7.10"
-    starknet-types-08: "npm:@starknet-io/types-js@~0.8.3"
-    ts-mixer: "npm:^6.0.3"
-  checksum: 10/2199ec7b65123d4b865356ae22b3932bcad81b4470f56337f4834f103b1a9185a4b72169a5eaed85f5b0df18cbc2c860c9124deae7f510876aad4fe87f02f5b7
   languageName: node
   linkType: hard
 

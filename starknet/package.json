@@ -30,7 +30,7 @@
     "Starknet"
   ],
   "dependencies": {
-    "starknet": "^7.4.0"
+    "starknet": "6.23.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
