@@ -5,18 +5,23 @@ use tracing::{info, warn};
 use crate::transaction::{Transaction, TransactionUuid};
 
 use super::super::super::transaction::Precursor;
-use super::NonceAction;
 use super::NonceManagerState;
 use super::NonceResult;
 use super::NonceStatus;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NonceAction {
+    Noop,
+    Assign,
+}
 
 impl NonceManagerState {
     pub(crate) async fn validate_assigned_nonce(
         &self,
         tx: &Transaction,
     ) -> NonceResult<(NonceAction, Option<U256>)> {
-        use super::super::status::NonceStatus::{Committed, Freed, Taken};
-        use super::NonceAction::{Assign, Noop};
+        use NonceAction::{Assign, Noop};
+        use NonceStatus::{Committed, Freed, Taken};
 
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();

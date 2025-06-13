@@ -13,15 +13,11 @@ use super::db::NonceDb;
 use super::error::{NonceError, NonceResult};
 use super::status::NonceStatus;
 
+pub(crate) use validate::NonceAction;
+
 mod boundary;
 mod db;
 mod validate;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum NonceAction {
-    Noop,
-    Assign,
-}
 
 pub struct NonceManagerState {
     nonce_db: Arc<dyn NonceDb>,
@@ -47,8 +43,6 @@ impl NonceManagerState {
         tx_uuid: &TransactionUuid,
         nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        use NonceAction::{Assign, Noop};
-
         if let Some(nonce) = nonce {
             // If different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
