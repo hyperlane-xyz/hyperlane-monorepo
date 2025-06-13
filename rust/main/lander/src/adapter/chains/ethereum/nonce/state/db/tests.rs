@@ -7,14 +7,15 @@ use hyperlane_core::U256;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{Transaction, TransactionUuid};
 
-use crate::adapter::chains::ethereum::nonce::db::NonceDb;
-use crate::adapter::chains::ethereum::nonce::status::NonceStatus;
-use crate::adapter::chains::ethereum::nonce::NonceManagerState;
+use super::super::NonceDb;
+use super::super::NonceManagerState;
+use super::super::NonceStatus;
+
 #[tokio::test]
 async fn test_get_and_set_tracked_tx_uuid() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     let nonce = U256::from(1);
     let tx_uuid = TransactionUuid::random();
@@ -39,7 +40,7 @@ async fn test_get_and_set_tracked_tx_uuid() {
 async fn test_clear_tracked_tx_uuid() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     let nonce = U256::from(2);
     let tx_uuid = TransactionUuid::random();
@@ -57,7 +58,7 @@ async fn test_clear_tracked_tx_uuid() {
 async fn test_get_and_set_upper_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     // Default should be zero
     let upper = state.get_upper_nonce().await.unwrap();
@@ -80,7 +81,7 @@ async fn test_get_and_set_upper_nonce() {
 async fn test_get_finalized_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     // Default should be None
     let finalized = state.get_finalized_nonce().await.unwrap();
@@ -88,19 +89,13 @@ async fn test_get_finalized_nonce() {
 
     // Set and get
     let val = U256::from(5);
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &val)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&val).await.unwrap();
     let finalized = state.get_finalized_nonce().await.unwrap();
     assert_eq!(finalized, Some(val));
 
     // Overwrite
     let val2 = U256::from(8);
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &val2)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&val2).await.unwrap();
     let finalized = state.get_finalized_nonce().await.unwrap();
     assert_eq!(finalized, Some(val2));
 }
@@ -109,7 +104,7 @@ async fn test_get_finalized_nonce() {
 async fn test_get_boundary_nonces() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     // Both defaults
     let (finalized, upper) = state.get_boundary_nonces().await.unwrap();
@@ -119,14 +114,8 @@ async fn test_get_boundary_nonces() {
     // Set finalized and upper
     let finalized_val = U256::from(3);
     let upper_val = U256::from(7);
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &finalized_val)
-        .await
-        .unwrap();
-    nonce_db
-        .store_upper_nonce_by_signer_address(&address, &upper_val)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&finalized_val).await.unwrap();
+    state.set_upper_nonce(&upper_val).await.unwrap();
 
     let (finalized, upper) = state.get_boundary_nonces().await.unwrap();
     assert_eq!(finalized, Some(finalized_val));
@@ -139,7 +128,7 @@ async fn test_tracked_tx_uuid_multiple_nonces_and_addresses() {
     let address1 = Address::random();
     let address2 = Address::random();
     let state1 = NonceManagerState::new(nonce_db.clone(), tx_db.clone(), address1);
-    let state2 = NonceManagerState::new(nonce_db.clone(), tx_db, address2);
+    let state2 = NonceManagerState::new(nonce_db, tx_db, address2);
 
     let nonce1 = U256::from(100);
     let nonce2 = U256::from(200);
@@ -176,7 +165,7 @@ async fn test_tracked_tx_uuid_multiple_nonces_and_addresses() {
 async fn test_clear_tracked_tx_uuid_idempotency() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     let nonce = U256::from(300);
 
@@ -218,7 +207,7 @@ async fn test_set_upper_nonce_lower_than_existing() {
 async fn test_set_and_get_finalized_nonce_none_and_overwrite() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let state = NonceManagerState::new(nonce_db, tx_db, address);
 
     // Should be None initially
     assert_eq!(state.get_finalized_nonce().await.unwrap(), None);
@@ -226,15 +215,9 @@ async fn test_set_and_get_finalized_nonce_none_and_overwrite() {
     // Set and overwrite
     let val1 = U256::from(5);
     let val2 = U256::from(15);
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &val1)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&val1).await.unwrap();
     assert_eq!(state.get_finalized_nonce().await.unwrap(), Some(val1));
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &val2)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&val2).await.unwrap();
     assert_eq!(state.get_finalized_nonce().await.unwrap(), Some(val2));
 }
 
@@ -248,21 +231,15 @@ async fn test_get_boundary_nonces_with_only_one_set() {
     let upper_val = U256::from(13);
 
     // Only finalized set
-    nonce_db
-        .store_finalized_nonce_by_signer_address(&address, &finalized_val)
-        .await
-        .unwrap();
+    state.set_finalized_nonce(&finalized_val).await.unwrap();
     let (finalized, upper) = state.get_boundary_nonces().await.unwrap();
     assert_eq!(finalized, Some(finalized_val));
     assert_eq!(upper, U256::zero());
 
     // Only upper set (clear finalized by using a new address)
     let address2 = Address::random();
-    let state2 = NonceManagerState::new(nonce_db.clone(), tx_db, address2);
-    nonce_db
-        .store_upper_nonce_by_signer_address(&address2, &upper_val)
-        .await
-        .unwrap();
+    let state2 = NonceManagerState::new(nonce_db, tx_db, address2);
+    state2.set_upper_nonce(&upper_val).await.unwrap();
     let (finalized, upper) = state2.get_boundary_nonces().await.unwrap();
     assert_eq!(finalized, None);
     assert_eq!(upper, upper_val);

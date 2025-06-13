@@ -54,6 +54,14 @@ impl NonceManagerState {
         Ok(tx_uuid)
     }
 
+    pub(super) async fn set_finalized_nonce(&self, nonce: &U256) -> NonceResult<()> {
+        self.nonce_db
+            .store_finalized_nonce_by_signer_address(&self.address, nonce)
+            .await?;
+
+        Ok(())
+    }
+
     pub(super) async fn get_finalized_nonce(&self) -> NonceResult<Option<U256>> {
         let finalized_nonce = self
             .nonce_db
