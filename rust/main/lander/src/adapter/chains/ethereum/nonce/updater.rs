@@ -78,3 +78,6 @@ impl NonceUpdater {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

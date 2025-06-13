@@ -33,6 +33,17 @@ async fn test_update_boundary_nonces_sets_finalized_and_upper_when_upper_missing
 
     assert_eq!(stored_finalized, Some(finalized));
     assert_eq!(stored_upper, finalized + 1);
+
+    // Check metrics
+    let domain = (*DOMAIN).name().to_owned();
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized + 1).as_u64()
+    );
 }
 
 #[tokio::test]
@@ -62,6 +73,17 @@ async fn test_update_boundary_nonces_does_not_update_upper_when_finalized_below_
 
     assert_eq!(stored_finalized, Some(finalized));
     assert_eq!(stored_upper, upper);
+
+    // Check metrics
+    let domain = (*DOMAIN).name().to_owned();
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        upper.as_u64()
+    );
 }
 
 #[tokio::test]
@@ -91,6 +113,17 @@ async fn test_update_boundary_nonces_updates_upper_when_finalized_equals_upper()
 
     assert_eq!(stored_finalized, Some(finalized));
     assert_eq!(stored_upper, finalized + 1);
+
+    // Check metrics
+    let domain = (*DOMAIN).name().to_owned();
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized + 1).as_u64()
+    );
 }
 
 #[tokio::test]
@@ -120,6 +153,17 @@ async fn test_update_boundary_nonces_updates_upper_when_finalized_above_upper() 
 
     assert_eq!(stored_finalized, Some(finalized));
     assert_eq!(stored_upper, finalized + 1);
+
+    // Check metrics
+    let domain = (*DOMAIN).name().to_owned();
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized + 1).as_u64()
+    );
 }
 
 #[tokio::test]
@@ -151,10 +195,23 @@ async fn test_update_boundary_nonces_finalized_decreases() {
     assert_eq!(stored_finalized, Some(finalized_low));
     // Upper should remain unchanged
     assert_eq!(stored_upper, upper);
+
+    // Check metrics
+    let domain = (*DOMAIN).name().to_owned();
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized_low.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        upper.as_u64()
+    );
 }
 
 #[tokio::test]
 async fn test_update_boundary_nonces_multiple_calls_and_idempotency() {
+    let domain = (*DOMAIN).name().to_owned();
+
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
@@ -175,13 +232,40 @@ async fn test_update_boundary_nonces_multiple_calls_and_idempotency() {
     assert_eq!(state.get_finalized_nonce().await.unwrap(), Some(finalized1));
     assert_eq!(state.get_upper_nonce().await.unwrap(), finalized1 + 1);
 
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized1.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized1 + 1).as_u64()
+    );
+
     // Second call with higher finalized, it should update both
     state.update_boundary_nonces(&finalized2).await.unwrap();
     assert_eq!(state.get_finalized_nonce().await.unwrap(), Some(finalized2));
     assert_eq!(state.get_upper_nonce().await.unwrap(), finalized2 + 1);
 
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized2.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized2 + 1).as_u64()
+    );
+
     // Third call with same finalized, it should not change upper
     state.update_boundary_nonces(&finalized3).await.unwrap();
     assert_eq!(state.get_finalized_nonce().await.unwrap(), Some(finalized3));
     assert_eq!(state.get_upper_nonce().await.unwrap(), finalized2 + 1);
+
+    assert_eq!(
+        state.metrics.get_finalized_nonce(&domain) as u64,
+        finalized3.as_u64()
+    );
+    assert_eq!(
+        state.metrics.get_upper_nonce(&domain) as u64,
+        (finalized3 + 1).as_u64()
+    );
 }
