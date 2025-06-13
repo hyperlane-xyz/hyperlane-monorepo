@@ -80,7 +80,7 @@ impl EthereumAdapter {
 
     async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         if tx.precursor().tx.gas().is_none() {
-            self.estimate_tx(tx, true).await?;
+            self.estimate_tx(tx).await?;
         }
         Ok(())
     }
@@ -147,12 +147,8 @@ impl AdaptsChain for EthereumAdapter {
         todo!()
     }
 
-    async fn estimate_tx(
-        &self,
-        tx: &mut Transaction,
-        skip_if_already_estimated: bool,
-    ) -> Result<(), LanderError> {
-        if skip_if_already_estimated && tx.precursor().tx.gas().is_some() {
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        if tx.precursor().tx.gas().is_some() {
             debug!(
                 ?tx,
                 "skipping gas limit estimation for transaction, as it was already estimated"

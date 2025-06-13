@@ -318,11 +318,7 @@ impl AdaptsChain for SealevelAdapter {
         Ok(success)
     }
 
-    async fn estimate_tx(
-        &self,
-        tx: &mut Transaction,
-        _skip_if_already_estimated: bool,
-    ) -> Result<(), LanderError> {
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use EstimateFreshnessCache::{Fresh, Stale};
 
         info!(?tx, "estimating transaction");

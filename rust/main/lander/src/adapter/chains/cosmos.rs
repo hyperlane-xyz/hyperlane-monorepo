@@ -42,11 +42,7 @@ impl AdaptsChain for CosmosAdapter {
         todo!()
     }
 
-    async fn estimate_tx(
-        &self,
-        _tx: &mut Transaction,
-        _skip_if_already_estimated: bool,
-    ) -> std::result::Result<(), LanderError> {
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> std::result::Result<(), LanderError> {
         todo!()
     }
 

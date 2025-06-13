@@ -46,12 +46,8 @@ pub trait AdaptsChain: Send + Sync {
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError>;
 
     /// Estimates a Transaction's gas limit. Called in the Inclusion Stage (PayloadDispatcher)
-    /// Optionally skips estimation if the Transaction has already been estimated
-    async fn estimate_tx(
-        &self,
-        tx: &mut Transaction,
-        skip_if_already_estimated: bool,
-    ) -> Result<(), LanderError>;
+    /// Skips estimation if the Transaction has already been estimated
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError>;
 
     /// Sets / escalates gas price, sets nonce / blockhash and broadcasts the Transaction. Even if broadcasting fails, the Transaction struct remains mutated with the new estimates. Called in the Inclusion Stage (PayloadDispatcher)
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError>;
