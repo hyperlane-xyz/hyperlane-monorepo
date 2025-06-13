@@ -77,6 +77,7 @@ export const warpCommand: CommandModule = {
 
 export const apply: CommandModuleWithWarpApplyContext<{
   config?: string;
+  actualConfig?: string;
   warp?: string;
   symbol?: string;
   warpRouteId?: string;
@@ -87,6 +88,12 @@ export const apply: CommandModuleWithWarpApplyContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
+    actualConfig: {
+      type: 'string',
+      description:
+        'A path to a warp route config file that was previously fetched with `warp read`. WARNING: This may result in incorrect updates if the file is stale.',
+      demandOption: false,
+    },
     warpRouteId: warpRouteIdCommandOption,
     warp: {
       ...warpCoreConfigCommandOption,
@@ -109,6 +116,7 @@ export const apply: CommandModuleWithWarpApplyContext<{
     strategy: strategyUrl,
     receiptsDir,
     warpRouteId,
+    actualConfig,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
@@ -120,6 +128,7 @@ export const apply: CommandModuleWithWarpApplyContext<{
       // Already fetched in the resolveWarpApplyChains
       warpDeployConfig: context.warpDeployConfig,
       warpCoreConfig: context.warpCoreConfig,
+      actualWarpDeployConfigPath: actualConfig,
       strategyUrl,
       receiptsDir,
       warpRouteId,

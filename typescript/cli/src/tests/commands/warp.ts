@@ -121,11 +121,13 @@ export async function hyperlaneWarpApply(
 
 export function hyperlaneWarpApplyRaw({
   warpDeployPath,
+  actualConfigPath,
   warpCorePath,
   strategyUrl,
   warpRouteId,
 }: {
   warpDeployPath?: string;
+  actualConfigPath?: string;
   warpCorePath?: string;
   strategyUrl?: string;
   warpRouteId?: string;
@@ -133,6 +135,7 @@ export function hyperlaneWarpApplyRaw({
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${actualConfigPath ? ['--actualConfig', actualConfigPath] : ''} \
         ${warpCorePath ? ['--warp', warpCorePath] : ''} \
         ${strategyUrl ? ['--strategy', strategyUrl] : ''} \
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''} \
