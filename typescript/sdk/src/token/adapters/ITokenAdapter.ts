@@ -14,6 +14,7 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   interchainGas?: InterchainGasQuote;
+  customHook?: Address;
 }
 
 export interface InterchainGasQuote {
@@ -53,6 +54,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(
     destination: Domain,
     sender?: Address,
+    customHook?: Address,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
