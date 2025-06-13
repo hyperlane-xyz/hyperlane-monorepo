@@ -283,7 +283,7 @@ fn configure_multisig_ism_message_id(
     // TODO: Make this dynamic based on the size of the instructions.
     const CHUNK_SIZE: usize = 5;
 
-    // Process instructions in pairs
+    // Process instructions in chunks
     for chunk in ism_update_instructions.chunks(CHUNK_SIZE) {
         let mut txn = ctx.new_txn();
 
