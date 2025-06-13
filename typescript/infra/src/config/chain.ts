@@ -20,6 +20,15 @@ import { getSecretRpcEndpoints } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';
 
+// Separate list of chains that we want to keep updated operationally but
+// skip in regular check-deploy as they require manual updates via
+// legacy ICAs.
+export const chainsToSkipCheckDeploy: ChainName[] = [
+  'conflux',
+  'viction',
+  'ontology',
+];
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
@@ -46,11 +55,6 @@ export const chainsToSkip: ChainName[] = [
   'carrchaintestnet',
   'infinityvmmonza',
   'rometestnet',
-
-  // mainnet ica v2
-  'conflux',
-  'viction',
-  'ontology',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
