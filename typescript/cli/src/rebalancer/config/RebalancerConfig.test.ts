@@ -60,7 +60,7 @@ describe('RebalancerConfig', () => {
   it('should load config from file', () => {
     expect(RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.deep.equal({
       warpRouteId: 'warpRouteId',
-      strategy: {
+      strategyConfig: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
           chain1: {
@@ -68,14 +68,16 @@ describe('RebalancerConfig', () => {
               weight: 100n,
               tolerance: 0n,
             },
-            chain2: {
-              weighted: {
-                weight: 100n,
-                tolerance: 0n,
-              },
-              bridge: ethers.constants.AddressZero,
-              bridgeLockTime: 1_000,
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1_000,
+          },
+          chain2: {
+            weighted: {
+              weight: 100n,
+              tolerance: 0n,
             },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1_000,
           },
         },
       },
@@ -104,23 +106,31 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load relative params without modifications', () => {
-    data.strategy.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
-    delete data.strategy.chains.chain1.weighted;
-    delete data.strategy.chains.chain2.weighted;
-
-    const minAmount = {
-      min: '0.2',
-      target: 0.3,
-      type: RebalancerMinAmountType.Relative,
-    };
-
-    data.strategy.chains.chain1 = {
-      ...data.strategy.chains.chain1,
-      minAmount,
-    };
-    data.strategy.chains.chain2 = {
-      ...data.strategy.chains.chain2,
-      minAmount,
+    data = {
+      warpRouteId: 'warpRouteId',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+        chains: {
+          chain1: {
+            minAmount: {
+              min: '0.2',
+              target: 0.3,
+              type: RebalancerMinAmountType.Relative,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          chain2: {
+            minAmount: {
+              min: '0.2',
+              target: 0.3,
+              type: RebalancerMinAmountType.Relative,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+        },
+      },
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
@@ -135,23 +145,31 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load absolute params without modifications', () => {
-    data.strategy.rebalanceStrategy = RebalancerStrategyOptions.MinAmount;
-    delete data.strategy.chains.chain1.weighted;
-    delete data.strategy.chains.chain2.weighted;
-
-    const minAmount = {
-      min: '100000',
-      target: 140000,
-      type: RebalancerMinAmountType.Absolute,
-    };
-
-    data.strategy.chains.chain1 = {
-      ...data.strategy.chains.chain1,
-      minAmount,
-    };
-    data.strategy.chains.chain2 = {
-      ...data.strategy.chains.chain2,
-      minAmount,
+    data = {
+      warpRouteId: 'warpRouteId',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+        chains: {
+          chain1: {
+            minAmount: {
+              min: '100000',
+              target: 140000,
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+          chain2: {
+            minAmount: {
+              min: '100000',
+              target: 140000,
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: ethers.constants.AddressZero,
+            bridgeLockTime: 1,
+          },
+        },
+      },
     };
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
