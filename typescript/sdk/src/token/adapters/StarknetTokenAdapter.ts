@@ -1,11 +1,19 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
+import {
+  CairoOption,
+  CairoOptionVariant,
+  Call,
+  Contract,
+  cairo,
+  num,
+} from 'starknet';
 
 import {
   Address,
   Domain,
   Numberish,
   ProtocolType,
+  addressToBytes,
   assert,
 } from '@hyperlane-xyz/utils';
 
@@ -107,9 +115,13 @@ export class StarknetHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
+    const recipientBigInt = new DataView(
+      addressToBytes(recipient).buffer,
+      0,
+    ).getBigUint64(0, true);
     const transferTx = this.contract.populateTransaction.transfer_remote(
       destination,
-      recipient,
+      cairo.uint256(recipientBigInt),
       BigInt(weiAmountOrId.toString()),
       0n,
       nonOption,
