@@ -594,6 +594,8 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
+export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
@@ -617,7 +619,8 @@ export {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
-  TOKEN_TYPE_TO_STANDARD,
+  TOKEN_TYPE_TO_EVM_STANDARD,
+  tokenTypeToStandard,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -664,6 +667,7 @@ export {
   XERC20TokenMetadata,
 } from './token/types.js';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export { CosmosNativeDeployer } from './token/cosmosnativeDeploy.js';
 export {
   ChainMap,
   ProtocolMap,
