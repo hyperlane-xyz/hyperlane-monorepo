@@ -5,7 +5,7 @@ use hyperlane_core::{
 };
 use starknet::core::types::{BlockId, EventFilter, Felt};
 use starknet::core::utils::get_selector_from_name;
-use starknet::providers::{JsonRpcClient, Provider};
+use starknet::providers::Provider;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use tracing::instrument;
@@ -14,8 +14,8 @@ use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
 use crate::types::HyH256;
 use crate::{
-    get_block_height_u32, try_parse_hyperlane_message_from_event, ConnectionConf,
-    FallbackHttpTransport, HyperlaneStarknetError, JsonProvider,
+    build_json_provider, get_block_height_u32, try_parse_hyperlane_message_from_event,
+    ConnectionConf, HyperlaneStarknetError, JsonProvider,
 };
 
 const CHUNK_SIZE: u64 = 50;
@@ -34,7 +34,7 @@ impl StarknetMailboxIndexer {
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(conf.urls.clone()));
+        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMailboxReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,
@@ -147,7 +147,7 @@ impl StarknetMerkleTreeHookIndexer {
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(conf.urls.clone()));
+        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMerkleTreeHookReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,

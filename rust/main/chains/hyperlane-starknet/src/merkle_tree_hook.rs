@@ -32,7 +32,7 @@ pub struct StarknetMerkleTreeHook {
 impl StarknetMerkleTreeHook {
     /// Create a reference to a merkle tree hook at a specific Starknet address on some
     /// chain
-    pub async fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let hook_address: Felt = HyH256(locator.address).into();
         let contract = MerkleTreeHookReader::new(hook_address, provider);

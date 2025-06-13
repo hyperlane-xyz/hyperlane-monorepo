@@ -73,7 +73,7 @@ pub async fn build_single_owner_account(
     rpc_urls: Vec<Url>,
     signer: Option<Signer>,
 ) -> ChainResult<SingleOwnerAccount<JsonProvider, LocalWallet>> {
-    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls.clone()));
+    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls));
 
     let chain_id = rpc_client.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")

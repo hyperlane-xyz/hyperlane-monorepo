@@ -407,7 +407,7 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator).await?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -874,9 +874,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(
-                    h_starknet::StarknetInterchainSecurityModule::new(conf, &locator).await?,
-                );
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    conf, &locator,
+                )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -923,7 +923,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator).await?);
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -965,7 +965,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator).await?);
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1010,7 +1010,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator).await?);
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator)?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
