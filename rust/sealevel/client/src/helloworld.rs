@@ -100,7 +100,7 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
             return;
         }
 
-        let domain_id = chain_metadata.domain_id();
+        let domain_id = chain_metadata.domain_id;
         let mailbox = app_config
             .router_config()
             .connection_client

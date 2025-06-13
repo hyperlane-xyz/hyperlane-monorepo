@@ -239,7 +239,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             return;
         }
 
-        let domain_id = chain_metadata.domain_id();
+        let domain_id = chain_metadata.domain_id;
 
         // TODO: consider pulling the setting of defaults into router.rs,
         // and possibly have a more distinct connection client abstraction.
@@ -499,7 +499,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .get(*chain_name)
                 .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-            let domain_id = chain_metadata.domain_id();
+            let domain_id = chain_metadata.domain_id;
             let program_id: Pubkey =
                 Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
@@ -512,7 +512,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 // filter out local chain
                 .filter(|(dest_chain_name, _)| dest_chain_name != chain_name)
                 .map(|(dest_chain_name, app_config)| {
-                    let domain = chain_metadatas.get(dest_chain_name).unwrap().domain_id();
+                    let domain = chain_metadatas.get(dest_chain_name).unwrap().domain_id;
                     (
                         domain,
                         GasRouterConfig {
