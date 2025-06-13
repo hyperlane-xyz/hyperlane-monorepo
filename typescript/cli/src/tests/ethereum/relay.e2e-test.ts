@@ -1,6 +1,6 @@
 import { TokenType } from '@hyperlane-xyz/sdk';
 
-import { writeYamlOrJson } from '../utils/files.js';
+import { writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './commands/core.js';
 import {

@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, normalizeAddress } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 import { hyperlaneCoreInit } from '../commands/core.js';
 import {
   ANVIL_KEY,

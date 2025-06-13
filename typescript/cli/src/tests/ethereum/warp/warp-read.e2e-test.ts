@@ -5,7 +5,7 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,

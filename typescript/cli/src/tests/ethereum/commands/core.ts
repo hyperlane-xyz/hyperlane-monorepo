@@ -3,7 +3,7 @@ import { $, ProcessPromise } from 'zx';
 import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 
 import { ANVIL_KEY, REGISTRY_PATH, localTestRunCmdPrefix } from './helpers.js';
 
