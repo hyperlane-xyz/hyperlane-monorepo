@@ -12,7 +12,6 @@ use hyperlane_warp_route::TokenMessage;
 
 const WARP_ROUTE_MARKER: &str = "/";
 
-/// Application operation verifier for Cosmos
 #[derive(new)]
 pub struct KaspaApplicationOperationVerifier {}
 
@@ -26,7 +25,7 @@ impl ApplicationOperationVerifier for KaspaApplicationOperationVerifier {
         trace!(
             ?app_context,
             ?message,
-            "Cosmos application operation verifier",
+            "Kaspa application operation verifier",
         );
 
         Self::verify_message(app_context, message)

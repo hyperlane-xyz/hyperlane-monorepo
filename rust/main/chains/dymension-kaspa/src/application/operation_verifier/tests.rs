@@ -4,7 +4,7 @@ use hyperlane_operation_verifier::ApplicationOperationVerifierReport::{
 };
 use hyperlane_warp_route::TokenMessage;
 
-use crate::application::CosmosApplicationOperationVerifier;
+use crate::application::KaspaApplicationOperationVerifier;
 
 #[test]
 fn test_app_context_empty() {
@@ -13,7 +13,7 @@ fn test_app_context_empty() {
     let message = HyperlaneMessage::default();
 
     // when
-    let report = CosmosApplicationOperationVerifier::verify_message(&app_context, &message);
+    let report = KaspaApplicationOperationVerifier::verify_message(&app_context, &message);
 
     // then
     assert!(report.is_none());
@@ -26,7 +26,7 @@ fn test_app_context_not_warp_route() {
     let message = HyperlaneMessage::default();
 
     // when
-    let report = CosmosApplicationOperationVerifier::verify_message(&app_context, &message);
+    let report = KaspaApplicationOperationVerifier::verify_message(&app_context, &message);
 
     // then
     assert!(report.is_none());
@@ -39,7 +39,7 @@ fn test_message_is_not_token_message() {
     let message = HyperlaneMessage::default();
 
     // when
-    let report = CosmosApplicationOperationVerifier::verify_message(&app_context, &message);
+    let report = KaspaApplicationOperationVerifier::verify_message(&app_context, &message);
 
     // then
     assert_eq!(report.unwrap(), MalformedMessage(message));
@@ -57,7 +57,7 @@ fn test_token_message_with_zero_amount() {
     };
 
     // when
-    let report = CosmosApplicationOperationVerifier::verify_message(&app_context, &message);
+    let report = KaspaApplicationOperationVerifier::verify_message(&app_context, &message);
 
     // then
     assert_eq!(report.unwrap(), ZeroAmount);
@@ -75,7 +75,7 @@ fn test_token_message_with_positive_amount() {
     };
 
     // when
-    let report = CosmosApplicationOperationVerifier::verify_message(&app_context, &message);
+    let report = KaspaApplicationOperationVerifier::verify_message(&app_context, &message);
 
     // then
     assert!(report.is_none());

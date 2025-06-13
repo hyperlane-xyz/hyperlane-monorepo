@@ -49,6 +49,15 @@ pub enum SignerConf {
         /// Whether the Starknet signer is legacy
         is_legacy: bool,
     },
+    /// Kaspa Specific key
+    KaspaKey {
+        /// Private key value
+        key: H256,
+        /// Prefix for kaspa address
+        prefix: String,
+        /// Account address type for kaspa address
+        account_address_type: AccountAddressType,
+    },
     /// Assume node will sign on RPC calls
     #[default]
     Node,
@@ -106,6 +115,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
+            SignerConf::KaspaKey { .. } => {
+                bail!("kaspaKey signer is not supported by Ethereum")
+            }
         })
     }
 }
@@ -228,6 +240,27 @@ impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
     }
 }
 
+
+#[async_trait]
+impl BuildableWithSignerConf for dymension_kaspa::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::KaspaKey {
+            key,
+            prefix,
+            account_address_type,
+        } = conf
+        {
+            Ok(dymension_kaspa::Signer::new(
+                key.as_bytes().to_vec(),
+                prefix.clone(),
+                account_address_type,
+            )?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by cosmos"));
+        }
+    }
+}
+
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
         self.address.to_string()
@@ -239,6 +272,15 @@ impl ChainSigner for hyperlane_starknet::Signer {
 }
 
 impl ChainSigner for hyperlane_cosmos_native::Signer {
+    fn address_string(&self) -> String {
+        self.address_string.clone()
+    }
+    fn address_h256(&self) -> H256 {
+        self.address_h256()
+    }
+}
+
+impl ChainSigner for dymension_kaspa::Signer {
     fn address_string(&self) -> String {
         self.address_string.clone()
     }

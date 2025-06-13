@@ -41,6 +41,7 @@ impl AdapterFactory {
             }
             ChainConnectionConf::Starknet(_) => todo!(),
             ChainConnectionConf::CosmosNative(_) => todo!(),
+            ChainConnectionConf::Kaspa(_) => todo!(),
         };
 
         Ok(adapter)
