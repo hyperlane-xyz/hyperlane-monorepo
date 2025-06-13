@@ -22,7 +22,7 @@ export enum WarpRouteIds {
   EclipseSolanaEzSOL = 'EZSOL/eclipsemainnet-solanamainnet',
   EclipseSolanaORCA = 'ORCA/eclipsemainnet-solanamainnet',
   EclipseSolanaJitoSOL = 'jitoSOL/eclipsemainnet-solanamainnet',
-  EclipseSolanaKySOL = 'kySOL/eclipsemainnet-solanamainnet',
+  EclipseSolanaKySOL = 'kySOL/kyros',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
