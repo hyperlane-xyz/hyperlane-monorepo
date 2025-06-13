@@ -147,7 +147,7 @@ export const deploy: CommandModuleWithWarpDeployContext<{
     },
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, dryRun, warpRouteId }) => {
+  handler: async ({ context, dryRun, warpRouteId, config }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -158,6 +158,7 @@ export const deploy: CommandModuleWithWarpDeployContext<{
         // Already fetched in the resolveWarpRouteConfigChains
         warpDeployConfig: context.warpDeployConfig,
         warpRouteId,
+        warpDeployConfigFileName: config,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

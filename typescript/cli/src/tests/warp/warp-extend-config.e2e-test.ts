@@ -22,6 +22,7 @@ import {
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
+  WARP_DEPLOY_2_ID,
   deployOrUseExistingCore,
   extendWarpConfig,
   getDomainId,
@@ -35,15 +36,13 @@ import {
 describe('hyperlane warp apply config extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
 
   before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
-    chain2Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
+    [, chain3Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
     // Create a new warp config using the example
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
@@ -54,7 +53,7 @@ describe('hyperlane warp apply config extension tests', async function () {
   });
 
   beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
   });
 
   it('should update destination gas configuration', async () => {
@@ -63,7 +62,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -97,7 +96,12 @@ describe('hyperlane warp apply config extension tests', async function () {
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Apply the changes
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(
+      warpDeployPath,
+      WARP_CORE_CONFIG_PATH_2,
+      undefined,
+      WARP_DEPLOY_2_ID,
+    );
 
     // Read back the config to verify changes
     const updatedConfig = await readWarpConfig(
@@ -118,7 +122,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -155,7 +159,12 @@ describe('hyperlane warp apply config extension tests', async function () {
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Apply the changes
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(
+      warpDeployPath,
+      WARP_CORE_CONFIG_PATH_2,
+      undefined,
+      WARP_DEPLOY_2_ID,
+    );
 
     // Read back the config to verify changes
     const updatedConfig = await readWarpConfig(
@@ -184,7 +193,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     // Extend with new config for chain 3
     const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
+      mailbox: chain3Addresses!.mailbox,
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
@@ -196,7 +205,12 @@ describe('hyperlane warp apply config extension tests', async function () {
     delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
     delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(
+      warpDeployPath,
+      WARP_CORE_CONFIG_PATH_2,
+      undefined,
+      WARP_DEPLOY_2_ID,
+    );
 
     const updatedConfig: WarpRouteDeployConfig = readYamlOrJson(warpDeployPath);
 

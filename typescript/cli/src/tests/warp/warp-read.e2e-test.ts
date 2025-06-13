@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
+import fs from 'fs';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
@@ -13,10 +14,13 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
+  REGISTRY_PATH,
+  TEMP_PATH,
   TestPromptAction,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
+  WARP_DEPLOY_2_ID,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   handlePrompts,
@@ -57,6 +61,14 @@ describe('hyperlane warp read e2e tests', async function () {
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
   });
 
+  beforeEach(() => {
+    const deploymentPaths = `${REGISTRY_PATH}/deployments/warp_routes`;
+
+    if (fs.existsSync(deploymentPaths)) {
+      fs.rmSync(deploymentPaths, { recursive: true, force: true });
+    }
+  });
+
   describe('hyperlane warp read --config ...', () => {
     it('should exit early if no symbol or no chain and address', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
@@ -94,6 +106,8 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --symbol ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
+      const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
+
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.synthetic,
@@ -121,7 +135,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
       const output = hyperlaneWarpReadRaw({
         symbol: 'ETH',
-        outputPath: WARP_DEPLOY_OUTPUT_PATH,
+        outputPath: readOutputPath,
       })
         .stdio('pipe')
         .nothrow();
@@ -130,9 +144,8 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const warpReadResult: WarpRouteDeployConfig = readYamlOrJson(
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
+      const warpReadResult: WarpRouteDeployConfig =
+        readYamlOrJson(readOutputPath);
       expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.synthetic);
 
@@ -143,7 +156,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --chain ... --config ...', () => {
     it('should be able to read a warp route', async function () {
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
 
       const warpReadResult: WarpRouteDeployConfig = await readWarpConfig(
         CHAIN_NAME_2,
