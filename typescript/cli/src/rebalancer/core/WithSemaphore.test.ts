@@ -1,6 +1,9 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { ethers } from 'ethers';
 import Sinon from 'sinon';
+
+import { RebalancerStrategyOptions } from '@hyperlane-xyz/sdk';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -16,15 +19,33 @@ class MockRebalancer implements IRebalancer {
   }
 }
 
-describe('WithSemaphore', () => {
-  it('should call the underlying rebalancer', async () => {
-    const config = {
+function buildTestConfig(
+  overrides: Partial<RebalancerConfig> = {},
+): RebalancerConfig {
+  return {
+    warpRouteId: 'test-route',
+    strategyConfig: {
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         chain1: {
           bridgeLockTime: 1,
+          bridge: ethers.constants.AddressZero,
+          weighted: {
+            weight: BigInt(1),
+            tolerance: BigInt(0),
+          },
         },
+        ...(overrides.strategyConfig?.chains ?? {}),
       },
-    } as any as RebalancerConfig;
+      ...overrides.strategyConfig,
+    },
+    ...overrides,
+  };
+}
+
+describe('WithSemaphore', () => {
+  it('should call the underlying rebalancer', async () => {
+    const config = buildTestConfig();
 
     const routes = [
       {
@@ -42,13 +63,7 @@ describe('WithSemaphore', () => {
   });
 
   it('should return early if there are no routes', async () => {
-    const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
-        },
-      },
-    } as any as RebalancerConfig;
+    const config = buildTestConfig();
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
@@ -59,13 +74,7 @@ describe('WithSemaphore', () => {
   });
 
   it('should return early if rebalance occurs before waitUntil is reached', async () => {
-    const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
-        },
-      },
-    } as any as RebalancerConfig;
+    const config = buildTestConfig();
 
     const routes = [
       {
@@ -88,9 +97,12 @@ describe('WithSemaphore', () => {
   });
 
   it('should throw if a chain is missing', async () => {
-    const config = {
-      chains: {},
-    } as any as RebalancerConfig;
+    const config = buildTestConfig({
+      strategyConfig: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {},
+      },
+    });
 
     const routes = [
       {
@@ -107,13 +119,7 @@ describe('WithSemaphore', () => {
   });
 
   it('should not execute if another rebalance is currently executing', async () => {
-    const config = {
-      chains: {
-        chain1: {
-          bridgeLockTime: 1,
-        },
-      },
-    } as any as RebalancerConfig;
+    const config = buildTestConfig();
 
     const routes = [
       {

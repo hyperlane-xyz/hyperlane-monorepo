@@ -128,13 +128,12 @@ export class RebalancerContextFactory {
     rebalancerLogger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        strategyType: this.config.rebalanceStrategy,
+        strategyType: this.config.strategyConfig.rebalanceStrategy,
       },
       'Creating Strategy',
     );
     return StrategyFactory.createStrategy(
-      this.config.rebalanceStrategy,
-      this.config.chains,
+      this.config.strategyConfig,
       this.tokensByChainName,
       await this.getInitialTotalCollateral(),
       metrics,
@@ -147,7 +146,7 @@ export class RebalancerContextFactory {
       'Creating Rebalancer',
     );
     const rebalancer = new Rebalancer(
-      objMap(this.config.chains, (_, v) => ({
+      objMap(this.config.strategyConfig.chains, (_, v) => ({
         bridge: v.bridge,
         bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
         bridgeIsWarp: v.bridgeIsWarp ?? false,
@@ -165,20 +164,21 @@ export class RebalancerContextFactory {
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
-    const chainNames = new Set(Object.keys(this.config.chains));
+    const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
 
-    for (const token of this.warpCore.tokens) {
-      if (
-        isCollateralizedTokenEligibleForRebalancing(token) &&
-        token.collateralAddressOrDenom &&
-        chainNames.has(token.chainName)
-      ) {
-        const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-        const bridgedSupply = await adapter.getBridgedSupply();
-
-        initialTotalCollateral += bridgedSupply ?? 0n;
-      }
-    }
+    await Promise.all(
+      this.warpCore.tokens.map(async (token) => {
+        if (
+          isCollateralizedTokenEligibleForRebalancing(token) &&
+          token.collateralAddressOrDenom &&
+          chainNames.has(token.chainName)
+        ) {
+          const adapter = token.getHypAdapter(this.warpCore.multiProvider);
+          const bridgedSupply = await adapter.getBridgedSupply();
+          initialTotalCollateral += bridgedSupply ?? 0n;
+        }
+      }),
+    );
 
     return initialTotalCollateral;
   }

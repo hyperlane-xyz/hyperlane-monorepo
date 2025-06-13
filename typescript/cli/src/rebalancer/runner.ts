@@ -208,7 +208,7 @@ export class RebalancerRunner {
     }
 
     const rawBalances = getRawBalances(
-      Object.keys(this.rebalancerConfig.chains),
+      Object.keys(this.rebalancerConfig.strategyConfig.chains),
       event,
     );
 

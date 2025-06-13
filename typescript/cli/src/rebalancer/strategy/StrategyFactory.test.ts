@@ -3,21 +3,18 @@ import { ethers } from 'ethers';
 
 import {
   type ChainMap,
+  MinAmountStrategyConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  StrategyConfig,
   Token,
   TokenStandard,
+  WeightedStrategyConfig,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  MinAmountStrategy,
-  type MinAmountStrategyConfig,
-} from './MinAmountStrategy.js';
+import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
-import {
-  WeightedStrategy,
-  type WeightedStrategyConfig,
-} from './WeightedStrategy.js';
+import { WeightedStrategy } from './WeightedStrategy.js';
 
 describe('StrategyFactory', () => {
   const chain1 = 'chain1';
@@ -56,9 +53,13 @@ describe('StrategyFactory', () => {
         },
       };
 
+      const strategyConfig: StrategyConfig = {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: config,
+      };
+
       const strategy = StrategyFactory.createStrategy(
-        RebalancerStrategyOptions.Weighted,
-        config,
+        strategyConfig,
         tokensByChainName,
         totalCollateral,
       );
@@ -87,9 +88,13 @@ describe('StrategyFactory', () => {
         },
       };
 
+      const strategyConfig: StrategyConfig = {
+        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+        chains: config,
+      };
+
       const strategy = StrategyFactory.createStrategy(
-        RebalancerStrategyOptions.MinAmount,
-        config,
+        strategyConfig,
         tokensByChainName,
         totalCollateral,
       );
