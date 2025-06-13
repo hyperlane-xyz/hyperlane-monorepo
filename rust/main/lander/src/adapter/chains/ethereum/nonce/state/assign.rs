@@ -12,9 +12,9 @@ impl NonceManagerState {
     pub(crate) async fn assign_next_nonce(
         &self,
         tx_uuid: &TransactionUuid,
-        nonce: &Option<U256>,
+        current_tx_nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        if let Some(nonce) = nonce {
+        if let Some(nonce) = current_tx_nonce {
             // If different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
             warn!(
