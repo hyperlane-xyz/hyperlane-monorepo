@@ -3292,6 +3292,8 @@ dependencies = [
  "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
+ "hyperlane-operation-verifier",
+ "hyperlane-warp-route",
  "itertools 0.10.5",
  "once_cell",
  "pin-project",

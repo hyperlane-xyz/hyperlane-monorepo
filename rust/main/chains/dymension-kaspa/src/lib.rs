@@ -13,6 +13,7 @@ mod providers;
 mod signers;
 mod trait_builder;
 mod validator_announce;
+pub mod application;
 
 use self::libs::*;
 pub use {
