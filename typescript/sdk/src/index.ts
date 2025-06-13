@@ -717,15 +717,12 @@ export {
   RebalancerWeightedChainConfigSchema,
   RebalancerMinAmountConfigSchema,
   RebalancerBaseChainConfigSchema,
-  RebalancerChainConfigSchema,
   RebalancerConfigSchema,
   StrategyConfigSchema,
 } from './rebalancer/types.js';
 export type {
   RebalancerWeightedChainConfig,
   RebalancerMinAmountChainConfig,
-  RebalancerChainConfig,
-  RebalancerChainConfigInput,
   RebalancerConfig,
   RebalancerConfigFileInput,
   StrategyConfig,

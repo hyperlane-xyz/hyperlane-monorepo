@@ -29,7 +29,7 @@ export const RebalancerMinAmountConfigSchema = z.object({
 });
 
 // Base chain config with common properties
-export const RebalancerBaseChainConfigSchema = z.object({
+const RebalancerBridgeConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
@@ -41,30 +41,21 @@ export const RebalancerBaseChainConfigSchema = z.object({
     .boolean()
     .optional()
     .describe('True if the bridge is another Warp Route'),
-  weighted: RebalancerWeightedChainConfigSchema.optional(),
-  minAmount: RebalancerMinAmountConfigSchema.optional(),
 });
 
-export const RebalancerChainConfigSchema =
-  RebalancerBaseChainConfigSchema.extend({
+export const RebalancerBaseChainConfigSchema =
+  RebalancerBridgeConfigSchema.extend({
     override: z
-      .record(
-        z.string(),
-        RebalancerBaseChainConfigSchema.omit({
-          weighted: true,
-          minAmount: true,
-        })
-          .partial()
-          .passthrough(),
-      )
+      .record(z.string(), RebalancerBridgeConfigSchema.partial().passthrough())
       .optional(),
   });
 
 // Schemas for strategy-specific chain configs
-const WeightedChainConfigSchema = RebalancerChainConfigSchema.extend({
+const WeightedChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   weighted: RebalancerWeightedChainConfigSchema,
 });
-const MinAmountChainConfigSchema = RebalancerChainConfigSchema.extend({
+
+const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
 });
 
@@ -97,9 +88,11 @@ export const RebalancerConfigSchema = z
   .superRefine((config, ctx) => {
     const chainNames = new Set(Object.keys(config.strategy.chains));
     // Check each chain's overrides
-    for (const [chainName, chain] of Object.entries(config.strategy.chains)) {
-      if (chain.override) {
-        for (const overrideChainName of Object.keys(chain.override)) {
+    for (const [chainName, chainConfig] of Object.entries(
+      config.strategy.chains,
+    )) {
+      if (chainConfig.override) {
+        for (const overrideChainName of Object.keys(chainConfig.override)) {
           // Each override key must reference a valid chain
           if (!chainNames.has(overrideChainName)) {
             ctx.addIssue({
@@ -155,12 +148,6 @@ export type RebalancerWeightedChainConfig = z.infer<
 >;
 export type RebalancerMinAmountChainConfig = z.infer<
   typeof RebalancerMinAmountConfigSchema
->;
-
-// Union type for all chain configs
-export type RebalancerChainConfig = z.infer<typeof RebalancerChainConfigSchema>;
-export type RebalancerChainConfigInput = z.input<
-  typeof RebalancerChainConfigSchema
 >;
 
 export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;
