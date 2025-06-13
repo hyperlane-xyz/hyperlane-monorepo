@@ -59,13 +59,13 @@ describe('readIsmConfig', () => {
 
   it('parsing failure, missing internal key "threshold"', () => {
     expect(function () {
-      readIsmConfig('src/tests/ism/safe-parse-fail.yaml');
+      readIsmConfig('src/tests/ethereum/ism/safe-parse-fail.yaml');
     }).to.throw();
   });
 
   it('parsing failure, routingIsm.domains includes destination domain', () => {
     expect(function () {
-      readIsmConfig('src/tests/ism/routing-same-chain-fail.yaml');
+      readIsmConfig('src/tests/ethereum/ism/routing-same-chain-fail.yaml');
     }).to.throw(
       'Cannot set RoutingIsm.domain to the same chain you are configuring',
     );
@@ -73,13 +73,15 @@ describe('readIsmConfig', () => {
 
   it('parsing failure, wrong ism type', () => {
     expect(function () {
-      readIsmConfig('src/tests/ism/wrong-ism-type-fail.yaml');
+      readIsmConfig('src/tests/ethereum/ism/wrong-ism-type-fail.yaml');
     }).to.throw('Invalid ISM config: anvil2 => Invalid input');
   });
 
   it('parsing failure, threshold > modules.length', () => {
     expect(function () {
-      readIsmConfig('src/tests/ism/threshold-gt-modules-length-fail.yaml');
+      readIsmConfig(
+        'src/tests/ethereum/ism/threshold-gt-modules-length-fail.yaml',
+      );
     }).to.throw(
       'Threshold must be less than or equal to the number of modules',
     );
