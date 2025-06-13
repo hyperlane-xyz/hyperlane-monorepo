@@ -19,6 +19,7 @@ export enum StarknetContractName {
   MAILBOX = 'mailbox',
   HYP_ERC20 = 'HypErc20',
   HYP_ERC20_COLLATERAL = 'HypErc20Collateral',
+  HYP_ERC20_DEX_COLLATERAL = 'HypErc20DexCollateral',
   HYP_NATIVE = 'HypNative',
   ETHER = 'Ether',
   MERKLE_TREE_HOOK = 'merkle_tree_hook',

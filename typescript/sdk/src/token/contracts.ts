@@ -36,6 +36,7 @@ export const hypERC20contracts = {
   [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
+  [TokenType.collateralDex]: 'HypErc20DexCollateral',
 } as const;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -54,6 +55,9 @@ export const hypERC20factories = {
   // assume V1 for now
   [TokenType.nativeOpL1]: new OpL1V1NativeTokenBridge__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
+  // use normal Collateral factory here for types since collateralDex
+  // does not exist on evm anyway
+  [TokenType.collateralDex]: new HypERC20Collateral__factory(),
 } as const;
 export type HypERC20Factories = typeof hypERC20factories;
 

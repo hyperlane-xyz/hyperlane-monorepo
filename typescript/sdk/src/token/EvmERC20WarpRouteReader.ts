@@ -109,6 +109,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
+      [TokenType.collateralDex]: null,
     };
 
     this.contractVerifier =

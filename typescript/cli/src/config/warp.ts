@@ -65,6 +65,7 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
+  [TokenType.collateralDex]: '',
 };
 
 const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
