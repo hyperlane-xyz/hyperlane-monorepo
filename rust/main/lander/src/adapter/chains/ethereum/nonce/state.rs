@@ -1,17 +1,12 @@
 use std::sync::Arc;
 
 use ethers_core::types::Address;
-use tracing::{error, info, warn};
 
 use hyperlane_core::U256;
 
-use crate::adapter::chains::ethereum::transaction::Precursor;
 use crate::dispatcher::TransactionDb;
-use crate::transaction::{Transaction, TransactionUuid};
 
 use super::db::NonceDb;
-use super::error::{NonceError, NonceResult};
-use super::status::NonceStatus;
 
 pub(crate) use validate::NonceAction;
 
@@ -39,3 +34,6 @@ impl NonceManagerState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -4,10 +4,9 @@ use hyperlane_core::U256;
 
 use crate::transaction::TransactionUuid;
 
-use super::NonceError;
+use super::super::error::{NonceError, NonceResult};
+use super::super::status::NonceStatus;
 use super::NonceManagerState;
-use super::NonceResult;
-use super::NonceStatus;
 
 impl NonceManagerState {
     pub(crate) async fn assign_next_nonce(

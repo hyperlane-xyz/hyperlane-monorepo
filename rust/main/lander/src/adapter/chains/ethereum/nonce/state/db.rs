@@ -2,8 +2,8 @@ use hyperlane_core::U256;
 
 use crate::transaction::{Transaction, TransactionUuid};
 
+use super::super::error::NonceResult;
 use super::super::NonceManagerState;
-use super::NonceResult;
 
 impl NonceManagerState {
     pub(super) async fn get_boundary_nonces(&self) -> NonceResult<(Option<U256>, U256)> {

@@ -5,9 +5,9 @@ use tracing::{info, warn};
 use crate::transaction::{Transaction, TransactionUuid};
 
 use super::super::super::transaction::Precursor;
+use super::super::error::NonceResult;
+use super::super::status::NonceStatus;
 use super::NonceManagerState;
-use super::NonceResult;
-use super::NonceStatus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {

@@ -2,37 +2,14 @@ use ethers_core::types::Address;
 
 use hyperlane_core::U256;
 
-use crate::adapter::EthereumTxPrecursor;
 use crate::tests::test_utils::tmp_dbs;
-use crate::transaction::{
-    DropReason, Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData,
-};
+use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
 
+use super::super::super::tests;
 use super::super::NonceManagerState;
 
-#[allow(deprecated)]
 fn make_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
-    use ethers_core::abi::Function;
-    let precursor = EthereumTxPrecursor {
-        tx: Default::default(),
-        function: Function {
-            name: "".to_string(),
-            inputs: vec![],
-            outputs: vec![],
-            constant: None,
-            state_mutability: Default::default(),
-        },
-    };
-    Transaction {
-        uuid,
-        tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm(precursor),
-        payload_details: vec![],
-        status,
-        submission_attempts: 0,
-        creation_timestamp: Default::default(),
-        last_submission_attempt: None,
-    }
+    tests::make_tx(uuid, status, None, None)
 }
 
 #[tokio::test]
