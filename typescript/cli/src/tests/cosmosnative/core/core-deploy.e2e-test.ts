@@ -71,7 +71,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
           check: (currentOutput: string) =>
             currentOutput.includes('--Mainnet Chains--'),
           // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
         },
         SETUP_CHAIN_SIGNER_MANUALLY_STEP,
         {
@@ -147,7 +147,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
           check: (currentOutput: string) =>
             currentOutput.includes('--Mainnet Chains--'),
           // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
         },
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts
@@ -202,7 +202,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
           check: (currentOutput: string) =>
             currentOutput.includes('--Mainnet Chains--'),
           // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}}${KeyBoardKeys.ENTER}`,
+          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
         },
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts

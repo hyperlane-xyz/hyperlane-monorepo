@@ -1,11 +1,6 @@
 import { ProcessOutput, ProcessPromise } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { inCIMode, sleep } from '@hyperlane-xyz/utils';
-
-import { getContext } from '../../../context/context.js';
-
-import { hyperlaneCoreDeploy } from './core.js';
 
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/hyp`;
@@ -99,29 +94,4 @@ export async function asyncStreamInputWrite(
   stream.write(data);
   // Adding a slight delay to allow the buffer to update the output
   await sleep(500);
-}
-
-/**
- * Deploys new core contracts on the specified chain if it doesn't already exist, and returns the chain addresses.
- */
-export async function deployOrUseExistingCore(
-  registryPath: string,
-  chain: string,
-  coreInputPath: string,
-  key: string,
-) {
-  const { registry } = await getContext({
-    registryUris: [registryPath],
-    key,
-  });
-  const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
-
-  console.log('deployOrUseExistingCore', addresses);
-
-  if (!addresses) {
-    await hyperlaneCoreDeploy(registryPath, key, chain, coreInputPath);
-    return deployOrUseExistingCore(registryPath, chain, coreInputPath, key);
-  }
-
-  return addresses;
 }

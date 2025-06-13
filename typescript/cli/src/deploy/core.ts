@@ -136,8 +136,6 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider, multiProtocolSigner } = context;
 
-  console.log('runCoreApply');
-
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
