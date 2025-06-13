@@ -15,6 +15,10 @@ mod signers;
 mod trait_builder;
 mod validator_announce;
 
+// Direct reexports of lib stuff:
+pub use validator::server_relayer::*;
+pub use relayer::client_validator::*;
+
 use self::libs::*;
 pub use {
     self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,

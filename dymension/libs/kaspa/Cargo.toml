@@ -14,7 +14,8 @@ members = [
 ]
 
 [workspace.dependencies]
-# eb71df4 is v1.0.0 commit
+
+# KASPA ( eb71df4 is v1.0.0 commit)
 kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
@@ -35,3 +36,6 @@ log = "0.4.20"
 faster-hex = "0.9.0"
 bip39 = "2.1.0"
 workflow-core = { version = "0.18.0" }
+
+# HYPERLANE
+axum = "0.8.4"

@@ -26,6 +26,7 @@ use hyperlane_core::{
     ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
+use dymension_kaspa::server_relayer::server;
 
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::server::{self as validator_server, merkle_tree_insertions};
@@ -215,6 +216,10 @@ impl BaseAgent for Validator {
                     self.db.clone(),
                 )
                 .router(),
+            )
+            .merge(
+                // TODO: config based
+                dymension_kaspa::server_relayer::server::router(),
             );
 
         let server = self
