@@ -1,5 +1,5 @@
+mod client;
 mod fallback;
-mod provider;
 
+pub use client::*;
 pub use fallback::*;
-pub use provider::*;

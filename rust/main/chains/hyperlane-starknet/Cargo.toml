@@ -23,7 +23,6 @@ tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
-reqwest.workspace = true
 
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

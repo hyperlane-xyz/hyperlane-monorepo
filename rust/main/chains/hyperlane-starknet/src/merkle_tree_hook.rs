@@ -69,7 +69,7 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
         let block_number =
-            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+            get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let (root, index) = self
             .contract
@@ -94,7 +94,7 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let block_number =
-            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+            get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let tree = self
             .contract
@@ -123,7 +123,7 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
     #[instrument(skip(self))]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let block_number =
-            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+            get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let count = self
             .contract

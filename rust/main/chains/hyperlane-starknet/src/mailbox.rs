@@ -87,7 +87,7 @@ impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let block_number =
-            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+            get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let nonce = self
             .contract
@@ -144,7 +144,7 @@ impl Mailbox for StarknetMailbox {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self.process_contract_call(message, metadata).await?;
-        send_and_confirm(&self.provider.rpc_client(), contract_call).await
+        send_and_confirm(self.provider.rpc_client(), contract_call).await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

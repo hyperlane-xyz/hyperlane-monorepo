@@ -10,7 +10,6 @@ use hyperlane_core::{
     rpc_clients::{BlockNumberGetter, FallbackProvider},
     ChainCommunicationError, ChainResult,
 };
-use reqwest::Url;
 use serde::{de::DeserializeOwned, Serialize};
 
 use starknet::providers::{
@@ -21,6 +20,7 @@ use starknet::providers::{
 };
 use tokio::time::sleep;
 use tracing::{trace, warn_span};
+use url::Url;
 
 use crate::HyperlaneStarknetError;
 

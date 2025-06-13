@@ -178,6 +178,6 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let contract_call = self.announce_contract_call(announcement).await?;
-        send_and_confirm(&self.provider.rpc_client(), contract_call).await
+        send_and_confirm(self.provider.rpc_client(), contract_call).await
     }
 }
