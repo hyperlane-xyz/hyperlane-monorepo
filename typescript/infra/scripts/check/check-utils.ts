@@ -19,14 +19,17 @@ import {
   hypERC20factories,
   proxiedFactories,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
 import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import {
+  chainsToSkip,
+  chainsToSkipCheckDeploy,
+} from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
@@ -142,6 +145,7 @@ export async function getGovernor(
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+    chainsToSkipCheckDeploy.forEach((chain) => delete routerConfig[chain]);
 
     const icaConfig = Object.entries(routerConfig).reduce<
       Record<string, InterchainAccountConfig>
@@ -164,6 +168,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(icaChecker);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+    chainsToSkipCheckDeploy.forEach((chain) => delete routerConfig[chain]);
 
     const icaConfig = Object.entries(routerConfig).reduce<
       Record<string, InterchainAccountConfig>
@@ -184,6 +189,7 @@ export async function getGovernor(
 
     const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
+    chainsToSkipCheckDeploy.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
       core,
