@@ -4,6 +4,14 @@ use super::super::error::NonceResult;
 use super::NonceManagerState;
 
 impl NonceManagerState {
+    /// Updates the boundary nonces based on the provided finalized nonce.
+    ///
+    /// Finalized nonce is the last known nonce that has been finalized on the chain, i.e.,
+    /// it is the number of transactions which were committed by the account.
+    ///
+    /// Upper nonce is the possible next nonce assuming that all the transactions in flight
+    /// will be committed. If there is tracked nonce which was assigned to a dropped transaction,
+    /// it will be used as the next nonce.
     pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) -> NonceResult<()> {
         self.set_finalized_nonce(nonce).await?;
 
