@@ -25,6 +25,20 @@ export const EventAssertionSchema = z.discriminatedUnion('type', [
 
 export type EventAssertion = z.infer<typeof EventAssertionSchema>;
 
+// Additional types can be added based on: https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L55
+export enum RevertAssertionType {
+  ESTIMATE_GAS = 'estimateGas',
+}
+export const RevertAssertionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(RevertAssertionType.ESTIMATE_GAS),
+    reason: z.string(),
+    annotation: z.string().optional(),
+  }),
+]);
+
+export type RevertAssertion = z.infer<typeof RevertAssertionSchema>;
+
 export enum TransactionDataType {
   RAW_CALLDATA = 'rawCalldata',
   SIGNATURE = 'signature',
@@ -50,6 +64,7 @@ export const ForkedChainTransactionConfigSchema = z.object({
   to: ZHash.optional(),
   timeSkip: z.number().optional(),
   eventAssertions: z.array(EventAssertionSchema).default([]),
+  revertAssertion: RevertAssertionSchema.optional(),
 });
 export type ForkedChainTransactionConfig = z.infer<
   typeof ForkedChainTransactionConfigSchema
