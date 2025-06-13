@@ -12,6 +12,7 @@ use super::super::super::super::EthereumTxPrecursor;
 use super::NonceAction;
 use super::NonceManagerState;
 
+#[allow(deprecated)]
 fn make_tx(
     uuid: TransactionUuid,
     status: TransactionStatus,
@@ -25,7 +26,6 @@ fn make_tx(
             name: "".to_string(),
             inputs: vec![],
             outputs: vec![],
-            #[allow(deprecated)]
             constant: None,
             state_mutability: Default::default(),
         },
