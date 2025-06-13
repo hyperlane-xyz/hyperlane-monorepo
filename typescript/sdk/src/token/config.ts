@@ -12,6 +12,7 @@ export enum TokenType {
   native = 'native',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  collateralDex = 'collateralDex',
 }
 
 export const gasOverhead = (tokenType: TokenType): number => {

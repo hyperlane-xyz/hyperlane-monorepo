@@ -30,6 +30,7 @@ export const hypERC20contracts = {
   [TokenType.native]: 'HypNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
+  [TokenType.collateralDex]: 'HypErc20DexCollateral',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -44,6 +45,9 @@ export const hypERC20factories = {
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
+  // use normal Collateral factory here for types since collateralDex
+  // does not exist on evm anyway
+  [TokenType.collateralDex]: new HypERC20Collateral__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
