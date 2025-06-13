@@ -1380,7 +1380,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     }
   });
 
-  describe.only('manual rebalance', () => {
+  describe('manual rebalance', () => {
     it('should successfully rebalance tokens between chains using a mock bridge', async () => {
       const wccTokens = warpCoreConfig.tokens;
 
