@@ -1,19 +1,15 @@
-use std::future::Future;
-use std::ops::Add;
 use std::sync::Arc;
 use std::time::Duration;
 
+use hyperlane_core::U256;
+use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
+
 use ethers_core::types::Address;
 use tokio::sync::Mutex;
-use tokio::time::{sleep, Instant};
-use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, Instrument};
+use tokio::time::Instant;
 
 use super::error::{NonceError, NonceResult};
 use super::state::NonceManagerState;
-use crate::adapter::chains::ethereum::metrics::EthereumAdapterMetrics;
-use hyperlane_core::U256;
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 
 pub struct NonceUpdater {
     address: Address,
