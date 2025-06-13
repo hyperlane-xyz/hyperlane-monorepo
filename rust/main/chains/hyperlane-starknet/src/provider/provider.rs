@@ -38,7 +38,7 @@ impl StarknetProvider {
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         let provider = JsonRpcClient::new(FallbackHttpTransport::new(conf.urls.clone()));
 
-        // Fee token address is used to check balancesAdd commentMore actions
+        // Fee token address is used to check balances
         let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
 
         Self {

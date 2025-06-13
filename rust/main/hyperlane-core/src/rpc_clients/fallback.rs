@@ -24,7 +24,7 @@ pub trait BlockNumberGetter: Send + Sync + Debug {
     async fn get_block_number(&self) -> ChainResult<u64>;
 }
 
-const MAX_BLOCK_TIME: Duration = Duration::from_secs(2);
+const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 
 /// Information about a provider in `PrioritizedProviders`
 
