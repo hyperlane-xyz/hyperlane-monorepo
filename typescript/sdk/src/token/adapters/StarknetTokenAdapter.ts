@@ -119,21 +119,14 @@ export class StarknetHypSyntheticAdapter
       addressToBytes(recipient).buffer,
       0,
     ).getBigUint64(0, true);
-    const transferTx = this.contract.populateTransaction.transfer_remote(
+    return this.contract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(recipientBigInt),
-      BigInt(weiAmountOrId.toString()),
-      0n,
+      cairo.uint256(BigInt(weiAmountOrId.toString())),
+      cairo.uint256(BigInt(interchainGas?.amount.toString() ?? '0')),
       nonOption,
       nonOption,
     );
-
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -285,21 +278,16 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const transferTx =
-      this.collateralContract.populateTransaction.transfer_remote(
-        destination,
-        recipient,
-        BigInt(weiAmountOrId.toString()),
-        BigInt(weiAmountOrId.toString()),
-        nonOption,
-        nonOption,
-      );
-
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
+    const amount = BigInt(weiAmountOrId.toString());
+    const gasAmount = BigInt(interchainGas?.amount.toString() ?? '0');
+    const totalAmount = amount + gasAmount;
+    return this.collateralContract.populateTransaction.transfer_remote(
+      destination,
+      recipient,
+      amount,
+      cairo.uint256(totalAmount),
+      nonOption,
+      nonOption,
+    );
   }
 }
