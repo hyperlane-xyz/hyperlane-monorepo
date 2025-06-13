@@ -10,7 +10,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{KaspaProvider, HyperlaneKaspaError, RpcProvider};
+use crate::{HyperlaneKaspaError, KaspaProvider, RpcProvider};
 
 use super::{KaspaEventIndexer, ParsedEvent};
 

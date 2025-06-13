@@ -240,7 +240,6 @@ impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
     }
 }
 
-
 #[async_trait]
 impl BuildableWithSignerConf for dymension_kaspa::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {

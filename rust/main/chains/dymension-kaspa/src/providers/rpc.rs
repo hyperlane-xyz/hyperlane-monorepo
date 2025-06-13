@@ -33,7 +33,7 @@ use hyperlane_metric::prometheus_metric::{
 };
 use url::Url;
 
-use crate::{ConnectionConf, KaspaAmount, HyperlaneKaspaError, Signer};
+use crate::{ConnectionConf, HyperlaneKaspaError, KaspaAmount, Signer};
 
 use super::kaspa::KaspaFallbackProvider;
 

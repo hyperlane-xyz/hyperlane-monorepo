@@ -661,7 +661,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let paymaster = Box::new(dym_kaspa::KaspaInterchainGas::new(provider, conf, locator)?);
+                let paymaster =
+                    Box::new(dym_kaspa::KaspaInterchainGas::new(provider, conf, locator)?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -1168,9 +1169,7 @@ impl ChainConf {
                 ChainConnectionConf::CosmosNative(_) => {
                     Box::new(conf.build::<h_cosmos_native::Signer>().await?)
                 }
-                ChainConnectionConf::Kaspa(_) => {
-                    Box::new(conf.build::<dym_kaspa::Signer>().await?)
-                }
+                ChainConnectionConf::Kaspa(_) => Box::new(conf.build::<dym_kaspa::Signer>().await?),
             };
             Ok(Some(chain_signer))
         } else {

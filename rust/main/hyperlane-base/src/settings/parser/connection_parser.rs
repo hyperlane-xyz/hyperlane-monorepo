@@ -304,7 +304,6 @@ pub fn build_cosmos_native_connection_conf(
     }
 }
 
-
 pub fn build_kaspa_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,

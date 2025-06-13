@@ -22,10 +22,7 @@ pub struct KaspaMailbox {
 
 impl KaspaMailbox {
     /// new kaspa native mailbox instance
-    pub fn new(
-        provider: KaspaProvider,
-        locator: ContractLocator,
-    ) -> ChainResult<KaspaMailbox> {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaMailbox> {
         Ok(KaspaMailbox {
             provider,
             address: locator.address,

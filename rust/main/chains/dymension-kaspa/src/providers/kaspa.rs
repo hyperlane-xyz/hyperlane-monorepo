@@ -27,7 +27,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
-    ConnectionConf, KaspaAccountId, KaspaAddress, GrpcProvider, HyperlaneKaspaError, Signer,
+    ConnectionConf, GrpcProvider, HyperlaneKaspaError, KaspaAccountId, KaspaAddress, Signer,
 };
 
 use super::RpcProvider;

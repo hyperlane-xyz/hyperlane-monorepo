@@ -19,7 +19,7 @@ use hyperlane_core::{
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{KaspaProvider, HyperlaneKaspaError, RpcProvider};
+use crate::{HyperlaneKaspaError, KaspaProvider, RpcProvider};
 
 use super::{KaspaEventIndexer, ParsedEvent};
 

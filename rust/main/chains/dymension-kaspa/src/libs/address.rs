@@ -9,7 +9,7 @@ use hyperlane_core::{
     AccountAddressType, ChainCommunicationError, ChainResult, Error::Overflow, H256,
 };
 
-use crate::{KaspaAccountId, HyperlaneKaspaError};
+use crate::{HyperlaneKaspaError, KaspaAccountId};
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
 #[derive(new, Debug, Clone)]
@@ -128,9 +128,8 @@ pub mod test {
         let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "neutron";
-        let addr =
-            KaspaAddress::from_privkey(key.as_bytes(), prefix, &AccountAddressType::Bitcoin)
-                .expect("Kaspa address creation failed");
+        let addr = KaspaAddress::from_privkey(key.as_bytes(), prefix, &AccountAddressType::Bitcoin)
+            .expect("Kaspa address creation failed");
         assert_eq!(
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"
@@ -149,16 +148,14 @@ pub mod test {
         let hex_key = "0x1b16866227825a5166eb44031cdcf6568b3e80b52f2806e01b89a34dc90ae616";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "dual";
-        let addr =
-            KaspaAddress::from_h256(key, prefix, 32).expect("Kaspa address creation failed");
+        let addr = KaspaAddress::from_h256(key, prefix, 32).expect("Kaspa address creation failed");
         assert_eq!(
             addr.address(),
             "dual1rvtgvc38sfd9zehtgsp3eh8k269naq949u5qdcqm3x35mjg2uctqfdn3yq"
         );
 
         // Last 20 bytes only, which is 0x1cdcf6568b3e80b52f2806e01b89a34dc90ae616
-        let addr =
-            KaspaAddress::from_h256(key, prefix, 20).expect("Kaspa address creation failed");
+        let addr = KaspaAddress::from_h256(key, prefix, 20).expect("Kaspa address creation failed");
         assert_eq!(
             addr.address(),
             "dual1rnw0v45t86qt2tegqmsphzdrfhys4esk9ktul7"

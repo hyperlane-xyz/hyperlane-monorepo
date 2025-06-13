@@ -11,9 +11,7 @@ use hyperlane_core::{
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
-use crate::{
-    ConnectionConf, KaspaEventIndexer, KaspaProvider, HyperlaneKaspaError, RpcProvider,
-};
+use crate::{ConnectionConf, HyperlaneKaspaError, KaspaEventIndexer, KaspaProvider, RpcProvider};
 
 use super::ParsedEvent;
 

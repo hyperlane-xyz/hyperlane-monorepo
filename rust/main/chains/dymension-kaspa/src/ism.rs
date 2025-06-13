@@ -16,7 +16,7 @@ use hyperlane_core::{
     MultisigIsm, RoutingIsm, H160, H256, U256,
 };
 
-use crate::{KaspaProvider, HyperlaneKaspaError};
+use crate::{HyperlaneKaspaError, KaspaProvider};
 
 /// Kaspa Native ISM
 #[derive(Debug)]
