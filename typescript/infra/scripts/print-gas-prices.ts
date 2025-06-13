@@ -113,7 +113,7 @@ async function getGasPrice(
       return (
         currentGasPrice ?? {
           amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
-          decimals: 1,
+          decimals: 9,
         }
       );
     default:
