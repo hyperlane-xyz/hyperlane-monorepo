@@ -7,7 +7,7 @@ mod metrics;
 pub mod nonce;
 mod payload;
 mod precursor;
+mod transaction;
 
 #[cfg(test)]
 pub mod tests;
-mod transaction;
