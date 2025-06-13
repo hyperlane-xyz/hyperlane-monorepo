@@ -369,7 +369,7 @@ export async function getProxyAndAdminInput({
     await proxyImplementation(provider, proxyAddress),
   );
 
-  // Input for TUP as an implemetation (isProxy = false).
+  // Input for TUP as an implementation (isProxy = false).
   // Strangely this is needed to verify the proxy on etherscan.
   const transparentUpgradeableImplementationInput = buildVerificationInput(
     'TransparentUpgradeableProxy',
