@@ -19,7 +19,7 @@ import type { IRebalancer } from './interfaces/IRebalancer.js';
 import type { IStrategy } from './interfaces/IStrategy.js';
 import { Metrics } from './metrics/Metrics.js';
 import { Monitor } from './monitor/Monitor.js';
-import { getRawBalances } from './utils/getRawBalances.js';
+import { getRawBalances } from './utils/balanceUtils.js';
 
 interface SharedRebalanceArgs {
   config: string;

@@ -6,7 +6,7 @@ import type {
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { strategyLogger } from '../utils/logger.js';
+import { strategyLogger } from '../utils/index.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 

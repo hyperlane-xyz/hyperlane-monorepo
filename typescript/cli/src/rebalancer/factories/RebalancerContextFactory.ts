@@ -16,8 +16,10 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
-import { isCollateralizedTokenEligibleForRebalancing } from '../utils/isCollateralizedTokenEligibleForRebalancing.js';
-import { rebalancerLogger } from '../utils/logger.js';
+import {
+  isCollateralizedTokenEligibleForRebalancing,
+  rebalancerLogger,
+} from '../utils/index.js';
 
 export class RebalancerContextFactory {
   /**

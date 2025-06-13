@@ -5,7 +5,7 @@ import { ChainName, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 
-import { getRawBalances } from './getRawBalances.js';
+import { getRawBalances } from './balanceUtils.js';
 
 describe('getRawBalances', () => {
   let chains: ChainName[];

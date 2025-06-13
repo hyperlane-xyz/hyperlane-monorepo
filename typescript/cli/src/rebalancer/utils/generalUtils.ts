@@ -1,4 +1,4 @@
-import { monitorLogger } from './logger.js';
+import { monitorLogger } from './loggerUtils.js';
 
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {

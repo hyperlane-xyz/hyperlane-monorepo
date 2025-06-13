@@ -4,7 +4,7 @@ import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { monitorLogger } from '../../utils/logger.js';
+import { monitorLogger } from '../../utils/index.js';
 import {
   NativeWalletBalance,
   WarpRouteBalance,

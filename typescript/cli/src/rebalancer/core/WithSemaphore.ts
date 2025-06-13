@@ -1,7 +1,7 @@
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { rebalancerLogger } from '../utils/logger.js';
+import { rebalancerLogger } from '../utils/index.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.

@@ -18,9 +18,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
-import { formatBigInt } from '../utils/formatBigInt.js';
-import { monitorLogger } from '../utils/logger.js';
-import { tryFn } from '../utils/tryFn.js';
+import { formatBigInt, monitorLogger, tryFn } from '../utils/index.js';
 
 import { PriceGetter } from './PriceGetter.js';
 import {

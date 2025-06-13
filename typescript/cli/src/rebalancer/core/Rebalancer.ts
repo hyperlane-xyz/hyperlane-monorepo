@@ -14,8 +14,11 @@ import { toWei } from '@hyperlane-xyz/utils';
 
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { type BridgeConfig, getBridgeConfig } from '../utils/bridgeConfig.js';
-import { rebalancerLogger } from '../utils/logger.js';
+import {
+  type BridgeConfig,
+  getBridgeConfig,
+  rebalancerLogger,
+} from '../utils/index.js';
 
 type PreparedTransaction = {
   populatedTx: Awaited<

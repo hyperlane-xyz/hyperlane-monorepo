@@ -10,7 +10,7 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import { monitorLogger } from '../utils/logger.js';
+import { monitorLogger } from '../utils/index.js';
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
