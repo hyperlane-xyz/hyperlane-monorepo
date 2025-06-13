@@ -26,7 +26,7 @@ use hyperlane_core::{
     ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
-use dymension_kaspa::server_relayer::server;
+use dymension_kaspa::dym_kas_validator::server_relayer::server;
 
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::server::{self as validator_server, merkle_tree_insertions};

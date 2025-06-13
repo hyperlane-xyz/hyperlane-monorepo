@@ -44,8 +44,8 @@ tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
 hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub
-validator = { path = "../../../../dymension/libs/kaspa/lib/validator" }
-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" }
+dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
+dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 # TODO: dymension-kaspa
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
