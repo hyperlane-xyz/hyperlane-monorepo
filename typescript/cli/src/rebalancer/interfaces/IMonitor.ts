@@ -11,9 +11,9 @@ export class MonitorPollingError extends WrappedError {
 }
 
 export enum MonitorEventType {
-  TokenInfo = 'tokeninfo',
-  Error = 'error',
-  Start = 'start',
+  TokenInfo = 'TokenInfo',
+  Error = 'Error',
+  Start = 'Start',
 }
 
 /**
