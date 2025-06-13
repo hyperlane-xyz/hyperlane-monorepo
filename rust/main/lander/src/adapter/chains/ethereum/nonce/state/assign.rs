@@ -12,9 +12,9 @@ impl NonceManagerState {
     pub(crate) async fn assign_next_nonce(
         &self,
         tx_uuid: &TransactionUuid,
-        current_tx_nonce: &Option<U256>,
+        nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        if let Some(nonce) = current_tx_nonce {
+        if let Some(nonce) = nonce {
             // If different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
             warn!(
@@ -48,8 +48,7 @@ impl NonceManagerState {
         use NonceStatus::Freed;
 
         let Some(finalized_nonce) = finalized_nonce else {
-            // If there is no finalized nonce, upper nonce should be zero, and we can use it as
-            // the next nonce.
+            // If there is no finalized nonce, we use upper nonce as the next nonce.
             return Ok(upper_nonce);
         };
 
