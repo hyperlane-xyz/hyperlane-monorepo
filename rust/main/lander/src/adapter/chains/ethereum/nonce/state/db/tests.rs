@@ -5,11 +5,9 @@ use ethers_core::types::Address;
 use hyperlane_core::U256;
 
 use crate::tests::test_utils::tmp_dbs;
-use crate::transaction::{Transaction, TransactionUuid};
+use crate::transaction::TransactionUuid;
 
-use super::super::NonceDb;
 use super::super::NonceManagerState;
-use super::super::NonceStatus;
 
 #[tokio::test]
 async fn test_get_and_set_tracked_tx_uuid() {
