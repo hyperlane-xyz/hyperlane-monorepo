@@ -202,6 +202,8 @@ export abstract class HelmManager<T = HelmValues> {
       );
     }
     await execCmd(cmd, {}, false, true);
+    // Remove the temporary file
+    valuesTmpFile.removeCallback();
   }
 
   async doesHelmReleaseExist() {
