@@ -166,18 +166,19 @@ export class RebalancerContextFactory {
 
     const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
 
-    for (const token of this.warpCore.tokens) {
-      if (
-        isCollateralizedTokenEligibleForRebalancing(token) &&
-        token.collateralAddressOrDenom &&
-        chainNames.has(token.chainName)
-      ) {
-        const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-        const bridgedSupply = await adapter.getBridgedSupply();
-
-        initialTotalCollateral += bridgedSupply ?? 0n;
-      }
-    }
+    await Promise.all(
+      this.warpCore.tokens.map(async (token) => {
+        if (
+          isCollateralizedTokenEligibleForRebalancing(token) &&
+          token.collateralAddressOrDenom &&
+          chainNames.has(token.chainName)
+        ) {
+          const adapter = token.getHypAdapter(this.warpCore.multiProvider);
+          const bridgedSupply = await adapter.getBridgedSupply();
+          initialTotalCollateral += bridgedSupply ?? 0n;
+        }
+      }),
+    );
 
     return initialTotalCollateral;
   }
