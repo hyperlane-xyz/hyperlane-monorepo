@@ -251,24 +251,6 @@ export class StarknetERC20WarpModule {
           `Failed to enroll all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
         );
       }
-
-      const tx2 = await routerContract.invoke('set_hook', [
-        uint256.bnToUint256(
-          '0x032601b74dcd3e45dc022d953aaab48fe8a926d96607f07176de191bb0ace617',
-        ),
-      ]);
-
-      const receipt2 = await account.waitForTransaction(tx2.transaction_hash);
-
-      if (receipt2.isSuccess()) {
-        this.logger.info(
-          `Successfully set hook on ${chain}. Transaction: ${tx2.transaction_hash}`,
-        );
-      } else {
-        this.logger.error(
-          `Failed to set hook on ${chain}. Transaction: ${tx2.transaction_hash}`,
-        );
-      }
     }
   }
 }
