@@ -12,17 +12,22 @@ impl NonceManagerState {
     /// Upper nonce is the possible next nonce assuming that all the transactions in flight
     /// will be committed. If there is tracked nonce which was assigned to a dropped transaction,
     /// it will be used as the next nonce.
-    pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) -> NonceResult<()> {
-        self.set_finalized_nonce(nonce).await?;
+    pub(crate) async fn update_boundary_nonces(&self, finalized_nonce: &U256) -> NonceResult<()> {
+        self.set_finalized_nonce(finalized_nonce).await?;
 
-        let upper_nonce = self.get_upper_nonce().await?;
+        let mut upper_nonce = self.get_upper_nonce().await?;
 
-        if nonce >= &upper_nonce {
+        if finalized_nonce >= &upper_nonce {
             // If the finalized nonce is greater than or equal to the upper nonce, it means that
             // some transactions were finalized by a service different from Lander.
             // And we need to update the upper nonce.
-            self.set_upper_nonce(&(nonce + 1)).await?;
+            upper_nonce = finalized_nonce + U256::one();
+            self.set_upper_nonce(&upper_nonce).await?;
         }
+
+        let domain = self.domain.name();
+        self.metrics.set_finalized_nonce(domain, finalized_nonce);
+        self.metrics.set_upper_nonce(domain, &upper_nonce);
 
         Ok(())
     }

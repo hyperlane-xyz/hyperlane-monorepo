@@ -25,7 +25,10 @@ use crate::{
     LanderError,
 };
 
-use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
+use super::{
+    metrics::EthereumAdapterMetrics, nonce::NonceManager, transaction::Precursor,
+    EthereumTxPrecursor,
+};
 
 mod gas_limit_estimator;
 mod gas_price;
@@ -62,8 +65,10 @@ impl EthereumAdapter {
             )
             .await?;
 
+        let metrics = EthereumAdapterMetrics::new(&metrics.registry())?;
+
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone()).await?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,

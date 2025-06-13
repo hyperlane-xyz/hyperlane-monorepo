@@ -91,4 +91,15 @@ impl NonceManagerState {
 }
 
 #[cfg(test)]
+impl NonceManagerState {
+    pub(crate) async fn set_finalized_nonce_test(&self, nonce: &U256) -> NonceResult<()> {
+        self.set_finalized_nonce(nonce).await
+    }
+
+    pub(crate) async fn get_finalized_nonce_test(&self) -> NonceResult<Option<U256>> {
+        self.get_finalized_nonce().await
+    }
+}
+
+#[cfg(test)]
 mod tests;
