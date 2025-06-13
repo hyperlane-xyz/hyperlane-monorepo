@@ -55,9 +55,6 @@ where
     }
 }
 
-/// Kaspa Native Provider
-///
-/// implements the HyperlaneProvider trait
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
     conf: ConnectionConf,
@@ -67,7 +64,6 @@ pub struct KaspaProvider {
 }
 
 impl KaspaProvider {
-    /// Create a new Kaspa Provider instance
     pub fn new(
         conf: &ConnectionConf,
         locator: &ContractLocator,
@@ -86,21 +82,11 @@ impl KaspaProvider {
         })
     }
 
-    /// RPC Provider
-    ///
-    /// This is used for general chain communication like getting the block number, block, transaction, etc.
     pub fn rpc(&self) -> &RpcProvider {
         &self.rpc
     }
 
-    /// gRPC Provider
-    ///
-    /// This is used for the Module Communication and querying the module state. Like mailboxes, isms etc.
-    pub fn grpc(&self) -> &GrpcProvider {
-        &self.grpc
-    }
-
-    /// Get the block number according to the reorg period
+    // TODO: ?????????
     pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u32> {
         let height = self.rpc.get_block_number().await? as u32;
         match reorg {
@@ -369,65 +355,18 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
+    // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let response = self.rpc.get_block(height as u32).await?;
-        let block = response.block;
-        let block_height = block.header.height.value();
-
-        if block_height != height {
-            Err(HyperlaneProviderError::IncorrectBlockByHeight(
-                height,
-                block_height,
-            ))?
-        }
-
-        let hash = H256::from_slice(response.block_id.hash.as_bytes());
-        let time: OffsetDateTime = block.header.time.into();
-
-        let block_info = BlockInfo {
-            hash: hash.to_owned(),
-            timestamp: time.unix_timestamp() as u64,
-            number: block_height,
-        };
-
-        Ok(block_info)
+        Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())
     }
 
+    // only used by scraper
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        if hash.is_zero() {
-            return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
-        }
-        let response = self.rpc.get_tx(hash).await?;
-        let tx = Tx::from_bytes(&response.tx)?;
-
-        let contract = Self::parse_tx_message_recipient(&tx)?;
-        let (sender, nonce) = self.sender_and_nonce(&tx)?;
-
-        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
-        let gas_price = self.calculate_gas_price(&hash, &tx)?;
-
-        let tx_info = TxnInfo {
-            hash: hash.into(),
-            gas_limit: U256::from(response.tx_result.gas_wanted),
-            max_priority_fee_per_gas: None,
-            max_fee_per_gas: None,
-            gas_price: Some(gas_price),
-            nonce,
-            sender,
-            recipient: Some(contract),
-            receipt: Some(TxnReceiptInfo {
-                gas_used: response.tx_result.gas_used.into(),
-                cumulative_gas_used: response.tx_result.gas_used.into(),
-                effective_gas_price: Some(gas_price),
-            }),
-            raw_input_data: None,
-        };
-
-        Ok(tx_info)
+        return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        // TODO: check if the address is a recipient
+        // TODO: check if the address is a recipient (this is a hyperlane team todo)
         return Ok(true);
     }
 

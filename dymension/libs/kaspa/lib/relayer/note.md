@@ -140,3 +140,83 @@ Here's a breakdown of the key structures used. You will interact with this datab
 | `PENDING_MESSAGE_RETRY_COUNT`     | `pending_message_retry_count_for_message_id_` + `message_id` | `u32`                          | How many times the Relayer has tried and failed to process this message.                                           |
 | `MERKLE_TREE_INSERTION`           | `merkle_tree_insertion_` + `leaf_index`                      | `MerkleTreeInsertion`          | Stores a Merkle tree leaf insertion event.                                                                         |
 | `MERKLE_LEAF_INDEX_BY_MESSAGE_ID` | `merkle_leaf_index_by_message_id_` + `message_id`            | `u32`                          | Maps a message ID to its index in the Merkle tree.                                                                 |
+
+____________
+
+
+### Category 1: Core Provider & Contract Interfaces
+
+These traits define the fundamental interactions with the chain and its core Hyperlane contracts. You will need a struct for each (e.g., `KaspaMailbox`, `KaspaValidatorAnnounce`) that implements these.
+
+**1. `HyperlaneProvider`**
+   *   **File:** `hyperlane-core/src/traits/provider.rs`
+   *   **Purpose:** The most basic read-only interface to the blockchain.
+   *   **Your Task:** **Implement fully.** Your `KaspaProvider` will wrap your library `F()`/`G()` to provide block and transaction data.
+     *   `get_block_by_height`
+     *   `get_txn_by_hash`
+     *   `is_contract` (You can probably just return `true` or have a simple heuristic)
+     *   `get_balance`
+
+**2. `Mailbox`**
+   *   **File:** `hyperlane-core/src/traits/mailbox.rs`
+   *   **Purpose:** The central contract for sending and receiving messages.
+   *   **Your Task:** **Implement fully (with custom logic).**
+     *   `count`: For Kaspa, this will likely be a "virtual" count managed by your `KaspaMessageIndexer` and stored in the agent's local DB, not read from on-chain state.
+     *   `delivered`: Check for a confirmation transaction on the Kaspa chain.
+     *   `default_ism`: Return the H256 identifier for the ISM you will use for the Dymension -> Kaspa direction.
+     *   `process`: This is a critical one. It will take the `metadata` (your signed PSKT), and use your library `F()` to broadcast the final transaction to the Kaspa network.
+     *   `process_estimate_costs`: Use library `F()`/`G()` to estimate the fee for the Kaspa transaction.
+
+**3. `MerkleTreeHook`**
+   *   **File:** `hyperlane-core/src/traits/merkle_tree_hook.rs`
+   *   **Purpose:** An on-chain contract that stores message Merkle roots.
+   *   **Your Task:** **Implement as a stub.** Since Kaspa has no on-chain contract for this, your implementation will mostly return errors or empty data. The relayer will use the validator's off-chain signed checkpoints instead.
+     *   `tree()`: Return an empty or default `IncrementalMerkleAtBlock`.
+     *   `latest_checkpoint()`: Return an error or a default `CheckpointAtBlock`. This ensures logic paths that expect this to succeed for EVM don't get triggered for Kaspa.
+
+**4. `ValidatorAnnounce`**
+   *   **File:** `hyperlane-core/src/traits/validator_announce.rs`
+   *   **Purpose:** A registry where validators announce the location of their signatures.
+   *   **Your Task:** **Implement with custom S3 logic.**
+     *   `get_announced_storage_locations`: This method should read a well-known object from the S3 bucket that lists the other validators and their announcement locations. It will not query the Kaspa chain.
+     *   `announce`: This method will write the validator's own announcement (its S3 bucket location) to a file in its S3 bucket.
+
+**5. `InterchainGasPaymaster`**
+   *   **File:** `hyperlane-core/src/traits/interchain_gas.rs`
+   *   **Purpose:** The contract that handles gas payments.
+   *   **Your Task:** **Implement as a stub.** On Kaspa, gas payment is not handled by a contract. Your `KaspaGasPaymentIndexer` will find payment information in the message dispatch transactions themselves. The agent framework might still try to construct this object, so having a stub implementation that does nothing is the safest path.
+
+---
+
+### Category 2: Indexer Traits
+
+These traits are used by the `ContractSync` tasks to find on-chain events.
+
+**1. `Indexer<HyperlaneMessage>` and `SequenceAwareIndexer<HyperlaneMessage>`**
+   *   **File:** `hyperlane-core/src/traits/indexer.rs`
+   *   **Purpose:** To find new `Dispatch` events.
+   *   **Your Task:** **Implement fully.** Your `KaspaMessageIndexer` will implement these.
+     *   `fetch_logs_in_range`: The core logic. Scan Kaspa blocks in the range for your special message transaction format.
+     *   `latest_sequence_count_and_tip`: Since you are using `Block` mode, you can return `(None, tip)` where `tip` is the latest finalized block height from your Kaspa provider. The `None` for sequence count signals to the cursor that it must rely on block-based scanning.
+
+**2. `Indexer<InterchainGasPayment>` and `SequenceAwareIndexer<InterchainGasPayment>`**
+   *   **File:** `hyperlane-core/src/traits/indexer.rs`
+   *   **Purpose:** To find new `GasPayment` events.
+   *   **Your Task:** **Implement fully.**
+     *   `fetch_logs_in_range`: Your logic will be nearly identical to the message indexer, but it will parse out the gas payment details from the message transaction instead of the message body.
+
+---
+
+### Category 3: Interchain Security Module (ISM) Traits
+
+ISMs are how destination chains verify messages. You only need to implement what's necessary for your *custom* verification flow.
+
+**1. `InterchainSecurityModule`**
+   *   **File:** `hyperlane-core/src/traits/interchain_security_module.rs`
+   *   **Purpose:** Base trait for all ISMs.
+   *   **Your Task:** **Implement for your custom Kaspa ISM.** You'll need a struct like `KaspaOffchainAttestationIsm`.
+     *   `module_type()`: Return a new, custom `ModuleType` variant if needed (though this requires modifying the core enum), or reuse an existing one like `ModuleType::MerkleRootMultisig` if the metadata format you produce is compatible. For the PSKT model, a new type might be cleaner if you were to upstream this. For now, you can probably re-purpose one.
+     *   `dry_run_verify()`: This is used for gas estimation. For Kaspa, you can use library `F()`/`G()` to estimate the fee of the final transaction broadcast and return that.
+
+**2. `MultisigIsm`, `RoutingIsm`, `AggregationIsm`**
+   *   **Your Task:** **Do not implement these.** Your custom flow (Dymension -> Kaspa) does not use a standard on-chain Multisig or Routing ISM. Your verification logic is entirely contained within your `KaspaMailbox::process` method. The relayer's `MetadataBuilder` will be custom-built for this flow and won't rely on these interfaces.

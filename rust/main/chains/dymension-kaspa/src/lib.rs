@@ -3,11 +3,14 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+#[allow(missing_docs)]
 pub mod application;
+mod consts;
 mod error;
 mod indexers;
 mod ism;
 mod libs;
+#[allow(missing_docs)]
 mod mailbox;
 mod prometheus;
 mod providers;
