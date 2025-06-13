@@ -14,16 +14,16 @@ use crate::KaspaProvider;
 
 /// Kaspa Native Mailbox
 #[derive(Debug, Clone)]
-pub struct KaspaMailbox {
+pub struct KaspaFakeMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
 }
 
-impl KaspaMailbox {
+impl KaspaFakeMailbox {
     /// new kaspa native mailbox instance
-    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaMailbox> {
-        Ok(KaspaMailbox {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaFakeMailbox> {
+        Ok(KaspaFakeMailbox {
             provider,
             address: locator.address,
             domain: locator.domain.clone(),
@@ -52,7 +52,7 @@ impl KaspaMailbox {
     }
 }
 
-impl HyperlaneChain for KaspaMailbox {
+impl HyperlaneChain for KaspaFakeMailbox {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -64,7 +64,7 @@ impl HyperlaneChain for KaspaMailbox {
     }
 }
 
-impl HyperlaneContract for KaspaMailbox {
+impl HyperlaneContract for KaspaFakeMailbox {
     /// Return the address of this contract
     fn address(&self) -> H256 {
         self.address
@@ -72,7 +72,7 @@ impl HyperlaneContract for KaspaMailbox {
 }
 
 #[async_trait]
-impl Mailbox for KaspaMailbox {
+impl Mailbox for KaspaFakeMailbox {
     /// Gets the current leaf count of the merkle tree
     ///
     /// - `reorg_period` is how far behind the current block to query, if not specified

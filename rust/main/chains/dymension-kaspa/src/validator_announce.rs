@@ -7,7 +7,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
-    ValidatorAnnounce, H160, H256, U256,
+    ValidatorAnnounce, H160, H256, U256, H512,
 };
 
 use crate::KaspaProvider;
@@ -62,7 +62,7 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         Ok(TxOutcome {
-            transaction_id: announcement.value.signing_hash().into(),
+            transaction_id: H512::from_slice(b"0x0000000000000000000000000000000000000000000000000000000000000000"),
             executed: true, 
             gas_used: 0.into(),
             gas_price: 0.into(),
