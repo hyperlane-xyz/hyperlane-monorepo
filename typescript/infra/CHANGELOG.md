@@ -1,5 +1,15 @@
 # @hyperlane-xyz/infra
 
+## 13.4.0
+
+### Patch Changes
+
+- Updated dependencies [0ec92f7]
+- Updated dependencies [fe1d8ab]
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/sdk@13.4.0
+  - @hyperlane-xyz/helloworld@13.4.0
+
 ## 13.3.0
 
 ### Patch Changes
