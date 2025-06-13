@@ -1,21 +1,37 @@
+import chalk from 'chalk';
+
 import {
   ChainMap,
   ChainName,
-  ConnectionClientViolationType,
   InterchainAccountChecker,
+  MissingRouterViolation,
   RouterViolation,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
 import {
   AddressBytes32,
   addressToBytes32,
-  eqAddress,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {
   async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const config = this.configMap[chain];
+
+    if (!router) {
+      const violation: MissingRouterViolation = {
+        chain,
+        type: RouterViolationType.MissingRouter,
+        contract: router,
+        actual: undefined,
+        expected: config,
+        description: `Router is not deployed`,
+      };
+      this.addViolation(violation);
+      return;
+    }
+
     await this.checkMailbox(chain, router, config);
   }
 
@@ -66,6 +82,15 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
   }
 
   async checkChain(chain: ChainName): Promise<void> {
+    if (!this.configMap[chain]) {
+      rootLogger.warn(
+        chalk.bold.yellow(
+          `Skipping check for ${chain} because there is no expected config`,
+        ),
+      );
+      return;
+    }
+
     await this.checkMailboxClient(chain);
     await this.checkEthRouterEnrollment(chain);
     await super.checkOwnership(
