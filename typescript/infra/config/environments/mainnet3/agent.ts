@@ -628,6 +628,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
+      // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
+      { destinationDomain: getDomainId('starknet') },
+      { destinationDomain: getDomainId('paradex') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
