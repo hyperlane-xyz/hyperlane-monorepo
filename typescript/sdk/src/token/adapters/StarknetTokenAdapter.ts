@@ -1,11 +1,19 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
+import {
+  CairoOption,
+  CairoOptionVariant,
+  Call,
+  Contract,
+  cairo,
+  num,
+} from 'starknet';
 
 import {
   Address,
   Domain,
   Numberish,
   ProtocolType,
+  addressToBytes,
   assert,
 } from '@hyperlane-xyz/utils';
 
@@ -107,21 +115,18 @@ export class StarknetHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const transferTx = this.contract.populateTransaction.transfer_remote(
+    const recipientBigInt = new DataView(
+      addressToBytes(recipient).buffer,
+      0,
+    ).getBigUint64(0, true);
+    return this.contract.populateTransaction.transfer_remote(
       destination,
-      recipient,
-      BigInt(weiAmountOrId.toString()),
-      0n,
+      cairo.uint256(recipientBigInt),
+      cairo.uint256(BigInt(weiAmountOrId.toString())),
+      cairo.uint256(BigInt(interchainGas?.amount.toString() ?? '0')),
       nonOption,
       nonOption,
     );
-
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -273,21 +278,16 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const transferTx =
-      this.collateralContract.populateTransaction.transfer_remote(
-        destination,
-        recipient,
-        BigInt(weiAmountOrId.toString()),
-        BigInt(weiAmountOrId.toString()),
-        nonOption,
-        nonOption,
-      );
-
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
+    const amount = BigInt(weiAmountOrId.toString());
+    const gasAmount = BigInt(interchainGas?.amount.toString() ?? '0');
+    const totalAmount = amount + gasAmount;
+    return this.collateralContract.populateTransaction.transfer_remote(
+      destination,
+      recipient,
+      amount,
+      cairo.uint256(totalAmount),
+      nonOption,
+      nonOption,
+    );
   }
 }
