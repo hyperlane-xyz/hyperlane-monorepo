@@ -38,11 +38,10 @@ export async function isInitialized(
   contract: Address,
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = await provider.getStorageAt(contract, '0x0');
-  return (
-    storageValue ===
-    '0x00000000000000000000000000000000000000000000000000000000000000ff'
+  const storageValue = ethers.BigNumber.from(
+    await provider.getStorageAt(contract, '0x0'),
   );
+  return storageValue.eq(1) || storageValue.eq(255);
 }
 
 export async function proxyAdmin(
@@ -67,9 +66,13 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
   implementation: C,
   proxyAdmin: string,
   initializeArgs?: Parameters<C['initialize']>,
+  initializeFnSignature = 'initialize',
 ): [string, string, string] {
   const initData = initializeArgs
-    ? implementation.interface.encodeFunctionData('initialize', initializeArgs)
+    ? implementation.interface.encodeFunctionData(
+        initializeFnSignature,
+        initializeArgs,
+      )
     : '0x';
   return [implementation.address, proxyAdmin, initData];
 }

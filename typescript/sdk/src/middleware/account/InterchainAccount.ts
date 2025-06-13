@@ -26,11 +26,14 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
+  knownAccounts: Record<Address, AccountConfig | undefined>;
+
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+    this.knownAccounts = {};
   }
 
   override async remoteChains(chainName: string): Promise<ChainName[]> {
@@ -161,6 +164,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Interchain account recovered at ${destinationAccount}`,
       );
     }
+
+    this.knownAccounts[destinationAccount] = config;
+
     return destinationAccount;
   }
 
@@ -197,21 +203,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       { value: quote },
     );
     return callEncoded;
-  }
-
-  async getAccountConfig(
-    chain: ChainName,
-    account: Address,
-  ): Promise<AccountConfig> {
-    const accountOwner = await this.router(
-      this.contractsMap[chain],
-    ).accountOwners(account);
-    const originChain = this.multiProvider.getChainName(accountOwner.origin);
-    return {
-      origin: originChain,
-      owner: accountOwner.owner,
-      localRouter: this.router(this.contractsMap[chain]).address,
-    };
   }
 
   // general helper for different overloaded callRemote functions
