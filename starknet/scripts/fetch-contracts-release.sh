@@ -8,7 +8,7 @@ IFS=$'\n\t'
 readonly REPO="hyperlane-xyz/hyperlane-starknet"
 readonly GITHUB_RELEASES_API="https://api.github.com/repos/${REPO}/releases"
 readonly TARGET_DIR="./release"
-readonly VERSION="v0.3.9"
+readonly VERSION="v0.3.10"
 
 # Color definitions
 declare -r COLOR_GREEN='\033[0;32m'

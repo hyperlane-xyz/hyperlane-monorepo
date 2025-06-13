@@ -46,7 +46,7 @@ interface ApplyParams extends DeployParams {
  * Executes the core deploy command.
  */
 export async function runCoreDeploy(params: DeployParams) {
-  const { context, config, multiProtocolSigner } = params;
+  const { context, config } = params;
   let chain = params.chain;
   const {
     isDryRun,
@@ -56,6 +56,7 @@ export async function runCoreDeploy(params: DeployParams) {
     skipConfirmation,
     multiProvider,
     multiProtocolProvider,
+    multiProtocolSigner,
   } = context;
 
   // Validate ISM compatibility
