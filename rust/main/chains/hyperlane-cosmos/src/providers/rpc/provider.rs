@@ -244,7 +244,6 @@ impl CosmosWasmRpcProvider {
 
 #[async_trait]
 impl WasmRpcProvider for CosmosWasmRpcProvider {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_block = self

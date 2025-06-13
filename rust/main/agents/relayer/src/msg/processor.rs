@@ -169,7 +169,7 @@ impl DirectionalNonceIterator {
         if let Some(message) = self.indexed_message_with_nonce()? {
             Self::update_max_nonce_gauge(&message, metrics);
             if !self.is_message_processed()? {
-                debug!(hyp_message=?message, iterator=?self, "Found processable message");
+                trace!(hyp_message=?message, iterator=?self, "Found processable message");
                 return Ok(MessageStatus::Processable(message));
             } else {
                 return Ok(MessageStatus::Processed);
@@ -258,7 +258,7 @@ impl ProcessorExt for MessageProcessor {
         // nonce.
         // Scan until we find next nonce without delivery confirmation.
         if let Some(msg) = self.try_get_unprocessed_message().await? {
-            debug!(
+            trace!(
                 ?msg,
                 cursor = ?self.nonce_iterator,
                 "Processor working on message"
@@ -267,13 +267,13 @@ impl ProcessorExt for MessageProcessor {
 
             // Skip if not whitelisted.
             if !self.message_whitelist.msg_matches(&msg, true) {
-                debug!(?msg, whitelist=?self.message_whitelist, "Message not whitelisted, skipping");
+                debug!(?msg, "Message not whitelisted, skipping");
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
             if self.message_blacklist.msg_matches(&msg, false) {
-                debug!(?msg, blacklist=?self.message_blacklist, "Message blacklisted, skipping");
+                debug!(?msg, "Message blacklisted, skipping");
                 return Ok(());
             }
 

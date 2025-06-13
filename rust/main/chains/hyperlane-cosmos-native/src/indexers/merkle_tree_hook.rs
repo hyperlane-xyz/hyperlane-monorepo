@@ -214,7 +214,6 @@ impl CosmosEventIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
 
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,

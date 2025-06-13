@@ -13,7 +13,7 @@ use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha3::{digest::Update, Digest, Keccak256};
-use tracing::{info, instrument, warn};
+use tracing::{info, warn};
 
 use hyperlane_core::{
     utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
@@ -167,7 +167,6 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message, _params))]
     async fn build(
         &self,
         ism_address: H256,

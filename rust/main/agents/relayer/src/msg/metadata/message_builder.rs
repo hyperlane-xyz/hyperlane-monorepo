@@ -11,8 +11,6 @@ use {
     tracing::warn,
 };
 
-use tracing::instrument;
-
 use crate::msg::{
     metadata::base_builder::BuildsBaseMetadata,
     pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
@@ -54,7 +52,6 @@ pub struct MessageMetadataBuilder {
 ///                 MessageMetadataBuilder
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,

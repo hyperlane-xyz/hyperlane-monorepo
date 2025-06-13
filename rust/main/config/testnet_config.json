@@ -272,10 +272,7 @@
       "validatorAnnounce": "0xf09701B0a93210113D175461b6135a96773B5465",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xCa152b249791Adf7A09C6c1bdbAb05e4A594966e",
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
-      "gasCurrencyCoinGeckoId": "binancecoin",
-      "transactionOverrides": {
-        "gasPrice": 1000000000
-      }
+      "gasCurrencyCoinGeckoId": "binancecoin"
     },
     "connextsepolia": {
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",

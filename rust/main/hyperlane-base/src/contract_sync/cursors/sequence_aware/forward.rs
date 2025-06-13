@@ -110,7 +110,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
-    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
@@ -216,6 +215,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
     async fn skip_indexed(&mut self) -> Result<()> {
+        let prev_indexed_snapshot = self.last_indexed_snapshot.clone();
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
         while let Some(block_number) = self
@@ -228,13 +228,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             };
 
             self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
-
-            debug!(
-                last_indexed_snapshot=?self.last_indexed_snapshot,
-                current_indexing_snapshot=?self.current_indexing_snapshot,
-                "Fast forwarded current sequence"
-            );
         }
+        debug!(
+            last_indexed_snapshot=?prev_indexed_snapshot,
+            current_indexing_snapshot=?self.current_indexing_snapshot,
+            "Fast forwarded current sequence to"
+        );
 
         Ok(())
     }
