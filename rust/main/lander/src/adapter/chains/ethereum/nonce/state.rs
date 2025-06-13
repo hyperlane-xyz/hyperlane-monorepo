@@ -3,15 +3,17 @@ use std::sync::Arc;
 use ethers_core::types::Address;
 use tracing::{error, info, warn};
 
+use hyperlane_core::U256;
+
 use crate::adapter::chains::ethereum::transaction::Precursor;
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
-use hyperlane_core::U256;
 
 use super::db::NonceDb;
 use super::error::{NonceError, NonceResult};
 use super::status::NonceStatus;
 
+mod boundary;
 mod db;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,29 +39,6 @@ impl NonceManagerState {
             tx_db,
             address,
         }
-    }
-
-    pub(crate) async fn update_boundary_nonces(&self, nonce: &U256) -> NonceResult<()> {
-        self.nonce_db
-            .store_finalized_nonce_by_signer_address(&self.address, nonce)
-            .await?;
-
-        let upper_nonce = self
-            .nonce_db
-            .retrieve_upper_nonce_by_signer_address(&self.address)
-            .await?
-            .unwrap_or_default();
-
-        if nonce >= &upper_nonce {
-            // If the finalized nonce is greater than or equal to the upper nonce, it means that
-            // some transactions were finalized by a service different from Lander.
-            // And we need to update the upper nonce.
-            self.nonce_db
-                .store_upper_nonce_by_signer_address(&self.address, &(nonce + 1))
-                .await?;
-        }
-
-        Ok(())
     }
 
     pub(crate) async fn validate_assigned_nonce(
