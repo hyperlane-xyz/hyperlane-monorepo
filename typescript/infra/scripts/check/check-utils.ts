@@ -19,7 +19,7 @@ import {
   hypERC20factories,
   proxiedFactories,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
