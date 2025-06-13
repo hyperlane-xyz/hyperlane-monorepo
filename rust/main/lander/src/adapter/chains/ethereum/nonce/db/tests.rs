@@ -52,3 +52,78 @@ async fn test_nonce_db_finalized_and_upper() {
         Some(nonce)
     );
 }
+
+#[tokio::test]
+async fn test_transaction_uuid_by_nonce_and_signer_address() {
+    let (_, _, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let nonce = U256::from(77);
+    let tx_uuid = TransactionUuid::random();
+
+    // Should be None initially
+    assert_eq!(
+        nonce_db
+            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer)
+            .await
+            .unwrap(),
+        None
+    );
+
+    // Store and retrieve
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer, &tx_uuid)
+        .await
+        .unwrap();
+    assert_eq!(
+        nonce_db
+            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer)
+            .await
+            .unwrap(),
+        Some(tx_uuid)
+    );
+}
+
+// Optionally, test edge cases for overwriting and multiple keys
+#[tokio::test]
+async fn test_transaction_uuid_overwrite_and_multiple_keys() {
+    let (_, _, nonce_db) = tmp_dbs();
+    let signer1 = Address::random();
+    let signer2 = Address::random();
+    let nonce1 = U256::from(1);
+    let nonce2 = U256::from(2);
+    let tx_uuid1 = TransactionUuid::random();
+    let tx_uuid2 = TransactionUuid::random();
+
+    // Store for (nonce1, signer1)
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce1, &signer1, &tx_uuid1)
+        .await
+        .unwrap();
+    // Overwrite for (nonce1, signer1)
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce1, &signer1, &tx_uuid2)
+        .await
+        .unwrap();
+    // Store for (nonce2, signer2)
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce2, &signer2, &tx_uuid1)
+        .await
+        .unwrap();
+
+    // Should get the overwritten value for (nonce1, signer1)
+    assert_eq!(
+        nonce_db
+            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce1, &signer1)
+            .await
+            .unwrap(),
+        Some(tx_uuid2)
+    );
+    // Should get the correct value for (nonce2, signer2)
+    assert_eq!(
+        nonce_db
+            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce2, &signer2)
+            .await
+            .unwrap(),
+        Some(tx_uuid1)
+    );
+}
