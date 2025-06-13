@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 
-import { type BridgeConfig, getBridgeConfig } from './bridgeConfig.js';
+import { type BridgeConfig, getBridgeConfig } from './bridgeUtils.js';
 
 describe('bridgeConfig', () => {
   it('should return the base bridge config when no overrides exist', () => {

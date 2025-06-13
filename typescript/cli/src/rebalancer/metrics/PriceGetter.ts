@@ -5,7 +5,7 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { monitorLogger } from '../utils/logger.js';
+import { monitorLogger } from '../utils/index.js';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private constructor({

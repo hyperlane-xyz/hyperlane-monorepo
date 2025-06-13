@@ -1,10 +1,10 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, Token } from '@hyperlane-xyz/sdk';
 
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { RawBalances } from '../interfaces/IStrategy.js';
-import { rebalancerLogger } from '../utils/logger.js';
 
-import { isCollateralizedTokenEligibleForRebalancing } from './isCollateralizedTokenEligibleForRebalancing.js';
+import { rebalancerLogger } from './loggerUtils.js';
+import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 
 /**
  * Returns the raw balances required by the strategies from the monitor event
@@ -60,4 +60,8 @@ export function getRawBalances(
   }
 
   return balances;
+}
+
+export function formatBigInt(warpToken: Token, num: bigint): number {
+  return warpToken.amount(num).getDecimalFormattedAmount();
 }

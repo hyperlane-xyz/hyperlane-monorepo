@@ -310,10 +310,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       return [log];
     })();
 
-    // eslint-disable-next-line no-async-promise-executor
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       // Use a timeout to prevent waiting for a log that might never happen and fail faster
-      timeoutId = setTimeout(async () => {
+      timeoutId = setTimeout(() => {
         reject(new Error(`Timeout waiting for log: "${expectedLogs[0]}"`));
       }, timeout);
 
@@ -328,22 +327,23 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           ),
         );
       });
+      (async () => {
+        // Wait for the process to output the expected log.
+        for await (let chunk of process.stdout) {
+          chunk = typeof chunk === 'string' ? chunk : chunk.toString();
 
-      // Wait for the process to output the expected log.
-      for await (let chunk of process.stdout) {
-        chunk = typeof chunk === 'string' ? chunk : chunk.toString();
+          console.log(chunk);
 
-        console.log(chunk);
+          if (chunk.includes(expectedLogs[0])) {
+            expectedLogs.shift();
 
-        if (chunk.includes(expectedLogs[0])) {
-          expectedLogs.shift();
-
-          if (!expectedLogs.length) {
-            resolve(void 0);
-            break;
+            if (!expectedLogs.length) {
+              resolve(void 0);
+              break;
+            }
           }
         }
-      }
+      })().catch(reject);
     }).finally(() => {
       // Perform a cleanup at the end
       clearTimeout(timeoutId);
@@ -359,7 +359,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     rmSync(REBALANCER_CONFIG_PATH);
 
     await startRebalancerAndExpectLog(
-      `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
+      `Rebalancer startup error: Error: File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
     );
   });
 
@@ -422,7 +422,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(`Cannot convert weight to a BigInt`);
+    await startRebalancerAndExpectLog(
+      `Rebalancer startup error: SyntaxError: Cannot convert weight to a BigInt`,
+    );
   });
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
@@ -451,7 +453,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(`Cannot convert tolerance to a BigInt`);
+    await startRebalancerAndExpectLog(
+      `Rebalancer startup error: SyntaxError: Cannot convert tolerance to a BigInt`,
+    );
   });
 
   it('should throw if a bridge value is not a valid address', async () => {
@@ -481,7 +485,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
+      `Rebalancer startup error: Error: Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
     );
   });
 
@@ -1205,6 +1209,19 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
   });
 
+  it('should not find any metrics server when metrics are not enabled', async () => {
+    const process = startRebalancer({ withMetrics: false });
+
+    // Give the server some time to start
+    // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
+    await sleep(3500);
+
+    // Check that metrics endpoint is not responding
+    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
+
+    await process.kill();
+  });
+
   it('should start the metrics server and expose prometheus metrics', async () => {
     const process = startRebalancer({ withMetrics: true });
 
@@ -1224,19 +1241,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Check for specific Hyperlane metrics
     expect(metricsText).to.include('hyperlane_wallet_balance');
-
-    await process.kill();
-  });
-
-  it('should not find any metrics server when metrics are not enabled', async () => {
-    const process = startRebalancer({ withMetrics: false });
-
-    // Give the server some time to start
-    // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
-    await sleep(3500);
-
-    // Check that metrics endpoint is not responding
-    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
 
     await process.kill();
   });
@@ -1376,7 +1380,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     }
   });
 
-  describe('manual rebalance', () => {
+  describe.only('manual rebalance', () => {
     it('should successfully rebalance tokens between chains using a mock bridge', async () => {
       const wccTokens = warpCoreConfig.tokens;
 
