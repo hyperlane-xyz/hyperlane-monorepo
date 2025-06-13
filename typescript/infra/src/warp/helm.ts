@@ -1,7 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import path from 'path';
 
-import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   IToken,
@@ -14,6 +13,7 @@ import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_REGISTRY_URI,
+  getRegistry,
   getWarpCoreConfig,
 } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -128,10 +128,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   // Any warp monitor helm releases found that do not relate to known warp route ids
   // will be prompted for uninstallation.
   static async uninstallUnknownWarpMonitorReleases(namespace: string) {
-    const localRegistry = getRegistry({
-      registryUris: [DEFAULT_REGISTRY_URI],
-      enableProxy: false,
-    });
+    const localRegistry = getRegistry();
     const allExpectedHelmReleaseNames = Object.values(
       Object.keys(await localRegistry.getWarpRoutes()),
     ).map(WarpRouteMonitorHelmManager.getHelmReleaseName);
@@ -167,13 +164,8 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       return;
     }
 
-    const localRegistry = getRegistry({
-      registryUris: [DEFAULT_REGISTRY_URI],
-      enableProxy: false,
-    });
-    const chainAddresses = await localRegistry.getChainAddresses(
-      token.chainName,
-    );
+    const localRegistry = getRegistry();
+    const chainAddresses = localRegistry.getChainAddresses(token.chainName);
     warpCore.multiProvider.metadata[token.chainName] = {
       ...warpCore.multiProvider.metadata[token.chainName],
       // Hack to get the Mailbox address into the metadata, which WarpCore requires for Sealevel chains.
