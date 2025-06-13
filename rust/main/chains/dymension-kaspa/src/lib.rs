@@ -16,8 +16,8 @@ mod trait_builder;
 mod validator_announce;
 
 // Direct reexports of lib stuff:
-pub use dym_kas_validator;
 pub use dym_kas_relayer;
+pub use dym_kas_validator;
 
 use self::libs::*;
 pub use {
