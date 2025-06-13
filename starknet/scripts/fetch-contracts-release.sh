@@ -25,6 +25,7 @@ log_success() {
 
 check_dependencies() {
     local -r required_tools=("curl" "jq" "unzip")
+    
     for tool in "${required_tools[@]}"; do
         if ! command -v "$tool" &> /dev/null; then
             log_error "$tool is not installed"
@@ -52,6 +53,7 @@ verify_version_exists() {
 get_release_info() {
     local version=$1
     local release_info
+    
     release_info=$(curl -sf "${GITHUB_RELEASES_API}/tags/${version}") || {
         log_error "Failed to fetch release information for version ${version}"
         exit 1
@@ -64,12 +66,14 @@ download_and_extract() {
     local download_url=$2
     local base_url="${download_url%/*}"
     local filename="${download_url##*/}"
+    
     if ! mkdir -p "$TARGET_DIR"; then
         log_error "Failed to create target directory"
         exit 1
     fi
 
     log_success "Downloading version ${version} from ${download_url}"
+    
     if ! curl -L "$download_url" -o "${TARGET_DIR}/release.zip"; then
         log_error "Download failed"
         exit 1
@@ -79,6 +83,7 @@ download_and_extract() {
         rm -f "${TARGET_DIR}/release.zip"
         exit 1
     fi
+    
     if ! unzip -o "${TARGET_DIR}/release.zip" -d "${TARGET_DIR}"; then
         log_error "Extraction failed"
         exit 1
@@ -91,15 +96,11 @@ verify_checksum() {
     local filename="$3"
     local checksum_filename
     checksum_filename="${filename%.zip}.CHECKSUM"
-
+    
     local downloaded_checksum
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        downloaded_checksum="$(shasum -a 256 "$file_path" | cut -d' ' -f1)"
-    else
-        downloaded_checksum="$(sha256sum "$file_path" | cut -d' ' -f1)"
-    fi
+    downloaded_checksum="$(sha256sum "$file_path" | cut -d' ' -f1)"
     log_success "File checksum: ${downloaded_checksum}"
-
+    
     local expected_checksum
     if ! expected_checksum="$(curl -sL "${base_url}/${checksum_filename}")"; then
         log_error "Failed to fetch checksum file"
@@ -110,6 +111,7 @@ verify_checksum() {
         log_error "Checksum verification failed"
         return 1
     fi
+    
     return 0
 }
 
@@ -121,9 +123,9 @@ cleanup() {
 
 main() {
     trap cleanup EXIT
-
+    
     check_dependencies
-
+    
     # Skip if contracts already exist
     if check_if_contracts_exist; then
         exit 0
@@ -134,18 +136,18 @@ main() {
 
     local release_info
     release_info=$(get_release_info "$VERSION")
-
+    
     local download_url
     download_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | startswith("hyperlane-starknet") and endswith(".zip")) | .browser_download_url')
-
+    
     if [[ -z "$download_url" ]]; then
         log_error "Could not find ZIP download URL for release"
         exit 1
     fi
-
+    
     # Process download and file checksum verification and extraction
     download_and_extract "$VERSION" "$download_url"
-
+    
     log_success "Successfully downloaded and extracted version ${VERSION}"
 }
 
