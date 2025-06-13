@@ -149,9 +149,8 @@ impl MultisigCheckpointSyncer {
             }
 
             for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(validators, threshold, index).await
-                {
+                let a = self.fetch_checkpoint(validators, threshold, index).await;
+                if let Ok(Some(checkpoint)) = a {
                     return Ok(Some(checkpoint));
                 }
             }
@@ -269,15 +268,80 @@ impl MultisigCheckpointSyncer {
 
 #[cfg(test)]
 mod test {
-
     use std::str::FromStr;
 
     use aws_config::Region;
-    use hyperlane_core::KnownHyperlaneDomain;
+    use hyperlane_core::{
+        Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, KnownHyperlaneDomain,
+    };
+    use hyperlane_ethereum::Signers;
 
-    use crate::S3Storage;
+    use crate::{mock_checkpoint_syncer::MockCheckpointSyncer, S3Storage};
 
     use super::*;
+
+    #[derive(Clone, Debug)]
+    struct TestValidator {
+        pub private_key: String,
+        pub public_key: String,
+        pub latest_index: Option<u32>,
+        pub fetch_checkpoint: Option<CheckpointWithMessageId>,
+    }
+
+    async fn build_mock_checkpoint_syncs(
+        validators: &[TestValidator],
+    ) -> HashMap<H160, Arc<dyn CheckpointSyncer + 'static>> {
+        let mut syncers: HashMap<_, _> = HashMap::new();
+        for validator in validators {
+            let signer: Signers = validator
+                .private_key
+                .parse::<ethers::signers::LocalWallet>()
+                .unwrap()
+                .into();
+            let syncer = MockCheckpointSyncer::new();
+            syncer
+                .responses
+                .latest_index
+                .lock()
+                .unwrap()
+                .push_back(Ok(validator.latest_index.clone()));
+            let sig = match validator.fetch_checkpoint {
+                Some(checkpoint) => Ok(Some(signer.sign(checkpoint).await.unwrap())),
+                None => Ok(None),
+            };
+            syncer
+                .responses
+                .fetch_checkpoint
+                .lock()
+                .unwrap()
+                .push_back(sig);
+            let key = H160::from_str(&validator.public_key).unwrap();
+            let val = Arc::new(syncer) as Arc<dyn CheckpointSyncer>;
+            syncers.insert(key, val);
+        }
+        syncers
+    }
+
+    async fn generate_multisig_signed_checkpoint(
+        validators: &[TestValidator],
+        checkpoint: CheckpointWithMessageId,
+    ) -> MultisigSignedCheckpoint {
+        let mut signatures = Vec::new();
+        for validator in validators.iter().filter(|v| v.fetch_checkpoint.is_some()) {
+            let signer: Signers = validator
+                .private_key
+                .parse::<ethers::signers::LocalWallet>()
+                .unwrap()
+                .into();
+            let sig = signer.sign(checkpoint.clone()).await.unwrap();
+            signatures.push(sig.signature);
+        }
+
+        MultisigSignedCheckpoint {
+            checkpoint,
+            signatures,
+        }
+    }
 
     #[tokio::test]
     #[ignore]
@@ -390,5 +454,246 @@ mod test {
 
         let elapsed = start_time.elapsed();
         println!("Fetched checkpoints in {}ms", elapsed.as_millis());
+    }
+
+    #[tokio::test]
+    async fn test_get_validator_latest_checkpoints_and_update_metrics() {
+        let validators = [
+            TestValidator {
+                private_key: "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb"
+                    .into(),
+                public_key: "c4bED0DD629b734C96779D30e1fcFa5346863C4C".into(),
+                latest_index: Some(200),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb"
+                    .into(),
+                public_key: "96DE69f859ed40FB625454db3BFc4f2Da4848dcF".into(),
+                latest_index: Some(300),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd"
+                    .into(),
+                public_key: "c7504D7F7FC865Ba69abad3b18c639372AE687Ec".into(),
+                latest_index: None,
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a"
+                    .into(),
+                public_key: "197325f955852A61a5b2DEFb7BAffB8763D1acE8".into(),
+                latest_index: Some(500),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077"
+                    .into(),
+                public_key: "2C8Ac45c649C1d242706FB1fc078bc0759c02f80".into(),
+                latest_index: None,
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "3367a1ee365c349e51b1b55ade243b001536225dc581cc5940bebc2214c415d1"
+                    .into(),
+                public_key: "34D691B987892487477eABBB3ce57De196291319".into(),
+                latest_index: Some(700),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "6845eaefd5de4851eae6e41174e87a0569fad8c3b4f579b46a434f9471a40d72"
+                    .into(),
+                public_key: "cAbF1DC890E8bf998Cd4664BAcDd64d67D8d4F1A".into(),
+                latest_index: Some(800),
+                fetch_checkpoint: None,
+            },
+        ];
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| {
+                let address: H256 = H160::from_str(&validator.public_key).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        // Create a multisig checkpoint syncer
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        // get the latest checkpoint from each validator
+        let latest_indices: HashMap<_, _> = multisig_syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
+                validator_addresses.as_slice(),
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            )
+            .await
+            .into_iter()
+            .collect();
+
+        for validator in validators {
+            let validator_address = H160::from_str(&validator.public_key).unwrap();
+            let validator_latest_index = latest_indices.get(&validator_address).cloned();
+            assert_eq!(validator_latest_index, validator.latest_index);
+        }
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_fetch_checkpoint_in_range_correct_order() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+
+        let validators = [
+            TestValidator {
+                private_key: "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb"
+                    .into(),
+                public_key: "c4bED0DD629b734C96779D30e1fcFa5346863C4C".into(),
+                latest_index: Some(1010),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb"
+                    .into(),
+                public_key: "96DE69f859ed40FB625454db3BFc4f2Da4848dcF".into(),
+                latest_index: Some(1008),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd"
+                    .into(),
+                public_key: "c7504D7F7FC865Ba69abad3b18c639372AE687Ec".into(),
+                latest_index: Some(1006),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a"
+                    .into(),
+                public_key: "197325f955852A61a5b2DEFb7BAffB8763D1acE8".into(),
+                latest_index: Some(1004),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077"
+                    .into(),
+                public_key: "2C8Ac45c649C1d242706FB1fc078bc0759c02f80".into(),
+                latest_index: Some(1002),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+        ];
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| {
+                let address: H256 = H160::from_str(&validator.public_key).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        // Create a multisig checkpoint syncer
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let threshold = 3;
+        let minimum_index = 990;
+        let maximum_index = 1000;
+        let result = multisig_syncer
+            .fetch_checkpoint_in_range(
+                validator_addresses.as_slice(),
+                threshold,
+                minimum_index,
+                maximum_index,
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            )
+            .await
+            .unwrap();
+
+        let expected = Some(generate_multisig_signed_checkpoint(&validators, checkpoint).await);
+
+        assert_eq!(result, expected);
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_fetch_checkpoint_correct_order() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+
+        let validators = [
+            TestValidator {
+                private_key: "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb"
+                    .into(),
+                public_key: "c4bED0DD629b734C96779D30e1fcFa5346863C4C".into(),
+                latest_index: Some(1010),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb"
+                    .into(),
+                public_key: "96DE69f859ed40FB625454db3BFc4f2Da4848dcF".into(),
+                latest_index: Some(1008),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd"
+                    .into(),
+                public_key: "c7504D7F7FC865Ba69abad3b18c639372AE687Ec".into(),
+                latest_index: Some(1006),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a"
+                    .into(),
+                public_key: "197325f955852A61a5b2DEFb7BAffB8763D1acE8".into(),
+                latest_index: Some(1004),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077"
+                    .into(),
+                public_key: "2C8Ac45c649C1d242706FB1fc078bc0759c02f80".into(),
+                latest_index: Some(1002),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+        ];
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| {
+                let address: H256 = H160::from_str(&validator.public_key).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        // Create a multisig checkpoint syncer
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let threshold = 3;
+        let index = 1000;
+        let result = multisig_syncer
+            .fetch_checkpoint(validator_addresses.as_slice(), threshold, index)
+            .await
+            .unwrap();
+
+        let expected = Some(generate_multisig_signed_checkpoint(&validators, checkpoint).await);
+        assert_eq!(result, expected);
     }
 }

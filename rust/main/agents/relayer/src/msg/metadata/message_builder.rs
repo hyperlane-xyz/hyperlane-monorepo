@@ -213,85 +213,25 @@ pub async fn build_message_metadata(
 mod test {
     use std::sync::Arc;
 
-    use hyperlane_base::cache::{
-        LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache,
-    };
-    use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256, U256,
-    };
-    use hyperlane_test::mocks::MockMailboxContract;
-    use prometheus::IntCounterVec;
-
     use crate::{
         msg::metadata::{
-            base::MetadataBuildError, message_builder::build_message_metadata, DefaultIsmCache,
-            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuildParams,
+            base::MetadataBuildError, message_builder::build_message_metadata,
+            MessageMetadataBuildParams,
         },
-        settings::matching_list::{Filter, ListElement, MatchingList},
         test_utils::{
-            mock_aggregation_ism::MockAggregationIsm, mock_base_builder::MockBaseMetadataBuilder,
-            mock_ism::MockInterchainSecurityModule, mock_routing_ism::MockRoutingIsm,
+            mock_aggregation_ism::MockAggregationIsm,
+            mock_base_builder::{build_mock_base_builder, MockBaseMetadataBuilder},
+            mock_ism::MockInterchainSecurityModule,
+            mock_routing_ism::MockRoutingIsm,
         },
+    };
+    use hyperlane_core::{
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, ModuleType, H256, U256,
     };
 
     use super::MessageMetadataBuilder;
 
     const TEST_DOMAIN: HyperlaneDomain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
-
-    fn dummy_cache_metrics() -> MeteredCacheMetrics {
-        MeteredCacheMetrics {
-            hit_count: IntCounterVec::new(
-                prometheus::Opts::new("dummy_hit_count", "help string"),
-                &["cache_name", "chain", "method", "status"],
-            )
-            .ok(),
-            miss_count: IntCounterVec::new(
-                prometheus::Opts::new("dummy_miss_count", "help string"),
-                &["cache_name", "chain", "method", "status"],
-            )
-            .ok(),
-        }
-    }
-
-    fn build_mock_base_builder() -> MockBaseMetadataBuilder {
-        let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
-        let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-        let cache = OptionalCache::new(Some(MeteredCache::new(
-            LocalCache::new("test-cache"),
-            dummy_cache_metrics(),
-            MeteredCacheConfig {
-                cache_name: "test-cache".to_owned(),
-            },
-        )));
-
-        let mut base_builder = MockBaseMetadataBuilder::new();
-        base_builder.responses.origin_domain = Some(origin_domain.clone());
-        base_builder.responses.destination_domain = Some(destination_domain);
-        base_builder.responses.cache = Some(cache);
-
-        let mock_mailbox = MockMailboxContract::new_with_default_ism(H256::zero());
-        let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
-        let default_ism_getter = DefaultIsmCache::new(mailbox);
-        let app_context_classifier = IsmAwareAppContextClassifier::new(
-            default_ism_getter.clone(),
-            vec![(
-                MatchingList(Some(vec![ListElement::new(
-                    Filter::Wildcard,
-                    Filter::Wildcard,
-                    Filter::Wildcard,
-                    Filter::Wildcard,
-                    Filter::Wildcard,
-                )])),
-                "abcd".to_string(),
-            )],
-        );
-        base_builder.responses.app_context_classifier = Some(app_context_classifier);
-        base_builder.responses.ism_cache_policy_classifier = Some(IsmCachePolicyClassifier::new(
-            default_ism_getter,
-            Default::default(),
-        ));
-        base_builder
-    }
 
     fn insert_null_isms(base_builder: &MockBaseMetadataBuilder, addresses: &[H256]) {
         for ism_address in addresses {
@@ -456,7 +396,10 @@ mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn depth_already_reached() {
-        let base_builder = build_mock_base_builder();
+        let base_builder = build_mock_base_builder(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
         insert_null_isms(&base_builder, &[H256::zero()]);
 
         let ism_address = H256::zero();
@@ -483,7 +426,10 @@ mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn ism_count_already_reached() {
-        let base_builder = build_mock_base_builder();
+        let base_builder = build_mock_base_builder(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
         insert_null_isms(&base_builder, &[H256::zero()]);
 
         let ism_address = H256::zero();
@@ -512,7 +458,10 @@ mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn max_depth_reached() {
-        let base_builder = build_mock_base_builder();
+        let base_builder = build_mock_base_builder(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
         insert_ism_test_data(&base_builder);
 
         let ism_address = H256::zero();
@@ -540,7 +489,10 @@ mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn max_ism_count_reached() {
-        let base_builder = build_mock_base_builder();
+        let base_builder = build_mock_base_builder(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
         insert_ism_test_data(&base_builder);
 
         let ism_address = H256::zero();
