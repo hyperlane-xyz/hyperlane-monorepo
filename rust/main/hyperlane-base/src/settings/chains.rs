@@ -192,6 +192,7 @@ impl ChainConnectionConf {
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
+            Self::Kaspa(_) => HyperlaneDomainProtocol::Kaspa,
         }
     }
 
@@ -311,6 +312,10 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Kaspa(conf) => {
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -1302,6 +1307,24 @@ fn build_cosmos_wasm_provider(
 fn build_cosmos_native_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_cosmos_native::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<hyperlane_cosmos_native::Signer>,
+) -> ChainResult<CosmosNativeProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    CosmosNativeProvider::new(
+        connection_conf,
+        locator,
+        signer,
+        metrics,
+        middleware_metrics.chain.clone(),
+    )
+}
+
+fn build_kaspa_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<hyperlane_cosmos_native::Signer>,
