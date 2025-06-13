@@ -13,6 +13,7 @@ use hyperlane_warp_route::TokenMessage;
 const WARP_ROUTE_MARKER: &str = "/";
 
 #[derive(new)]
+/// Kaspa application operation verifier
 pub struct KaspaApplicationOperationVerifier {}
 
 #[async_trait]

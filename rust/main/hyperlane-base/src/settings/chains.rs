@@ -437,10 +437,8 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let hook = dym_kaspa::KaspaMerkleTreeHook::new(provider, locator.clone())?;
-                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            ChainConnectionConf::Kaspa(_) => {
+                todo!("Kaspa does not support merkle tree hooks yet")
             }
         }
         .context(ctx)
