@@ -2,7 +2,7 @@ use ethers::types::{
     transaction::eip2718::TypedTransaction::{Eip1559, Eip2930, Legacy},
     U256,
 };
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::adapter::EthereumTxPrecursor;
 
@@ -19,6 +19,12 @@ pub fn escalate_gas_price_if_needed(
         (Legacy(old), Legacy(new)) => {
             let escalated_gas_price =
                 get_escalated_price_from_old_and_new(old.gas_price, new.gas_price);
+            debug!(
+                tx_type = "Legacy",
+                old_gas_price = ?old.gas_price,
+                escalated_gas_price = ?escalated_gas_price,
+                "Escalation attempt outcome"
+            );
             if escalated_gas_price.is_zero() {
                 warn!(
                     tx_type = "Legacy",
@@ -31,6 +37,12 @@ pub fn escalate_gas_price_if_needed(
         (Eip2930(old), Eip2930(new)) => {
             let escalated_gas_price =
                 get_escalated_price_from_old_and_new(old.tx.gas_price, new.tx.gas_price);
+            debug!(
+                tx_type = "Eip2930",
+                old_gas_price = ?old.tx.gas_price,
+                escalated_gas_price = ?escalated_gas_price,
+                "Escalation attempt outcome"
+            );
             if escalated_gas_price.is_zero() {
                 warn!(
                     tx_type = "Eip2930",
@@ -49,6 +61,14 @@ pub fn escalate_gas_price_if_needed(
                 new.max_priority_fee_per_gas,
             );
 
+            debug!(
+                tx_type = "Eip1559",
+                old_max_fee_per_gas = ?old.max_fee_per_gas,
+                escalated_max_fee_per_gas = ?escalated_max_fee_per_gas,
+                old_max_priority_fee_per_gas = ?old.max_priority_fee_per_gas,
+                escalated_max_priority_fee_per_gas = ?escalated_max_priority_fee_per_gas,
+                "Escalation attempt outcome"
+            );
             if escalated_max_fee_per_gas.is_zero() && escalated_max_priority_fee_per_gas.is_zero() {
                 warn!(
                     tx_type = "Eip1559",

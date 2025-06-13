@@ -144,8 +144,21 @@ pub fn generate_bindings(
             String::from("MailboxclientCptEvent")
         );
 
-        let abigen =
-            cainome::rs::Abigen::new(contract_name, abi_source).with_types_aliases(aliases);
+        let abigen = cainome::rs::Abigen::new(contract_name, abi_source)
+            .with_types_aliases(aliases)
+            .with_execution_version(cainome::rs::ExecutionVersion::V3)
+            .with_derives(vec![
+                "Debug".to_owned(),
+                "PartialEq".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ])
+            .with_contract_derives(vec![
+                "Debug".to_owned(),
+                "Clone".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ]);
 
         abigen
             .generate()
