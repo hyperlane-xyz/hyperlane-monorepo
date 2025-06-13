@@ -243,6 +243,9 @@ impl InclusionStage {
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
+        state
+            .adapter
+            .update_vm_specific_metrics(&tx, &state.metrics);
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 

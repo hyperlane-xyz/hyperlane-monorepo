@@ -21,15 +21,9 @@ pub async fn estimate_gas_limit(
     domain: &HyperlaneDomain,
     with_gas_limit_overrides: bool,
 ) -> std::result::Result<(), LanderError> {
-    // either use the pre-estimated gas limit or estimate it
-    let mut estimated_gas_limit: U256 = match tx_precursor.tx.gas() {
-        Some(&estimate) => estimate.into(),
-        None => {
-            provider
-                .estimate_gas_limit(&tx_precursor.tx, &tx_precursor.function)
-                .await?
-        }
-    };
+    let mut estimated_gas_limit: U256 = provider
+        .estimate_gas_limit(&tx_precursor.tx, &tx_precursor.function)
+        .await?;
 
     if with_gas_limit_overrides {
         estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
