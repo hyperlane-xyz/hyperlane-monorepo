@@ -156,7 +156,7 @@ export class RebalancerRunner {
 
     if (!originToken) {
       errorRed(`❌ Origin token not found for chain ${origin}`);
-      process.exit(1);
+      throw new Error(`Origin token not found for chain ${origin}`);
     }
 
     try {
@@ -170,11 +170,11 @@ export class RebalancerRunner {
       logGreen(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );
-      process.exit(0);
+      return;
     } catch (e: any) {
       errorRed(`❌ Manual rebalance from ${origin} to ${destination} failed.`);
       errorRed(format(e));
-      process.exit(1);
+      throw e;
     }
   }
 
@@ -194,7 +194,7 @@ export class RebalancerRunner {
       await this.monitor.start();
     } catch (e: any) {
       errorRed('Rebalancer startup error:', format(e));
-      process.exit(1);
+      throw e;
     }
   }
 
@@ -234,7 +234,7 @@ export class RebalancerRunner {
       this.metrics?.recordPollingError();
     } else if (e instanceof MonitorStartError) {
       errorRed(e.message);
-      process.exit(1);
+      throw e;
     } else {
       errorRed('An unexpected error occurred in the monitor:', format(e));
     }
@@ -257,6 +257,6 @@ export class RebalancerRunner {
     // Unregister listeners to prevent them from being called again during shutdown
     process.removeAllListeners('SIGINT');
     process.removeAllListeners('SIGTERM');
-    process.exit(0);
+    return;
   }
 }

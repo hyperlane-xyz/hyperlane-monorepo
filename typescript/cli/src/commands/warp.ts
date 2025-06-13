@@ -512,7 +512,11 @@ export const rebalancer: CommandModuleWithWriteContext<{
       process.exit(1);
     }
 
-    await runner.run();
+    try {
+      await runner.run();
+    } catch {
+      process.exit(1);
+    }
   },
 };
 
