@@ -321,7 +321,8 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
 }
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
-  return num.hexToBytes(address);
+  const normalizedAddress = normalizeAddressStarknet(address);
+  return num.hexToBytes(normalizedAddress);
 }
 
 export function addressToBytes(
