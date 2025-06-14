@@ -9,10 +9,12 @@ import type {
   Connection,
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
+  Signer as SolWeb3Signer,
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
   providers as EV5Providers,
+  Signer as EV5Signer,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 import {
@@ -375,3 +377,20 @@ export type TypedTransactionReceipt =
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt;
+
+interface TypedSignerBase<T> {
+  type: ProviderType;
+  signer: T;
+}
+
+export interface EthersV5Signer extends TypedSignerBase<EV5Signer> {
+  type: ProviderType.EthersV5;
+  signer: EV5Signer;
+}
+
+export interface SolanaWeb3Signer extends TypedSignerBase<SolWeb3Signer> {
+  type: ProviderType.SolanaWeb3;
+  signer: SolWeb3Signer;
+}
+
+export type TypedSigner = EthersV5Signer | SolanaWeb3Signer;
