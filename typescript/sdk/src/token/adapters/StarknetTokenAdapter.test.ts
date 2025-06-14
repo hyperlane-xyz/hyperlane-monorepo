@@ -50,6 +50,13 @@ export async function runTests() {
       amount: BigInt('1000000000000000000'), // 1 STARK
     },
   });
+
+  await runTest({
+    ...params,
+    recipient: addressToBytes32(
+      '0x7e49f666e9b7832b69ca6fbdc36cf0d4acbe94dbe945bcbe7b41ec8dfadc00b2',
+    ),
+  });
 }
 
 runTests().catch(console.error);
