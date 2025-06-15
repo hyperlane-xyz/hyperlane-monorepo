@@ -6,6 +6,7 @@ import {
   Domain,
   Numberish,
   ProtocolType,
+  addressToBytes32,
   assert,
 } from '@hyperlane-xyz/utils';
 
@@ -109,7 +110,7 @@ export class StarknetHypSyntheticAdapter
     const nonOption = new CairoOption(CairoOptionVariant.None);
     return this.contract.populateTransaction.transfer_remote(
       destination,
-      recipient,
+      addressToBytes32(recipient),
       BigInt(weiAmountOrId.toString()),
       BigInt(interchainGas?.amount.toString() ?? '0'),
       nonOption,
@@ -271,7 +272,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
-      recipient,
+      addressToBytes32(recipient),
       amount,
       totalAmount,
       nonOption,

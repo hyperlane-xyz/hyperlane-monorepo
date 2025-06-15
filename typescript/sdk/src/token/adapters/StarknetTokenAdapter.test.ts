@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { cairo } from 'starknet';
+
+import { addressToBytes } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 
@@ -24,7 +26,7 @@ const adapter = new StarknetHypSyntheticAdapter(
 const params = {
   weiAmountOrId: '3000000', // 0.003
   destination: 1399811150, // Example destination domain
-  recipient: addressToBytes32('ApMsTRbsbBpsmzpht4JpzudaBEef4AqW1GfnEf6az6h9'), // Replace with actual recipient address
+  recipient: 'ApMsTRbsbBpsmzpht4JpzudaBEef4AqW1GfnEf6az6h9', // Replace with actual recipient address
   interchainGas: {
     amount: BigInt('0'), // 0
   },
@@ -53,10 +55,15 @@ export async function runTests() {
 
   await runTest({
     ...params,
-    recipient: addressToBytes32(
+    recipient:
       '0x7e49f666e9b7832b69ca6fbdc36cf0d4acbe94dbe945bcbe7b41ec8dfadc00b2',
-    ),
   });
+
+  const recipientBigInt = new DataView(
+    addressToBytes('ApMsTRbsbBpsmzpht4JpzudaBEef4AqW1GfnEf6az6h9').buffer,
+    0,
+  ).getBigUint64(0, true);
+  console.log(cairo.uint256(recipientBigInt));
 }
 
 runTests().catch(console.error);
