@@ -66,7 +66,7 @@ export const getBsquaredUBTCWarpConfig = async (
   };
 };
 
-export function getUbtcOwnerConfigGenerator(safes: Record<string, string>) {
+export function getUbtcOwnerConfigGenerator(safes: ChainMap<Address>) {
   return (): ChainSubmissionStrategy => {
     return Object.fromEntries(
       Object.entries(safes).map(([chain, safeAddress]) => [
