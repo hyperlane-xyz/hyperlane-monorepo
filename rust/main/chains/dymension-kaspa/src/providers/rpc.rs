@@ -189,12 +189,6 @@ impl RpcProvider {
         return FixedPointNumber::zero();
     }
 
-    /// Estimates the gas that will be used when a transaction with msgs is sent.
-    ///
-    /// Note: that simulated result will be multiplied by the gas multiplier in the gas config
-    pub async fn estimate_gas(&self, msgs: Vec<Any>) -> ChainResult<u64> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
 }
 
 #[async_trait]
