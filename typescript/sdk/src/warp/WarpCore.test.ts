@@ -43,11 +43,21 @@ describe('WarpCore', () => {
   let cwHypCollateral: Token;
   let cw20: Token;
   let cosmosIbc: Token;
+  let cosmosNative: Token;
+  let starknetHypSynthetic: Token;
+  let sandbox: sinon.SinonSandbox;
 
-  // Stub MultiProvider fee estimation to avoid real network calls
-  sinon
-    .stub(multiProvider, 'estimateTransactionFee')
-    .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    // Stub MultiProvider fee estimation to avoid real network calls
+    sandbox
+      .stub(multiProvider, 'estimateTransactionFee')
+      .returns(Promise.resolve(MOCK_LOCAL_QUOTE));
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
@@ -72,6 +82,8 @@ describe('WarpCore', () => {
       cwHypCollateral,
       cw20,
       cosmosIbc,
+      cosmosNative,
+      starknetHypSynthetic,
     ] = warpCore.tokens;
   });
 
@@ -93,8 +105,8 @@ describe('WarpCore', () => {
   });
 
   it('Gets transfer gas quote', async () => {
-    const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+    warpCore.tokens.forEach((t) =>
+      sandbox.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
@@ -107,6 +119,7 @@ describe('WarpCore', () => {
       destination: ChainName,
       standard: TokenStandard,
       interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
+      expectedLocalFee: bigint = MOCK_LOCAL_QUOTE.fee,
     ) => {
       const result = await warpCore.estimateTransferRemoteFees({
         originToken: token,
@@ -120,7 +133,7 @@ describe('WarpCore', () => {
       expect(
         result.localQuote.amount,
         `token local amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(MOCK_LOCAL_QUOTE.fee);
+      ).to.equal(expectedLocalFee);
       expect(
         result.interchainQuote.token.standard,
         `token interchain standard check for ${token.chainName} to ${destination}`,
@@ -148,19 +161,24 @@ describe('WarpCore', () => {
       test2.name,
       TokenStandard.SealevelNative,
     );
-    await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
+    await testQuote(cosmosNative, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
     await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
       amount: 1n,
       addressOrDenom: 'atom',
     });
-
-    stubs.forEach((s) => s.restore());
+    await testQuote(
+      starknetHypSynthetic,
+      test1.name,
+      TokenStandard.StarknetHypNative,
+      MOCK_INTERCHAIN_QUOTE,
+      0n, // Starknet returns 0n for local gas estimation without a Starknet account
+    );
   });
 
   it('Checks for destination collateral', async () => {
-    const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+    warpCore.tokens.forEach((t) =>
+      sandbox.stub(t, 'getHypAdapter').returns({
         getBalance: () => Promise.resolve(MOCK_BALANCE),
         getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -198,17 +216,15 @@ describe('WarpCore', () => {
     await testCollateral(evmHypVSXERC20, testXERC20.name, true);
     await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
     await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
-
-    stubs.forEach((s) => s.restore());
   });
 
   it('Validates transfers', async () => {
-    const balanceStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+    warpCore.tokens.forEach((t) =>
+      sandbox.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
     );
     const minimumTransferAmount = 10n;
-    const quoteStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+    warpCore.tokens.forEach((t) =>
+      sandbox.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
@@ -308,18 +324,13 @@ describe('WarpCore', () => {
     expect(
       Object.values(invalidCollateralXERC20LockboxToken || {})[0],
     ).to.equal('Insufficient collateral on destination');
-
-    balanceStubs.forEach((s) => s.restore());
-    quoteStubs.forEach((s) => s.restore());
   });
 
   it('Gets transfer remote txs', async () => {
-    const coreStub = sinon
-      .stub(warpCore, 'isApproveRequired')
-      .returns(Promise.resolve(false));
+    sandbox.stub(warpCore, 'isApproveRequired').returns(Promise.resolve(false));
 
-    const adapterStubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
+    warpCore.tokens.forEach((t) =>
+      sandbox.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -355,8 +366,5 @@ describe('WarpCore', () => {
     await testGetTxs(sealevelHypSynthetic, test2.name, ProviderType.SolanaWeb3);
     await testGetTxs(cwHypCollateral, test1.name, ProviderType.CosmJsWasm);
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
-
-    coreStub.restore();
-    adapterStubs.forEach((s) => s.restore());
   });
 });

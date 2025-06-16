@@ -47,6 +47,7 @@ export {
   padBytesToLength,
   shortenAddress,
   strip0x,
+  addressToBytes32Evm,
   ZERO_ADDRESS_HEX_32,
 } from './addresses.js';
 export {

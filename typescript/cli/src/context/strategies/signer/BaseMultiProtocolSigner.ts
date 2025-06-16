@@ -1,14 +1,18 @@
 import { Signer } from 'ethers';
+import { Account as StarknetAccount } from 'starknet';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainName, ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-export type TypedSigner = Signer | SigningHyperlaneModuleClient;
+export type TypedSigner =
+  | Signer
+  | SigningHyperlaneModuleClient
+  | StarknetAccount;
 
 export interface SignerConfig {
   privateKey: string;
-  address?: Address; // For chains like StarkNet that require address
+  userAddress?: Address; // For chains like StarkNet that require address
   extraParams?: Record<string, any>; // For any additional chain-specific params
 }
 

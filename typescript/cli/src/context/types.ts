@@ -35,6 +35,7 @@ export interface CommandContext {
   // just for evm chains backward compatibility
   signerAddress?: string;
   strategyPath?: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {
@@ -61,7 +62,9 @@ export type CommandModuleWithContext<Args> = CommandModule<
 
 export type CommandModuleWithWriteContext<Args> = CommandModule<
   {},
-  Args & { context: WriteCommandContext }
+  Args & { context: WriteCommandContext } & {
+    multiProtocolSigner?: MultiProtocolSignerManager;
+  }
 >;
 
 export type CommandModuleWithWarpApplyContext<Args> = CommandModule<
