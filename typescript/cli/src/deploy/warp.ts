@@ -1,6 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
-import path from 'path';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -8,7 +7,6 @@ import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
   ChainAddresses,
-  createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
@@ -85,6 +83,7 @@ import {
   prepareDeploy,
   runPreflightChecksForChains,
   validateWarpIsmCompatibility,
+  warpRouteIdFromFileName,
 } from './utils.js';
 
 interface DeployParams {
@@ -154,16 +153,12 @@ export async function runWarpRouteDeploy({
   if (warpRouteId) {
     warpRouteIdOptions = { warpRouteId };
   } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
-    const fileName = path
-      .parse(warpDeployConfigFileName)
-      .name.replace(/-deploy$/, '');
-    const maybeId = createWarpRouteConfigId(
-      addWarpRouteOptions.symbol,
-      fileName,
-    );
-
     // validate that the id is correct
     let isIdOk = true;
+    const maybeId = warpRouteIdFromFileName(
+      warpDeployConfigFileName,
+      addWarpRouteOptions.symbol,
+    );
     try {
       BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
         warpRouteId: maybeId,

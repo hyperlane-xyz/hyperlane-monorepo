@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
-import fs from 'fs';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
@@ -14,7 +13,6 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
-  REGISTRY_PATH,
   TEMP_PATH,
   TestPromptAction,
   WARP_CONFIG_PATH_2,
@@ -59,14 +57,6 @@ describe('hyperlane warp read e2e tests', async function () {
     );
     anvil2Config = { [CHAIN_NAME_2]: { ...exampleWarpConfig.anvil1 } };
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-  });
-
-  beforeEach(() => {
-    const deploymentPaths = `${REGISTRY_PATH}/deployments/warp_routes`;
-
-    if (fs.existsSync(deploymentPaths)) {
-      fs.rmSync(deploymentPaths, { recursive: true, force: true });
-    }
   });
 
   describe('hyperlane warp read --config ...', () => {

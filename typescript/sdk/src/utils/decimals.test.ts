@@ -1,4 +1,4 @@
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 
 import { randomAddress } from '../test/testUtils.js';
 import { TokenType } from '../token/config.js';
@@ -11,63 +11,100 @@ import { verifyScale } from './decimals.js';
 
 describe(verifyScale.name, () => {
   const TOKEN_NAME = 'TOKEN';
+  const ETH_DECIMALS = 18;
+  const USDC_DECIMALS = 6;
 
   it('should return true when all decimals are uniform', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
-      ['chain2', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+      [
+        'chain2',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
     ]);
-    assert.isTrue(verifyScale(configMap));
+
+    expect(verifyScale(configMap)).to.be.true;
   });
 
   it('should return true when all decimals are uniform and scale is not provided', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 6 }],
-      ['chain2', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 6 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
+      [
+        'chain2',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
     ]);
-    assert.isTrue(verifyScale(configMap));
+
+    expect(verifyScale(configMap)).to.be.true;
   });
 
   it('should return true when decimals are non-uniform but scales are correctly calculated/provided', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
       [
         'chain2',
         {
           name: TOKEN_NAME,
           symbol: TOKEN_NAME,
-          decimals: 6,
-          //scale: 1_000_000_000_000
+          decimals: USDC_DECIMALS,
           scale: 1_000_000_000_000,
         },
-      ], // 10^(18-6) = 10^12
+      ],
     ]);
-    assert.isTrue(verifyScale(configMap));
+
+    expect(verifyScale(configMap)).to.be.true;
   });
 
   it('should return false when decimals are non-uniform and an incorrect scale is provided', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
       [
         'chain2',
-        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 6, scale: 100 },
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: 100,
+        },
       ],
     ]);
-    assert.isFalse(verifyScale(configMap));
+
+    expect(verifyScale(configMap)).to.be.false;
   });
 
   it('should return false when decimals are non-uniform and scale is missing', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
-      ['chain2', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 6 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+      [
+        'chain2',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: USDC_DECIMALS },
+      ],
     ]);
 
-    assert.isFalse(verifyScale(configMap));
+    expect(verifyScale(configMap)).to.be.false;
   });
 
   it('should throw an error if decimals are not defined for a token config', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
-      ['chain1', { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: 18 }],
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
       ['chain2', { name: TOKEN_NAME, symbol: TOKEN_NAME }],
     ]);
 
@@ -83,19 +120,20 @@ describe(verifyScale.name, () => {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 18,
+        decimals: ETH_DECIMALS,
         mailbox: randomAddress(),
       },
       chain2: {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 6,
+        decimals: USDC_DECIMALS,
         scale: 1_000_000_000_000,
         mailbox: randomAddress(),
       },
     };
-    assert.isTrue(verifyScale(config));
+
+    expect(verifyScale(config)).to.be.true;
   });
 
   it('should handle WarpRouteDeployConfigMailboxRequired with uniform decimals', () => {
@@ -104,18 +142,19 @@ describe(verifyScale.name, () => {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 18,
+        decimals: ETH_DECIMALS,
         mailbox: randomAddress(),
       },
       chain2: {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 18,
+        decimals: ETH_DECIMALS,
         mailbox: randomAddress(),
       },
     };
-    assert.isTrue(verifyScale(config));
+
+    expect(verifyScale(config)).to.be.true;
   });
 
   it('should return false for WarpRouteDeployConfigMailboxRequired with incorrect scale', () => {
@@ -124,19 +163,20 @@ describe(verifyScale.name, () => {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 18,
+        decimals: ETH_DECIMALS,
         mailbox: randomAddress(),
       },
       chain2: {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 6,
+        decimals: USDC_DECIMALS,
         scale: 1000,
         mailbox: randomAddress(),
       },
     };
-    assert.isFalse(verifyScale(config));
+
+    expect(verifyScale(config)).to.be.false;
   });
 
   it('should throw an error for WarpRouteDeployConfigMailboxRequired with missing decimals', () => {
@@ -145,7 +185,7 @@ describe(verifyScale.name, () => {
         type: TokenType.collateral,
         token: randomAddress(),
         owner: randomAddress(),
-        decimals: 18,
+        decimals: ETH_DECIMALS,
         mailbox: randomAddress(),
       },
       chain2: {
@@ -156,6 +196,7 @@ describe(verifyScale.name, () => {
         mailbox: randomAddress(),
       },
     };
+
     assert.throws(
       () => verifyScale(config),
       'Decimals must be defined for token config on chain chain2',
