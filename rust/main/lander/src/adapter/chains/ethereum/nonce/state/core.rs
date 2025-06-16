@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use super::super::db::NonceDb;
+use ethers::prelude::Address;
+
+use hyperlane_core::HyperlaneDomain;
+
 use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
 use crate::dispatcher::TransactionDb;
-use ethers::prelude::Address;
-use hyperlane_core::HyperlaneDomain;
+
+use super::super::db::NonceDb;
 
 pub(crate) struct NonceManagerState {
     pub(super) domain: HyperlaneDomain,
