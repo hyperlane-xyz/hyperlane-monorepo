@@ -100,6 +100,7 @@ describe('SmartProvider', async () => {
       const factory = new ERC20__factory(signer);
       await factory.deploy('fake', 'FAKE');
     } catch (e: any) {
+      expect(e.cause.code).to.equal('SERVER_ERROR');
       expect(e.message).to.equal(
         getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
       );
@@ -121,6 +122,7 @@ describe('SmartProvider', async () => {
       const factory = new ERC20__factory(signer);
       await factory.deploy('fake', 'FAKE');
     } catch (e: any) {
+      expect(e.cause.code).to.equal('SERVER_ERROR');
       expect(e.message).to.equal(
         getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
       );
@@ -156,6 +158,7 @@ describe('SmartProvider', async () => {
     try {
       await token.transfer(constants.AddressZero, 1000000);
     } catch (e: any) {
+      expect(e.error.cause.code).to.equal('UNPREDICTABLE_GAS_LIMIT');
       expect(e.error.message).to.equal(
         'execution reverted: ERC20: transfer to the zero address',
       );
@@ -167,12 +170,13 @@ describe('SmartProvider', async () => {
       maxRetries: 1,
     });
     const signer = new Wallet(PK, smartProvider);
-
     const factory = new ERC20__factory(signer);
     const token = await factory.deploy('fake', 'FAKE');
+
     try {
       await token.transfer(signer.address, 1000000);
     } catch (e: any) {
+      expect(e.error.cause.code).to.equal('UNPREDICTABLE_GAS_LIMIT');
       expect(e.error.message).to.equal(
         'execution reverted: ERC20: transfer amount exceeds balance',
       );
