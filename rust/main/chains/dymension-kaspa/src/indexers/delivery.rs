@@ -55,6 +55,8 @@ impl Indexer<H256> for KaspaDelivery {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
+    // used for the tx id indexer task
+    //  can disable by setting this none https://github.com/dymensionxyz/hyperlane-monorepo/blob/5f2136acc6a8e12adaac9e053811e9c33623d01e/rust/main/hyperlane-base/src/contract_sync/mod.rs#L379
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
