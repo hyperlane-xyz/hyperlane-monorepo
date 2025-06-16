@@ -7,7 +7,6 @@ use hyperlane_core::U256;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::TransactionUuid;
 
-use super::super::super::super::tests::DOMAIN;
 use super::super::super::super::EthereumAdapterMetrics;
 use super::super::NonceManagerState;
 
@@ -16,13 +15,7 @@ async fn test_get_and_set_tracked_tx_uuid() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let nonce = U256::from(1);
     let tx_uuid = TransactionUuid::random();
@@ -48,13 +41,7 @@ async fn test_clear_tracked_tx_uuid() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let nonce = U256::from(2);
     let tx_uuid = TransactionUuid::random();
@@ -73,13 +60,7 @@ async fn test_get_and_set_upper_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // Default should be zero
     let upper = state.get_upper_nonce().await.unwrap();
@@ -103,13 +84,7 @@ async fn test_get_finalized_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // Default should be None
     let finalized = state.get_finalized_nonce().await.unwrap();
@@ -133,13 +108,7 @@ async fn test_get_boundary_nonces() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // Both defaults
     let (finalized, upper) = state.get_boundary_nonces().await.unwrap();
@@ -163,14 +132,8 @@ async fn test_tracked_tx_uuid_multiple_nonces_and_addresses() {
     let address1 = Address::random();
     let address2 = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state1 = NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db.clone(),
-        tx_db.clone(),
-        address1,
-        metrics.clone(),
-    );
-    let state2 = NonceManagerState::new((*DOMAIN).clone(), nonce_db, tx_db, address2, metrics);
+    let state1 = NonceManagerState::new(nonce_db.clone(), tx_db.clone(), address1, metrics.clone());
+    let state2 = NonceManagerState::new(nonce_db, tx_db, address2, metrics);
 
     let nonce1 = U256::from(100);
     let nonce2 = U256::from(200);
@@ -208,13 +171,7 @@ async fn test_clear_tracked_tx_uuid_idempotency() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let nonce = U256::from(300);
 
@@ -241,13 +198,7 @@ async fn test_set_upper_nonce_lower_than_existing() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let upper1 = U256::from(50);
     let upper2 = U256::from(20);
@@ -264,13 +215,7 @@ async fn test_set_and_get_finalized_nonce_none_and_overwrite() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // Should be None initially
     assert_eq!(state.get_finalized_nonce().await.unwrap(), None);
@@ -290,13 +235,7 @@ async fn test_get_boundary_nonces_with_only_one_set() {
 
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db.clone(),
-        tx_db.clone(),
-        address,
-        metrics.clone(),
-    );
+    let state = NonceManagerState::new(nonce_db.clone(), tx_db.clone(), address, metrics.clone());
 
     let finalized_val = U256::from(7);
     let upper_val = U256::from(13);
@@ -309,7 +248,7 @@ async fn test_get_boundary_nonces_with_only_one_set() {
 
     // Only upper set (clear finalized by using a new address)
     let address2 = Address::random();
-    let state2 = NonceManagerState::new((*DOMAIN).clone(), nonce_db, tx_db, address2, metrics);
+    let state2 = NonceManagerState::new(nonce_db, tx_db, address2, metrics);
     state2.set_upper_nonce(&upper_val).await.unwrap();
     let (finalized, upper) = state2.get_boundary_nonces().await.unwrap();
     assert_eq!(finalized, None);

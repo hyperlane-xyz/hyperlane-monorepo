@@ -22,7 +22,7 @@ use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
-    LanderError,
+    DispatcherMetrics, LanderError,
 };
 
 use super::{
@@ -51,7 +51,10 @@ impl EthereumAdapter {
         _raw_conf: RawChainConf,
         db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> eyre::Result<Self> {
+        let domain = conf.domain.name();
+
         let locator = ContractLocator {
             domain: &conf.domain,
             address: hyperlane_core::H256::zero(),
@@ -65,7 +68,10 @@ impl EthereumAdapter {
             )
             .await?;
 
-        let metrics = EthereumAdapterMetrics::new(&metrics.registry())?;
+        let metrics = EthereumAdapterMetrics::new(
+            dispatcher_metrics.get_finalized_nonce(domain),
+            dispatcher_metrics.get_upper_nonce(domain),
+        );
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
         let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;

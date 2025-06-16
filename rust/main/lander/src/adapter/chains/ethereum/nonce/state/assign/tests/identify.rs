@@ -6,7 +6,6 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
 use hyperlane_core::U256;
 
-use super::super::super::super::super::tests::DOMAIN;
 use super::super::super::super::tests::make_tx;
 use super::super::NonceManagerState;
 
@@ -19,13 +18,7 @@ async fn test_identify_next_nonce_no_finalized_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // If finalized_nonce is None, should return upper_nonce
     let upper_nonce = U256::from(5);
@@ -38,13 +31,7 @@ async fn test_identify_next_nonce_first_untracked_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // finalized_nonce = 2, upper_nonce = 5
     // 2: tracked, 3: not tracked, should return 3
@@ -70,13 +57,7 @@ async fn test_identify_next_nonce_first_freed_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // finalized_nonce = 1, upper_nonce = 4
     // 1: tracked, 2: tracked (Freed), 3: tracked (Taken)
@@ -127,13 +108,7 @@ async fn test_identify_next_nonce_non_existing_tracked_tx() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // finalized_nonce = 0, upper_nonce = 2
     // 0: tracked, but transaction does not exist
@@ -160,13 +135,7 @@ async fn test_identify_next_nonce_all_taken() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // finalized_nonce = 0, upper_nonce = 3
     // 0: tracked (Taken), 1: tracked (Taken), 2: tracked (Taken)
@@ -196,13 +165,7 @@ async fn test_identify_next_nonce_gap_in_tracked_nonces() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // finalized_nonce = 0, upper_nonce = 4
     // 0: tracked (Taken), 1: not tracked, 2: tracked (Taken), 3: not tracked

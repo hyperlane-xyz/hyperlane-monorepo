@@ -25,9 +25,8 @@ impl NonceManagerState {
             self.set_upper_nonce(&upper_nonce).await?;
         }
 
-        let domain = self.domain.name();
-        self.metrics.set_finalized_nonce(domain, finalized_nonce);
-        self.metrics.set_upper_nonce(domain, &upper_nonce);
+        self.metrics.set_finalized_nonce(finalized_nonce);
+        self.metrics.set_upper_nonce(&upper_nonce);
 
         Ok(())
     }

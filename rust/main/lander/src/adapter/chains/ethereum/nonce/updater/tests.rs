@@ -10,7 +10,7 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::TransactionUuid;
 
 use super::super::super::metrics::EthereumAdapterMetrics;
-use super::super::super::tests::{MockEvmProvider, DOMAIN};
+use super::super::super::tests::MockEvmProvider;
 use super::super::state::NonceManagerState;
 use super::super::updater::NonceUpdater;
 
@@ -44,13 +44,7 @@ async fn test_update_boundaries_immediately_success() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let updater = make_updater(Some(U256::from(5)), false, state.clone(), address);
 
@@ -66,13 +60,7 @@ async fn test_update_boundaries_immediately_provider_error() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let updater = make_updater(None, true, state, address);
 
@@ -85,13 +73,7 @@ async fn test_update_boundaries_immediately_none_next_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     // next_nonce = 0, so finalized_nonce = None, should not update
     let updater = make_updater(Some(U256::zero()), false, state.clone(), address);
@@ -108,13 +90,7 @@ async fn test_update_boundaries_waits_for_block_time() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let updater = make_updater(Some(U256::from(3)), false, state.clone(), address);
 

@@ -3,10 +3,11 @@
 
 use std::time::UNIX_EPOCH;
 
+use hyperlane_core::U256;
 use prometheus::{
     core::{AtomicU64, GenericGauge},
     labels, opts, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    Encoder, IntCounterVec, IntGaugeVec, Registry,
+    Encoder, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
 use tracing::{debug, info, warn};
 
@@ -41,6 +42,11 @@ pub struct DispatcherMetrics {
 
     // total time spent submitting transactions
     pub in_flight_transaction_time: IntGaugeVec,
+
+    /// Currently finalized nonce for each destination
+    finalized_nonce: IntGaugeVec,
+    /// Upper nonce, namely the nonce which can be used next for each destination
+    upper_nonce: IntGaugeVec,
 }
 
 impl DispatcherMetrics {
@@ -125,6 +131,25 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+
+        let finalized_nonce = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("finalized_nonce"),
+                "Currently finalized nonce for each destination",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
+
+        let upper_nonce = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("upper_nonce"),
+                "Currently upper nonce for each destination",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
+
         Ok(Self {
             registry: registry.clone(),
             task_liveness,
@@ -137,6 +162,8 @@ impl DispatcherMetrics {
             finalized_transactions,
             call_retries,
             in_flight_transaction_time,
+            finalized_nonce,
+            upper_nonce,
         })
     }
 
@@ -195,6 +222,16 @@ impl DispatcherMetrics {
         self.call_retries
             .with_label_values(&[domain, error_type, call_type])
             .inc();
+    }
+
+    pub fn get_finalized_nonce(&self, destination: &str) -> IntGauge {
+        self.finalized_nonce
+            .with_label_values(&[destination])
+            .clone()
+    }
+
+    pub fn get_upper_nonce(&self, destination: &str) -> IntGauge {
+        self.upper_nonce.with_label_values(&[destination]).clone()
     }
 
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {

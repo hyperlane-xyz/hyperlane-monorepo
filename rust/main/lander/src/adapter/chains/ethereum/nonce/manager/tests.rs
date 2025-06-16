@@ -10,7 +10,6 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{TransactionStatus, TransactionUuid};
 
 use super::super::super::tests::MockEvmProvider;
-use super::super::super::tests::DOMAIN;
 use super::super::super::transaction::Precursor;
 use super::super::super::EthereumAdapterMetrics;
 use super::super::tests::make_tx;
@@ -39,13 +38,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
     let nonce_updater = make_nonce_updater(address, state.clone());
     let manager = NonceManager {
         address,
@@ -72,13 +65,7 @@ async fn test_assign_nonce_error_when_from_address_missing() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
     let nonce_updater = make_nonce_updater(address, state.clone());
     let manager = NonceManager {
         address,
@@ -105,13 +92,7 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
     let address = Address::random();
     let other_address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(
-        (*DOMAIN).clone(),
-        nonce_db,
-        tx_db,
-        address,
-        metrics,
-    ));
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
     let nonce_updater = make_nonce_updater(address, state.clone());
     let manager = NonceManager {
         address,
