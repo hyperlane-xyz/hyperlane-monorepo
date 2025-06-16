@@ -13,7 +13,7 @@ import {
   Domain,
   Numberish,
   ProtocolType,
-  addressToBytes,
+  addressToBytes32,
   assert,
 } from '@hyperlane-xyz/utils';
 
@@ -103,9 +103,10 @@ export class StarknetHypSyntheticAdapter
   }
 
   async quoteTransferRemoteGas(
-    _destination: Domain,
+    destination: Domain,
   ): Promise<InterchainGasQuote> {
-    return { amount: 0n };
+    const gasPayment = await this.contract.quote_gas_payment(destination);
+    return { amount: BigInt(gasPayment.toString()) };
   }
 
   async populateTransferRemoteTx({
@@ -115,13 +116,9 @@ export class StarknetHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const recipientBigInt = new DataView(
-      addressToBytes(recipient).buffer,
-      0,
-    ).getBigUint64(0, true);
     return this.contract.populateTransaction.transfer_remote(
       destination,
-      cairo.uint256(recipientBigInt),
+      cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(BigInt(weiAmountOrId.toString())),
       cairo.uint256(BigInt(interchainGas?.amount.toString() ?? '0')),
       nonOption,
