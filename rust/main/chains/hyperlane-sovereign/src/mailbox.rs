@@ -1,8 +1,3 @@
-use crate::{
-    indexer::SovIndexer,
-    rest_client::{self, TxEvent},
-    ConnectionConf, Signer, SovereignProvider,
-};
 use async_trait::async_trait;
 use core::ops::RangeInclusive;
 use hyperlane_core::{
@@ -14,6 +9,10 @@ use hyperlane_core::{
 use serde::Deserialize;
 use std::fmt::Debug;
 use tracing::instrument;
+
+use crate::indexer::SovIndexer;
+use crate::types::TxEvent;
+use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// Struct that retrieves event data for a Sovereign Mailbox contract
 #[derive(Debug, Clone)]
@@ -55,12 +54,12 @@ pub struct DispatchEventInner {
 impl crate::indexer::SovIndexer<HyperlaneMessage> for SovereignMailboxIndexer {
     const EVENT_KEY: &'static str = "Mailbox/Dispatch";
 
-    fn client(&self) -> &rest_client::SovereignRestClient {
-        self.provider.client()
+    fn provider(&self) -> &SovereignProvider {
+        &self.provider
     }
 
     async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
-        let sequence = self.client().get_count(at_slot).await?;
+        let sequence = self.provider().get_count(at_slot).await?;
         Ok(Some(sequence))
     }
 
@@ -154,14 +153,14 @@ impl HyperlaneChain for SovereignMailbox {
 #[async_trait]
 impl Mailbox for SovereignMailbox {
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let slot = self.provider.client().get_finalized_slot().await?;
-        let count = self.provider.client().get_count(Some(slot)).await?;
+        let slot = self.provider.get_finalized_slot().await?;
+        let count = self.provider.get_count(Some(slot)).await?;
 
         Ok(count)
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        self.provider.client().delivered(id).await
+        self.provider.delivered(id).await
     }
 
     /// For now, there's no default ism in sov
@@ -187,7 +186,6 @@ impl Mailbox for SovereignMailbox {
     ) -> ChainResult<TxOutcome> {
         let result = self
             .provider
-            .client()
             .process(message, metadata, tx_gas_limit)
             .await?;
 
@@ -201,7 +199,6 @@ impl Mailbox for SovereignMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let costs = self
             .provider
-            .client()
             .process_estimate_costs(message, metadata)
             .await?;
 

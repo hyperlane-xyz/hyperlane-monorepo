@@ -2,7 +2,7 @@ use std::env;
 
 use bech32::{Bech32m, Hrp};
 use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use hyperlane_core::{ChainResult, H256};
 use tokio::fs;
 use tracing::warn;
 
@@ -45,11 +45,9 @@ impl Signer {
 
         warn!("Getting sovereign key from {key_file}; this behaviour is deprecated and will be removed");
 
-        let data = fs::read_to_string(&key_file).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Failed to read file at {key_file}: {e:?}"
-            ))
-        })?;
+        let data = fs::read_to_string(&key_file)
+            .await
+            .map_err(|e| custom_err!("Failed to read file at {key_file}: {e:?}"))?;
         let outer_value: serde_json::Value = serde_json::from_str(&data)?;
         let inner_value = outer_value["private_key"]["key_pair"].clone();
         let bytes: [u8; 32] = serde_json::from_value(inner_value)?;
@@ -88,11 +86,7 @@ fn address_from_sk(private_key: &SigningKey) -> ChainResult<String> {
     let hrp = Hrp::parse("sov").expect("valid hrp");
     let public_key = private_key.verifying_key();
     let address = bech32::encode::<Bech32m>(hrp, &public_key.as_bytes()[..SOV_ADDRESS_LENGTH])
-        .map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Encoding public key to bech32 failed: {e}"
-            ))
-        })?;
+        .map_err(|e| custom_err!("Encoding public key to bech32 failed: {e}"))?;
 
     Ok(address)
 }

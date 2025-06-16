@@ -1,10 +1,11 @@
-use crate::{ConnectionConf, Signer, SovereignProvider};
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
     H256, U256,
 };
+
+use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// A struct for the ISM on the Sovereign chain.
 #[derive(Debug)]
@@ -56,7 +57,6 @@ impl InterchainSecurityModule for SovereignInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         let tx_cost_estimate = self
             .provider
-            .client()
             .process_estimate_costs(message, metadata)
             .await?;
         Ok(Some(FixedPointNumber::try_into(
@@ -65,7 +65,7 @@ impl InterchainSecurityModule for SovereignInterchainSecurityModule {
     }
 
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module_type = self.provider.client().module_type(self.address).await?;
+        let module_type = self.provider.module_type(self.address).await?;
 
         Ok(module_type)
     }

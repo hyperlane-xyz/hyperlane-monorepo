@@ -1,17 +1,23 @@
-use crate::{ConnectionConf, Signer};
+use std::ops::Deref;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
     HyperlaneProvider, TxnInfo, H256, H512, U256,
 };
 
-pub mod rest_client;
+mod client;
+mod methods;
+mod transaction;
+
+use crate::{ConnectionConf, Signer};
+pub use client::SovereignClient;
 
 /// A wrapper around a Sovereign provider to get generic blockchain information.
 #[derive(Debug, Clone)]
 pub struct SovereignProvider {
     domain: HyperlaneDomain,
-    client: rest_client::SovereignRestClient,
+    client: SovereignClient,
 }
 
 impl SovereignProvider {
@@ -22,13 +28,16 @@ impl SovereignProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let signer = signer.ok_or(ChainCommunicationError::SignerUnavailable)?;
-        let client = rest_client::SovereignRestClient::new(conf, signer).await?;
+        let client = SovereignClient::new(conf, signer).await?;
 
         Ok(Self { domain, client })
     }
+}
 
-    /// Get a rest client.
-    pub(crate) fn client(&self) -> &rest_client::SovereignRestClient {
+impl Deref for SovereignProvider {
+    type Target = SovereignClient;
+
+    fn deref(&self) -> &Self::Target {
         &self.client
     }
 }
@@ -47,11 +56,11 @@ impl HyperlaneChain for SovereignProvider {
 #[async_trait]
 impl HyperlaneProvider for SovereignProvider {
     async fn get_block_by_height(&self, _height: u64) -> ChainResult<BlockInfo> {
-        Err(ChainCommunicationError::CustomError("Not supported".into()))
+        Err(custom_err!("Not supported"))
     }
 
     async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
-        Err(ChainCommunicationError::CustomError("Not supported".into()))
+        Err(custom_err!("Not supported"))
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
@@ -59,10 +68,10 @@ impl HyperlaneProvider for SovereignProvider {
     }
 
     async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        Err(ChainCommunicationError::CustomError("Not supported".into()))
+        Err(custom_err!("Not supported"))
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Err(ChainCommunicationError::CustomError("Not supported".into()))
+        Err(custom_err!("Not supported"))
     }
 }

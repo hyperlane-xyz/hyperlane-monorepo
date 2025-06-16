@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
@@ -5,7 +7,6 @@ use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
 use hyperlane_warp_route::TokenMessage;
-use std::io::Cursor;
 
 use crate::signers::SOV_HEX_ADDRESS_LEADING_ZEROS;
 

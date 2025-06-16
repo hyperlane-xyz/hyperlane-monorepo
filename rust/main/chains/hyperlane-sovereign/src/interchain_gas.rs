@@ -8,7 +8,7 @@ use hyperlane_core::{
 use serde::Deserialize;
 
 use crate::indexer::SovIndexer;
-use crate::rest_client::{SovereignRestClient, TxEvent};
+use crate::types::TxEvent;
 use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// A reference to a `InterchainGasPaymasterIndexer` contract on some Sovereign chain
@@ -46,14 +46,17 @@ struct MessageBody {
 #[async_trait]
 impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGasPaymasterIndexer {
     const EVENT_KEY: &'static str = "IGP/GasPayment";
-    fn client(&self) -> &SovereignRestClient {
-        self.provider.client()
+
+    fn provider(&self) -> &SovereignProvider {
+        &self.provider
     }
+
     async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
-        let sequence = self.client().get_count(at_slot).await?;
+        let sequence = self.provider().get_count(at_slot).await?;
 
         Ok(Some(sequence))
     }
+
     fn decode_event(&self, event: &TxEvent) -> ChainResult<InterchainGasPayment> {
         let igp: Igp = serde_json::from_value(event.value.clone())?;
 

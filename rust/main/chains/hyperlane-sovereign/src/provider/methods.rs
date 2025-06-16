@@ -1,253 +1,20 @@
-use std::fmt::{self, Debug};
-
-use bech32::{Bech32m, Hrp};
 use futures::stream::FuturesOrdered;
 use futures::TryStreamExt;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::Encode;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Announcement, ChainCommunicationError,
-    ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType, SignedType,
-    TxCostEstimate, TxOutcome, H160, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, Checkpoint,
+    FixedPointNumber, HyperlaneMessage, ModuleType, SignedType, TxCostEstimate, TxOutcome, H160,
+    H256, H512, U256,
 };
 use num_traits::FromPrimitive;
-use reqwest::StatusCode;
-use reqwest::{header::HeaderMap, Client, Response};
 use serde::Deserialize;
-use serde_json::{json, Value};
-use tracing::instrument;
-use url::Url;
+use serde_json::json;
 
-use crate::universal_wallet_client::{utils, UniversalClient};
-use crate::{ConnectionConf, Signer};
+use super::client::SovereignClient;
+use crate::types::{Batch, Slot, Tx};
 
-/// A generic rollup rest response
-#[derive(Clone, Debug, Deserialize)]
-struct Schema<T> {
-    data: Option<T>,
-    #[serde(default)]
-    errors: Vec<ErrorInfo>,
-}
-
-/// Request error details
-#[derive(Clone, Deserialize)]
-struct ErrorInfo {
-    title: String,
-    status: u64,
-    details: Value,
-}
-
-impl fmt::Debug for ErrorInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        let mut details = String::new();
-        if !self.details.is_null() && !self.details.as_str().is_some_and(|s| s.is_empty()) {
-            if let Ok(json) = serde_json::to_string(&self.details) {
-                details = format!(": {json}");
-            }
-        }
-        write!(f, "'{} ({}){}'", self.title, self.status, details)
-    }
-}
-
-/// Either an error response from the rest server or an intermediate error.
-///
-/// Can be converted to [`ChainCommunicationError`] but allows for differentiating
-/// between those cases and checking the status code of the response.
-#[derive(Debug)]
-enum RestClientError {
-    Response(StatusCode, Vec<ErrorInfo>),
-    Other(String),
-}
-
-impl RestClientError {
-    fn is_not_found(&self) -> bool {
-        matches!(self, RestClientError::Response(status, _) if status == &StatusCode::NOT_FOUND)
-    }
-}
-
-impl From<RestClientError> for ChainCommunicationError {
-    fn from(value: RestClientError) -> Self {
-        ChainCommunicationError::CustomError(format!("{value}"))
-    }
-}
-
-impl fmt::Display for RestClientError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RestClientError::Response(status, errors) => {
-                write!(f, "Received error response {status}: {errors:?}")
-            }
-            RestClientError::Other(err) => write!(f, "Request failed: {err}"),
-        }
-    }
-}
-
-/// Convert H256 type to String.
-pub fn to_bech32(input: H256) -> ChainResult<String> {
-    let hrp = Hrp::parse("sov").expect("Hardcoded HRP");
-    let mut bech32_address = String::new();
-    let addr = input.as_ref();
-
-    let addr = if addr.len() == 28 {
-        addr
-    } else if addr.len() == 32 && addr[..4] == [0, 0, 0, 0] {
-        &addr[4..]
-    } else {
-        return Err(ChainCommunicationError::CustomError(format!(
-            "bech_32 encoding error: Address must be 28 bytes, received {addr:?}"
-        )));
-    };
-    bech32::encode_to_fmt::<Bech32m, String>(&mut bech32_address, hrp, addr).map_err(|e| {
-        ChainCommunicationError::CustomError(format!("bech32 encoding error: {e:?}"))
-    })?;
-    Ok(bech32_address)
-}
-
-#[derive(Clone, Debug)]
-pub struct SovereignRestClient {
-    url: Url,
-    client: Client,
-    universal_wallet_client: UniversalClient,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct TxEvent {
-    pub key: String,
-    pub value: serde_json::Value,
-    pub number: u64,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Tx {
-    pub number: u64,
-    pub hash: H256,
-    pub events: Vec<TxEvent>,
-    pub batch_number: u64,
-    pub receipt: Receipt,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Receipt {
-    pub result: String,
-    pub data: TxData,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct TxData {
-    pub gas_used: Vec<u32>,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Batch {
-    pub number: u64,
-    pub hash: H256,
-    pub txs: Vec<Tx>,
-    pub slot_number: u64,
-}
-
-/// A Sovereign Rest response payload.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Slot {
-    pub number: u64,
-    pub hash: H256,
-    pub batches: Vec<Batch>,
-}
-
-impl SovereignRestClient {
-    #[instrument(skip(self), ret, err(level = "info"))]
-    async fn http_get<T>(&self, query: &str) -> Result<T, RestClientError>
-    where
-        T: Debug + for<'a> Deserialize<'a>,
-    {
-        let mut header_map = HeaderMap::default();
-        header_map.insert(
-            "content-type",
-            "application/json".parse().expect("Well-formed &str"),
-        );
-
-        let url = self
-            .url
-            .join(query)
-            .map_err(|e| RestClientError::Other(format!("Failed to construct url: {e}")))?;
-        let response = self
-            .client
-            .get(url)
-            .headers(header_map)
-            .send()
-            .await
-            .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
-
-        self.parse_response(response).await
-    }
-
-    #[instrument(skip(self), ret, err(level = "info"))]
-    async fn http_post<T>(&self, query: &str, json: &Value) -> Result<T, RestClientError>
-    where
-        T: Debug + for<'a> Deserialize<'a>,
-    {
-        let mut header_map = HeaderMap::default();
-        header_map.insert(
-            "content-type",
-            "application/json".parse().expect("Well-formed &str"),
-        );
-
-        let url = self
-            .url
-            .join(query)
-            .map_err(|e| RestClientError::Other(format!("Failed to construct url: {e}")))?;
-        let response = self
-            .client
-            .post(url)
-            .headers(header_map)
-            .json(json)
-            .send()
-            .await
-            .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
-
-        self.parse_response(response).await
-    }
-
-    async fn parse_response<T>(&self, response: Response) -> Result<T, RestClientError>
-    where
-        T: Debug + for<'a> Deserialize<'a>,
-    {
-        let status = response.status();
-        let result: Schema<T> = response
-            .json()
-            .await
-            .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
-
-        if status.is_success() {
-            result
-                .data
-                .ok_or_else(|| RestClientError::Other("Missing data in response".into()))
-        } else {
-            Err(RestClientError::Response(status, result.errors))
-        }
-    }
-
-    /// Create a new Rest client for the Sovereign Hyperlane chain.
-    pub async fn new(conf: &ConnectionConf, signer: Signer) -> ChainResult<Self> {
-        let universal_wallet_client =
-            UniversalClient::new(conf.url.as_str(), signer, conf.chain_id)
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to create Universal Client: {e:?}"
-                    ))
-                })?;
-        Ok(SovereignRestClient {
-            url: conf.url.clone(),
-            client: Client::new(),
-            universal_wallet_client,
-        })
-    }
-
+impl SovereignClient {
     /// Get the batch by number
     pub async fn get_batch(&self, batch: u64) -> ChainResult<Batch> {
         let query = format!("/ledger/batches/{batch}?children=1");
@@ -265,9 +32,9 @@ impl SovereignRestClient {
     /// Get the transaction by hash
     pub async fn get_tx_by_hash(&self, tx_id: H512) -> ChainResult<Tx> {
         if tx_id.0[0..32] != [0; 32] {
-            return Err(ChainCommunicationError::CustomError(format!(
+            return Err(custom_err!(
                 "Invalid sovereign transaction id, should have 32 bytes: {tx_id:?}"
-            )));
+            ));
         }
         let tx_id = H256(tx_id[32..].try_into().expect("Must be 32 bytes"));
 
@@ -340,15 +107,7 @@ impl SovereignRestClient {
                 }
             },
         });
-        let (tx_hash, _) = self
-            .universal_wallet_client
-            .build_and_submit(call_message)
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to submit process transaction: {e}"
-                ))
-            })?;
+        let (tx_hash, _) = self.build_and_submit(call_message).await?;
 
         let tx_details = self.get_tx_by_hash(tx_hash.into()).await?;
 
@@ -397,16 +156,35 @@ impl SovereignRestClient {
         }
         let query = "/rollup/simulate";
 
-        let json = utils::get_simulate_json_query(message, metadata, &self.universal_wallet_client)
-            .await?;
+        let call_message = json!({
+            "mailbox": {
+                "process": {
+                    "metadata": metadata.to_vec(),
+                    "message": message.to_vec(),
+                }
+            },
+        });
+
+        let encoded_call_message = self.encoded_call_message(&call_message)?;
+        let json = json!({
+            "body": {
+              "details":{
+                "chain_id": message.destination,
+                "max_fee": "100000000",
+                "max_priority_fee_bips": 0
+              },
+              "encoded_call_message": encoded_call_message,
+              "nonce": message.nonce,
+              "generation": 0,
+              "sender_pub_key": "\"f8ad2437a279e1c8932c07358c91dc4fe34864a98c6c25f298e2a0199c1509ff\""
+            }
+        });
 
         let response = self.http_post::<Data>(query, &json).await?;
 
         let receipt = response.apply_tx_result.receipt;
         if receipt.receipt.outcome != "successful" {
-            return Err(ChainCommunicationError::CustomError(
-                "Transaction simulation reverted".into(),
-            ));
+            return Err(custom_err!("Transaction simulation reverted"));
         }
 
         let gas_price = FixedPointNumber::from(
@@ -415,15 +193,9 @@ impl SovereignRestClient {
                 .transaction_consumption
                 .gas_price
                 .first()
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError("Failed to get item(0)".into())
-                })?
+                .ok_or_else(|| custom_err!("Failed to get item(0)"))?
                 .parse::<u32>()
-                .map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to parse gas_price: {e:?}"
-                    ))
-                })?,
+                .map_err(|e| custom_err!("Failed to parse gas_price: {e:?}"))?,
         );
 
         let gas_limit = U256::from(
@@ -432,9 +204,7 @@ impl SovereignRestClient {
                 .transaction_consumption
                 .base_fee
                 .first()
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError("Failed to get item(0)".into())
-                })?,
+                .ok_or_else(|| custom_err!("Failed to get item(0)"))?,
         );
 
         let res = TxCostEstimate {
@@ -452,9 +222,7 @@ impl SovereignRestClient {
 
         let response = self.http_get::<u8>(&query).await?;
 
-        ModuleType::from_u8(response).ok_or_else(|| {
-            ChainCommunicationError::CustomError("Unknown ModuleType returned".into())
-        })
+        ModuleType::from_u8(response).ok_or_else(|| custom_err!("Unknown ModuleType returned"))
     }
 
     /// Get the merkle tree of dispatched messages
@@ -481,14 +249,9 @@ impl SovereignRestClient {
         let branch = response.value.branch;
 
         let branch_len = branch.len();
-        let branch: [_; TREE_DEPTH] =
-            branch
-                .try_into()
-                .map_err(|_| ChainCommunicationError::ParseError {
-                    msg: format!(
-                        "Invalid tree size, expected {TREE_DEPTH} elements, found {branch_len}",
-                    ),
-                })?;
+        let branch: [_; TREE_DEPTH] = branch.try_into().map_err(|_| {
+            custom_err!("Invalid tree size, expected {TREE_DEPTH} elements, found {branch_len}")
+        })?;
         Ok(IncrementalMerkle {
             count: response.value.count,
             branch,
@@ -585,40 +348,25 @@ impl SovereignRestClient {
 
     /// Announce validator on chain
     pub async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let result = utils::announce_validator(announcement, &self.universal_wallet_client).await?;
+        let sig_bytes: [u8; 65] = announcement.signature.into();
+        let call_message = json!({
+            "mailbox": {
+                "announce": {
+                    "validator_address": announcement.value.validator,
+                    "storage_location": announcement.value.storage_location,
+                    "signature": format!("0x{}", hex::encode(sig_bytes)),
+                }
+            },
+        });
+
+        let res = self.build_and_submit(call_message).await?;
 
         // Upstream logic is only concerned with `executed` status is we've made it this far.
         Ok(TxOutcome {
-            transaction_id: result.into(),
+            transaction_id: res.0.into(),
             executed: true,
             gas_used: U256::default(),
             gas_price: FixedPointNumber::default(),
         })
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::str::FromStr;
-
-    const ISM_ADDRESS: &str = "sov1kljj6q26lwdm2mqej4tjp9j0rf5tr2afdfafg4z89ynmu0t74wc";
-
-    #[test]
-    fn test_to_bech32_left_padded_ok() {
-        let address =
-            H256::from_str("0x00000000b7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be")
-                .unwrap();
-        let res = to_bech32(address).unwrap();
-        let address = String::from(ISM_ADDRESS);
-        assert_eq!(address, res)
-    }
-
-    #[test]
-    fn test_to_bech32_right_padded_err() {
-        let address =
-            H256::from_str("0xb7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be00000000")
-                .unwrap();
-        assert!(to_bech32(address).is_err())
     }
 }

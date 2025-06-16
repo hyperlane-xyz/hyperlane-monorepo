@@ -1,9 +1,10 @@
-use crate::{ConnectionConf, Signer, SovereignProvider};
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
+
+use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// A reference to a `ValidatorAnnounce` contract on some Sovereign chain.
 #[derive(Debug)]
@@ -53,13 +54,12 @@ impl ValidatorAnnounce for SovereignValidatorAnnounce {
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         self.provider
-            .client()
             .get_announced_storage_locations(validators)
             .await
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        self.provider.client().announce(announcement).await
+        self.provider.announce(announcement).await
     }
 
     async fn announce_tokens_needed(

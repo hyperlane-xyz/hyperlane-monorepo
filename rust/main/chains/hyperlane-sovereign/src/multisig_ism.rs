@@ -1,9 +1,10 @@
-use crate::{ConnectionConf, Signer, SovereignProvider};
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
+
+use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// A struct for the Multisig ISM on the Sovereign chain.
 #[derive(Debug)]
@@ -54,7 +55,6 @@ impl MultisigIsm for SovereignMultisigIsm {
     ) -> ChainResult<(Vec<H256>, u8)> {
         let validators = self
             .provider
-            .client()
             .validators_and_threshold(message.recipient)
             .await?;
 

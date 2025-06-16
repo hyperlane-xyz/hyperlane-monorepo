@@ -6693,9 +6693,9 @@ dependencies = [
 
 [[package]]
 name = "nmt-rs"
-version = "0.2.3"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e408e823bdc9b4bb525a61b44e846239833a8f9bd86c03a43e4ca314a5497582"
+checksum = "9d9149cb486570ac43944740ac8ea83d309d44d6a2cd2cd856606f43e40c6429"
 dependencies = [
  "borsh 1.5.5",
  "bytes",
@@ -6965,7 +6965,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.93",
  "quote 1.0.37",
  "syn 2.0.87",
@@ -10295,7 +10295,7 @@ dependencies = [
 [[package]]
 name = "sov-universal-wallet"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sovereign-sdk-wip?branch=nightly#1b13219b7d157e830ff9067efe8edb33703200ac"
+source = "git+ssh://git@github.com/Sovereign-Labs/sovereign-sdk-wip?branch=nightly#f77a56706c6e8939d4e574c07f76d584e943bbf6"
 dependencies = [
  "arrayvec",
  "bech32 0.11.0",

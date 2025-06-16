@@ -1,17 +1,15 @@
-use crate::{
-    indexer::SovIndexer,
-    rest_client::{SovereignRestClient, TxEvent},
-    ConnectionConf, Signer, SovereignProvider,
-};
 use async_trait::async_trait;
 use core::ops::RangeInclusive;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod,
-    SequenceAwareIndexer, H256, H512,
+    accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
+    LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 use serde::Deserialize;
+
+use crate::indexer::SovIndexer;
+use crate::types::TxEvent;
+use crate::{ConnectionConf, Signer, SovereignProvider};
 
 /// Struct that retrieves event data for a Sovereign Mailbox contract.
 #[derive(Debug, Clone)]
@@ -34,12 +32,12 @@ impl SovereignMerkleTreeHookIndexer {
 impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHookIndexer {
     const EVENT_KEY: &'static str = "MerkleTreeHook/InsertedIntoTree";
 
-    fn client(&self) -> &SovereignRestClient {
-        self.provider.client()
+    fn provider(&self) -> &SovereignProvider {
+        &self.provider
     }
 
     async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
-        let sequence = self.client().tree_count(at_slot).await?;
+        let sequence = self.provider().tree_count(at_slot).await?;
 
         Ok(Some(sequence))
     }
@@ -139,25 +137,23 @@ impl HyperlaneContract for SovereignMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for SovereignMerkleTreeHook {
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let slot = self.provider.client().get_finalized_slot().await?;
-        let tree = self.provider.client().tree(Some(slot)).await?;
+        let slot = self.provider.get_finalized_slot().await?;
+        let tree = self.provider.tree(Some(slot)).await?;
 
         Ok(tree)
     }
 
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let slot = self.provider.client().get_finalized_slot().await?;
-        let tree = self.provider.client().tree(Some(slot)).await?;
-        Ok(u32::try_from(tree.count).map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Tree count overflowed u32: {e:?}"))
-        })?)
+        let slot = self.provider.get_finalized_slot().await?;
+        let tree = self.provider.tree(Some(slot)).await?;
+        Ok(u32::try_from(tree.count)
+            .map_err(|e| custom_err!("Tree count overflowed u32: {e:?}"))?)
     }
 
     async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let slot = self.provider.client().get_finalized_slot().await?;
+        let slot = self.provider.get_finalized_slot().await?;
         let checkpoint = self
             .provider
-            .client()
             .latest_checkpoint(Some(slot), self.domain.id())
             .await?;
 
