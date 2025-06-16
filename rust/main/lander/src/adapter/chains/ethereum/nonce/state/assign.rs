@@ -62,6 +62,7 @@ impl NonceManagerState {
 
         while next_nonce < upper_nonce {
             next_nonce += U256::one();
+
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
 
             if tracked_tx_uuid == TransactionUuid::default() {
