@@ -88,7 +88,6 @@ describe('hyperlane warp check e2e tests', async function () {
     tokenSymbol = await token.symbol();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
   });
@@ -171,10 +170,7 @@ describe('hyperlane warp check e2e tests', async function () {
       await deployAndExportWarpRoute();
 
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(tokenSymbol, [
-          CHAIN_NAME_2,
-          CHAIN_NAME_3,
-        ]),
+        warpRouteId: createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3),
       })
         .stdio('pipe')
         .nothrow();
@@ -242,7 +238,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       // Finally run warp check
       const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(symbol, [CHAIN_NAME_2]),
+        warpRouteId: createWarpRouteConfigId(symbol, CHAIN_NAME_2),
       })
         .stdio('pipe')
         .nothrow();
@@ -357,7 +353,6 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpDeployConfig = await deployAndExportWarpRoute();
 
       const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_2,
         CHAIN_NAME_3,
       ]);
 
@@ -377,9 +372,17 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpCore: WarpCoreConfig = readYamlOrJson(
         WARP_CORE_CONFIG_PATH_2_3,
       );
+
+      // Find the token for CHAIN_NAME_2 since we're unenrolling it from CHAIN 3
+      const chain2Token = warpCore.tokens.find(
+        (token) => token.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2Token).to.not.be.undefined;
+
       const expectedActualText = `ACTUAL: ""\n`;
-      const expectedDiffText = `      EXPECTED:
-        address: "${addressToBytes32(warpCore.tokens[0].addressOrDenom!)}"`;
+      const expectedDiffTextRegex = new RegExp(
+        `EXPECTED:\\s*address:\\s*"${addressToBytes32(chain2Token!.addressOrDenom!)}"`,
+      );
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
@@ -387,7 +390,7 @@ describe('hyperlane warp check e2e tests', async function () {
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.includes(expectedDiffText);
+      expect(output.text()).to.match(expectedDiffTextRegex);
       expect(output.text()).to.includes(expectedActualText);
     });
 
@@ -470,6 +473,71 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(expectedDiffText);
       expect(output.text()).to.includes(expectedActualText);
+    });
+
+    it(`should find inconsistent decimals without scale`, async function () {
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      // currently warp deploy is not writing the deploy config to the registry
+      // should remove this once the deploy config is written to the registry
+      writeYamlOrJson(
+        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+        warpConfig,
+      );
+
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      deployConfig[CHAIN_NAME_2].decimals = 6;
+      deployConfig[CHAIN_NAME_3].decimals = 18;
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(
+        `Found invalid or missing scale for inconsistent decimals`,
+      );
+    });
+
+    it(`should find invalid scale config`, async function () {
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      // currently warp deploy is not writing the deploy config to the registry
+      // should remove this once the deploy config is written to the registry
+      writeYamlOrJson(
+        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+        warpConfig,
+      );
+
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      deployConfig[CHAIN_NAME_2].decimals = 6;
+      deployConfig[CHAIN_NAME_2].scale = 1;
+
+      deployConfig[CHAIN_NAME_3].decimals = 34;
+      deployConfig[CHAIN_NAME_2].scale = 2;
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(
+        `Found invalid or missing scale for inconsistent decimals`,
+      );
     });
   });
 

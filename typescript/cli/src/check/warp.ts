@@ -7,6 +7,7 @@ import {
   derivedHookAddress,
   derivedIsmAddress,
   transformConfigToCheck,
+  verifyScale,
 } from '@hyperlane-xyz/sdk';
 import {
   ObjectDiff,
@@ -14,7 +15,7 @@ import {
   keepOnlyDiffObjects,
 } from '@hyperlane-xyz/utils';
 
-import { log, logGreen } from '../logger.js';
+import { log, logGreen, logRed } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 export async function runWarpRouteCheck({
@@ -26,6 +27,9 @@ export async function runWarpRouteCheck({
   onChainWarpConfig: DerivedWarpRouteDeployConfig &
     Record<string, Partial<HypTokenRouterVirtualConfig>>;
 }): Promise<void> {
+  // Check whether the decimals are consistent. If not, ensure that the scale is correct.
+  const decimalsAreValid = verifyDecimalsAndScale(warpRouteConfig);
+
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
@@ -74,5 +78,20 @@ export async function runWarpRouteCheck({
     process.exit(1);
   }
 
+  if (!decimalsAreValid) {
+    process.exit(1);
+  }
   logGreen(`No violations found`);
+}
+
+function verifyDecimalsAndScale(
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>,
+): boolean {
+  let valid = true;
+  if (!verifyScale(warpRouteConfig)) {
+    logRed(`Found invalid or missing scale for inconsistent decimals`);
+    valid = false;
+  }
+  return valid;
 }

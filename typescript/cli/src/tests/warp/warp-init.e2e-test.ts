@@ -13,18 +13,22 @@ import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CONFIRM_CHAIN_SELECTION_STEP,
   CONFIRM_DETECTED_OWNER_STEP,
+  CONFIRM_DETECTED_PROXY_ADMIN_STEP,
+  CONFIRM_DETECTED_TRUSTED_ISM_STEP,
   DEFAULT_E2E_TEST_TIMEOUT,
+  E2E_TEST_CONFIGS_PATH,
   KeyBoardKeys,
   SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
-  SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER,
+  SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
   TestPromptAction,
   WARP_CONFIG_PATH_2,
   deployToken,
   handlePrompts,
 } from '../commands/helpers.js';
-import { hyperlaneWarpInit } from '../commands/warp.js';
+import { hyperlaneWarpInit, hyperlaneWarpInitRaw } from '../commands/warp.js';
 
 describe('hyperlane warp init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -50,15 +54,10 @@ describe('hyperlane warp init e2e tests', async function () {
       expect(chain2TokenConfig.proxyAdmin).undefined;
     }
 
-    it('it should generate a warp deploy config with a single chain', async function () {
+    it('should generate a warp deploy config with a single chain', async function () {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select anvil2
-          input: `${SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER}${KeyBoardKeys.ENTER}`,
-        },
+        SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
         CONFIRM_DETECTED_OWNER_STEP,
         {
           check: (currentOutput: string) =>
@@ -78,7 +77,7 @@ describe('hyperlane warp init e2e tests', async function () {
       assertWarpConfig(warpConfig, CHAIN_NAME_2);
     });
 
-    it('it should generate a warp deploy config with a 2 chains warp route (native->native)', async function () {
+    it('should generate a warp deploy config with a 2 chains warp route (native->native)', async function () {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         ...SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
@@ -108,7 +107,7 @@ describe('hyperlane warp init e2e tests', async function () {
       );
     });
 
-    it('it should generate a warp deploy config with a 2 chains warp route (collateral->synthetic)', async function () {
+    it('should generate a warp deploy config with a 2 chains warp route (collateral->synthetic)', async function () {
       const erc20Token = await deployToken(ANVIL_KEY, CHAIN_NAME_2, 6);
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
@@ -155,6 +154,46 @@ describe('hyperlane warp init e2e tests', async function () {
       const chain3TokenConfig = warpConfig[CHAIN_NAME_3];
       expect(chain3TokenConfig.owner).equal(initialOwnerAddress);
       expect(chain3TokenConfig.type).equal(TokenType.synthetic);
+    });
+
+    it('should generate a warp route ID when skipConfirmation is false', async function () {
+      const warpRouteId = 'HYPER/abacus-works';
+      const steps: TestPromptAction[] = [
+        SELECT_MAINNET_CHAIN_TYPE_STEP,
+        SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
+        CONFIRM_CHAIN_SELECTION_STEP,
+        CONFIRM_DETECTED_OWNER_STEP,
+        CONFIRM_DETECTED_PROXY_ADMIN_STEP,
+        CONFIRM_DETECTED_TRUSTED_ISM_STEP,
+        {
+          check: (currentOutput: string) =>
+            !!currentOutput.match(/Select .+?'s token type/),
+          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput: string) =>
+            !!currentOutput.match(/Using warp route ID as/),
+          input: `${KeyBoardKeys.DECLINE}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput: string) =>
+            !!currentOutput.match(/Enter the desired warp route ID:/),
+          input: `${warpRouteId}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      // Run without skipConfirmation to ensure warp route ID is generated
+      const output = hyperlaneWarpInitRaw({
+        privateKey: ANVIL_KEY,
+        skipConfirmationPrompts: false,
+      }).stdio('pipe');
+
+      await handlePrompts(output, steps);
+
+      const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+        `${E2E_TEST_CONFIGS_PATH}/anvil/deployments/warp_routes/${warpRouteId}-deploy.yaml`,
+      );
+      assertWarpConfig(warpConfig, CHAIN_NAME_2);
     });
   });
 });

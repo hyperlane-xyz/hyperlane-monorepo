@@ -4,6 +4,7 @@ function cleanup() {
   set +e
   pkill -f anvil
   rm -rf ./tmp
+  rm -rf ./test-configs/anvil/deployments
   rm -f ./test-configs/anvil/chains/anvil2/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil3/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil4/addresses.yaml

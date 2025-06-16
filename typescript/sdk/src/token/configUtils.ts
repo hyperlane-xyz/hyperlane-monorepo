@@ -26,6 +26,7 @@ import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -119,10 +120,8 @@ export async function expandWarpDeployConfig(params: {
     expandedOnChainWarpConfig,
   } = params;
 
-  const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    multiProvider,
-    warpDeployConfig,
-  );
+  const derivedTokenMetadata: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(multiProvider, warpDeployConfig);
 
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
@@ -149,7 +148,10 @@ export async function expandWarpDeployConfig(params: {
       const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
         Partial<HypTokenRouterVirtualConfig> = {
         // Default Expansion
-        ...derivedTokenMetadata,
+        name: derivedTokenMetadata.getName(chain),
+        symbol: derivedTokenMetadata.getSymbol(chain),
+        decimals: derivedTokenMetadata.getDecimals(chain),
+        scale: derivedTokenMetadata.getScale(chain),
         remoteRouters,
         destinationGas,
         hook: zeroAddress,

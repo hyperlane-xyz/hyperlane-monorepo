@@ -6,6 +6,7 @@ import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
@@ -197,13 +198,22 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
           try {
-            await multiSend.sendTransactions(
-              callsForSubmissionType.map((call) => ({
-                to: call.to,
-                data: call.data,
-                value: call.value,
-              })),
-            );
+            // Process calls in batches up to max size of 100
+            const maxBatchSize = 100;
+            for (
+              let i = 0;
+              i < callsForSubmissionType.length;
+              i += maxBatchSize
+            ) {
+              const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
+              await multiSend.sendTransactions(
+                batch.map((call) => ({
+                  to: call.to,
+                  data: call.data,
+                  value: call.value,
+                })),
+              );
+            }
           } catch (error) {
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${error}`),
@@ -569,25 +579,25 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
+    // Fallback to manual submission if we're on a ZkSync chain.
+    // This is because we are not allowed to estimate gas for non-signer addresses on ZkSync.
+    // And if we can't simulate the transaction, we can't know for sure ourselves which safe to submit it to.
+    const { technicalStack } = multiProvider.getChainMetadata(chain);
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      return { type: SubmissionType.MANUAL, chain, call };
+    }
+
     // Check if the transaction will succeed with a SAFE
     // Need to check all governance types because the safe address is different for each type
     for (const governanceType of Object.values(GovernanceType)) {
       const safeAddress = getGovernanceSafes(governanceType)[chain];
-      if (typeof safeAddress === 'string') {
-        // Check if the safe can propose transactions
-        const canProposeSafe = await this.checkSafeProposalEligibility(
-          chain,
-          signerAddress,
-          safeAddress,
-        );
-        if (
-          canProposeSafe &&
-          (await checkTransactionSuccess(chain, safeAddress))
-        ) {
-          call.governanceType = governanceType;
-          // If the transaction will succeed with the safe, return the inferred call
-          return { type: SubmissionType.SAFE, chain, call };
-        }
+      if (
+        typeof safeAddress === 'string' &&
+        (await checkTransactionSuccess(chain, safeAddress))
+      ) {
+        call.governanceType = governanceType;
+        // If the transaction will succeed with the safe, return the inferred call
+        return { type: SubmissionType.SAFE, chain, call };
       }
     }
 
@@ -620,68 +630,6 @@ export abstract class HyperlaneAppGovernor<
         ),
       );
     }
-  }
-
-  private async checkSafeProposalEligibility(
-    chain: ChainName,
-    signerAddress: Address,
-    safeAddress: string,
-    retries = 10,
-  ): Promise<boolean> {
-    if (!this.canPropose[chain].has(safeAddress)) {
-      try {
-        const canPropose = await canProposeSafeTransactions(
-          signerAddress,
-          chain,
-          this.checker.multiProvider,
-          safeAddress,
-        );
-        this.canPropose[chain].set(safeAddress, canPropose);
-      } catch (error) {
-        const errorMessage = (error as Error).message.toLowerCase();
-
-        // Handle invalid MultiSend contract errors
-        if (
-          errorMessage.includes('invalid multisend contract address') ||
-          errorMessage.includes('invalid multisendcallonly contract address')
-        ) {
-          rootLogger.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
-          return false;
-        }
-
-        // Handle service unavailable and rate limit errors
-        if (
-          errorMessage.includes('service unavailable') ||
-          errorMessage.includes('too many requests')
-        ) {
-          rootLogger.warn(
-            chalk.yellow(
-              `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
-            ),
-          );
-
-          if (retries > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            return this.checkSafeProposalEligibility(
-              chain,
-              signerAddress,
-              safeAddress,
-              retries - 1,
-            );
-          }
-          return false;
-        }
-
-        // Handle all other errors
-        rootLogger.error(
-          chalk.red(
-            `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
-          ),
-        );
-        return false;
-      }
-    }
-    return this.canPropose[chain].get(safeAddress) || false;
   }
 
   handleOwnerViolation(violation: OwnerViolation) {
