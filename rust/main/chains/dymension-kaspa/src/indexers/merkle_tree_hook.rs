@@ -1,16 +1,17 @@
 use std::ops::RangeInclusive;
 
-use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventInsertedIntoTree, prost::Name};
+use hyperlane_core::{
+    ChainCommunicationError, ChainCommunicationError, ChainResult, ChainResult, CheckpointAtBlock,
+    HyperlaneChain, HyperlaneChain, HyperlaneContract, HyperlaneContract, HyperlaneDomain,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed,
+    Indexed, Indexer, Indexer, LogMeta, LogMeta, MerkleTreeHook, MerkleTreeHook,
+    MerkleTreeInsertion, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
+    SequenceAwareIndexer, H256, H256, H512, H512,
+};
 use tonic::async_trait;
 use tracing::instrument;
 
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
-    SequenceAwareIndexer, H256, H512,
-};
-
-use crate::{KaspaError, KaspaProvider, RpcProvider};
+use crate::{KaspaProvider, RpcProvider};
 
 use super::KaspaEventIndexer;
 
@@ -41,13 +42,36 @@ impl HyperlaneContract for KaspaMerkle {
 }
 
 #[async_trait]
-impl MerkleTreeHook for KaspaMerkle {}
-
-impl KaspaEventIndexer<MerkleTreeInsertion> for KaspaMerkle {
-    fn target_type() -> String {
-        EventInsertedIntoTree::full_name()
+impl MerkleTreeHook for KaspaMerkle {
+    /// Return the incremental merkle tree in storage
+    #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
+    /// Gets the current leaf count of the merkle tree
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        Err(ChainCommunicationError::from_other_str("not implemented"))
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        Err(ChainCommunicationError::from_other_str("not implemented"))
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        Err(ChainCommunicationError::from_other_str("not implemented"))
+    }
+}
+
+impl KaspaEventIndexer<MerkleTreeInsertion> for KaspaMerkle {
     fn provider(&self) -> &RpcProvider {
         self.provider.rpc()
     }

@@ -17,6 +17,8 @@ mod signers;
 mod trait_builder;
 mod validator_announce;
 
+mod libs;
+
 // Direct reexports of lib stuff:
 pub use dym_kas_relayer;
 pub use dym_kas_validator;

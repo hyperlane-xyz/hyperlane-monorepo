@@ -2,7 +2,7 @@ use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 
 use hyperlane_core::{AccountAddressType, ChainResult, H256};
 
-use crate::{HyperlaneKaspaError, KaspaAddress};
+use crate::{HyperlaneKaspaError, libs::KaspaAddress};
 
 #[derive(Clone, Debug)]
 /// Signer for kaspa chain
@@ -31,8 +31,8 @@ impl Signer {
         prefix: String,
         account_address_type: &AccountAddressType, // TODO:??
     ) -> ChainResult<Self> {
-        let address = KaspaAddress::from_privkey(&private_key, &prefix, account_address_type)?;
-        let address_string = address.address();
+        let address = H256::zero(); // TODO:
+        let address_string = address.to_string();
         let signing_key = Self::build_signing_key(&private_key)?;
         let public_key = signing_key.public_key();
         Ok(Self {

@@ -9,7 +9,7 @@ use hyperlane_core::{
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, HyperlaneCosmosError, KaspaEventIndexer, KaspaProvider, RpcProvider};
+use crate::{ConnectionConf, HyperlaneKaspaError, KaspaEventIndexer, KaspaProvider, RpcProvider};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -17,7 +17,6 @@ pub struct KaspaGas {
     address: H256,
     domain: HyperlaneDomain,
     provider: KaspaProvider,
-    native_token: String,
 }
 
 impl InterchainGasPaymaster for KaspaGas {}
@@ -32,17 +31,12 @@ impl KaspaGas {
         Ok(KaspaGas {
             address: locator.address,
             domain: locator.domain.clone(),
-            native_token: conf.get_native_token().denom.clone(),
             provider,
         })
     }
 }
 
 impl KaspaEventIndexer<InterchainGasPayment> for KaspaGas {
-    fn target_type() -> String {
-        EventGasPayment::full_name()
-    }
-
     fn provider(&self) -> &RpcProvider {
         self.provider.rpc()
     }

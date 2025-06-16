@@ -25,7 +25,7 @@ pub enum HyperlaneKaspaError {
     GrpcError(#[from] tonic::Status),
     /// Kaspa error
     #[error("{0}")]
-    KaspaError(#[from] cosmrs::Error),
+    HyperlaneKaspaError(#[from] cosmrs::Error),
     /// Kaspa error report
     #[error("{0}")]
     KaspaErrorReport(#[from] cosmrs::ErrorReport),

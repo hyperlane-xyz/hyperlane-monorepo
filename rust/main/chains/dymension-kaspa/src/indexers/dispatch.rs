@@ -8,7 +8,7 @@ use hyperlane_core::{
     LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{HyperlaneCosmosError, KaspaProvider, RpcProvider};
+use crate::{HyperlaneKaspaError, KaspaProvider, RpcProvider};
 
 use super::KaspaEventIndexer;
 
