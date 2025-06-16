@@ -10,28 +10,28 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
+use crate::{HyperlaneCosmosError, KaspaProvider, RpcProvider};
 
-use super::{CosmosEventIndexer, ParsedEvent};
+use super::{KaspaEventIndexer, ParsedEvent};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
-pub struct CosmosNativeDeliveryIndexer {
-    provider: CosmosNativeProvider,
+pub struct KaspaDelivery {
+    provider: KaspaProvider,
     address: H256,
 }
 
-impl CosmosNativeDeliveryIndexer {
+impl KaspaDelivery {
     ///  New Delivery Indexer
-    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
-        Ok(CosmosNativeDeliveryIndexer {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
+        Ok(KaspaDelivery {
             provider,
             address: locator.address,
         })
     }
 }
 
-impl CosmosEventIndexer<H256> for CosmosNativeDeliveryIndexer {
+impl KaspaEventIndexer<H256> for KaspaDelivery {
     fn target_type() -> String {
         EventProcess::full_name()
     }
@@ -40,68 +40,37 @@ impl CosmosEventIndexer<H256> for CosmosNativeDeliveryIndexer {
         self.provider.rpc()
     }
 
-    #[instrument(err)]
-    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<H256>> {
-        let mut message_id: Option<H256> = None;
-        let mut contract_address: Option<H256> = None;
-
-        for attribute in attrs {
-            let key = attribute.key_str().map_err(HyperlaneCosmosError::from)?;
-            let value = attribute
-                .value_str()
-                .map_err(HyperlaneCosmosError::from)?
-                .replace("\"", "");
-            match key {
-                "message_id" => {
-                    message_id = Some(value.parse()?);
-                }
-                "origin_mailbox_id" => {
-                    contract_address = Some(value.parse()?);
-                }
-                _ => continue,
-            }
-        }
-
-        let contract_address = contract_address
-            .ok_or_else(|| ChainCommunicationError::from_other_str("missing contract_address"))?;
-        let message_id = message_id
-            .ok_or_else(|| ChainCommunicationError::from_other_str("missing message_id"))?;
-
-        Ok(ParsedEvent::new(contract_address, message_id))
-    }
-
     fn address(&self) -> &H256 {
         &self.address
     }
 }
 
 #[async_trait]
-impl Indexer<H256> for CosmosNativeDeliveryIndexer {
+impl Indexer<H256> for KaspaDelivery {
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        CosmosEventIndexer::fetch_logs_in_range(self, range).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        CosmosEventIndexer::get_finalized_block_number(self).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<H256> for CosmosNativeDeliveryIndexer {
+impl SequenceAwareIndexer<H256> for KaspaDelivery {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
-        Ok((None, tip))
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }

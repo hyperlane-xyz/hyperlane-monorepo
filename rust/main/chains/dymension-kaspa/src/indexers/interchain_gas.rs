@@ -11,63 +11,38 @@ use hyperlane_core::{
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
-use crate::{
-    ConnectionConf, CosmosEventIndexer, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider,
-};
+use crate::{ConnectionConf, HyperlaneCosmosError, KaspaEventIndexer, KaspaProvider, RpcProvider};
 
 use super::ParsedEvent;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
-pub struct CosmosNativeInterchainGas {
+pub struct KaspaGas {
     address: H256,
     domain: HyperlaneDomain,
-    provider: CosmosNativeProvider,
+    provider: KaspaProvider,
     native_token: String,
 }
 
-impl InterchainGasPaymaster for CosmosNativeInterchainGas {}
+impl InterchainGasPaymaster for KaspaGas {}
 
-impl CosmosNativeInterchainGas {
+impl KaspaGas {
     ///  Gas Payment Indexer
     pub fn new(
-        provider: CosmosNativeProvider,
+        provider: KaspaProvider,
         conf: &ConnectionConf,
         locator: ContractLocator,
     ) -> ChainResult<Self> {
-        Ok(CosmosNativeInterchainGas {
+        Ok(KaspaGas {
             address: locator.address,
             domain: locator.domain.clone(),
             native_token: conf.get_native_token().denom.clone(),
             provider,
         })
     }
-
-    /// parses a cosmos sdk.Coin in a string representation '{amoun}{denom}'
-    /// only returns the amount if it matches the native token in the config
-    fn parse_gas_payment(&self, coin: &str) -> ChainResult<U256> {
-        // Convert the coin to a u256 by taking everything before the first non-numeric character
-        match coin.find(|c: char| !c.is_numeric()) {
-            Some(first_non_numeric) => {
-                let amount = U256::from_dec_str(&coin[..first_non_numeric])?;
-                let denom = &coin[first_non_numeric..];
-                if denom == self.native_token {
-                    Ok(amount)
-                } else {
-                    Err(ChainCommunicationError::from_other_str(&format!(
-                        "invalid gas payment: {coin} expected denom: {}",
-                        self.native_token
-                    )))
-                }
-            }
-            None => Err(ChainCommunicationError::from_other_str(&format!(
-                "invalid coin: {coin}"
-            ))),
-        }
-    }
 }
 
-impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
+impl KaspaEventIndexer<InterchainGasPayment> for KaspaGas {
     fn target_type() -> String {
         EventGasPayment::full_name()
     }
@@ -76,58 +51,12 @@ impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
         self.provider.rpc()
     }
 
-    #[instrument(err)]
-    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
-        let mut message_id: Option<H256> = None;
-        let mut igp_id: Option<H256> = None;
-        let mut gas_amount: Option<U256> = None;
-        let mut payment: Option<U256> = None;
-        let mut destination: Option<u32> = None;
-
-        for attribute in attrs {
-            let key = attribute.key_str().map_err(HyperlaneCosmosError::from)?;
-            let value = attribute
-                .value_str()
-                .map_err(HyperlaneCosmosError::from)?
-                .replace("\"", "");
-            match key {
-                "igp_id" => igp_id = Some(value.parse()?),
-                "message_id" => message_id = Some(value.parse()?),
-                "gas_amount" => gas_amount = Some(U256::from_dec_str(&value)?),
-                "payment" => payment = Some(self.parse_gas_payment(&value)?),
-                "destination" => destination = Some(value.parse()?),
-                _ => continue,
-            }
-        }
-
-        let message_id = message_id
-            .ok_or_else(|| ChainCommunicationError::from_other_str("missing message_id"))?;
-        let igp_id =
-            igp_id.ok_or_else(|| ChainCommunicationError::from_other_str("missing igp_id"))?;
-        let gas_amount = gas_amount
-            .ok_or_else(|| ChainCommunicationError::from_other_str("missing gas_amount"))?;
-        let payment =
-            payment.ok_or_else(|| ChainCommunicationError::from_other_str("missing payment"))?;
-        let destination = destination
-            .ok_or_else(|| ChainCommunicationError::from_other_str("missing destination"))?;
-
-        Ok(ParsedEvent::new(
-            igp_id,
-            InterchainGasPayment {
-                destination,
-                message_id,
-                payment,
-                gas_amount,
-            },
-        ))
-    }
-
     fn address(&self) -> &H256 {
         &self.address
     }
 }
 
-impl HyperlaneChain for CosmosNativeInterchainGas {
+impl HyperlaneChain for KaspaGas {
     // Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -139,7 +68,7 @@ impl HyperlaneChain for CosmosNativeInterchainGas {
     }
 }
 
-impl HyperlaneContract for CosmosNativeInterchainGas {
+impl HyperlaneContract for KaspaGas {
     // Return the address of this contract
     fn address(&self) -> H256 {
         self.address
@@ -147,30 +76,29 @@ impl HyperlaneContract for CosmosNativeInterchainGas {
 }
 
 #[async_trait]
-impl Indexer<InterchainGasPayment> for CosmosNativeInterchainGas {
+impl Indexer<InterchainGasPayment> for KaspaGas {
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        CosmosEventIndexer::fetch_logs_in_range(self, range).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        CosmosEventIndexer::get_finalized_block_number(self).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
+impl SequenceAwareIndexer<InterchainGasPayment> for KaspaGas {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
-        Ok((None, tip))
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }

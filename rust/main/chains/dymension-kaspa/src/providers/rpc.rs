@@ -188,7 +188,6 @@ impl RpcProvider {
     pub fn gas_price(&self) -> FixedPointNumber {
         return FixedPointNumber::zero();
     }
-
 }
 
 #[async_trait]

@@ -4,7 +4,6 @@ use tonic::async_trait;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
-
 #[derive(Debug, Clone, new)]
 struct KaspaClient {}
 

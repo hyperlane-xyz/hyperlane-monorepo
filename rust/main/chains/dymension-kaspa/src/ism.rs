@@ -2,10 +2,7 @@ use std::str::FromStr;
 
 use super::consts::KASPA_ISM_ADDRESS;
 use hyperlane_cosmos_rs::{
-    hyperlane::core::interchain_security::v1::
-        MerkleRootMultisigIsm
-    ,
-    prost::Name,
+    hyperlane::core::interchain_security::v1::MerkleRootMultisigIsm, prost::Name,
 };
 use tonic::async_trait;
 

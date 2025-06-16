@@ -4,17 +4,12 @@ use derive_new::new;
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::FallbackProvider,
-    BlockInfo, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
-    HyperlaneProviderError, TxnInfo, H256, H512,
-    U256,
+    rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256,
+    H512, U256,
 };
 
-use crate::{
-    ConnectionConf, Signer,
-};
-
+use crate::{ConnectionConf, Signer};
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-kaspa-native`
 #[derive(new, Clone)]
@@ -40,10 +35,8 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct KaspaProvider 
-{
+pub struct KaspaProvider {
     domain: HyperlaneDomain,
-
 }
 
 impl KaspaProvider {
@@ -92,7 +85,7 @@ impl HyperlaneProvider for KaspaProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         // TODO: maybe I can return just a larger number here?
-       return Ok(0.into()) 
+        return Ok(0.into());
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {

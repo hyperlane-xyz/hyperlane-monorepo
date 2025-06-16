@@ -9,7 +9,6 @@ mod consts;
 mod error;
 mod indexers;
 mod ism;
-mod libs;
 #[allow(missing_docs)]
 mod mailbox;
 mod prometheus;
@@ -22,7 +21,6 @@ mod validator_announce;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
 
-use self::libs::*;
 pub use {
     self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
     self::signers::*, self::trait_builder::*, self::validator_announce::*,
