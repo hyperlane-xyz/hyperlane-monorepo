@@ -9,6 +9,7 @@ use crate::{
     error::LanderError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
+    DispatcherMetrics,
 };
 
 pub struct CosmosAdapter {
@@ -69,6 +70,10 @@ impl AdaptsChain for CosmosAdapter {
     }
 
     fn max_batch_size(&self) -> u32 {
+        todo!()
+    }
+
+    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {
         todo!()
     }
 }

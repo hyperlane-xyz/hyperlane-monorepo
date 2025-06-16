@@ -7,7 +7,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
+use starknet::core::types::Felt;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -35,15 +35,11 @@ impl StarknetInterchainSecurityModule {
     pub async fn new(
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account =
-            build_single_owner_account(&conn.url, signer.local_wallet(), &signer.address, false)
-                .await?;
+        let account = build_single_owner_account(&conn.url, signer).await?;
 
-        let ism_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+        let ism_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetInterchainSecurityModuleInternal::new(ism_address, account);
 

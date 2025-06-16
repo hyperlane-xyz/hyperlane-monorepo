@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -304,6 +304,7 @@ jobs:
           - warp-bridge-1
           - warp-bridge-2
           - warp-check
+          - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
