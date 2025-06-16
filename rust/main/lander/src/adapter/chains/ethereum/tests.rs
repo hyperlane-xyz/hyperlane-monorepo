@@ -48,7 +48,7 @@ mockall::mock! {
         async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
         /// Get the next nonce to use for a given address (using the finalized block)
-        async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+        async fn get_next_nonce_on_finalized_block(&self, address: &Address, reorg_period: &EthereumReorgPeriod) -> ChainResult<U256>;
 
         /// Get the fee history
         async fn fee_history(

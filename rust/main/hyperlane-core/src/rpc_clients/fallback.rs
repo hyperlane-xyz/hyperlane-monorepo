@@ -1,7 +1,3 @@
-use async_rwlock::RwLock;
-use async_trait::async_trait;
-use derive_new::new;
-use itertools::Itertools;
 use std::{
     fmt::{Debug, Formatter},
     future::Future,
@@ -10,8 +6,13 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use async_rwlock::RwLock;
+use async_trait::async_trait;
+use derive_new::new;
+use itertools::Itertools;
 use tokio;
-use tracing::{info, trace, warn_span};
+use tracing::{info, warn, warn_span};
 
 use crate::ChainResult;
 
@@ -199,7 +200,7 @@ where
                 match resp {
                     Ok(v) => return Ok(v),
                     Err(e) => {
-                        trace!(
+                        warn!(
                             error=?e,
                             "Got error from inner fallback provider",
                         );
