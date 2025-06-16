@@ -1,21 +1,16 @@
-use std::io::Cursor;
 use std::ops::RangeInclusive;
 
-use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::v1::EventDispatch;
-use hyperlane_cosmos_rs::prost::Name;
-use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, Decode, HyperlaneMessage, Indexed,
-    Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer,
+    LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{HyperlaneCosmosError, KaspaProvider, RpcProvider};
 
-use super::{KaspaEventIndexer, ParsedEvent};
+use super::KaspaEventIndexer;
 
 /// Dispatch indexer to check if a new hyperlane message was dispatched
 #[derive(Debug, Clone)]

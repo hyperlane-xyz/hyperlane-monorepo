@@ -1,7 +1,6 @@
 use std::ops::RangeInclusive;
 
 use hyperlane_cosmos_rs::{hyperlane::core::v1::EventProcess, prost::Name};
-use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
 
@@ -12,7 +11,7 @@ use hyperlane_core::{
 
 use crate::{HyperlaneCosmosError, KaspaProvider, RpcProvider};
 
-use super::{KaspaEventIndexer, ParsedEvent};
+use super::KaspaEventIndexer;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]

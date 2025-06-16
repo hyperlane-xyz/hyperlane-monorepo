@@ -1,27 +1,18 @@
 use std::ops::RangeInclusive;
 
-use hex::ToHex;
-use hyperlane_cosmos_rs::{
-    hyperlane::core::post_dispatch::v1::{
-        EventInsertedIntoTree, TreeResponse, WrappedMerkleTreeHookResponse,
-    },
-    prost::Name,
-};
-use itertools::Itertools;
-use tendermint::abci::EventAttribute;
+use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventInsertedIntoTree, prost::Name};
 use tonic::async_trait;
 use tracing::instrument;
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{KaspaError, KaspaProvider, RpcProvider};
 
-use super::{KaspaEventIndexer, ParsedEvent};
+use super::KaspaEventIndexer;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]

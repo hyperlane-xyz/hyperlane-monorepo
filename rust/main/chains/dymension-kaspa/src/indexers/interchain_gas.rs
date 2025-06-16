@@ -1,19 +1,15 @@
 use std::ops::RangeInclusive;
 
 use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventGasPayment, prost::Name};
-use tendermint::abci::EventAttribute;
 use tonic::async_trait;
-use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{ConnectionConf, HyperlaneCosmosError, KaspaEventIndexer, KaspaProvider, RpcProvider};
-
-use super::ParsedEvent;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]

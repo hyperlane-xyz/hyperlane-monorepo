@@ -1,21 +1,9 @@
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
-use futures::future;
-use tendermint::abci::{Event, EventAttribute};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
-use tendermint_rpc::endpoint::tx;
-use tendermint_rpc::endpoint::{
-    block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-};
 use tonic::async_trait;
-use tracing::{debug, trace, warn};
 
-use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Indexed, Indexer,
-    LogMeta, H256, H512, U256,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, Indexer, LogMeta, H256, H512};
 
 use crate::RpcProvider;
 
