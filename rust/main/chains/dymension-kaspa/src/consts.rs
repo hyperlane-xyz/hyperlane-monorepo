@@ -1,5 +1,4 @@
 use hyperlane_core::H256;
-use std::str::FromStr;
 
 // These are arbitrary, but MUST be unique and consistent.
 // A good practice is to use a hash of a descriptive string.

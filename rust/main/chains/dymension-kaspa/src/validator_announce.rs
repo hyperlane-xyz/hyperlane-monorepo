@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    Announcement, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
-    ValidatorAnnounce, H256, U256, H512,
+    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
 };
 
 use crate::KaspaProvider;
@@ -44,7 +43,6 @@ impl HyperlaneChain for KaspaValidatorAnnounce {
 
 #[async_trait]
 impl ValidatorAnnounce for KaspaValidatorAnnounce {
-
     // called by validator to check he announced before he starts
     // needs to return the location for the calling validator at least
     async fn get_announced_storage_locations(
@@ -57,8 +55,10 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         Ok(TxOutcome {
-            transaction_id: H512::from_slice(b"0x0000000000000000000000000000000000000000000000000000000000000000"),
-            executed: true, 
+            transaction_id: H512::from_slice(
+                b"0x0000000000000000000000000000000000000000000000000000000000000000",
+            ),
+            executed: true,
             gas_used: 0.into(),
             gas_price: 0.into(),
         })

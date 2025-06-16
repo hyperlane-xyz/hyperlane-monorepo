@@ -7,9 +7,9 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::KaspaProvider;
@@ -75,28 +75,15 @@ impl HyperlaneContract for KaspaFakeMailbox {
 
 #[async_trait]
 impl Mailbox for KaspaFakeMailbox {
-    /// Gets the current leaf count of the merkle tree
-    ///
-    /// - `reorg_period` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
+    // TODO: not sure where used
+    // it should return the number of dispatched messages so far
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let height = self.provider.reorg_to_height(reorg_period).await?;
-        let mailbox = self
-            .provider
-            .grpc()
-            .mailbox(self.address.encode_hex(), Some(height))
-            .await?;
-        Ok(mailbox.mailbox.map(|m| m.message_sent).unwrap_or(0))
+        return Ok(0);
     }
 
-    /// Fetch the status of a message
+    // check if a message already delivered TO kaspa
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let delivered = self
-            .provider
-            .grpc()
-            .delivered(self.address.encode_hex(), id.encode_hex())
-            .await?;
-        Ok(delivered.delivered)
+        return Ok(false);
     }
 
     // there is no ism so return hardcode
@@ -105,15 +92,16 @@ impl Mailbox for KaspaFakeMailbox {
     }
 
     /// Get the recipient ism address
+    // (Supposed to use app router to the get ISM on Kaspa which will handle a specific token contract)
     async fn recipient_ism(&self, _recipient: H256) -> ChainResult<H256> {
         Ok(KASPA_ISM_ADDRESS)
     }
 
-    /// Process a message with a proof against the provided signed checkpoint
+    // Actually sends up a MsgProcessMessage to the kaspa chain
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
@@ -145,7 +133,8 @@ impl Mailbox for KaspaFakeMailbox {
         })
     }
 
-    // TODO: what is this for?
+    // used in payload derivation: https://github.com/dymensionxyz/hyperlane-monorepo/blob/7d0ae7590decd9ea09f6c88f8eeeb49df0295e19/rust/main/agents/relayer/src/msg/pending_message.rs#L551
+    // although not sure what payload is for, seems like for 'lander'
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
@@ -154,6 +143,7 @@ impl Mailbox for KaspaFakeMailbox {
         todo!() // we dont need this for now (original HL comment)
     }
 
+    // again, seems for lander mode only
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }

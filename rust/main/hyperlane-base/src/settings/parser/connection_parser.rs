@@ -310,12 +310,9 @@ pub fn build_kaspa_connection_conf(
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
-
-        Some(ChainConnectionConf::Kaspa(
-            dymension_kaspa::ConnectionConf::new(
-            ),
-        ))
-    }
+    Some(ChainConnectionConf::Kaspa(
+        dymension_kaspa::ConnectionConf::new(),
+    ))
 }
 
 fn build_sealevel_connection_conf(

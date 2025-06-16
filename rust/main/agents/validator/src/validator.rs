@@ -11,6 +11,7 @@ use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
+use dymension_kaspa;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
@@ -26,7 +27,6 @@ use hyperlane_core::{
     ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
-use dymension_kaspa;
 
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::server::{self as validator_server, merkle_tree_insertions};

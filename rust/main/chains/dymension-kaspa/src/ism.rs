@@ -39,16 +39,6 @@ impl KaspaIsm {
             provider: Box::new(provider),
         })
     }
-
-    async fn get_ism(&self) -> ChainResult<Any> {
-        let ism = self.provider.grpc().ism(self.address.encode_hex()).await?;
-        ism.ism.ok_or_else(|| {
-            ChainCommunicationError::from_other_str(&format!(
-                "Empty ism response for: {:?}",
-                self.address
-            ))
-        })
-    }
 }
 
 impl HyperlaneContract for KaspaIsm {
@@ -74,23 +64,10 @@ impl HyperlaneChain for KaspaIsm {
 /// different chains
 #[async_trait]
 impl InterchainSecurityModule for KaspaIsm {
-    /// Returns the module type of the ISM compliant with the corresponding
-    /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let ism = self.get_ism().await?;
-        match ism.type_url.as_str() {
-            t if t == MerkleRootMultisigIsm::type_url() => Ok(ModuleType::MerkleRootMultisig),
-            t if t == KaspaRoutingIsm::type_url() => Ok(ModuleType::Routing),
-            t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
-            other => Err(ChainCommunicationError::from_other_str(&format!(
-                "Unknown ISM type: {}",
-                other
-            ))),
-        }
+        Ok(ModuleType::KaspaMultisig)
     }
 
-    /// Dry runs the `verify()` ISM call and returns `Some(gas_estimate)` if the call
-    /// succeeds.
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
@@ -136,27 +113,7 @@ impl MultisigIsm for KaspaIsm {
 impl RoutingIsm for KaspaIsm {
     /// Returns the ISM needed to verify message
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let ism = self.get_ism().await?;
-        match ism.type_url.as_str() {
-            t if t == KaspaRoutingIsm::type_url() => {
-                let ism = KaspaRoutingIsm::decode(ism.value.as_slice())
-                    .map_err(HyperlaneKaspaError::from)?;
-                let route = ism
-                    .routes
-                    .iter()
-                    .find(|r| r.domain == message.origin)
-                    .ok_or_else(|| {
-                        ChainCommunicationError::from_other_str(&format!(
-                            "Route not found for message with origin domain: {}",
-                            message.origin
-                        ))
-                    })?;
-                Ok(H256::from_str(&route.ism)?)
-            }
-            _ => Err(ChainCommunicationError::from_other_str(&format!(
-                "ISM {:?} not a routing ism",
-                self.address
-            ))),
-        }
+        // We are only bridging Dymension to Kaspa
+        Ok(KASPA_ISM_ADDRESS)
     }
 }
