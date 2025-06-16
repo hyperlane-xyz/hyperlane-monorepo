@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import {
   TokenMetadata,
@@ -11,19 +11,17 @@ export function verifyScale(
 ): boolean {
   const chainDecimalConfigPairs =
     configMap instanceof Map
-      ? Array.from(configMap.entries())
-      : Object.entries(configMap);
+      ? Object.fromEntries(configMap.entries())
+      : configMap;
   const decimalsByChain: ChainMap<{ decimals: number; scale?: number }> =
-    Object.fromEntries(
-      chainDecimalConfigPairs.map(([chain, config]) => {
-        assert(
-          config.decimals,
-          `Decimals must be defined for token config on chain ${chain}`,
-        );
+    objMap(chainDecimalConfigPairs, (chain, config) => {
+      assert(
+        config.decimals,
+        `Decimals must be defined for token config on chain ${chain}`,
+      );
 
-        return [chain, { decimals: config.decimals, scale: config.scale }];
-      }),
-    );
+      return { decimals: config.decimals, scale: config.scale };
+    });
 
   if (!areDecimalsUniform(decimalsByChain)) {
     const maxDecimals = Math.max(
