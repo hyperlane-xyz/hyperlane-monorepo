@@ -68,9 +68,13 @@ impl EthereumAdapter {
             )
             .await?;
 
+        let signer = provider
+            .get_signer()
+            .map_or("none".to_string(), |s| s.to_string());
+
         let metrics = EthereumAdapterMetrics::new(
-            dispatcher_metrics.get_finalized_nonce(domain),
-            dispatcher_metrics.get_upper_nonce(domain),
+            dispatcher_metrics.get_finalized_nonce(domain, &signer),
+            dispatcher_metrics.get_upper_nonce(domain, &signer),
         );
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;

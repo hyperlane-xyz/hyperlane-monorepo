@@ -137,7 +137,7 @@ impl DispatcherMetrics {
                 namespaced("finalized_nonce"),
                 "Currently finalized nonce for each destination",
             ),
-            &["destination",],
+            &["destination", "signer",],
             registry.clone()
         )?;
 
@@ -146,7 +146,7 @@ impl DispatcherMetrics {
                 namespaced("upper_nonce"),
                 "Currently upper nonce for each destination",
             ),
-            &["destination",],
+            &["destination", "signer",],
             registry.clone()
         )?;
 
@@ -224,14 +224,16 @@ impl DispatcherMetrics {
             .inc();
     }
 
-    pub fn get_finalized_nonce(&self, destination: &str) -> IntGauge {
+    pub fn get_finalized_nonce(&self, destination: &str, signer: &str) -> IntGauge {
         self.finalized_nonce
-            .with_label_values(&[destination])
+            .with_label_values(&[destination, signer])
             .clone()
     }
 
-    pub fn get_upper_nonce(&self, destination: &str) -> IntGauge {
-        self.upper_nonce.with_label_values(&[destination]).clone()
+    pub fn get_upper_nonce(&self, destination: &str, signer: &str) -> IntGauge {
+        self.upper_nonce
+            .with_label_values(&[destination, signer])
+            .clone()
     }
 
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {

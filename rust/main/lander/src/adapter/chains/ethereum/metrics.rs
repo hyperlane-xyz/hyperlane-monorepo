@@ -38,10 +38,11 @@ impl EthereumAdapterMetrics {
         use crate::DispatcherMetrics;
 
         let domain = "test1";
+        let signer = "test_signer";
         let dispatcher_metrics = DispatcherMetrics::dummy_instance();
         let metrics = Self::new(
-            dispatcher_metrics.get_finalized_nonce(domain),
-            dispatcher_metrics.get_upper_nonce(domain),
+            dispatcher_metrics.get_finalized_nonce(domain, signer),
+            dispatcher_metrics.get_upper_nonce(domain, signer),
         );
         metrics
     }
