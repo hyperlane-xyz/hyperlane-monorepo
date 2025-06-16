@@ -234,7 +234,7 @@ export class MultiProtocolSignerManager {
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         const signer = this.getEVMSigner(chain);
-        return await signer.getAddress();
+        return signer.getAddress();
       }
       case ProtocolType.CosmosNative: {
         const signer = this.getCosmosNativeSigner(chain);

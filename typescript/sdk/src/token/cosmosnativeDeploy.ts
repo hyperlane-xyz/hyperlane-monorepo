@@ -27,7 +27,7 @@ export class CosmosNativeDeployer {
       ...config,
     }));
 
-    let result: ChainMap<Address> = {};
+    const result: ChainMap<Address> = {};
 
     const configMapToDeploy = objFilter(
       resolvedConfigMap,

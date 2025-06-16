@@ -258,7 +258,7 @@ async function executeDeploy(
       case ProtocolType.CosmosNative: {
         const signersMap = objMap(
           protocolSpecificConfig,
-          (chain, _) => multiProtocolSigner?.getCosmosNativeSigner(chain)!,
+          (chain, _) => multiProtocolSigner!.getCosmosNativeSigner(chain)!,
         );
 
         const deployer = new CosmosNativeDeployer(multiProvider, signersMap);

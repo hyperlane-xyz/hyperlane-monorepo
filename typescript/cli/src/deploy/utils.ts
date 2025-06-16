@@ -51,6 +51,8 @@ export async function runPreflightChecksForChains({
     multiProtocolSigner,
   } = context;
 
+  assert(multiProtocolSigner, 'multiProtocolSigner not defined');
+
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
@@ -59,17 +61,17 @@ export async function runPreflightChecksForChains({
     let signer: TypedSigner;
 
     if (metadata.protocol === ProtocolType.Ethereum) {
-      signer = multiProtocolSigner?.getEVMSigner(chain)!;
+      signer = multiProtocolSigner.getEVMSigner(chain)!;
     }
 
-    await multiProtocolSigner?.initSigner(chain);
+    await multiProtocolSigner.initSigner(chain);
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum:
-        signer = multiProtocolSigner!.getEVMSigner(chain);
+        signer = multiProtocolSigner.getEVMSigner(chain);
         break;
       case ProtocolType.CosmosNative:
-        signer = multiProtocolSigner!.getCosmosNativeSigner(chain);
+        signer = multiProtocolSigner.getCosmosNativeSigner(chain);
         break;
       default:
         throw new Error(
