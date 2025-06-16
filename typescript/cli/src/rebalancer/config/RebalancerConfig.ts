@@ -17,7 +17,7 @@ export class RebalancerConfig {
 
   /**
    * Loads config from a file
-   * @param extraArgs Params to be provided along the config file (E.g. Params provided from cli args)
+   * @param configFilePath Path to the config file
    */
   static load(configFilePath: string) {
     const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
