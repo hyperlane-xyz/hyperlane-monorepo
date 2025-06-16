@@ -1,5 +1,14 @@
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 
-
-pub fn isKas(d : HyperlaneDomain) -> bool {
-    d == HyperlaneDomain::Kaspa || d == HyperlaneDomain::KaspaTest10 || d == HyperlaneDomain::KaspaLocal
+/// is it a kaspa domain?
+pub fn is_kas(d: HyperlaneDomain) -> bool {
+    match d {
+        HyperlaneDomain::Known(domain) => matches!(
+            domain,
+            KnownHyperlaneDomain::Kaspa
+                | KnownHyperlaneDomain::KaspaTest10
+                | KnownHyperlaneDomain::KaspaLocal
+        ),
+        HyperlaneDomain::Unknown { .. } => false,
+    }
 }
