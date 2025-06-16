@@ -13,6 +13,8 @@ pub fn is_kas(d: &HyperlaneDomain) -> bool {
     }
 }
 
+// https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
 pub async fn run_monitor<T: HyperlaneLogStore<HyperlaneMessage>>(store: &T) {
+    
     
 }
