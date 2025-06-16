@@ -2,11 +2,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
 use tokio::sync::Mutex;
 
-use super::*;
+use hyperlane_base::db::{HyperlaneRocksDB, DB};
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::KnownHyperlaneDomain;
+
+use crate::dispatcher::*;
 use crate::{
     adapter::{chains::ethereum::nonce::db::NonceDb, *},
     error::LanderError,
@@ -30,6 +32,7 @@ mockall::mock! {
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
         async fn nonce_gap_exists(&self) -> bool;
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
+        fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
         fn estimated_block_time(&self) -> &std::time::Duration;
         fn max_batch_size(&self) -> u32;
     }
