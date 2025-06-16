@@ -1,18 +1,13 @@
 use async_trait::async_trait;
-use cosmrs::Any;
-use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::MsgAnnounceValidator;
-use hyperlane_cosmos_rs::prost::{Message, Name};
 
 use hyperlane_core::{
-    Announcement, ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain,
+    Announcement, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
-    ValidatorAnnounce, H160, H256, U256, H512,
+    ValidatorAnnounce, H256, U256, H512,
 };
 
 use crate::KaspaProvider;
 
-/// A reference to a ValidatorAnnounce contract on some Kaspa chain
 #[derive(Debug)]
 pub struct KaspaValidatorAnnounce {
     domain: HyperlaneDomain,

@@ -29,7 +29,7 @@ impl Signer {
     pub fn new(
         private_key: Vec<u8>,
         prefix: String,
-        account_address_type: &AccountAddressType,
+        account_address_type: &AccountAddressType, // TODO:??
     ) -> ChainResult<Self> {
         let address = KaspaAddress::from_privkey(&private_key, &prefix, account_address_type)?;
         let address_string = address.address();
