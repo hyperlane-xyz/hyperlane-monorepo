@@ -9,7 +9,7 @@ use super::consts::*;
 use hyperlane_core::{
     ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256, H512
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::KaspaProvider;

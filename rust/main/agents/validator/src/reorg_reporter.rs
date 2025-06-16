@@ -141,11 +141,10 @@ impl LatestCheckpointReorgReporter {
                 vec![(conn.url.clone(), ChainConnectionConf::Starknet(conn))]
             }
             Kaspa(conn) => {
-                Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.grpc_urls = vec![url];
-                    Kaspa(updated_conn)
-                })
+                vec![(
+                    Url::parse("http://localhost:16200").unwrap(),
+                    ChainConnectionConf::Kaspa(conn),
+                )] // TODO:
             }
         };
 

@@ -523,7 +523,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(dym_kaspa::KaspaDispatchIndexer::new(provider, locator)?);
+                let indexer = Box::new(dym_kaspa::KaspaDispatch::new(provider, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
@@ -599,7 +599,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(dym_kaspa::KaspaDeliveryIndexer::new(provider, locator)?);
+                let indexer = Box::new(dym_kaspa::KaspaDelivery::new(provider, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
@@ -659,8 +659,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let paymaster =
-                    Box::new(dym_kaspa::KaspaInterchainGas::new(provider, conf, locator)?);
+                let paymaster = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -735,7 +734,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(dym_kaspa::KaspaInterchainGas::new(provider, conf, locator)?);
+                let indexer = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
@@ -820,7 +819,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(dym_kaspa::KaspaMerkleTreeHook::new(provider, locator)?);
+                let indexer = Box::new(dym_kaspa::KaspaMerkle::new(provider, &locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }

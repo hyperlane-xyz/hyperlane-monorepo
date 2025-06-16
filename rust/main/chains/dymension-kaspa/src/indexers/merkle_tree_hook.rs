@@ -1,9 +1,10 @@
 use std::ops::RangeInclusive;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, CheckpointAtBlock,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, CheckpointAtBlock, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed,
+    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    H512,
 };
 use tonic::async_trait;
 use tracing::instrument;
@@ -17,6 +18,16 @@ use super::KaspaEventIndexer;
 pub struct KaspaMerkle {
     provider: KaspaProvider,
     address: H256,
+}
+
+impl KaspaMerkle {
+    /// New
+    pub fn new(provider: KaspaProvider, locator: &ContractLocator) -> ChainResult<Self> {
+        Ok(Self {
+            provider,
+            address: locator.address,
+        })
+    }
 }
 
 impl HyperlaneChain for KaspaMerkle {

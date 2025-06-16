@@ -2,7 +2,7 @@ use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 
 use hyperlane_core::{AccountAddressType, ChainResult, H256};
 
-use crate::{HyperlaneKaspaError, libs::KaspaAddress};
+use crate::{libs::KaspaAddress, HyperlaneKaspaError};
 
 #[derive(Clone, Debug)]
 /// Signer for kaspa chain
