@@ -73,6 +73,10 @@ export async function getRenzoLegacyHook(params: {
   const hookReader = new EvmHookReader(multiProvider, chain);
   const { address, ...hookConfig } =
     await hookReader.deriveHookConfigFromAddress(existingProtocolFee[chain]);
+  assert(
+    hookConfig.type === HookType.PROTOCOL_FEE,
+    `Expect ${HookType.PROTOCOL_FEE}, got ${hookConfig.type}`,
+  );
   return {
     type: HookType.AGGREGATION,
     hooks: [defaultHook, hookConfig],
@@ -88,15 +92,22 @@ export async function getRenzoLegacyHook(params: {
  *    - "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
  */
 const OUTBOUND_ONLY_CHAIN = 'blast';
-export function getRenzoHook(params: {
+export async function getRenzoHook(params: {
+  multiProvider: MultiProvider;
   defaultHook: Address;
   origin: ChainName;
   destinationChains: ChainName[];
   owner: Address;
   existingProtocolFee: ChainMap<Address>;
-}): HookConfig {
-  const { defaultHook, origin, destinationChains, owner, existingProtocolFee } =
-    params;
+}): Promise<HookConfig> {
+  const {
+    multiProvider,
+    defaultHook,
+    origin,
+    destinationChains,
+    owner,
+    existingProtocolFee,
+  } = params;
 
   let routingHook: HookConfig;
   let protocolFeeHook: HookConfig;
@@ -114,11 +125,19 @@ export function getRenzoHook(params: {
               .map((dest) => [dest, defaultHook]),
           ),
         };
-  protocolFeeHook = existingProtocolFee[origin];
+
+  // By using the reader, we can validate the hook address
+  const hookReader = new EvmHookReader(multiProvider, origin);
+  const { address: protoclFeeHookAddress, type } =
+    await hookReader.deriveHookConfigFromAddress(existingProtocolFee[origin]);
+  assert(
+    type === HookType.PROTOCOL_FEE,
+    `Expect ${HookType.PROTOCOL_FEE}, got ${type}`,
+  );
 
   return {
     type: HookType.AGGREGATION,
-    hooks: [routingHook, protocolFeeHook],
+    hooks: [routingHook, protoclFeeHookAddress],
   };
 }
 
@@ -533,7 +552,8 @@ export function getRenzoWarpConfigGenerator(params: {
                       defaultHook,
                       existingProtocolFee,
                     })
-                  : getRenzoHook({
+                  : await getRenzoHook({
+                      multiProvider,
                       defaultHook,
                       origin: chain,
                       destinationChains: chainsToDeploy,
