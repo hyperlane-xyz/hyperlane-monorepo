@@ -619,7 +619,7 @@ fn configure_igp_and_overhead_igp(
 
     let all_config_domain_ids = gas_oracle_config
         .iter()
-        .map(|(remote, _)| chain_metadatas.get(remote).unwrap().domain_id())
+        .map(|(remote, _)| chain_metadatas.get(remote).unwrap().domain_id)
         .collect::<HashSet<_>>();
 
     // Remove any gas oracles not in the config
@@ -677,7 +677,7 @@ fn configure_igp_and_overhead_igp(
 
     // Make sure the gas oracles and overheads are set correctly
     for (remote, config) in gas_oracle_config.iter() {
-        let remote_domain = chain_metadatas.get(remote).unwrap().domain_id();
+        let remote_domain = chain_metadatas.get(remote).unwrap().domain_id;
         let gas_oracle_config = GasOracleConfig {
             domain: remote_domain,
             gas_oracle: Some(GasOracle::RemoteGasData(config.oracle_config.clone())),
