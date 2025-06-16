@@ -56,6 +56,9 @@ impl KaspaProvider {
             domain: locator.domain.clone(),
         })
     }
+    pub fn rpc(&self) -> RpcProvider {
+        RpcProvider::new(self.conf.clone(), self.locator.clone(), self.signer.clone())
+    }
 }
 
 impl HyperlaneChain for KaspaProvider {
