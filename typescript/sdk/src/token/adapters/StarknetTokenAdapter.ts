@@ -116,11 +116,13 @@ export class StarknetHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
+    const quote =
+      interchainGas || (await this.quoteTransferRemoteGas(destination));
     return this.contract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(BigInt(weiAmountOrId.toString())),
-      cairo.uint256(BigInt(interchainGas?.amount.toString() ?? '0')),
+      cairo.uint256(BigInt(quote.amount)),
       nonOption,
       nonOption,
     );
