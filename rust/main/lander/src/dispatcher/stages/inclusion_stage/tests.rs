@@ -55,6 +55,10 @@ async fn test_unincluded_txs_reach_mempool() {
 
     mock_adapter.expect_submit().returning(|_| Ok(()));
 
+    mock_adapter
+        .expect_update_vm_specific_metrics()
+        .returning(|_, _| ());
+
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
