@@ -99,30 +99,6 @@ For **each chain** listed in `destination_chains`, the following tasks are spawn
     - **Interaction:** Read-only RPC calls to the destination chain.
     - **Concurrency:** One task per destination chain.
 
-### Concrete Example
-
-If you configure your relayer to operate between **Kaspa, Dymension, and Ethereum** (relaying between all of them):
-
-- **Origins (3):** Kaspa, Dymension, Ethereum
-- **Destinations (3):** Kaspa, Dymension, Ethereum
-
-You would have roughly:
-
-- **Global tasks:** 3
-- **Per-Origin tasks:** 3 origins \* ~4 tasks/origin = ~12 tasks
-- **Per-Destination tasks:** 3 destinations \* (1 Submitter pipeline + 1 Metrics Updater) = ~6 tasks
-
-This results in **~21 primary concurrent routines** running, each with a specific, isolated job, communicating through databases and in-memory queues.
-
-### 2. The Key-Value Store (Relayer & Validator) -
-
-The Relayer and Validator need a fast, simple way to store their internal state. They use RocksDB, an embedded key-value database. It does **not** have tables or a predefined schema.
-
-Instead, the "schema" is defined by **key prefixes**. Each type of data has a unique prefix to avoid collisions.
-
-- **Technology:** RocksDB, wrapped by the `TypedDB` struct.
-- **Location of Logic:** `hyperlane-base/src/db/rocks/hyperlane_db.rs`.
-
 #### Key-Value "Schema"
 
 Here's a breakdown of the key structures used. You will interact with this database via the `HyperlaneDb` trait, which provides methods like `store_message`, `retrieve_status_by_message_id`, etc. You won't construct these keys manually.
@@ -220,3 +196,4 @@ ISMs are how destination chains verify messages. You only need to implement what
 
 **2. `MultisigIsm`, `RoutingIsm`, `AggregationIsm`**
    *   **Your Task:** **Do not implement these.** Your custom flow (Dymension -> Kaspa) does not use a standard on-chain Multisig or Routing ISM. Your verification logic is entirely contained within your `KaspaMailbox::process` method. The relayer's `MetadataBuilder` will be custom-built for this flow and won't rely on these interfaces.
+    
