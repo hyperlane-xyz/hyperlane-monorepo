@@ -1,30 +1,13 @@
 use super::*;
-use crate::{
-    adapter::chains::ethereum::{
-        nonce::{db::NonceDb, NonceManager, NonceManagerState},
-        tests::MockEvmProvider,
-        EthereumAdapter,
-    },
-    dispatcher::{
-        entrypoint::tests::MockDb,
-        finality_stage,
-        metrics::DispatcherMetrics,
-        test_utils::{
-            are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, dummy_tx,
-            initialize_payload_db, tmp_dbs, MockAdapter,
-        },
-        PayloadDb, TransactionDb,
-    },
-    transaction::{Transaction, TransactionUuid},
+use crate::tests::test_utils::{
+    are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs, MockAdapter,
 };
-use ethers::types::H160;
-use ethers_core::rand::rngs::{adapter, mock};
-use eyre::Result;
-use hyperlane_base::settings::ChainConf;
-use hyperlane_core::{config::OpSubmissionConfig, KnownHyperlaneDomain};
-use hyperlane_ethereum::EthereumReorgPeriod;
+use crate::{
+    dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
+    transaction::Transaction,
+};
 use std::sync::Arc;
-use tokio::{select, sync::mpsc};
+use tokio::sync::mpsc;
 
 #[tokio::test]
 async fn test_processing_included_txs() {

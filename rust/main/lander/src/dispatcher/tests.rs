@@ -2,12 +2,12 @@ use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use tokio::{sync::Mutex, time::sleep};
 
+use crate::tests::test_utils::{dummy_tx, tmp_dbs, MockAdapter};
+use crate::transaction::TransactionUuid;
 use crate::{
     adapter::TxBuildingResult,
     dispatcher::{
-        metrics::DispatcherMetrics,
-        test_utils::{dummy_tx, tmp_dbs, MockAdapter},
-        BuildingStageQueue, DispatcherState, PayloadDbLoader,
+        metrics::DispatcherMetrics, BuildingStageQueue, DispatcherState, PayloadDbLoader,
     },
     Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
     PayloadUuid, TransactionStatus,
