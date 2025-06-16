@@ -197,4 +197,21 @@ describe('SmartProvider', async () => {
       );
     }
   });
+
+  it('returns the original error in the cause property', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    try {
+      const balance = await signer.getBalance();
+      await signer.sendTransaction({
+        to: randomAddress(),
+        value: balance.add(1),
+      });
+    } catch (e: any) {
+      expect(e.cause.code).to.equal('INSUFFICIENT_FUNDS');
+    }
+  });
 });
