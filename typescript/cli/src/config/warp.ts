@@ -6,6 +6,7 @@ import {
   ChainTechnicalStack,
   DeployedOwnableConfig,
   HypERC20Deployer,
+  HypTokenRouterConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -16,6 +17,8 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
+  isMovableCollateralTokenConfig,
+  resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -42,6 +45,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
+  [TokenType.collateralCctp]:
+    'A collateral token that can be transferred via CCTP',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
@@ -54,6 +59,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 with Warp Route functionality',
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
+  [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
+  [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -113,6 +120,38 @@ export async function readWarpRouteDeployConfig({
   assert(config, `No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
+
+  config = objMap(
+    config as any,
+    (_chain, chainConfig: HypTokenRouterConfig) => {
+      if (chainConfig.destinationGas) {
+        chainConfig.destinationGas = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.destinationGas,
+        );
+      }
+
+      if (chainConfig.remoteRouters) {
+        chainConfig.remoteRouters = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.remoteRouters,
+        );
+      }
+
+      if (!isMovableCollateralTokenConfig(chainConfig)) {
+        return chainConfig;
+      }
+
+      if (chainConfig.allowedRebalancingBridges) {
+        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+          context.multiProvider,
+          chainConfig.allowedRebalancingBridges,
+        );
+      }
+
+      return chainConfig;
+    },
+  );
 
   //fillDefaults would have added a mailbox to the config if it was missing
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
@@ -265,13 +304,18 @@ export async function createWarpRouteDeployConfig({
           isNft: true,
         };
         break;
-      default:
+      case TokenType.native:
+      case TokenType.synthetic:
         result[chain] = {
           type,
           owner,
           proxyAdmin,
           interchainSecurityModule,
+          isNft: false,
         };
+        break;
+      default:
+        throw new Error(`Token type ${type} is not supported`);
     }
   }
 

@@ -151,17 +151,14 @@ fn get_full_payloads_from_details(
 
 #[cfg(test)]
 mod tests {
-    use eyre::Result;
     use std::{collections::VecDeque, sync::Arc};
 
+    use crate::tests::test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter};
+    use crate::transaction::TransactionUuid;
     use crate::{
         adapter::{AdaptsChain, TxBuildingResult},
-        dispatcher::{
-            metrics::DispatcherMetrics,
-            test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
-            DispatcherState, PayloadDb, TransactionDb,
-        },
-        payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
+        dispatcher::{metrics::DispatcherMetrics, DispatcherState, PayloadDb, TransactionDb},
+        payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
         transaction::{Transaction, TransactionStatus},
     };
 

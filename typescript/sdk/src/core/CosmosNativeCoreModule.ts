@@ -175,7 +175,6 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       staticMessageIdWeightedMultisigIsmFactory: '',
       validatorAnnounce: '',
       testRecipient: '',
-      interchainAccountIsm: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',
     };

@@ -45,13 +45,12 @@ use crate::{
         core::TxBuildingResult,
         AdaptsChain, GasLimit,
     },
-    error,
-    error::LanderError,
+    error::{self, LanderError},
     payload::{FullPayload, PayloadDetails},
     transaction::{
         SignerAddress, Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData,
     },
-    TransactionDropReason,
+    DispatcherMetrics, TransactionDropReason,
 };
 
 const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
@@ -390,6 +389,8 @@ impl AdaptsChain for SealevelAdapter {
         }
         true
     }
+
+    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
 
     fn estimated_block_time(&self) -> &Duration {
         &self.estimated_block_time

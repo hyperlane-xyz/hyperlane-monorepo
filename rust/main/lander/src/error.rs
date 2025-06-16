@@ -56,6 +56,14 @@ impl LanderError {
     }
 }
 
+const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
+    "replacement transaction underpriced",
+    "already known",
+    "Fair pubdata price too high",
+    // seen on Sei
+    "insufficient fee",
+];
+
 pub trait IsRetryable {
     fn is_retryable(&self) -> bool;
 }
@@ -72,6 +80,12 @@ impl IsRetryable for LanderError {
                 // this error is returned randomly by the `TestTokenRecipient`,
                 // to simulate delivery errors
                 if err.to_string().contains("block hash ends in 0") {
+                    return true;
+                }
+                if GAS_UNDERPRICED_ERRORS
+                    .iter()
+                    .any(|&e| err.to_string().contains(e))
+                {
                     return true;
                 }
                 // TODO: add logic to classify based on the error message

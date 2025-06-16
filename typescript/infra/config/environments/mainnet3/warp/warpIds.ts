@@ -22,7 +22,7 @@ export enum WarpRouteIds {
   EclipseSolanaEzSOL = 'EZSOL/eclipsemainnet-solanamainnet',
   EclipseSolanaORCA = 'ORCA/eclipsemainnet-solanamainnet',
   EclipseSolanaJitoSOL = 'jitoSOL/eclipsemainnet-solanamainnet',
-  EclipseSolanaKySOL = 'kySOL/eclipsemainnet-solanamainnet',
+  EclipseSolanaKySOL = 'kySOL/kyros',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
@@ -82,7 +82,7 @@ export enum WarpRouteIds {
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
-  oUSDTSTAGE = 'oUSDTSTAGE/staging',
+  oUSDTSTAGE = 'oUSDT/staging',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
@@ -99,6 +99,9 @@ export enum WarpRouteIds {
   SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  // Not present in the registry
+  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
