@@ -53,7 +53,7 @@ export enum WarpRouteIds {
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
-  BobaBsquaredSoneiumSwellUBTC = 'UBTC/boba-bsquared-soneium-swell',
+  BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   EthereumSuperseedUSDC = 'USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
