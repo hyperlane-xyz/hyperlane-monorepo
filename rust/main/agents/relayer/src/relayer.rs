@@ -564,9 +564,11 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) {
+                // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
                 // TODO: run monitor
+                tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
 
-
+                // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(
                     origin,
                     send_channels.clone(),
