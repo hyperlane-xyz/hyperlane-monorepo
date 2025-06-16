@@ -53,10 +53,6 @@ pub trait AdaptsChain: Send + Sync {
 
     async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, LanderError>;
 
-    async fn on_tx_status(&self, _tx: &Transaction, _tx_status: &TransactionStatus) {
-        // Default implementation does nothing.
-    }
-
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
     #[instrument(skip(self))]
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError> {
@@ -74,8 +70,6 @@ pub trait AdaptsChain: Send + Sync {
         // this may lead to rate limiting if too many hashes build up. Consider querying from most recent to oldest
         let hash_status_results = join_all(hash_status_futures).await;
         let status = TransactionStatus::classify_tx_status_from_hash_statuses(hash_status_results);
-
-        self.on_tx_status(tx, &status).await;
 
         Ok(status)
     }
