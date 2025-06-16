@@ -1,9 +1,9 @@
 import { Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
-const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = [
+const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
-];
+]);
 
 /**
  * @dev This function exists because the rebalancer currently only supports a subset of collateralized token standards
@@ -21,6 +21,6 @@ export function isCollateralizedTokenEligibleForRebalancing(
 ): boolean {
   return (
     token.isCollateralized() &&
-    REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS.includes(token.standard)
+    REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS.has(token.standard)
   );
 }
