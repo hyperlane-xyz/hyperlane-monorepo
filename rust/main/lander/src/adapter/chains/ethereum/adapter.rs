@@ -30,7 +30,10 @@ use crate::{
     DispatcherMetrics, LanderError,
 };
 
-use super::{nonce::NonceManager, transaction::Precursor, EthereumTxPrecursor};
+use super::{
+    metrics::EthereumAdapterMetrics, nonce::NonceManager, transaction::Precursor,
+    EthereumTxPrecursor,
+};
 
 mod gas_limit_estimator;
 mod gas_price;
@@ -53,7 +56,10 @@ impl EthereumAdapter {
         _raw_conf: RawChainConf,
         db: Arc<HyperlaneRocksDB>,
         metrics: &CoreMetrics,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> eyre::Result<Self> {
+        let domain = conf.domain.name();
+
         let locator = ContractLocator {
             domain: &conf.domain,
             address: hyperlane_core::H256::zero(),
@@ -67,8 +73,17 @@ impl EthereumAdapter {
             )
             .await?;
 
+        let signer = provider
+            .get_signer()
+            .map_or("none".to_string(), |s| s.to_string());
+
+        let metrics = EthereumAdapterMetrics::new(
+            dispatcher_metrics.get_finalized_nonce(domain, &signer),
+            dispatcher_metrics.get_upper_nonce(domain, &signer),
+        );
+
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone()).await?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,

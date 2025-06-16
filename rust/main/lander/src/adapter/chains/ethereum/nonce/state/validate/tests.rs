@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use ethers_core::types::Address;
 
-use hyperlane_core::U256;
+use hyperlane_core::{HyperlaneDomain, U256};
 
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, TransactionStatus, TransactionUuid};
 use crate::TransactionDropReason;
 
 use super::super::super::super::nonce::tests::make_tx;
+use super::super::super::super::EthereumAdapterMetrics;
 use super::NonceAction;
 use super::NonceManagerState;
 
@@ -14,7 +17,8 @@ use super::NonceManagerState;
 async fn test_validate_assigned_nonce_none_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let tx = make_tx(
@@ -33,7 +37,8 @@ async fn test_validate_assigned_nonce_none_nonce() {
 async fn test_validate_assigned_nonce_not_tracked() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db, tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(1);
@@ -53,7 +58,8 @@ async fn test_validate_assigned_nonce_not_tracked() {
 async fn test_validate_assigned_nonce_tracked_different_tx_uuid() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid1 = TransactionUuid::random();
     let uuid2 = TransactionUuid::random();
@@ -77,7 +83,8 @@ async fn test_validate_assigned_nonce_tracked_different_tx_uuid() {
 async fn test_validate_assigned_nonce_freed_status() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(3);
@@ -101,7 +108,8 @@ async fn test_validate_assigned_nonce_freed_status() {
 async fn test_validate_assigned_nonce_taken_status_below_finalized() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(4);
@@ -127,7 +135,8 @@ async fn test_validate_assigned_nonce_taken_status_below_finalized() {
 async fn test_validate_assigned_nonce_taken_status_equal_finalized() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(5);
@@ -153,7 +162,8 @@ async fn test_validate_assigned_nonce_taken_status_equal_finalized() {
 async fn test_validate_assigned_nonce_taken_status_above_finalized() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(6);
@@ -179,7 +189,8 @@ async fn test_validate_assigned_nonce_taken_status_above_finalized() {
 async fn test_validate_assigned_nonce_committed_status() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let state = NonceManagerState::new(nonce_db.clone(), tx_db, address);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(7);
