@@ -6,6 +6,7 @@ import {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EV5JsonRpcTxSubmitterPropsSchema,
+  EvmIcaTxSubmitterPropsSchema,
 } from './ethersV5/types.js';
 
 export const SubmitterMetadataSchema = z.discriminatedUnion('type', [
@@ -24,6 +25,10 @@ export const SubmitterMetadataSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
     ...EV5GnosisSafeTxBuilderPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
+    ...EvmIcaTxSubmitterPropsSchema.shape,
   }),
 ]);
 
