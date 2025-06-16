@@ -189,7 +189,6 @@ async function handleTransactions(
       if (error.reason && transaction.revertAssertion) {
         assertRevert(transaction.revertAssertion, error, {
           chainName: chainName,
-          assertionIdx: txCounter,
           transactionAnnotation: annotation,
         });
         continue;
@@ -231,7 +230,6 @@ function assertRevert(
   error: any,
   meta: {
     chainName: string;
-    assertionIdx: number;
     transactionAnnotation: string;
   },
 ) {
@@ -243,7 +241,7 @@ function assertRevert(
     );
   }
 
-  const annotation = revertAssertion.annotation ?? `#${meta.assertionIdx}`;
+  const annotation = revertAssertion.annotation ?? revertAssertion.type;
   logGray(
     `Successfully completed revert assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
   );
