@@ -722,8 +722,7 @@ impl Relayer {
                         .await;
                 }
                 .instrument(info_span!("MessageSync")),
-            ))
-            .expect("spawning tokio task from Builder is infallible");
+            ))?;
         Ok(task)
     }
 
