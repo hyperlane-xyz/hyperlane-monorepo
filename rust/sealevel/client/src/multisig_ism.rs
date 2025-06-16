@@ -59,7 +59,7 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let registry = FileSystemRegistry::new(deploy.registry.to_path_buf());
             let chain_metadatas = registry.get_metadata();
             let chain_metadata = chain_metadatas.get(&deploy.chain).unwrap();
-            let local_domain = chain_metadata.domain_id();
+            let local_domain = chain_metadata.domain_id;
             println!("Local domain: {}", local_domain);
 
             let ism_program_id = deploy_multisig_ism_message_id(
@@ -247,7 +247,7 @@ fn configure_multisig_ism_message_id(
         let matches = multisig_ism_config_matches_chain(
             ctx,
             program_id,
-            chain_metadata.domain_id(),
+            chain_metadata.domain_id,
             &multisig_ism_config,
         );
 
@@ -265,7 +265,7 @@ fn configure_multisig_ism_message_id(
             let instruction = set_validators_and_threshold_instruction(
                 program_id,
                 ctx.payer_pubkey,
-                chain_metadata.domain_id(),
+                chain_metadata.domain_id,
                 multisig_ism_config.into(),
             )
             .unwrap();
