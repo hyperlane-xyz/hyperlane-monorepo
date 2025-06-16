@@ -113,11 +113,10 @@ export const awIcas: ChainMap<Address> = {
 
   // Dec 13, 2024 batch
   // ----------------------------------------------------------
-  arthera: '0x962e4E5F5e47e1Ab5361eE0B5108Ebeb9Fa5c99B',
   aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
   conflux: '0xac8f0e306A126312C273080d149ca01d461603FE',
   conwai: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
-  corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  // corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   evmos: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
@@ -137,7 +136,7 @@ export const awIcas: ChainMap<Address> = {
 
   // Feb 3, 2025 batch
   // ----------------------------------------------------------
-  glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
+  // glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
   matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',

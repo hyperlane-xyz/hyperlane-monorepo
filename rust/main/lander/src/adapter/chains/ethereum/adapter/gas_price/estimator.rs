@@ -1,7 +1,3 @@
-// the evm provider-building logic returns a box. `EvmProviderForLander` is only implemented for the underlying type rather than the boxed type.
-// implementing the trait for the boxed type would require a lot of boilerplate code.
-#![allow(clippy::borrowed_box)]
-
 use std::{str::FromStr, sync::Arc};
 
 use ethers::{
@@ -39,7 +35,7 @@ pub type Eip1559Fee = (
 );
 
 pub async fn estimate_gas_price(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: &Arc<dyn EvmProviderForLander>,
     tx_precursor: &mut EthereumTxPrecursor,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
@@ -48,6 +44,10 @@ pub async fn estimate_gas_price(
 
     if let Some(gas_price) = transaction_overrides.gas_price {
         // If the gas price is set, we treat as a non-EIP-1559 chain.
+        debug!(
+            ?gas_price,
+            "Using gas price override for transaction, which assumes a non-EIP-1559 chain",
+        );
         tx_precursor.tx.set_gas_price(gas_price);
         return Ok(());
     }
@@ -56,8 +56,10 @@ pub async fn estimate_gas_price(
     let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
         Ok(result) => result,
         Err(err) => {
-            warn!(?err, "Failed to estimate EIP-1559 fees");
-            // Assume it's not an EIP 1559 chain
+            warn!(
+                ?err,
+                "Failed to estimate EIP-1559 fees, assuming non-EIP-1559 chain"
+            );
             apply_legacy_overrides(tx_precursor, transaction_overrides);
             return Ok(());
         }
@@ -69,6 +71,7 @@ pub async fn estimate_gas_price(
     // fee lower than 3 gwei because of privileged transactions being included by block
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
+        debug!("Base fee is zero, assuming non-EIP-1559 chain",);
         apply_legacy_overrides(tx_precursor, transaction_overrides);
         return Ok(());
     }
@@ -171,7 +174,7 @@ fn apply_gas_price_cap(
 
 /// Use this to estimate EIP 1559 fees with some chain-specific logic.
 pub(crate) async fn estimate_eip1559_fees(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: &Arc<dyn EvmProviderForLander>,
     estimator: Option<FeeEstimator>,
     domain: &HyperlaneDomain,
     tx: &TypedTransaction,
@@ -184,7 +187,7 @@ pub(crate) async fn estimate_eip1559_fees(
 }
 
 async fn estimate_eip1559_fees_zksync(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: &Arc<dyn EvmProviderForLander>,
     tx: &TypedTransaction,
 ) -> ChainResult<(Eip1559Fee, Block<TxHash>)> {
     let latest_block = latest_block(provider).await?;
@@ -204,7 +207,7 @@ async fn estimate_eip1559_fees_zksync(
 }
 
 async fn zksync_estimate_fee(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: &Arc<dyn EvmProviderForLander>,
     tx: &TypedTransaction,
 ) -> ChainResult<ZksyncEstimateFeeResponse> {
     let mut tx = tx.clone();
@@ -225,7 +228,7 @@ async fn zksync_estimate_fee(
 /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
 /// EIP-1559 compatible transactions.
 async fn estimate_eip1559_fees_default(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: &Arc<dyn EvmProviderForLander>,
     estimator: Option<FeeEstimator>,
 ) -> ChainResult<((EthersU256, EthersU256, EthersU256), Block<TxHash>)> {
     let latest_block = latest_block(provider);
@@ -255,7 +258,7 @@ async fn estimate_eip1559_fees_default(
     ))
 }
 
-async fn latest_block(provider: &Box<dyn EvmProviderForLander>) -> ChainResult<Block<TxHash>> {
+async fn latest_block(provider: &Arc<dyn EvmProviderForLander>) -> ChainResult<Block<TxHash>> {
     let latest_block = provider
         .get_block(BlockNumber::Latest)
         .await

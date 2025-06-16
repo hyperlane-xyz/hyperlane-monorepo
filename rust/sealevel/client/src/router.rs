@@ -11,7 +11,6 @@ use solana_program::instruction::Instruction;
 use solana_sdk::{
     account_utils::StateMut,
     bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    commitment_config::CommitmentConfig,
     pubkey::Pubkey,
 };
 
@@ -23,7 +22,9 @@ use crate::{
     adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
     cmd_utils::{create_new_directory, deploy_program},
-    read_core_program_ids, warp_route, Context, CoreProgramIds,
+    read_core_program_ids,
+    registry::{ChainMetadata, FileSystemRegistry},
+    warp_route, Context, CoreProgramIds,
 };
 
 /// Optional connection client configuration.
@@ -106,48 +107,6 @@ pub struct RouterConfig {
     pub connection_client: OptionalConnectionClientConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RpcUrlConfig {
-    pub http: String,
-}
-
-/// An abridged version of the Typescript ChainMetadata
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ChainMetadata {
-    // Can be a string or a number
-    chain_id: serde_json::Value,
-    /// Hyperlane domain, only required if differs from id above
-    domain_id: Option<u32>,
-    name: String,
-    /// Collection of RPC endpoints
-    rpc_urls: Vec<RpcUrlConfig>,
-    pub is_testnet: Option<bool>,
-}
-
-impl ChainMetadata {
-    pub fn client(&self) -> RpcClient {
-        RpcClient::new_with_commitment(self.rpc_urls[0].http.clone(), CommitmentConfig::confirmed())
-    }
-
-    pub fn domain_id(&self) -> u32 {
-        self.domain_id.unwrap_or_else(|| {
-            // Try to parse as a number, otherwise panic, as the domain ID must
-            // be specified if the chain id is not a number.
-            self.chain_id
-                .as_u64()
-                .and_then(|v| v.try_into().ok())
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Unable to get domain ID for chain {:?}: domain_id is undefined and could not fall back to chain_id {:?}",
-                        self.name, self.chain_id
-                    )
-                })
-        })
-    }
-}
-
 pub trait RouterConfigGetter {
     fn router_config(&self) -> &RouterConfig;
 }
@@ -163,7 +122,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         environments_dir: &Path,
         environment: &str,
         built_so_dir: &Path,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &Config,
         existing_program_ids: Option<&HashMap<String, Pubkey>>,
     ) -> Pubkey {
@@ -171,25 +130,27 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
 
         println!(
             "Attempting deploy {} on chain: {}\nApp config: {:?}",
-            program_name, chain_config.name, app_config
+            program_name, chain_metadata.name, app_config
         );
 
         let program_id = existing_program_ids
             .and_then(|existing_program_ids| {
-                existing_program_ids.get(&chain_config.name).and_then(|id| {
-                    chain_config
-                        .client()
-                        .get_account_with_commitment(id, ctx.commitment)
-                        .unwrap()
-                        .value
-                        .map(|_| {
-                            println!("Recovered existing program id {}", id);
-                            *id
-                        })
-                })
+                existing_program_ids
+                    .get(&chain_metadata.name)
+                    .and_then(|id| {
+                        chain_metadata
+                            .client()
+                            .get_account_with_commitment(id, ctx.commitment)
+                            .unwrap()
+                            .value
+                            .map(|_| {
+                                println!("Recovered existing program id {}", id);
+                                *id
+                            })
+                    })
             })
             .unwrap_or_else(|| {
-                let chain_program_name = format!("{}-{}", program_name, chain_config.name);
+                let chain_program_name = format!("{}-{}", program_name, chain_metadata.name);
 
                 let program_id = deploy_program(
                     ctx.payer_keypair_path(),
@@ -199,8 +160,8 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                         .join(format!("{}.so", program_name))
                         .to_str()
                         .unwrap(),
-                    &chain_config.rpc_urls[0].http,
-                    chain_config.domain_id(),
+                    &chain_metadata.rpc_urls[0].http,
+                    chain_metadata.domain_id,
                 )
                 .unwrap();
 
@@ -208,12 +169,12 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
             });
 
         let core_program_ids =
-            read_core_program_ids(environments_dir, environment, &chain_config.name);
+            read_core_program_ids(environments_dir, environment, &chain_metadata.name);
         self.init_program_idempotent(
             ctx,
-            &chain_config.client(),
+            &chain_metadata.client(),
             &core_program_ids,
-            chain_config,
+            chain_metadata,
             app_config,
             program_id,
         );
@@ -226,7 +187,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         _ctx: &mut Context,
         _app_configs: &HashMap<String, Config>,
         _app_configs_to_deploy: &HashMap<&String, &Config>,
-        _chain_configs: &HashMap<String, ChainMetadata>,
+        _chain_metadatas: &HashMap<String, ChainMetadata>,
     ) {
         // By default, do nothing.
     }
@@ -236,7 +197,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &Config,
         program_id: Pubkey,
     );
@@ -246,7 +207,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         _ctx: &mut Context,
         _app_configs: &HashMap<String, Config>,
         _app_configs_to_deploy: &HashMap<&String, &Config>,
-        _chain_configs: &HashMap<String, ChainMetadata>,
+        _chain_metadatas: &HashMap<String, ChainMetadata>,
         _routers: &HashMap<u32, H256>,
     ) {
         // By default, do nothing.
@@ -323,7 +284,7 @@ pub(crate) fn deploy_routers<
     app_name: &str,
     deploy_name: &str,
     app_config_file_path: PathBuf,
-    chain_config_file_path: PathBuf,
+    registry_path: PathBuf,
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
@@ -333,9 +294,8 @@ pub(crate) fn deploy_routers<
     let app_configs: HashMap<String, Config> = serde_json::from_reader(app_config_file).unwrap();
 
     // Load the chain configs from the chain config file.
-    let chain_config_file = File::open(chain_config_file_path).unwrap();
-    let chain_configs: HashMap<String, ChainMetadata> =
-        serde_json::from_reader(chain_config_file).unwrap();
+    let registry = FileSystemRegistry::new(registry_path);
+    let chain_metadatas: HashMap<String, ChainMetadata> = registry.get_metadata();
 
     let environments_dir = create_new_directory(&environments_dir_path, environment);
 
@@ -356,9 +316,9 @@ pub(crate) fn deploy_routers<
                 .foreign_deployment
                 .as_ref()
                 .map(|foreign_deployment| {
-                    let chain_config = chain_configs.get(chain_name).unwrap();
+                    let chain_metadata = chain_metadatas.get(chain_name).unwrap();
                     (
-                        chain_config.domain_id(),
+                        chain_metadata.domain_id,
                         hex_or_base58_to_h256(foreign_deployment).unwrap(),
                     )
                 })
@@ -376,14 +336,14 @@ pub(crate) fn deploy_routers<
 
     // Verify the configuration.
     println!("Verifying configuration...");
-    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_configs);
+    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_metadatas);
     println!("Configuration successfully verified!");
 
     warp_route::install_spl_token_cli();
 
     // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
-        let chain_config = chain_configs
+        let chain_metadata = chain_metadatas
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
@@ -396,14 +356,14 @@ pub(crate) fn deploy_routers<
             &environments_dir_path,
             environment,
             &built_so_dir_path,
-            chain_config,
+            chain_metadata,
             app_config,
             existing_program_ids.as_ref(),
         );
 
         // Add the router to the list of routers.
         routers.insert(
-            chain_config.domain_id(),
+            chain_metadata.domain_id,
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
@@ -412,7 +372,7 @@ pub(crate) fn deploy_routers<
             &deployer,
             &program_id,
             app_config.router_config(),
-            chain_config,
+            chain_metadata,
         );
 
         configure_owner(
@@ -420,10 +380,10 @@ pub(crate) fn deploy_routers<
             &deployer,
             &program_id,
             app_config.router_config(),
-            chain_config,
+            chain_metadata,
         );
 
-        configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_config);
+        configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_metadata);
     }
 
     // Now enroll all the routers.
@@ -431,7 +391,7 @@ pub(crate) fn deploy_routers<
         &deployer,
         ctx,
         &app_configs_to_deploy,
-        &chain_configs,
+        &chain_metadatas,
         &routers,
     );
 
@@ -440,7 +400,7 @@ pub(crate) fn deploy_routers<
         ctx,
         &app_configs,
         &app_configs_to_deploy,
-        &chain_configs,
+        &chain_metadatas,
         &routers,
     );
 
@@ -449,9 +409,9 @@ pub(crate) fn deploy_routers<
         .iter()
         .map(|(domain_id, router)| {
             (
-                chain_configs
+                chain_metadatas
                     .iter()
-                    .find(|(_, chain_config)| chain_config.domain_id() == *domain_id)
+                    .find(|(_, chain_metadata)| chain_metadata.domain_id == *domain_id)
                     .unwrap()
                     .0
                     .clone(),
@@ -470,9 +430,9 @@ fn configure_connection_client(
     deployer: &impl ConnectionClient,
     program_id: &Pubkey,
     router_config: &RouterConfig,
-    chain_config: &ChainMetadata,
+    chain_metadata: &ChainMetadata,
 ) {
-    let client = chain_config.client();
+    let client = chain_metadata.client();
 
     let actual_ism = deployer.get_interchain_security_module(&client, program_id);
     let expected_ism = router_config.connection_client.interchain_security_module();
@@ -490,9 +450,7 @@ fn configure_connection_client(
                     ),
                     format!(
                         "Setting ISM for chain: {} ({}) to {:?}",
-                        chain_config.name,
-                        chain_config.domain_id(),
-                        expected_ism
+                        chain_metadata.name, chain_metadata.domain_id, expected_ism
                     ),
                 )
                 .with_client(&client)
@@ -500,9 +458,7 @@ fn configure_connection_client(
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
-                chain_config.name,
-                chain_config.domain_id(),
-                expected_ism
+                chain_metadata.name, chain_metadata.domain_id, expected_ism
             );
         }
     }
@@ -525,9 +481,7 @@ fn configure_connection_client(
                         instruction,
                         format!(
                             "Setting IGP for chain: {} ({}) to {:?}",
-                            chain_config.name,
-                            chain_config.domain_id(),
-                            expected_igp
+                            chain_metadata.name, chain_metadata.domain_id, expected_igp
                         ),
                     )
                     .with_client(&client)
@@ -535,11 +489,11 @@ fn configure_connection_client(
             } else {
                 println!(
                     "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
-                    chain_config.name, chain_config.domain_id(), expected_igp
+                    chain_metadata.name, chain_metadata.domain_id, expected_igp
                 );
             }
         } else {
-            println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_config.name, chain_config.domain_id());
+            println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_metadata.name, chain_metadata.domain_id);
         }
     }
 }
@@ -551,9 +505,9 @@ fn configure_owner(
     deployer: &impl ConnectionClient,
     program_id: &Pubkey,
     router_config: &RouterConfig,
-    chain_config: &ChainMetadata,
+    chain_metadata: &ChainMetadata,
 ) {
-    let client = chain_config.client();
+    let client = chain_metadata.client();
 
     let actual_owner = deployer.get_owner(&client, program_id);
     let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
@@ -565,9 +519,7 @@ fn configure_owner(
                     deployer.set_owner_instruction(&client, program_id, expected_owner),
                     format!(
                         "Setting owner for chain: {} ({}) to {:?}",
-                        chain_config.name,
-                        chain_config.domain_id(),
-                        expected_owner,
+                        chain_metadata.name, chain_metadata.domain_id, expected_owner,
                     ),
                 )
                 .with_client(&client)
@@ -576,8 +528,8 @@ fn configure_owner(
             // Flag if we can't change the owner
             println!(
                 "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is None",
-                chain_config.name,
-                chain_config.domain_id(),
+                chain_metadata.name,
+                chain_metadata.domain_id,
                 actual_owner,
                 expected_owner,
             );
@@ -600,9 +552,9 @@ fn configure_upgrade_authority(
     ctx: &mut Context,
     program_id: &Pubkey,
     router_config: &RouterConfig,
-    chain_config: &ChainMetadata,
+    chain_metadata: &ChainMetadata,
 ) {
-    let client = chain_config.client();
+    let client = chain_metadata.client();
 
     let actual_upgrade_authority = get_program_upgrade_authority(&client, program_id).unwrap();
     let expected_upgrade_authority = Some(router_config.ownable.owner(ctx.payer_pubkey));
@@ -621,9 +573,7 @@ fn configure_upgrade_authority(
                     ),
                     format!(
                         "Setting upgrade authority for chain: {} ({}) to {:?}",
-                        chain_config.name,
-                        chain_config.domain_id(),
-                        expected_upgrade_authority,
+                        chain_metadata.name, chain_metadata.domain_id, expected_upgrade_authority,
                     ),
                 )
                 .with_client(&client)
@@ -632,8 +582,8 @@ fn configure_upgrade_authority(
             // Flag if we can't change the upgrade authority
             println!(
                 "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is None",
-                chain_config.name,
-                chain_config.domain_id(),
+                chain_metadata.name,
+                chain_metadata.domain_id,
                 actual_upgrade_authority,
                 expected_upgrade_authority,
             );
@@ -694,21 +644,21 @@ fn enroll_all_remote_routers<
     deployer: &impl RouterDeployer<Config>,
     ctx: &mut Context,
     app_configs_to_deploy: &HashMap<&String, &Config>,
-    chain_configs: &HashMap<String, ChainMetadata>,
+    chain_metadatas: &HashMap<String, ChainMetadata>,
     routers: &HashMap<u32, H256>,
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
-        let chain_config = chain_configs
+        let chain_metadata = chain_metadatas
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
-        let client = chain_config.client();
+        let client = chain_metadata.client();
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id;
         let program_id: Pubkey =
             Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
-        let enrolled_routers = deployer.get_routers(&chain_config.client(), &program_id);
+        let enrolled_routers = deployer.get_routers(&chain_metadata.client(), &program_id);
         let expected_routers = routers
             .iter()
             .filter(|(router_domain_id, _)| *router_domain_id != &domain_id)
@@ -763,7 +713,7 @@ fn enroll_all_remote_routers<
                             chain_name, program_id, router_configs,
                         ),
                     )
-                    .with_client(&chain_config.client())
+                    .with_client(&chain_metadata.client())
                     .send_with_pubkey_signer(&owner);
             } else {
                 println!(
