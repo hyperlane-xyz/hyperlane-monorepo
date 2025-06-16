@@ -46,6 +46,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
+import { DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -140,9 +141,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
+    actualWarpConfig?: DerivedTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
-    const actualConfig = await this.read();
+    const actualConfig = actualWarpConfig ?? (await this.read());
+
     const transactions = [];
 
     /**
@@ -755,6 +758,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
     const updateTransactions = await ismModule.update(
       expectedConfig.interchainSecurityModule,
+      actualConfig.interchainSecurityModule,
     );
     const { deployedIsm } = ismModule.serialize();
 
@@ -841,7 +845,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedConfig.hook!);
+    const updateTransactions = await hookModule.update(
+      expectedConfig.hook!,
+      actualConfig.hook as DerivedHookConfig,
+    );
     const { deployedHook } = hookModule.serialize();
 
     return { deployedHook, updateTransactions };

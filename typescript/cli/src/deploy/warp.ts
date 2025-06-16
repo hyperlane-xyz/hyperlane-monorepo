@@ -16,6 +16,7 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  DerivedWarpRouteDeployConfig,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -62,7 +63,14 @@ import {
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logTable,
+  warnYellow,
+} from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
@@ -84,6 +92,7 @@ interface DeployParams {
 
 interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
+  actualWarpDeployConfigPath?: string;
   strategyUrl?: string;
   receiptsDir: string;
   warpRouteId?: string;
@@ -293,7 +302,12 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
-  const { warpDeployConfig, warpCoreConfig, context } = params;
+  const {
+    warpDeployConfig,
+    actualWarpDeployConfigPath,
+    warpCoreConfig,
+    context,
+  } = params;
   const { chainMetadata, skipConfirmation } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
@@ -316,12 +330,30 @@ export async function runWarpRouteApply(
     warpCoreConfig,
   );
 
+  // Try to read the actualWarpDeployConfig path
+  let actualWarpDeployConfig: DerivedWarpRouteDeployConfig | undefined;
+  if (actualWarpDeployConfigPath) {
+    warnYellow(
+      'Using local file as on-chain state. This may result in incorrect updates if the file is stale.',
+    );
+
+    actualWarpDeployConfig = readYamlOrJson<DerivedWarpRouteDeployConfig>(
+      actualWarpDeployConfigPath,
+    );
+
+    // TODO: add DerivedWarpRouteDeployConfigSchema.parse() when available
+    WarpRouteDeployConfigSchema.parse(actualWarpDeployConfig);
+  }
+
   // Then create and submit update transactions
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
-    params,
-    apiKeys,
-    warpDeployConfig,
-    updatedWarpCoreConfig,
+    {
+      applyParams: params,
+      apiKeys,
+      warpDeployConfig,
+      actualWarpDeployConfig,
+      warpCoreConfig: updatedWarpCoreConfig,
+    },
   );
 
   if (transactions.length == 0)
@@ -433,14 +465,21 @@ export async function extendWarpRoute(
 }
 
 // Updates Warp routes with new configurations.
-async function updateExistingWarpRoute(
-  params: WarpApplyParams,
-  apiKeys: ChainMap<string>,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  warpCoreConfig: WarpCoreConfig,
-) {
+async function updateExistingWarpRoute({
+  applyParams,
+  apiKeys,
+  warpDeployConfig,
+  warpCoreConfig,
+  actualWarpDeployConfig,
+}: {
+  applyParams: WarpApplyParams;
+  apiKeys: ChainMap<string>;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpCoreConfig: WarpCoreConfig;
+  actualWarpDeployConfig?: DerivedWarpRouteDeployConfig;
+}) {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const { multiProvider, registry } = applyParams.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -490,8 +529,12 @@ async function updateExistingWarpRoute(
           ccipContractCache,
           contractVerifier,
         );
+
         transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox)),
+          ...(await evmERC20WarpModule.update(
+            configWithMailbox,
+            actualWarpDeployConfig?.[chain],
+          )),
         );
       });
     }),

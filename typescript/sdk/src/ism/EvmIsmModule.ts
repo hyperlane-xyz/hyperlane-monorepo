@@ -96,6 +96,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     targetConfig: IsmConfig,
+    actualConfig?: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     targetConfig = IsmConfigSchema.parse(targetConfig);
 
@@ -108,7 +109,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
-    const currentConfig = normalizeConfig(await this.read());
+    const currentConfig = normalizeConfig(actualConfig ?? (await this.read()));
     // Update the config
     this.args.config = targetConfig;
     targetConfig = normalizeConfig(targetConfig);

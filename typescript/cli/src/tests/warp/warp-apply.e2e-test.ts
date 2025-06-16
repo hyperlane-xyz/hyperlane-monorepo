@@ -230,6 +230,54 @@ describe('hyperlane warp apply owner update tests', async function () {
     );
   });
 
+  it('should update hook configuration with cached config', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    // First read the existing config
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    // Verify the hook is not set (AddressZero)
+    expect(normalizeConfig(warpDeployConfig[CHAIN_NAME_2].hook)).to.deep.equal(
+      ethers.constants.AddressZero,
+    );
+
+    // Update with a new hook config
+    const owner = randomAddress();
+    warpDeployConfig[CHAIN_NAME_2].hook = {
+      type: HookType.PROTOCOL_FEE,
+      beneficiary: owner,
+      maxProtocolFee: '1000000',
+      protocolFee: '100000',
+      owner,
+    };
+
+    // Write the updated config
+    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    // Apply the changes with cached config
+    await hyperlaneWarpApplyRaw({
+      warpDeployPath,
+      actualConfigPath: warpDeployPath,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+    });
+
+    // Read back the config to verify changes
+    const updatedConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    // Verify the hook is still not set (AddressZero)
+    expect(normalizeConfig(updatedConfig[CHAIN_NAME_2].hook)).to.deep.equal(
+      ethers.constants.AddressZero,
+    );
+  });
+
   it('should extend an existing warp route', async () => {
     // Read existing config into a file
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
