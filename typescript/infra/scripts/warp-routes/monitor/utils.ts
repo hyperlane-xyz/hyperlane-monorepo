@@ -5,7 +5,7 @@ export const logger = rootLogger.child({ module: 'warp-balance-monitor' });
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {
     await fn();
-  } catch (e) {
-    logger.error(`Error in ${context}`, e);
+  } catch (err) {
+    logger.error(err, `Error in ${context}`);
   }
 }

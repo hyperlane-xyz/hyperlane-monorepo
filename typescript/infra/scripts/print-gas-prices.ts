@@ -107,12 +107,13 @@ async function getGasPrice(
       }
     }
     case ProtocolType.Sealevel:
-      // Return the gas price from the config if it exists, otherwise return some  default
+    case ProtocolType.Starknet:
+      // Return the gas price from the config if it exists, otherwise return some default
       // TODO get a reasonable value
       return (
         currentGasPrice ?? {
-          amount: 'PLEASE SET A GAS PRICE FOR SEALEVEL',
-          decimals: 1,
+          amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
+          decimals: 9,
         }
       );
     default:
