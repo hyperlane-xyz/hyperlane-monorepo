@@ -1,4 +1,4 @@
-use tracing::warn;
+use tracing::{debug, warn};
 
 use hyperlane_core::U256;
 
@@ -25,6 +25,12 @@ impl NonceManagerState {
         }
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
+
+        debug!(
+            ?finalized_nonce,
+            ?upper_nonce,
+            "Identifying next nonce for transaction"
+        );
 
         let next_nonce = self
             .identify_next_nonce(finalized_nonce, upper_nonce)
