@@ -6,7 +6,8 @@
     "name": "Solaxy",
     "symbol": "SOLX",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f50f80c269077c9ff184b1ba22d1c72618bbd80a/deployments/warp_routes/SOLX/metadata.json",
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ"
   },
   "ethereum": {
     "type": "collateral",
