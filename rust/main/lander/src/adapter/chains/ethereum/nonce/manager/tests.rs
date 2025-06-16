@@ -54,10 +54,10 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
         Some(address),
     );
 
-    // Should assign nonce 0
+    // Should assign nonce 1, since mock provider returns 1
     manager.assign_nonce(&mut tx).await.unwrap();
     let nonce: U256 = tx.precursor().tx.nonce().map(Into::into).unwrap();
-    assert_eq!(nonce, U256::zero());
+    assert_eq!(nonce, U256::one());
 }
 
 #[tokio::test]

@@ -193,9 +193,9 @@ async fn test_assign_next_nonce_non_existing_tracked_tx() {
         .unwrap();
     // Do not store transaction for uuid
 
-    // Should assign 0 (since tracked tx does not exist, should break and assign current)
+    // Should assign 1 (since tracked tx does not exist, should break and assign current)
     let assigned = state.assign_next_nonce(&tx_uuid, &None).await.unwrap();
-    assert_eq!(assigned, U256::from(0));
+    assert_eq!(assigned, U256::from(1));
 }
 
 #[tokio::test]

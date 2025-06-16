@@ -49,7 +49,7 @@ async fn test_identify_next_nonce_first_untracked_nonce() {
         .identify_next_nonce(Some(finalized_nonce), upper_nonce)
         .await
         .unwrap();
-    assert_eq!(result, finalized_nonce);
+    assert_eq!(result, finalized_nonce + U256::one());
 }
 
 #[tokio::test]
@@ -122,12 +122,12 @@ async fn test_identify_next_nonce_non_existing_tracked_tx() {
         .unwrap();
     // Do not store transaction for uuid
 
-    // Should return 0 (since tracked tx does not exist, should break and return current)
+    // Should return 1 (since tracked tx does not exist, should break and return current)
     let result = state
         .identify_next_nonce(Some(finalized_nonce), upper_nonce)
         .await
         .unwrap();
-    assert_eq!(result, U256::from(0));
+    assert_eq!(result, U256::from(1));
 }
 
 #[tokio::test]
