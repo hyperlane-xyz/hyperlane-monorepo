@@ -1,4 +1,4 @@
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, HyperlaneLogStore, HyperlaneMessage};
 
 /// is it a kaspa domain?
 pub fn is_kas(d: &HyperlaneDomain) -> bool {
@@ -13,4 +13,6 @@ pub fn is_kas(d: &HyperlaneDomain) -> bool {
     }
 }
 
-pub fn run_monitor() {}
+pub async fn run_monitor<T: HyperlaneLogStore<HyperlaneMessage>>(store: &T) {
+    
+}

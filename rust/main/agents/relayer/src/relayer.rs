@@ -567,6 +567,9 @@ impl BaseAgent for Relayer {
                 // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
                 // TODO: run monitor
                 tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
+                let kdb = self.dbs.get(origin).unwrap();
+
+                tasks.push(run_kas_monitor(kdb.clone(), task_monitor.clone()).await);
 
                 // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(
@@ -1423,4 +1426,22 @@ mod test {
             .unwrap();
         assert_eq!(metric.get(), 1);
     }
+}
+
+async fn run_kas_monitor(kdb: HyperlaneRocksDB, task_monitor: TaskMonitor) -> JoinHandle<()> {
+    let name = "foo";
+    tokio::task::Builder::new()
+        .name(name)
+        .spawn(TaskMonitor::instrument(
+            &task_monitor,
+            async move {
+                kas_monitor_task(&kdb).await;
+            }
+            .instrument(info_span!("Kaspa Monitor")),
+        ))
+        .expect("Failed to spawn kaspa monitor task")
+}
+
+async fn kas_monitor_task(kdb: &HyperlaneRocksDB) {
+    kas_run_monitor(kdb).await;
 }
