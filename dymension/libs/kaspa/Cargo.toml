@@ -35,3 +35,8 @@ log = "0.4.20"
 faster-hex = "0.9.0"
 bip39 = "2.1.0"
 workflow-core = { version = "0.18.0" }
+
+# Additional dependencies for Hyperlane bridge integration
+anyhow = "1.0"
+hex = "0.4.3"
+hyperlane-core = { path = "../../../rust/main/hyperlane-core" }

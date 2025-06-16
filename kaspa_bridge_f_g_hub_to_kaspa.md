@@ -1,10 +1,12 @@
 # Draft Implementation: F() and G() for Hub -> Kaspa Unescrow Flow
 
+_GPT-created and modified manually_
+
 This document outlines the draft implementation for the library functions `F()` (used by the Relayer) and `G()` (used by the Validator) in the context of the Hub to Kaspa unescrow (withdrawal) flow for the Kaspa-Hyperlane bridge.
 
 ## Function `F()` - Relayer Library
 
-**Location (Suggested):** `dymension/libs/kaspa/lib/relayer/src/hub_to_kaspa_builder.rs` (new file) or extend `dymension/libs/kaspa/lib/relayer/src/withdraw.rs`.
+**Location (Suggested):** `dymension/libs/kaspa/lib/relayer/src/hub_to_kaspa_builder.rs` (new file).
 
 **Purpose:**
 To observe withdrawal messages dispatched on the Hub and construct the necessary Kaspa Partially Signed Kaspa Transactions (`PSKT<Signer>`) to fulfill these withdrawals from the Kaspa escrow.
@@ -15,101 +17,98 @@ To observe withdrawal messages dispatched on the Hub and construct the necessary
 // In dymension/libs/kaspa/lib/relayer/src/hub_to_kaspa_builder.rs
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_core::account::Account;
-use kaspa_wallet_pskt::PSKT;
-use kaspa_wallet_pskt::Signer;
+use kaspa_wallet_pskt::{PSKT, Signer};
 use std::sync::Arc;
 use anyhow::Result;
-use core::escrow::EscrowPublic; // Corrected import
+
+use core::escrow::EscrowPublic;
 use kaspa_consensus_core::tx::TransactionOutpoint as KaspaUtxoOutpoint;
+use hyperlane_core::EventDispatch; // Generated from Hyperlane bindings
 
+// ---------------------------------------------------------------------------
+// Types & helpers
+// ---------------------------------------------------------------------------
 
-// Define these types based on your actual Hub interaction needs
-pub type HubWithdrawalMessageId = String; // Or a more specific type
-pub type HubQuerier = Arc<dyn Fn(HubWithdrawalMessageId) -> Result<HubWithdrawalDetails, anyhow::Error> + Send + Sync>; // Placeholder, ensure Send + Sync for async
-// pub type EscrowPublic = crate::core::escrow::EscrowPublic; // Corrected type name - now imported above
-// pub type KaspaUtxoOutpoint = kaspa_consensus_core::tx::TransactionOutpoint; // More specific type - aliased above
+/// Querier that speaks to Hub's x/kas query service **at a given height**. This is a mock, use a real provider from CosmosNativeProvider.
+pub type HubQuerier = Arc<
+    dyn Fn(u64 /* hub_height */, u64 /* withdrawal_id */)
+        -> Result<HubWithdrawalDetails, anyhow::Error>
+        + Send
+        + Sync,
+>;
 
-// Represents the state (O, L) fetched from the Hub's x/kas module
+/// State (O, L) that we cache locally from the Hub. This should live in libs/core or in some CosmosNativeProvider.
 #[derive(Debug, Clone)]
 pub struct HubKaspaState {
-    pub current_anchor_outpoint: KaspaUtxoOutpoint, // O: Full outpoint (txid, index)
-    pub last_processed_withdrawal_index: u64, // L
+    pub current_anchor_outpoint: KaspaUtxoOutpoint, // O
+    pub last_processed_withdrawal_index: u64,       // L
 }
 
-// Details of a withdrawal fetched from the Hub
-#[derive(Debug, Clone)]
-pub struct HubWithdrawalDetails {
-    pub withdrawal_id: u64, // Corresponds to L'
-    pub user_kaspa_address: kaspa_addresses::Address,
-    pub amount_satoshi: u64,
-}
-
+/// Build a **batch** of PSKTs that un-escrow from Kaspa.
+/// Invoked **inside the main relayer loop** every time we
+/// receive fresh Hyperlane events.
 #[allow(unused_variables)]
 pub async fn build_kaspa_withdrawal_pskts(
-    hub_withdrawal_ids: Vec<HubWithdrawalMessageId>, // Support batching from Hub side
+    hub_events: Vec<EventDispatch>,           // Fresh events from loop
+    hub_height: u64,                          // Height at which events were observed
     kaspa_rpc: &impl RpcApi,
-    escrow_public: &EscrowPublic, // Corrected type name
+    escrow_public: &EscrowPublic,
     relayer_kaspa_account: &Arc<dyn Account>,
-    current_hub_state: &HubKaspaState,
-    hub_querier: HubQuerier, // To fetch withdrawal details from the Hub
+    hub_querier: HubQuerier,                  // gRPC/REST client into Hub x/kas
 ) -> Result<Option<Vec<PSKT<Signer>>>> {
     // TODO: Implementation based on Core Logic described below
-    // 1. Initialization
-    // 2. Filter and Sort Hub Withdrawals
-    // 3. Iterate and Build PSKTs (Batching Logic)
-    //    - Leverage/Adapt dymension/libs/kaspa/lib/relayer/src/withdraw.rs::build_withdrawal_tx
-    // 4. Return prepared_pskts or None
-    Ok(None) // Placeholder
+    Ok(None)
 }
 ```
+
+**Prerequisites**
+
+1. Update rust proto codegen to support x/kas from the Hub. We need it to query the last Ourpost and Widthdrawal statuses from the Hub: https://github.com/dymensionxyz/hyperlane-cosmos-rs
+2. Create new queries for the Hub at `rust/main/chains/hyperlane-cosmos-native/src/providers/cosmos.rs`
 
 **Core Logic for `build_kaspa_withdrawal_pskts` (`F()`):**
 
 1.  **Initialization:**
     *   Create an empty list `prepared_pskts: Vec<PSKT<Signer>>`.
-    *   Keep track of the `current_kaspa_anchor_utxo_to_spend` (initially from `current_hub_state.current_anchor_outpoint`).
-    *   Keep track of `last_processed_l_for_this_batch` (initially `current_hub_state.last_processed_withdrawal_index`).
+    *   Create a list of `WithdrawalID`s based on the `EventDispatch` vector. The mechanism already exists in native Cosmos handler: https://github.com/dymensionxyz/hyperlane-monorepo/blob/4b54f2aee147868bc1136e55239979c2c718813b/rust/main/chains/hyperlane-cosmos-native/src/indexers/dispatch.rs#L46-L76. We can re-use it if possible. `HyperlaneMessage` struct: https://github.com/dymensionxyz/hyperlane-monorepo/blob/5b6c65daa184ed7a98a6056c2ea0f4265a820971/rust/main/hyperlane-core/src/types/message.rs#L25-L42.
+    *   Make a call to [the Hub](https://github.com/dymensionxyz/dymension/blob/main/proto/dymensionxyz/dymension/kas/query.proto#L13-L18) method `WithdrawalStatus`. Use the `WithdrawalID` list and the Hub height as argumetns.
+    *   `WithdrawalStatus` returns a current outport with O and L values: keep track of the `current_kaspa_anchor_utxo_to_spend` and `last_processed_l_for_this_batch`.
 
-2.  **Filter and Sort Hub Withdrawals:**
-    *   For each `hub_withdrawal_id` in `hub_withdrawal_ids`:
-        *   Use `hub_querier` to fetch `HubWithdrawalDetails`.
-        *   Filter out withdrawals where `withdrawal_id <= current_hub_state.last_processed_withdrawal_index`.
-    *   Sort the valid new withdrawals by their `withdrawal_id` (ascending) to process them in order.
+1.  **Collect & Sort Hub Withdrawals:**
+    *  We assume that there is no any batching right now, and we always get one single `EventDisparth`.
 
-3.  **Iterate and Build PSKTs (Batching Logic):**
-    *   For each `withdrawal_detail` in the sorted list:
-        *   **Check Anchor UTXO on Kaspa:**
-            *   Query `kaspa_rpc` to ensure `current_kaspa_anchor_utxo_to_spend` is still unspent.
-            *   *If spent by an unexpected transaction (not by a previous TX in this batch):* This indicates a potential state mismatch or race condition. The ADR theory suggests updating the Hub first. For `F()`, this might mean returning `Ok(None)` or an error, signaling the Relayer agent to handle the O/L update on the Hub. For POC, we might simplify and assume it's unspent or error out.
-        *   **Construct Single PSKT (Leverage/Adapt `dymension/libs/kaspa/lib/relayer/src/withdraw.rs::build_withdrawal_tx`):**
-            *   **Inputs:**
-                *   The `current_kaspa_anchor_utxo_to_spend`.
-                *   Additional UTXOs from the escrow if the anchor is insufficient (query `kaspa_rpc` for `escrow_public.addr`).
-                *   A UTXO from `relayer_kaspa_account` for relayer-paid fees.
-            *   **Outputs:**
-                *   `withdrawal_detail.amount_satoshi` to `withdrawal_detail.user_kaspa_address`.
-                *   A new change UTXO back to `escrow_public.addr`. This UTXO becomes the `current_kaspa_anchor_utxo_to_spend` for the *next* PSKT in the batch.
-                *   Change UTXO to `relayer_kaspa_account`.
-            *   **Payload:** The Kaspa transaction payload should encode `L_prime = withdrawal_detail.withdrawal_id`.
-            *   The `build_withdrawal_tx` function needs modification to:
-                *   Accept a specific anchor UTXO to spend.
-                *   Accept the `L_prime` to put in the payload.
-                *   Return the details of the new escrow change UTXO (which becomes the next anchor).
-        *   If PSKT construction is successful:
-            *   Add the `PSKT<Signer>` to `prepared_pskts`.
-            *   Update `last_processed_l_for_this_batch = withdrawal_detail.withdrawal_id`.
-            *   Update `current_kaspa_anchor_utxo_to_spend` to be the new change UTXO created for the escrow in the PSKT just built.
-        *   If PSKT construction fails (e.g., insufficient funds even after trying to gather more UTXOs):
-            *   Decide on error handling. Maybe stop batching and return what's prepared so far, or return an error.
+2.  **Construct Single PSKT** For each withdrawal:
+      *   Create a new method similar to `dymension/libs/kaspa/lib/relayer/src/withdraw.rs::build_withdrawal_tx`). It should use the specified UTXO as input. The UTXO is `current_kaspa_anchor_utxo_to_spend`. The `build_withdrawal_tx` function needs modification to:
+          *   Accept a specific anchor UTXO to spend.
+          *   Accept the `L_next_hub` to put in the payload.
+          *   Return the details of the new escrow change UTXO (which becomes the next anchor).
+      *   **Inputs:**
+          *   The `current_kaspa_anchor_utxo_to_spend`.
+          *   Additional UTXOs from the escrow if the anchor is insufficient (query `kaspa_rpc` for `escrow_public.addr`)
+          *   ~~A UTXO from `relayer_kaspa_account` for relayer-paid fees.~~ Who pays the fee here?
+      *   **Outputs:**
+          *   The recipiend address from `HyperlaneMessage`.
+          *   A new change UTXO back to `escrow_public.addr`. This UTXO becomes the `current_kaspa_anchor_utxo_to_spend` for the *next* PSKT in the batch. The last UTXO in the chain should be returned as an updated parameter in the Hub.
+          *   Change UTXO to `relayer_kaspa_account`.
+      *   **Payload:** The tx payload should encode `L_next_hub = HyperlaneMessage.???`. Where to find a transaction index? What is a transaction index?
+      *   If PSKT construction is successful:
+          *   Add the `PSKT<Signer>` to `prepared_pskts`.
+          *   Update `last_processed_l_for_this_batch = withdrawal_detail.withdrawal_id`.
+          *   Update `current_kaspa_anchor_utxo_to_spend` to be the new change UTXO created for the escrow in the PSKT just built.
+      *   If PSKT construction fails (e.g., insufficient funds even after trying to gather more UTXOs):
+          *   Decide on error handling. Maybe stop batching and return what's prepared so far, or return an error.
 
-4.  **Return:**
+3.  **Return:**
     *   If `prepared_pskts` is not empty, return `Ok(Some(prepared_pskts))`.
     *   Otherwise (no valid new withdrawals or an issue occurred), return `Ok(None)`.
 
 **Notes for `F()`:**
-*   The "business logic as described on epic in detail" is crucial here, especially around UTXO management, fee calculation, and how strictly to adhere to using the Hub's `O` if Kaspa's state has diverged.
 *   Error handling for RPC calls and insufficient funds needs to be robust.
-*   The exact format of the Kaspa transaction payload for `L'` needs to be defined.
+*   The exact format of the Kaspa transaction and its payload to be defined.
+*   Where to find a transaction index for `L`? What is a transaction index?
+*   We might need to filter `EventDispatch` by the destination domain. The list of currrent mainnet domains is the following: https://docs.hyperlane.xyz/docs/reference/domains.
+
+> **Why the `hub_height` parameter?** Hub query endpoints (see `x/kas/query.proto`); passing the height from the relayer loop guarantees we query a stable view.
 
 ## Function `G()` - Validator Library
 

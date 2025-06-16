@@ -17,3 +17,7 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
+anyhow = { workspace = true }
+hex = { workspace = true }
+hyperlane-core = { workspace = true }
+hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
