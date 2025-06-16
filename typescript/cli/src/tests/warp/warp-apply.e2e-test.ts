@@ -155,12 +155,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
     writeYamlOrJson(warpConfigPath, anvil2Config);
 
-    await hyperlaneWarpApply(
-      warpConfigPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_CORE_CONFIG_PATH_2,
-    );
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
 
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -185,12 +180,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
     writeYamlOrJson(warpConfigPath, anvil2Config);
 
-    await hyperlaneWarpApply(
-      warpConfigPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_CORE_CONFIG_PATH_2,
-    );
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
 
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -228,12 +218,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Apply the changes
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_CORE_CONFIG_PATH_2,
-    );
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
 
     // Read back the config to verify changes
     const updatedConfig = await readWarpConfig(

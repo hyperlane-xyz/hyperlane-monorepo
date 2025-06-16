@@ -73,7 +73,7 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
 ): string => {
   const fileName = path.parse(originalDeployConfigPath).name;
 
-  return `${REGISTRY_PATH}/deployments/warp_routes/${symbol}/${fileName}-config.yaml`;
+  return getCombinedWarpRoutePath(symbol, [fileName]);
 };
 
 export function getCombinedWarpRoutePath(
