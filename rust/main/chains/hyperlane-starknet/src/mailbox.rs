@@ -13,8 +13,8 @@ use hyperlane_core::{
     U256,
 };
 use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
-use starknet::accounts::{Account, Execution, SingleOwnerAccount};
-use starknet::core::types::FieldElement;
+use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
+use starknet::core::types::Felt;
 
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
@@ -22,7 +22,7 @@ use tracing::instrument;
 
 use crate::contracts::mailbox::Mailbox as StarknetMailboxInternal;
 use crate::error::HyperlaneStarknetError;
-use crate::types::{HyH256, HyU256};
+use crate::types::HyH256;
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
     ConnectionConf, Signer, StarknetProvider,
@@ -43,19 +43,11 @@ impl StarknetMailbox {
     pub async fn new(
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
-        signer: Signer,
+        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(
-            &conn.url,
-            signer.local_wallet(),
-            &signer.address,
-            signer.is_legacy,
-        )
-        .await?;
+        let account = build_single_owner_account(&conn.url, signer).await?;
 
-        let mailbox_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+        let mailbox_address: Felt = HyH256(locator.address).into();
 
         let contract = StarknetMailboxInternal::new(mailbox_address, account);
 
@@ -72,21 +64,8 @@ impl StarknetMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        tx_gas_estimate: Option<U256>,
-    ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
-        let tx = self.contract.process(&metadata.into(), &message.into());
-        let gas_estimate = match tx_gas_estimate {
-            Some(estimate) => HyU256(estimate)
-                .try_into()
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            None => {
-                tx.estimate_fee()
-                    .await
-                    .map_err(HyperlaneStarknetError::from)?
-                    .overall_fee
-            }
-        };
-        Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
+    ) -> ChainResult<ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
+        Ok(self.contract.process(&metadata.into(), &message.into()))
     }
 
     #[allow(unused)]
@@ -172,11 +151,9 @@ impl Mailbox for StarknetMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        tx_gas_limit: Option<U256>,
+        _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let contract_call = self
-            .process_contract_call(message, metadata, tx_gas_limit)
-            .await?;
+        let contract_call = self.process_contract_call(message, metadata).await?;
         send_and_confirm(&self.provider.rpc_client(), contract_call).await
     }
 
@@ -186,7 +163,7 @@ impl Mailbox for StarknetMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let contract_call = self.process_contract_call(message, metadata, None).await?;
+        let contract_call = self.process_contract_call(message, metadata).await?;
 
         // Get fee estimate from the provider
         let fee_estimate = contract_call
@@ -195,15 +172,9 @@ impl Mailbox for StarknetMailbox {
             .map_err(HyperlaneStarknetError::from)?;
 
         Ok(TxCostEstimate {
-            gas_limit: HyU256::from(fee_estimate.overall_fee).0,
-            gas_price: FixedPointNumber::try_from(HyU256::from(fee_estimate.gas_price).0).map_err(
-                |e| {
-                    HyperlaneStarknetError::from_other(format!(
-                        "Failed to convert gas price to FixedPointNumber: {e}"
-                    ))
-                },
-            )?,
-            l2_gas_limit: Some(HyU256::from(fee_estimate.overall_fee).0),
+            gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: Some(fee_estimate.l2_gas_consumed.into()),
         })
     }
 
@@ -245,14 +216,7 @@ impl Mailbox for StarknetMailbox {
             })
             .collect();
 
-        let tx = self.contract.account.execute(calls);
-        // simulate the batch execution
-        let fee_estimate = tx
-            .estimate_fee()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
-
-        let tx = tx.max_fee(fee_estimate.overall_fee * FieldElement::TWO);
+        let tx = self.contract.account.execute_v3(calls);
         let outcome = send_and_confirm(&self.provider.rpc_client(), tx).await?;
 
         // Either all operations are executed successfully, or none of them are

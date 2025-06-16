@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IThresholdAddressFactory} from "../../interfaces/IThresholdAddressFactory.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";

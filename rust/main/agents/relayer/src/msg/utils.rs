@@ -35,9 +35,9 @@
 // }
 
 // fn from_submitter_error_into_result_for_confirmation(
-//     error: &SubmitterError,
+//     error: &LanderError,
 // ) -> PendingOperationResult {
-//     use submitter::SubmitterError::*;
+//     use submitter::LanderError::*;
 
 //     use PendingOperationResult::*;
 

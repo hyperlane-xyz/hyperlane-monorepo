@@ -7,11 +7,12 @@ use hyperlane_core::Indexed;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
-use starknet::accounts::Execution;
+use starknet::accounts::ExecutionV3;
+use starknet::core::types::ReceiptBlock;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
-        types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt, TransactionReceipt},
+        types::{EmittedEvent, Felt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
@@ -24,6 +25,7 @@ use crate::contracts::{
     validator_announce,
 };
 use crate::types::{tx_receipt_to_outcome, HyH256};
+use crate::Signer;
 use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
@@ -32,8 +34,8 @@ use crate::{
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
-    transaction_hash: FieldElement,
-) -> ChainResult<TxOutcome> {
+    transaction_hash: Felt,
+) -> ChainResult<TransactionReceipt> {
     // there is a delay between the transaction being available
     // at the client and the sealing of the block
 
@@ -46,20 +48,16 @@ pub async fn get_transaction_receipt(
         || {
             let rpc = rpc.clone();
             Box::pin(async move {
-                let receipt = rpc
+                let tx = rpc
                     .get_transaction_receipt(transaction_hash)
                     .await
                     .map_err(HyperlaneStarknetError::from)?;
 
-                match receipt {
-                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                        Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
-                    }
-                    MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(
-                        receipt,
-                    )) => tx_receipt_to_outcome(receipt),
-                    _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
+                if tx.block == ReceiptBlock::Pending {
+                    return Err(HyperlaneStarknetError::PendingBlock.into());
                 }
+
+                return Ok(tx.receipt);
             })
         },
         N,
@@ -78,27 +76,29 @@ pub async fn get_transaction_receipt(
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
     rpc_url: &Url,
-    signer: LocalWallet,
-    account_address: &FieldElement,
-    is_legacy: bool,
+    signer: Option<Signer>,
 ) -> ChainResult<SingleOwnerAccount<AnyProvider, LocalWallet>> {
     let rpc_client =
         AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
-
-    let execution_encoding = if is_legacy {
-        starknet::accounts::ExecutionEncoding::Legacy
-    } else {
-        starknet::accounts::ExecutionEncoding::New
-    };
 
     let chain_id = rpc_client.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
+    // fallback to the default signer, as the starknet SDK requires the SignleOwnerAccount
+    // and therefore a signer to perform state queries
+    let signer = signer.unwrap_or_default();
+
+    let execution_encoding = if signer.is_legacy {
+        starknet::accounts::ExecutionEncoding::Legacy
+    } else {
+        starknet::accounts::ExecutionEncoding::New
+    };
+
     Ok(SingleOwnerAccount::new(
         rpc_client,
-        signer,
-        *account_address,
+        signer.local_wallet(),
+        signer.address,
         chain_id,
         execution_encoding,
     ))
@@ -135,8 +135,9 @@ pub fn try_parse_hyperlane_message_from_event(
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
     let destination = event.data[2]
+        .to_biguint()
         .try_into()
-        .map_err(Into::<HyperlaneStarknetError>::into)?;
+        .map_err(HyperlaneStarknetError::from_other)?;
     let recipient: HyH256 = (event.data[3], event.data[4])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -269,9 +270,7 @@ pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
 
 /// Convert a string to a cairo long string
 /// We need to split the string in 31 bytes chunks
-pub fn string_to_cairo_long_string(
-    s: &str,
-) -> Result<Vec<FieldElement>, CairoShortStringToFeltError> {
+pub fn string_to_cairo_long_string(s: &str) -> Result<Vec<Felt>, CairoShortStringToFeltError> {
     let chunk_size = 31;
     let mut chunks = Vec::new();
     let mut start = 0;
@@ -329,14 +328,19 @@ pub(crate) async fn get_block_height_u32(
 /// Returns the transaction outcome if the receipt is available.
 pub async fn send_and_confirm(
     rpc_client: &Arc<AnyProvider>,
-    contract_call: Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract_call: ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
     let tx = contract_call
         .send()
         .await
         .map_err(HyperlaneStarknetError::from)?;
 
-    get_transaction_receipt(rpc_client, tx.transaction_hash).await
+    let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
+
+    match receipt {
+        TransactionReceipt::Invoke(receipt) => Ok(tx_receipt_to_outcome(receipt)?),
+        _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
+    }
 }
 
 #[cfg(test)]

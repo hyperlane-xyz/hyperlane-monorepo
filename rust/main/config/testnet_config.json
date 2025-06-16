@@ -995,14 +995,14 @@
       "name": "starknetsepolia",
       "nativeToken": {
         "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH",
-        "denom": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
+        "name": "StarkNet Token",
+        "symbol": "STRK",
+        "denom": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d"
       },
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
+          "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_8"
         }
       ],
       "defaultHook": "0x01b99baf9dffac163065478b345429bd2ed21fdbfc5e3eec7ceabcde3d55c214",
@@ -1229,7 +1229,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 2,
-        "reorgPeriod": 1
+        "reorgPeriod": 5
       },
       "chainId": 998,
       "deployer": {
@@ -2149,12 +2149,12 @@
         "decimals": 18,
         "name": "EtherDUMMY_TOKEN",
         "symbol": "DT",
-        "denom": "0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7"
+        "denom": "0x049D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7"
       },
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://pathfinder.api.testnet.paradex.trade/rpc/v0_7"
+          "http": "https://pathfinder.api.testnet.paradex.trade/rpc/v0_8"
         }
       ],
       "defaultHook": "0x02a0d232f4d55c2f8f0248296301848d3567134abaa14b261847b6633aa13861",

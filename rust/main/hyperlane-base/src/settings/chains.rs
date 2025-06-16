@@ -1117,10 +1117,8 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn starknet_signer(&self) -> Result<h_starknet::Signer> {
-        self.signer()
-            .await?
-            .ok_or_else(|| eyre!("Starknet requires a signer to construct contract instances"))
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
     }
 
     async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {

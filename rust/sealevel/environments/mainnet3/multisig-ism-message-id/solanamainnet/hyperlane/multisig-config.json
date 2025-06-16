@@ -690,8 +690,7 @@
       "0x14025fe092f5f8a401dd9819704d9072196d2125",
       "0x25b9a0961c51e74fd83295293bc029131bf1e05a",
       "0xa0eE95e280D46C14921e524B075d0C341e7ad1C8",
-      "0xcc9a0b6de7fe314bd99223687d784730a75bb957",
-      "0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf"
+      "0xcc9a0b6de7fe314bd99223687d784730a75bb957"
     ]
   },
   "mantle": {
@@ -831,8 +830,7 @@
       "0x42fa752defe92459370a052b6387a87f7de9b80c",
       "0xc79503a3e3011535a9c60f6d21f76f59823a38bd",
       "0x47aa126e05933b95c5eb90b26e6b668d84f4b25a",
-      "0x54b2cca5091b098a1a993dec03c4d1ee9af65999",
-      "0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf"
+      "0x54b2cca5091b098a1a993dec03c4d1ee9af65999"
     ]
   },
   "nibiru": {
@@ -898,6 +896,14 @@
     "threshold": 1,
     "validators": [
       "0xea483af11c19fa41b16c31d1534c2a486a92bcac"
+    ]
+  },
+  "paradex": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x190ecB6CD53e02D375aa65F69C9f808dd92c6ab3",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "peaq": {
@@ -1128,6 +1134,15 @@
       "0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
+  "starknet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x61204c987d1121175a74e04d5045ab708aa1489f",
+      "0x5450447aee7b544c462c9352bef7cad049b0c2dc",
+      "0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b"
     ]
   },
   "story": {

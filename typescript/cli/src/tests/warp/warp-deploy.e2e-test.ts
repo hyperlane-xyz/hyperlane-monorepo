@@ -4,7 +4,11 @@ import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 import fs from 'fs';
 
-import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC4626Test,
+  MovableCollateralRouter__factory,
+} from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -14,15 +18,18 @@ import {
   IsmConfig,
   IsmType,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -58,15 +65,20 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
+  let chain3DomainId: number;
 
   let ownerAddress: Address;
   let walletChain2: Wallet;
+  let providerChain2: JsonRpcProvider;
 
   before(async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
+
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    chain3DomainId = chain3Metadata.domainId;
 
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
@@ -79,7 +91,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     warpCoreConfigPath: string,
     chainName: ChainName,
     expectedMetadata: { decimals: number; symbol: string },
-    expectedMailboxAddress: string,
   ): Promise<void> {
     const currentWarpDeployConfig = await readWarpConfig(
       chainName,
@@ -97,7 +108,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
     );
     expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
-      expectedMailboxAddress,
+      chainName === CHAIN_NAME_2
+        ? chain2Addresses.mailbox
+        : chain3Addresses.mailbox,
     );
   }
 
@@ -136,7 +149,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
           .includes(`No "Warp route deployment config" found in`) ||
           finalOutput
             .text()
-            .includes(`Invalid file format for ${nonExistingFilePath}`),
+            .includes(`Invalid file format for ${nonExistingFilePath}`) ||
+          finalOutput
+            .text()
+            .includes(
+              `Warp route deployment config file not found at ${nonExistingFilePath}`,
+            ),
       ).to.be.true;
     });
 
@@ -211,7 +229,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         finalOutput
           .text()
           .includes(
-            `Failed to derive token metadata Error: Scale is not correct for ${CHAIN_NAME_3}`,
+            `Failed to derive token metadata Error: Found invalid or missing scale for inconsistent decimals`,
           ),
       ).to.be.true;
     });
@@ -274,17 +292,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
-        const mailboxAddress =
-          chainName === CHAIN_NAME_3
-            ? chain3Addresses.mailbox
-            : chain2Addresses.mailbox;
-
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
-          mailboxAddress,
         );
       }
     });
@@ -492,7 +504,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config is required`,
+        `Warp route deployment config file not found at ${nonExistingFilePath}`,
       );
     });
 
@@ -552,17 +564,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
-        const mailboxAddress =
-          chainName === CHAIN_NAME_3
-            ? chain3Addresses.mailbox
-            : chain2Addresses.mailbox;
-
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
-          mailboxAddress,
         );
       }
     });
@@ -727,6 +733,67 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ).should.be.rejectedWith(
         'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
       );
+    });
+
+    it('should set the allowed bridges and the related token approvals', async function () {
+      const bridges = [randomAddress(), randomAddress()];
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          allowedRebalancingBridges: {
+            [chain3DomainId]: bridges.map((bridge) => ({
+              bridge,
+              approvedTokens: [tokenChain2.address],
+            })),
+          },
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        await tokenChain2.symbol(),
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
+
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+
+      const [chain2TokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2TokenConfig).to.exist;
+
+      const movableToken = MovableCollateralRouter__factory.connect(
+        chain2TokenConfig.addressOrDenom!,
+        providerChain2,
+      );
+      const MAX_UINT256 =
+        115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+      for (const bridge of bridges) {
+        const allowance = await tokenChain2.callStatic.allowance(
+          chain2TokenConfig.addressOrDenom!,
+          bridge,
+        );
+        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+
+        const allowedBridgesOnDomain =
+          await movableToken.callStatic.allowedBridges(chain3DomainId);
+        expect(allowedBridgesOnDomain.length).to.eql(bridges.length);
+        expect(
+          new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
+            normalizeAddressEvm(bridge),
+          ),
+        );
+      }
     });
   });
 });
