@@ -31,21 +31,6 @@ describe('hyperlane relayer e2e tests', async function () {
       hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH),
       hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH),
     ]);
-
-    const warpConfig = {
-      anvil2: {
-        type: TokenType.native,
-        symbol: SYMBOL,
-      },
-      anvil3: {
-        type: TokenType.synthetic,
-        symbol: SYMBOL,
-      },
-    };
-
-    const warpConfigPath = `./${TEMP_PATH}/warp-route-config.yaml`;
-    writeYamlOrJson(warpConfigPath, warpConfig);
-    await hyperlaneWarpDeploy(warpConfigPath, WARP_ID);
   });
 
   describe('relayer', () => {
@@ -59,6 +44,22 @@ describe('hyperlane relayer e2e tests', async function () {
     });
 
     it('should relay warp messages', async () => {
+      const warpConfig = {
+        anvil2: {
+          type: TokenType.native,
+          symbol: SYMBOL,
+        },
+        anvil3: {
+          type: TokenType.synthetic,
+          symbol: SYMBOL,
+        },
+      };
+
+      const warpConfigPath = `${TEMP_PATH}/warp-route-config.yaml`;
+      writeYamlOrJson(warpConfigPath, warpConfig);
+
+      await hyperlaneWarpDeploy(warpConfigPath, WARP_ID);
+
       const process = hyperlaneRelayer(
         [CHAIN_NAME_2, CHAIN_NAME_3],
         WARP_DEPLOY_OUTPUT,
