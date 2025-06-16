@@ -183,6 +183,7 @@ pub enum KnownHyperlaneDomain {
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
+    Kaspa = 80808080 ,
 
     // -- Local chains --
     //
@@ -198,6 +199,7 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
+    KaspaLocal = 80808081,
 
     // -- Test chains --
     //
@@ -216,6 +218,7 @@ pub enum KnownHyperlaneDomain {
     Sepolia = 11155111,
     StarknetSepolia = 23448591,
     SuperpositionTestnet = 98985,
+    KaspaTest10 = 80808082
 }
 
 #[derive(Clone, Serialize)]
@@ -338,15 +341,15 @@ impl KnownHyperlaneDomain {
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
                 ReAl, Redstone, Sanko, Sei, SolanaMainnet, StarknetMainnet, Taiko, Tangle, Treasure, Viction, Worldchain, Xai,
-                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
+                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet, Kaspa
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, PragmaDevnet
+                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, PragmaDevnet, KaspaTest10
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
-                CosmosTest99991, CosmosTestNative1, CosmosTestNative2, KyveAlpha, StarknetTest23448593, StarknetTest23448594
+                CosmosTest99991, CosmosTestNative1, CosmosTestNative2, KyveAlpha, StarknetTest23448593, StarknetTest23448594, KaspaLocal
             ],
         })
     }
@@ -384,7 +387,8 @@ impl KnownHyperlaneDomain {
                 CosmosTestNative1,
                 CosmosTestNative2,
                 KyveAlpha
-            ]
+            ],
+            HyperlaneDomainProtocol::Kaspa: [KaspaTest10, Kaspa, KaspaLocal]
         })
     }
 
@@ -424,7 +428,7 @@ impl KnownHyperlaneDomain {
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia, KyveAlpha
+                Sepolia, KyveAlpha, KaspaTest10, Kaspa, KaspaLocal
            ],
         })
     }

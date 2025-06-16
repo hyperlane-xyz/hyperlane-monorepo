@@ -37,11 +37,13 @@ cd rust/main
 export HL_DB_RELAYER=/tmp/hyperlane_db_relayer
 mkdir $HL_DB_RELAYER
 
+export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
 cargo run --release --bin relayer -- \
     --db $HL_DB_RELAYER \
-    --relayChains <chain_1_name>,<chain_2_name> \
+    --relayChains dymension,kaspatest10 \
     --allowLocalCheckpointSyncers true \
-    --defaultSigner.key <your_relayer_key> \
+    --defaultSigner.key  $HYP_KEY \
     --metrics-port 9091 \
     --log.level debug
 
