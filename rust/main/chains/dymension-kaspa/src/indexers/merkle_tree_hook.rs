@@ -89,6 +89,7 @@ impl KaspaEventIndexer<MerkleTreeInsertion> for KaspaMerkle {
     }
 }
 
+// It's for writing observed messages into the tree
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for KaspaMerkle {
     #[instrument(err, skip(self))]
