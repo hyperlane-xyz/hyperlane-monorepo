@@ -1,4 +1,4 @@
-use tracing::warn;
+use tracing::{debug, warn};
 
 use hyperlane_core::U256;
 
@@ -25,6 +25,12 @@ impl NonceManagerState {
         }
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
+
+        debug!(
+            ?finalized_nonce,
+            ?upper_nonce,
+            "Identifying next nonce for transaction"
+        );
 
         let next_nonce = self
             .identify_next_nonce(finalized_nonce, upper_nonce)
@@ -55,10 +61,13 @@ impl NonceManagerState {
         let mut next_nonce = finalized_nonce;
 
         while next_nonce < upper_nonce {
+            next_nonce += U256::one();
+
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
 
             if tracked_tx_uuid == TransactionUuid::default() {
                 // If the nonce is not tracked, we can use it.
+                debug!("There is no tracked transaction for nonce, reusing it");
                 break;
             }
 
@@ -77,12 +86,15 @@ impl NonceManagerState {
             let tx_nonce_status = NonceStatus::calculate_nonce_status(tx.uuid.clone(), &tx_status);
 
             if matches!(tx_nonce_status, Freed(_)) {
+                debug!(
+                    ?next_nonce,
+                    ?tracked_tx_uuid,
+                    "Transaction is freed, reusing nonce"
+                );
                 // If the transaction, which is tracked by the nonce, was dropped,
                 // we can re-use the nonce.
                 break;
             }
-
-            next_nonce += U256::one();
         }
 
         Ok(next_nonce)
