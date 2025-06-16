@@ -1,10 +1,15 @@
 import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
+import { rebalancerLogger } from './loggerUtils.js';
+
+export type BridgeConfigWithOverride = BridgeConfig & {
+  override?: ChainMap<Partial<BridgeConfig>>;
+};
+
 export type BridgeConfig = {
   bridge: string;
   bridgeMinAcceptedAmount: string | number;
   bridgeIsWarp: boolean;
-  overrides?: ChainMap<Partial<BridgeConfig>>;
 };
 
 /**
@@ -15,15 +20,21 @@ export type BridgeConfig = {
  * @returns The bridge configuration with any overrides applied
  */
 export function getBridgeConfig(
-  bridges: ChainMap<BridgeConfig>,
+  bridges: ChainMap<BridgeConfigWithOverride>,
   fromChain: ChainName,
   toChain: ChainName,
 ): BridgeConfig {
   const fromConfig = bridges[fromChain];
-  const routeSpecificOverrides = fromConfig.overrides?.[toChain];
+
+  if (!fromConfig) {
+    rebalancerLogger.error({ fromChain }, 'Bridge config not found');
+    throw new Error(`Bridge config not found for chain ${fromChain}`);
+  }
+
+  const routeSpecificOverrides = fromConfig.override?.[toChain];
 
   // Create a new object with the properties from bridgeConfig, excluding the overrides property
-  const { overrides: _, ...baseConfig } = fromConfig;
+  const { override: _, ...baseConfig } = fromConfig;
 
   // Return a new object with the base config and any overrides
   return { ...baseConfig, ...routeSpecificOverrides };

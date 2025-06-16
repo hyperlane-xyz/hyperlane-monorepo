@@ -18,14 +18,14 @@ import type {
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import {
-  type BridgeConfig,
+  type BridgeConfigWithOverride,
   getBridgeConfig,
   rebalancerLogger,
 } from '../utils/index.js';
 
 export class Rebalancer implements IRebalancer {
   constructor(
-    private readonly bridges: ChainMap<BridgeConfig>,
+    private readonly bridges: ChainMap<BridgeConfigWithOverride>,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,

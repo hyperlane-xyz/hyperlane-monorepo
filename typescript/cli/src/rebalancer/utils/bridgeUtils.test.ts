@@ -2,11 +2,14 @@ import { expect } from 'chai';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 
-import { type BridgeConfig, getBridgeConfig } from './bridgeUtils.js';
+import {
+  type BridgeConfigWithOverride,
+  getBridgeConfig,
+} from './bridgeUtils.js';
 
 describe('bridgeConfig', () => {
   it('should return the base bridge config when no overrides exist', () => {
-    const bridges: ChainMap<BridgeConfig> = {
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
       chain1: {
         bridge: '0x1234567890123456789012345678901234567890',
         bridgeMinAcceptedAmount: 1000,
@@ -29,12 +32,12 @@ describe('bridgeConfig', () => {
   });
 
   it('should merge base config with overrides when they exist', () => {
-    const bridges: ChainMap<BridgeConfig> = {
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
       chain1: {
         bridge: '0x1234567890123456789012345678901234567890',
         bridgeMinAcceptedAmount: 1000,
         bridgeIsWarp: true,
-        overrides: {
+        override: {
           chain2: {
             bridgeMinAcceptedAmount: 5000,
           },
@@ -57,12 +60,12 @@ describe('bridgeConfig', () => {
   });
 
   it('should handle overrides that change the bridge address', () => {
-    const bridges: ChainMap<BridgeConfig> = {
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
       chain1: {
         bridge: '0x1234567890123456789012345678901234567890',
         bridgeMinAcceptedAmount: 1000,
         bridgeIsWarp: true,
-        overrides: {
+        override: {
           chain2: {
             bridge: '0xABCDEF0123456789ABCDEF0123456789ABCDEF01',
           },
