@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
-use cosmrs::Any;
-use hex::ToHex;
+use super::consts::KASPA_ISM_ADDRESS;
 use hyperlane_cosmos_rs::{
-    hyperlane::core::interchain_security::v1::{
-        MerkleRootMultisigIsm, NoopIsm, RoutingIsm as KaspaRoutingIsm,
-    },
-    prost::{Message, Name},
+    hyperlane::core::interchain_security::v1::
+        MerkleRootMultisigIsm
+    ,
+    prost::Name,
 };
 use tonic::async_trait;
 
