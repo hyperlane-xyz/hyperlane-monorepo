@@ -1,12 +1,9 @@
 use std::ops::RangeInclusive;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainCommunicationError, ChainResult, ChainResult, CheckpointAtBlock,
-    HyperlaneChain, HyperlaneChain, HyperlaneContract, HyperlaneContract, HyperlaneDomain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed,
-    Indexed, Indexer, Indexer, LogMeta, LogMeta, MerkleTreeHook, MerkleTreeHook,
-    MerkleTreeInsertion, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
-    SequenceAwareIndexer, H256, H256, H512, H512,
+    ChainCommunicationError, ChainResult, CheckpointAtBlock,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 use tonic::async_trait;
 use tracing::instrument;

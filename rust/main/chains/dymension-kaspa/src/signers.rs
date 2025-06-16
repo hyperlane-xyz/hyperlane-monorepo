@@ -31,8 +31,8 @@ impl Signer {
         prefix: String,
         account_address_type: &AccountAddressType, // TODO:??
     ) -> ChainResult<Self> {
-        let address = H256::zero(); // TODO:
-        let address_string = address.to_string();
+        let address = KaspaAddress::from_privkey(&private_key, &prefix)?;
+        let address_string = address.address();
         let signing_key = Self::build_signing_key(&private_key)?;
         let public_key = signing_key.public_key();
         Ok(Self {

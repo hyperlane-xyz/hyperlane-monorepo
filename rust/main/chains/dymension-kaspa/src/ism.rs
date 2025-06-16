@@ -83,23 +83,7 @@ impl MultisigIsm for KaspaIsm {
         &self,
         _message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let ism = self.get_ism().await?;
-        match ism.type_url.as_str() {
-            t if t == MerkleRootMultisigIsm::type_url() => {
-                let ism = MerkleRootMultisigIsm::decode(ism.value.as_slice())
-                    .map_err(HyperlaneKaspaError::from)?;
-                let validators = ism
-                    .validators
-                    .iter()
-                    .map(|v| H160::from_str(v).map(H256::from))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok((validators, ism.threshold as u8))
-            }
-            _ => Err(ChainCommunicationError::from_other_str(&format!(
-                "ISM {:?} not a multi sig ism",
-                self.address
-            ))),
-        }
+        Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
 

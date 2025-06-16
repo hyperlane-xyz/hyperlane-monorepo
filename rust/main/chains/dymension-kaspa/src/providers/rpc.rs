@@ -39,7 +39,6 @@ use super::kaspa::KaspaFallbackProvider;
 
 #[derive(Debug)]
 struct KaspaHttpClient {
-    client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
 }
@@ -63,17 +62,12 @@ impl BlockNumberGetter for KaspaHttpClient {
 
 impl KaspaHttpClient {
     /// Create new `KaspaHttpClient`
-    pub fn new(
-        client: HttpClient,
-        metrics: PrometheusClientMetrics,
-        metrics_config: PrometheusConfig,
-    ) -> Self {
+    pub fn new(metrics: PrometheusClientMetrics, metrics_config: PrometheusConfig) -> Self {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);
 
         Self {
-            client,
             metrics,
             metrics_config,
         }
@@ -85,9 +79,7 @@ impl KaspaHttpClient {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
-        // TODO: use url
-
-        Ok(Self::new(client, metrics, metrics_config))
+        Ok(Self::new(metrics, metrics_config))
     }
 }
 
@@ -101,11 +93,7 @@ impl Drop for KaspaHttpClient {
 
 impl Clone for KaspaHttpClient {
     fn clone(&self) -> Self {
-        Self::new(
-            self.client.clone(),
-            self.metrics.clone(),
-            self.metrics_config.clone(),
-        )
+        Self::new(self.metrics.clone(), self.metrics_config.clone())
     }
 }
 
@@ -117,8 +105,8 @@ impl RpcProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = conf
-            .get_rpc_urls()
+        let url = vec![Url::parse("http://localhost:16200").unwrap()];
+        let clients = url
             .iter()
             .map(|url| {
                 let metrics_config =

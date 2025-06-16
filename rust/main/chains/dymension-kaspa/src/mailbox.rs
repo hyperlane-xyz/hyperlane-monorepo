@@ -9,7 +9,7 @@ use super::consts::*;
 use hyperlane_core::{
     ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256, H512
 };
 
 use crate::KaspaProvider;
@@ -104,19 +104,10 @@ impl Mailbox for KaspaFakeMailbox {
         metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let any_encoded = self.encode_hyperlane_message(message, metadata)?;
-        let gas_limit: Option<u64> = tx_gas_limit.map(|gas| gas.as_u64());
-
-        let response = self
-            .provider
-            .rpc()
-            .send(vec![any_encoded], gas_limit)
-            .await?;
-
         Ok(TxOutcome {
-            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
-            executed: response.tx_result.code.is_ok() && response.check_tx.code.is_ok(),
-            gas_used: 0.into(),
+            transaction_id: H512::zero(),
+            executed: false,
+            gas_used: U256::zero(),
             gas_price: FixedPointNumber::from(0),
         })
     }

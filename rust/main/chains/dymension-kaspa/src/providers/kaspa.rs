@@ -8,6 +8,9 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256,
     H512, U256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+
+use super::RpcProvider;
 
 use crate::{ConnectionConf, Signer};
 
@@ -37,6 +40,8 @@ where
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
     domain: HyperlaneDomain,
+    rpc: RpcProvider,
+    conf: ConnectionConf,
 }
 
 impl KaspaProvider {
@@ -44,10 +49,20 @@ impl KaspaProvider {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
+        let rpc = RpcProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
+
         Ok(KaspaProvider {
             domain: locator.domain.clone(),
+            conf: conf.clone(),
+            rpc,
         })
+    }
+
+    pub fn rpc(&self) -> &RpcProvider {
+        &self.rpc
     }
 }
 
