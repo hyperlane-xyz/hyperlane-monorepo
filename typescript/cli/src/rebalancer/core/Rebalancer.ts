@@ -9,7 +9,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { toWei } from '@hyperlane-xyz/utils';
+import { eqAddress, toWei } from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
@@ -271,7 +271,7 @@ export class Rebalancer implements IRebalancer {
     const allowedDestination = await originHypAdapter.getAllowedDestination(
       destinationDomain.domainId,
     );
-    if (allowedDestination !== destinationToken.addressOrDenom) {
+    if (!eqAddress(allowedDestination, destinationToken.addressOrDenom)) {
       rebalancerLogger.error(
         {
           origin,
