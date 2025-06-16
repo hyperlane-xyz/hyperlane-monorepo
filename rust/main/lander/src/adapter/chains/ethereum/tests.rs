@@ -16,10 +16,6 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
 
-// #[cfg(test)]
-// pub const DOMAIN: LazyCell<HyperlaneDomain> =
-//     LazyCell::new(|| KnownHyperlaneDomain::Arbitrum.into());
-
 mockall::mock! {
     pub EvmProvider {}
 
