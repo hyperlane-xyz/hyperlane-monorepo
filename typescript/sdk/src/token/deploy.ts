@@ -217,7 +217,9 @@ abstract class TokenDeployer<
     for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
         metadataMap.set(chain, TokenMetadataSchema.parse(config));
-      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+      }
+
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
         continue;

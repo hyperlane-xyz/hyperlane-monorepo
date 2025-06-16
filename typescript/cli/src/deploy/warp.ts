@@ -40,6 +40,7 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
+  TokenMetadataMap,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -53,7 +54,6 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
@@ -505,33 +505,28 @@ async function getWarpCoreConfig(
   contracts: ChainMap<Address>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
-  addWarpRouteOptions?: AddWarpRouteConfigOptions;
+  addWarpRouteOptions: AddWarpRouteConfigOptions;
 }> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
-  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    params.context.multiProvider,
-    params.warpDeployConfig,
-  );
-  assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
-    'Missing required token metadata',
-  );
-  const { decimals, symbol, name } = tokenMetadata;
-  assert(decimals, 'Missing decimals on token metadata');
+  const tokenMetadataMap: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(
+      params.context.multiProvider,
+      params.warpDeployConfig,
+    );
 
   generateTokenConfigs(
     params.context.multiProvider,
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
-    symbol,
-    name,
-    decimals,
+    tokenMetadataMap,
   );
 
   fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
+
+  const symbol = tokenMetadataMap.getDefaultSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -544,9 +539,7 @@ function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: ChainMap<Address>,
-  symbol: string,
-  name: string,
-  decimals: number,
+  tokenMetadataMap: TokenMetadataMap,
 ): void {
   for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -560,9 +553,9 @@ function generateTokenConfigs(
     warpCoreConfig.tokens.push({
       chainName,
       standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
-      decimals,
-      symbol: config.symbol || symbol,
-      name,
+      decimals: tokenMetadataMap.getDecimals(chainName)!,
+      symbol: config.symbol || tokenMetadataMap.getSymbol(chainName)!,
+      name: tokenMetadataMap.getName(chainName)!,
       addressOrDenom: contracts[chainName],
       collateralAddressOrDenom,
     });
