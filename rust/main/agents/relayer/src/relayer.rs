@@ -43,6 +43,8 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
+use dymension_kaspa::hack::{is_kas, run_monitor as kas_run_monitor};
+
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
@@ -561,6 +563,17 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
+            if is_kas(origin) {
+                // TODO: run monitor
+
+
+                tasks.push(self.run_message_processor(
+                    origin,
+                    send_channels.clone(),
+                    task_monitor.clone(),
+                ));
+                continue;
+            }
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)

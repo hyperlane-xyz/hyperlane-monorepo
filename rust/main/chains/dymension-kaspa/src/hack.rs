@@ -12,3 +12,5 @@ pub fn is_kas(d: HyperlaneDomain) -> bool {
         HyperlaneDomain::Unknown { .. } => false,
     }
 }
+
+pub fn run_monitor() {}

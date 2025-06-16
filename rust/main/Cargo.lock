@@ -10180,6 +10180,7 @@ dependencies = [
  "derive-new",
  "derive_more 0.99.18",
  "dhat",
+ "dymension-kaspa",
  "ethers",
  "ethers-contract",
  "ethers-prometheus",

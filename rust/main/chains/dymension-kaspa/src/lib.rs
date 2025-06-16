@@ -18,7 +18,8 @@ mod trait_builder;
 mod validator_announce;
 
 mod libs;
-mod hack;
+#[allow(missing_docs)]
+pub mod hack;
 
 // Direct reexports of lib stuff:
 pub use dym_kas_relayer;

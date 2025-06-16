@@ -55,6 +55,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "async",
 ] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+dymension-kaspa = { path = "../../chains/dymension-kaspa" }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
