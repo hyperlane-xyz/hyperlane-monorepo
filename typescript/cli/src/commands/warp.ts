@@ -4,6 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  TokenStandard,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -46,6 +47,7 @@ import {
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
+  standardCommandOption,
   strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
@@ -198,6 +200,7 @@ export const read: CommandModuleWithContext<{
   address?: string;
   config?: string;
   symbol?: string;
+  standard?: TokenStandard;
 }> = {
   command: 'read',
   describe: 'Derive the warp route config from onchain artifacts',
@@ -208,6 +211,10 @@ export const read: CommandModuleWithContext<{
     },
     chain: {
       ...chainCommandOption,
+      demandOption: false,
+    },
+    standard: {
+      ...standardCommandOption,
       demandOption: false,
     },
     address: addressCommandOption(
@@ -226,6 +233,7 @@ export const read: CommandModuleWithContext<{
     address,
     config: configFilePath,
     symbol,
+    standard,
   }) => {
     logCommandHeader('Hyperlane Warp Reader');
 
@@ -234,6 +242,7 @@ export const read: CommandModuleWithContext<{
       chain,
       address,
       symbol,
+      standard,
     });
 
     if (configFilePath) {

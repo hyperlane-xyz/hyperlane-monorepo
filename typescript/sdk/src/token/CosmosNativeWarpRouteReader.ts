@@ -17,7 +17,7 @@ import {
 import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { TokenType } from './config.js';
-import { HypTokenConfig, HypTokenRouterConfig } from './types.js';
+import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
 
 export class CosmosNativeWarpRouteReader {
   protected readonly logger = rootLogger.child({
@@ -52,7 +52,7 @@ export class CosmosNativeWarpRouteReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<HypTokenRouterConfig> {
+  ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
@@ -68,7 +68,7 @@ export class CosmosNativeWarpRouteReader {
       proxyAdmin,
       destinationGas,
       type,
-    } as HypTokenRouterConfig;
+    } as DerivedTokenRouterConfig;
   }
 
   /**

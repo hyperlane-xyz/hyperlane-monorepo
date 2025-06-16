@@ -10,7 +10,6 @@ import {
   IsmType,
   MultisigConfig,
   WarpRouteDeployConfig,
-  getLocalProvider,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -26,7 +25,6 @@ import {
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
-import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
@@ -136,17 +134,20 @@ export async function prepareDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider, multiProtocolSigner, isDryRun } = context;
   const initialBalances: Record<string, BigNumber> = {};
   await Promise.all(
     chains.map(async (chain: ChainName) => {
-      const provider = isDryRun
-        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-        : multiProvider.getProvider(chain);
-      const address =
-        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-      const currentBalance = await provider.getBalance(address);
-      initialBalances[chain] = currentBalance;
+      const { nativeToken } = multiProvider.getChainMetadata(chain);
+      const address = userAddress
+        ? userAddress
+        : await multiProtocolSigner!.getAddress(chain);
+      initialBalances[chain] = await multiProtocolSigner!.getBalance(
+        isDryRun || false,
+        address,
+        chain,
+        nativeToken?.denom,
+      );
     }),
   );
   return initialBalances;
@@ -159,22 +160,26 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider, isDryRun, multiProtocolSigner } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = isDryRun
-      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-      : multiProvider.getProvider(chain);
-    const address =
-      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-    const currentBalance = await provider.getBalance(address);
+    const { nativeToken } = multiProvider.getChainMetadata(chain);
+    const address = userAddress
+      ? userAddress
+      : await multiProtocolSigner!.getAddress(chain);
+    const currentBalance = await multiProtocolSigner!.getBalance(
+      isDryRun || false,
+      address,
+      chain,
+      nativeToken?.denom,
+    );
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
       `\t- Gas required for ${command} ${
         isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
+        nativeToken?.symbol ?? '?'
       }`,
     );
   }

@@ -1,4 +1,4 @@
-import { Signer } from 'ethers';
+import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
@@ -8,8 +8,14 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
+  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../../utils/env.js';
 
@@ -220,5 +226,52 @@ export class MultiProtocolSignerManager {
       `Chain ${chain} is not a Cosmos Native chain`,
     );
     return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
+  }
+
+  async getAddress(chain: ChainName): Promise<Address> {
+    const metadata = this.multiProvider.getChainMetadata(chain);
+
+    switch (metadata.protocol) {
+      case ProtocolType.Ethereum: {
+        const signer = this.getEVMSigner(chain);
+        return await signer.getAddress();
+      }
+      case ProtocolType.CosmosNative: {
+        const signer = this.getCosmosNativeSigner(chain);
+        return signer.account.address;
+      }
+      default: {
+        throw new Error(`Protocol Type ${metadata.protocol} not supported`);
+      }
+    }
+  }
+
+  async getBalance(
+    isDryRun: boolean,
+    address: Address,
+    chain: ChainName,
+    denom?: string,
+  ): Promise<BigNumber> {
+    const metadata = this.multiProvider.getChainMetadata(chain);
+
+    switch (metadata.protocol) {
+      case ProtocolType.Ethereum: {
+        const provider = isDryRun
+          ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
+          : this.multiProvider.getProvider(chain);
+        const balance = await provider.getBalance(address);
+        return balance;
+      }
+      case ProtocolType.CosmosNative: {
+        assert(denom, 'need denom to get balance of Cosmos Native chain');
+        const provider =
+          await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
+        const balance = await provider.getBalance(address, denom);
+        return BigNumber.from(balance.amount);
+      }
+      default: {
+        throw new Error(`Protocol Type ${metadata.protocol} not supported`);
+      }
+    }
   }
 }
