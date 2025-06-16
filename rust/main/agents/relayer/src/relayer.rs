@@ -1251,7 +1251,7 @@ mod test {
         H256,
     };
     use hyperlane_ethereum as h_eth;
-    use tokio::time::{error::Elapsed, Instant};
+    use tokio::time::error::Elapsed;
 
     use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
