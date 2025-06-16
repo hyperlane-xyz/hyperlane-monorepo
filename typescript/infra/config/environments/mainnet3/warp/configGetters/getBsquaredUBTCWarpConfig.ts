@@ -76,7 +76,6 @@ export function getUbtcOwnerConfigGenerator(safes: Record<string, string>) {
             chain === 'nibiru'
               ? {
                   type: TxSubmitterType.JSON_RPC,
-                  version: '1.0',
                   chain,
                 }
               : {
