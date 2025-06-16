@@ -4,6 +4,8 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -20,6 +22,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import { runForkCommand } from '../fork/fork.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -43,6 +46,7 @@ import {
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
+  forkCommandOptions,
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
@@ -65,6 +69,7 @@ export const warpCommand: CommandModule = {
       .command(apply)
       .command(check)
       .command(deploy)
+      .command(fork)
       .command(init)
       .command(read)
       .command(send)
@@ -453,5 +458,73 @@ export const verify: CommandModuleWithWriteContext<{
     );
 
     return runVerifyWarpRoute({ context, warpCoreConfig });
+  },
+};
+
+const fork: CommandModuleWithContext<{
+  port?: number;
+  symbol?: string;
+  'deploy-config': string;
+  'fork-config'?: string;
+  warp?: string;
+  kill: boolean;
+  warpRouteId?: string;
+}> = {
+  command: 'fork',
+  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  builder: {
+    ...forkCommandOptions,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    'deploy-config': inputFileCommandOption({
+      description: 'The path to a warp route deployment configuration file',
+      demandOption: false,
+      alias: 'wd',
+    }),
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
+  },
+  handler: async ({
+    context,
+    symbol,
+    warpRouteId,
+    port,
+    kill,
+    warp,
+    deployConfig,
+    forkConfig: forkConfigPath,
+  }) => {
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: deployConfig,
+      warpCoreConfigPath: warp,
+    });
+
+    let forkConfig: RawForkedChainConfigByChain;
+    if (forkConfigPath) {
+      forkConfig = RawForkedChainConfigByChainSchema.parse(
+        readYamlOrJson(forkConfigPath),
+      );
+    } else {
+      forkConfig = {};
+    }
+
+    await runForkCommand({
+      context,
+      chainsToFork: new Set([
+        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
+        ...Object.keys(warpDeployConfig),
+      ]),
+      forkConfig,
+      basePort: port,
+      kill,
+    });
   },
 };
