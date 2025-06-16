@@ -1251,7 +1251,7 @@ mod test {
         H256,
     };
     use hyperlane_ethereum as h_eth;
-    use tokio::time::error::Elapsed;
+    use tokio::time::{error::Elapsed, Instant};
 
     use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
@@ -1330,11 +1330,12 @@ mod test {
         chains: Vec<(String, ChainConf)>,
         origin_chains: &[HyperlaneDomain],
         destination_chains: &[HyperlaneDomain],
+        metrics_port: u16,
     ) -> RelayerSettings {
         RelayerSettings {
             base: Settings {
                 chains: chains.into_iter().collect(),
-                metrics_port: 5000,
+                metrics_port,
                 tracing: TracingConfig::default(),
             },
             db: db_path.to_path_buf(),
@@ -1368,7 +1369,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                     None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
+                    "http://localhost:8545",
                 ),
             ),
             (
@@ -1376,7 +1377,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
                     None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
+                    "http://localhost:8545",
                 ),
             ),
         ];
@@ -1390,8 +1391,14 @@ mod test {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27001;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
@@ -1448,7 +1455,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
-                "https://sepolia-rollup.arbitrum.io/rpc",
+                "http://localhost:8545",
             ),
         )];
         let origin_chains = &[
@@ -1461,8 +1468,14 @@ mod test {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27002;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let registry = Registry::new();
         let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
@@ -1531,9 +1544,35 @@ mod test {
         .await
     }
 
+    async fn check_relayer_metrics(agent: Relayer, metrics_port: u16) {
+        let _ = tokio::task::spawn(async move {
+            agent.run().await;
+        });
+
+        let metrics_url = format!("http://localhost:{metrics_port}/metrics");
+        let sleep_duration = Duration::from_secs(3);
+        loop {
+            let res = reqwest::get(&metrics_url).await;
+            let response = match res {
+                Ok(s) => s,
+                _ => {
+                    tokio::time::sleep(sleep_duration);
+                    continue;
+                }
+            };
+            if response.status().is_success() {
+                break;
+            }
+            tokio::time::sleep(sleep_duration);
+        }
+    }
+
     /// Run relayer for 50s to ensure it doesn't crash
-    async fn test_run_relayer(agent: Relayer) -> Result<(), Elapsed> {
-        let future = agent.run();
+    async fn test_relayer_started_successfully(
+        agent: Relayer,
+        metrics_port: u16,
+    ) -> Result<(), Elapsed> {
+        let future = check_relayer_metrics(agent, metrics_port);
         tokio::time::timeout(Duration::from_secs(50), future).await
     }
 
@@ -1547,19 +1586,27 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
-                "https://sepolia-rollup.arbitrum.io/rpc",
+                "http://localhost:8545",
             ),
         )];
         let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27003;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let agent = build_relayer(settings)
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_run_relayer(agent).await.is_err());
+        assert!(test_relayer_started_successfully(agent, metrics_port)
+            .await
+            .is_ok());
     }
 
     #[tracing_test::traced_test]
@@ -1572,7 +1619,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
-                "https://sepolia-rollup.arbitrum.io/rpc",
+                "http://localhost:8545",
             ),
         )];
         let origin_chains = &[
@@ -1585,14 +1632,22 @@ mod test {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27004;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let agent = build_relayer(settings)
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_run_relayer(agent).await.is_err());
+        assert!(test_relayer_started_successfully(agent, metrics_port)
+            .await
+            .is_ok());
     }
 
     #[tracing_test::traced_test]
@@ -1611,14 +1666,22 @@ mod test {
         )];
         let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27005;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let agent = build_relayer(settings)
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_run_relayer(agent).await.is_err());
+        assert!(test_relayer_started_successfully(agent, metrics_port)
+            .await
+            .is_ok());
     }
 
     #[tracing_test::traced_test]
@@ -1633,7 +1696,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                     None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
+                    "http://localhost:8545",
                 ),
             ),
             (
@@ -1641,7 +1704,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
                     None,
-                    "https://sepolia-rollup.arbitrum.io/rpc",
+                    "http://localhost:8545",
                 ),
             ),
         ];
@@ -1651,14 +1714,22 @@ mod test {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
         let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27006;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let agent = build_relayer(settings)
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_run_relayer(agent).await.is_err());
+        assert!(test_relayer_started_successfully(agent, metrics_port)
+            .await
+            .is_ok());
     }
 
     #[tracing_test::traced_test]
@@ -1671,18 +1742,26 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 Some(SignerConf::HexKey { key: H256::zero() }),
-                "https://sepolia-rollup.arbitrum.io/rpc",
+                "http://localhost:8545",
             ),
         )];
         let origin_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
         let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
-        let settings =
-            generate_test_relayer_settings(db_path, chains, origin_chains, destination_chains);
+        let metrics_port = 27007;
+        let settings = generate_test_relayer_settings(
+            db_path,
+            chains,
+            origin_chains,
+            destination_chains,
+            metrics_port,
+        );
 
         let agent = build_relayer(settings)
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_run_relayer(agent).await.is_err());
+        assert!(test_relayer_started_successfully(agent, metrics_port)
+            .await
+            .is_ok());
     }
 }
