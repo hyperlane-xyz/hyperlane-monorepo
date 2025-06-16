@@ -1,3 +1,5 @@
+use std::cell::LazyCell;
+use std::convert::Into;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -9,8 +11,8 @@ use ethers::{
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod,
-    H256, U256,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
+    MerkleTreeHook, ReorgPeriod, H256, U256,
 };
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
 

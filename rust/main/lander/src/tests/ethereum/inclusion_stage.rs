@@ -18,10 +18,11 @@ use tracing_test::traced_test;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
-    KnownHyperlaneDomain, H256, U256,
+    HyperlaneDomain, KnownHyperlaneDomain, H256, U256,
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 
+use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
 use crate::tests::test_utils::tmp_dbs;
 use crate::{
     adapter::{
@@ -396,9 +397,11 @@ fn mock_ethereum_adapter(
     signer: H160,
     block_time: Duration,
 ) -> EthereumAdapter {
+    let domain: HyperlaneDomain = KnownHyperlaneDomain::Arbitrum.into();
     let provider = Arc::new(provider);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
-    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer));
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer, metrics));
 
     let nonce_updater = NonceUpdater::new(
         signer,
@@ -416,7 +419,7 @@ fn mock_ethereum_adapter(
 
     EthereumAdapter {
         estimated_block_time: block_time,
-        domain: KnownHyperlaneDomain::Arbitrum.into(),
+        domain,
         transaction_overrides: Default::default(),
         submission_config: OpSubmissionConfig::default(),
         provider,
