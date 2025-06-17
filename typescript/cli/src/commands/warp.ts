@@ -451,7 +451,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   manual?: boolean;
   origin?: string;
   destination?: string;
-  amount?: number;
+  amount?: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -501,7 +501,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       implies: 'manual',
     },
     amount: {
-      type: 'number',
+      type: 'string',
       description:
         'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
       demandOption: false,

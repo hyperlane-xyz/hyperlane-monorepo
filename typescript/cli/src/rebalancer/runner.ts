@@ -32,7 +32,7 @@ interface SharedRebalanceArgs {
 interface ManualRebalanceArgs {
   origin: string;
   destination: string;
-  amount: number;
+  amount: string;
 }
 
 type RebalancerCliArgs = SharedRebalanceArgs & Partial<ManualRebalanceArgs>;
@@ -56,7 +56,12 @@ export class RebalancerRunner {
       args.origin && args.destination && args.amount,
       'Origin, destination, and amount are required for a manual run',
     );
-    assert(args.amount > 0, 'Amount must be greater than 0');
+
+    // Validate amount is a valid number string and greater than 0
+    const amountNum = Number(args.amount);
+    assert(!isNaN(amountNum), 'Amount must be a valid number');
+    assert(amountNum > 0, 'Amount must be greater than 0');
+
     return {
       origin: args.origin,
       destination: args.destination,
