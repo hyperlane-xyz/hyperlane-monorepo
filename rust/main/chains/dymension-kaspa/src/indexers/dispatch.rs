@@ -8,7 +8,7 @@ use hyperlane_core::{
     LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{HyperlaneKaspaError, KaspaProvider, RpcProvider};
+use crate::{HyperlaneKaspaError, KaspaProvider, RestProvider};
 
 use super::KaspaEventIndexer;
 
@@ -30,8 +30,8 @@ impl KaspaDispatch {
 }
 
 impl KaspaEventIndexer<HyperlaneMessage> for KaspaDispatch {
-    fn provider(&self) -> &RpcProvider {
-        self.provider.rpc()
+    fn provider(&self) -> &RestProvider {
+        self.provider.rest()
     }
 
     fn address(&self) -> &H256 {

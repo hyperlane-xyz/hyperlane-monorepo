@@ -5,7 +5,7 @@ use tonic::async_trait;
 
 use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, Indexer, LogMeta, H256, H512};
 
-use crate::RpcProvider;
+use crate::RestProvider;
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -37,7 +37,7 @@ where
     Indexed<T>: From<T>,
 {
     /// Cosmos provider
-    fn provider(&self) -> &RpcProvider;
+    fn provider(&self) -> &RestProvider;
 
     /// address for the given module that will be indexed
     fn address(&self) -> &H256;

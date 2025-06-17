@@ -43,12 +43,9 @@ struct KaspaHttpClient {
     metrics_config: PrometheusConfig,
 }
 
-/// RPC Provider for Kaspa
-///
-/// Responsible for chain communication
 #[derive(Debug, Clone)]
-pub struct RpcProvider {
-    provider: KaspaFallbackProvider<KaspaHttpClient>,
+pub struct RestProvider {
+    client: KaspaHttpClient,
     conf: ConnectionConf,
     signer: Option<Signer>,
 }
@@ -97,7 +94,7 @@ impl Clone for KaspaHttpClient {
     }
 }
 
-impl RpcProvider {
+impl RestProvider {
     /// Returns a new Rpc Provider
     pub fn new(
         conf: ConnectionConf,
@@ -115,11 +112,9 @@ impl RpcProvider {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let provider = FallbackProvider::new(clients);
-        let provider = KaspaFallbackProvider::new(provider);
 
-        Ok(RpcProvider {
-            provider,
+        Ok(RestProvider {
+            client: clients[0].clone(),
             conf,
             signer,
         })
@@ -179,7 +174,7 @@ impl RpcProvider {
 }
 
 #[async_trait]
-impl BlockNumberGetter for RpcProvider {
+impl BlockNumberGetter for RestProvider {
     async fn get_block_number(&self) -> ChainResult<u64> {
         return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
     }

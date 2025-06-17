@@ -9,7 +9,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{HyperlaneKaspaError, KaspaProvider, RpcProvider};
+use crate::{HyperlaneKaspaError, KaspaProvider, RestProvider};
 
 use super::KaspaEventIndexer;
 
@@ -31,8 +31,8 @@ impl KaspaDelivery {
 }
 
 impl KaspaEventIndexer<H256> for KaspaDelivery {
-    fn provider(&self) -> &RpcProvider {
-        self.provider.rpc()
+    fn provider(&self) -> &RestProvider {
+        self.provider.rest()
     }
 
     fn address(&self) -> &H256 {

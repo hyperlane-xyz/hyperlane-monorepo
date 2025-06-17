@@ -9,7 +9,7 @@ use hyperlane_core::{
 use tonic::async_trait;
 use tracing::instrument;
 
-use crate::{KaspaProvider, RpcProvider};
+use crate::{KaspaProvider, RestProvider};
 
 use super::KaspaEventIndexer;
 
@@ -80,8 +80,8 @@ impl MerkleTreeHook for KaspaMerkle {
 }
 
 impl KaspaEventIndexer<MerkleTreeInsertion> for KaspaMerkle {
-    fn provider(&self) -> &RpcProvider {
-        self.provider.rpc()
+    fn provider(&self) -> &RestProvider {
+        self.provider.rest()
     }
 
     fn address(&self) -> &H256 {
