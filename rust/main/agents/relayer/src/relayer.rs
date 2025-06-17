@@ -566,7 +566,6 @@ impl BaseAgent for Relayer {
             if is_kas(origin) {
                 // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
                 // TODO: run monitor
-                // tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
                 let kdb = self.dbs.get(origin).unwrap();
 
                 tasks.push(run_kas_monitor(kdb.clone(), task_monitor.clone()).await);
