@@ -19,5 +19,6 @@ workflow-core = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
 tracing = { workspace = true }
-# reqwest = { workspace = true }
+reqwest = { workspace = true }
 api-rs = { path = "../api", package = "openapi" }
+tokio = { workspace = true }

@@ -2540,7 +2540,9 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
+ "reqwest 0.12.15",
  "secp256k1 0.29.1",
+ "tokio",
  "tracing",
  "workflow-core",
 ]
