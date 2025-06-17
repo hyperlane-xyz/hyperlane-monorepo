@@ -53,6 +53,9 @@ mod tests {
         let lower_bound = Some(0i32);
         let upper_bound = Some(0i32);
         // let upper_bound = None;
+
+        // TODO: there is some kind of bug..
+
         let res = get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(
             &config,
             addr,
