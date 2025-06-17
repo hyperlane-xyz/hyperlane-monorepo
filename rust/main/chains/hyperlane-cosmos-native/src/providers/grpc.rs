@@ -16,6 +16,12 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::{
     QueryDeliveredRequest, QueryDeliveredResponse, QueryMailboxRequest, QueryMailboxResponse,
     QueryRecipientIsmRequest, QueryRecipientIsmResponse,
 };
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    query_client::QueryClient as KasQueryClient,
+    QueryOutpointRequest, QueryOutpointResponse,
+    QueryWithdrawalStatusRequest, QueryWithdrawalStatusResponse,
+    WithdrawalId,
+};
 use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
@@ -246,6 +252,50 @@ impl GrpcProvider {
                     let mut service = IsmQueryClient::new(client.channel.clone());
                     let result = service
                         .ism(QueryIsmRequest { id })
+                        .await
+                        .map_err(HyperlaneCosmosError::from)?
+                        .into_inner();
+                    Ok(result)
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// Query the current outpoint (anchor) for Kaspa bridge
+    pub async fn outpoint(&self, height: Option<u32>) -> ChainResult<QueryOutpointResponse> {
+        self.fallback
+            .call(|client| {
+                let future = async move {
+                    let mut service = KasQueryClient::new(client.channel.clone());
+                    let result = service
+                        .outpoint(Self::request_at_height(QueryOutpointRequest {}, height))
+                        .await
+                        .map_err(HyperlaneCosmosError::from)?
+                        .into_inner();
+                    Ok(result)
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// Query withdrawal status by withdrawal ID
+    pub async fn withdrawal_status(
+        &self,
+        withdrawal_id: Vec<WithdrawalId>,
+        height: Option<u32>,
+    ) -> ChainResult<QueryWithdrawalStatusResponse> {
+        self.fallback
+            .call(|client| {
+                let withdrawal_id = withdrawal_id.clone();
+                let future = async move {
+                    let mut service = KasQueryClient::new(client.channel.clone());
+                    let result = service
+                        .withdrawal_status(Self::request_at_height(
+                            QueryWithdrawalStatusRequest { withdrawal_id },
+                            height,
+                        ))
                         .await
                         .map_err(HyperlaneCosmosError::from)?
                         .into_inner();

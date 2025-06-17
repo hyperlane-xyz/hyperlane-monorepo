@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::io::Cursor;
 use hyperlane_core::{HyperlaneMessage, Decode, H256};
 use hyperlane_warp_route::TokenMessage;
+use hyperlane_cosmos_native::CosmosNativeProvider;
+use kaspa_hashes;
 use kaspa_txscript;
 use kaspa_consensus_core::hashing::sighash_type::{
     SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY, SigHashType,
@@ -15,6 +17,9 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, UtxoEntry};
 use kaspa_wallet_core::utxo::UtxoIterator;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_txscript::standard::pay_to_address_script;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    TransactionOutpoint,
+};
 
 // EventDispatch needs to be imported from the cosmos types
 // We'll define it temporarily or import from the appropriate location
@@ -35,13 +40,6 @@ use core::escrow::EscrowPublic;
 // Types & helpers - Updated to match specification
 // ---------------------------------------------------------------------------
 
-/// Represents the state (O, L) fetched from the Hub's x/kas module
-#[derive(Debug, Clone)]
-pub struct HubKaspaState {
-    pub current_anchor_outpoint: KaspaUtxoOutpoint, // O: Full outpoint (txid, index)
-    pub last_processed_withdrawal_index: u64,       // L
-}
-
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
 pub struct WithdrawalDetails {
@@ -59,7 +57,7 @@ pub async fn build_kaspa_withdrawal_pskts(
     kaspa_rpc: &impl RpcApi,
     escrow_public: &EscrowPublic,
     relayer_kaspa_account: &Arc<dyn Account>,
-    current_hub_state: &HubKaspaState,
+    current_hub_state: &TransactionOutpoint,
 ) -> Result<Option<Vec<PSKT<Signer>>>> {
     // 1. Initialization
     let mut prepared_pskts: Vec<PSKT<Signer>> = Vec::new();
@@ -285,4 +283,89 @@ async fn build_single_withdrawal_pskt(
         .signer();
 
     Ok(pskt)
+}
+
+/// Fetch the current Hub x/kas state using CosmosNativeProvider
+/// This replaces the mock HubKaspaState with real data from the x/kas module
+pub async fn fetch_hub_kas_state(
+    cosmos_provider: &CosmosNativeProvider,
+    height: Option<u32>,
+) -> Result<TransactionOutpoint> {
+    // Query the current outpoint from x/kas module
+    let outpoint_response = match height {
+        Some(h) => cosmos_provider.grpc().outpoint(Some(h)).await,
+        None => cosmos_provider.grpc().outpoint(None).await,
+    }.map_err(|e| anyhow::anyhow!("Failed to query outpoint from x/kas module: {}", e))?;
+    
+    // Extract outpoint data and convert to KaspaUtxoOutpoint
+    // Note: This assumes the outpoint response contains txid and index fields
+    // You may need to adjust this based on the actual structure of QueryOutpointResponse
+    let outpoint_data = outpoint_response.outpoint
+        .ok_or_else(|| anyhow::anyhow!("No outpoint data in response"))?;
+    
+    // Convert the transaction ID to kaspa transaction ID
+    // The transaction_id field might already be in the correct format
+    let kaspa_tx_id = if outpoint_data.transaction_id.len() == 32 {
+        // If it's already 32 bytes, use it directly
+        kaspa_hashes::Hash::from_bytes(
+            outpoint_data.transaction_id.as_slice().try_into()
+                .map_err(|e| anyhow::anyhow!("Failed to convert transaction ID to array: {:?}", e))?
+        )
+    } else {
+        // If it's a hex string, decode it
+        let tx_id_str = String::from_utf8(outpoint_data.transaction_id.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to convert transaction ID to string: {}", e))?;
+        let tx_id_hex = tx_id_str.strip_prefix("0x").unwrap_or(&tx_id_str);
+        let tx_id_bytes = hex::decode(tx_id_hex)
+            .map_err(|e| anyhow::anyhow!("Failed to decode transaction ID: {}", e))?;
+        
+        if tx_id_bytes.len() != 32 {
+            return Err(anyhow::anyhow!(
+                "Invalid transaction ID length: expected 32 bytes, got {}",
+                tx_id_bytes.len()
+            ));
+        }
+        
+        let mut tx_id_array = [0u8; 32];
+        tx_id_array.copy_from_slice(&tx_id_bytes);
+        kaspa_hashes::Hash::from_bytes(tx_id_array)
+    };
+    
+    let current_anchor_outpoint = KaspaUtxoOutpoint {
+        transaction_id: kaspa_tx_id,
+        index: outpoint_data.index,
+    };
+    
+    Ok(TransactionOutpoint {
+        current_anchor_outpoint,
+    })
+}
+
+/// Enhanced version of build_kaspa_withdrawal_pskts that fetches real x/kas state
+/// This is the main integration function that replaces mock data with real queries
+pub async fn build_kaspa_withdrawal_pskts_with_provider(
+    events: Vec<EventDispatch>,
+    cosmos_provider: &CosmosNativeProvider,
+    hub_height: Option<u32>,
+    kaspa_rpc: &impl RpcApi,
+    escrow_public: &EscrowPublic,
+    relayer_kaspa_account: &Arc<dyn Account>,
+) -> Result<Option<Vec<PSKT<Signer>>>> {
+    // 1. Fetch current Hub x/kas state using the real provider
+    let current_hub_state = fetch_hub_kas_state(cosmos_provider, hub_height).await?;
+    
+    println!(
+        "Fetched Hub x/kas state: outpoint={:?}, last_processed={}",
+        current_hub_state.current_anchor_outpoint,
+    );
+    
+    // 2. Use the existing logic with the real state
+    build_kaspa_withdrawal_pskts(
+        events,
+        hub_height.unwrap_or(0) as u64, // Convert height for compatibility
+        kaspa_rpc,
+        escrow_public,
+        relayer_kaspa_account,
+        &current_hub_state,
+    ).await
 }

@@ -9,6 +9,7 @@ kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-core = { workspace = true }
 kaspa-grpc-client = { workspace = true }
+kaspa-hashes = { workspace = true }
 kaspa-wallet-core = { workspace = true }
 kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
@@ -21,3 +22,4 @@ anyhow = { workspace = true }
 hex = { workspace = true }
 hyperlane-core = { workspace = true }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
+hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
