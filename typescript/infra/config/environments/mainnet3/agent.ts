@@ -677,13 +677,14 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   const warpContexts = Object.values(WarpRouteIds).map((warpRouteId) => {
     let warpMatchingList = undefined;
 
-    // oUSDT has Ink as a remote router but Ink doesn't have any limits set yet.
-    // Some people have been sending to Ink outside the UI, so to reduce alert noise
-    // we remove Ink from the matching list.
-    // TODO: once Ink has limits set, we should remove this.
+    // oUSDT has some remote routers but that don't have any limits set yet.
+    // Some people have been sending to e.g. Ink outside the UI, so to reduce alert noise
+    // we remove these from the matching list.
+    // TODO: once Ink or Worldchain have limits set, we should remove this.
     if (warpRouteId === WarpRouteIds.oUSDT) {
       const ousdtAddresses = getWarpAddresses(warpRouteId);
       delete ousdtAddresses['ink'];
+      delete ousdtAddresses['worldchain'];
       warpMatchingList = matchingList(ousdtAddresses);
     } else {
       warpMatchingList = warpRouteMatchingList(warpRouteId);
