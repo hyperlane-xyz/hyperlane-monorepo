@@ -82,8 +82,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
+    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -134,8 +133,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
+    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -186,8 +184,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
+    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -423,7 +420,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '33b3649-20250612-161513',
+      tag: 'cbf884d-20250613-190354',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -432,7 +429,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '33b3649-20250612-161513',
+      tag: 'cbf884d-20250613-190354',
     },
     resources: scraperResources,
   },
@@ -447,7 +444,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '33b3649-20250612-161513',
+      tag: 'cbf884d-20250613-190354',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
