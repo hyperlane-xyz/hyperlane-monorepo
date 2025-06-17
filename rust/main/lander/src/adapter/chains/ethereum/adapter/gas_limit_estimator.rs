@@ -1,6 +1,4 @@
-// the evm provider-building logic returns a box. `EvmProviderForLander` is only implemented for the underlying type rather than the boxed type.
-// implementing the trait for the boxed type would require a lot of boilerplate code.
-#![allow(clippy::borrowed_box)]
+use std::sync::Arc;
 
 use ethers::{providers::ProviderError, types::BlockNumber};
 use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
@@ -17,7 +15,7 @@ pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub async fn estimate_gas_limit(
-    provider: &Box<dyn EvmProviderForLander>,
+    provider: Arc<dyn EvmProviderForLander>,
     tx_precursor: &mut EthereumTxPrecursor,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,

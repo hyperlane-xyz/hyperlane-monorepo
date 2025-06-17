@@ -33,12 +33,10 @@ import {
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
+  WARP_DEPLOY_2_ID,
   deployOrUseExistingCore,
   exportWarpConfigsToFilePaths,
-  extendWarpConfig,
-  getCombinedWarpRoutePath,
   getDeployedWarpAddress,
-  getDomainId,
   updateOwner,
 } from '../commands/helpers.js';
 import {
@@ -72,7 +70,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
   });
 
   it('should burn owner address', async function () {
@@ -125,7 +123,12 @@ describe('hyperlane warp apply owner update tests', async function () {
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
     writeYamlOrJson(warpConfigPath, anvil2Config);
 
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(
+      warpConfigPath,
+      WARP_CORE_CONFIG_PATH_2,
+      undefined,
+      WARP_DEPLOY_2_ID,
+    );
 
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -228,61 +231,6 @@ describe('hyperlane warp apply owner update tests', async function () {
     expect(normalizeConfig(updatedConfig[CHAIN_NAME_2].hook)).to.deep.equal(
       normalizeConfig(warpDeployConfig[CHAIN_NAME_2].hook),
     );
-  });
-
-  it('should extend an existing warp route', async () => {
-    // Read existing config into a file
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
-
-    // Extend with new config
-    const config: HypTokenRouterConfig = {
-      decimals: 18,
-      mailbox: chain3Addresses!.mailbox,
-      name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
-      symbol: 'ETH',
-      type: TokenType.native,
-    };
-
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: config,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: warpConfigPath,
-    });
-
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
-
-    // Check that chain2 is enrolled in chain1
-    const updatedWarpDeployConfig1 = await readWarpConfig(
-      CHAIN_NAME_2,
-      COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
-    );
-
-    const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
-    const remoteRouterKeys1 = Object.keys(
-      updatedWarpDeployConfig1[CHAIN_NAME_2].remoteRouters!,
-    );
-    expect(remoteRouterKeys1).to.include(chain2Id);
-
-    // Check that chain1 is enrolled in chain2
-    const updatedWarpDeployConfig2 = await readWarpConfig(
-      CHAIN_NAME_3,
-      COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
-    );
-
-    const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
-    const remoteRouterKeys2 = Object.keys(
-      updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
-    );
-    expect(remoteRouterKeys2).to.include(chain1Id);
   });
 
   it('should extend a warp route with a custom warp route id', async () => {

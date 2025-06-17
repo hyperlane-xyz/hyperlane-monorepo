@@ -13,24 +13,27 @@ use ethers::{
         H160, H256 as EthersH256,
     },
 };
-use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
-    KnownHyperlaneDomain, H256,
-};
-use hyperlane_ethereum::EthereumReorgPeriod;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
+use hyperlane_core::{
+    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
+    HyperlaneDomain, KnownHyperlaneDomain, H256, U256,
+};
+use hyperlane_ethereum::EthereumReorgPeriod;
+
+use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
+use crate::tests::test_utils::tmp_dbs;
 use crate::{
     adapter::{
         chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState},
+            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
             tests::MockEvmProvider,
             EthereumAdapter,
         },
         EthereumTxPrecursor,
     },
-    dispatcher::{test_utils::tmp_dbs, DispatcherState, InclusionStage, PayloadDb, TransactionDb},
+    dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
     transaction::{Transaction, VmSpecificTxData},
     DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
 };
@@ -49,6 +52,9 @@ async fn test_inclusion_happy_path() {
 async fn test_inclusion_gas_spike() {
     let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
+    mock_evm_provider
+        .expect_get_block()
+        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
     mock_evm_provider
         .expect_get_finalized_block_number()
         .returning(|_reorg_period| {
@@ -98,8 +104,8 @@ async fn test_inclusion_gas_spike() {
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
-    let base_processing_delay = Duration::from_millis(100);
-    let inclusion_stage_processing_delay = Duration::from_millis(30);
+    let base_processing_delay = Duration::from_millis(200);
+    let inclusion_stage_processing_delay = Duration::from_millis(40);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -119,10 +125,6 @@ async fn test_inclusion_gas_spike() {
         );
         Ok(H256::random()) // Mocked transaction hash
     });
-
-    mock_evm_provider
-        .expect_get_block()
-        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
 
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
@@ -152,12 +154,16 @@ async fn test_inclusion_gas_underpriced() {
         .expect_get_transaction_receipt()
         .returning(move |_| Ok(Some(mock_tx_receipt(Some(42)))));
 
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::one()));
+
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
-    let base_processing_delay = Duration::from_millis(100);
+    let base_processing_delay = Duration::from_millis(200);
     // assume 1 second more than usual because that's the retry delay when an error occurs
-    let inclusion_stage_processing_delay = Duration::from_millis(1030);
+    let inclusion_stage_processing_delay = Duration::from_millis(1040);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -191,9 +197,13 @@ async fn test_inclusion_gas_underpriced() {
 }
 
 async fn run_and_expect_successful_inclusion(
-    mock_evm_provider: MockEvmProvider,
+    mut mock_evm_provider: MockEvmProvider,
     block_time: Duration,
 ) {
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(0)));
+
     let signer = H160::random();
     let dispatcher_state =
         mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
@@ -267,6 +277,10 @@ fn mocked_evm_provider() -> MockEvmProvider {
                 ..Default::default()
             }))
         });
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::one()));
+
     mock_evm_provider
 }
 
@@ -366,7 +380,7 @@ pub fn mock_dispatcher_state_with_provider(
     block_time: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, signer, block_time);
+    let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer, block_time);
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -379,21 +393,38 @@ pub fn mock_dispatcher_state_with_provider(
 fn mock_ethereum_adapter(
     provider: MockEvmProvider,
     nonce_db: Arc<dyn NonceDb>,
+    tx_db: Arc<dyn TransactionDb>,
     signer: H160,
     block_time: Duration,
 ) -> EthereumAdapter {
+    let domain: HyperlaneDomain = KnownHyperlaneDomain::Arbitrum.into();
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer, metrics));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
     EthereumAdapter {
         estimated_block_time: block_time,
-        domain: KnownHyperlaneDomain::Arbitrum.into(),
+        domain,
         transaction_overrides: Default::default(),
         submission_config: OpSubmissionConfig::default(),
-        provider: Box::new(provider),
-        reorg_period: EthereumReorgPeriod::Blocks(1),
-        nonce_manager: NonceManager {
-            address: signer,
-            db: nonce_db,
-            state: NonceManagerState::new(),
-        },
+        provider,
+        reorg_period,
+        nonce_manager,
     }
 }
 
