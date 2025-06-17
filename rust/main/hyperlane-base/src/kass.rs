@@ -11,9 +11,10 @@ use tokio::{
     task::JoinHandle,
 };
 
+use dymension_kaspa::{RestProvider, Deposit};
+
 use super::db::HyperlaneRocksDB;
 
-use dym_kas_core::query::deposits::*;
 
 use hyperlane_core::{Indexed, LogMeta};
 
@@ -34,28 +35,30 @@ pub fn is_kas(d: &HyperlaneDomain) -> bool {
     }
 }
 
-pub async fn run_kas_monitor(domain: HyperlaneDomain, kdb: HyperlaneRocksDB, task_monitor: TaskMonitor) -> JoinHandle<()> {
+
+
+pub async fn run_kas_monitor(domain: HyperlaneDomain, kdb: HyperlaneRocksDB, task_monitor: TaskMonitor, provider: RestProvider) -> JoinHandle<()> {
     let name = "foo";
     tokio::task::Builder::new()
         .name(name)
         .spawn(TaskMonitor::instrument(
             &task_monitor,
             async move {
-                kas_monitor_task(&domain, kdb).await;
+                kas_monitor_task(&domain, &kdb, &provider).await;
             }
             .instrument(info_span!("Kaspa Monitor")),
         ))
         .expect("Failed to spawn kaspa monitor task")
 }
 
-async fn kas_monitor_task(domain: &HyperlaneDomain, kdb: HyperlaneRocksDB) {
-    run_monitor(domain, &kdb).await;
+async fn kas_monitor_task(domain: &HyperlaneDomain, kdb: &HyperlaneRocksDB, provider: &RestProvider) {
+    run_monitor(domain, kdb, provider).await;
 }
 
 // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
-async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(domain: &HyperlaneDomain, store: &S) where S: Clone + 'static {
+async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(domain: &HyperlaneDomain, store: &S, provider: &RestProvider) where S: Clone + 'static {
     loop {
-        let deposits = get_deposits();
+        let deposits = provider.get_deposits("kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f").unwrap();
         let logs = deposits_to_logs(deposits).await;
         let stored= dedupe_and_store_logs(domain, store, logs).await;
         unimplemented!()

@@ -568,7 +568,7 @@ impl BaseAgent for Relayer {
                 // TODO: run monitor
                 let kdb = self.dbs.get(origin).unwrap();
 
-                tasks.push(run_kas_monitor(origin.clone(), kdb.clone(), task_monitor.clone()).await);
+                tasks.push(run_kas_monitor(origin.clone(), kdb.clone(), task_monitor.clone(), provider).await);
 
                 // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(

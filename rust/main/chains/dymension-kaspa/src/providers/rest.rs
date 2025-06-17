@@ -1,12 +1,11 @@
 use std::future::Future;
 use std::time::Instant;
 
-
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter,
-    ChainCommunicationError, ChainResult, FixedPointNumber, H512, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber, H512,
+    U256,
 };
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
@@ -17,8 +16,9 @@ use dym_kas_core::api::deposits::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
-use dym_kas_core::query::deposits::*;
+use dym_kas_core::api::deposits::*;
 
+pub use dym_kas_core::api::deposits::*;
 
 #[derive(Debug)]
 struct KaspaHttpClient {
@@ -111,28 +111,6 @@ impl RestProvider {
         })
     }
 
-    // mostly copy pasted from `hyperlane-kaspa/src/providers/rpc/client.rs`
-    async fn track_metric_call<F, Fut, T>(
-        client: &KaspaHttpClient,
-        method: &str,
-        call: F,
-    ) -> ChainResult<T>
-    where
-        F: Fn() -> Fut,
-        Fut: Future<Output = Result<T, Error>>,
-    {
-        let start = Instant::now();
-        let res = call().await;
-
-        client
-            .metrics
-            .increment_metrics(&client.metrics_config, method, start, res.is_ok());
-
-        res.map_err(|e| ChainCommunicationError::from(HyperlaneKaspaError::from(e)))
-    }
-
-
-
     /// Gets a signer, or returns an error if one is not available.
     pub fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
@@ -144,7 +122,8 @@ impl RestProvider {
     pub fn gas_price(&self) -> FixedPointNumber {
         return FixedPointNumber::zero();
     }
-}
 
-impl RestProvider {
+    pub fn get_deposits(&self, address: &str) -> ChainResult<Vec<Deposit>> {
+        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    }
 }
