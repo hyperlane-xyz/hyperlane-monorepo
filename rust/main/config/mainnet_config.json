@@ -5823,7 +5823,8 @@
       "validatorAnnounce": "0xD743801ABB6c7664B623D8534C0f5AF8cD2F1C5e",
       "index": {
         "from": 10598389
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.boba.network"
     },
     "duckchain": {
       "blockExplorers": [
@@ -6158,7 +6159,8 @@
       "validatorAnnounce": "0x25EAC2007b0D40E3f0AF112FD346412321038719",
       "index": {
         "from": 9687363
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://safe-gateway.bsquared.network/txs/"
     },
     "lumiaprism": {
       "blockExplorers": [

@@ -3345,8 +3345,8 @@
       "name": "rometestnet2",
       "nativeToken": {
         "decimals": 18,
-        "name": "ROME",
-        "symbol": "ROME"
+        "name": "rSOL",
+        "symbol": "rSOL"
       },
       "protocol": "ethereum",
       "rpcUrls": [
