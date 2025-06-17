@@ -1,6 +1,8 @@
 import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
+import path from 'path';
 
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -290,4 +292,14 @@ export function validateWarpIsmCompatibility(
       });
     }
   }
+}
+
+export function warpRouteIdFromFileName(
+  filePath: string,
+  symbol: string,
+): string {
+  // Remove the -deploy suffix from the file name in case the input file has it to avoid
+  // having file names like this one: *-deploy-config.yaml
+  const fileName = path.parse(filePath).name.replace(/-deploy$/, '');
+  return createWarpRouteConfigId(symbol, fileName);
 }

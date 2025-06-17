@@ -6,6 +6,7 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AddWarpRouteConfigOptions,
+  BaseRegistry,
   ChainAddresses,
 } from '@hyperlane-xyz/registry';
 import {
@@ -73,7 +74,14 @@ import {
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logTable,
+  warnYellow,
+} from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
@@ -86,6 +94,7 @@ import {
   prepareDeploy,
   runPreflightChecksForChains,
   validateWarpIsmCompatibility,
+  warpRouteIdFromFileName,
 } from './utils.js';
 
 interface DeployParams {
@@ -104,10 +113,12 @@ export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
   warpRouteId,
+  warpDeployConfigFileName,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpRouteId?: string;
+  warpDeployConfigFileName?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
 
@@ -149,11 +160,38 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  await writeDeploymentArtifacts(
-    warpCoreConfig,
-    context,
-    warpRouteId ? { warpRouteId } : addWarpRouteOptions, // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
-  );
+  // Use warpRouteId if provided, otherwise if the user is deploying
+  // using a config file use the name of the file to generate the id
+  // or just fallback to use the warpCoreConfig symbol
+  let warpRouteIdOptions: AddWarpRouteConfigOptions;
+  if (warpRouteId) {
+    warpRouteIdOptions = { warpRouteId };
+  } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
+    // validate that the id is correct
+    let isIdOk = true;
+    const maybeId = warpRouteIdFromFileName(
+      warpDeployConfigFileName,
+      addWarpRouteOptions.symbol,
+    );
+    try {
+      BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
+        warpRouteId: maybeId,
+      });
+    } catch {
+      isIdOk = false;
+      warnYellow(
+        `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
+      );
+    }
+
+    warpRouteIdOptions = isIdOk
+      ? { warpRouteId: maybeId }
+      : addWarpRouteOptions;
+  } else {
+    warpRouteIdOptions = addWarpRouteOptions;
+  }
+
+  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
 
   await completeDeploy(
     context,
