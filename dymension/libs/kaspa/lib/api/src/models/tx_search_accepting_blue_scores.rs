@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TxSearchAcceptingBlueScores {
     #[serde(rename = "gte")]
-    pub gte: i32,
+    pub gte: i64,
     #[serde(rename = "lt")]
-    pub lt: i32,
+    pub lt: i64,
 }
 
 impl TxSearchAcceptingBlueScores {
-    pub fn new(gte: i32, lt: i32) -> TxSearchAcceptingBlueScores {
+    pub fn new(gte: i64, lt: i64) -> TxSearchAcceptingBlueScores {
         TxSearchAcceptingBlueScores {
             gte,
             lt,

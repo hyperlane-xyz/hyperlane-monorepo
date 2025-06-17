@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ResponseGetMarketcapInfoMarketcapGet {
     #[serde(rename = "marketcap", skip_serializing_if = "Option::is_none")]
-    pub marketcap: Option<i32>,
+    pub marketcap: Option<i64>,
 }
 
 impl ResponseGetMarketcapInfoMarketcapGet {

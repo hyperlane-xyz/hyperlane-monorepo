@@ -16,7 +16,7 @@ pub struct OutpointModel {
     #[serde(rename = "transactionId", skip_serializing_if = "Option::is_none")]
     pub transaction_id: Option<String>,
     #[serde(rename = "index", skip_serializing_if = "Option::is_none")]
-    pub index: Option<i32>,
+    pub index: Option<i64>,
 }
 
 impl OutpointModel {

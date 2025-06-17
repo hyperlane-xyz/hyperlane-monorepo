@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransactionCount {
     #[serde(rename = "total")]
-    pub total: i32,
+    pub total: i64,
     #[serde(rename = "limit_exceeded")]
     pub limit_exceeded: bool,
 }
 
 impl TransactionCount {
-    pub fn new(total: i32, limit_exceeded: bool) -> TransactionCount {
+    pub fn new(total: i64, limit_exceeded: bool) -> TransactionCount {
         TransactionCount {
             total,
             limit_exceeded,

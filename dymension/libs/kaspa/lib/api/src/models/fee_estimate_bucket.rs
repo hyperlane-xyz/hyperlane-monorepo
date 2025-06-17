@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FeeEstimateBucket {
     #[serde(rename = "feerate", skip_serializing_if = "Option::is_none")]
-    pub feerate: Option<i32>,
+    pub feerate: Option<i64>,
     #[serde(rename = "estimatedSeconds", skip_serializing_if = "Option::is_none")]
     pub estimated_seconds: Option<f64>,
 }

@@ -24,13 +24,13 @@ pub struct BlockTxModel {
     #[serde(rename = "verboseData")]
     pub verbose_data: Box<models::BlockTxVerboseDataModel>,
     #[serde(rename = "lockTime", skip_serializing_if = "Option::is_none")]
-    pub lock_time: Option<i32>,
+    pub lock_time: Option<i64>,
     #[serde(rename = "gas", skip_serializing_if = "Option::is_none")]
-    pub gas: Option<i32>,
+    pub gas: Option<i64>,
     #[serde(rename = "mass", skip_serializing_if = "Option::is_none")]
-    pub mass: Option<i32>,
+    pub mass: Option<i64>,
     #[serde(rename = "version", skip_serializing_if = "Option::is_none")]
-    pub version: Option<i32>,
+    pub version: Option<i64>,
 }
 
 impl BlockTxModel {

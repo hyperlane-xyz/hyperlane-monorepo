@@ -16,7 +16,7 @@ pub struct TxInput {
     #[serde(rename = "transaction_id")]
     pub transaction_id: String,
     #[serde(rename = "index")]
-    pub index: i32,
+    pub index: i64,
     #[serde(rename = "previous_outpoint_hash")]
     pub previous_outpoint_hash: String,
     #[serde(rename = "previous_outpoint_index")]
@@ -26,7 +26,7 @@ pub struct TxInput {
     #[serde(rename = "previous_outpoint_address", skip_serializing_if = "Option::is_none")]
     pub previous_outpoint_address: Option<String>,
     #[serde(rename = "previous_outpoint_amount", skip_serializing_if = "Option::is_none")]
-    pub previous_outpoint_amount: Option<i32>,
+    pub previous_outpoint_amount: Option<i64>,
     #[serde(rename = "signature_script", skip_serializing_if = "Option::is_none")]
     pub signature_script: Option<String>,
     #[serde(rename = "sig_op_count", skip_serializing_if = "Option::is_none")]
@@ -34,7 +34,7 @@ pub struct TxInput {
 }
 
 impl TxInput {
-    pub fn new(transaction_id: String, index: i32, previous_outpoint_hash: String, previous_outpoint_index: String) -> TxInput {
+    pub fn new(transaction_id: String, index: i64, previous_outpoint_hash: String, previous_outpoint_index: String) -> TxInput {
         TxInput {
             transaction_id,
             index,

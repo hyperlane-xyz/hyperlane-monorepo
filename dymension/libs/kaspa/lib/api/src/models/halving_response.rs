@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HalvingResponse {
     #[serde(rename = "nextHalvingTimestamp", skip_serializing_if = "Option::is_none")]
-    pub next_halving_timestamp: Option<i32>,
+    pub next_halving_timestamp: Option<i64>,
     #[serde(rename = "nextHalvingDate", skip_serializing_if = "Option::is_none")]
     pub next_halving_date: Option<String>,
     #[serde(rename = "nextHalvingAmount", skip_serializing_if = "Option::is_none")]

@@ -16,11 +16,11 @@ pub struct BlockTxInputPreviousOutpointModel {
     #[serde(rename = "transactionId")]
     pub transaction_id: String,
     #[serde(rename = "index")]
-    pub index: i32,
+    pub index: i64,
 }
 
 impl BlockTxInputPreviousOutpointModel {
-    pub fn new(transaction_id: String, index: i32) -> BlockTxInputPreviousOutpointModel {
+    pub fn new(transaction_id: String, index: i64) -> BlockTxInputPreviousOutpointModel {
         BlockTxInputPreviousOutpointModel {
             transaction_id,
             index,

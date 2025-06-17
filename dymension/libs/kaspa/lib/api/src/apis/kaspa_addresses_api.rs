@@ -244,7 +244,7 @@ pub async fn get_balances_from_kaspa_addresses_addresses_balances_post(configura
 }
 
 /// Get all transactions for a given address from database. And then get their related full transaction data
-pub async fn get_full_transactions_for_address_addresses_kaspa_address_full_transactions_get(configuration: &configuration::Configuration, kaspa_address: &str, limit: Option<i32>, offset: Option<i32>, fields: Option<&str>, resolve_previous_outpoints: Option<&str>) -> Result<Vec<models::TxModel>, Error<GetFullTransactionsForAddressAddressesKaspaAddressFullTransactionsGetError>> {
+pub async fn get_full_transactions_for_address_addresses_kaspa_address_full_transactions_get(configuration: &configuration::Configuration, kaspa_address: &str, limit: Option<i64>, offset: Option<i64>, fields: Option<&str>, resolve_previous_outpoints: Option<&str>) -> Result<Vec<models::TxModel>, Error<GetFullTransactionsForAddressAddressesKaspaAddressFullTransactionsGetError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_kaspa_address = kaspa_address;
     let p_limit = limit;
@@ -297,7 +297,7 @@ pub async fn get_full_transactions_for_address_addresses_kaspa_address_full_tran
 }
 
 /// Get all transactions for a given address from database. And then get their related full transaction data
-pub async fn get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(configuration: &configuration::Configuration, kaspa_address: &str, limit: Option<i32>, before: Option<i32>, after: Option<i32>, fields: Option<&str>, resolve_previous_outpoints: Option<&str>, acceptance: Option<models::AcceptanceMode>) -> Result<Vec<models::TxModel>, Error<GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetError>> {
+pub async fn get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(configuration: &configuration::Configuration, kaspa_address: &str, limit: Option<i64>, before: Option<i64>, after: Option<i64>, fields: Option<&str>, resolve_previous_outpoints: Option<&str>, acceptance: Option<models::AcceptanceMode>) -> Result<Vec<models::TxModel>, Error<GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_kaspa_address = kaspa_address;
     let p_limit = limit;

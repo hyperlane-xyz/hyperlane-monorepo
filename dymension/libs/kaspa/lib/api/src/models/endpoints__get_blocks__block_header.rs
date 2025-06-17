@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EndpointsGetBlocksBlockHeader {
     #[serde(rename = "version", skip_serializing_if = "Option::is_none")]
-    pub version: Option<i32>,
+    pub version: Option<i64>,
     #[serde(rename = "hashMerkleRoot", skip_serializing_if = "Option::is_none")]
     pub hash_merkle_root: Option<String>,
     #[serde(rename = "acceptedIdMerkleRoot", skip_serializing_if = "Option::is_none")]
@@ -24,7 +24,7 @@ pub struct EndpointsGetBlocksBlockHeader {
     #[serde(rename = "timestamp", skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
     #[serde(rename = "bits", skip_serializing_if = "Option::is_none")]
-    pub bits: Option<i32>,
+    pub bits: Option<i64>,
     #[serde(rename = "nonce", skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
     #[serde(rename = "daaScore", skip_serializing_if = "Option::is_none")]

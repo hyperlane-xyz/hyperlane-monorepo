@@ -16,13 +16,13 @@ pub struct DbCheckStatus {
     #[serde(rename = "isSynced", skip_serializing_if = "Option::is_none")]
     pub is_synced: Option<bool>,
     #[serde(rename = "blueScore", skip_serializing_if = "Option::is_none")]
-    pub blue_score: Option<i32>,
+    pub blue_score: Option<i64>,
     #[serde(rename = "blueScoreDiff", skip_serializing_if = "Option::is_none")]
-    pub blue_score_diff: Option<i32>,
+    pub blue_score_diff: Option<i64>,
     #[serde(rename = "acceptedTxBlockTime", skip_serializing_if = "Option::is_none")]
-    pub accepted_tx_block_time: Option<i32>,
+    pub accepted_tx_block_time: Option<i64>,
     #[serde(rename = "acceptedTxBlockTimeDiff", skip_serializing_if = "Option::is_none")]
-    pub accepted_tx_block_time_diff: Option<i32>,
+    pub accepted_tx_block_time_diff: Option<i64>,
 }
 
 impl DbCheckStatus {

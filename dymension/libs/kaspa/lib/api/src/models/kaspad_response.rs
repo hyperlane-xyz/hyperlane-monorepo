@@ -24,7 +24,7 @@ pub struct KaspadResponse {
     #[serde(rename = "p2pId", skip_serializing_if = "Option::is_none")]
     pub p2p_id: Option<String>,
     #[serde(rename = "blueScore", skip_serializing_if = "Option::is_none")]
-    pub blue_score: Option<i32>,
+    pub blue_score: Option<i64>,
 }
 
 impl KaspadResponse {

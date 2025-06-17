@@ -16,9 +16,9 @@ pub struct TxOutput {
     #[serde(rename = "transaction_id")]
     pub transaction_id: String,
     #[serde(rename = "index")]
-    pub index: i32,
+    pub index: i64,
     #[serde(rename = "amount")]
-    pub amount: i32,
+    pub amount: i64,
     #[serde(rename = "script_public_key", skip_serializing_if = "Option::is_none")]
     pub script_public_key: Option<String>,
     #[serde(rename = "script_public_key_address", skip_serializing_if = "Option::is_none")]
@@ -30,7 +30,7 @@ pub struct TxOutput {
 }
 
 impl TxOutput {
-    pub fn new(transaction_id: String, index: i32, amount: i32) -> TxOutput {
+    pub fn new(transaction_id: String, index: i64, amount: i64) -> TxOutput {
         TxOutput {
             transaction_id,
             index,

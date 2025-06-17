@@ -16,17 +16,17 @@ pub struct VcBlockModel {
     #[serde(rename = "hash")]
     pub hash: String,
     #[serde(rename = "blue_score")]
-    pub blue_score: i32,
+    pub blue_score: i64,
     #[serde(rename = "daa_score", skip_serializing_if = "Option::is_none")]
-    pub daa_score: Option<i32>,
+    pub daa_score: Option<i64>,
     #[serde(rename = "timestamp", skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<i32>,
+    pub timestamp: Option<i64>,
     #[serde(rename = "transactions", skip_serializing_if = "Option::is_none")]
     pub transactions: Option<Vec<models::VcTxModel>>,
 }
 
 impl VcBlockModel {
-    pub fn new(hash: String, blue_score: i32) -> VcBlockModel {
+    pub fn new(hash: String, blue_score: i64) -> VcBlockModel {
         VcBlockModel {
             hash,
             blue_score,

@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTxScriptPublicKey {
     #[serde(rename = "version")]
-    pub version: i32,
+    pub version: i64,
     #[serde(rename = "scriptPublicKey")]
     pub script_public_key: String,
 }
 
 impl SubmitTxScriptPublicKey {
-    pub fn new(version: i32, script_public_key: String) -> SubmitTxScriptPublicKey {
+    pub fn new(version: i64, script_public_key: String) -> SubmitTxScriptPublicKey {
         SubmitTxScriptPublicKey {
             version,
             script_public_key,

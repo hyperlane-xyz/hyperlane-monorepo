@@ -14,15 +14,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TxMass {
     #[serde(rename = "mass")]
-    pub mass: i32,
+    pub mass: i64,
     #[serde(rename = "storage_mass")]
-    pub storage_mass: i32,
+    pub storage_mass: i64,
     #[serde(rename = "compute_mass")]
-    pub compute_mass: i32,
+    pub compute_mass: i64,
 }
 
 impl TxMass {
-    pub fn new(mass: i32, storage_mass: i32, compute_mass: i32) -> TxMass {
+    pub fn new(mass: i64, storage_mass: i64, compute_mass: i64) -> TxMass {
         TxMass {
             mass,
             storage_mass,

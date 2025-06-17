@@ -18,9 +18,9 @@ pub struct BlockTxInputModel {
     #[serde(rename = "signatureScript", skip_serializing_if = "Option::is_none")]
     pub signature_script: Option<String>,
     #[serde(rename = "sigOpCount", skip_serializing_if = "Option::is_none")]
-    pub sig_op_count: Option<i32>,
+    pub sig_op_count: Option<i64>,
     #[serde(rename = "sequence", skip_serializing_if = "Option::is_none")]
-    pub sequence: Option<i32>,
+    pub sequence: Option<i64>,
 }
 
 impl BlockTxInputModel {

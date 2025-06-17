@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTxOutput {
     #[serde(rename = "amount")]
-    pub amount: i32,
+    pub amount: i64,
     #[serde(rename = "scriptPublicKey")]
     pub script_public_key: Box<models::SubmitTxScriptPublicKey>,
 }
 
 impl SubmitTxOutput {
-    pub fn new(amount: i32, script_public_key: models::SubmitTxScriptPublicKey) -> SubmitTxOutput {
+    pub fn new(amount: i64, script_public_key: models::SubmitTxScriptPublicKey) -> SubmitTxOutput {
         SubmitTxOutput {
             amount,
             script_public_key: Box::new(script_public_key),

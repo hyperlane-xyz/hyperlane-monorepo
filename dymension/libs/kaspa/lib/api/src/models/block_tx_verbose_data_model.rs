@@ -18,11 +18,11 @@ pub struct BlockTxVerboseDataModel {
     #[serde(rename = "hash", skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
     #[serde(rename = "computeMass", skip_serializing_if = "Option::is_none")]
-    pub compute_mass: Option<i32>,
+    pub compute_mass: Option<i64>,
     #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<String>,
     #[serde(rename = "blockTime", skip_serializing_if = "Option::is_none")]
-    pub block_time: Option<i32>,
+    pub block_time: Option<i64>,
 }
 
 impl BlockTxVerboseDataModel {

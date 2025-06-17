@@ -26,15 +26,15 @@ pub struct TxModel {
     #[serde(rename = "block_hash", skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<Vec<String>>,
     #[serde(rename = "block_time", skip_serializing_if = "Option::is_none")]
-    pub block_time: Option<i32>,
+    pub block_time: Option<i64>,
     #[serde(rename = "is_accepted", skip_serializing_if = "Option::is_none")]
     pub is_accepted: Option<bool>,
     #[serde(rename = "accepting_block_hash", skip_serializing_if = "Option::is_none")]
     pub accepting_block_hash: Option<String>,
     #[serde(rename = "accepting_block_blue_score", skip_serializing_if = "Option::is_none")]
-    pub accepting_block_blue_score: Option<i32>,
+    pub accepting_block_blue_score: Option<i64>,
     #[serde(rename = "accepting_block_time", skip_serializing_if = "Option::is_none")]
-    pub accepting_block_time: Option<i32>,
+    pub accepting_block_time: Option<i64>,
     #[serde(rename = "inputs", skip_serializing_if = "Option::is_none")]
     pub inputs: Option<Vec<models::TxInput>>,
     #[serde(rename = "outputs", skip_serializing_if = "Option::is_none")]

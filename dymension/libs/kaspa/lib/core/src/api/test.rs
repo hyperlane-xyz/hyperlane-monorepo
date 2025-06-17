@@ -48,10 +48,12 @@ mod tests {
         // Lower Bound: 1749505399
         // Upper Bound: 1749508710
         // let lower_bound = Some(1i32);
-        // let lower_bound = Some(1749505399i32);
-        // let upper_bound = Some(1749508710i32);
-        let lower_bound = Some(0i32);
-        let upper_bound = Some(0i32);
+        let lower_bound = Some(1749505399i32);
+        let upper_bound = Some(1749508710i32);
+        // let lower_bound = Some(0i64);
+        // let upper_bound = Some(0i64);
+
+        // 1 749 572 304 176
         // let upper_bound = None;
 
         // TODO: there is some kind of bug..

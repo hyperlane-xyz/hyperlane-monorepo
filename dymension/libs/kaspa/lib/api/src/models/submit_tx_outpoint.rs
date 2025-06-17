@@ -16,11 +16,11 @@ pub struct SubmitTxOutpoint {
     #[serde(rename = "transactionId")]
     pub transaction_id: String,
     #[serde(rename = "index")]
-    pub index: i32,
+    pub index: i64,
 }
 
 impl SubmitTxOutpoint {
-    pub fn new(transaction_id: String, index: i32) -> SubmitTxOutpoint {
+    pub fn new(transaction_id: String, index: i64) -> SubmitTxOutpoint {
         SubmitTxOutpoint {
             transaction_id,
             index,

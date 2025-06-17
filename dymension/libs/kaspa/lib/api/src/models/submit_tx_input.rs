@@ -18,13 +18,13 @@ pub struct SubmitTxInput {
     #[serde(rename = "signatureScript")]
     pub signature_script: String,
     #[serde(rename = "sequence")]
-    pub sequence: i32,
+    pub sequence: i64,
     #[serde(rename = "sigOpCount")]
-    pub sig_op_count: i32,
+    pub sig_op_count: i64,
 }
 
 impl SubmitTxInput {
-    pub fn new(previous_outpoint: models::SubmitTxOutpoint, signature_script: String, sequence: i32, sig_op_count: i32) -> SubmitTxInput {
+    pub fn new(previous_outpoint: models::SubmitTxOutpoint, signature_script: String, sequence: i64, sig_op_count: i64) -> SubmitTxInput {
         SubmitTxInput {
             previous_outpoint: Box::new(previous_outpoint),
             signature_script,

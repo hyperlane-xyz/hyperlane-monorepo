@@ -16,17 +16,17 @@ pub struct VcTxInput {
     #[serde(rename = "previous_outpoint_hash")]
     pub previous_outpoint_hash: String,
     #[serde(rename = "previous_outpoint_index")]
-    pub previous_outpoint_index: i32,
+    pub previous_outpoint_index: i64,
     #[serde(rename = "previous_outpoint_script", skip_serializing_if = "Option::is_none")]
     pub previous_outpoint_script: Option<String>,
     #[serde(rename = "previous_outpoint_address", skip_serializing_if = "Option::is_none")]
     pub previous_outpoint_address: Option<String>,
     #[serde(rename = "previous_outpoint_amount", skip_serializing_if = "Option::is_none")]
-    pub previous_outpoint_amount: Option<i32>,
+    pub previous_outpoint_amount: Option<i64>,
 }
 
 impl VcTxInput {
-    pub fn new(previous_outpoint_hash: String, previous_outpoint_index: i32) -> VcTxInput {
+    pub fn new(previous_outpoint_hash: String, previous_outpoint_index: i64) -> VcTxInput {
         VcTxInput {
             previous_outpoint_hash,
             previous_outpoint_index,

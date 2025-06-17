@@ -14,19 +14,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTxModel {
     #[serde(rename = "version")]
-    pub version: i32,
+    pub version: i64,
     #[serde(rename = "inputs")]
     pub inputs: Vec<models::SubmitTxInput>,
     #[serde(rename = "outputs")]
     pub outputs: Vec<models::SubmitTxOutput>,
     #[serde(rename = "lockTime", skip_serializing_if = "Option::is_none")]
-    pub lock_time: Option<i32>,
+    pub lock_time: Option<i64>,
     #[serde(rename = "subnetworkId", skip_serializing_if = "Option::is_none")]
     pub subnetwork_id: Option<String>,
 }
 
 impl SubmitTxModel {
-    pub fn new(version: i32, inputs: Vec<models::SubmitTxInput>, outputs: Vec<models::SubmitTxOutput>) -> SubmitTxModel {
+    pub fn new(version: i64, inputs: Vec<models::SubmitTxInput>, outputs: Vec<models::SubmitTxOutput>) -> SubmitTxModel {
         SubmitTxModel {
             version,
             inputs,

@@ -18,7 +18,7 @@ pub struct EndpointsGetHashrateBlockHeader {
     #[serde(rename = "timestamp", skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
     #[serde(rename = "difficulty", skip_serializing_if = "Option::is_none")]
-    pub difficulty: Option<i32>,
+    pub difficulty: Option<i64>,
     #[serde(rename = "daaScore", skip_serializing_if = "Option::is_none")]
     pub daa_score: Option<String>,
     #[serde(rename = "blueScore", skip_serializing_if = "Option::is_none")]

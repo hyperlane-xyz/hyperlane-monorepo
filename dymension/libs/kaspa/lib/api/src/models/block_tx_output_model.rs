@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BlockTxOutputModel {
     #[serde(rename = "amount", skip_serializing_if = "Option::is_none")]
-    pub amount: Option<i32>,
+    pub amount: Option<i64>,
     #[serde(rename = "scriptPublicKey", skip_serializing_if = "Option::is_none")]
     pub script_public_key: Option<Box<models::BlockTxOutputScriptPublicKeyModel>>,
     #[serde(rename = "verboseData", skip_serializing_if = "Option::is_none")]

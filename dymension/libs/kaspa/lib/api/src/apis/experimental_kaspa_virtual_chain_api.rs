@@ -25,7 +25,7 @@ pub enum GetVirtualChainTransactionsVirtualChainGetError {
 
 
 /// EXPERIMENTAL - EXPECT BREAKING CHANGES: Get virtual chain transactions by blue score.
-pub async fn get_virtual_chain_transactions_virtual_chain_get(configuration: &configuration::Configuration, blue_score_gte: i32, limit: Option<i32>, resolve_inputs: Option<bool>, include_coinbase: Option<bool>) -> Result<Vec<models::VcBlockModel>, Error<GetVirtualChainTransactionsVirtualChainGetError>> {
+pub async fn get_virtual_chain_transactions_virtual_chain_get(configuration: &configuration::Configuration, blue_score_gte: i64, limit: Option<i64>, resolve_inputs: Option<bool>, include_coinbase: Option<bool>) -> Result<Vec<models::VcBlockModel>, Error<GetVirtualChainTransactionsVirtualChainGetError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_blue_score_gte = blue_score_gte;
     let p_limit = limit;

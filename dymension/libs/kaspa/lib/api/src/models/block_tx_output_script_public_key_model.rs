@@ -16,7 +16,7 @@ pub struct BlockTxOutputScriptPublicKeyModel {
     #[serde(rename = "scriptPublicKey", skip_serializing_if = "Option::is_none")]
     pub script_public_key: Option<String>,
     #[serde(rename = "version", skip_serializing_if = "Option::is_none")]
-    pub version: Option<i32>,
+    pub version: Option<i64>,
 }
 
 impl BlockTxOutputScriptPublicKeyModel {

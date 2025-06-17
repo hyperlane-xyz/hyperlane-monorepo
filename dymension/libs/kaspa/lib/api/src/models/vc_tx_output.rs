@@ -18,11 +18,11 @@ pub struct VcTxOutput {
     #[serde(rename = "script_public_key_address")]
     pub script_public_key_address: String,
     #[serde(rename = "amount")]
-    pub amount: i32,
+    pub amount: i64,
 }
 
 impl VcTxOutput {
-    pub fn new(script_public_key: String, script_public_key_address: String, amount: i32) -> VcTxOutput {
+    pub fn new(script_public_key: String, script_public_key_address: String, amount: i64) -> VcTxOutput {
         VcTxOutput {
             script_public_key,
             script_public_key_address,

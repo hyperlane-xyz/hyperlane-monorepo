@@ -16,7 +16,7 @@ pub struct BalancesByAddressEntry {
     #[serde(rename = "address", skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
     #[serde(rename = "balance", skip_serializing_if = "Option::is_none")]
-    pub balance: Option<i32>,
+    pub balance: Option<i64>,
 }
 
 impl BalancesByAddressEntry {

@@ -132,7 +132,7 @@ pub async fn get_blocks_blocks_get(configuration: &configuration::Configuration,
 }
 
 /// Lists blocks of a given blueScore
-pub async fn get_blocks_from_bluescore_blocks_from_bluescore_get(configuration: &configuration::Configuration, blue_score: Option<i32>, include_transactions: Option<bool>) -> Result<Vec<models::BlockModel>, Error<GetBlocksFromBluescoreBlocksFromBluescoreGetError>> {
+pub async fn get_blocks_from_bluescore_blocks_from_bluescore_get(configuration: &configuration::Configuration, blue_score: Option<i64>, include_transactions: Option<bool>) -> Result<Vec<models::BlockModel>, Error<GetBlocksFromBluescoreBlocksFromBluescoreGetError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_blue_score = blue_score;
     let p_include_transactions = include_transactions;
