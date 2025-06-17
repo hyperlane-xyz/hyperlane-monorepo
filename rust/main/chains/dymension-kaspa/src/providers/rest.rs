@@ -2,13 +2,6 @@ use std::future::Future;
 use std::time::Instant;
 
 
-use tendermint_rpc::{
-    endpoint::{
-        block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-        tx::Response as TxResponse,
-    },
-    Error,
-};
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -19,6 +12,8 @@ use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use url::Url;
+
+use dym_kas_core::api::deposits::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
@@ -136,25 +131,25 @@ impl RestProvider {
         res.map_err(|e| ChainCommunicationError::from(HyperlaneKaspaError::from(e)))
     }
 
-    /// Get the transaction by hash
-    pub async fn get_tx(&self, hash: &H512) -> ChainResult<TxResponse> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
+    // /// Get the transaction by hash
+    // pub async fn get_tx(&self, hash: &H512) -> ChainResult<TxResponse> {
+    //     return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    // }
 
-    /// Get the block by height
-    pub async fn get_block(&self, height: u32) -> ChainResult<BlockResponse> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
+    // /// Get the block by height
+    // pub async fn get_block(&self, height: u32) -> ChainResult<BlockResponse> {
+    //     return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    // }
 
-    /// Get the block results by height
-    pub async fn get_block_results(&self, height: u32) -> ChainResult<BlockResultsResponse> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
+    // /// Get the block results by height
+    // pub async fn get_block_results(&self, height: u32) -> ChainResult<BlockResultsResponse> {
+    //     return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    // }
 
-    /// Returns the denom balance of that address. Will use the denom specified as the canonical asset in the config
-    pub async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
+    // /// Returns the denom balance of that address. Will use the denom specified as the canonical asset in the config
+    // pub async fn get_balance(&self, address: String) -> ChainResult<U256> {
+    //     return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    // }
 
     /// Gets a signer, or returns an error if one is not available.
     pub fn get_signer(&self) -> ChainResult<&Signer> {
