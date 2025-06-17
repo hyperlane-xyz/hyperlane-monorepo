@@ -1,7 +1,7 @@
-mod grpc;
 mod kaspa;
-mod rpc;
+mod rest;
+mod wrpc;
 
-pub use grpc::*;
 pub use kaspa::KaspaProvider;
-pub use rpc::*;
+pub use rest::*;
+pub use wrpc::*;

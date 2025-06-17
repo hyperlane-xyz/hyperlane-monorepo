@@ -75,6 +75,7 @@ where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
     S: HyperlaneLogStore<T> + Clone + 'static,
 {
+   // TODO: need to lock store? 
     let deduped_logs = HashSet::<_>::from_iter(logs);
     let logs = Vec::from_iter(deduped_logs);
 
