@@ -94,6 +94,13 @@ impl Clone for KaspaHttpClient {
     }
 }
 
+#[async_trait]
+impl BlockNumberGetter for RestProvider {
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+    }
+}
+
 impl RestProvider {
     /// Returns a new Rpc Provider
     pub fn new(
@@ -111,7 +118,6 @@ impl RestProvider {
                 KaspaHttpClient::from_url(url, metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
-
 
         Ok(RestProvider {
             client: clients[0].clone(),
@@ -173,9 +179,5 @@ impl RestProvider {
     }
 }
 
-#[async_trait]
-impl BlockNumberGetter for RestProvider {
-    async fn get_block_number(&self) -> ChainResult<u64> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
-    }
+impl RestProvider {
 }
