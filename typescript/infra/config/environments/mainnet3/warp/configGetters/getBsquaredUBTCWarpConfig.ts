@@ -1,4 +1,10 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
@@ -11,9 +17,10 @@ const safeOwners: ChainMap<Address> = {
   swell: '0xC11e22A31787394950B31e2DEb1d2b5546689B65',
   boba: '0x207FfFa7325fC5d0362aB01605D84B268b61888f',
   soneium: '0x8433e6e9183B5AAdaf4b52c624B963D95956e3C9',
+  nibiru: '0x2D439F9B80F7f5010A577B25E1Ec9d84C4e69e4E',
 };
 
-export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
+export const getBsquaredUBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const boba: HypTokenRouterConfig = {
@@ -27,6 +34,15 @@ export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
     owner: safeOwners.bsquared,
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
+  };
+
+  const nibiru: HypTokenRouterConfig = {
+    mailbox: routerConfig.nibiru.mailbox,
+    owner: safeOwners.nibiru,
+    type: TokenType.synthetic,
+    name: 'uBTC',
+    symbol: 'uBTC',
+    decimals: 18,
   };
 
   const soneium: HypTokenRouterConfig = {
@@ -44,7 +60,35 @@ export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
   return {
     boba,
     bsquared,
+    nibiru,
     soneium,
     swell,
   };
 };
+
+export function getUbtcOwnerConfigGenerator(safes: ChainMap<Address>) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(safes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter:
+            chain === 'nibiru'
+              ? {
+                  type: TxSubmitterType.JSON_RPC,
+                  chain,
+                }
+              : {
+                  type: TxSubmitterType.GNOSIS_TX_BUILDER,
+                  version: '1.0',
+                  chain,
+                  safeAddress,
+                },
+        },
+      ]),
+    );
+  };
+}
+
+export const getUbtcGnosisSafeBuilderStrategyConfigGenerator =
+  getUbtcOwnerConfigGenerator(safeOwners);

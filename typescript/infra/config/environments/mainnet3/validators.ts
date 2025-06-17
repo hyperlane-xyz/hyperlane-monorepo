@@ -1255,16 +1255,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    arthera: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('arthera'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x13710ac11c36c169f62fba95767ae59a1e57098d'],
-        },
-        'arthera',
-      ),
-    },
     aurora: {
       interval: 5,
       reorgPeriod: getReorgPeriod('aurora'),
@@ -1293,16 +1283,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3'],
         },
         'conwai',
-      ),
-    },
-    corn: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('corn'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xc80b2e3e38220e02d194a0effa9d5bfe89894c07'],
-        },
-        'corn',
       ),
     },
     evmos: {
@@ -1510,16 +1490,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
         },
         'abstract',
-      ),
-    },
-    glue: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('glue'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xbe2ded12f7b023916584836506677ea89a0b6924'],
-        },
-        'glue',
       ),
     },
     matchain: {
