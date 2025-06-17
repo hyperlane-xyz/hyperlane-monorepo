@@ -28,6 +28,7 @@ use hyperlane_base::{
     cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
+    settings::build_kaspa_provider,
     settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
@@ -568,7 +569,35 @@ impl BaseAgent for Relayer {
                 // TODO: run monitor
                 let kdb = self.dbs.get(origin).unwrap();
 
-                tasks.push(run_kas_monitor(origin.clone(), kdb.clone(), task_monitor.clone(), provider).await);
+                // 1. Get the specific ChainConf for Kaspa from the agent's settings.
+                let kaspa_chain_conf = self
+                    .core
+                    .settings
+                    .chain_setup(origin)
+                    .expect("Kaspa chain configuration must exist.");
+
+                // 2. Call your new, concrete builder method.
+                //    This returns `Result<KaspaProvider<...>>`, not `Result<Box<dyn ...>>`.
+                // let kaspa_provider = kaspa_chain_conf.build_provider
+                let kaspa_provider = build_kaspa_provider(
+                    &kaspa_chain_conf,
+                    &kaspa_chain_conf.connection,
+                    &self.core_metrics,
+                    &kaspa_chain_conf.addresses,
+                    None,
+                )
+                .await
+                .expect("Failed to build Kaspa provider");
+
+                tasks.push(
+                    run_kas_monitor(
+                        origin.clone(),
+                        kdb.clone(),
+                        task_monitor.clone(),
+                        kaspa_provider,
+                    )
+                    .await,
+                );
 
                 // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(

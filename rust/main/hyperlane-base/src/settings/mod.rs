@@ -74,6 +74,7 @@ mod envs {
     pub use hyperlane_ethereum as h_eth;
     pub use hyperlane_fuel as h_fuel;
     pub use hyperlane_sealevel as h_sealevel;
+    pub use dymension_kaspa as h_kaspa;
 }
 
 /// AWS Credentials provider.
@@ -81,6 +82,7 @@ pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
 mod chains;
+pub use chains::build_kaspa_provider;
 pub mod loader;
 /// Signer configuration
 mod signers;

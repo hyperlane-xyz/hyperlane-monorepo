@@ -1392,7 +1392,9 @@ fn build_cosmos_native_provider(
     )
 }
 
-fn build_kaspa_provider(
+// TODO: pubb??
+/// docsdkfjlskdf
+pub fn build_kaspa_provider(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
