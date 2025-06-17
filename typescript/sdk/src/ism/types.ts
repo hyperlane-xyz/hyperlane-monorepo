@@ -55,6 +55,7 @@ export enum IsmType {
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AMOUNT_ROUTING = 'amountRoutingIsm',
+  INTERCHAIN_ACCOUNT_ROUTING = 'interchainAccountRouting',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
@@ -68,7 +69,6 @@ export enum IsmType {
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
-  ICA = 'icaIsm',
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
 }
 
@@ -94,7 +94,7 @@ export const STATIC_ISM_TYPES = [
 
 export const DYNAMICALLY_ROUTED_ISM_TYPES = [
   IsmType.AMOUNT_ROUTING,
-  IsmType.ICA,
+  IsmType.INTERCHAIN_ACCOUNT_ROUTING,
 ] as const;
 
 /** Type guard for dynamically routed ISM types */
@@ -110,6 +110,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
     case IsmType.AMOUNT_ROUTING:
+    case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -135,8 +136,6 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
-    case IsmType.ICA:
-      return ModuleType.ROUTING;
   }
 }
 
@@ -162,7 +161,6 @@ export type TrustedRelayerIsmConfig = z.infer<
 >;
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
-export type IcaIsmConfig = z.infer<typeof IcaIsmConfigSchema>;
 
 export type OffchainLookupIsmConfig = z.infer<
   typeof OffchainLookupIsmConfigSchema
@@ -176,7 +174,11 @@ export type NullIsmConfig =
   | CCIPIsmConfig;
 
 type BaseRoutingIsmConfig<
-  T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.AMOUNT_ROUTING,
+  T extends
+    | IsmType.ROUTING
+    | IsmType.FALLBACK_ROUTING
+    | IsmType.AMOUNT_ROUTING
+    | IsmType.INTERCHAIN_ACCOUNT_ROUTING,
 > = {
   type: T;
 };
@@ -185,6 +187,14 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
   IsmType.ROUTING | IsmType.FALLBACK_ROUTING
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
+
+export const InterchainAccountRouterIsmSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.INTERCHAIN_ACCOUNT_ROUTING),
+  isms: z.record(ZHash),
+});
+export type InterchainAccountRouterIsm = z.infer<
+  typeof InterchainAccountRouterIsmSchema
+>;
 
 export type AmountRoutingIsmConfig =
   BaseRoutingIsmConfig<IsmType.AMOUNT_ROUTING> & {
@@ -196,7 +206,7 @@ export type AmountRoutingIsmConfig =
 export type RoutingIsmConfig =
   | DomainRoutingIsmConfig
   | AmountRoutingIsmConfig
-  | IcaIsmConfig;
+  | InterchainAccountRouterIsm;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -227,8 +237,8 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
-  [IsmType.ICA]: InterchainAccountRouter;
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
+  [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -296,10 +306,6 @@ export const PausableIsmConfigSchema = PausableSchema.and(
   }),
 );
 
-export const IcaIsmConfigSchema = z.object({
-  type: z.literal(IsmType.ICA),
-});
-
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({
     type: z.union([
@@ -337,6 +343,7 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
         type: z.literal(IsmType.FALLBACK_ROUTING),
         domains: z.record(IsmConfigSchema),
       }),
+      InterchainAccountRouterIsmSchema,
     ]),
 );
 
@@ -365,5 +372,5 @@ export const IsmConfigSchema = z.union([
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
-  IcaIsmConfigSchema,
+  InterchainAccountRouterIsmSchema,
 ]);

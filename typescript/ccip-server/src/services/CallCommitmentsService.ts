@@ -18,9 +18,7 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   addressToBytes32,
   bytes32ToAddress,
-  ensure0x,
   messageId,
-  parseMessage,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';

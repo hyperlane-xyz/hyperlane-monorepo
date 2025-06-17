@@ -28,7 +28,7 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
-  IcaIsmConfig,
+  InterchainAccountRouterIsm,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
@@ -186,9 +186,11 @@ describe('EvmIsmReader', () => {
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
 
-    const expectedConfig: WithAddress<IcaIsmConfig> = {
+    const expectedConfig: WithAddress<InterchainAccountRouterIsm> = {
       address: mockAddress,
-      type: IsmType.ICA,
+      type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+      isms: {},
+      owner: mockOwner,
     };
 
     // top-level method infers ism type

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::types::{Block, H256 as EthersH256};
+use ethers::types::{Block, H160, H256 as EthersH256};
 use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use ethers_core::abi::Function;
@@ -87,7 +87,7 @@ where
 
 /// Methods of provider which are used in submitter
 #[async_trait]
-pub trait EvmProviderForSubmitter: Send + Sync {
+pub trait EvmProviderForLander: Send + Sync {
     /// Get the transaction receipt for a given transaction hash
     async fn get_transaction_receipt(
         &self,
@@ -117,7 +117,11 @@ pub trait EvmProviderForSubmitter: Send + Sync {
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
     /// Get the next nonce to use for a given address (using the finalized block)
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256>;
 
     /// Get the fee history
     async fn fee_history(
@@ -134,11 +138,11 @@ pub trait EvmProviderForSubmitter: Send + Sync {
     ) -> ChainResult<ZksyncEstimateFeeResponse>;
 
     /// Get default sender
-    fn default_sender(&self) -> Option<Address>;
+    fn get_signer(&self) -> Option<H160>;
 }
 
 #[async_trait]
-impl<M> EvmProviderForSubmitter for EthereumProvider<M>
+impl<M> EvmProviderForLander for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
@@ -200,9 +204,19 @@ where
         Ok(success)
     }
 
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256> {
+        let finalized_block_number = self.get_finalized_block_number(reorg_period).await?;
         self.provider
-            .get_transaction_count(*address, Some(BlockId::Number(BlockNumber::Finalized)))
+            .get_transaction_count(
+                *address,
+                Some(BlockId::Number(BlockNumber::Number(
+                    finalized_block_number.into(),
+                ))),
+            )
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(Into::into)
@@ -231,7 +245,7 @@ where
             .map_err(ChainCommunicationError::from_other)
     }
 
-    fn default_sender(&self) -> Option<Address> {
+    fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
     }
 }
@@ -350,7 +364,7 @@ where
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?
         else {
-            tracing::trace!(domain=?self.domain, "Latest block not found");
+            tracing::trace!(domain=?self.domain.name(), "Latest block not found");
             return Ok(None);
         };
 
@@ -394,7 +408,7 @@ pub struct SubmitterProviderBuilder {}
 
 #[async_trait]
 impl BuildableWithProvider for SubmitterProviderBuilder {
-    type Output = Box<dyn EvmProviderForSubmitter>;
+    type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 
     // the submitter does not use the ethers submission middleware.
@@ -410,7 +424,7 @@ impl BuildableWithProvider for SubmitterProviderBuilder {
         _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumProvider::new(
+        Arc::new(EthereumProvider::new(
             Arc::new(provider),
             locator.domain.clone(),
         ))

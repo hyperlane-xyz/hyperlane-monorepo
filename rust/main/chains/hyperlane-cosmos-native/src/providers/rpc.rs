@@ -439,7 +439,7 @@ impl RpcProvider {
 
 #[async_trait]
 impl BlockNumberGetter for RpcProvider {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         self.provider
             .call(|client| {
                 let future = async move { client.get_block_number().await };

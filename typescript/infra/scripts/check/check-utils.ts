@@ -198,12 +198,19 @@ export async function getGovernor(
     if (!warpRouteId) {
       warpRouteId = await getWarpRouteIdInteractive();
     }
+
     const config = await getWarpConfig(
       multiProvider,
       envConfig,
       warpRouteId,
       registryUris,
-    );
+    ).catch((error) => {
+      console.log(
+        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,
+      );
+      process.exit(0);
+    });
+
     const warpAddresses = await getWarpAddressesFrom(warpRouteId, registryUris);
 
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config

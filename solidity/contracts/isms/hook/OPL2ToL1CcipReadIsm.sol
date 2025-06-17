@@ -40,6 +40,7 @@ interface OpL2toL1Service {
 abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     using Message for bytes;
     using TypeCasts for address;
+    using TypeCasts for bytes32;
     using OPL2ToL1Withdrawal for IOptimismPortal.WithdrawalTransaction;
 
     // the OP Portal contract on L1
@@ -70,9 +71,9 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external override returns (bool) {
         if (_isProve(_message)) {
-            _proveWithdrawal(_message.id(), _metadata);
+            _proveWithdrawal(_message, _metadata);
         } else {
-            _finalizeWithdrawal(_message.id(), _metadata);
+            _finalizeWithdrawal(_message, _metadata);
         }
 
         return true;
@@ -83,7 +84,7 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     ) internal view virtual returns (bool);
 
     function _proveWithdrawal(
-        bytes32 messageId,
+        bytes calldata _message,
         bytes calldata _metadata
     ) internal {
         (
@@ -102,7 +103,12 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
             );
 
         require(
-            _tx.proveMessageId() == messageId,
+            _tx.sender == _message.sender().bytes32ToAddress(),
+            "OPL2ToL1CcipReadIsm: sender mismatch"
+        );
+
+        require(
+            _tx.proveMessageId() == _message.id(),
             "OPL2ToL1CcipReadIsm: prove message id mismatch"
         );
 
@@ -125,7 +131,7 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
     ) internal view virtual returns (bool);
 
     function _finalizeWithdrawal(
-        bytes32 messageId,
+        bytes calldata _message,
         bytes calldata _metadata
     ) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
@@ -134,7 +140,12 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
         );
 
         require(
-            _tx.finalizeMessageId() == messageId,
+            _tx.sender == _message.sender().bytes32ToAddress(),
+            "OPL2ToL1CcipReadIsm: sender mismatch"
+        );
+
+        require(
+            _tx.finalizeMessageId() == _message.id(),
             "OPL2ToL1CcipReadIsm: finalize message id mismatch"
         );
 
