@@ -23,6 +23,12 @@ async function startServer() {
   app.use(cors());
   app.use(express.json() as express.RequestHandler);
 
+  if (getEnabledModules().length === 0) {
+    console.warn(
+      '⚠️  No modules enabled. Set ENABLED_MODULES environment variable to mount services.',
+    );
+  }
+
   // Dynamically mount only modules listed in the ENABLED_MODULES env var
   for (const name of getEnabledModules()) {
     try {
