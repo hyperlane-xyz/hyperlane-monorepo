@@ -20,24 +20,4 @@ clap = { workspace = true }
 # log = { workspace = true }
 tracing = { workspace = true }
 # reqwest = { workspace = true }
-
-# Crates required by the generated code
-async-trait = "0.1"
-bytes = "0.5"
-thiserror = "1.0"
-futures = "0.3"
-http = "0.2"
-lazy_static = "1.4"
-log = "0.4"
-mime = { git = "https://github.com/hyperium/mime" }
-mime_guess = "2.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.8"
-tokio-util = { version = "0.4", features = ["codec"] }
-url = "2.1"
-tokio = { version = "0.3", features = ["fs", "io-util", "macros", "rt-multi-thread"] }
-reqwest = { version = "0.10", features = ["stream", "json"] }
-
-[build-dependencies]
-paperclip = { version = "0.9.5", features = ["v3", "codegen"] }
+openapi = { path = "../api" }
