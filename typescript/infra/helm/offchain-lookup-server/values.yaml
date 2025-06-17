@@ -13,7 +13,6 @@ secrets:
   # List all secrets which are fetched from the Google Secret Store
   secret_envs:
     - DATABASE_URL
-    - EXAMPLE
 
 # Ingress / Loadbalancer
 # Needs external coordination with Google Cloud External IP and DNS provider
