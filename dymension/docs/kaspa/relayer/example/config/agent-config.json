@@ -69,12 +69,18 @@
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "rpcUrls" :[
+      "rpcUrls": [
         {
           "http": "http://localhost:16201"
         }
       ]
     }
   },
-  "defaultRpcConsensusType": "fallback"
+  "defaultRpcConsensusType": "fallback",
+  "origin_chains": [
+    "kaspatest10"
+  ],
+  "destination_chains": [
+    "kaspatest10"
+  ]
 }

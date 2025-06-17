@@ -22,6 +22,7 @@ mod libs;
 pub mod hack;
 
 // Direct reexports of lib stuff:
+pub use dym_kas_core;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
 

@@ -36,6 +36,11 @@ log = "0.4.20"
 faster-hex = "0.9.0"
 bip39 = "2.1.0"
 workflow-core = { version = "0.18.0" }
+tracing = { version = "0.1" }
+tracing-error = "0.2"
+tracing-futures = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false }
+tracing-test = "0.2.2"
 
 # HYPERLANE
 axum = "0.8.4"

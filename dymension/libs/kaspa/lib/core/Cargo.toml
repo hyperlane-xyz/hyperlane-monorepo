@@ -18,3 +18,4 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
+tracing = { workspace = true }

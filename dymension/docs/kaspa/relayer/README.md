@@ -41,7 +41,7 @@ export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff
 
 cargo run --release --bin relayer -- \
     --db $HL_DB_RELAYER \
-    --relayChains dymension,kaspatest10 \
+    --relayChains kaspatest10 \
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key  $HYP_KEY \
     --metrics-port 9091 \

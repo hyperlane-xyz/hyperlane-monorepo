@@ -818,6 +818,7 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "secp256k1",
+ "tracing",
  "workflow-core",
 ]
 
