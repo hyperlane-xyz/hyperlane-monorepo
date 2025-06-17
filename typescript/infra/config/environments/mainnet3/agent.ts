@@ -25,6 +25,7 @@ import {
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  matchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
@@ -32,7 +33,7 @@ import {
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, mustBeValidContext } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
+import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
@@ -674,9 +675,23 @@ const vanguardMatchingList = [
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
   const warpContexts = Object.values(WarpRouteIds).map((warpRouteId) => {
+    let warpMatchingList = undefined;
+
+    // oUSDT has Ink as a remote router but Ink doesn't have any limits set yet.
+    // Some people have been sending to Ink outside the UI, so to reduce alert noise
+    // we remove Ink from the matching list.
+    // TODO: once Ink has limits set, we should remove this.
+    if (warpRouteId === WarpRouteIds.oUSDT) {
+      const ousdtAddresses = getWarpAddresses(warpRouteId);
+      delete ousdtAddresses['ink'];
+      warpMatchingList = matchingList(ousdtAddresses);
+    } else {
+      warpMatchingList = warpRouteMatchingList(warpRouteId);
+    }
+
     return {
       name: warpRouteId,
-      matchingList: warpRouteMatchingList(warpRouteId),
+      matchingList: warpMatchingList,
     };
   });
 
