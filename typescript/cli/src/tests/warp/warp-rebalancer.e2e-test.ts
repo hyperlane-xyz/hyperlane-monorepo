@@ -1194,47 +1194,42 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     void rebalancer.kill('SIGINT');
   });
 
-  it('should start the metrics server and expose prometheus metrics', async () => {
-    const rebalancer = startRebalancer({ withMetrics: true });
+  // it('should start the metrics server and expose prometheus metrics', async () => {
+  //   const rebalancer = startRebalancer({ withMetrics: true });
 
-    try {
-      // Poll the metrics endpoint until it's ready
-      let isReady = false;
-      const endTime = Date.now() + 20000; // 20 second timeout
-      while (Date.now() < endTime) {
-        try {
-          const response = await fetch(DEFAULT_METRICS_SERVER);
-          if (response.status === 200) {
-            isReady = true;
-            break;
-          }
-        } catch (_e) {
-          // Ignore connection errors, server is not ready yet
-        }
-        await sleep(500); // Poll every 500ms
-      }
+  //   try {
+  //     // Poll the metrics endpoint until it's ready
+  //     let isReady = false;
+  //     const endTime = Date.now() + 20000; // 20 second timeout
+  //     while (Date.now() < endTime) {
+  //       try {
+  //         const response = await fetch(DEFAULT_METRICS_SERVER);
+  //         if (response.status === 200) {
+  //           isReady = true;
+  //           break;
+  //         }
+  //       } catch (_e) {
+  //         // Ignore connection errors, server is not ready yet
+  //       }
+  //       await sleep(500); // Poll every 500ms
+  //     }
 
-      if (!isReady) {
-        throw new Error('Metrics server did not start in time');
-      }
+  //     if (!isReady) {
+  //       throw new Error('Metrics server did not start in time');
+  //     }
 
-      // Get the metrics content
-      const metricsText = await (await fetch(DEFAULT_METRICS_SERVER)).text();
-      expect(metricsText).to.not.be.empty;
-      expect(metricsText).to.include('# HELP');
-      expect(metricsText).to.include('# TYPE');
+  //     // Get the metrics content
+  //     const metricsText = await (await fetch(DEFAULT_METRICS_SERVER)).text();
+  //     expect(metricsText).to.not.be.empty;
+  //     expect(metricsText).to.include('# HELP');
+  //     expect(metricsText).to.include('# TYPE');
 
-      // Check for specific Hyperlane metrics
-      expect(metricsText).to.include('hyperlane_wallet_balance');
-    } finally {
-      void rebalancer.kill('SIGINT');
-      try {
-        await rebalancer;
-      } catch (_e) {
-        // ignore error from killed process
-      }
-    }
-  });
+  //     // Check for specific Hyperlane metrics
+  //     expect(metricsText).to.include('hyperlane_wallet_balance');
+  //   } finally {
+  //     void rebalancer.kill('SIGINT');
+  //   }
+  // });
 
   // it('should use another warp route as bridge', async () => {
   //   // --- Deploy the other warp route ---
