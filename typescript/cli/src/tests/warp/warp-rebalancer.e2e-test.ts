@@ -2,7 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
-import { $ } from 'zx';
+import { $, ProcessPromise } from 'zx';
 
 import {
   ERC20,
@@ -45,7 +45,6 @@ import {
   createSnapshot,
   deployOrUseExistingCore,
   deployToken,
-  getCombinedWarpRoutePath,
   getTokenAddressFromWarpConfig,
   hyperlaneRelayer,
   restoreSnapshot,
@@ -90,6 +89,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   let tokenChain2: ERC20;
   let tokenChain3: ERC20;
 
+  let warpRouteDeployConfig: WarpRouteDeployConfig;
+
   before(async () => {
     ogVerbose = $.verbose;
     $.verbose = false;
@@ -123,7 +124,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     warpDeploymentPath = `${basePath}-deploy.yaml`;
     warpCoreConfigPath = `${basePath}-config.yaml`;
 
-    const warpRouteDeployConfig: WarpRouteDeployConfig = {
+    warpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: tokenChain2.address,
@@ -173,6 +174,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         ),
       ),
     ]);
+
+    $.verbose = ogVerbose;
   });
 
   after(() => {
@@ -180,6 +183,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   beforeEach(async () => {
+    // This is a workaround for the global e2e-test.setup.ts which cleans up
+    // the warp route configs before each test.
+    writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
+    writeYamlOrJson(warpCoreConfigPath, warpCoreConfig);
+
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       strategy: {
@@ -246,7 +254,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       amount?: string;
       key?: string;
     } = {},
-  ) {
+  ): ProcessPromise {
     const {
       checkFrequency = CHECK_FREQUENCY,
       withMetrics = false,
@@ -297,7 +305,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       key,
     } = options;
 
-    const process = startRebalancer({
+    const rebalancer = startRebalancer({
       checkFrequency,
       withMetrics,
       monitorOnly,
@@ -329,7 +337,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       }, timeout);
 
       // Handle when the process exits due to an error that is not the expected log
-      process.catch((e) => {
+      rebalancer.catch((e) => {
         const lines = e.lines();
         const error = lines[lines.length - 1];
 
@@ -342,10 +350,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       });
       (async () => {
         // Wait for the process to output the expected log.
-        for await (let chunk of process.stdout) {
+        for await (let chunk of rebalancer.stdout) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
-
-          console.log(chunk);
 
           if (chunk.includes(expectedLogs[0])) {
             expectedLogs.shift();
@@ -357,10 +363,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           }
         }
       })().catch(reject);
-    }).finally(() => {
+    }).finally(async () => {
       // Perform a cleanup at the end
       clearTimeout(timeoutId);
-      void process.kill();
+      // Kill the process and wait for it to exit to prevent hangs
+      void rebalancer.kill('SIGINT');
     });
   }
 
@@ -1073,7 +1080,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(destBalance.toString()).to.equal(toWei(15));
 
     // Kill the process to finish the test
-    await rebalancer.kill();
+    void rebalancer.kill('SIGINT');
+    // try {
+    //   await rebalancer;
+    // } catch (_e) {
+    //   // ignore error from killed process
+    // }
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(
@@ -1176,20 +1188,25 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should not find any metrics server when metrics are not enabled', async () => {
-    const process = startRebalancer({ withMetrics: false });
+    const rebalancer = startRebalancer({ withMetrics: false });
 
     // Give the server some time to start
     // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
     await sleep(3500);
 
     // Check that metrics endpoint is not responding
-    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
+    await expect(fetch(DEFAULT_METRICS_SERVER)).to.be.rejected;
 
-    await process.kill();
+    void rebalancer.kill('SIGINT');
+    // try {
+    //   await rebalancer;
+    // } catch (_e) {
+    //   // ignore error from killed process
+    // }
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
-    const process = startRebalancer({ withMetrics: true });
+    const rebalancer = startRebalancer({ withMetrics: true });
 
     // Give the server some time to start
     // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
@@ -1208,16 +1225,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Check for specific Hyperlane metrics
     expect(metricsText).to.include('hyperlane_wallet_balance');
 
-    await process.kill();
+    void rebalancer.kill('SIGINT');
+    // try {
+    //   await rebalancer;
+    // } catch (_e) {
+    //   // ignore error from killed process
+    // }
   });
 
   it('should use another warp route as bridge', async () => {
     // --- Deploy the other warp route ---
 
-    const otherWarpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const otherWarpRouteId = createWarpRouteConfigId(
+      tokenSymbol,
+      [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
+    );
+    const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
+    const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
+
     const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
@@ -1232,16 +1257,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
-    writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
-    await hyperlaneWarpDeploy(otherWarpDeploymentPath);
+    writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
+    await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
 
     const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
-      otherWarpDeploymentPath,
-    );
-
-    const chain2WarpAddress = getTokenAddressFromWarpConfig(
-      warpCoreConfig,
-      CHAIN_NAME_2,
+      otherWarpCoreConfigPath,
     );
 
     const chain2BridgeAddress = getTokenAddressFromWarpConfig(
@@ -1264,7 +1284,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     const chain2Contract = HypERC20Collateral__factory.connect(
-      chain2WarpAddress,
+      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
       chain2Signer,
     );
 
@@ -1277,12 +1297,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     await chain2Contract.addBridge(
       chain3Metadata.domainId,
-      getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_2),
+      chain2BridgeAddress,
     );
 
     await chain3Contract.addBridge(
       chain2Metadata.domainId,
-      getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_3),
+      chain3BridgeAddress,
     );
 
     // --- Fund warp route bridge collaterals ---
@@ -1308,10 +1328,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: getTokenAddressFromWarpConfig(
-              otherWarpCoreConfig,
-              CHAIN_NAME_2,
-            ),
+            bridge: chain2BridgeAddress,
             bridgeLockTime: 60,
             bridgeIsWarp: true,
           },
@@ -1320,10 +1337,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '75',
               tolerance: '0',
             },
-            bridge: getTokenAddressFromWarpConfig(
-              otherWarpCoreConfig,
-              CHAIN_NAME_3,
-            ),
+            bridge: chain3BridgeAddress,
             bridgeLockTime: 60,
             bridgeIsWarp: true,
           },
@@ -1334,7 +1348,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // --- Start relayer ---
     const relayer = hyperlaneRelayer(
       [CHAIN_NAME_2, CHAIN_NAME_3],
-      otherWarpDeploymentPath,
+      otherWarpCoreConfigPath,
     );
 
     await sleep(2000);
@@ -1345,19 +1359,19 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         [
           'Rebalancer started successfully 🚀',
           'Found rebalancing routes',
-          'Preparing all rebalance transactions',
-          'Preparing transaction for route',
-          'Estimating gas for all prepared transactions',
-          'Sending valid transactions',
-          'Sending transaction for route',
-          'Transaction confirmed for route',
+          '{ numRoutes: 1 } Preparing all rebalance transactions',
+          '} Preparing transaction for route',
+          '{ numTransactions: 1 } Estimating gas for all prepared transactions',
+          '{ numTransactions: 1 } Sending valid transactions',
+          '} Sending transaction for route',
+          '} Transaction confirmed for route',
           '✅ Rebalance successful',
           'No routes to execute',
         ],
         { timeout: 30000, checkFrequency: 1000 },
       );
     } finally {
-      await relayer.kill();
+      void relayer.kill();
     }
   });
 
@@ -1525,7 +1539,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
 
       // Kill the process to finish the test
-      await rebalancer.kill();
+      void rebalancer.kill('SIGINT');
+      // try {
+      //   await rebalancer;
+      // } catch (_e) {
+      //   // ignore error from killed process
+      // }
 
       // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
       await startRebalancerAndExpectLog(
@@ -1533,13 +1552,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
     });
 
-    it.only('should use another warp route as bridge', async () => {
+    it('should use another warp route as bridge', async () => {
       // --- Deploy the other warp route ---
 
-      const otherWarpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_2,
-        CHAIN_NAME_3,
-      ]);
+      const otherWarpRouteId = createWarpRouteConfigId(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
+      );
+      const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
+      const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
+
       const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
@@ -1554,11 +1576,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           owner: ANVIL_DEPLOYER_ADDRESS,
         },
       };
-      writeYamlOrJson(otherWarpDeploymentPath, otherWarpRouteDeployConfig);
-      await hyperlaneWarpDeploy(otherWarpDeploymentPath);
+      writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
+      await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
 
       const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
-        otherWarpDeploymentPath,
+        otherWarpCoreConfigPath,
+      );
+
+      const chain2BridgeAddress = getTokenAddressFromWarpConfig(
+        otherWarpCoreConfig,
+        CHAIN_NAME_2,
+      );
+      const chain3BridgeAddress = getTokenAddressFromWarpConfig(
+        otherWarpCoreConfig,
+        CHAIN_NAME_3,
       );
 
       const chain2Signer = new Wallet(
@@ -1585,32 +1616,25 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       await chain2Contract.addBridge(
         chain3Metadata.domainId,
-        getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_2),
+        chain2BridgeAddress,
       );
 
       await chain3Contract.addBridge(
         chain2Metadata.domainId,
-        getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_3),
+        chain3BridgeAddress,
       );
 
       // --- Fund warp route bridge collaterals ---
-
       await (
         await tokenChain2
           .connect(chain2Signer)
-          .transfer(
-            getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_2),
-            toWei(10),
-          )
+          .transfer(chain2BridgeAddress, toWei(10))
       ).wait();
 
       await (
         await tokenChain3
           .connect(chain3Signer)
-          .transfer(
-            getTokenAddressFromWarpConfig(otherWarpCoreConfig, CHAIN_NAME_3),
-            toWei(10),
-          )
+          .transfer(chain3BridgeAddress, toWei(10))
       ).wait();
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, {
@@ -1623,10 +1647,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
                 weight: '25',
                 tolerance: '0',
               },
-              bridge: getTokenAddressFromWarpConfig(
-                otherWarpCoreConfig,
-                CHAIN_NAME_2,
-              ),
+              bridge: chain2BridgeAddress,
               bridgeLockTime: 60,
               bridgeIsWarp: true,
             },
@@ -1635,10 +1656,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
                 weight: '75',
                 tolerance: '0',
               },
-              bridge: getTokenAddressFromWarpConfig(
-                otherWarpCoreConfig,
-                CHAIN_NAME_3,
-              ),
+              bridge: chain3BridgeAddress,
               bridgeLockTime: 60,
               bridgeIsWarp: true,
             },
@@ -1647,16 +1665,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       });
 
       // --- Start relayer ---
-
       const relayer = hyperlaneRelayer(
         [CHAIN_NAME_2, CHAIN_NAME_3],
-        otherWarpDeploymentPath,
+        otherWarpCoreConfigPath,
       );
 
       await sleep(2000);
 
       // --- Start rebalancer ---
-
       try {
         await startRebalancerAndExpectLog(
           [
@@ -1692,7 +1708,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           { timeout: 90000, monitorOnly: true },
         );
       } finally {
-        await relayer.kill();
+        void relayer.kill();
       }
     });
   });
