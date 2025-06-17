@@ -6,6 +6,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
+use tracing::instrument;
 use {
     hyperlane_base::cache::{FunctionCallCache, NoParams},
     tracing::warn,
@@ -52,6 +53,7 @@ pub struct MessageMetadataBuilder {
 ///                 MessageMetadataBuilder
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
+    #[instrument(err, skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,

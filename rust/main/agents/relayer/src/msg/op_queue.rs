@@ -59,7 +59,7 @@ impl OpQueue {
         if !popped.is_empty() {
             debug!(
                 queue_label = %self.queue_metrics_label,
-                operations = ?popped,
+                operations = ?popped.iter().map(|p| p.id()).collect::<Vec<_>>(),
                 "Popped OpQueue operations"
             );
         }

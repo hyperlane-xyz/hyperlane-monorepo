@@ -57,7 +57,16 @@ impl Default for HyperlaneMessage {
 
 impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HyperlaneMessage {{ id: {:?} }}", self.id(),)
+        write!(
+            f,
+            "HyperlaneMessage {{ id: {:?}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {} }}",
+            self.id(),
+            self.nonce,
+            fmt_domain(self.origin),
+            fmt_address_for_domain(self.origin, self.sender),
+            fmt_domain(self.destination),
+            fmt_address_for_domain(self.destination, self.recipient),
+        )
     }
 }
 

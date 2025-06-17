@@ -4,6 +4,7 @@ use derive_new::new;
 use hyperlane_base::cache::FunctionCallCache;
 
 use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
+use tracing::instrument;
 
 use super::{
     base::MessageMetadataBuildParams, IsmCachePolicy, MessageMetadataBuilder, Metadata,
@@ -18,6 +19,7 @@ pub struct RoutingIsmMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[instrument(err, skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,
