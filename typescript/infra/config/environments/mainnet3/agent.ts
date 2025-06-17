@@ -75,7 +75,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -96,7 +95,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -118,7 +116,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -228,7 +225,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -249,7 +245,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -271,7 +266,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -381,7 +375,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -402,7 +395,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -424,7 +416,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -628,6 +619,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
+      // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
+      { destinationDomain: getDomainId('starknet') },
+      { destinationDomain: getDomainId('paradex') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -814,7 +808,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b18655-20250606-081749',
+      tag: '420c950-20250612-172436',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -828,7 +822,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7be388b-20250606-101916',
+      tag: '420c950-20250612-172436',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -839,7 +833,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '76fbe71-20250605-134618',
+      tag: '420c950-20250612-172436',
     },
     resources: scraperResources,
   },
@@ -854,7 +848,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '76fbe71-20250605-134618',
+      tag: '420c950-20250612-172436',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -919,7 +913,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '24fe342-20250424-164437',
+      tag: '420c950-20250612-172436',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs

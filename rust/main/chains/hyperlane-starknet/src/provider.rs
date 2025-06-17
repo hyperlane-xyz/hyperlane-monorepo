@@ -7,10 +7,10 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use starknet::core::types::{
-    BlockId, BlockTag, FieldElement, FunctionCall, InvokeTransaction,
-    MaybePendingBlockWithTxHashes, MaybePendingTransactionReceipt, Transaction, TransactionReceipt,
+    BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePendingBlockWithTxHashes,
+    Transaction, TransactionReceipt,
 };
-use starknet::macros::{felt, selector};
+use starknet::macros::selector;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use tracing::instrument;
@@ -23,6 +23,7 @@ use crate::{ConnectionConf, HyperlaneStarknetError};
 pub struct StarknetProvider {
     rpc_client: Arc<AnyProvider>,
     domain: HyperlaneDomain,
+    fee_token_address: Felt,
 }
 
 impl StarknetProvider {
@@ -31,9 +32,12 @@ impl StarknetProvider {
         let provider =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
 
+        // Fee token address is used to check balances
+        let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
         Self {
             domain,
             rpc_client: Arc::new(provider),
+            fee_token_address,
         }
     }
 
@@ -82,10 +86,7 @@ impl HyperlaneProvider for StarknetProvider {
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
         let tx = self
             .rpc_client()
-            .get_transaction_by_hash(
-                FieldElement::from_byte_slice_be(hash.as_bytes())
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            )
+            .get_transaction_by_hash(Felt::from_bytes_be_slice(hash.as_bytes()))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
@@ -95,13 +96,10 @@ impl HyperlaneProvider for StarknetProvider {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        let receipt = match receipt {
-            MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(invoke_receipt)) => {
-                invoke_receipt
-            }
+        let receipt = match receipt.receipt {
+            TransactionReceipt::Invoke(invoke_receipt) => invoke_receipt,
             _ => {
-                // TODO: better error handling
-                return Err(HyperlaneStarknetError::InvalidBlock.into());
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
             }
         };
 
@@ -142,7 +140,7 @@ impl HyperlaneProvider for StarknetProvider {
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
             gas_price: Some(gas_paid),
-            nonce: nonce.unwrap_or(FieldElement::ZERO).try_into().unwrap(), // safe to unwrap because we know the nonce fits in a u64
+            nonce: nonce.unwrap_or(Felt::ZERO).try_into().unwrap(), // safe to unwrap because we know the nonce fits in a u64
             sender: HyH256::from(sender).0,
             recipient,
             raw_input_data: Some(calldata.into_iter().flat_map(|f| f.to_bytes_be()).collect()),
@@ -161,18 +159,13 @@ impl HyperlaneProvider for StarknetProvider {
 
     #[instrument(err, skip(self))]
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        // ETH token address
-        // cc https://docs.starknet.io/tools/important-addresses/
-        let eth_token_address =
-            felt!("0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7");
-
         let call_result = self
             .rpc_client()
             .call(
                 FunctionCall {
-                    contract_address: eth_token_address,
+                    contract_address: self.fee_token_address,
                     entry_point_selector: selector!("balanceOf"),
-                    calldata: vec![FieldElement::from_dec_str(&address)
+                    calldata: vec![Felt::from_dec_str(&address)
                         .map_err(Into::<HyperlaneStarknetError>::into)?],
                 },
                 BlockId::Tag(BlockTag::Latest),

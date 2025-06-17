@@ -39,7 +39,7 @@ async function main() {
   const storageLocations = await validatorAnnounce.getAnnouncedStorageLocations(
     [validator],
   );
-  const storageLocation = storageLocations[0][0];
+  const storageLocation = storageLocations[0][storageLocations[0].length - 1];
   const validatorInstance =
     await getValidatorFromStorageLocation(storageLocation);
   const latestCheckpointIndex =

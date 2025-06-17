@@ -65,8 +65,9 @@ impl DispatcherState {
         let adapter = AdapterFactory::build(
             &settings.chain_conf,
             &settings.raw_chain_conf,
-            &settings.metrics,
             rocksdb.clone(),
+            &settings.metrics,
+            metrics.clone(),
         )
         .await?;
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;

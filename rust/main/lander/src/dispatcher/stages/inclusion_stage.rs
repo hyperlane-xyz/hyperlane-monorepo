@@ -200,25 +200,8 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
-        // TODO: simulating the transaction is commented out for now, because
-        // on SVM the tx is simulated in the `submit` call.
-        // let simulation_success = call_until_success_or_nonretryable_error(
-        //     || state.adapter.simulate_tx(&tx),
-        //     "Simulating transaction",
-        //     state,
-        // )
-        // .await
-        // // if simulation fails or hits a non-retryable error, drop the tx
-        // .unwrap_or(false);
-        // if !simulation_success {
-        //     warn!(?tx, "Transaction simulation failed");
-        //     return Err(eyre!("Transaction simulation failed"));
-        // }
-        // info!(?tx, "Transaction simulation succeeded");
 
         // Estimating transaction just before we submit it
-        // TODO we will need to re-classify `ChainCommunicationError` into `LanderError::EstimateError` in the future.
-        // At the moment, both errors are non-retryable, so we can keep them as is.
         tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
@@ -233,17 +216,20 @@ impl InclusionStage {
         )
         .await?;
 
+        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
+        // set by previous retries when calling `adapter.submit`
+        let tx_shared = Arc::new(Mutex::new(tx.clone()));
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
         tx = call_until_success_or_nonretryable_error(
             || {
-                let tx_clone = tx.clone();
+                let tx_shared_clone = tx_shared.clone();
                 async move {
-                    let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.submit(&mut tx_clone_inner).await?;
-                    Ok(tx_clone_inner)
+                    let mut tx_guard = tx_shared_clone.lock().await;
+                    state.adapter.submit(&mut tx_guard).await?;
+                    Ok(tx_guard.clone())
                 }
             },
             "Submitting transaction",
@@ -257,6 +243,9 @@ impl InclusionStage {
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
+        state
+            .adapter
+            .update_vm_specific_metrics(&tx, &state.metrics);
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
