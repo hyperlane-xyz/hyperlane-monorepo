@@ -158,7 +158,7 @@ describe('SmartProvider', async () => {
     try {
       await token.transfer(constants.AddressZero, 1000000);
     } catch (e: any) {
-      expect(e.error.cause.code).to.equal('UNPREDICTABLE_GAS_LIMIT');
+      expect(e.error.cause.code).to.equal(EthersError.UNPREDICTABLE_GAS_LIMIT);
       expect(e.error.message).to.equal(
         'execution reverted: ERC20: transfer to the zero address',
       );
@@ -176,7 +176,7 @@ describe('SmartProvider', async () => {
     try {
       await token.transfer(signer.address, 1000000);
     } catch (e: any) {
-      expect(e.error.cause.code).to.equal('UNPREDICTABLE_GAS_LIMIT');
+      expect(e.error.cause.code).to.equal(EthersError.UNPREDICTABLE_GAS_LIMIT);
       expect(e.error.message).to.equal(
         'execution reverted: ERC20: transfer amount exceeds balance',
       );
@@ -197,7 +197,7 @@ describe('SmartProvider', async () => {
         value: balance.add(1),
       });
     } catch (e: any) {
-      expect(e.cause.code).to.equal('INSUFFICIENT_FUNDS');
+      expect(e.cause.code).to.equal(EthersError.INSUFFICIENT_FUNDS);
       expect(e.message).to.equal(
         'insufficient funds for intrinsic transaction cost',
       );
