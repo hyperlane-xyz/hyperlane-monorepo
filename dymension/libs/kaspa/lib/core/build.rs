@@ -1,17 +1,30 @@
+// use paperclip::v2::{
+//     self,
+//     codegen::{DefaultEmitter, Emitter, EmitterState},
+//     models::{DefaultSchema, ResolvableApi},
+// };
+
+use paperclip::v3::{
+    self,
+    codegen::{DefaultEmitter, Emitter, EmitterState},
+    models::{DefaultSchema, ResolvableApi},
+};
+
+use std::env;
+use std::fs::File;
+
 fn main() {
-    let src = "./src/query/generated/openapi.json";
-    println!("cargo:rerun-if-changed={}", src);
-    let file = std::fs::File::open(src).unwrap();
-    let spec = serde_json::from_reader(file).unwrap();
-    let mut generator = progenitor::Generator::default();
+    let fd = File::open("./src/query/openapi.json").expect("schema?");
+    let raw: ResolvableApi<DefaultSchema> = v3::from_reader(fd).expect("deserializing spec");
+    let schema = raw.resolve().expect("resolution");
 
-    let tokens = generator.generate_tokens(&spec).unwrap();
-    let ast = syn::parse2(tokens).unwrap();
-    let content = prettyplease::unparse(&ast);
+    let o="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/lib/core/src/query/generated";
+    let out_dir = env::var(o).unwrap();
+    let mut state = EmitterState::default();
+    // set prefix for using generated code inside `codegen` module (see main.rs).
+    state.mod_prefix = "crate::codegen::";
+    state.working_dir = out_dir.into();
 
-    let p = "/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/lib/core/src/query/generated";
-    let mut out_file = std::path::Path::new(p).to_path_buf();
-    out_file.push("codegen.rs");
-
-    std::fs::write(out_file, content).unwrap();
+    let emitter = DefaultEmitter::from(state);
+    emitter.generate(&schema).expect("codegen");
 }

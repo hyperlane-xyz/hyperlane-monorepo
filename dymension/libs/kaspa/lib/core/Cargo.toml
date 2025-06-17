@@ -17,18 +17,27 @@ kaspa-txscript = { workspace = true }
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 clap = { workspace = true }
-log = { workspace = true }
+# log = { workspace = true }
 tracing = { workspace = true }
 # reqwest = { workspace = true }
 
+# Crates required by the generated code
+async-trait = "0.1"
+bytes = "0.5"
+thiserror = "1.0"
 futures = "0.3"
-progenitor-client = { git = "https://github.com/oxidecomputer/progenitor" }
-reqwest = { version = "0.12", features = ["json", "stream"] }
+http = "0.2"
+lazy_static = "1.4"
+log = "0.4"
+mime = { git = "https://github.com/hyperium/mime" }
+mime_guess = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.8"
+tokio-util = { version = "0.4", features = ["codec"] }
+url = "2.1"
+tokio = { version = "0.3", features = ["fs", "io-util", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.10", features = ["stream", "json"] }
 
 [build-dependencies]
-prettyplease = "0.2.22"
-progenitor = { git = "https://github.com/oxidecomputer/progenitor" }
-serde_json = "1.0"
-syn = "2.0"
+paperclip = { version = "0.9.5", features = ["v3", "codegen"] }
