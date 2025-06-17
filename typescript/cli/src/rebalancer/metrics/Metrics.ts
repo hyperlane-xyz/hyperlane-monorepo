@@ -1,7 +1,6 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
@@ -47,7 +46,6 @@ export class Metrics implements IMetrics {
     'function XERC20() view returns (address)',
     'function ERC20() view returns (address)',
   ] as const;
-  private readonly collateralTokenSymbol: string;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
@@ -55,9 +53,6 @@ export class Metrics implements IMetrics {
     private readonly warpCore: WarpCore,
     private readonly warpRouteId: string,
   ) {
-    this.collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
-      warpCore.tokens,
-    );
     startMetricsServer(metricsRegister);
   }
 
@@ -134,7 +129,7 @@ export class Metrics implements IMetrics {
           this.warpCore,
           token,
           balanceInfo,
-          this.collateralTokenSymbol,
+          this.warpRouteId,
         );
       }, 'Getting bridged balance and value'),
     ];
@@ -146,7 +141,10 @@ export class Metrics implements IMetrics {
     if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
       promises.push(
         tryFn(async () => {
-          const balance = await this.getSealevelAtaPayerBalance(token);
+          const balance = await this.getSealevelAtaPayerBalance(
+            token,
+            this.warpRouteId,
+          );
 
           updateNativeWalletBalanceMetrics(balance);
         }, 'Getting ATA payer balance'),
@@ -238,7 +236,7 @@ export class Metrics implements IMetrics {
                 tokenAddress,
                 lockbox.lockbox,
                 balance,
-                this.collateralTokenSymbol,
+                this.warpRouteId,
               );
             }
           }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
@@ -308,6 +306,7 @@ export class Metrics implements IMetrics {
   // Only intended for Collateral or Synthetic Sealevel tokens.
   private async getSealevelAtaPayerBalance(
     token: Token,
+    warpRouteId: string,
   ): Promise<NativeWalletBalance> {
     if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
       throw new Error(
@@ -325,11 +324,6 @@ export class Metrics implements IMetrics {
     const ataPayerBalance = await nativeToken.getBalance(
       this.warpCore.multiProvider,
       ataPayer,
-    );
-
-    const warpRouteId = createWarpRouteConfigId(
-      token.symbol,
-      this.warpCore.getTokenChains(),
     );
 
     return {

@@ -1,6 +1,5 @@
 import { Counter, Gauge, Registry } from 'prom-client';
 
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -13,7 +12,7 @@ import {
 
 export const metricsRegister = new Registry();
 
-type supportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
+type SupportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
 
 interface BaseWarpRouteMetricLabels {
   chain_name: ChainName;
@@ -24,7 +23,7 @@ interface BaseWarpRouteMetricLabels {
 
 interface WarpRouteMetricLabels extends BaseWarpRouteMetricLabels {
   wallet_address: string;
-  token_standard: supportedTokenStandards;
+  token_standard: SupportedTokenStandards;
   related_chain_names: string;
 }
 
@@ -54,7 +53,7 @@ const warpRouteCollateralValue = new Gauge({
 
 interface WarpRouteValueAtRiskMetricLabels extends BaseWarpRouteMetricLabels {
   collateral_chain_name: ChainName;
-  collateral_token_standard: supportedTokenStandards;
+  collateral_token_standard: SupportedTokenStandards;
 }
 
 const warpRouteValueAtRiskMetricLabels: (keyof WarpRouteValueAtRiskMetricLabels)[] =
@@ -135,7 +134,7 @@ export function updateTokenBalanceMetrics(
   warpCore: WarpCore,
   token: Token,
   balanceInfo: WarpRouteBalance,
-  collateralTokenSymbol: string,
+  warpRouteId: string,
 ) {
   const allChains = warpCore.getTokenChains().sort();
   const relatedChains = allChains.filter(
@@ -156,10 +155,7 @@ export function updateTokenBalanceMetrics(
     token_standard:
       // as we are reporting the total supply for clarity we report the standard as xERC20
       token.standard !== TokenStandard.EvmHypXERC20 ? token.standard : 'xERC20',
-    warp_route_id: createWarpRouteConfigId(
-      collateralTokenSymbol,
-      warpCore.getTokenChains(),
-    ),
+    warp_route_id: warpRouteId,
     // TODO: consider deprecating this label given that we have the value at risk metric
     related_chain_names: relatedChains.join(','),
   };
@@ -214,7 +210,7 @@ export function updateManagedLockboxBalanceMetrics(
   tokenAddress: string,
   lockBoxAddress: string,
   balanceInfo: WarpRouteBalance,
-  collateralTokenSymbol: string,
+  warpRouteId: string,
 ) {
   const metrics: WarpRouteMetricLabels = {
     chain_name: chainName,
@@ -222,10 +218,7 @@ export function updateManagedLockboxBalanceMetrics(
     token_name: tokenName,
     wallet_address: lockBoxAddress,
     token_standard: 'EvmManagedLockbox', // TODO: we should eventually a new TokenStandard for this
-    warp_route_id: createWarpRouteConfigId(
-      collateralTokenSymbol,
-      warpCore.getTokenChains(),
-    ),
+    warp_route_id: warpRouteId,
     related_chain_names: warpCore
       .getTokenChains()
       .filter((_chainName) => _chainName !== chainName)
