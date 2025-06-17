@@ -368,6 +368,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       clearTimeout(timeoutId);
       // Kill the process and wait for it to exit to prevent hangs
       void rebalancer.kill('SIGINT');
+      try {
+        await rebalancer;
+      } catch (_e) {
+        // ignore error from killed process
+      }
     });
   }
 
@@ -1081,11 +1086,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Kill the process to finish the test
     void rebalancer.kill('SIGINT');
-    // try {
-    //   await rebalancer;
-    // } catch (_e) {
-    //   // ignore error from killed process
-    // }
+    try {
+      await rebalancer;
+    } catch (_e) {
+      // ignore error from killed process
+    }
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(
@@ -1198,11 +1203,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await expect(fetch(DEFAULT_METRICS_SERVER)).to.be.rejected;
 
     void rebalancer.kill('SIGINT');
-    // try {
-    //   await rebalancer;
-    // } catch (_e) {
-    //   // ignore error from killed process
-    // }
+    try {
+      await rebalancer;
+    } catch (_e) {
+      // ignore error from killed process
+    }
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
@@ -1226,11 +1231,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(metricsText).to.include('hyperlane_wallet_balance');
 
     void rebalancer.kill('SIGINT');
-    // try {
-    //   await rebalancer;
-    // } catch (_e) {
-    //   // ignore error from killed process
-    // }
+    try {
+      await rebalancer;
+    } catch (_e) {
+      // ignore error from killed process
+    }
   });
 
   it('should use another warp route as bridge', async () => {
@@ -1372,6 +1377,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
     } finally {
       void relayer.kill();
+      try {
+        await relayer;
+      } catch (_e) {
+        // ignore error from killed process
+      }
     }
   });
 
@@ -1540,11 +1550,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Kill the process to finish the test
       void rebalancer.kill('SIGINT');
-      // try {
-      //   await rebalancer;
-      // } catch (_e) {
-      //   // ignore error from killed process
-      // }
+      try {
+        await rebalancer;
+      } catch (_e) {
+        // ignore error from killed process
+      }
 
       // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
       await startRebalancerAndExpectLog(
@@ -1709,6 +1719,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         );
       } finally {
         void relayer.kill();
+        try {
+          await relayer;
+        } catch (_e) {
+          // ignore error from killed process
+        }
       }
     });
   });
