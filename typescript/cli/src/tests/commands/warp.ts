@@ -235,12 +235,13 @@ export function hyperlaneWarpRebalancer(
   origin?: string,
   destination?: string,
   amount?: string,
+  key?: string,
 ): ProcessPromise {
   return $`LOG_LEVEL=debug LOG_FORMAT=pretty yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
-        --key ${ANVIL_KEY} \
+        --key ${key ?? ANVIL_KEY} \
         --verbosity debug \
         --withMetrics ${withMetrics ? ['true'] : ['false']} \
         --monitorOnly ${monitorOnly ? ['true'] : ['false']} \

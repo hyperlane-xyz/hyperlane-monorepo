@@ -233,6 +233,23 @@ export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
 };
 
 /**
+ * Retrieves the token address for a given chain from a warp config object.
+ * @param config The warp core config object.
+ * @param chainName The name of the chain.
+ * @returns The address of the token contract.
+ */
+export function getTokenAddressFromWarpConfig(
+  config: WarpCoreConfig,
+  chainName: string,
+): Address {
+  const tokenConfig = config.tokens.find((t) => t.chainName === chainName);
+  if (!tokenConfig || !tokenConfig.addressOrDenom) {
+    throw new Error(`Could not find token config for ${chainName}`);
+  }
+  return tokenConfig.addressOrDenom;
+}
+
+/**
  * Retrieves the deployed Warp address from the Warp core config.
  */
 export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
