@@ -1,44 +1,33 @@
 use std::future::Future;
 use std::time::Instant;
 
-use cosmrs::{
-    proto::cosmos::{
-        auth::v1beta1::{BaseAccount, QueryAccountRequest, QueryAccountResponse},
-        bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse},
-        tx::v1beta1::{SimulateRequest, SimulateResponse, TxRaw},
-    },
-    rpc::HttpClient,
-    tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
-    Any, Coin,
-};
-use hyperlane_cosmos_rs::prost::Message;
-use tendermint::{hash::Algorithm, Hash};
+
 use tendermint_rpc::{
-    client::CompatMode,
     endpoint::{
         block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-        broadcast::tx_commit, tx::Response as TxResponse,
+        tx::Response as TxResponse,
     },
-    Client, Error,
+    Error,
 };
 use tonic::async_trait;
 
 use hyperlane_core::{
-    h512_to_bytes,
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
-    ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
+    rpc_clients::BlockNumberGetter,
+    ChainCommunicationError, ChainResult, FixedPointNumber, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use url::Url;
 
-use crate::{ConnectionConf, HyperlaneKaspaError, KaspaAmount, Signer};
+use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
-use super::kaspa::KaspaFallbackProvider;
+use dym_kas_core::query::deposits::*;
+
 
 #[derive(Debug)]
 struct KaspaHttpClient {
+    client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
 }
@@ -65,6 +54,7 @@ impl KaspaHttpClient {
         metrics.increment_provider_instance(chain_name);
 
         Self {
+            client: HttpClient::new(),
             metrics,
             metrics_config,
         }
