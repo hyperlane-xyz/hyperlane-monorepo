@@ -85,8 +85,9 @@ export async function runPreflightChecksForChains({
   logGreen('✅ Chains are valid');
 
   await nativeBalancesAreSufficient(
-    multiProtocolProvider!,
-    multiProtocolSigner!,
+    multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,

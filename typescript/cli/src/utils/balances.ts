@@ -2,7 +2,11 @@ import { GasPrice } from '@cosmjs/stargate';
 import { BigNumber } from 'bignumber.js';
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProtocolProvider,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
@@ -11,6 +15,7 @@ import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiPr
 import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
+  multiProvider: MultiProvider,
   multiProtocolProvider: MultiProtocolProvider,
   multiProtocolSigner: MultiProtocolSignerManager,
   chains: ChainName[],
@@ -18,7 +23,6 @@ export async function nativeBalancesAreSufficient(
   skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
-  const multiProvider = await multiProtocolSigner.getMultiProvider();
   for (const chain of chains) {
     const protocolType = multiProvider.getProtocol(chain);
 
