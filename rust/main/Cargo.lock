@@ -2539,6 +2539,7 @@ dependencies = [
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
  "log",
+ "reqwest 0.11.27",
  "secp256k1 0.29.1",
  "tracing",
  "workflow-core",

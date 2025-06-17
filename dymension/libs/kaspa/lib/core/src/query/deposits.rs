@@ -10,11 +10,16 @@ pub fn get_deposits() -> Vec<Deposit> {
 
 #[derive(Debug)]
 pub struct HttpClient{
+    client: reqwest::Client,
 
 }
 
 impl HttpClient {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            client: reqwest::Client::new(),
+        }
     }
 }
+
+
