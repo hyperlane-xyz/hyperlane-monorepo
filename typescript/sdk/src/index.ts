@@ -753,6 +753,8 @@ export {
   ForkedChainTransactionConfig,
   EventAssertionType,
   forkedChainConfigByChainFromRaw,
+  RevertAssertion,
+  RevertAssertionSchema,
 } from './fork/types.js';
 export { resolveRouterMapConfig } from './router/types.js';
 export { verifyScale } from './utils/decimals.js';

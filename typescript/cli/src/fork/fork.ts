@@ -10,6 +10,7 @@ import {
   ForkedChainTransactionConfig,
   MultiProvider,
   RawForkedChainConfigByChain,
+  RevertAssertion,
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
 } from '@hyperlane-xyz/sdk';
@@ -176,11 +177,26 @@ async function handleTransactions(
 
     const annotation = transaction.annotation ?? `#${txCounter}`;
     logGray(`Executing transaction on chain ${chainName}: "${annotation}"`);
-    const pendingTx = await signer.sendTransaction({
-      to: transaction.to,
-      data: calldata,
-      value: transaction.value,
-    });
+
+    let pendingTx;
+    try {
+      pendingTx = await signer.sendTransaction({
+        to: transaction.to,
+        data: calldata,
+        value: transaction.value,
+      });
+    } catch (error: any) {
+      if (error.reason && transaction.revertAssertion) {
+        assertRevert(transaction.revertAssertion, error, {
+          chainName: chainName,
+          transactionAnnotation: annotation,
+        });
+        continue;
+      }
+
+      // New unhandled error
+      throw error;
+    }
 
     const txReceipt = await pendingTx.wait();
     if (txReceipt.status == 0) {
@@ -207,6 +223,28 @@ async function handleTransactions(
     txCounter++;
   }
   logGray(`Successfully executed all transactions on chain ${chainName}`);
+}
+
+function assertRevert(
+  revertAssertion: RevertAssertion,
+  error: any,
+  meta: {
+    chainName: string;
+    transactionAnnotation: string;
+  },
+) {
+  // If contract call reverts, then there should be a reason
+  // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
+  if (error.reason !== revertAssertion.reason) {
+    throw new Error(
+      `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
+    );
+  }
+
+  const annotation = revertAssertion.annotation ?? revertAssertion.type;
+  logGray(
+    `Successfully completed revert assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
+  );
 }
 
 function assertEvent(
