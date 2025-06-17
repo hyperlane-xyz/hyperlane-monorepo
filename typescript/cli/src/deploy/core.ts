@@ -99,7 +99,6 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.CosmosNative:
       {
-        await multiProtocolSigner?.initSigner(chain);
         const signer =
           multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
         assert(signer, 'Cosmos Native signer failed!');

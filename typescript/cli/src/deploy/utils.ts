@@ -60,17 +60,12 @@ export async function runPreflightChecksForChains({
 
     let signer: TypedSigner;
 
-    if (metadata.protocol === ProtocolType.Ethereum) {
-      signer = multiProtocolSigner.getEVMSigner(chain)!;
-    }
-
-    await multiProtocolSigner.initSigner(chain);
-
     switch (metadata.protocol) {
       case ProtocolType.Ethereum:
         signer = multiProtocolSigner.getEVMSigner(chain);
         break;
       case ProtocolType.CosmosNative:
+        await multiProtocolSigner.initSigner(chain);
         signer = multiProtocolSigner.getCosmosNativeSigner(chain);
         break;
       default:
