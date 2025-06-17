@@ -2538,6 +2538,7 @@ dependencies = [
  "kaspa-wallet-keys",
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
+ "log",
  "openapi",
  "secp256k1 0.29.1",
  "tracing",

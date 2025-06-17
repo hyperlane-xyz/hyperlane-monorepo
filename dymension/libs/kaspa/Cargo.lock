@@ -816,6 +816,7 @@ dependencies = [
  "kaspa-wallet-keys",
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
+ "log",
  "openapi",
  "secp256k1",
  "tracing",
