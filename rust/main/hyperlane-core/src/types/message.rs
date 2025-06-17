@@ -3,7 +3,10 @@ use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::{Decode, Encode, HyperlaneProtocolError, H256};
+use crate::{
+    utils::{fmt_address_for_domain, fmt_domain},
+    Decode, Encode, HyperlaneProtocolError, H256,
+};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
