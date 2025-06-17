@@ -13,7 +13,6 @@ import {
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
-  TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -28,13 +27,11 @@ export async function runWarpRouteRead({
   chain,
   address,
   symbol,
-  standard,
 }: {
   context: CommandContext;
   chain?: ChainName;
   address?: string;
   symbol?: string;
-  standard?: TokenStandard;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
   const hasTokenSymbol = Boolean(symbol);
   const hasChainAddress = Boolean(chain && address);
@@ -55,19 +52,10 @@ export async function runWarpRouteRead({
 
   const addresses = warpCoreConfig
     ? Object.fromEntries(
-        warpCoreConfig.tokens.map((t) => [
-          t.chainName,
-          {
-            address: t.addressOrDenom!,
-            standard: t.standard,
-          },
-        ]),
+        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       )
     : {
-        [chain!]: {
-          address: address!,
-          standard: standard!,
-        },
+        [chain!]: address!,
       };
 
   return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
@@ -81,13 +69,7 @@ export async function getWarpRouteConfigsByCore({
   warpCoreConfig: WarpCoreConfig;
 }): Promise<DerivedWarpRouteDeployConfig> {
   const addresses = Object.fromEntries(
-    warpCoreConfig.tokens.map((t) => [
-      t.chainName,
-      {
-        address: t.addressOrDenom!,
-        standard: t.standard,
-      },
-    ]),
+    warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
   );
 
   return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
@@ -95,15 +77,12 @@ export async function getWarpRouteConfigsByCore({
 
 async function deriveWarpRouteConfigs(
   context: CommandContext,
-  addresses: ChainMap<{
-    address: string;
-    standard: TokenStandard;
-  }>,
+  addresses: ChainMap<string>,
   warpCoreConfig?: WarpCoreConfig,
 ): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider } = context;
 
-  validateCompatibility(addresses);
+  validateCompatibility(context.multiProvider, addresses);
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -112,8 +91,8 @@ async function deriveWarpRouteConfigs(
 
   // Derive and return warp route config
   return promiseObjAll(
-    objMap(addresses, async (chain, { address, standard }) => {
-      switch (TOKEN_STANDARD_TO_PROTOCOL[standard]) {
+    objMap(addresses, async (chain, address) => {
+      switch (context.multiProvider.getProtocol(chain)) {
         case ProtocolType.Ethereum: {
           return new EvmERC20WarpRouteReader(
             multiProvider,
@@ -130,7 +109,9 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default:
-          logRed(`token standard ${standard} not supported`);
+          logRed(
+            `protocol type ${context.multiProvider.getProtocol(chain)} not supported`,
+          );
           process.exit(1);
       }
     }),
@@ -140,14 +121,12 @@ async function deriveWarpRouteConfigs(
 // Validate that all chains are EVM or Cosmos Native compatible
 // by token standard
 function validateCompatibility(
-  addresses: ChainMap<{
-    address: string;
-    standard: TokenStandard;
-  }>,
+  multiProvider: MultiProvider,
+  addresses: ChainMap<string>,
 ): void {
   const nonCompatibleChains = Object.entries(addresses)
-    .filter(([_, { standard }]) => {
-      const protocol = TOKEN_STANDARD_TO_PROTOCOL[standard];
+    .filter(([chain]) => {
+      const protocol = multiProvider.getProtocol(chain);
       return (
         protocol !== ProtocolType.Ethereum &&
         protocol !== ProtocolType.CosmosNative
