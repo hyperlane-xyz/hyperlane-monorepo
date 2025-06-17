@@ -437,6 +437,11 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences in the hook config between the local and on chain config if it needs to be expanded`, async function () {
+      const WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        await token.symbol(),
+        [WARP_DEPLOY_DEFAULT_FILE_NAME],
+      );
+
       warpDeployConfig[CHAIN_NAME_2].hook = {
         type: HookType.MERKLE_TREE,
       };
@@ -448,11 +453,6 @@ describe('hyperlane warp check e2e tests', async function () {
       const hookAddress = await mailboxInstance.callStatic.defaultHook();
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-      writeYamlOrJson(
-        combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-        warpDeployConfig,
-      );
-
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       const expectedOwner = (await signer.getAddress()).toLowerCase();
@@ -479,7 +479,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpCoreConfigPath: WARP_CORE_CONFIG_PATH,
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
