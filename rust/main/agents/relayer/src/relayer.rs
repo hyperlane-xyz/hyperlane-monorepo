@@ -43,7 +43,7 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
-use dymension_kaspa::hack::{is_kas, run_monitor as kas_run_monitor};
+use hyperlane_base::kass::{is_kas, run_kas_monitor};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -568,7 +568,7 @@ impl BaseAgent for Relayer {
                 // TODO: run monitor
                 let kdb = self.dbs.get(origin).unwrap();
 
-                tasks.push(run_kas_monitor(kdb.clone(), task_monitor.clone()).await);
+                tasks.push(run_kas_monitor(origin.clone(), kdb.clone(), task_monitor.clone()).await);
 
                 // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(
@@ -1425,22 +1425,4 @@ mod test {
             .unwrap();
         assert_eq!(metric.get(), 1);
     }
-}
-
-async fn run_kas_monitor(kdb: HyperlaneRocksDB, task_monitor: TaskMonitor) -> JoinHandle<()> {
-    let name = "foo";
-    tokio::task::Builder::new()
-        .name(name)
-        .spawn(TaskMonitor::instrument(
-            &task_monitor,
-            async move {
-                kas_monitor_task(&kdb).await;
-            }
-            .instrument(info_span!("Kaspa Monitor")),
-        ))
-        .expect("Failed to spawn kaspa monitor task")
-}
-
-async fn kas_monitor_task(kdb: &HyperlaneRocksDB) {
-    kas_run_monitor(kdb).await;
 }

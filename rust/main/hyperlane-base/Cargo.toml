@@ -66,6 +66,7 @@ hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
 
 # dependency version is determined by etheres
 rusoto_core = "*"

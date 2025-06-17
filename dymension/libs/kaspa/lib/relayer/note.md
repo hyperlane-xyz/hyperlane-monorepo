@@ -200,4 +200,56 @@ ISMs are how destination chains verify messages. You only need to implement what
 
 _________
 
-Running
+## Dependencies
+
+```
+.
+├── 📄 agents/relayer/ (Binary Crate)
+│   ├── 📦 hyperlane-base
+│   │   ├── 📦 hyperlane-core
+│   │   │   └── 📦 hyperlane-application
+│   │   ├── 📦 hyperlane-ethereum
+│   │   ├── 📦 hyperlane-fuel
+│   │   ├── 📦 hyperlane-cosmos
+│   │   ├── 📦 hyperlane-cosmos-native
+│   │   │   ├── 📦 hyperlane-core (see above)
+│   │   │   └── 📦 hyperlane-cosmwasm-interface (External Workspace Crate)
+│   │   ├── 📦 hyperlane-sealevel
+│   │   ├── 📦 hyperlane-starknet
+│   │   ├── 📦 hyperlane-operation-verifier
+│   │   │   └── 📦 hyperlane-core (see above)
+│   │   └── 📦 ethers-prometheus (Internal Utility Crate)
+│   ├── 📦 hyperlane-core (see above)
+│   ├── 📦 hyperlane-ethereum
+│   ├── 📦 hyperlane-operation-verifier (see above)
+│   └── 📦 lander (Internal Utility Crate)
+│
+├── 📄 agents/validator/ (Binary Crate)
+│   ├── 📦 hyperlane-base (see above)
+│   ├── 📦 hyperlane-core (see above)
+│   ├── 📦 hyperlane-ethereum
+│   └── 📦 hyperlane-cosmos
+│
+├── 📄 agents/scraper/ (Binary Crate)
+│   ├── 📦 hyperlane-base (see above)
+│   ├── 📦 hyperlane-core (see above)
+│   └── 📦 migration (Internal Utility Crate for DB management)
+│
+├── 📦 chains/hyperlane-cosmos-native/ (Library Crate)
+│   ├── 📦 hyperlane-core (see above)
+│   └── 📦 hyperlane-cosmwasm-interface (External Workspace Crate)
+│
+├── 📦 hyperlane-base/ (Library Crate, The Core Framework)
+│   ├── 📦 hyperlane-core (see above)
+│   ├── 📦 hyperlane-ethereum
+│   ├── 📦 hyperlane-fuel
+│   ├── 📦 hyperlane-cosmos
+│   ├── 📦 hyperlane-cosmos-native (see above)
+│   ├── 📦 hyperlane-sealevel
+│   ├── 📦 hyperlane-starknet
+│   ├── 📦 hyperlane-operation-verifier (see above)
+│   └── 📦 ethers-prometheus (Internal Utility Crate)
+│
+└── 📦 hyperlane-core/ (Library Crate, The Core Primitives)
+    └── 📦 hyperlane-application
+```

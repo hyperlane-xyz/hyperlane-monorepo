@@ -5937,6 +5937,7 @@ dependencies = [
  "config",
  "console-subscriber",
  "convert_case 0.6.0",
+ "core",
  "dashmap 5.5.3",
  "derive-new",
  "derive_builder 0.12.0",

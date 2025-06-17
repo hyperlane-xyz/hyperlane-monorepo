@@ -50,7 +50,6 @@ dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="c
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-hyperlane-base = { path = "../../hyperlane-base"}
 hyperlane-cosmwasm-interface = { workspace = true }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }

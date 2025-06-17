@@ -18,8 +18,6 @@ mod trait_builder;
 mod validator_announce;
 
 mod libs;
-#[allow(missing_docs)]
-pub mod hack;
 
 // Direct reexports of lib stuff:
 pub use dym_kas_core;
@@ -28,5 +26,5 @@ pub use dym_kas_validator;
 
 pub use {
     self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
-    self::signers::*, self::trait_builder::*, self::validator_announce::*, self::hack::*,
+    self::signers::*, self::trait_builder::*, self::validator_announce::*, 
 };
