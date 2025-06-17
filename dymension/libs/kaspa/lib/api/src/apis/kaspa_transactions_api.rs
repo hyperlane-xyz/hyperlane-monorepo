@@ -187,7 +187,7 @@ pub async fn get_transaction_transactions_transaction_id_get(configuration: &con
 }
 
 /// Search for transactions by transaction_ids or blue_score
-pub async fn search_for_transactions_transactions_search_post(configuration: &configuration::Configuration, tx_search: models::TxSearch, fields: Option<&str>, resolve_previous_outpoints: Option<models::models::PreviousOutpointLookupMode>, acceptance: Option<models::models::AcceptanceMode>) -> Result<Vec<models::TxModel>, Error<SearchForTransactionsTransactionsSearchPostError>> {
+pub async fn search_for_transactions_transactions_search_post(configuration: &configuration::Configuration, tx_search: models::TxSearch, fields: Option<&str>, resolve_previous_outpoints: Option<models::PreviousOutpointLookupMode>, acceptance: Option<models::AcceptanceMode>) -> Result<Vec<models::TxModel>, Error<SearchForTransactionsTransactionsSearchPostError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_tx_search = tx_search;
     let p_fields = fields;
