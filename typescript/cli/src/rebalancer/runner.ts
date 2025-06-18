@@ -262,6 +262,6 @@ export class RebalancerRunner {
     // Unregister listeners to prevent them from being called again during shutdown
     process.removeAllListeners('SIGINT');
     process.removeAllListeners('SIGTERM');
-    return;
+    process.exit(0);
   }
 }
