@@ -8,7 +8,7 @@ image:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
   tag: 000ecdc-20250602-134843
 
-# In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be acessible by
+# In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
 secrets:
   prefix: 'hyperlane-mainnet3'
