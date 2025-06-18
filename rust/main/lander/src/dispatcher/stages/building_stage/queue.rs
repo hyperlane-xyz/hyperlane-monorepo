@@ -1,5 +1,3 @@
-mod tests;
-
 use std::collections::VecDeque;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -50,3 +48,6 @@ impl BuildingStageQueue {
         self.0.lock().await.len()
     }
 }
+
+#[cfg(test)]
+mod tests;
