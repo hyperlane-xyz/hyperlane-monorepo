@@ -1,7 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use derive_new::new;
-use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, instrument, warn};
 
@@ -42,29 +41,20 @@ impl BuildingStage {
                 continue;
             }
 
-            for payload in payloads {
-                let single_payload_vec = vec![payload];
-                info!(payloads = ?single_payload_vec, "Building transactions from payloads");
-                let tx_building_results = self
-                    .state
-                    .adapter
-                    .build_transactions(&single_payload_vec)
-                    .await;
+            info!(?payloads, "Building transactions from payloads");
+            let tx_building_results = self.state.adapter.build_transactions(&payloads).await;
 
-                for tx_building_result in tx_building_results {
-                    // push payloads that failed to be processed (but didn't fail simulation)
-                    // to the back of the queue
-                    if let Err(err) = self
-                        .handle_tx_building_result(tx_building_result.clone())
-                        .await
-                    {
-                        error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
-                        let full_payloads = get_full_payloads_from_details(
-                            &single_payload_vec,
-                            &tx_building_result.payloads,
-                        );
-                        self.queue.extend(full_payloads).await;
-                    }
+            for tx_building_result in tx_building_results {
+                // push payloads that failed to be processed (but didn't fail simulation)
+                // to the back of the queue
+                if let Err(err) = self
+                    .handle_tx_building_result(tx_building_result.clone())
+                    .await
+                {
+                    error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
+                    let full_payloads =
+                        get_full_payloads_from_details(&payloads, &tx_building_result.payloads);
+                    self.queue.extend(full_payloads).await;
                 }
             }
         }
