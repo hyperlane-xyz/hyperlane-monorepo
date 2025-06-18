@@ -54,12 +54,13 @@ impl OpQueue {
                 break;
             }
         }
+
         // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {
             debug!(
                 queue_label = %self.queue_metrics_label,
-                operations = ?popped.iter().map(|p| p.id()).collect::<Vec<_>>(),
+                operations = ?popped,
                 "Popped OpQueue operations"
             );
         }
