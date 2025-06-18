@@ -29,3 +29,5 @@ env:
     value: '3000'
   - name: REGISTRY_URI
     value: 'https://github.com/hyperlane-xyz/hyperlane-registry'
+  - name: SERVER_BASE_URL
+    value: 'https://offchain-lookup.services.hyperlane.xyz'
