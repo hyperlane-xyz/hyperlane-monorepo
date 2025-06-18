@@ -13,16 +13,6 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for passing parameters to the method [`get_virtual_chain_transactions_virtual_chain_get`]
-#[derive(Clone, Debug)]
-pub struct GetVirtualChainTransactionsVirtualChainGetParams {
-    /// Divisible by limit
-    pub blue_score_gte: i64,
-    pub limit: Option<i64>,
-    pub resolve_inputs: Option<bool>,
-    pub include_coinbase: Option<bool>,
-}
-
 /// struct for typed errors of method [`get_virtual_chain_transactions_virtual_chain_get`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -34,19 +24,28 @@ pub enum GetVirtualChainTransactionsVirtualChainGetError {
 /// EXPERIMENTAL - EXPECT BREAKING CHANGES: Get virtual chain transactions by blue score.
 pub async fn get_virtual_chain_transactions_virtual_chain_get(
     configuration: &configuration::Configuration,
-    params: GetVirtualChainTransactionsVirtualChainGetParams,
+    blue_score_gte: i64,
+    limit: Option<i64>,
+    resolve_inputs: Option<bool>,
+    include_coinbase: Option<bool>,
 ) -> Result<Vec<models::VcBlockModel>, Error<GetVirtualChainTransactionsVirtualChainGetError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_blue_score_gte = blue_score_gte;
+    let p_limit = limit;
+    let p_resolve_inputs = resolve_inputs;
+    let p_include_coinbase = include_coinbase;
+
     let uri_str = format!("{}/virtual-chain", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("blueScoreGte", &params.blue_score_gte.to_string())]);
-    if let Some(ref param_value) = params.limit {
+    req_builder = req_builder.query(&[("blueScoreGte", &p_blue_score_gte.to_string())]);
+    if let Some(ref param_value) = p_limit {
         req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.resolve_inputs {
+    if let Some(ref param_value) = p_resolve_inputs {
         req_builder = req_builder.query(&[("resolveInputs", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.include_coinbase {
+    if let Some(ref param_value) = p_include_coinbase {
         req_builder = req_builder.query(&[("includeCoinbase", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {

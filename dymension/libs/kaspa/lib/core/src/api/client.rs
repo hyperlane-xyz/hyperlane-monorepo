@@ -1,4 +1,5 @@
 use api_rs::apis::configuration::Configuration;
+use tracing::info;
 
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 
@@ -26,9 +27,12 @@ pub fn get_config(url: &Url) -> Configuration {
     // let client = ClientBuilder::new(reqwest::Client::new())
         // .with(reqwest_ratelimit::all(rl))
         // .build();
-    let client = ClientBuilder::new(reqwest::Client::new()).build();
+    let client = reqwest::Client::new();
+    // let base = url.to_string();
+    let base = "https://api-tn10.kaspa.org".to_string();
+    info!("FOO|GET_CONFIG base string: {:?}", base);
     Configuration {
-        base_path: url.to_string(),
+        base_path: base,
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
         client: client,
         basic_auth: None,

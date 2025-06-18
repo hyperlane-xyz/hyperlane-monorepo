@@ -8786,10 +8786,9 @@ dependencies = [
 
 [[package]]
 name = "openapi"
-version = "0.9.9"
+version = "0.0.0"
 dependencies = [
  "reqwest 0.12.15",
- "reqwest-middleware",
  "serde",
  "serde_json",
  "serde_repr",

@@ -13,83 +13,6 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for passing parameters to the method [`get_addresses_active_addresses_active_post`]
-#[derive(Clone, Debug)]
-pub struct GetAddressesActiveAddressesActivePostParams {
-    pub addresses_active_request: models::AddressesActiveRequest,
-}
-
-/// struct for passing parameters to the method [`get_balance_from_kaspa_address_addresses_kaspa_address_balance_get`]
-#[derive(Clone, Debug)]
-pub struct GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
-    /// Kaspa address as string e.g. kaspa:qqkqkzjvr7zwxxmjxjkmxxdwju9kjs6e9u82uh59z07vgaks6gg62v8707g73
-    pub kaspa_address: String,
-}
-
-/// struct for passing parameters to the method [`get_balances_from_kaspa_addresses_addresses_balances_post`]
-#[derive(Clone, Debug)]
-pub struct GetBalancesFromKaspaAddressesAddressesBalancesPostParams {
-    pub balance_request: models::BalanceRequest,
-}
-
-/// struct for passing parameters to the method [`get_full_transactions_for_address_addresses_kaspa_address_full_transactions_get`]
-#[derive(Clone, Debug)]
-pub struct GetFullTransactionsForAddressAddressesKaspaAddressFullTransactionsGetParams {
-    /// Kaspa address as string e.g. kaspa:qqkqkzjvr7zwxxmjxjkmxxdwju9kjs6e9u82uh59z07vgaks6gg62v8707g73
-    pub kaspa_address: String,
-    /// The number of records to get
-    pub limit: Option<i64>,
-    /// The offset from which to get records
-    pub offset: Option<i64>,
-    pub fields: Option<String>,
-    /// Use this parameter if you want to fetch the TransactionInput previous outpoint details. Light fetches only the adress and amount. Full fetches the whole TransactionOutput and adds it into each TxInput.
-    pub resolve_previous_outpoints: Option<String>,
-}
-
-/// struct for passing parameters to the method [`get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get`]
-#[derive(Clone, Debug)]
-pub struct GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams {
-    /// Kaspa address as string e.g. kaspa:qqkqkzjvr7zwxxmjxjkmxxdwju9kjs6e9u82uh59z07vgaks6gg62v8707g73
-    pub kaspa_address: String,
-    /// The max number of records to get. For paging combine with using 'before/after' from oldest previous result. Use value of X-Next-Page-Before/-After as long as header is present to continue paging. The actual number of transactions returned for each page can be > limit.
-    pub limit: Option<i64>,
-    /// Only include transactions with block time before this (epoch-millis)
-    pub before: Option<i64>,
-    /// Only include transactions with block time after this (epoch-millis)
-    pub after: Option<i64>,
-    pub fields: Option<String>,
-    /// Use this parameter if you want to fetch the TransactionInput previous outpoint details. Light fetches only the adress and amount. Full fetches the whole TransactionOutput and adds it into each TxInput.
-    pub resolve_previous_outpoints: Option<String>,
-    pub acceptance: Option<models::AcceptanceMode>,
-}
-
-/// struct for passing parameters to the method [`get_name_for_address_addresses_kaspa_address_name_get`]
-#[derive(Clone, Debug)]
-pub struct GetNameForAddressAddressesKaspaAddressNameGetParams {
-    /// Kaspa address as string e.g. kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9awp4e
-    pub kaspa_address: String,
-}
-
-/// struct for passing parameters to the method [`get_transaction_count_for_address_addresses_kaspa_address_transactions_count_get`]
-#[derive(Clone, Debug)]
-pub struct GetTransactionCountForAddressAddressesKaspaAddressTransactionsCountGetParams {
-    /// Kaspa address as string e.g. kaspa:qqkqkzjvr7zwxxmjxjkmxxdwju9kjs6e9u82uh59z07vgaks6gg62v8707g73
-    pub kaspa_address: String,
-}
-
-/// struct for passing parameters to the method [`get_utxos_for_address_addresses_kaspa_address_utxos_get`]
-#[derive(Clone, Debug)]
-pub struct GetUtxosForAddressAddressesKaspaAddressUtxosGetParams {
-    /// Kaspa address as string e.g. kaspa:qqkqkzjvr7zwxxmjxjkmxxdwju9kjs6e9u82uh59z07vgaks6gg62v8707g73
-    pub kaspa_address: String,
-}
-
-/// struct for passing parameters to the method [`get_utxos_for_addresses_addresses_utxos_post`]
-#[derive(Clone, Debug)]
-pub struct GetUtxosForAddressesAddressesUtxosPostParams {
-    pub utxo_request: models::UtxoRequest,
-}
-
 /// struct for typed errors of method [`get_addresses_active_addresses_active_post`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -172,8 +95,11 @@ pub enum GetUtxosForAddressesAddressesUtxosPostError {
 /// This endpoint checks if addresses have had any transaction activity in the past. It is specifically designed for HD Wallets to verify historical address activity.
 pub async fn get_addresses_active_addresses_active_post(
     configuration: &configuration::Configuration,
-    params: GetAddressesActiveAddressesActivePostParams,
+    addresses_active_request: models::AddressesActiveRequest,
 ) -> Result<Vec<models::TxIdResponse>, Error<GetAddressesActiveAddressesActivePostError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_addresses_active_request = addresses_active_request;
+
     let uri_str = format!("{}/addresses/active", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -182,7 +108,7 @@ pub async fn get_addresses_active_addresses_active_post(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&params.addresses_active_request);
+    req_builder = req_builder.json(&p_addresses_active_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -258,15 +184,18 @@ pub async fn get_addresses_names_addresses_names_get(
 /// Get balance for a given kaspa address
 pub async fn get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
     configuration: &configuration::Configuration,
-    params: GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams,
+    kaspa_address: &str,
 ) -> Result<
     models::BalanceResponse,
     Error<GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetError>,
 > {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/balance",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -307,11 +236,14 @@ pub async fn get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
 /// Get balances for multiple kaspa addresses
 pub async fn get_balances_from_kaspa_addresses_addresses_balances_post(
     configuration: &configuration::Configuration,
-    params: GetBalancesFromKaspaAddressesAddressesBalancesPostParams,
+    balance_request: models::BalanceRequest,
 ) -> Result<
     Vec<models::BalancesByAddressEntry>,
     Error<GetBalancesFromKaspaAddressesAddressesBalancesPostError>,
 > {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_balance_request = balance_request;
+
     let uri_str = format!("{}/addresses/balances", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -320,7 +252,7 @@ pub async fn get_balances_from_kaspa_addresses_addresses_balances_post(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&params.balance_request);
+    req_builder = req_builder.json(&p_balance_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -355,28 +287,39 @@ pub async fn get_balances_from_kaspa_addresses_addresses_balances_post(
 /// Get all transactions for a given address from database. And then get their related full transaction data
 pub async fn get_full_transactions_for_address_addresses_kaspa_address_full_transactions_get(
     configuration: &configuration::Configuration,
-    params: GetFullTransactionsForAddressAddressesKaspaAddressFullTransactionsGetParams,
+    kaspa_address: &str,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    fields: Option<&str>,
+    resolve_previous_outpoints: Option<&str>,
 ) -> Result<
     Vec<models::TxModel>,
     Error<GetFullTransactionsForAddressAddressesKaspaAddressFullTransactionsGetError>,
 > {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+    let p_limit = limit;
+    let p_offset = offset;
+    let p_fields = fields;
+    let p_resolve_previous_outpoints = resolve_previous_outpoints;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/full-transactions",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.limit {
+    if let Some(ref param_value) = p_limit {
         req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.offset {
+    if let Some(ref param_value) = p_offset {
         req_builder = req_builder.query(&[("offset", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.fields {
+    if let Some(ref param_value) = p_fields {
         req_builder = req_builder.query(&[("fields", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.resolve_previous_outpoints {
+    if let Some(ref param_value) = p_resolve_previous_outpoints {
         req_builder =
             req_builder.query(&[("resolve_previous_outpoints", &param_value.to_string())]);
     }
@@ -418,35 +361,50 @@ pub async fn get_full_transactions_for_address_addresses_kaspa_address_full_tran
 /// Get all transactions for a given address from database. And then get their related full transaction data
 pub async fn get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(
     configuration: &configuration::Configuration,
-    params: GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams,
+    kaspa_address: &str,
+    limit: Option<i64>,
+    before: Option<i64>,
+    after: Option<i64>,
+    fields: Option<&str>,
+    resolve_previous_outpoints: Option<&str>,
+    acceptance: Option<models::AcceptanceMode>,
 ) -> Result<
     Vec<models::TxModel>,
     Error<GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetError>,
 > {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+    let p_limit = limit;
+    let p_before = before;
+    let p_after = after;
+    let p_fields = fields;
+    let p_resolve_previous_outpoints = resolve_previous_outpoints;
+    let p_acceptance = acceptance;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/full-transactions-page",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = params.limit {
+    if let Some(ref param_value) = p_limit {
         req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.before {
+    if let Some(ref param_value) = p_before {
         req_builder = req_builder.query(&[("before", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.after {
+    if let Some(ref param_value) = p_after {
         req_builder = req_builder.query(&[("after", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.fields {
+    if let Some(ref param_value) = p_fields {
         req_builder = req_builder.query(&[("fields", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.resolve_previous_outpoints {
+    if let Some(ref param_value) = p_resolve_previous_outpoints {
         req_builder =
             req_builder.query(&[("resolve_previous_outpoints", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.acceptance {
+    if let Some(ref param_value) = p_acceptance {
         req_builder = req_builder.query(&[("acceptance", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -487,12 +445,15 @@ pub async fn get_full_transactions_for_address_page_addresses_kaspa_address_full
 /// Get the name for an address
 pub async fn get_name_for_address_addresses_kaspa_address_name_get(
     configuration: &configuration::Configuration,
-    params: GetNameForAddressAddressesKaspaAddressNameGetParams,
+    kaspa_address: &str,
 ) -> Result<models::AddressName, Error<GetNameForAddressAddressesKaspaAddressNameGetError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/name",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -533,15 +494,18 @@ pub async fn get_name_for_address_addresses_kaspa_address_name_get(
 /// Count the number of transactions associated with this address
 pub async fn get_transaction_count_for_address_addresses_kaspa_address_transactions_count_get(
     configuration: &configuration::Configuration,
-    params: GetTransactionCountForAddressAddressesKaspaAddressTransactionsCountGetParams,
+    kaspa_address: &str,
 ) -> Result<
     models::TransactionCount,
     Error<GetTransactionCountForAddressAddressesKaspaAddressTransactionsCountGetError>,
 > {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/transactions-count",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -583,13 +547,16 @@ pub async fn get_transaction_count_for_address_addresses_kaspa_address_transacti
 /// Lists all open utxo for a given kaspa address
 pub async fn get_utxos_for_address_addresses_kaspa_address_utxos_get(
     configuration: &configuration::Configuration,
-    params: GetUtxosForAddressAddressesKaspaAddressUtxosGetParams,
+    kaspa_address: &str,
 ) -> Result<Vec<models::UtxoResponse>, Error<GetUtxosForAddressAddressesKaspaAddressUtxosGetError>>
 {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_kaspa_address = kaspa_address;
+
     let uri_str = format!(
         "{}/addresses/{kaspaAddress}/utxos",
         configuration.base_path,
-        kaspaAddress = crate::apis::urlencode(params.kaspa_address)
+        kaspaAddress = crate::apis::urlencode(p_kaspa_address)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -630,8 +597,11 @@ pub async fn get_utxos_for_address_addresses_kaspa_address_utxos_get(
 /// Lists all open utxo for a given kaspa address
 pub async fn get_utxos_for_addresses_addresses_utxos_post(
     configuration: &configuration::Configuration,
-    params: GetUtxosForAddressesAddressesUtxosPostParams,
+    utxo_request: models::UtxoRequest,
 ) -> Result<Vec<models::UtxoResponse>, Error<GetUtxosForAddressesAddressesUtxosPostError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_utxo_request = utxo_request;
+
     let uri_str = format!("{}/addresses/utxos", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -640,7 +610,7 @@ pub async fn get_utxos_for_addresses_addresses_utxos_post(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&params.utxo_request);
+    req_builder = req_builder.json(&p_utxo_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
