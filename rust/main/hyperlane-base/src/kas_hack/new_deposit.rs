@@ -23,7 +23,14 @@ impl DepositCache {
     }
 }
 
-pub fn 
+// see https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
+
+// need to call to N validators 
+// on each validator need to call https://github.com/dymensionxyz/hyperlane-monorepo/blob/759e5554b8d27a343220fea27f7c5382082b9b7b/dymension/libs/kaspa/lib/validator/src/deposit.rs#L3
+async fn gather_deposit_sigs(deposit: &Deposit) {
+    // TODO: needs to return the thing that relayer can send up to hub
+    unimplemented!()
+}
 
 pub fn handle_observed_deposits(
     provider: &RestProvider,
@@ -39,8 +46,9 @@ pub fn handle_observed_deposits(
     }
 
     for deposit in &new_deposits {
-        let fxg = on_new_deposit(deposit);
+        let fxg = on_new_deposit(deposit); // local call
         if let Some(fxg) = fxg {
+
             if validate_deposits(&fxg) {
                 // TODO: now to need to get the merkle sig and send up to hub
             }
