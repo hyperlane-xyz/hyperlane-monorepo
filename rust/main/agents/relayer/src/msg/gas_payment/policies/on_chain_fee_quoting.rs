@@ -5,7 +5,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
 };
 
-use crate::msg::gas_payment::GasPaymentPolicy;
+use crate::{msg::gas_payment::GasPaymentPolicy, settings::GasPaymentEnforcementPolicy};
 
 #[derive(Debug)]
 pub struct GasPaymentPolicyOnChainFeeQuoting {
@@ -66,6 +66,13 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
 
     fn requires_payment_found(&self) -> bool {
         true
+    }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy {
+        GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+            gas_fraction_numerator: self.fractional_numerator,
+            gas_fraction_denominator: self.fractional_denominator,
+        }
     }
 }
 

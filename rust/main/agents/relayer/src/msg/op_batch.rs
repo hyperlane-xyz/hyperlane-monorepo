@@ -137,7 +137,8 @@ impl OperationBatch {
     ) {
         let total_estimated_cost = total_estimated_cost(sent_ops.as_slice());
         for mut op in sent_ops {
-            op.set_operation_outcome(outcome.clone(), total_estimated_cost);
+            op.set_operation_outcome(outcome.clone(), total_estimated_cost)
+                .await;
             op.set_next_attempt_after(CONFIRM_DELAY);
             confirm_queue
                 .push(
@@ -399,17 +400,18 @@ mod tests {
             false,
         );
         let message_context = Arc::new(MessageContext {
+            origin: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             destination_mailbox: arb_mailbox,
             origin_db: Arc::new(base_db.clone()),
             cache: cache.clone(),
             metadata_builder: Arc::new(metadata_builder),
-            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new(
+            origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
                     matching_list: MatchingList::default(),
                 }],
                 base_db.clone(),
-            )),
+            ))),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
             application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),

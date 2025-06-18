@@ -223,7 +223,7 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, new)]
+#[derive(Debug, Deserialize, Clone, PartialEq, new)]
 #[serde(tag = "type")]
 pub struct ListElement {
     #[serde(default, rename = "messageid")]
