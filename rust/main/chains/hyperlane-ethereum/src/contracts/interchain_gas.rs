@@ -13,7 +13,6 @@ use hyperlane_core::{
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
     SequenceAwareIndexer, H160, H256, H512,
 };
-use tracing::instrument;
 
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 use crate::interfaces::i_interchain_gas_paymaster::{
@@ -93,7 +92,6 @@ where
     M: Middleware + 'static,
 {
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -123,7 +121,6 @@ where
             .collect())
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         get_finalized_block_number(&self.provider, &self.reorg_period).await
