@@ -8,13 +8,15 @@ members = [
     "lib/core",
     "lib/relayer",
     "lib/validator",
+    "lib/api",
     "demo/multisig",
     "demo/relayer",
     "demo/validator",
 ]
 
 [workspace.dependencies]
-# eb71df4 is v1.0.0 commit
+
+# KASPA ( eb71df4 is v1.0.0 commit)
 kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
@@ -26,7 +28,6 @@ kaspa-wallet-keys = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb
 kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-notify = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "serde"] }
 serde_json = "1.0.107"
@@ -36,8 +37,13 @@ log = "0.4.20"
 faster-hex = "0.9.0"
 bip39 = "2.1.0"
 workflow-core = { version = "0.18.0" }
+tracing = { version = "0.1" }
+tracing-error = "0.2"
+tracing-futures = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false }
+tracing-test = "0.2.2"
+# reqwest = "0.11"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart"] }
 
-# Additional dependencies for Hyperlane bridge integration
-anyhow = "1.0"
-hex = "0.4.3"
-hyperlane-core = { path = "../../../rust/main/hyperlane-core" }
+# HYPERLANE
+axum = "0.8.4"
