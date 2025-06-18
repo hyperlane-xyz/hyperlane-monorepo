@@ -430,15 +430,21 @@ fn mock_ethereum_adapter(
         nonce_updater,
     };
 
+    let op_submission_config = OpSubmissionConfig::default();
+    let batch_contract_address = op_submission_config
+        .batch_contract_address
+        .unwrap_or_default();
+
     EthereumAdapter {
         estimated_block_time: block_time,
         domain,
         transaction_overrides: Default::default(),
-        submission_config: OpSubmissionConfig::default(),
+        submission_config: op_submission_config,
         provider,
         reorg_period,
         nonce_manager,
-        _batch_cache: Default::default(),
+        batch_cache: Default::default(),
+        batch_contract_address,
     }
 }
 
