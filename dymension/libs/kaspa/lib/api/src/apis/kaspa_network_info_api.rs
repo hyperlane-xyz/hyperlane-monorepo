@@ -13,6 +13,54 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`get_blockreward_info_blockreward_get`]
+#[derive(Clone, Debug)]
+pub struct GetBlockrewardInfoBlockrewardGetParams {
+    pub string_only: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_circulating_coins_info_coinsupply_circulating_get`]
+#[derive(Clone, Debug)]
+pub struct GetCirculatingCoinsInfoCoinsupplyCirculatingGetParams {
+    pub in_billion: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_halving_info_halving_get`]
+#[derive(Clone, Debug)]
+pub struct GetHalvingInfoHalvingGetParams {
+    pub field: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_hashrate_history_info_hashrate_history_get`]
+#[derive(Clone, Debug)]
+pub struct GetHashrateHistoryInfoHashrateHistoryGetParams {
+    pub resolution: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_hashrate_info_hashrate_get`]
+#[derive(Clone, Debug)]
+pub struct GetHashrateInfoHashrateGetParams {
+    pub string_only: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_marketcap_info_marketcap_get`]
+#[derive(Clone, Debug)]
+pub struct GetMarketcapInfoMarketcapGetParams {
+    pub string_only: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_price_info_price_get`]
+#[derive(Clone, Debug)]
+pub struct GetPriceInfoPriceGetParams {
+    pub string_only: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_total_coins_info_coinsupply_total_get`]
+#[derive(Clone, Debug)]
+pub struct GetTotalCoinsInfoCoinsupplyTotalGetParams {
+    pub in_billion: Option<bool>,
+}
+
 /// struct for typed errors of method [`get_blockdag_info_blockdag_get`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -176,18 +224,15 @@ pub async fn get_blockdag_info_blockdag_get(
 /// Returns the current blockreward in KAS/block
 pub async fn get_blockreward_info_blockreward_get(
     configuration: &configuration::Configuration,
-    string_only: Option<bool>,
+    params: GetBlockrewardInfoBlockrewardGetParams,
 ) -> Result<
     models::ResponseGetBlockrewardInfoBlockrewardGet,
     Error<GetBlockrewardInfoBlockrewardGetError>,
 > {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_string_only = string_only;
-
     let uri_str = format!("{}/info/blockreward", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_string_only {
+    if let Some(ref param_value) = params.string_only {
         req_builder = req_builder.query(&[("stringOnly", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -227,15 +272,12 @@ pub async fn get_blockreward_info_blockreward_get(
 /// Get circulating amount of $KAS token as numerical value
 pub async fn get_circulating_coins_info_coinsupply_circulating_get(
     configuration: &configuration::Configuration,
-    in_billion: Option<bool>,
+    params: GetCirculatingCoinsInfoCoinsupplyCirculatingGetParams,
 ) -> Result<String, Error<GetCirculatingCoinsInfoCoinsupplyCirculatingGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_in_billion = in_billion;
-
     let uri_str = format!("{}/info/coinsupply/circulating", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_in_billion {
+    if let Some(ref param_value) = params.in_billion {
         req_builder = req_builder.query(&[("in_billion", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -357,15 +399,12 @@ pub async fn get_fee_estimate_info_fee_estimate_get(
 /// Returns information about chromatic halving
 pub async fn get_halving_info_halving_get(
     configuration: &configuration::Configuration,
-    field: Option<&str>,
+    params: GetHalvingInfoHalvingGetParams,
 ) -> Result<models::ResponseGetHalvingInfoHalvingGet, Error<GetHalvingInfoHalvingGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_field = field;
-
     let uri_str = format!("{}/info/halving", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_field {
+    if let Some(ref param_value) = params.field {
         req_builder = req_builder.query(&[("field", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -404,18 +443,15 @@ pub async fn get_halving_info_halving_get(
 /// Get historical hashrate samples with optional resolution (default = 1h)
 pub async fn get_hashrate_history_info_hashrate_history_get(
     configuration: &configuration::Configuration,
-    resolution: Option<&str>,
+    params: GetHashrateHistoryInfoHashrateHistoryGetParams,
 ) -> Result<
     Vec<models::HashrateHistoryResponse>,
     Error<GetHashrateHistoryInfoHashrateHistoryGetError>,
 > {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_resolution = resolution;
-
     let uri_str = format!("{}/info/hashrate/history", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_resolution {
+    if let Some(ref param_value) = params.resolution {
         req_builder = req_builder.query(&[("resolution", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -455,15 +491,12 @@ pub async fn get_hashrate_history_info_hashrate_history_get(
 /// Returns the current hashrate for Kaspa network in TH/s.
 pub async fn get_hashrate_info_hashrate_get(
     configuration: &configuration::Configuration,
-    string_only: Option<bool>,
+    params: GetHashrateInfoHashrateGetParams,
 ) -> Result<models::ResponseGetHashrateInfoHashrateGet, Error<GetHashrateInfoHashrateGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_string_only = string_only;
-
     let uri_str = format!("{}/info/hashrate", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_string_only {
+    if let Some(ref param_value) = params.string_only {
         req_builder = req_builder.query(&[("stringOnly", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -542,16 +575,13 @@ pub async fn get_kaspad_info_info_kaspad_get(
 /// Get $KAS price and market cap. Price info is from coingecko.com
 pub async fn get_marketcap_info_marketcap_get(
     configuration: &configuration::Configuration,
-    string_only: Option<bool>,
+    params: GetMarketcapInfoMarketcapGetParams,
 ) -> Result<models::ResponseGetMarketcapInfoMarketcapGet, Error<GetMarketcapInfoMarketcapGetError>>
 {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_string_only = string_only;
-
     let uri_str = format!("{}/info/marketcap", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_string_only {
+    if let Some(ref param_value) = params.string_only {
         req_builder = req_builder.query(&[("stringOnly", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -671,15 +701,12 @@ pub async fn get_network_info_network_get(
 /// Returns the current price for Kaspa in USD.
 pub async fn get_price_info_price_get(
     configuration: &configuration::Configuration,
-    string_only: Option<bool>,
+    params: GetPriceInfoPriceGetParams,
 ) -> Result<models::ResponseGetPriceInfoPriceGet, Error<GetPriceInfoPriceGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_string_only = string_only;
-
     let uri_str = format!("{}/info/price", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_string_only {
+    if let Some(ref param_value) = params.string_only {
         req_builder = req_builder.query(&[("stringOnly", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -718,15 +745,12 @@ pub async fn get_price_info_price_get(
 /// Get total amount of $KAS token as numerical value
 pub async fn get_total_coins_info_coinsupply_total_get(
     configuration: &configuration::Configuration,
-    in_billion: Option<bool>,
+    params: GetTotalCoinsInfoCoinsupplyTotalGetParams,
 ) -> Result<String, Error<GetTotalCoinsInfoCoinsupplyTotalGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_in_billion = in_billion;
-
     let uri_str = format!("{}/info/coinsupply/total", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_in_billion {
+    if let Some(ref param_value) = params.in_billion {
         req_builder = req_builder.query(&[("in_billion", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {

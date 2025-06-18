@@ -10,7 +10,7 @@ use kaspa_consensus_core::tx::TransactionId;
 
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
-    // GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
+    GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
 };
 use api_rs::models::TxModel;
 
@@ -96,27 +96,17 @@ impl HttpClient {
         let c = get_config(&self.url);
         info!("FOO|GET_DEPOSITS_CONFIG c: {:?}", c.base_path);
 
-
         let res = transactions_page(
             &c, // TODO: need to share this instance across multiple requests
-            // args {
-                // kaspa_address: address.to_string(),
-                // limit: Some(limit),
-                // before: lower_bound,
-                // after: upper_bound,
-                // fields: field,
-                // resolve_previous_outpoints: resolve_previous_outpoints,
-                // acceptance: acceptance,
-            // },
-            address,
-            Some(limit),
-            lower_bound,
-            upper_bound,
-            field,
-            resolve_previous_outpoints,
-            acceptance,
-
-
+            args {
+                kaspa_address: address.to_string(),
+                limit: Some(limit),
+                before: lower_bound,
+                after: upper_bound,
+                fields: field,
+                resolve_previous_outpoints: resolve_previous_outpoints,
+                acceptance: acceptance,
+            },
         )
         .await?;
 

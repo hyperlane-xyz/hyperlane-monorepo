@@ -19,20 +19,19 @@ mod tests {
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_balance() {
         let config = t_config();
         let addr = DAN_TESTNET_ADDR;
         let res = get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
             &config,
-            // GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
-                // kaspa_address: addr.to_string(),
-            // },
-            addr,
+            GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
+                kaspa_address: addr.to_string(),
+            },
         )
         .await
         .unwrap();
-        println!("res bal: {:?}", res);
+        println!("res: {:?}", res);
     }
 
     #[tokio::test]
@@ -43,8 +42,7 @@ mod tests {
         let limit = Some(10);
         let field = None;
         // let resolve_previous_outpoints = None;
-        // let resolve_previous_outpoints = Some("no".to_string());
-        let resolve_previous_outpoints = Some("no");
+        let resolve_previous_outpoints = Some("no".to_string());
         let acceptance = None;
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f?page=1
         // 2025-06-10 16:23:29 UTC is 1749505409
@@ -87,25 +85,18 @@ mod tests {
 
         let res = get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(
             &config,
-            addr,
-            limit,
-            lower_bound,
-            upper_bound,
-            field,
-            resolve_previous_outpoints,
-            acceptance,
-            // GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams {
-            //     kaspa_address: addr.to_string(),
-            //     limit: limit,
-            //     before: lower_bound,
-            //     after: upper_bound,
-            //     fields: field,
-            //     resolve_previous_outpoints: resolve_previous_outpoints,
-            //     acceptance: acceptance,
-            // },
+            GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams {
+                kaspa_address: addr.to_string(),
+                limit: limit,
+                before: lower_bound,
+                after: upper_bound,
+                fields: field,
+                resolve_previous_outpoints: resolve_previous_outpoints,
+                acceptance: acceptance,
+            },
         )
         .await
         .unwrap();
-        println!("res txs: {:?}", res);
+        println!("res: {:?}", res);
     }
 }

@@ -13,6 +13,29 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`get_block_blocks_block_id_get`]
+#[derive(Clone, Debug)]
+pub struct GetBlockBlocksBlockIdGetParams {
+    pub block_id: String,
+    pub include_transactions: Option<bool>,
+    pub include_color: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_blocks_blocks_get`]
+#[derive(Clone, Debug)]
+pub struct GetBlocksBlocksGetParams {
+    pub low_hash: String,
+    pub include_blocks: Option<bool>,
+    pub include_transactions: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`get_blocks_from_bluescore_blocks_from_bluescore_get`]
+#[derive(Clone, Debug)]
+pub struct GetBlocksFromBluescoreBlocksFromBluescoreGetParams {
+    pub blue_score: Option<i64>,
+    pub include_transactions: Option<bool>,
+}
+
 /// struct for typed errors of method [`get_block_blocks_block_id_get`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -40,26 +63,19 @@ pub enum GetBlocksFromBluescoreBlocksFromBluescoreGetError {
 /// Get block information for a given block id
 pub async fn get_block_blocks_block_id_get(
     configuration: &configuration::Configuration,
-    block_id: &str,
-    include_transactions: Option<bool>,
-    include_color: Option<bool>,
+    params: GetBlockBlocksBlockIdGetParams,
 ) -> Result<models::BlockModel, Error<GetBlockBlocksBlockIdGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_block_id = block_id;
-    let p_include_transactions = include_transactions;
-    let p_include_color = include_color;
-
     let uri_str = format!(
         "{}/blocks/{blockId}",
         configuration.base_path,
-        blockId = crate::apis::urlencode(p_block_id)
+        blockId = crate::apis::urlencode(params.block_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_include_transactions {
+    if let Some(ref param_value) = params.include_transactions {
         req_builder = req_builder.query(&[("includeTransactions", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_include_color {
+    if let Some(ref param_value) = params.include_color {
         req_builder = req_builder.query(&[("includeColor", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -98,23 +114,16 @@ pub async fn get_block_blocks_block_id_get(
 /// Lists block beginning from a low hash (block id).
 pub async fn get_blocks_blocks_get(
     configuration: &configuration::Configuration,
-    low_hash: &str,
-    include_blocks: Option<bool>,
-    include_transactions: Option<bool>,
+    params: GetBlocksBlocksGetParams,
 ) -> Result<models::BlockResponse, Error<GetBlocksBlocksGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_low_hash = low_hash;
-    let p_include_blocks = include_blocks;
-    let p_include_transactions = include_transactions;
-
     let uri_str = format!("{}/blocks", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("lowHash", &p_low_hash.to_string())]);
-    if let Some(ref param_value) = p_include_blocks {
+    req_builder = req_builder.query(&[("lowHash", &params.low_hash.to_string())]);
+    if let Some(ref param_value) = params.include_blocks {
         req_builder = req_builder.query(&[("includeBlocks", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_include_transactions {
+    if let Some(ref param_value) = params.include_transactions {
         req_builder = req_builder.query(&[("includeTransactions", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
@@ -153,20 +162,15 @@ pub async fn get_blocks_blocks_get(
 /// Lists blocks of a given blueScore
 pub async fn get_blocks_from_bluescore_blocks_from_bluescore_get(
     configuration: &configuration::Configuration,
-    blue_score: Option<i64>,
-    include_transactions: Option<bool>,
+    params: GetBlocksFromBluescoreBlocksFromBluescoreGetParams,
 ) -> Result<Vec<models::BlockModel>, Error<GetBlocksFromBluescoreBlocksFromBluescoreGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_blue_score = blue_score;
-    let p_include_transactions = include_transactions;
-
     let uri_str = format!("{}/blocks-from-bluescore", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_blue_score {
+    if let Some(ref param_value) = params.blue_score {
         req_builder = req_builder.query(&[("blueScore", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_include_transactions {
+    if let Some(ref param_value) = params.include_transactions {
         req_builder = req_builder.query(&[("includeTransactions", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {

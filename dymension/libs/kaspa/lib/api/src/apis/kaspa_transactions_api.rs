@@ -13,6 +13,49 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`calculate_transaction_mass_transactions_mass_post`]
+#[derive(Clone, Debug)]
+pub struct CalculateTransactionMassTransactionsMassPostParams {
+    pub submit_tx_model: models::SubmitTxModel,
+}
+
+/// struct for passing parameters to the method [`get_transaction_acceptance_transactions_acceptance_post`]
+#[derive(Clone, Debug)]
+pub struct GetTransactionAcceptanceTransactionsAcceptancePostParams {
+    pub tx_acceptance_request: models::TxAcceptanceRequest,
+}
+
+/// struct for passing parameters to the method [`get_transaction_transactions_transaction_id_get`]
+#[derive(Clone, Debug)]
+pub struct GetTransactionTransactionsTransactionIdGetParams {
+    pub transaction_id: String,
+    /// Specify a containing block (if known) for faster lookup
+    pub block_hash: Option<String>,
+    pub inputs: Option<bool>,
+    pub outputs: Option<bool>,
+    /// Use this parameter if you want to fetch the TransactionInput previous outpoint details. Light fetches only the address and amount. Full fetches the whole TransactionOutput and adds it into each TxInput.
+    pub resolve_previous_outpoints: Option<String>,
+}
+
+/// struct for passing parameters to the method [`search_for_transactions_transactions_search_post`]
+#[derive(Clone, Debug)]
+pub struct SearchForTransactionsTransactionsSearchPostParams {
+    pub tx_search: models::TxSearch,
+    pub fields: Option<String>,
+    /// Use this parameter if you want to fetch the TransactionInput previous outpoint details. Light fetches only the address and amount. Full fetches the whole TransactionOutput and adds it into each TxInput.
+    pub resolve_previous_outpoints: Option<models::PreviousOutpointLookupMode>,
+    /// Only used when searching using transactionIds
+    pub acceptance: Option<models::AcceptanceMode>,
+}
+
+/// struct for passing parameters to the method [`submit_a_new_transaction_transactions_post`]
+#[derive(Clone, Debug)]
+pub struct SubmitANewTransactionTransactionsPostParams {
+    pub submit_transaction_request: models::SubmitTransactionRequest,
+    /// Replace an existing transaction in the mempool
+    pub replace_by_fee: Option<bool>,
+}
+
 /// struct for typed errors of method [`calculate_transaction_mass_transactions_mass_post`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -57,11 +100,8 @@ pub enum SubmitANewTransactionTransactionsPostError {
 /// This function calculates and returns the mass of a transaction, which is essential for determining the minimum fee. The mass calculation takes into account the storage mass as defined in KIP-0009.  Note: Be aware that if the transaction has a very low output amount or a high number of outputs, the mass can become significantly large.
 pub async fn calculate_transaction_mass_transactions_mass_post(
     configuration: &configuration::Configuration,
-    submit_tx_model: models::SubmitTxModel,
+    params: CalculateTransactionMassTransactionsMassPostParams,
 ) -> Result<models::TxMass, Error<CalculateTransactionMassTransactionsMassPostError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_submit_tx_model = submit_tx_model;
-
     let uri_str = format!("{}/transactions/mass", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -70,7 +110,7 @@ pub async fn calculate_transaction_mass_transactions_mass_post(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&p_submit_tx_model);
+    req_builder = req_builder.json(&params.submit_tx_model);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -105,14 +145,11 @@ pub async fn calculate_transaction_mass_transactions_mass_post(
 /// Given a list of transaction_ids, return whether each one is accepted
 pub async fn get_transaction_acceptance_transactions_acceptance_post(
     configuration: &configuration::Configuration,
-    tx_acceptance_request: models::TxAcceptanceRequest,
+    params: GetTransactionAcceptanceTransactionsAcceptancePostParams,
 ) -> Result<
     Vec<models::TxAcceptanceResponse>,
     Error<GetTransactionAcceptanceTransactionsAcceptancePostError>,
 > {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_tx_acceptance_request = tx_acceptance_request;
-
     let uri_str = format!("{}/transactions/acceptance", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -121,7 +158,7 @@ pub async fn get_transaction_acceptance_transactions_acceptance_post(
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&p_tx_acceptance_request);
+    req_builder = req_builder.json(&params.tx_acceptance_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -156,36 +193,25 @@ pub async fn get_transaction_acceptance_transactions_acceptance_post(
 /// Get details for a given transaction id
 pub async fn get_transaction_transactions_transaction_id_get(
     configuration: &configuration::Configuration,
-    transaction_id: &str,
-    block_hash: Option<&str>,
-    inputs: Option<bool>,
-    outputs: Option<bool>,
-    resolve_previous_outpoints: Option<&str>,
+    params: GetTransactionTransactionsTransactionIdGetParams,
 ) -> Result<models::TxModel, Error<GetTransactionTransactionsTransactionIdGetError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_transaction_id = transaction_id;
-    let p_block_hash = block_hash;
-    let p_inputs = inputs;
-    let p_outputs = outputs;
-    let p_resolve_previous_outpoints = resolve_previous_outpoints;
-
     let uri_str = format!(
         "{}/transactions/{transactionId}",
         configuration.base_path,
-        transactionId = crate::apis::urlencode(p_transaction_id)
+        transactionId = crate::apis::urlencode(params.transaction_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    if let Some(ref param_value) = p_block_hash {
+    if let Some(ref param_value) = params.block_hash {
         req_builder = req_builder.query(&[("blockHash", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_inputs {
+    if let Some(ref param_value) = params.inputs {
         req_builder = req_builder.query(&[("inputs", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_outputs {
+    if let Some(ref param_value) = params.outputs {
         req_builder = req_builder.query(&[("outputs", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_resolve_previous_outpoints {
+    if let Some(ref param_value) = params.resolve_previous_outpoints {
         req_builder =
             req_builder.query(&[("resolve_previous_outpoints", &param_value.to_string())]);
     }
@@ -226,36 +252,27 @@ pub async fn get_transaction_transactions_transaction_id_get(
 /// Search for transactions by transaction_ids or blue_score
 pub async fn search_for_transactions_transactions_search_post(
     configuration: &configuration::Configuration,
-    tx_search: models::TxSearch,
-    fields: Option<&str>,
-    resolve_previous_outpoints: Option<models::PreviousOutpointLookupMode>,
-    acceptance: Option<models::AcceptanceMode>,
+    params: SearchForTransactionsTransactionsSearchPostParams,
 ) -> Result<Vec<models::TxModel>, Error<SearchForTransactionsTransactionsSearchPostError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_tx_search = tx_search;
-    let p_fields = fields;
-    let p_resolve_previous_outpoints = resolve_previous_outpoints;
-    let p_acceptance = acceptance;
-
     let uri_str = format!("{}/transactions/search", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
 
-    if let Some(ref param_value) = p_fields {
+    if let Some(ref param_value) = params.fields {
         req_builder = req_builder.query(&[("fields", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_resolve_previous_outpoints {
+    if let Some(ref param_value) = params.resolve_previous_outpoints {
         req_builder =
             req_builder.query(&[("resolve_previous_outpoints", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = p_acceptance {
+    if let Some(ref param_value) = params.acceptance {
         req_builder = req_builder.query(&[("acceptance", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&p_tx_search);
+    req_builder = req_builder.json(&params.tx_search);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -289,25 +306,20 @@ pub async fn search_for_transactions_transactions_search_post(
 
 pub async fn submit_a_new_transaction_transactions_post(
     configuration: &configuration::Configuration,
-    submit_transaction_request: models::SubmitTransactionRequest,
-    replace_by_fee: Option<bool>,
+    params: SubmitANewTransactionTransactionsPostParams,
 ) -> Result<models::SubmitTransactionResponse, Error<SubmitANewTransactionTransactionsPostError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_submit_transaction_request = submit_transaction_request;
-    let p_replace_by_fee = replace_by_fee;
-
     let uri_str = format!("{}/transactions", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
 
-    if let Some(ref param_value) = p_replace_by_fee {
+    if let Some(ref param_value) = params.replace_by_fee {
         req_builder = req_builder.query(&[("replaceByFee", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-    req_builder = req_builder.json(&p_submit_transaction_request);
+    req_builder = req_builder.json(&params.submit_transaction_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
