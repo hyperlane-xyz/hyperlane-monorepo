@@ -2,11 +2,9 @@ use api_rs::apis::configuration::Configuration;
 
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use std::future::Future;
+use reqwest_middleware::ClientBuilder;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::time::Duration;
 use url::Url;
 
 struct FooRateLimiter {
