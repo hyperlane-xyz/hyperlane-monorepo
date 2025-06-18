@@ -333,7 +333,7 @@ impl RpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.get_account(signer.address.clone()).await?;
+        let account_info = self.get_account(signer.address_string.clone()).await?;
 
         // timeout height of zero means that we do not have a timeout height TODO: double check
         let tx_body = tx::Body::new(msgs, String::default(), 0u32);
@@ -439,7 +439,7 @@ impl RpcProvider {
 
 #[async_trait]
 impl BlockNumberGetter for RpcProvider {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         self.provider
             .call(|client| {
                 let future = async move { client.get_block_number().await };

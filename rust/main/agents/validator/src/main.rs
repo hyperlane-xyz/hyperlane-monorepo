@@ -9,6 +9,7 @@ use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 
+mod reorg_reporter;
 mod server;
 mod settings;
 mod submit;
@@ -21,3 +22,6 @@ async fn main() -> Result<()> {
 
     agent_main::<Validator>().await
 }
+
+#[cfg(test)]
+mod test_utils;

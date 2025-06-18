@@ -61,9 +61,10 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
 const SOLANA_DEPLOYER_KEYPAIR: &str = "environments/local-e2e/accounts/test_deployer-keypair.json";
 const SOLANA_DEPLOYER_ACCOUNT: &str = "environments/local-e2e/accounts/test_deployer-account.json";
 
+const LOCAL_E2E_MOCK_REGISTRY: &str = "environments/local-e2e/mock-registry";
+
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "environments/local-e2e/warp-routes/testwarproute/token-config.json";
-const SOLANA_CHAIN_CONFIG_FILE: &str = "environments/local-e2e/chain-config.json";
 const SOLANA_ENVS_DIR: &str = "environments";
 
 const SOLANA_ENV_NAME: &str = "local-e2e";
@@ -209,8 +210,8 @@ pub fn start_solana_test_validator(
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
     let solana_env_dir_str = solana_env_dir.to_string_lossy();
 
-    let solana_chain_config_file = concat_path(&sealevel_path, SOLANA_CHAIN_CONFIG_FILE);
-    let solana_chain_config_file_str = solana_chain_config_file.to_string_lossy();
+    let mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
+    let mock_registry_path_str = mock_registry_path.to_string_lossy();
 
     let solana_warproute_token_config_file =
         concat_path(&sealevel_path, SOLANA_WARPROUTE_TOKEN_CONFIG_FILE);
@@ -290,7 +291,7 @@ pub fn start_solana_test_validator(
             "gas-oracle-config-file",
             solana_gas_oracle_config_file_str.clone(),
         )
-        .arg("chain-config-file", solana_chain_config_file_str.clone());
+        .arg("registry", LOCAL_E2E_MOCK_REGISTRY);
 
     // Configure sealeveltest1 IGP
     igp_configure_command
@@ -320,7 +321,7 @@ pub fn start_solana_test_validator(
             "token-config-file",
             solana_warproute_token_config_file_str.clone(),
         )
-        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        .arg("registry", LOCAL_E2E_MOCK_REGISTRY)
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
         .join();
@@ -385,7 +386,7 @@ pub fn start_solana_test_validator(
         .cmd("configure")
         .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("gas-oracle-config-file", solana_gas_oracle_config_file_str)
-        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        .arg("registry", LOCAL_E2E_MOCK_REGISTRY)
         .arg("chain", "sealeveltest1")
         .arg("account-salt", ALTERNATIVE_SALT)
         .run()

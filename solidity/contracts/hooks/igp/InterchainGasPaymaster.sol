@@ -55,7 +55,8 @@ contract InterchainGasPaymaster is
     // ============ Public Storage ============
 
     /// @notice Destination domain => gas oracle and overhead gas amount.
-    mapping(uint32 => DomainGasConfig) public destinationGasConfigs;
+    mapping(uint32 destinationDomain => DomainGasConfig config)
+        public destinationGasConfigs;
 
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;

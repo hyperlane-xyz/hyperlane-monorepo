@@ -177,9 +177,9 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_db
-            .store_status_by_message_id(&self.message.id(), &self.status)
+            .store_status_by_message_id(&self.message.id(), &status)
         {
-            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
+            warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
         }
         self.status = status;
     }
@@ -550,6 +550,12 @@ impl PendingOperation for PendingMessage {
         let metadata = &submission_data.metadata;
         let payload = mailbox.process_calldata(message, metadata).await?;
         Ok(payload)
+    }
+
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        mailbox.delivered_calldata(message.id())
     }
 
     fn on_reprepare(
@@ -1051,12 +1057,12 @@ mod test {
     };
 
     use chrono::TimeDelta;
-    use hyperlane_base::db::*;
+    use hyperlane_base::{cache::OptionalCache, db::*};
     use hyperlane_core::{identifiers::UniqueIdentifier, *};
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::PendingMessage;
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
 
     mockall::mock! {
         pub Db {
@@ -1169,8 +1175,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
-            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+            fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 
@@ -1336,5 +1342,49 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[tokio::test]
+    async fn check_stored_status() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+
+        let expected_status = PendingOperationStatus::ReadyToSubmit;
+        pending_message.set_status(expected_status.clone());
+
+        let db_status = pending_message
+            .ctx
+            .origin_db
+            .retrieve_status_by_message_id(&pending_message.id())
+            .expect("Failed to fetch message status")
+            .expect("Message status not found");
+
+        assert_eq!(db_status, expected_status);
     }
 }

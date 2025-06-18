@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -21,10 +21,14 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   RUSTC_WRAPPER: sccache
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
   yarn-install:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +79,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: lint
         run: yarn lint
@@ -104,10 +109,75 @@ jobs:
         run: |
           rm -f changed_files.txt
 
-  yarn-test:
+  set-base-sha:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
+    outputs:
+      base_sha: ${{ steps.determine-base-sha.outputs.base_sha }}
+      current_sha: ${{ steps.determine-base-sha.outputs.current_sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Determine BASE_SHA
+        id: determine-base-sha
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "base_sha=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+            echo "current_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "merge_group" ]; then
+            echo "base_sha=${{ github.event.merge_group.base_sha }}" >> $GITHUB_OUTPUT
+            echo "current_sha=${{ github.event.merge_group.head_sha }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            echo "base_sha=$${{ github.event.push.before }}" >> $GITHUB_OUTPUT
+            echo "current_sha=${{ github.event.push.after }}" >> $GITHUB_OUTPUT
+          else
+            echo "base_sha=$(git rev-parse HEAD^)" >> $GITHUB_OUTPUT
+            echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+  rust-only:
+    needs: [set-base-sha]
+    outputs:
+      only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      # Check if changes are ONLY rust
+      - name: Check if changes are ONLY rust
+        id: check-rust-only
+        run: |
+          # Check for Rust changes
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^rust/'; then
+            # Check if there are only Rust changes
+            if ! git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qvE '^rust/'; then
+              echo "only_rust=true" >> $GITHUB_OUTPUT
+              echo "Only Rust changes detected."
+            else
+              echo "only_rust=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "only_rust=false" >> $GITHUB_OUTPUT
+          fi
+
+      # If the push event is to main, fallback to rust_only as false.
+      - name: Check if push event to main
+        id: check-push-main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "only_rust=false" >> $GITHUB_OUTPUT
+          echo "Push event to main detected. Setting only_rust to false."
+
+  yarn-test-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
     timeout-minutes: 10
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,19 +192,32 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
+          cache-provider: github
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
         run: yarn test:ci
 
-  infra-test:
+  yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
+    needs: [yarn-test-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check yarn-test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Yarn Test'
+          result: ${{ needs.yarn-test-run.result }}
+
+  infra-test:
+    runs-on: depot-ubuntu-latest
+    needs: [yarn-install, set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
-      PR_BASE: ${{ github.base_ref }}
+      BALANCE_CHANGES: false
+      WARP_CONFIG_CHANGES: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -142,28 +225,38 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Check for balance/config changes
+        run: |
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+            echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
+          fi
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+            echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
+          fi
+
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
+        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
+        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
 
       - name: Balance Tests
-        run: |
-          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
-            yarn --cwd typescript/infra test:balance
-          fi
+        if: env.BALANCE_CHANGES == 'true'
+        run: yarn --cwd typescript/infra test:balance
 
       - name: Warp Config Tests
-        run: |
-          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
-            yarn --cwd typescript/infra test:warp
-          fi
+        if: env.WARP_CONFIG_CHANGES == 'true'
+        run: yarn --cwd typescript/infra test:warp
 
-  cli-install-test:
+  cli-install-test-run:
     runs-on: ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -178,8 +271,22 @@ jobs:
       - name: Test run the CLI
         run: hyperlane --version
 
-  cli-e2e-matrix:
+  cli-install-test:
     runs-on: ubuntu-latest
+    needs: [cli-install-test-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cli-install-test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Install Test'
+          result: ${{ needs.cli-install-test-run.result }}
+
+  cli-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     strategy:
       fail-fast: false
       matrix:
@@ -197,6 +304,7 @@ jobs:
           - warp-bridge-1
           - warp-bridge-2
           - warp-check
+          - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
@@ -213,16 +321,12 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -234,17 +338,20 @@ jobs:
 
   cli-e2e:
     runs-on: ubuntu-latest
-    needs: cli-e2e-matrix
+    needs: [cli-e2e-matrix]
     if: always()
     steps:
+      - uses: actions/checkout@v4
       - name: Check cli-e2e matrix status
-        if: ${{ needs.cli-e2e-matrix.result != 'success' }}
-        run: |
-          echo "CLI E2E tests failed"
-          exit 1
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI E2E'
+          result: ${{ needs.cli-e2e-matrix.result }}
 
-  cosmos-sdk-e2e:
-    runs-on: ubuntu-latest
+  cosmos-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -256,12 +363,25 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Cosmos SDK e2e tests
         run: yarn --cwd typescript/cosmos-sdk test:e2e
 
-  agent-configs:
+  cosmos-sdk-e2e:
     runs-on: ubuntu-latest
+    needs: [cosmos-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cosmos-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Cosmos SDK E2E'
+          result: ${{ needs.cosmos-sdk-e2e-run.result }}
+
+  agent-configs:
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -276,6 +396,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -296,7 +417,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -453,6 +574,13 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           RUST_BACKTRACE: 'full'
 
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
   e2e:
     runs-on: ubuntu-latest
     needs: e2e-matrix
@@ -464,8 +592,10 @@ jobs:
           echo "E2E tests failed"
           exit 1
 
-  env-test:
-    runs-on: ubuntu-latest
+  env-test-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
@@ -496,6 +626,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -510,8 +641,22 @@ jobs:
           on_retry_command: |
             echo "Test failed, waiting before retry..."
 
-  coverage:
+  env-test:
     runs-on: ubuntu-latest
+    needs: env-test-matrix
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check env-test matrix status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Env Test'
+          result: ${{ needs.env-test-matrix.result }}
+
+  coverage-run:
+    runs-on: ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -522,7 +667,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -535,3 +679,15 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: [coverage-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check coverage status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Coverage'
+          result: ${{ needs.coverage-run.result }}

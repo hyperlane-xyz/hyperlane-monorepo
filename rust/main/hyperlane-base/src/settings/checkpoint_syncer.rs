@@ -46,7 +46,7 @@ pub enum CheckpointSyncerConf {
 #[derive(Debug, thiserror::Error)]
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
-    #[error("A reorg event has been detected: {0:?}")]
+    #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
     ReorgEvent(ReorgEvent),
     /// Error communicating with the chain
     #[error(transparent)]
@@ -123,11 +123,6 @@ impl FromStr for CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    ///
-    /// # Panics
-    ///
-    /// Panics if a reorg event has been posted to the checkpoint store,
-    /// to prevent any operation processing until the reorg is resolved.
     pub async fn build_and_validate(
         &self,
         latest_index_gauge: Option<IntGauge>,

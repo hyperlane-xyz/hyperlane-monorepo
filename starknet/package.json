@@ -1,0 +1,49 @@
+{
+  "name": "@hyperlane-xyz/starknet-core",
+  "description": "Core cairo contracts for Hyperlane",
+  "version": "13.3.0",
+  "type": "module",
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "scripts": {
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
+    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
+    "build": "tsc && yarn fetch-contracts && yarn generate-artifacts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint -c ./eslint.config.mjs .",
+    "prettier": "prettier --write ./src ./package.json"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "Hyperlane",
+    "Cairo",
+    "Starknet"
+  ],
+  "dependencies": {
+    "starknet": "^7.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@typescript-eslint/eslint-plugin": "^8.1.6",
+    "@typescript-eslint/parser": "^8.1.6",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
+    "globby": "^14.1.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.1",
+    "typescript": "5.3.3"
+  }
+}

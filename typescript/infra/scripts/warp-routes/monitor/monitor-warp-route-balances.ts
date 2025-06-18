@@ -1,7 +1,6 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -45,7 +44,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './metrics.js';
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger, tryFn } from './utils.js';
+import { logger, setLoggerBindings, tryFn } from './utils.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
@@ -65,6 +64,10 @@ async function main() {
     .parse();
 
   const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
+
+  setLoggerBindings({
+    warp_route: warpRouteId,
+  });
 
   startMetricsServer(metricsRegister);
 
@@ -90,6 +93,7 @@ async function main() {
     warpCore,
     warpDeployConfig,
     chainMetadata,
+    warpRouteId,
   );
 }
 
@@ -99,12 +103,12 @@ async function pollAndUpdateWarpRouteMetrics(
   warpCore: WarpCore,
   warpDeployConfig: WarpRouteDeployConfig | null,
   chainMetadata: ChainMap<ChainMetadata>,
+  warpRouteId: string,
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
     apiKey: await getCoinGeckoApiKey(),
   });
-  const collateralTokenSymbol = getWarpRouteCollateralTokenSymbol(warpCore);
 
   while (true) {
     await tryFn(async () => {
@@ -115,7 +119,7 @@ async function pollAndUpdateWarpRouteMetrics(
             warpDeployConfig,
             token,
             tokenPriceGetter,
-            collateralTokenSymbol,
+            warpRouteId,
           ),
         ),
       );
@@ -130,7 +134,7 @@ async function updateTokenMetrics(
   warpDeployConfig: WarpRouteDeployConfig | null,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-  collateralTokenSymbol: string,
+  warpRouteId: string,
 ) {
   const promises = [
     tryFn(async () => {
@@ -142,12 +146,7 @@ async function updateTokenMetrics(
       if (!balanceInfo) {
         return;
       }
-      updateTokenBalanceMetrics(
-        warpCore,
-        token,
-        balanceInfo,
-        collateralTokenSymbol,
-      );
+      updateTokenBalanceMetrics(warpCore, token, balanceInfo, warpRouteId);
     }, 'Getting bridged balance and value'),
   ];
 
@@ -158,7 +157,11 @@ async function updateTokenMetrics(
   if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
     promises.push(
       tryFn(async () => {
-        const balance = await getSealevelAtaPayerBalance(warpCore, token);
+        const balance = await getSealevelAtaPayerBalance(
+          warpCore,
+          token,
+          warpRouteId,
+        );
         updateNativeWalletBalanceMetrics(balance);
       }, 'Getting ATA payer balance'),
     );
@@ -181,7 +184,8 @@ async function updateTokenMetrics(
 
     if (!warpDeployConfig) {
       logger.warn(
-        `Can't read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
+        { token: token.symbol, chain: token.chainName },
+        'Failed to read warp deploy config, skipping extra lockboxes',
       );
       return;
     }
@@ -192,7 +196,15 @@ async function updateTokenMetrics(
       currentTokenDeployConfig.type !== TokenType.XERC20 &&
       currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
     ) {
-      logger.error('Token is xERC20 but token deploy config is not');
+      logger.error(
+        {
+          expected: 'XERC20|XERC20Lockbox',
+          actual: currentTokenDeployConfig.type,
+          token: token.symbol,
+          chain: token.chainName,
+        },
+        'Invalid deploy config type for xERC20 token',
+      );
       return;
     }
 
@@ -238,7 +250,7 @@ async function updateTokenMetrics(
               tokenAddress,
               lockbox.lockbox,
               balance,
-              collateralTokenSymbol,
+              warpRouteId,
             );
           }
         }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
@@ -256,7 +268,10 @@ async function getTokenBridgedBalance(
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<WarpRouteBalance | undefined> {
   if (!token.isHypToken()) {
-    logger.warn('Cannot get bridged balance for a non-Hyperlane token', token);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'No support for bridged balance on non-Hyperlane token',
+    );
     return undefined;
   }
 
@@ -264,7 +279,10 @@ async function getTokenBridgedBalance(
   let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
   const bridgedSupply = await adapter.getBridgedSupply();
   if (bridgedSupply === undefined) {
-    logger.warn('Bridged supply not found for token', token);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Failed to get bridged supply',
+    );
     return undefined;
   }
   const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
@@ -273,12 +291,16 @@ async function getTokenBridgedBalance(
   // Only record value for collateralized and xERC20 lockbox tokens.
   if (
     token.isCollateralized() ||
-    token.standard === TokenStandard.EvmHypXERC20Lockbox
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
   ) {
     tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
       .address;
   }
@@ -329,6 +351,7 @@ function formatBigInt(warpToken: Token, num: bigint): number {
 async function getSealevelAtaPayerBalance(
   warpCore: WarpCore,
   token: Token,
+  warpRouteId: string,
 ): Promise<NativeWalletBalance> {
   if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
     throw new Error(
@@ -347,11 +370,6 @@ async function getSealevelAtaPayerBalance(
     warpCore.multiProvider,
     ataPayer,
   );
-
-  const warpRouteId = createWarpRouteConfigId(
-    token.symbol,
-    warpCore.getTokenChains(),
-  );
   return {
     chain: token.chainName,
     walletAddress: ataPayer.toString(),
@@ -368,7 +386,10 @@ async function getXERC20Info(
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20 ||
+    token.standard === TokenStandard.EvmHypVSXERC20
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20Adapter;
@@ -376,7 +397,10 @@ async function getXERC20Info(
       limits: await getXERC20Limit(token, adapter),
       xERC20Address: (await adapter.getXERC20()).address,
     };
-  } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  } else if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20LockboxAdapter;
@@ -488,10 +512,16 @@ async function getExtraLockboxBalance(
   let balance;
   try {
     balance = await erc20tokenAdapter.getBalance(lockboxAddress);
-  } catch (e) {
+  } catch (err) {
     logger.error(
-      `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
-      e,
+      {
+        err,
+        chain: warpToken.chainName,
+        token: warpToken.symbol,
+        lockboxAddress,
+        erc20TokenAddress,
+      },
+      'Failed to get balance for contract at lockbox address',
     );
     return;
   }
@@ -519,7 +549,10 @@ async function tryGetTokenPrice(
   const coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
-    logger.warn('CoinGecko ID missing for token', token.symbol);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Missing CoinGecko ID for token',
+    );
     return undefined;
   }
 
@@ -543,10 +576,10 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
       `${environment}-coingecko-api-key`,
       false,
     )) as string;
-  } catch (e) {
+  } catch (err) {
     logger.error(
-      'Error fetching CoinGecko API key, proceeding with public tier',
-      e,
+      err,
+      'Failed to fetch CoinGecko API key, proceeding with public tier',
     );
   }
 
@@ -572,7 +605,8 @@ function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
   const collateralTokens = warpCore.tokens.filter(
     (token) =>
       token.isCollateralized() ||
-      token.standard === TokenStandard.EvmHypXERC20Lockbox,
+      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      token.standard === TokenStandard.EvmHypVSXERC20Lockbox,
   );
 
   if (collateralTokens.length === 0) {
@@ -589,6 +623,6 @@ function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
 }
 
 main().catch((err) => {
-  logger.error('Error in main:', err);
+  logger.error(err);
   process.exit(1);
 });

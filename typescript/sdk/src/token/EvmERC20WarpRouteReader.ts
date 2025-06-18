@@ -1,4 +1,4 @@
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -7,56 +7,118 @@ import {
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IFiatToken__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
+  OpL1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory,
+  PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenBridgeCctp__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
-  bytes32ToAddress,
-  eqAddress,
+  arrayToObject,
+  assert,
   getLogLevel,
+  isZeroishAddress,
+  objFilter,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import {
+  ExplorerLicenseType,
+  VerifyContractTypes,
+} from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  DerivedMailboxClientConfig,
-  DestinationGas,
-  RemoteRouters,
-  RemoteRoutersSchema,
-} from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
-import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { EvmRouterReader } from '../router/EvmRouterReader.js';
+import { DestinationGas } from '../router/types.js';
+import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
-import { proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  CctpTokenConfig,
+  CollateralTokenConfig,
   DerivedTokenRouterConfig,
   HypTokenConfig,
+  HypTokenConfigSchema,
+  HypTokenRouterVirtualConfig,
+  MovableTokenConfig,
+  OpL1TokenConfig,
+  OpL2TokenConfig,
   TokenMetadata,
   XERC20TokenMetadata,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
-export class EvmERC20WarpRouteReader extends HyperlaneReader {
+export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
   });
+
+  // Using null instead of undefined to force
+  // a compile error when adding a new token type
+  protected readonly deriveTokenConfigMap: Record<
+    TokenType,
+    ((address: Address) => Promise<HypTokenConfig>) | null
+  >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  contractVerifier: ContractVerifier;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+
+    this.deriveTokenConfigMap = {
+      [TokenType.XERC20]: this.deriveHypXERC20TokenConfig.bind(this),
+      [TokenType.XERC20Lockbox]:
+        this.deriveHypXERC20LockboxTokenConfig.bind(this),
+      [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
+      [TokenType.collateralFiat]:
+        this.deriveHypCollateralFiatTokenConfig.bind(this),
+      [TokenType.collateralVault]:
+        this.deriveHypCollateralVaultTokenConfig.bind(this),
+      [TokenType.collateralCctp]:
+        this.deriveHypCollateralCctpTokenConfig.bind(this),
+      [TokenType.collateralVaultRebase]:
+        this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
+      [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
+      [TokenType.nativeOpL2]: this.deriveOpL2TokenConfig.bind(this),
+      [TokenType.nativeOpL1]: this.deriveOpL1TokenConfig.bind(this),
+      [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
+      [TokenType.syntheticRebase]:
+        this.deriveHypSyntheticRebaseConfig.bind(this),
+      [TokenType.nativeScaled]: null,
+      [TokenType.collateralUri]: null,
+      [TokenType.syntheticUri]: null,
+    };
+
+    this.contractVerifier =
+      contractVerifier ??
+      new ContractVerifier(
+        multiProvider,
+        {},
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
   }
 
   /**
@@ -71,20 +133,108 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const mailboxClientConfig =
-      await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
-    const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
-    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
+    const routerConfig = await this.readRouterConfig(warpRouteAddress);
+    // if the token has not been deployed as a proxy do not derive the config
+    // inevm warp routes are an example
+    const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
+      ? await this.fetchProxyAdminConfig(warpRouteAddress)
+      : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
+    let allowedRebalancers: Address[] | undefined;
+    let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    if (isMovableCollateralTokenConfig(tokenConfig)) {
+      const movableToken = MovableCollateralRouter__factory.connect(
+        warpRouteAddress,
+        this.provider,
+      );
+
+      try {
+        allowedRebalancers = await MovableCollateralRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        ).allowedRebalancers();
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get configured rebalancers for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
+
+      try {
+        const knownDomains = await movableToken.domains();
+        const allowedBridgesByDomain = await promiseObjAll(
+          objMap(
+            arrayToObject(knownDomains.map((domain) => domain.toString())),
+            (domain) => movableToken.allowedBridges(domain),
+          ),
+        );
+
+        allowedRebalancingBridges = objFilter(
+          objMap(allowedBridgesByDomain, (_domain, bridges) =>
+            bridges.map((bridge) => ({ bridge })),
+          ),
+          // Remove domains that do not have allowed bridges
+          (_domain, bridges): bridges is any => bridges.length !== 0,
+        );
+      } catch (error) {
+        // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
+        this.logger.error(
+          `Failed to get allowed rebalancer bridges for token at "${warpRouteAddress}" on chain ${this.chain}`,
+          error,
+        );
+      }
+      return {
+        ...routerConfig,
+        ...tokenConfig,
+        allowedRebalancers,
+        allowedRebalancingBridges,
+        proxyAdmin,
+        destinationGas,
+      } as DerivedTokenRouterConfig;
+    }
+
     return {
-      ...mailboxClientConfig,
+      ...routerConfig,
       ...tokenConfig,
-      remoteRouters,
       proxyAdmin,
       destinationGas,
     };
+  }
+
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    };
+
+    const contractType = (await isProxy(this.provider, address))
+      ? VerifyContractTypes.Proxy
+      : VerifyContractTypes.Implementation;
+
+    virtualConfig.contractVerificationStatus[contractType] =
+      await this.contractVerifier.getContractVerificationStatus(chain, address);
+
+    if (contractType === VerifyContractTypes.Proxy) {
+      virtualConfig.contractVerificationStatus.Implementation =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyImplementation(this.provider, address),
+        );
+
+      // Derive ProxyAdmin status
+      virtualConfig.contractVerificationStatus.ProxyAdmin =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyAdmin(this.provider, address),
+        );
+    }
+
+    return virtualConfig;
   }
 
   /**
@@ -136,12 +286,38 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await warpRoute[method]();
         if (tokenType === TokenType.collateral) {
           const wrappedToken = await warpRoute.wrappedToken();
-          const xerc20 = IXERC20__factory.connect(wrappedToken, this.provider);
           try {
+            const xerc20 = IXERC20__factory.connect(
+              wrappedToken,
+              this.provider,
+            );
             await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
             return TokenType.XERC20;
-            // eslint-disable-next-line no-empty
-          } catch {}
+          } catch (error) {
+            this.logger.debug(
+              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
+              error,
+            );
+          }
+
+          try {
+            const fiatToken = IFiatToken__factory.connect(
+              wrappedToken,
+              this.provider,
+            );
+
+            // Simulate minting tokens from the warp route contract
+            await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
+              from: warpRouteAddress,
+            });
+
+            return TokenType.collateralFiat;
+          } catch (error) {
+            this.logger.debug(
+              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
+              error,
+            );
+          }
         }
         return tokenType as TokenType;
       } catch {
@@ -168,41 +344,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-  }
-
-  /**
-   * Fetches the base metadata for a Warp Route contract.
-   *
-   * @param routerAddress - The address of the Warp Route contract.
-   * @returns The base metadata for the Warp Route contract, including the mailbox, owner, hook, and ism.
-   */
-  async fetchMailboxClientConfig(
-    routerAddress: Address,
-  ): Promise<DerivedMailboxClientConfig> {
-    const warpRoute = HypERC20Collateral__factory.connect(
-      routerAddress,
-      this.provider,
-    );
-    const [mailbox, owner, hook, ism] = await Promise.all([
-      warpRoute.mailbox(),
-      warpRoute.owner(),
-      warpRoute.hook(),
-      warpRoute.interchainSecurityModule(),
-    ]);
-
-    const derivedIsm = eqAddress(ism, constants.AddressZero)
-      ? constants.AddressZero
-      : await this.evmIsmReader.deriveIsmConfig(ism);
-    const derivedHook = eqAddress(hook, constants.AddressZero)
-      ? constants.AddressZero
-      : await this.evmHookReader.deriveHookConfig(hook);
-
-    return {
-      mailbox,
-      owner,
-      hook: derivedHook,
-      interchainSecurityModule: derivedIsm,
-    };
   }
 
   async fetchXERC20Config(
@@ -256,87 +397,237 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    if (
-      type === TokenType.collateral ||
-      type === TokenType.collateralVault ||
-      type === TokenType.collateralVaultRebase ||
-      type === TokenType.XERC20 ||
-      type === TokenType.XERC20Lockbox
-    ) {
-      let xerc20Token: Address | undefined;
-      let lockbox: Address | undefined;
-      let token: Address;
-      let xERC20Metadata: XERC20TokenMetadata | {} = {};
-
-      if (type === TokenType.XERC20Lockbox) {
-        // XERC20Lockbox is a special case of collateral, we will fetch it from the xerc20 contract
-        const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        xerc20Token = await hypXERC20Lockbox.xERC20();
-        token = xerc20Token;
-        lockbox = await hypXERC20Lockbox.lockbox();
-      } else {
-        const erc20 = HypERC20Collateral__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        token = await erc20.wrappedToken();
-      }
-
-      const { name, symbol, decimals } = await this.fetchERC20Metadata(token);
-
-      if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
-        xERC20Metadata = await this.fetchXERC20Config(token, warpRouteAddress);
-      }
-
-      return {
-        ...xERC20Metadata,
-        type,
-        name,
-        symbol,
-        decimals,
-        token: lockbox || token,
-      };
-    } else if (
-      type === TokenType.synthetic ||
-      type === TokenType.syntheticRebase
-    ) {
-      const baseMetadata = await this.fetchERC20Metadata(warpRouteAddress);
-
-      if (type === TokenType.syntheticRebase) {
-        const hypERC4626 = HypERC4626__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        const collateralChainName = this.multiProvider.getChainName(
-          await hypERC4626.collateralDomain(),
-        );
-        return { type, ...baseMetadata, collateralChainName };
-      }
-
-      return { type, ...baseMetadata };
-    } else if (type === TokenType.native) {
-      const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
-      if (chainMetadata.nativeToken) {
-        const { name, symbol, decimals } = chainMetadata.nativeToken;
-        return {
-          type,
-          name,
-          symbol,
-          decimals,
-        };
-      } else {
-        throw new Error(
-          `Warp route config specifies native token but chain metadata for ${this.chain} does not provide native token details`,
-        );
-      }
-    } else {
+    const deriveFunction = this.deriveTokenConfigMap[type];
+    if (!deriveFunction) {
       throw new Error(
-        `Unsupported token type ${type} when fetching token metadata`,
+        `Provided unsupported token type "${type}" when fetching token metadata on chain "${this.chain}" at address "${warpRouteAddress}"`,
       );
     }
+
+    const config = await deriveFunction(warpRouteAddress);
+    config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
+
+    return HypTokenConfigSchema.parse(config);
+  }
+
+  private async deriveHypXERC20TokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const hypXERC20TokenInstance = HypXERC20__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const collateralTokenAddress = await hypXERC20TokenInstance.wrappedToken();
+    const [erc20TokenMetadata, xERC20Metadata] = await Promise.all([
+      this.fetchERC20Metadata(collateralTokenAddress),
+      this.fetchXERC20Config(collateralTokenAddress, hypTokenAddress),
+    ]);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.XERC20,
+      token: collateralTokenAddress,
+      xERC20: xERC20Metadata.xERC20,
+    };
+  }
+
+  private async deriveHypXERC20LockboxTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const hypXERC20TokenLockboxTokenInstance =
+      HypXERC20Lockbox__factory.connect(hypTokenAddress, this.provider);
+
+    const xerc20TokenAddress =
+      await hypXERC20TokenLockboxTokenInstance.xERC20();
+    const [erc20TokenMetadata, xERC20Metadata, lockbox] = await Promise.all([
+      this.fetchERC20Metadata(xerc20TokenAddress),
+      this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
+      hypXERC20TokenLockboxTokenInstance.lockbox(),
+    ]);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.XERC20Lockbox,
+      token: lockbox,
+      xERC20: xERC20Metadata.xERC20,
+    };
+  }
+
+  private async deriveHypCollateralCctpTokenConfig(
+    hypToken: Address,
+  ): Promise<CctpTokenConfig> {
+    const collateralConfig =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    const tokenBridge = TokenBridgeCctp__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const messageTransmitter = await tokenBridge.messageTransmitter();
+    const tokenMessenger = await tokenBridge.tokenMessenger();
+    const urls = await tokenBridge.urls();
+
+    return {
+      ...collateralConfig,
+      type: TokenType.collateralCctp,
+      messageTransmitter,
+      tokenMessenger,
+      urls,
+    };
+  }
+
+  private async deriveHypCollateralTokenConfig(
+    hypToken: Address,
+  ): Promise<CollateralTokenConfig> {
+    const hypCollateralTokenInstance = HypERC20Collateral__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const collateralTokenAddress =
+      await hypCollateralTokenInstance.wrappedToken();
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateral,
+      token: collateralTokenAddress,
+    };
+  }
+
+  private async deriveHypCollateralFiatTokenConfig(
+    hypToken: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralFiat,
+    };
+  }
+
+  private async deriveHypCollateralVaultTokenConfig(
+    hypToken: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralVault,
+    };
+  }
+
+  private async deriveHypCollateralVaultRebaseTokenConfig(
+    hypToken: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralVaultRebase,
+    };
+  }
+
+  private async deriveHypSyntheticTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata = await this.fetchERC20Metadata(hypTokenAddress);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.synthetic,
+    };
+  }
+
+  private async deriveHypNativeTokenConfig(
+    _address: Address,
+  ): Promise<HypTokenConfig> {
+    const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
+    if (!chainMetadata.nativeToken) {
+      throw new Error(
+        `Warp route config specifies native token but chain metadata for chain "${this.chain}" does not provide native token details`,
+      );
+    }
+
+    const { name, symbol, decimals } = chainMetadata.nativeToken;
+    return {
+      type: TokenType.native,
+      name,
+      symbol,
+      decimals,
+      isNft: false,
+    };
+  }
+
+  private async deriveOpL2TokenConfig(
+    _address: Address,
+  ): Promise<OpL2TokenConfig> {
+    const config = await this.deriveHypNativeTokenConfig(_address);
+
+    const contract = OpL2NativeTokenBridge__factory.connect(
+      _address,
+      this.multiProvider.getProvider(this.chain),
+    );
+
+    const l2Bridge = await contract.l2Bridge();
+
+    return {
+      ...config,
+      type: TokenType.nativeOpL2,
+      l2Bridge,
+    };
+  }
+
+  private async deriveOpL1TokenConfig(
+    _address: Address,
+  ): Promise<OpL1TokenConfig> {
+    const config = await this.deriveHypNativeTokenConfig(_address);
+    const contract = OpL1NativeTokenBridge__factory.connect(
+      _address,
+      this.multiProvider.getProvider(this.chain),
+    );
+
+    const urls = await contract.urls();
+    const portal = await contract.opPortal();
+
+    return {
+      ...config,
+      type: TokenType.nativeOpL1,
+      urls,
+      portal,
+      // assume version 1 for now
+      version: 1,
+    };
+  }
+
+  private async deriveHypSyntheticRebaseConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const hypERC4626 = HypERC4626__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const [erc20TokenMetadata, collateralDomainId] = await Promise.all([
+      this.fetchERC20Metadata(hypTokenAddress),
+      hypERC4626.collateralDomain(),
+    ]);
+
+    const collateralChainName =
+      this.multiProvider.getChainName(collateralDomainId);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.syntheticRebase,
+      collateralChainName,
+    };
   }
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
@@ -347,34 +638,38 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       erc20.decimals(),
     ]);
 
-    return { name, symbol, decimals };
+    return { name, symbol, decimals, isNft: false };
   }
 
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const warpRoute = TokenRouter__factory.connect(
-      warpRouteAddress,
+  async fetchPackageVersion(address: Address) {
+    const contractWithVersion = PackageVersioned__factory.connect(
+      address,
       this.provider,
     );
-    const domains = await warpRoute.domains();
 
-    const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [
-            domain,
-            { address: bytes32ToAddress(await warpRoute.routers(domain)) },
-          ];
-        }),
-      ),
-    );
-
-    return RemoteRoutersSchema.parse(routers);
+    try {
+      return await contractWithVersion.PACKAGE_VERSION();
+    } catch (err: any) {
+      if (err.cause.code && err.cause.code === 'CALL_EXCEPTION') {
+        // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
+        // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
+        // The real version of a contract without this function is below 5.4.0
+        return '5.3.9';
+      } else {
+        throw err;
+      }
+    }
   }
 
   async fetchProxyAdminConfig(
     tokenAddress: Address,
   ): Promise<DeployedOwnableConfig> {
     const proxyAdminAddress = await proxyAdmin(this.provider, tokenAddress);
+    assert(
+      !isZeroishAddress(proxyAdminAddress),
+      `ProxyAdmin config for warp token at address "${tokenAddress}" can't be derived because it is not a proxy.`,
+    );
+
     const proxyAdminInstance = ProxyAdmin__factory.connect(
       proxyAdminAddress,
       this.provider,
