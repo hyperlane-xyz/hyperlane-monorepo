@@ -19,7 +19,12 @@ use hyperlane_core::{Indexed, LogMeta};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
-use super::new_deposit::{dedupe_and_store_logs, deposits_to_logs};
+use super::new_deposit::{
+    dedupe_and_store_logs, deposits_to_logs, handle_observed_deposits, DepositCache,
+};
+
+use std::time::Duration;
+use tokio::time;
 
 pub async fn run_kas_monitor(
     domain: HyperlaneDomain,
@@ -56,10 +61,13 @@ async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(
 ) where
     S: Clone + 'static,
 {
+    let mut deposit_cache = DepositCache::new();
     loop {
         let deposits = provider.get_deposits().await.unwrap();
+        handle_observed_deposits(provider, &mut deposit_cache, deposits).await;
         // let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
         // let stored= dedupe_and_store_logs(domain, store, logs).await;
         // unimplemented!()
+        time::sleep(Duration::from_secs(10)).await;
     }
 }
