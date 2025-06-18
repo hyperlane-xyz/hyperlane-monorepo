@@ -22,38 +22,16 @@ This builds on the existing `hyperlane-cosmos-rs` ⇆ `hyperlane-cosmos-native` 
 
 ---
 
-## 2 ▪ hyperlane-cosmos-native ▷ provider side additions
+## DONE: 2 ▪ hyperlane-cosmos-native ▷ provider side additions
 
 ### 2.0 Dependency Updates
 `rust/main/chains/hyperlane-cosmos-native/Cargo.toml`
   * Update dependency: `hyperlane-cosmos-rs` -> `hyperlane-cosmos-dymention-rs`, `hyperlane-cosmos-dymention-rs = "0.1.4-dymension-v3.2.1"`
   * Or use git dependency: `hyperlane-cosmos-dymention-rs = { git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", branch = "main" }`
 
-### 2.1 New client wrapper
-`rust/main/chains/hyperlane-cosmos-native/src/providers/kas.rs`
-
-```rust
-//! Thin convenience wrapper over generated gRPC stubs.
-use hyperlane_cosmos_rs::dymension::kas::v1::{
-    query_client::QueryClient as RawKasQuery, /* …messages… */
-};
-use tonic::transport::Channel;
-use crate::{ChainResult, HyperlaneCosmosError};
-
-pub struct KasClient {
-    inner: RawKasQuery<Channel>,
-}
-
-impl KasClient {
-    pub async fn withdrawal_status(/*…*/) -> ChainResult<WithdrawalResponse> { … }
-    pub async fn outpoint(/*…*/) -> ChainResult<OutpointResponse> { … }
-    /* additional helpers */
-}
-```
-
 ### 2.2 Extend GrpcProvider
 File: `rust/main/chains/hyperlane-cosmos-native/providers/grpc.rs`
-  * Add `use hyperlane_cosmos_rs::dymension::kas::v1::query_client::QueryClient as KasQueryClient;`
+  * Add `use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::query_client::QueryClient as KasQueryClient;`
   * Add methods:  
     `pub async fn outpoint(…)`, `pub async fn withdrawal_status(…)`, etc.  
   * Re-use `request_at_height()` util for deterministic state queries (`x-cosmos-block-height` header).
@@ -72,14 +50,10 @@ File: `providers/cosmos.rs`
     ```
   * update trait impls (if any) / add unit tests under `tests/`.
 
-### 2.5 Update lib.rs
-File: `rust/main/chains/hyperlane-cosmos-native/src/lib.rs`
-  * Add `kas` module import line: `mod kas;` (if creating the kas.rs client wrapper)
-  * Update re-exports to include kas types
 
 ---
 
-## 3 ▪ Cargo & Workspace wiring (hyperlane-monorepo)
+## DONE: 3 ▪ Cargo & Workspace wiring (hyperlane-monorepo)
 
 ### 3.1 Chosen -> Workspace patch (Option A - using Git)
 Add to `rust/main/Cargo.toml` under `[patch.crates-io]`:
@@ -139,3 +113,56 @@ All core components have been successfully implemented:
 6. **✅ Testing Framework**: Integration tests and example workflows
 
 **Ready for**: Testing with live Dymension and Kaspa nodes, agent configuration, and end-to-end bridge flows.
+
+## 6 ▪ **NEXT** ▸ x/kas **Message-server (Tx) integration**
+_Focus: broadcast `MsgIndicateProcess` only_
+
+### 6.0 Scope & Goal
+Provide a single helper so that any Hyperlane agent can **indicate** that a withdrawal has been processed on Kaspa by
+submitting `dymensionxyz.dymension.kas.MsgIndicateProgress` to the Dymension chain.
+
+### 6.1 hyperlane-cosmos-rs ▷ proto surfacing _(already generated)_
+* `proto/dymensionxyz/dymension/kas/tx.proto` is in the build list – prost has created `kas::MsgIndicateProgress`.
+* **Add re-export** in `src/dymension/kas/mod.rs`:
+  ```rust
+  pub use v1::MsgIndicateProgress;
+  ```
+  (No client stub needed – the tx message is broadcast via Tendermint RPC.)
+
+### 6.2 hyperlane-cosmos-native ▷ contract wrapper & provider hooks
+
+We will follow the *same pattern* as
+```rust
+rust/main/chains/hyperlane-cosmos-native/src/validator_announce.rs
+```
+
+| File | Change |
+|------|--------|
+| `rust/main/chains/hyperlane-cosmos-native/src/indicate_process.rs` | **NEW**. Analogous to `validator_announce.rs`.<br>```rust
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::MsgIndicateProgress;
+use cosmrs::Any;
+use hyperlane_core::{ChainResult, TxOutcome, /* … */};
+use crate::CosmosNativeProvider;
+
+pub struct CosmosNativeKIndicateProcess { /* domain, provider */ }
+
+impl CosmosNativeIndicateProcess {
+    pub async fn indicate_process(&self, req: MsgIndicateProgress) -> ChainResult<TxOutcome> {
+        let any = Any { type_url: MsgIndicateProgress::type_url(), value: req.encode_to_vec() };
+        let resp = self.provider.rpc().send(vec![any], None).await?;
+        Ok(Self::tx_commit_to_outcome(&resp, &self.provider))
+    }
+}
+``` |
+| `rust/main/chains/hyperlane-cosmos-native/src/providers.rs` | `pub use indicate_process::CosmosNativeIndicateProcess;` |
+| `rust/main/chains/hyperlane-cosmos-native/src/lib.rs` | `mod indicate_process; pub use indicate_process::*;` |
+
+The helper uses *identical fee/gas accounting logic* as `validator_announce.rs` (copy-paste & adjust field names).
+
+### 6.3 Provider convenience (optional)
+Expose a shorthand that instantiates the wrapper:
+```rust
+impl CosmosNativeProvider {
+    pub fn kas(&self) -> CosmosNativeIndicateProcess { CosmosNativeIndicateProcess::new(self.clone()) }
+}
+```
