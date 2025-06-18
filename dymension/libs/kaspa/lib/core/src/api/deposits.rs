@@ -77,9 +77,8 @@ impl HttpClient {
         let acceptance = None;
 
         let res = transactions_page(
-
             &get_config(&self.url),
-            args{
+            args {
                 kaspa_address: address.to_string(),
                 limit: Some(limit),
                 before: lower_bound,
@@ -87,7 +86,7 @@ impl HttpClient {
                 fields: field,
                 resolve_previous_outpoints: resolve_previous_outpoints,
                 acceptance: acceptance,
-            }
+            },
         )
         .await?;
 

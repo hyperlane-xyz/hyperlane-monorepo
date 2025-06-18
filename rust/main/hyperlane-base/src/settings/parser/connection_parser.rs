@@ -311,7 +311,7 @@ pub fn build_kaspa_connection_conf(
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let escrow_address = chain
-    .chain(err)
+        .chain(err)
         .get_opt_key("escrowAddress")
         .parse_string()
         .end();
