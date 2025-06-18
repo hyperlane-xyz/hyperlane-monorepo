@@ -51,6 +51,7 @@ pub struct Dispatcher {
     /// the name of the destination chain
     /// used for logging
     pub(crate) domain: String,
+    pub(crate) batch_max_size: u32,
 }
 
 impl Dispatcher {
@@ -59,10 +60,12 @@ impl Dispatcher {
         domain: String,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
+        let batch_max_size = Self::batch_max_size(&settings);
         let state = DispatcherState::try_from_settings(settings, metrics).await?;
         Ok(Self {
             inner: state,
             domain,
+            batch_max_size,
         })
     }
 
@@ -71,7 +74,7 @@ impl Dispatcher {
     #[instrument(skip(self), fields(domain = %self.domain))]
     pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
-        let building_stage_queue: BuildingStageQueue = Arc::new(Mutex::new(VecDeque::new()));
+        let building_stage_queue = BuildingStageQueue::new();
         let (inclusion_stage_sender, inclusion_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
         let (finality_stage_sender, finality_stage_receiver) =
@@ -82,6 +85,7 @@ impl Dispatcher {
             inclusion_stage_sender.clone(),
             self.inner.clone(),
             self.domain.clone(),
+            self.batch_max_size as usize,
         );
         let building_task = tokio::task::Builder::new()
             .name("building_stage")
@@ -180,5 +184,14 @@ impl Dispatcher {
                 .instrument(tracing::info_span!("dispatcher")),
             )
             .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn batch_max_size(settings: &DispatcherSettings) -> u32 {
+        settings
+            .chain_conf
+            .connection
+            .operation_submission_config()
+            .map(|c| c.max_batch_size)
+            .unwrap_or(1)
     }
 }

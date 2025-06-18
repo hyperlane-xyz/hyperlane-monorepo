@@ -18,7 +18,7 @@ use super::PayloadDb;
 #[tokio::test]
 async fn test_entrypoint_send_is_detected_by_loader() {
     let (payload_db, tx_db, _) = tmp_dbs();
-    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
+    let building_stage_queue = BuildingStageQueue::new();
     let domain = "dummy_domain".to_string();
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
@@ -47,10 +47,7 @@ async fn test_entrypoint_send_is_detected_by_loader() {
 
     // Check if the loader detects the new payload
     sleep(Duration::from_millis(100)).await; // Wait for the loader to process the payload
-    let detected_payload_count = {
-        let queue = building_stage_queue.lock().await;
-        queue.len()
-    };
+    let detected_payload_count = building_stage_queue.len().await;
     assert_eq!(
         detected_payload_count, 1,
         "Loader did not detect the new payload"
@@ -208,9 +205,11 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
 async fn mock_entrypoint_and_dispatcher(
     adapter: Arc<MockAdapter>,
 ) -> (DispatcherEntrypoint, Dispatcher) {
-    let (payload_db, tx_db, _) = tmp_dbs();
-    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
     let domain = "test_domain".to_string();
+    let batch_max_size = 1;
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let building_stage_queue = BuildingStageQueue::new();
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
         building_stage_queue.clone(),
@@ -236,6 +235,7 @@ async fn mock_entrypoint_and_dispatcher(
     let dispatcher = Dispatcher {
         inner: state.clone(),
         domain: domain.clone(),
+        batch_max_size,
     };
     (dispatcher_entrypoint, dispatcher)
 }
