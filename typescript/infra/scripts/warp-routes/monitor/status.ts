@@ -68,7 +68,28 @@ function formatAndPrintLogs(rawLogs: string) {
       .map((line) => JSON.parse(line));
     logs.forEach((log) => {
       const { time, module, msg, labels, balance, valueUSD } = log;
-      const timestamp = new Date(time).toISOString();
+
+      // Handle both standard timestamps and GCP timestamp format
+      let timestamp: string;
+      if (typeof time === 'string') {
+        // Standard timestamp format
+        timestamp = new Date(time).toISOString();
+      } else if (
+        time &&
+        typeof time === 'object' &&
+        'seconds' in time &&
+        'nanos' in time
+      ) {
+        // GCP timestamp format: { seconds: number, nanos: number }
+        const seconds = (time as { seconds: number; nanos: number }).seconds;
+        const nanos = (time as { seconds: number; nanos: number }).nanos;
+        const milliseconds = seconds * 1000 + nanos / 1000000;
+        timestamp = new Date(milliseconds).toISOString();
+      } else {
+        // Fallback to current time if timestamp is invalid
+        timestamp = new Date().toISOString();
+      }
+
       const chain = labels?.chain_name || 'Unknown Chain';
       const token = labels?.token_name || 'Unknown Token';
       const warpRoute = labels?.warp_route_id || 'Unknown Warp Route';
