@@ -49,7 +49,8 @@ mockall::mock! {
             &self,
             cache: Arc<tokio::sync::Mutex<BatchCache>>,
             batch_contract_address: H256,
-        ) -> ChainResult<()>;
+            precursors: Vec<(TypedTransaction, Function)>
+        ) -> ChainResult<(TypedTransaction, Function)>;
 
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;

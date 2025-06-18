@@ -23,7 +23,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    build_multicall, get_finalized_block_number, BatchCache, BuildableWithProvider, ConnectionConf,
+    get_finalized_block_number, multicall, BatchCache, BuildableWithProvider, ConnectionConf,
     EthereumReorgPeriod,
 };
 
@@ -116,7 +116,8 @@ pub trait EvmProviderForLander: Send + Sync {
         &self,
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
-    ) -> ChainResult<()>;
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<(TypedTransaction, Function)>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -196,8 +197,9 @@ where
         &self,
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
-    ) -> ChainResult<()> {
-        let _multicall = build_multicall(
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<(TypedTransaction, Function)> {
+        let mut multicall = multicall::build_multicall(
             self.provider.clone(),
             self.domain.clone(),
             cache,
@@ -205,7 +207,17 @@ where
         )
         .await?;
 
-        Ok(())
+        let contract_calls = precursors
+            .into_iter()
+            .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
+            .collect::<Vec<_>>();
+
+        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
+
+        let tx = multicall_contract_call.tx;
+        let function = multicall_contract_call.function;
+
+        Ok((tx, function))
     }
 
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {

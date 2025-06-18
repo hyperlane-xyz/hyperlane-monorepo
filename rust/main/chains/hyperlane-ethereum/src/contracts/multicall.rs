@@ -64,6 +64,7 @@ pub async fn build_multicall<M: Middleware + 'static>(
     Ok(multicall)
 }
 
+/// Batch multiple contract calls into a single multicall transaction
 pub fn batch<M, D>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
@@ -82,6 +83,7 @@ where
     multicall.as_aggregate_3_value()
 }
 
+/// Filter out successful calls and return the failed calls with their indices
 pub fn filter_failed<M, D>(
     calls: Vec<ContractCall<M, D>>,
     results: Vec<MulticallResult>,
@@ -99,6 +101,7 @@ pub fn filter_failed<M, D>(
         })
 }
 
+/// Estimate the gas limit for a batch of contract calls
 pub async fn estimate<M, D>(
     batch: ContractCall<M, D>,
     calls: Vec<ContractCall<M, ()>>,
