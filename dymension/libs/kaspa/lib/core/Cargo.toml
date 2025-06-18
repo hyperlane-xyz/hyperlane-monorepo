@@ -24,3 +24,7 @@ api-rs = { path = "../api", package = "openapi" }
 tokio = { workspace = true }
 url = { workspace = true }
 eyre = { workspace = true }
+
+reqwest-middleware = "0.4"
+reqwest-ratelimit = "0.4.1"
+governor = "0.10"

@@ -1,3 +1,4 @@
+use tracing::instrument::WithSubscriber;
 use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use url::Url;
@@ -9,6 +10,8 @@ use kaspa_consensus_core::tx::{Transaction, TransactionId};
 use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page;
 use api_rs::models::TxModel;
+
+use super::client::get_config;
 
 pub struct Deposit {
     // ATM its a part of Transaction struct, only id, payload, accepted are populated
@@ -62,18 +65,6 @@ impl HttpClient {
         }
     }
 
-    fn get_config(&self) -> Configuration {
-        Configuration {
-            base_path: self.url.to_string(),
-            user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
-            client: reqwest::Client::new(),
-            basic_auth: None,
-            oauth_access_token: None,
-            bearer_access_token: None,
-            api_key: None,
-        }
-    }
-
     pub async fn get_deposits(&self, address: &str) -> Result<Vec<Deposit>> {
         let limit = 20;
         let lower_bound = Some(0i64);
@@ -83,7 +74,7 @@ impl HttpClient {
         let acceptance = None;
 
         let res = transactions_page(
-            &self.get_config(),
+            &get_config(&self.url),
             address,
             Some(limit),
             lower_bound,

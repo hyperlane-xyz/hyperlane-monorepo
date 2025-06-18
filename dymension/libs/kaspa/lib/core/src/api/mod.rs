@@ -1,2 +1,3 @@
 pub mod deposits;
-pub mod test;
+mod test;
+mod client;
