@@ -99,8 +99,6 @@ mod tests {
         build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint, TestValidator,
     };
     use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
-    use hyperlane_core::accumulator::merkle::Proof;
-    use hyperlane_core::accumulator::TREE_DEPTH;
     use hyperlane_core::{
         Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneMessage,
         KnownHyperlaneDomain, H160, H256,
@@ -197,17 +195,12 @@ mod tests {
             .unwrap()
             .push_back(Some(1000));
 
-        let proof = Proof {
-            leaf: H256::zero(),
-            index: 100,
-            path: [H256::zero(); TREE_DEPTH],
-        };
         base_builder
             .responses
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Ok(proof.clone()));
+            .push_back(Err(eyre::eyre!("No Proof")));
 
         let ism_address = H256::zero();
         let message_builder = {
@@ -226,8 +219,7 @@ mod tests {
             .expect("Failed to fetch metadata")
             .expect("Expected MultisigMetadata");
 
-        let expected = MultisigMetadata::new(signed_checkpoint, 100, Some(proof));
-        assert_eq!(resp.checkpoint, expected.checkpoint);
-        assert_eq!(resp.signatures, expected.signatures);
+        let expected = MultisigMetadata::new(signed_checkpoint, 1000, None);
+        assert_eq!(resp, expected);
     }
 }

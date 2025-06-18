@@ -18,7 +18,7 @@ use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, Metadata, MetadataBuilder};
 
-#[derive(new, AsRef, Deref)]
+#[derive(new, AsRef, Deref, Debug, PartialEq)]
 pub struct MultisigMetadata {
     #[deref]
     quorum_checkpoint: MultisigSignedCheckpoint,
