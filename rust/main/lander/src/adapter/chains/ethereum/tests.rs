@@ -1,6 +1,6 @@
-use std::cell::LazyCell;
 use std::convert::Into;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
@@ -14,7 +14,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
     MerkleTreeHook, ReorgPeriod, H256, U256,
 };
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
+use hyperlane_ethereum::{
+    BatchCache, EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse,
+};
 
 mockall::mock! {
     pub EvmProvider {}
@@ -42,6 +44,12 @@ mockall::mock! {
             tx: &TypedTransaction,
             function: &Function,
         ) -> Result<U256, ChainCommunicationError>;
+
+        async fn batch(
+            &self,
+            cache: Arc<tokio::sync::Mutex<BatchCache>>,
+            batch_contract_address: H256,
+        ) -> ChainResult<()>;
 
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;

@@ -1,3 +1,4 @@
+pub use multicall::build_multicall;
 pub use {interchain_gas::*, mailbox::*, merkle_tree_hook::*, validator_announce::*};
 
 pub(crate) use utils::get_finalized_block_number;

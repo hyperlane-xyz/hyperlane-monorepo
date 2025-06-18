@@ -21,7 +21,9 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain};
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterProviderBuilder};
+use hyperlane_ethereum::{
+    BatchCache, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
+};
 
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
@@ -48,6 +50,7 @@ pub struct EthereumAdapter {
     pub provider: Arc<dyn EvmProviderForLander>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
+    pub _batch_cache: Arc<Mutex<BatchCache>>,
 }
 
 impl EthereumAdapter {
@@ -70,7 +73,7 @@ impl EthereumAdapter {
                 &connection_conf,
                 &locator,
                 metrics,
-                SubmitterProviderBuilder {},
+                LanderProviderBuilder {},
             )
             .await?;
 
@@ -94,6 +97,7 @@ impl EthereumAdapter {
             provider,
             reorg_period,
             nonce_manager,
+            _batch_cache: Default::default(),
         };
 
         Ok(adapter)
