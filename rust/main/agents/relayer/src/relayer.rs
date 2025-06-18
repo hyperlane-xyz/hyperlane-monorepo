@@ -500,7 +500,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
-            kas_provider,
+            kas_provider: kas_chain_provider,
         })
     }
 

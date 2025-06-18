@@ -48,9 +48,9 @@ pub fn get_deposits() -> Vec<Deposit> {
     unimplemented!()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HttpClient {
-    url: Url,
+    pub url: Url,
     client: reqwest::Client, // TODO: ignored for now
 }
 

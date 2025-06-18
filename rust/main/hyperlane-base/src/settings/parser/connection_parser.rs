@@ -310,8 +310,17 @@ pub fn build_kaspa_connection_conf(
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
+    let escrow_address = chain
+    .chain(err)
+        .get_opt_key("escrowAddress")
+        .parse_string()
+        .end();
+
     Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(),
+        dymension_kaspa::ConnectionConf::new(
+            rpcs.to_owned().into_iter().next().unwrap(),
+            escrow_address.unwrap().to_string(),
+        ),
     ))
 }
 

@@ -22,7 +22,7 @@ pub use dym_kas_core::api::deposits::*;
 
 #[derive(Debug)]
 struct KaspaHttpClient {
-    client: HttpClient,
+    pub client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
 }
@@ -61,7 +61,7 @@ impl KaspaHttpClient {
 
     /// Creates a KaspaHttpClient from a url
     pub fn from_url(
-        url: &Url,
+        url: Url,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
@@ -79,7 +79,11 @@ impl Drop for KaspaHttpClient {
 
 impl Clone for KaspaHttpClient {
     fn clone(&self) -> Self {
-        Self::new(self.metrics.clone(), self.metrics_config.clone())
+        Self::new(
+            self.client.url.clone(),
+            self.metrics.clone(),
+            self.metrics_config.clone(),
+        )
     }
 }
 
@@ -104,7 +108,7 @@ impl RestProvider {
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
-                KaspaHttpClient::from_url(url, metrics.clone(), metrics_config)
+                KaspaHttpClient::from_url(url.clone(), metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -127,8 +131,10 @@ impl RestProvider {
         return FixedPointNumber::zero();
     }
 
-    pub fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
+    /// dococo
+    pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
         let address = self.conf.escrow_address.clone();
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+        let res = self.client.client.get_deposits(&address).await;
+        return res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()));
     }
 }
