@@ -447,13 +447,13 @@ impl BaseAgent for Relayer {
 
         let kas_provider = if has_kaspa {
             let kaspa_chain_conf = settings.origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
-            let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap();
-            let locator = chain_conf.clone().locator(H256::zero());
+            let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap().to_owned();
+            let locator = chain_conf.locator(H256::zero());
 
-            match chain_conf.connection {
+            match chain_conf.connection.clone() {
                 ChainConnectionConf::Kaspa(conf) => {
                     let kaspa_provider = build_kaspa_provider(
-                        chain_conf,
+                        &chain_conf,
                         &conf,
                         &core_metrics,
                         &locator,
