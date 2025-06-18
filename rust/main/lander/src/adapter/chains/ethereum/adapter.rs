@@ -2,11 +2,10 @@ use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use ethers::{
-    contract::builders::ContractCall,
-    prelude::U64,
-    providers::Middleware,
-    types::{transaction::eip2718::TypedTransaction, H256},
+    contract::builders::ContractCall, prelude::U64, providers::Middleware,
+    types::transaction::eip2718::TypedTransaction,
 };
+use ethers_core::abi::Function;
 use eyre::eyre;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
@@ -20,7 +19,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain};
+use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256};
 use hyperlane_ethereum::{
     BatchCache, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
@@ -50,7 +49,8 @@ pub struct EthereumAdapter {
     pub provider: Arc<dyn EvmProviderForLander>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
-    pub _batch_cache: Arc<Mutex<BatchCache>>,
+    pub batch_cache: Arc<Mutex<BatchCache>>,
+    pub batch_contract_address: H256,
 }
 
 impl EthereumAdapter {
@@ -66,7 +66,7 @@ impl EthereumAdapter {
 
         let locator = ContractLocator {
             domain: &conf.domain,
-            address: hyperlane_core::H256::zero(),
+            address: H256::zero(),
         };
         let provider = conf
             .build_ethereum(
@@ -97,7 +97,8 @@ impl EthereumAdapter {
             provider,
             reorg_period,
             nonce_manager,
-            _batch_cache: Default::default(),
+            batch_cache: Default::default(),
+            batch_contract_address: connection_conf.batch_contract_address(),
         };
 
         Ok(adapter)
@@ -176,22 +177,44 @@ impl AdaptsChain for EthereumAdapter {
             error!("No signer found! Cannot build transactions");
             return vec![];
         };
-        let payloads_and_precursors = payloads
+
+        let payload_details = payloads
             .iter()
-            .map(|payload| (EthereumTxPrecursor::from_payload(payload, signer), payload))
-            .collect::<Vec<(EthereumTxPrecursor, &FullPayload)>>();
+            .map(|payload| payload.details.clone())
+            .collect::<Vec<PayloadDetails>>();
 
-        let mut transactions = Vec::new();
-        for (precursor, payload) in payloads_and_precursors.into_iter() {
-            let transaction = TransactionFactory::build(payload, precursor);
-            transactions.push(TxBuildingResult::new(
-                vec![payload.details.clone()],
-                Some(transaction),
-            ))
-        }
+        let precursors = payloads
+            .iter()
+            .map(|payload| EthereumTxPrecursor::from_payload(payload, signer))
+            .map(|precursor: EthereumTxPrecursor| (precursor.tx, precursor.function))
+            .collect::<Vec<(TypedTransaction, Function)>>();
 
-        info!(?payloads, ?transactions, "built transactions for payloads");
-        transactions
+        let multi_precursor = self
+            .provider
+            .batch(
+                self.batch_cache.clone(),
+                self.batch_contract_address,
+                precursors,
+            )
+            .await
+            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
+
+        let Ok(multi_precursor) = multi_precursor else {
+            error!("Failed to batch payloads");
+            return vec![];
+        };
+
+        let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
+
+        let tx_building_result = TxBuildingResult {
+            payloads: payload_details,
+            maybe_tx: Some(transaction),
+        };
+
+        let results = vec![tx_building_result];
+
+        info!(?payloads, ?results, "built transactions for payloads");
+        results
     }
 
     async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, LanderError> {
