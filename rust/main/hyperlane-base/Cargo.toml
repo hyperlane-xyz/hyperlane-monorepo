@@ -67,6 +67,8 @@ hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
+dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
 
 # dependency version is determined by etheres
 rusoto_core = "*"

@@ -10,6 +10,7 @@ use kaspa_addresses::Prefix;
 use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
+pub struct DepositFXG;
 
 pub async fn deposit(
     w: &Arc<Wallet>,

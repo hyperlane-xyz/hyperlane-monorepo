@@ -2,8 +2,9 @@ use crate::contract_sync::cursors::Indexable;
 use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore};
 use tracing::warn;
 
-use dymension_kaspa::Deposit;
-
+use dym_kas_core::deposit::DepositFXG;
+use dym_kas_relayer::deposit::on_new_deposit;
+use dym_kas_validator::deposit::validate_deposits;
 use dymension_kaspa::{Deposit, RestProvider};
 
 use hyperlane_core::{Indexed, LogMeta};
@@ -16,14 +17,32 @@ pub struct DepositCache {
 
 impl DepositCache {
     pub fn new() -> Self {
-        Self { seen: HashSet::new() }
+        Self {
+            seen: HashSet::new(),
+        }
     }
 }
 
-pub fn handle_observed_deposits(provider: &RestProvider, cache: &mut DepositCache, deposits: Vec<Deposit>) {
-    let new_deposits = deposits.iter().filter(|deposit| !cache.seen.contains(deposit)).collect::<Vec<_>>();
-    for deposit in new_deposits {
-        cache.seen.insert(deposit);
+pub fn handle_observed_deposits(
+    provider: &RestProvider,
+    cache: &mut DepositCache,
+    deposits: Vec<Deposit>,
+) {
+    let new_deposits: Vec<Deposit> = deposits
+        .into_iter()
+        .filter(|deposit| !cache.seen.contains(deposit))
+        .collect::<Vec<_>>();
+    for deposit in &new_deposits {
+        cache.seen.insert(deposit.clone());
+    }
+
+    for deposit in &new_deposits {
+        let fxg = on_new_deposit(deposit);
+        if let Some(fxg) = fxg {
+            if validate_deposits(&fxg) {
+                // TODO: now to need to get the merkle sig and send up to hub
+            }
+        }
     }
 }
 

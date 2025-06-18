@@ -16,6 +16,7 @@ use api_rs::models::TxModel;
 
 use super::client::get_config;
 
+#[derive(Debug, Clone)]
 pub struct Deposit {
     // ATM its a part of Transaction struct, only id, payload, accepted are populated
     pub payload: Vec<u8>,
