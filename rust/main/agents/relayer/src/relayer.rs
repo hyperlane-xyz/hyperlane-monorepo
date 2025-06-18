@@ -47,7 +47,7 @@ use lander::{
 };
 
 use hyperlane_base::kass::{is_kas, run_kas_monitor};
-use dymension_kaspa::{KaspaProvider, HyperlaneKaspaError};
+use dymension_kaspa::{KaspaProvider};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -445,7 +445,7 @@ impl BaseAgent for Relayer {
 
         let has_kaspa = settings.origin_chains.iter().any(|chain| is_kas(chain)); // TODO: or destination chain
 
-        let kas_provider = if has_kaspa {
+        let kas_chain_provider = if has_kaspa {
             let kaspa_chain_conf = settings.origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
             let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap().to_owned();
             let locator = chain_conf.locator(H256::zero());

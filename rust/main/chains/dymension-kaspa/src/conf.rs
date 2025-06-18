@@ -9,7 +9,21 @@ use hyperlane_core::{
 
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
-pub struct ConnectionConf {}
+pub struct ConnectionConf {
+    pub rest_url: Url,
+    pub escrow_address: String,
+}
+
+impl ConnectionConf {
+    /// Create a new connection configuration
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(rest_url: Url, escrow_address: String) -> Self {
+        Self {
+            rest_url,
+            escrow_address,
+        }
+    }
+}
 
 /// Untyped kaspa amount
 #[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
@@ -42,11 +56,3 @@ impl TryFrom<RawKaspaAmount> for KaspaAmount {
 /// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {}
-
-impl ConnectionConf {
-    /// Create a new connection configuration
-    #[allow(clippy::too_many_arguments)]
-    pub fn new() -> Self {
-        Self {}
-    }
-}

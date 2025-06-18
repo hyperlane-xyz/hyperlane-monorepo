@@ -58,15 +58,16 @@ async fn kas_monitor_task(domain: &HyperlaneDomain, kdb: &HyperlaneRocksDB, prov
 // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
 async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(domain: &HyperlaneDomain, store: &S, provider: &RestProvider) where S: Clone + 'static {
     loop {
-        let deposits = provider.get_deposits("kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f").unwrap();
-        let logs = deposits_to_logs(deposits).await;
-        let stored= dedupe_and_store_logs(domain, store, logs).await;
-        unimplemented!()
+        let deposits = provider.get_deposits().unwrap();
+        let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
+        // let stored= dedupe_and_store_logs(domain, store, logs).await;
+    // unimplemented!()
     }
 }
 
 async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)> where T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static {
-    unimplemented!()
+    return vec![];
+    // unimplemented!()
 }
 
 async fn dedupe_and_store_logs<T, S>(

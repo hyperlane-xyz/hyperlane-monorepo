@@ -30,7 +30,7 @@ struct KaspaHttpClient {
 #[derive(Debug, Clone)]
 pub struct RestProvider {
     client: KaspaHttpClient,
-    conf: ConnectionConf,
+    pub conf: ConnectionConf,
     signer: Option<Signer>,
 }
 
@@ -43,13 +43,13 @@ impl BlockNumberGetter for KaspaHttpClient {
 
 impl KaspaHttpClient {
     /// Create new `KaspaHttpClient`
-    pub fn new(metrics: PrometheusClientMetrics, metrics_config: PrometheusConfig) -> Self {
+    pub fn new(url: Url, metrics: PrometheusClientMetrics, metrics_config: PrometheusConfig) -> Self {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);
 
         Self {
-            client: HttpClient::new(),
+            client: HttpClient::new(url),
             metrics,
             metrics_config,
         }
@@ -61,7 +61,7 @@ impl KaspaHttpClient {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
-        Ok(Self::new(metrics, metrics_config))
+        Ok(Self::new(url, metrics, metrics_config))
     }
 }
 
@@ -123,7 +123,8 @@ impl RestProvider {
         return FixedPointNumber::zero();
     }
 
-    pub fn get_deposits(&self, address: &str) -> ChainResult<Vec<Deposit>> {
+    pub fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
+        let address = self.conf.escrow_address.clone();
         return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
     }
 }

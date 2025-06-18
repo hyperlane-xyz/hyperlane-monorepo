@@ -14,7 +14,7 @@ mod mailbox;
 mod prometheus;
 mod providers;
 mod signers;
-mod trait_builder;
+mod conf;
 mod validator_announce;
 
 mod libs;
@@ -26,5 +26,5 @@ pub use dym_kas_validator;
 
 pub use {
     self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
-    self::signers::*, self::trait_builder::*, self::validator_announce::*, 
+    self::signers::*, self::conf::*, self::validator_announce::*, 
 };
