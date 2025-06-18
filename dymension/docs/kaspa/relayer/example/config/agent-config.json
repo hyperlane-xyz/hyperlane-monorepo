@@ -72,9 +72,9 @@
       "rpcUrls": [
         {
           "http": "https://api-tn10.kaspa.org/"
-        },
-        "escrowAddress": "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p",
-      ]
+        }
+      ],
+      "escrowAddress": "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p"
     }
   },
   "defaultRpcConsensusType": "fallback",

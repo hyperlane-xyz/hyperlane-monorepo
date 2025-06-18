@@ -50,7 +50,7 @@ use lander::{
 };
 
 use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kass::{is_kas, run_kas_monitor};
+use hyperlane_base::kas_hack::{is_kas, run_kas_monitor};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,

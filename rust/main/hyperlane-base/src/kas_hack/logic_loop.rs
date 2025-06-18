@@ -1,4 +1,4 @@
-use super::contract_sync::cursors::Indexable;
+use crate::contract_sync::cursors::Indexable;
 use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain};
 use tokio::{
     sync::{
@@ -13,24 +13,13 @@ use tracing::{info_span, warn, Instrument};
 
 use dymension_kaspa::{Deposit, RestProvider};
 
-use super::db::HyperlaneRocksDB;
+use crate::db::HyperlaneRocksDB;
 
 use hyperlane_core::{Indexed, LogMeta};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
-/// is it a kaspa domain?
-pub fn is_kas(d: &HyperlaneDomain) -> bool {
-    match d {
-        HyperlaneDomain::Known(domain) => matches!(
-            domain,
-            KnownHyperlaneDomain::Kaspa
-                | KnownHyperlaneDomain::KaspaTest10
-                | KnownHyperlaneDomain::KaspaLocal
-        ),
-        HyperlaneDomain::Unknown { .. } => false,
-    }
-}
+use super::new_deposit::{deposits_to_logs, dedupe_and_store_logs};
 
 pub async fn run_kas_monitor(
     domain: HyperlaneDomain,
@@ -73,42 +62,4 @@ async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(
         // let stored= dedupe_and_store_logs(domain, store, logs).await;
         // unimplemented!()
     }
-}
-
-async fn handle_observed_deposits(deposits: Vec<Deposit>) {
-    let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
-    // let stored= dedupe_and_store_logs(domain, store, logs).await;
-    // unimplemented!()
-}
-
-async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
-where
-    T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
-{
-    return vec![];
-    // unimplemented!()
-}
-
-async fn dedupe_and_store_logs<T, S>(
-    _domain: &HyperlaneDomain,
-    store: &S,
-    logs: Vec<(Indexed<T>, LogMeta)>,
-) -> Vec<(Indexed<T>, LogMeta)>
-where
-    T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
-    S: HyperlaneLogStore<T> + Clone + 'static,
-{
-    // TODO: need to lock store?
-    let deduped_logs = HashSet::<_>::from_iter(logs);
-    let logs = Vec::from_iter(deduped_logs);
-
-    let _stored = match store.store_logs(&logs).await {
-        Ok(stored) => stored,
-        Err(err) => {
-            warn!(?err, "Error storing logs in db");
-            Default::default()
-        }
-    };
-
-    logs
 }

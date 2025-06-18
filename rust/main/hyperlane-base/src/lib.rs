@@ -38,4 +38,4 @@ pub use types::*;
 pub mod oneline_eyre;
 
 #[allow(missing_docs)]
-pub mod kass;
+pub mod kas_hack;

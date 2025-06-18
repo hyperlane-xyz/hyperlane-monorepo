@@ -2,7 +2,7 @@ use tracing::info;
 
 use url::Url;
 
-use eyre::Result;
+use eyre::{Result, Error};
 
 use kaspa_consensus_core::tx::TransactionId;
 
