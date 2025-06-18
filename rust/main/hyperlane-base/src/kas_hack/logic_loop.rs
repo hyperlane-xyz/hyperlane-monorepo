@@ -58,7 +58,7 @@ async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(
 {
     loop {
         let deposits = provider.get_deposits().await.unwrap();
-        let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
+        // let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
         // let stored= dedupe_and_store_logs(domain, store, logs).await;
         // unimplemented!()
     }

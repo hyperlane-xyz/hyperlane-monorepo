@@ -4,6 +4,8 @@ use url::Url;
 
 use eyre::{Error, Result};
 
+use std::hash::{BuildHasher, Hash, Hasher, RandomState};
+
 use kaspa_consensus_core::tx::TransactionId;
 
 use api_rs::apis::kaspa_addresses_api::{
@@ -21,6 +23,22 @@ pub struct Deposit {
     id: TransactionId,
     accepted: bool,
 }
+
+impl Hash for Deposit {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for Deposit {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+
+impl Eq for Deposit {}
 
 impl TryFrom<TxModel> for Deposit {
     type Error = Error;

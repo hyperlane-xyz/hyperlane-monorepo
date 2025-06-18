@@ -1,23 +1,31 @@
 use crate::contract_sync::cursors::Indexable;
-use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain};
-use tokio::{
-    sync::{
-        broadcast::Sender as BroadcastSender,
-        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
-        RwLock,
-    },
-    task::JoinHandle,
-};
-use tokio_metrics::TaskMonitor;
-use tracing::{info_span, warn, Instrument};
+use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore};
+use tracing::warn;
+
+use dymension_kaspa::Deposit;
 
 use dymension_kaspa::{Deposit, RestProvider};
-
-use crate::db::HyperlaneRocksDB;
 
 use hyperlane_core::{Indexed, LogMeta};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
+
+pub struct DepositCache {
+    seen: HashSet<Deposit>,
+}
+
+impl DepositCache {
+    pub fn new() -> Self {
+        Self { seen: HashSet::new() }
+    }
+}
+
+pub fn handle_observed_deposits(provider: &RestProvider, cache: &mut DepositCache, deposits: Vec<Deposit>) {
+    let new_deposits = deposits.iter().filter(|deposit| !cache.seen.contains(deposit)).collect::<Vec<_>>();
+    for deposit in new_deposits {
+        cache.seen.insert(deposit);
+    }
+}
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
 where
