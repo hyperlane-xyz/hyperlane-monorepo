@@ -26,7 +26,7 @@ openapi-generator version
 # the API author has included some non regular tags (learned in discord: https://github.com/supertypo/kaspa-rest-proxy/issues/1)
 jq 'walk(if type == "object" and has("strict_query_params") then del(.strict_query_params) else . end)' openapi.json > stripped.json
 
-openapi-generator generate -i stripped.json -g rust -o ../../lib/api
+openapi-generator generate -i stripped.json -g rust -o ../../lib/api --additional-properties=supportMiddleware=true,topLevelApiClient=true,useBonBuilder=true,useSingleRequestParameter=true,supportAsync=true
 
 
 ## NOTE: THEN IT IS NECESSARY TO FIX A BUILD ERROR(S)
