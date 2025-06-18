@@ -108,6 +108,21 @@ mod tests {
     };
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
+    const PRIVATE_KEY_1: &str = "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb";
+    const PUBLIC_KEY_1: &str = "c4bED0DD629b734C96779D30e1fcFa5346863C4C";
+
+    const PRIVATE_KEY_2: &str = "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb";
+    const PUBLIC_KEY_2: &str = "96DE69f859ed40FB625454db3BFc4f2Da4848dcF";
+
+    const PRIVATE_KEY_3: &str = "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd";
+    const PUBLIC_KEY_3: &str = "c7504D7F7FC865Ba69abad3b18c639372AE687Ec";
+
+    const PRIVATE_KEY_4: &str = "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a";
+    const PUBLIC_KEY_4: &str = "197325f955852A61a5b2DEFb7BAffB8763D1acE8";
+
+    const PRIVATE_KEY_5: &str = "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077";
+    const PUBLIC_KEY_5: &str = "2C8Ac45c649C1d242706FB1fc078bc0759c02f80";
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_fetch_metadata() {
@@ -123,37 +138,32 @@ mod tests {
 
         let validators = [
             TestValidator {
-                private_key: "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb"
-                    .into(),
-                public_key: H160::from_str("c4bED0DD629b734C96779D30e1fcFa5346863C4C").unwrap(),
+                private_key: PRIVATE_KEY_1.into(),
+                public_key: H160::from_str(PUBLIC_KEY_1).unwrap(),
                 latest_index: Some(1010),
                 fetch_checkpoint: Some(checkpoint.clone()),
             },
             TestValidator {
-                private_key: "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb"
-                    .into(),
-                public_key: H160::from_str("96DE69f859ed40FB625454db3BFc4f2Da4848dcF").unwrap(),
+                private_key: PRIVATE_KEY_2.into(),
+                public_key: H160::from_str(PUBLIC_KEY_2).unwrap(),
                 latest_index: Some(1008),
                 fetch_checkpoint: None,
             },
             TestValidator {
-                private_key: "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd"
-                    .into(),
-                public_key: H160::from_str("c7504D7F7FC865Ba69abad3b18c639372AE687Ec").unwrap(),
+                private_key: PRIVATE_KEY_3.into(),
+                public_key: H160::from_str(PUBLIC_KEY_3).unwrap(),
                 latest_index: Some(1006),
                 fetch_checkpoint: None,
             },
             TestValidator {
-                private_key: "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a"
-                    .into(),
-                public_key: H160::from_str("197325f955852A61a5b2DEFb7BAffB8763D1acE8").unwrap(),
+                private_key: PRIVATE_KEY_4.into(),
+                public_key: H160::from_str(PUBLIC_KEY_4).unwrap(),
                 latest_index: Some(1004),
                 fetch_checkpoint: Some(checkpoint.clone()),
             },
             TestValidator {
-                private_key: "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077"
-                    .into(),
-                public_key: H160::from_str("2C8Ac45c649C1d242706FB1fc078bc0759c02f80").unwrap(),
+                private_key: PRIVATE_KEY_5.into(),
+                public_key: H160::from_str(PUBLIC_KEY_5).unwrap(),
                 latest_index: Some(1002),
                 fetch_checkpoint: Some(checkpoint.clone()),
             },
