@@ -23,6 +23,8 @@ impl DepositCache {
     }
 }
 
+pub fn 
+
 pub fn handle_observed_deposits(
     provider: &RestProvider,
     cache: &mut DepositCache,
