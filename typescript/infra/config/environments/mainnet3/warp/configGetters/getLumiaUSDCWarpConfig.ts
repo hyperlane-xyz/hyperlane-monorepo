@@ -12,7 +12,8 @@ import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-const SYNTHETIC_CHAIN = 'lumiaprism';
+const FIAT_COLLATERAL_CHAIN = 'lumiaprism';
+const FIAT_TOKEN = '0xFF297AC2CB0a236155605EB37cB55cFCAe6D3F01';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
@@ -56,17 +57,18 @@ export const getLumiaUSDCWarpConfig = async (
   );
 
   return objMap(owners, (chain, owner): HypTokenRouterConfig => {
-    if (chain === SYNTHETIC_CHAIN) {
+    if (chain === FIAT_COLLATERAL_CHAIN) {
       return {
         ...routerConfig[chain],
-        type: TokenType.synthetic,
+        type: TokenType.collateralFiat,
+        token: FIAT_TOKEN,
         owner,
       };
     }
 
     const cctpBridge = cctpBridges[chain];
     const remotes = Object.keys(owners).filter(
-      (c) => c !== chain && c !== SYNTHETIC_CHAIN,
+      (c) => c !== chain && c !== FIAT_COLLATERAL_CHAIN,
     );
 
     const allowedRebalancingBridges = Object.fromEntries(
@@ -78,9 +80,9 @@ export const getLumiaUSDCWarpConfig = async (
       type: TokenType.collateral,
       token: usdcTokenAddresses[chain],
       owner,
-      contractVersion: '8.0.0',
-      allowedRebalancers: [REBALANCER],
-      allowedRebalancingBridges,
+      // contractVersion: '8.0.0',
+      // allowedRebalancers: [REBALANCER],
+      // allowedRebalancingBridges,
     };
 
     return config;
