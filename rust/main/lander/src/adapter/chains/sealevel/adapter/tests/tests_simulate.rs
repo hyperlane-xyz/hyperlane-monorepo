@@ -1,6 +1,6 @@
 use crate::adapter::{
     chains::sealevel::{
-        adapter::tests::common::{adapter, payload, precursor},
+        adapter::tests::tests_common::{adapter, payload, precursor},
         transaction::TransactionFactory,
     },
     AdaptsChain,

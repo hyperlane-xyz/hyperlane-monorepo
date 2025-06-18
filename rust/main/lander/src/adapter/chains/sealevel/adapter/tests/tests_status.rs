@@ -1,6 +1,6 @@
 use crate::{
     adapter::{
-        chains::sealevel::adapter::tests::common::{adapter, transaction},
+        chains::sealevel::adapter::tests::tests_common::{adapter, transaction},
         AdaptsChain,
     },
     transaction::TransactionStatus,

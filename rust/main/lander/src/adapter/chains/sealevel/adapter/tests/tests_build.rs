@@ -4,7 +4,7 @@ use hyperlane_sealevel::SealevelTxCostEstimate;
 
 use crate::{
     adapter::{
-        chains::sealevel::adapter::tests::common::{adapter, estimate, instruction, payload},
+        chains::sealevel::adapter::tests::tests_common::{adapter, estimate, instruction, payload},
         AdaptsChain, SealevelTxPrecursor, TxBuildingResult,
     },
     error::LanderError,
