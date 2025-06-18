@@ -6,6 +6,8 @@ use std::{
     time::Instant,
 };
 
+use eyre::eyre;
+
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -460,7 +462,7 @@ impl BaseAgent for Relayer {
                     .expect("Failed to build Kaspa provider");
                     Some(kaspa_provider)
                 }
-                _ => return Err(HyperlaneKaspaError::Foo("Kaspa chain configuration not found".into())),
+                _ => return Err(eyre!("Foo!")),
             }
         } else {
             None
@@ -593,14 +595,20 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) {
-               
+
+                // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
+                // we run our own loop for dispatch polling
+
+                let kdb = self.dbs.get(origin).unwrap(); 
+
+                let kp = self.kas_provider.clone().unwrap();
 
                 tasks.push(
                     run_kas_monitor(
                         origin.clone(),
-                        kdb.clone(),
+                        kdb.clone().to_owned(),
                         task_monitor.clone(),
-                        kaspa_provider,
+                        kp.rest().to_owned(),
                     )
                     .await,
                 );
