@@ -161,7 +161,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                         .to_str()
                         .unwrap(),
                     &chain_metadata.rpc_urls[0].http,
-                    chain_metadata.domain_id(),
+                    chain_metadata.domain_id,
                 )
                 .unwrap();
 
@@ -318,7 +318,7 @@ pub(crate) fn deploy_routers<
                 .map(|foreign_deployment| {
                     let chain_metadata = chain_metadatas.get(chain_name).unwrap();
                     (
-                        chain_metadata.domain_id(),
+                        chain_metadata.domain_id,
                         hex_or_base58_to_h256(foreign_deployment).unwrap(),
                     )
                 })
@@ -363,7 +363,7 @@ pub(crate) fn deploy_routers<
 
         // Add the router to the list of routers.
         routers.insert(
-            chain_metadata.domain_id(),
+            chain_metadata.domain_id,
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
@@ -411,7 +411,7 @@ pub(crate) fn deploy_routers<
             (
                 chain_metadatas
                     .iter()
-                    .find(|(_, chain_metadata)| chain_metadata.domain_id() == *domain_id)
+                    .find(|(_, chain_metadata)| chain_metadata.domain_id == *domain_id)
                     .unwrap()
                     .0
                     .clone(),
@@ -450,9 +450,7 @@ fn configure_connection_client(
                     ),
                     format!(
                         "Setting ISM for chain: {} ({}) to {:?}",
-                        chain_metadata.name,
-                        chain_metadata.domain_id(),
-                        expected_ism
+                        chain_metadata.name, chain_metadata.domain_id, expected_ism
                     ),
                 )
                 .with_client(&client)
@@ -460,9 +458,7 @@ fn configure_connection_client(
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
-                chain_metadata.name,
-                chain_metadata.domain_id(),
-                expected_ism
+                chain_metadata.name, chain_metadata.domain_id, expected_ism
             );
         }
     }
@@ -485,9 +481,7 @@ fn configure_connection_client(
                         instruction,
                         format!(
                             "Setting IGP for chain: {} ({}) to {:?}",
-                            chain_metadata.name,
-                            chain_metadata.domain_id(),
-                            expected_igp
+                            chain_metadata.name, chain_metadata.domain_id, expected_igp
                         ),
                     )
                     .with_client(&client)
@@ -495,11 +489,11 @@ fn configure_connection_client(
             } else {
                 println!(
                     "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
-                    chain_metadata.name, chain_metadata.domain_id(), expected_igp
+                    chain_metadata.name, chain_metadata.domain_id, expected_igp
                 );
             }
         } else {
-            println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_metadata.name, chain_metadata.domain_id());
+            println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_metadata.name, chain_metadata.domain_id);
         }
     }
 }
@@ -525,9 +519,7 @@ fn configure_owner(
                     deployer.set_owner_instruction(&client, program_id, expected_owner),
                     format!(
                         "Setting owner for chain: {} ({}) to {:?}",
-                        chain_metadata.name,
-                        chain_metadata.domain_id(),
-                        expected_owner,
+                        chain_metadata.name, chain_metadata.domain_id, expected_owner,
                     ),
                 )
                 .with_client(&client)
@@ -537,7 +529,7 @@ fn configure_owner(
             println!(
                 "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is None",
                 chain_metadata.name,
-                chain_metadata.domain_id(),
+                chain_metadata.domain_id,
                 actual_owner,
                 expected_owner,
             );
@@ -581,9 +573,7 @@ fn configure_upgrade_authority(
                     ),
                     format!(
                         "Setting upgrade authority for chain: {} ({}) to {:?}",
-                        chain_metadata.name,
-                        chain_metadata.domain_id(),
-                        expected_upgrade_authority,
+                        chain_metadata.name, chain_metadata.domain_id, expected_upgrade_authority,
                     ),
                 )
                 .with_client(&client)
@@ -593,7 +583,7 @@ fn configure_upgrade_authority(
             println!(
                 "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is None",
                 chain_metadata.name,
-                chain_metadata.domain_id(),
+                chain_metadata.domain_id,
                 actual_upgrade_authority,
                 expected_upgrade_authority,
             );
@@ -664,7 +654,7 @@ fn enroll_all_remote_routers<
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
         let client = chain_metadata.client();
 
-        let domain_id = chain_metadata.domain_id();
+        let domain_id = chain_metadata.domain_id;
         let program_id: Pubkey =
             Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 

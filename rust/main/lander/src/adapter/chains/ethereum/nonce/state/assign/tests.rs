@@ -1,2 +1,2 @@
-mod assign;
-mod identify;
+mod tests_assign;
+mod tests_identify;

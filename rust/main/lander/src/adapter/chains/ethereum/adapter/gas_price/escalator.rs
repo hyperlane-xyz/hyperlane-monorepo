@@ -2,7 +2,7 @@ use ethers::types::{
     transaction::eip2718::TypedTransaction::{Eip1559, Eip2930, Legacy},
     U256,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::adapter::EthereumTxPrecursor;
 
@@ -14,6 +14,14 @@ pub fn escalate_gas_price_if_needed(
     old_precursor: &EthereumTxPrecursor,
     newly_estimated_precursor: &mut EthereumTxPrecursor,
 ) {
+    if old_precursor.tx.gas_price().is_none() {
+        // if the old transaction precursor had no gas price set, we can skip the escalation
+        info!(
+            ?old_precursor,
+            "No gas price set on old transaction precursor, skipping escalation"
+        );
+        return;
+    }
     // assumes the old and new txs have the same type
     match (&old_precursor.tx, &mut newly_estimated_precursor.tx) {
         (Legacy(old), Legacy(new)) => {
@@ -79,8 +87,8 @@ pub fn escalate_gas_price_if_needed(
             new.max_fee_per_gas = Some(escalated_max_fee_per_gas);
             new.max_priority_fee_per_gas = Some(escalated_max_priority_fee_per_gas);
         }
-        _ => {
-            error!("Newly estimated transaction type does not match the old transaction type. Not escalating gas price.");
+        (old, new) => {
+            error!(?old, ?new, "Newly estimated transaction type does not match the old transaction type. Not escalating gas price.");
         }
     }
 }
