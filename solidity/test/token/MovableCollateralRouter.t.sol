@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MovableCollateralRouter} from "contracts/token/libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge, Quote} from "contracts/token/interfaces/ValueTransferBridge.sol";
+import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "contracts/token/libs/FungibleTokenRouter.sol";
@@ -38,7 +38,7 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
     ) internal override {}
 }
 
-contract MockValueTransferBridge is ValueTransferBridge {
+contract MockITokenBridge is ITokenBridge {
     ERC20Test token;
     bytes32 public myRecipient;
 
@@ -69,7 +69,7 @@ contract MovableCollateralRouterTest is Test {
     using TypeCasts for address;
 
     MovableCollateralRouter internal router;
-    MockValueTransferBridge internal vtb;
+    MockITokenBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
@@ -80,7 +80,7 @@ contract MovableCollateralRouterTest is Test {
         mailbox = new MockMailbox(1);
         router = new MockMovableCollateralRouter(address(mailbox));
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
-        vtb = new MockValueTransferBridge(token);
+        vtb = new MockITokenBridge(token);
 
         remote = vm.addr(10);
 
