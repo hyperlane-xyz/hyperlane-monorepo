@@ -942,7 +942,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  // TODO: this test is failing, but it's not clear why
   it('should successfully rebalance tokens between chains using a mock bridge', async () => {
     const wccTokens = warpCoreConfig.tokens;
 
@@ -1098,7 +1097,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  // TODO: this test is failing, but it's not clear why
   it('should throw when the semaphore timer has not expired', async () => {
     const originContractAddress = getTokenAddressFromWarpConfig(
       warpCoreConfig,
@@ -1214,14 +1212,36 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const rebalancer = startRebalancer({ withMetrics: true });
 
-    await sleep(3500);
     try {
-      // Check if the metrics endpoint is responding
-      const response = await fetch(testMetricsServer);
-      expect(response.status).to.equal(200);
+      let response: Response | undefined;
+      const timeout = 30000; // 10s
+      const interval = 500; // 0.5s
+      const startTime = Date.now();
+      let lastError: any;
+
+      while (Date.now() - startTime < timeout) {
+        try {
+          response = await fetch(testMetricsServer);
+          if (response.ok) {
+            lastError = undefined;
+            break;
+          }
+        } catch (e) {
+          lastError = e;
+          // Ignore ECONNREFUSED and try again
+        }
+        await sleep(interval);
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+
+      expect(response).to.exist;
+      expect(response!.status).to.equal(200);
 
       // Get the metrics content
-      const metricsText = await response.text();
+      const metricsText = await response!.text();
       expect(metricsText).to.not.be.empty;
       expect(metricsText).to.include('# HELP');
       expect(metricsText).to.include('# TYPE');
