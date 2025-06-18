@@ -19,7 +19,7 @@ use hyperlane_core::{Indexed, LogMeta};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
-use super::new_deposit::{deposits_to_logs, dedupe_and_store_logs};
+use super::new_deposit::{dedupe_and_store_logs, deposits_to_logs};
 
 pub async fn run_kas_monitor(
     domain: HyperlaneDomain,

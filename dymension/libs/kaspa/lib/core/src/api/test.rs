@@ -5,10 +5,10 @@ use super::client::get_config;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
     use url::Url;
-    use super::*;
 
     fn t_config() -> configuration::Configuration {
         let url = Url::parse("https://api-tn10.kaspa.org").unwrap();
@@ -35,7 +35,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] 
+    #[ignore]
     async fn test_txs() {
         let config = t_config();
         let addr = DAN_TESTNET_ADDR;
