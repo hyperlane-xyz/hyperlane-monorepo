@@ -2,7 +2,7 @@ use hyperlane_core::U256;
 
 use crate::{
     adapter::{
-        chains::sealevel::adapter::tests::common::{adapter, payload, GAS_LIMIT},
+        chains::sealevel::adapter::tests::tests_common::{adapter, payload, GAS_LIMIT},
         AdaptsChain,
     },
     payload::FullPayload,
