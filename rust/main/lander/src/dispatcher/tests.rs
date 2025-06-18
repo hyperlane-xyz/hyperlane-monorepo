@@ -2,13 +2,12 @@ use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use tokio::{sync::Mutex, time::sleep};
 
+use crate::adapter::TxBuildingResult;
+use crate::dispatcher::metrics::DispatcherMetrics;
+use crate::dispatcher::{BuildingStageQueue, DispatcherState, PayloadDbLoader};
 use crate::tests::test_utils::{dummy_tx, tmp_dbs, MockAdapter};
 use crate::transaction::TransactionUuid;
 use crate::{
-    adapter::TxBuildingResult,
-    dispatcher::{
-        metrics::DispatcherMetrics, BuildingStageQueue, DispatcherState, PayloadDbLoader,
-    },
     Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
     PayloadUuid, TransactionStatus,
 };
@@ -206,7 +205,6 @@ async fn mock_entrypoint_and_dispatcher(
     adapter: Arc<MockAdapter>,
 ) -> (DispatcherEntrypoint, Dispatcher) {
     let domain = "test_domain".to_string();
-    let batch_max_size = 1;
 
     let (payload_db, tx_db, _) = tmp_dbs();
     let building_stage_queue = BuildingStageQueue::new();
@@ -235,7 +233,6 @@ async fn mock_entrypoint_and_dispatcher(
     let dispatcher = Dispatcher {
         inner: state.clone(),
         domain: domain.clone(),
-        batch_max_size,
     };
     (dispatcher_entrypoint, dispatcher)
 }
@@ -295,6 +292,9 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     adapter
         .expect_update_vm_specific_metrics()
         .returning(|_, _| ());
+
+    adapter.expect_max_batch_size().returning(|| 1);
+
     adapter
 }
 
