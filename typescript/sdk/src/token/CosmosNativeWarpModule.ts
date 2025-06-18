@@ -13,7 +13,6 @@ import {
   deepEquals,
   difference,
   eqAddress,
-  isObjEmpty,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -370,6 +369,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
         typeUrl: R.MsgSetToken.proto.type,
         value: R.MsgSetToken.proto.converter.create({
           owner: actualConfig.owner,
+          token_id: this.args.addresses.deployedTokenRoute,
           new_owner: expectedConfig.owner,
         }),
       },
@@ -436,7 +436,6 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     let deployedTokenRoute: string = '';
 
     if (config.type === TokenType.collateral) {
-      // TODO: is config.token the origin denom?
       const { response } = await signer.createCollateralToken({
         origin_mailbox: config.mailbox,
         origin_denom: config.token,
@@ -464,12 +463,6 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       },
       signer,
     );
-
-    if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
-      const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when CosmosNativeWarpModule.create can be used
-      const onlyTxIndex = 0;
-      await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
-    }
 
     return warpModule;
   }
