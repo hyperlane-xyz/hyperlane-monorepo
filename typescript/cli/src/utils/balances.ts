@@ -3,9 +3,9 @@ import { BigNumber } from 'bignumber.js';
 import { ethers } from 'ethers';
 
 import {
+  ChainMetadataManager,
   ChainName,
   MultiProtocolProvider,
-  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -15,7 +15,7 @@ import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiPr
 import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
-  multiProvider: MultiProvider,
+  metadataManager: ChainMetadataManager,
   multiProtocolProvider: MultiProtocolProvider,
   multiProtocolSigner: MultiProtocolSignerManager,
   chains: ChainName[],
@@ -24,7 +24,7 @@ export async function nativeBalancesAreSufficient(
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
-    const protocolType = multiProvider.getProtocol(chain);
+    const protocolType = metadataManager.getProtocol(chain);
 
     switch (protocolType) {
       case ProtocolType.Ethereum: {
@@ -42,7 +42,8 @@ export async function nativeBalancesAreSufficient(
         const balance = ethers.utils.formatEther(balanceWei.toString());
         if (balanceWei.lt(minBalanceWei)) {
           const symbol =
-            multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
+            metadataManager.getChainMetadata(chain).nativeToken?.symbol ??
+            'ETH';
           logRed(
             `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} ${symbol} recommended but found ${balance} ${symbol}`,
           );
@@ -54,12 +55,14 @@ export async function nativeBalancesAreSufficient(
         const address =
           multiProtocolSigner.getCosmosNativeSigner(chain).account.address;
         const provider = await multiProtocolProvider.getCosmJsProvider(chain);
-        const { gasPrice, nativeToken } = multiProvider.getChainMetadata(
+        const { gasPrice, nativeToken } = metadataManager.getChainMetadata(
           chain,
         ) as any;
 
         const minBalanceSmallestUnit = new BigNumber(
-          GasPrice.fromString(gasPrice).amount.toString(),
+          GasPrice.fromString(
+            `${gasPrice.amount}${gasPrice.denom}`,
+          ).amount.toString(),
         )
           .multipliedBy(minGas[ProtocolType.CosmosNative])
           .toString();

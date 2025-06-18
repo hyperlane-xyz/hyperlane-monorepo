@@ -67,7 +67,6 @@ export async function runPreflightChecksForChains({
         signer = multiProtocolSigner.getEVMSigner(chain);
         break;
       case ProtocolType.CosmosNative:
-        await multiProtocolSigner.initSigner(chain);
         signer = multiProtocolSigner.getCosmosNativeSigner(chain);
         break;
       default:
