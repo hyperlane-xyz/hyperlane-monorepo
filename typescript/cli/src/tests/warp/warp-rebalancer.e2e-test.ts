@@ -1162,6 +1162,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should successfully log metrics tracking', async () => {
+    process.env.PROMETHEUS_PORT = '9091';
+
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       strategy: {
@@ -1206,12 +1208,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
+    const testPort = '9092';
+    process.env.PROMETHEUS_PORT = testPort;
+    const testMetricsServer = `http://localhost:${testPort}/metrics`;
+
     const rebalancer = startRebalancer({ withMetrics: true });
 
     await sleep(3500);
     try {
       // Check if the metrics endpoint is responding
-      const response = await fetch(DEFAULT_METRICS_SERVER);
+      const response = await fetch(testMetricsServer);
       expect(response.status).to.equal(200);
 
       // Get the metrics content
