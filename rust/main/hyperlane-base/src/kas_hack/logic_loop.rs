@@ -1,7 +1,5 @@
 use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage};
-use tokio::
-    task::JoinHandle
-;
+use tokio::task::JoinHandle;
 use tokio_metrics::TaskMonitor;
 use tracing::{info_span, Instrument};
 
@@ -9,11 +7,7 @@ use dymension_kaspa::RestProvider;
 
 use crate::db::HyperlaneRocksDB;
 
-
-
-use super::new_deposit::{
-    handle_observed_deposits, DepositCache,
-};
+use super::new_deposit::{handle_observed_deposits, DepositCache};
 
 use std::time::Duration;
 use tokio::time;

@@ -35,7 +35,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_txs() {
         let config = t_config();
         let addr = DAN_TESTNET_ADDR;

@@ -19,16 +19,18 @@ impl reqwest_ratelimit::RateLimiter for FooRateLimiter {
 
 pub fn get_config(url: &Url) -> Configuration {
     // 1 req per sec
-    // let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
-    // let rl = FooRateLimiter {
-        // limiter: Arc::new(governor_limiter),
-    // };
-    // let client = ClientBuilder::new(reqwest::Client::new())
-        // .with(reqwest_ratelimit::all(rl))
-        // .build();
-    let client = ClientBuilder::new(reqwest::Client::new()).build();
+    let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
+    let rl = FooRateLimiter {
+        limiter: Arc::new(governor_limiter),
+    };
+    let client = ClientBuilder::new(reqwest::Client::new())
+        .with(reqwest_ratelimit::all(rl))
+        .build();
+    // let client = ClientBuilder::new(reqwest::Client::new()).build();
+    let raw_base = "https://api-tn10.kaspa.org".to_string(); // TODO: need to use passed url!
+    // let url_base = url.to_string();
     Configuration {
-        base_path: url.to_string(),
+        base_path: raw_base,
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
         client: client,
         basic_auth: None,

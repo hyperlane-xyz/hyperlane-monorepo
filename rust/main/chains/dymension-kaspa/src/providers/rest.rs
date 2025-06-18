@@ -132,6 +132,7 @@ impl RestProvider {
 
     /// dococo
     pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
+        // TODO: need to do appropriate filtering down
         let address = self.conf.escrow_address.clone();
         let res = self.client.client.get_deposits(&address).await;
         return res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()));

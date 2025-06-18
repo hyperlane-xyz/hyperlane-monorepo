@@ -50,7 +50,7 @@ impl TryFrom<TxModel> for Deposit {
             .ok_or(eyre::eyre!("Transaction ID is missing"))?;
         let payload = tx
             .payload
-            .ok_or(eyre::eyre!("Transaction payload is missing"))?;
+            .ok_or(eyre::eyre!("Transaction payload is missing"))?; // TODO: payload can definitely be missing!
         let accepted = tx
             .is_accepted
             .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
