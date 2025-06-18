@@ -22,3 +22,5 @@ tracing = { workspace = true }
 reqwest = { workspace = true }
 api-rs = { path = "../api", package = "openapi" }
 tokio = { workspace = true }
+url = { workspace = true }
+eyre = { workspace = true }
