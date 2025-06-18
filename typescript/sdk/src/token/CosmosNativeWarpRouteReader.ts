@@ -7,7 +7,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
 import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DestinationGas,
   MailboxClientConfig,
@@ -27,18 +27,18 @@ export class CosmosNativeWarpRouteReader {
   ismReader: CosmosNativeIsmReader;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
     protected readonly cosmosProviderOrSigner:
       | SigningHyperlaneModuleClient
       | HyperlaneModuleClient,
   ) {
     this.hookReader = new CosmosNativeHookReader(
-      multiProvider,
+      metadataManager,
       cosmosProviderOrSigner,
     );
     this.ismReader = new CosmosNativeIsmReader(
-      multiProvider,
+      metadataManager,
       cosmosProviderOrSigner,
     );
   }

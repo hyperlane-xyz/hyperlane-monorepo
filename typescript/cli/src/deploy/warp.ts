@@ -529,8 +529,8 @@ async function createWarpHook({
       const { deployedHook } = evmHookModule.serialize();
       return deployedHook;
     }
-    case ProtocolType.Cosmos: {
-      logBlue(`No warp hooks for cosmos chains, skipping deployment.`);
+    case ProtocolType.CosmosNative: {
+      logBlue(`No warp hooks for Cosmos Native chains, skipping deployment.`);
       return hook;
     }
     default:

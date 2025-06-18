@@ -3,6 +3,7 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { DeployedCoreAddresses, HookConfig } from '@hyperlane-xyz/sdk';
+import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ChainId,
@@ -40,17 +41,17 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signer: SigningHyperlaneModuleClient,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
 
-    this.chainName = multiProvider.getChainName(args.chain);
-    this.chainId = multiProvider.getChainId(args.chain);
-    this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainName = metadataManager.getChainName(args.chain);
+    this.chainId = metadataManager.getChainId(args.chain);
+    this.domainId = metadataManager.getDomainId(args.chain);
 
-    this.coreReader = new CosmosNativeCoreReader(this.multiProvider, signer);
+    this.coreReader = new CosmosNativeCoreReader(this.metadataManager, signer);
   }
 
   /**
@@ -326,7 +327,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     const ismModule = new CosmosNativeIsmModule(
-      this.multiProvider,
+      this.metadataManager,
       {
         addresses: {
           mailbox: mailbox,
@@ -447,7 +448,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     const hookModule = new CosmosNativeHookModule(
-      this.multiProvider,
+      this.metadataManager,
       {
         addresses: {
           mailbox: mailbox,

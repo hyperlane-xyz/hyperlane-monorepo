@@ -24,6 +24,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -50,19 +51,19 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
     protected readonly signer: SigningHyperlaneModuleClient,
   ) {
     super(args);
     this.reader = new CosmosNativeWarpRouteReader(
-      multiProvider,
+      metadataManager,
       args.chain,
       signer,
     );
-    this.chainName = this.multiProvider.getChainName(args.chain);
-    this.chainId = multiProvider.getChainId(args.chain).toString();
-    this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainName = this.metadataManager.getChainName(args.chain);
+    this.chainId = metadataManager.getChainId(args.chain).toString();
+    this.domainId = metadataManager.getDomainId(args.chain);
   }
 
   /**
@@ -390,7 +391,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new CosmosNativeIsmModule(
-      this.multiProvider,
+      this.metadataManager,
       {
         chain: this.args.chain,
         config: expectedConfig.interchainSecurityModule,
