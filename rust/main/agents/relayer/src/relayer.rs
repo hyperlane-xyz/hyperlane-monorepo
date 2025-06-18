@@ -29,7 +29,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::build_kaspa_provider,
-    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
+    settings::{ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
@@ -37,7 +37,7 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256, H256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
@@ -45,7 +45,7 @@ use lander::{
 };
 
 use hyperlane_base::kass::{is_kas, run_kas_monitor};
-use dymension_kaspa::KaspaProvider;
+use dymension_kaspa::{KaspaProvider, HyperlaneKaspaError};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -446,12 +446,22 @@ impl BaseAgent for Relayer {
         let kas_provider = if has_kaspa {
             let kaspa_chain_conf = settings.origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
             let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap();
+            let locator = chain_conf.locator(H256::zero());
 
-            let kaspa_provider = build_kaspa_provider(
-            )
-            .await
-            .expect("Failed to build Kaspa provider");
-            Some(kaspa_provider)
+            match chain_conf.connection {
+                ChainConnectionConf::Kaspa(conf) => {
+                    let kaspa_provider = build_kaspa_provider(
+                        chain_conf,
+                        &conf,
+                        &core_metrics,
+                        &locator,
+                        None,
+                    )
+                    .expect("Failed to build Kaspa provider");
+                    Some(kaspa_provider)
+                }
+                _ => return Err(HyperlaneKaspaError::Foo("Kaspa chain configuration not found".into())),
+            }
         } else {
             None
         };
@@ -482,6 +492,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
+            kas_provider,
         })
     }
 

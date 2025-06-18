@@ -1263,7 +1263,7 @@ impl ChainConf {
         cfg
     }
 
-    fn locator(&self, address: H256) -> ContractLocator {
+    pub fn locator(&self, address: H256) -> ContractLocator {
         ContractLocator {
             domain: &self.domain,
             address,
