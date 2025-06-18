@@ -92,16 +92,15 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::str::FromStr;
     use std::sync::Arc;
 
     use hyperlane_base::mock_checkpoint_syncer::{
-        build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint, TestValidator,
+        build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint,
     };
     use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
     use hyperlane_core::{
         Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneMessage,
-        KnownHyperlaneDomain, H160, H256,
+        KnownHyperlaneDomain, H256,
     };
 
     use crate::msg::metadata::multisig::{
@@ -139,38 +138,7 @@ mod tests {
             message_id: message.id(),
         };
 
-        let validators = [
-            TestValidator {
-                private_key: PRIVATE_KEY_1.into(),
-                public_key: H160::from_str(PUBLIC_KEY_1).unwrap(),
-                latest_index: Some(1010),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_2.into(),
-                public_key: H160::from_str(PUBLIC_KEY_2).unwrap(),
-                latest_index: Some(1008),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_3.into(),
-                public_key: H160::from_str(PUBLIC_KEY_3).unwrap(),
-                latest_index: Some(1006),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_4.into(),
-                public_key: H160::from_str(PUBLIC_KEY_4).unwrap(),
-                latest_index: Some(1004),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_5.into(),
-                public_key: H160::from_str(PUBLIC_KEY_5).unwrap(),
-                latest_index: Some(1002),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-        ];
+        let validators = dummy_validators(checkpoint.clone());
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
 

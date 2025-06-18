@@ -267,7 +267,7 @@ impl MultisigCheckpointSyncer {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use std::str::FromStr;
 
     use aws_config::Region;
@@ -363,6 +363,41 @@ mod test {
 
     const PRIVATE_KEY_7: &str = "6845eaefd5de4851eae6e41174e87a0569fad8c3b4f579b46a434f9471a40d72";
     const PUBLIC_KEY_7: &str = "cAbF1DC890E8bf998Cd4664BAcDd64d67D8d4F1A";
+
+    pub fn dummy_validators(checkpoint: CheckpointWithMessageId) -> Vec<TestValidator> {
+        vec![
+            TestValidator {
+                private_key: PRIVATE_KEY_1.into(),
+                public_key: PUBLIC_KEY_1.into(),
+                latest_index: Some(1010),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: PRIVATE_KEY_2.into(),
+                public_key: PUBLIC_KEY_2.into(),
+                latest_index: Some(1008),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: PRIVATE_KEY_3.into(),
+                public_key: PUBLIC_KEY_3.into(),
+                latest_index: Some(1006),
+                fetch_checkpoint: None,
+            },
+            TestValidator {
+                private_key: PRIVATE_KEY_4.into(),
+                public_key: PUBLIC_KEY_4.into(),
+                latest_index: Some(1004),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+            TestValidator {
+                private_key: PRIVATE_KEY_5.into(),
+                public_key: PUBLIC_KEY_5.into(),
+                latest_index: Some(1002),
+                fetch_checkpoint: Some(checkpoint.clone()),
+            },
+        ]
+    }
 
     #[tokio::test]
     #[ignore]
@@ -567,38 +602,7 @@ mod test {
             message_id: H256::zero(),
         };
 
-        let validators = [
-            TestValidator {
-                private_key: PRIVATE_KEY_1.into(),
-                public_key: PUBLIC_KEY_1.into(),
-                latest_index: Some(1010),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_2.into(),
-                public_key: PUBLIC_KEY_2.into(),
-                latest_index: Some(1008),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_3.into(),
-                public_key: PUBLIC_KEY_3.into(),
-                latest_index: Some(1006),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_4.into(),
-                public_key: PUBLIC_KEY_4.into(),
-                latest_index: Some(1004),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_5.into(),
-                public_key: PUBLIC_KEY_5.into(),
-                latest_index: Some(1002),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-        ];
+        let validators = dummy_validators(checkpoint.clone());
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
         let validator_addresses = validators
@@ -628,7 +632,6 @@ mod test {
             .unwrap();
 
         let expected = Some(generate_multisig_signed_checkpoint(&validators, checkpoint).await);
-
         assert_eq!(result, expected);
     }
 
@@ -645,38 +648,7 @@ mod test {
             message_id: H256::zero(),
         };
 
-        let validators = [
-            TestValidator {
-                private_key: PRIVATE_KEY_1.into(),
-                public_key: PUBLIC_KEY_1.into(),
-                latest_index: Some(1010),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_2.into(),
-                public_key: PUBLIC_KEY_2.into(),
-                latest_index: Some(1008),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_3.into(),
-                public_key: PUBLIC_KEY_3.into(),
-                latest_index: Some(1006),
-                fetch_checkpoint: None,
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_4.into(),
-                public_key: PUBLIC_KEY_4.into(),
-                latest_index: Some(1004),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-            TestValidator {
-                private_key: PRIVATE_KEY_5.into(),
-                public_key: PUBLIC_KEY_5.into(),
-                latest_index: Some(1002),
-                fetch_checkpoint: Some(checkpoint.clone()),
-            },
-        ];
+        let validators = dummy_validators(checkpoint.clone());
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
         let validator_addresses = validators
