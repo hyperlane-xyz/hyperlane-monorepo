@@ -128,7 +128,6 @@ where
         }
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
@@ -144,7 +143,6 @@ where
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -200,8 +198,6 @@ impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self), ret)]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
@@ -219,7 +215,6 @@ where
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,

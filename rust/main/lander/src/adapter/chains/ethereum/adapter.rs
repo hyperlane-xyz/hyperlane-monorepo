@@ -9,7 +9,7 @@ use ethers::{
 };
 use eyre::eyre;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -173,6 +173,13 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        if tx.precursor().tx.gas().is_some() {
+            debug!(
+                ?tx,
+                "skipping gas limit estimation for transaction, as it was already estimated"
+            );
+            return Ok(());
+        }
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
             self.provider.clone(),
