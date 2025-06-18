@@ -71,8 +71,9 @@
       "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "rpcUrls": [
         {
-          "http": "http://localhost:16201"
-        }
+          "http": "https://api-tn10.kaspa.org/"
+        },
+        "escrowAddress": "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p",
       ]
     }
   },
