@@ -168,9 +168,8 @@ export async function prepareDeploy(
   await Promise.all(
     chains.map(async (chain: ChainName) => {
       const { nativeToken } = multiProvider.getChainMetadata(chain);
-      const address = userAddress
-        ? userAddress
-        : await multiProtocolSigner!.getAddress(chain);
+      const address =
+        userAddress ?? (await multiProtocolSigner!.getAddress(chain));
       initialBalances[chain] = await multiProtocolSigner!.getBalance(
         isDryRun || false,
         address,
@@ -208,7 +207,7 @@ export async function completeDeploy(
       `\t- Gas required for ${command} ${
         isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        nativeToken?.symbol ?? '?'
+        nativeToken?.symbol ?? 'UNKNOWN SYMBOL'
       }`,
     );
   }

@@ -149,15 +149,12 @@ export class CosmosNativeWarpRouteReader {
         id: warpRouteAddress,
       });
 
-    const routers = remote_routers.reduce(
-      (value, router) => ({
-        ...value,
-        [router.receiver_domain]: {
-          address: router.receiver_contract,
-        },
-      }),
-      {},
-    );
+    const routers: Record<string, { address: string }> = {};
+    for (const router of remote_routers) {
+      routers[router.receiver_domain] = {
+        address: router.receiver_contract,
+      };
+    }
 
     return RemoteRoutersSchema.parse(routers);
   }
@@ -183,12 +180,10 @@ export class CosmosNativeWarpRouteReader {
         id: warpRouteAddress,
       });
 
-    return remote_routers.reduce(
-      (value, router) => ({
-        ...value,
-        [router.receiver_domain]: router.gas,
-      }),
-      {},
-    );
+    const destinationGas: DestinationGas = {};
+    for (const router of remote_routers) {
+      destinationGas[router.receiver_domain] = router.gas;
+    }
+    return destinationGas;
   }
 }

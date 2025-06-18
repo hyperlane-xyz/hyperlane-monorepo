@@ -50,7 +50,7 @@ export async function nativeBalancesAreSufficient(
         }
         break;
       }
-      case ProtocolType.Cosmos: {
+      case ProtocolType.CosmosNative: {
         const address =
           multiProtocolSigner.getCosmosNativeSigner(chain).account.address;
         const provider = await multiProtocolProvider.getCosmJsProvider(chain);
@@ -61,7 +61,7 @@ export async function nativeBalancesAreSufficient(
         const minBalanceSmallestUnit = new BigNumber(
           GasPrice.fromString(gasPrice).amount.toString(),
         )
-          .multipliedBy(minGas[ProtocolType.Cosmos])
+          .multipliedBy(minGas[ProtocolType.CosmosNative])
           .toString();
         const minBalance = new BigNumber(minBalanceSmallestUnit)
           .dividedBy(new BigNumber(10).exponentiatedBy(nativeToken.decimals))

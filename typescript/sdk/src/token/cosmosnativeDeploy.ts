@@ -1,10 +1,16 @@
 import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  objFilter,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
@@ -16,7 +22,7 @@ export class CosmosNativeDeployer {
     protected readonly multiProvider: MultiProvider,
     protected readonly signersMap: ChainMap<SigningHyperlaneModuleClient>,
   ) {
-    this.logger = rootLogger.child({ module: 'deployer' });
+    this.logger = rootLogger.child({ module: 'CosmosNativeDeployer' });
   }
 
   async deploy(
@@ -35,31 +41,29 @@ export class CosmosNativeDeployer {
     );
 
     for (const chain of Object.keys(configMapToDeploy)) {
+      assert(this.signersMap[chain], `No signer configured for ${chain}`);
+
       const config = configMapToDeploy[chain];
+      assert(this.signersMap[chain], `No config configured for ${chain}`);
+
       this.logger.info(
         `Deploying ${config.type} token to Cosmos Native chain ${chain}`,
       );
 
       switch (config.type) {
         case TokenType.collateral: {
-          this.logger.info(`Deploying collateral token to ${chain}`);
-          const { response: collateralToken } = await this.signersMap[
-            chain
-          ].createCollateralToken({
-            origin_mailbox: config.mailbox,
-            origin_denom: config.token,
-          });
-          result[chain] = collateralToken.id;
+          result[chain] = await this.deployCollateralToken(
+            chain,
+            config.mailbox,
+            config.token,
+          );
           break;
         }
         case TokenType.synthetic: {
-          this.logger.info(`Deploying synthetic token to ${chain}`);
-          const { response: syntheticToken } = await this.signersMap[
-            chain
-          ].createSyntheticToken({
-            origin_mailbox: config.mailbox,
-          });
-          result[chain] = syntheticToken.id;
+          result[chain] = await this.deploySyntheticToken(
+            chain,
+            config.mailbox,
+          );
           break;
         }
         default: {
@@ -71,5 +75,29 @@ export class CosmosNativeDeployer {
     }
 
     return result;
+  }
+
+  private async deployCollateralToken(
+    chain: ChainName,
+    originMailbox: Address,
+    originDenom: string,
+  ): Promise<Address> {
+    this.logger.info(`Deploying collateral token to ${chain}`);
+    const { response } = await this.signersMap[chain].createCollateralToken({
+      origin_mailbox: originMailbox,
+      origin_denom: originDenom,
+    });
+    return response.id;
+  }
+
+  private async deploySyntheticToken(
+    chain: ChainName,
+    originMailbox: Address,
+  ): Promise<Address> {
+    this.logger.info(`Deploying synthetic token to ${chain}`);
+    const { response } = await this.signersMap[chain].createSyntheticToken({
+      origin_mailbox: originMailbox,
+    });
+    return response.id;
   }
 }
