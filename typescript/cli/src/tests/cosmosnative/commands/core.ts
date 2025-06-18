@@ -17,14 +17,26 @@ export function hyperlaneCoreDeployRaw(
   skipConfirmationPrompts?: boolean,
   hypKey?: string,
 ): ProcessPromise {
-  return $`${
-    hypKey ? ['HYP_KEY_COSMOSNATIVE=' + hypKey] : ''
-  } ${localTestRunCmdPrefix()} hyperlane core deploy \
-        --registry ${registryPath} \
-        --config ${coreInputPath} \
-        ${privateKey ? ['--key.cosmosnative', privateKey] : ''} \
-        --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+  const flags = [
+    '--registry',
+    registryPath,
+    '--config',
+    coreInputPath,
+    '--verbosity',
+    'debug',
+  ];
+
+  if (privateKey) {
+    flags.push('--key.cosmosnative', privateKey);
+  }
+
+  if (skipConfirmationPrompts) {
+    flags.push('--yes');
+  }
+
+  return $`${[
+    'HYP_KEY_COSMOSNATIVE=' + hypKey,
+  ]} ${localTestRunCmdPrefix()} hyperlane core deploy ${flags}`;
 }
 
 /**
@@ -70,13 +82,23 @@ export function hyperlaneCoreCheck(
   coreOutputPath: string,
   mailbox?: Address,
 ): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane core check \
-        --registry ${registryPath} \
-        --config ${coreOutputPath} \
-        --chain ${chain} \
-        ${mailbox ? ['--mailbox', mailbox] : ''} \
-        --verbosity debug \
-        --yes`;
+  const flags = [
+    '--registry',
+    registryPath,
+    '--config',
+    coreOutputPath,
+    '--chain',
+    chain,
+    '--verbosity',
+    'debug',
+    '--yes',
+  ];
+
+  if (mailbox) {
+    flags.push('--mailbox', mailbox);
+  }
+
+  return $`${localTestRunCmdPrefix()} hyperlane core check ${flags}`;
 }
 
 /**
@@ -88,14 +110,23 @@ export function hyperlaneCoreInit(
   privateKey?: string,
   hyp_key?: string,
 ): ProcessPromise {
-  return $`${
-    hyp_key ? ['HYP_KEY_COSMOSNATIVE=' + hyp_key] : ''
-  } ${localTestRunCmdPrefix()} hyperlane core init \
-        --registry ${registryPath} \
-        --config ${coreOutputPath} \
-        ${privateKey ? ['--key.cosmosnative', privateKey] : ''} \
-        --verbosity debug \
-        --yes`;
+  const flags = [
+    '--registry',
+    registryPath,
+    '--config',
+    coreOutputPath,
+    '--verbosity',
+    'debug',
+    '--yes',
+  ];
+
+  if (privateKey) {
+    flags.push('--key.cosmosnative', privateKey);
+  }
+
+  return $`${[
+    'HYP_KEY_COSMOSNATIVE=' + hyp_key,
+  ]} ${localTestRunCmdPrefix()} hyperlane core init ${flags}`;
 }
 
 /**

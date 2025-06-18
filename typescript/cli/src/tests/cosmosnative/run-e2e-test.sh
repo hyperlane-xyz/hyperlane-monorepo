@@ -16,7 +16,7 @@ function run() {
     echo "Running only ${CLI_E2E_TEST} test"
     yarn mocha --config src/tests/cosmosnative/.mocharc-e2e.json "src/tests/cosmosnative/**/${CLI_E2E_TEST}.e2e-test.ts"
   else
-    yarn mocha --config src/tests/cosmosnative/.mocharc-e2e.json "src/tests/cosmosnative/**/core-check.e2e-test.ts"
+    yarn mocha --config src/tests/cosmosnative/.mocharc-e2e.json "src/tests/cosmosnative/**/core-deploy.e2e-test.ts"
   fi
 }
 
