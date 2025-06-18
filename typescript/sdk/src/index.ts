@@ -732,5 +732,29 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export {
+  EventAssertion,
+  EventAssertionSchema,
+  ForkedChainConfig,
+  ForkedChainConfigByChain,
+  ForkedChainConfigByChainSchema,
+  ForkedChainConfigSchema,
+  RawForkedChainConfig,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
+  RawForkedChainConfigSchema,
+  SafeTx,
+  SafeTxFileSchema,
+  ForkedChainTransactionConfigSchema,
+  RawForkedChainTransactionConfig,
+  RawForkedChainTransactionConfigSchema,
+  TransactionConfigType,
+  TransactionDataType,
+  ForkedChainTransactionConfig,
+  EventAssertionType,
+  forkedChainConfigByChainFromRaw,
+  RevertAssertion,
+  RevertAssertionSchema,
+} from './fork/types.js';
 export { resolveRouterMapConfig } from './router/types.js';
 export { verifyScale } from './utils/decimals.js';

@@ -25,9 +25,20 @@ const owners = {
   optimism: '0x914931eBb5638108651455F50C1F784d3E5fd3EC',
 } as const;
 
+const EXISTING_CHAINS = ['ethereum', 'lumiaprism'];
+
 const submitterConfig = objMap(
   owners,
   (chain, owner): { submitter: SubmitterMetadata } => {
+    if (!EXISTING_CHAINS.includes(chain)) {
+      return {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain,
+        },
+      };
+    }
+
     return {
       submitter: {
         safeAddress: owner,
@@ -80,9 +91,9 @@ export const getLumiaUSDCWarpConfig = async (
       type: TokenType.collateral,
       token: usdcTokenAddresses[chain],
       owner,
-      // contractVersion: '8.0.0',
-      // allowedRebalancers: [REBALANCER],
-      // allowedRebalancingBridges,
+      contractVersion: '8.0.0',
+      allowedRebalancers: [REBALANCER],
+      allowedRebalancingBridges,
     };
 
     return config;

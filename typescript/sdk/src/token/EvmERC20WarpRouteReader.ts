@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract } from 'ethers';
 
 import {
@@ -61,6 +62,8 @@ import {
   isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
+
+const REBALANCING_CONTRACT_VERSION = '8.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -142,9 +145,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
+    const hasRebalancingInterface =
+      compareVersions(
+        tokenConfig.contractVersion!,
+        REBALANCING_CONTRACT_VERSION,
+      ) > 0;
+
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
-    if (isMovableCollateralTokenConfig(tokenConfig)) {
+    if (
+      hasRebalancingInterface &&
+      isMovableCollateralTokenConfig(tokenConfig)
+    ) {
       const movableToken = MovableCollateralRouter__factory.connect(
         warpRouteAddress,
         this.provider,
@@ -650,7 +662,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     try {
       return await contractWithVersion.PACKAGE_VERSION();
     } catch (err: any) {
-      if (err.code && err.code === 'CALL_EXCEPTION') {
+      if (err.cause.code && err.cause.code === 'CALL_EXCEPTION') {
         // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
         // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
         // The real version of a contract without this function is below 5.4.0

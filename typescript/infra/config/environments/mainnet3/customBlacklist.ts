@@ -54,6 +54,7 @@ export const blacklistedMessageIds = [
 
   // oUSDT dest with zero'd out limits
   '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
+  '0xc049929e777bc5c4515694f57818bb8cf561b5daeea0d48496e9b07062e701e4',
 
   // oUSDT messages sent to the zero address [2025-05-25]
   '0x8149ccd407507fc2b066450ba125fc487461d9d8d99261b624496fdd8e30c129',

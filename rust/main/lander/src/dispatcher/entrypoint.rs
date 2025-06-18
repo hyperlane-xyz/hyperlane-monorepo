@@ -80,21 +80,18 @@ pub mod tests {
         sync::{Arc, Mutex},
     };
 
+    use super::*;
+    use crate::tests::test_utils::MockAdapter;
+    use crate::{
+        adapter::*,
+        dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
+        payload::*,
+        transaction::*,
+    };
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
     use hyperlane_core::KnownHyperlaneDomain;
-    use mockall::automock;
-
-    use super::*;
-    use crate::{
-        adapter::*,
-        dispatcher::{
-            metrics::DispatcherMetrics, test_utils::MockAdapter, PayloadDb, TransactionDb,
-        },
-        payload::*,
-        transaction::*,
-    };
 
     type PayloadMap = Arc<Mutex<HashMap<PayloadUuid, FullPayload>>>;
 
