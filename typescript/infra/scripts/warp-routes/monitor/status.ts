@@ -67,7 +67,7 @@ function formatAndPrintLogs(rawLogs: string) {
       .split('\n')
       .map((line) => JSON.parse(line));
     logs.forEach((log) => {
-      const { time, module, msg, labels, balance, valueUSD } = log;
+      const { time, msg, labels, balance, valueUSD } = log;
 
       // Handle both standard timestamps and GCP timestamp format
       let timestamp: string;
@@ -90,10 +90,16 @@ function formatAndPrintLogs(rawLogs: string) {
         timestamp = new Date().toISOString();
       }
 
+      // Try our default fields first, then fall back to GCP fields
+      const module =
+        labels?.module ?? log?.serviceContext?.service ?? 'Unknown Module';
       const chain = labels?.chain_name || 'Unknown Chain';
       const token = labels?.token_name || 'Unknown Token';
       const warpRoute = labels?.warp_route_id || 'Unknown Warp Route';
-      const tokenStandard = labels?.token_standard || 'Unknown Standard';
+      const tokenStandard =
+        labels?.token_standard ??
+        labels?.collateral_token_standard ??
+        'Unknown Standard';
       const tokenAddress = labels?.token_address || 'Unknown Token Address';
       const walletAddress = labels?.wallet_address || 'Unknown Wallet';
 
@@ -111,7 +117,7 @@ function formatAndPrintLogs(rawLogs: string) {
       if (valueUSD) {
         logMessage += chalk.green.italic(`Value (USD): ${valueUSD} `);
       }
-      logMessage += chalk.white(`→ ${msg}\n`);
+      logMessage += chalk.white(`→ ${msg ?? log.message}\n`);
 
       rootLogger.info(logMessage);
     });
