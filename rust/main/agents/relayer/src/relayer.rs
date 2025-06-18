@@ -1370,6 +1370,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                     None,
+                    // these urls are not expected to be live
                     "http://localhost:8545",
                 ),
             ),
@@ -1378,6 +1379,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
                     None,
+                    // these urls are not expected to be live
                     "http://localhost:8545",
                 ),
             ),
@@ -1456,6 +1458,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
+                // these urls are not expected to be live
                 "http://localhost:8545",
             ),
         )];
@@ -1605,6 +1608,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
+                // these urls are not expected to be live
                 "http://localhost:8545",
             ),
         )];
@@ -1641,6 +1645,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
+                // these urls are not expected to be live
                 "http://localhost:8545",
             ),
         )];
@@ -1686,6 +1691,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 None,
+                // these urls are not expected to be live
                 "http://localhost:9999/rpc",
             ),
         )];
@@ -1724,6 +1730,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                     None,
+                    // these urls are not expected to be live
                     "http://localhost:8545",
                 ),
             ),
@@ -1732,6 +1739,7 @@ mod test {
                 generate_test_chain_conf(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
                     None,
+                    // these urls are not expected to be live
                     "http://localhost:8545",
                 ),
             ),
@@ -1773,6 +1781,7 @@ mod test {
             generate_test_chain_conf(
                 HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 Some(SignerConf::HexKey { key: H256::zero() }),
+                // these urls are not expected to be live
                 "http://localhost:8545",
             ),
         )];
