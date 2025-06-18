@@ -1,6 +1,5 @@
 {
   "extensions": ["ts"],
-  "file": ["src/tests/ethereum/e2e-test.setup.ts"],
   "node-option": [
     "experimental-specifier-resolution=node",
     "loader=ts-node/esm"
