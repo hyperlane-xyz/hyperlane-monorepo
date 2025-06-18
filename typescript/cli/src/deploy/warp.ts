@@ -1172,15 +1172,15 @@ async function enrollCrossChainRouters(
         const actualConfig = await evmWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
-          remoteRouters: allRemoteChains.reduce(
-            (acc, c) => ({
-              ...acc,
-              [context.multiProvider.getDomainId(c).toString()]: {
+          remoteRouters: (() => {
+            const routers: Record<string, { address: string }> = {};
+            for (const c of allRemoteChains) {
+              routers[context.multiProvider.getDomainId(c).toString()] = {
                 address: deployedContracts[c],
-              },
-            }),
-            {},
-          ),
+              };
+            }
+            return routers;
+          })(),
         };
 
         const transactions = await evmWarpModule.update(expectedConfig);
@@ -1218,15 +1218,15 @@ async function enrollCrossChainRouters(
         const actualConfig = await cosmosNativeWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
-          remoteRouters: allRemoteChains.reduce(
-            (acc, c) => ({
-              ...acc,
-              [context.multiProvider.getDomainId(c).toString()]: {
+          remoteRouters: (() => {
+            const routers: Record<string, { address: string }> = {};
+            for (const c of allRemoteChains) {
+              routers[context.multiProvider.getDomainId(c).toString()] = {
                 address: deployedContracts[c],
-              },
-            }),
-            {},
-          ),
+              };
+            }
+            return routers;
+          })(),
         };
 
         const transactions =

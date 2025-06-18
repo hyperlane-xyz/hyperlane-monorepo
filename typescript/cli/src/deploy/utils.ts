@@ -170,12 +170,12 @@ export async function prepareDeploy(
       const { nativeToken } = multiProvider.getChainMetadata(chain);
       const address =
         userAddress ?? (await multiProtocolSigner!.getAddress(chain));
-      initialBalances[chain] = await multiProtocolSigner!.getBalance(
-        isDryRun || false,
+      initialBalances[chain] = await multiProtocolSigner!.getBalance({
+        isDryRun: isDryRun || false,
         address,
         chain,
-        nativeToken?.denom,
-      );
+        denom: nativeToken?.denom,
+      });
     }),
   );
   return initialBalances;
@@ -195,12 +195,12 @@ export async function completeDeploy(
     const address = userAddress
       ? userAddress
       : await multiProtocolSigner!.getAddress(chain);
-    const currentBalance = await multiProtocolSigner!.getBalance(
-      isDryRun || false,
+    const currentBalance = await multiProtocolSigner!.getBalance({
+      isDryRun: isDryRun || false,
       address,
       chain,
-      nativeToken?.denom,
-    );
+      denom: nativeToken?.denom,
+    });
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (isDryRun && balanceDelta.lt(0)) break;
     logPink(

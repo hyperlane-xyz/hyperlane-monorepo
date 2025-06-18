@@ -200,18 +200,22 @@ export const tokenTypeToStandard = (
 ) => {
   switch (protocolType) {
     case ProtocolType.Ethereum: {
-      return TOKEN_TYPE_TO_EVM_STANDARD[tokenType];
+      return EVM_TOKEN_TYPE_TO_STANDARD[tokenType];
     }
     case ProtocolType.CosmosNative: {
-      if (tokenType === TokenType.collateral) {
-        return TokenStandard.CosmNativeHypCollateral;
-      } else if (tokenType === TokenType.synthetic) {
-        return TokenStandard.CosmNativeHypSynthetic;
-      } else {
-        throw new Error(
-          `no token standard available for token type ${tokenType}`,
-        );
+      if (
+        COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as CosmosNativeSupportedTokenTypes,
+        )
+      ) {
+        return COSMOS_NATIVE_TOKEN_TYPE_TO_STANDARD[
+          tokenType as CosmosNativeSupportedTokenTypes
+        ];
       }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol Cosmos Native`,
+      );
     }
     default: {
       throw new Error(
@@ -221,7 +225,7 @@ export const tokenTypeToStandard = (
   }
 };
 
-export const TOKEN_TYPE_TO_EVM_STANDARD: Record<TokenType, TokenStandard> = {
+export const EVM_TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,
@@ -237,6 +241,23 @@ export const TOKEN_TYPE_TO_EVM_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.collateralCctp]: TokenStandard.EvmHypCollateral,
   [TokenType.nativeOpL1]: TokenStandard.EvmHypNative,
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
+};
+
+// Cosmos Native supported token types
+export const COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type CosmosNativeSupportedTokenTypes =
+  (typeof COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES)[number];
+
+export const COSMOS_NATIVE_TOKEN_TYPE_TO_STANDARD: Record<
+  CosmosNativeSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.CosmNativeHypCollateral,
+  [TokenType.synthetic]: TokenStandard.CosmNativeHypSynthetic,
 };
 
 // Starknet supported token types

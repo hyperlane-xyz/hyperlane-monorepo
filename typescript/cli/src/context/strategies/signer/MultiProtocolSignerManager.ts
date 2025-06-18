@@ -246,27 +246,32 @@ export class MultiProtocolSignerManager {
     }
   }
 
-  async getBalance(
-    isDryRun: boolean,
-    address: Address,
-    chain: ChainName,
-    denom?: string,
-  ): Promise<BigNumber> {
-    const metadata = this.multiProvider.getChainMetadata(chain);
+  async getBalance(params: {
+    isDryRun: boolean;
+    address: Address;
+    chain: ChainName;
+    denom?: string;
+  }): Promise<BigNumber> {
+    const metadata = this.multiProvider.getChainMetadata(params.chain);
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
-        const provider = isDryRun
+        const provider = params.isDryRun
           ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-          : this.multiProvider.getProvider(chain);
-        const balance = await provider.getBalance(address);
+          : this.multiProvider.getProvider(params.chain);
+        const balance = await provider.getBalance(params.address);
         return balance;
       }
       case ProtocolType.CosmosNative: {
-        assert(denom, 'need denom to get balance of Cosmos Native chain');
+        assert(
+          params.denom,
+          'need denom to get balance of Cosmos Native chain',
+        );
         const provider =
-          await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
-        const balance = await provider.getBalance(address, denom);
+          await this.multiProtocolProvider.getCosmJsNativeProvider(
+            params.chain,
+          );
+        const balance = await provider.getBalance(params.address, params.denom);
         return BigNumber.from(balance.amount);
       }
       default: {
