@@ -43,7 +43,11 @@ impl BlockNumberGetter for KaspaHttpClient {
 
 impl KaspaHttpClient {
     /// Create new `KaspaHttpClient`
-    pub fn new(url: Url, metrics: PrometheusClientMetrics, metrics_config: PrometheusConfig) -> Self {
+    pub fn new(
+        url: Url,
+        metrics: PrometheusClientMetrics,
+        metrics_config: PrometheusConfig,
+    ) -> Self {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);

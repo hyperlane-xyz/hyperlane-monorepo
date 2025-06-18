@@ -1,7 +1,5 @@
 use super::contract_sync::cursors::Indexable;
 use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain};
-use tokio_metrics::TaskMonitor;
-use tracing::{info_span, warn, Instrument};
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
@@ -10,17 +8,16 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio_metrics::TaskMonitor;
+use tracing::{info_span, warn, Instrument};
 
-use dymension_kaspa::{RestProvider, Deposit};
+use dymension_kaspa::{Deposit, RestProvider};
 
 use super::db::HyperlaneRocksDB;
 
-
 use hyperlane_core::{Indexed, LogMeta};
 
-use std::{
-    collections::HashSet, fmt::Debug, hash::Hash,
-};
+use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
 /// is it a kaspa domain?
 pub fn is_kas(d: &HyperlaneDomain) -> bool {
@@ -35,9 +32,12 @@ pub fn is_kas(d: &HyperlaneDomain) -> bool {
     }
 }
 
-
-
-pub async fn run_kas_monitor(domain: HyperlaneDomain, kdb: HyperlaneRocksDB, task_monitor: TaskMonitor, provider: RestProvider) -> JoinHandle<()> {
+pub async fn run_kas_monitor(
+    domain: HyperlaneDomain,
+    kdb: HyperlaneRocksDB,
+    task_monitor: TaskMonitor,
+    provider: RestProvider,
+) -> JoinHandle<()> {
     let name = "foo";
     tokio::task::Builder::new()
         .name(name)
@@ -51,21 +51,40 @@ pub async fn run_kas_monitor(domain: HyperlaneDomain, kdb: HyperlaneRocksDB, tas
         .expect("Failed to spawn kaspa monitor task")
 }
 
-async fn kas_monitor_task(domain: &HyperlaneDomain, kdb: &HyperlaneRocksDB, provider: &RestProvider) {
+async fn kas_monitor_task(
+    domain: &HyperlaneDomain,
+    kdb: &HyperlaneRocksDB,
+    provider: &RestProvider,
+) {
     run_monitor(domain, kdb, provider).await;
 }
 
 // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
-async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(domain: &HyperlaneDomain, store: &S, provider: &RestProvider) where S: Clone + 'static {
+async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(
+    domain: &HyperlaneDomain,
+    store: &S,
+    provider: &RestProvider,
+) where
+    S: Clone + 'static,
+{
     loop {
-        let deposits = provider.get_deposits().unwrap();
+        let deposits = provider.get_deposits().await.unwrap();
         let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
         // let stored= dedupe_and_store_logs(domain, store, logs).await;
-    // unimplemented!()
+        // unimplemented!()
     }
 }
 
-async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)> where T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static {
+async fn handle_observed_deposits(deposits: Vec<Deposit>) {
+    let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
+    // let stored= dedupe_and_store_logs(domain, store, logs).await;
+    // unimplemented!()
+}
+
+async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
+where
+    T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+{
     return vec![];
     // unimplemented!()
 }
@@ -79,7 +98,7 @@ where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
     S: HyperlaneLogStore<T> + Clone + 'static,
 {
-   // TODO: need to lock store? 
+    // TODO: need to lock store?
     let deduped_logs = HashSet::<_>::from_iter(logs);
     let logs = Vec::from_iter(deduped_logs);
 

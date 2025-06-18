@@ -183,7 +183,7 @@ pub enum KnownHyperlaneDomain {
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
-    Kaspa = 80808080 ,
+    Kaspa = 80808080,
 
     // -- Local chains --
     //
@@ -218,7 +218,7 @@ pub enum KnownHyperlaneDomain {
     Sepolia = 11155111,
     StarknetSepolia = 23448591,
     SuperpositionTestnet = 98985,
-    KaspaTest10 = 80808082
+    KaspaTest10 = 80808082,
 }
 
 #[derive(Clone, Serialize)]

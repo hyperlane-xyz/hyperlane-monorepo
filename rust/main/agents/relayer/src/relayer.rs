@@ -31,7 +31,9 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::build_kaspa_provider,
-    settings::{ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
+    settings::{
+        ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics,
+    },
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
@@ -39,15 +41,16 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256, H256,
+    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H256, H512,
+    U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
+use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kass::{is_kas, run_kas_monitor};
-use dymension_kaspa::{KaspaProvider};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -446,20 +449,23 @@ impl BaseAgent for Relayer {
         let has_kaspa = settings.origin_chains.iter().any(|chain| is_kas(chain)); // TODO: or destination chain
 
         let kas_chain_provider = if has_kaspa {
-            let kaspa_chain_conf = settings.origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
-            let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap().to_owned();
+            let kaspa_chain_conf = settings
+                .origin_chains
+                .iter()
+                .find(|chain| is_kas(chain))
+                .unwrap();
+            let chain_conf = core
+                .settings
+                .chain_setup(kaspa_chain_conf)
+                .unwrap()
+                .to_owned();
             let locator = chain_conf.locator(H256::zero());
 
             match chain_conf.connection.clone() {
                 ChainConnectionConf::Kaspa(conf) => {
-                    let kaspa_provider = build_kaspa_provider(
-                        &chain_conf,
-                        &conf,
-                        &core_metrics,
-                        &locator,
-                        None,
-                    )
-                    .expect("Failed to build Kaspa provider");
+                    let kaspa_provider =
+                        build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
+                            .expect("Failed to build Kaspa provider");
                     Some(kaspa_provider)
                 }
                 _ => return Err(eyre!("Foo!")),
@@ -595,11 +601,10 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) {
-
                 // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
                 // we run our own loop for dispatch polling
 
-                let kdb = self.dbs.get(origin).unwrap(); 
+                let kdb = self.dbs.get(origin).unwrap();
 
                 let kp = self.kas_provider.clone().unwrap();
 

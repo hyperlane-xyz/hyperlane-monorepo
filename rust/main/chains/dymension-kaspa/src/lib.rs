@@ -5,6 +5,7 @@
 
 #[allow(missing_docs)]
 pub mod application;
+mod conf;
 mod consts;
 mod error;
 mod indexers;
@@ -14,7 +15,6 @@ mod mailbox;
 mod prometheus;
 mod providers;
 mod signers;
-mod conf;
 mod validator_announce;
 
 mod libs;
@@ -25,6 +25,6 @@ pub use dym_kas_relayer;
 pub use dym_kas_validator;
 
 pub use {
-    self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
-    self::signers::*, self::conf::*, self::validator_announce::*, 
+    self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
+    self::providers::*, self::signers::*, self::validator_announce::*,
 };

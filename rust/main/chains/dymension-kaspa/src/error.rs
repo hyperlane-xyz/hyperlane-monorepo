@@ -73,7 +73,7 @@ pub enum HyperlaneKaspaError {
     ParsingAttemptsFailed(Vec<HyperlaneKaspaError>),
     /// Foo!!
     #[error("{0}")]
-    Foo(String)
+    Foo(String),
 }
 
 impl From<HyperlaneKaspaError> for ChainCommunicationError {
