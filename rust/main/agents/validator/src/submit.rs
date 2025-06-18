@@ -363,9 +363,8 @@ impl ValidatorSubmitter {
             }
         }
 
-        let signed_checkpoint = self.sign_checkpoint(checkpoint).await?;
-
         let start = Instant::now();
+        let signed_checkpoint = self.sign_checkpoint(checkpoint).await?;
         tracing::trace!(
             elapsed=?start.elapsed(),
             "Signed checkpoint",
