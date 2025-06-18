@@ -237,7 +237,7 @@ export function hyperlaneWarpRebalancer(
   amount?: string,
   key?: string,
 ): ProcessPromise {
-  return $`LOG_LEVEL=debug LOG_FORMAT=pretty ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
+  return $`${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
