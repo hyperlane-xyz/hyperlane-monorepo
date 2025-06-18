@@ -45,6 +45,7 @@ use lander::{
 };
 
 use hyperlane_base::kass::{is_kas, run_kas_monitor};
+use dymension_kaspa::KaspaProvider;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -115,6 +116,7 @@ pub struct Relayer {
     pub tokio_console_server: Option<console_subscriber::Server>,
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
+    kas_provider: Option<KaspaProvider>,
 }
 
 impl Debug for Relayer {
@@ -439,6 +441,21 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
+        let has_kaspa = settings.origin_chains.iter().any(|chain| is_kas(chain)); // TODO: or destination chain
+
+        let kas_provider = if has_kaspa {
+            let kaspa_chain_conf = settings.origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
+            let chain_conf = core.settings.chain_setup(kaspa_chain_conf).unwrap();
+
+            let kaspa_provider = build_kaspa_provider(
+            )
+            .await
+            .expect("Failed to build Kaspa provider");
+            Some(kaspa_provider)
+        } else {
+            None
+        };
+
         Ok(Self {
             dbs,
             _cache: cache,
@@ -565,29 +582,7 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) {
-                // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
-                // TODO: run monitor
-                let kdb = self.dbs.get(origin).unwrap();
-
-                // 1. Get the specific ChainConf for Kaspa from the agent's settings.
-                let kaspa_chain_conf = self
-                    .core
-                    .settings
-                    .chain_setup(origin)
-                    .expect("Kaspa chain configuration must exist.");
-
-                // 2. Call your new, concrete builder method.
-                //    This returns `Result<KaspaProvider<...>>`, not `Result<Box<dyn ...>>`.
-                // let kaspa_provider = kaspa_chain_conf.build_provider
-                let kaspa_provider = build_kaspa_provider(
-                    &kaspa_chain_conf,
-                    &kaspa_chain_conf.connection,
-                    &self.core_metrics,
-                    &kaspa_chain_conf.addresses,
-                    None,
-                )
-                .await
-                .expect("Failed to build Kaspa provider");
+               
 
                 tasks.push(
                     run_kas_monitor(

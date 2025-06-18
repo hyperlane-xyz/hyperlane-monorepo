@@ -14,29 +14,7 @@ use super::RestProvider;
 
 use crate::{ConnectionConf, Signer};
 
-/// Wrapper of `FallbackProvider` for use in `hyperlane-kaspa-native`
-#[derive(new, Clone)]
-pub(crate) struct KaspaFallbackProvider<T> {
-    fallback_provider: FallbackProvider<T, T>,
-}
-
-impl<T> Deref for KaspaFallbackProvider<T> {
-    type Target = FallbackProvider<T, T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.fallback_provider
-    }
-}
-
-impl<C> std::fmt::Debug for KaspaFallbackProvider<C>
-where
-    C: std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.fallback_provider.fmt(f)
-    }
-}
-
+/// dococo
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
     domain: HyperlaneDomain,
@@ -46,6 +24,7 @@ pub struct KaspaProvider {
 }
 
 impl KaspaProvider {
+    /// dococo
     pub fn new(
         conf: &ConnectionConf,
         locator: &ContractLocator,
@@ -62,6 +41,7 @@ impl KaspaProvider {
         })
     }
 
+    /// dococo
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
