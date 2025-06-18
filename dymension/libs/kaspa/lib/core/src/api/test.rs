@@ -1,45 +1,48 @@
 // see terminal output
 // cargo test -- --nocapture
 
+use super::client::get_config;
+
 #[cfg(test)]
 mod tests {
     use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
-    use tracing::info;
+    use url::Url;
+    use super::*;
 
-    fn get_config() -> configuration::Configuration {
-        configuration::Configuration {
-            base_path: "https://api-tn10.kaspa.org".to_string(),
-            user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
-            client: reqwest::Client::new(),
-            basic_auth: None,
-            oauth_access_token: None,
-            bearer_access_token: None,
-            api_key: None,
-        }
+    fn t_config() -> configuration::Configuration {
+        let url = Url::parse("https://api-tn10.kaspa.org").unwrap();
+        get_config(&url)
     }
 
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f";
 
     #[tokio::test]
+    #[ignore]
     async fn test_balance() {
-        let config = get_config();
+        let config = t_config();
         let addr = DAN_TESTNET_ADDR;
-        let res = get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(&config, addr)
-            .await
-            .unwrap();
+        let res = get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
+            &config,
+            GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
+                kaspa_address: addr.to_string(),
+            },
+        )
+        .await
+        .unwrap();
         println!("res: {:?}", res);
     }
 
     #[tokio::test]
+    #[ignore] 
     async fn test_txs() {
-        let config = get_config();
+        let config = t_config();
         let addr = DAN_TESTNET_ADDR;
         let limit = Some(10);
         let field = None;
         // let resolve_previous_outpoints = None;
-        let resolve_previous_outpoints = Some("no");
+        let resolve_previous_outpoints = Some("no".to_string());
         let acceptance = None;
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f?page=1
         // 2025-06-10 16:23:29 UTC is 1749505409
@@ -80,13 +83,15 @@ mod tests {
 
         let res = get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(
             &config,
-            addr,
-            limit,
-            lower_bound,
-            upper_bound,
-            field,
-            resolve_previous_outpoints,
-            acceptance,
+            GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams {
+                kaspa_address: addr.to_string(),
+                limit: limit,
+                before: lower_bound,
+                after: upper_bound,
+                fields: field,
+                resolve_previous_outpoints: resolve_previous_outpoints,
+                acceptance: acceptance,
+            },
         )
         .await
         .unwrap();

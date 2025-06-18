@@ -1,13 +1,11 @@
-use tracing::instrument::WithSubscriber;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::info;
 
 use url::Url;
 
-use eyre::{Error, Result};
+use eyre::Result;
 
-use kaspa_consensus_core::tx::{Transaction, TransactionId};
+use kaspa_consensus_core::tx::TransactionId;
 
-use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
