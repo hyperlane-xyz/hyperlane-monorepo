@@ -441,7 +441,15 @@ export async function extendWarpRoute(
   const [existingConfigs, initialExtendedConfigs] =
     splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
 
-  const extendedChains = Object.keys(initialExtendedConfigs);
+  const filteredExtendedConfigs = Object.fromEntries(
+    Object.entries(initialExtendedConfigs).filter(
+      ([chainName]) =>
+        context.multiProtocolProvider.getProtocol(chainName) ===
+        ProtocolType.Ethereum,
+    ),
+  );
+
+  const extendedChains = Object.keys(filteredExtendedConfigs);
   if (extendedChains.length === 0) {
     return warpCoreConfig;
   }
@@ -454,7 +462,7 @@ export async function extendWarpRoute(
       params,
       apiKeys,
       existingConfigs,
-      initialExtendedConfigs,
+      filteredExtendedConfigs,
       warpCoreConfigByChain,
     );
 
