@@ -3,6 +3,8 @@ import type { BaseContract } from 'ethers';
 import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
 
+import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
+
 /**
  * Creates an Express handler that:
  * 1) reads `req.body.data`
@@ -53,12 +55,14 @@ export function createAbiHandler<
         if (!sender || !signature) {
           return res.status(400).json({ error: 'Missing sender or signature' });
         }
-        const messageHash = ethers.utils.solidityKeccak256(
-          ['string', 'address', 'bytes', 'string'],
-          ['HYPERLANE_OFFCHAINLOOKUP', sender, data, verifyRelayerSignatureUrl],
-        );
         relayer = ethers.utils.verifyMessage(
-          ethers.utils.arrayify(messageHash),
+          ethers.utils.arrayify(
+            offchainLookupRequestMessageHash(
+              sender,
+              data,
+              verifyRelayerSignatureUrl,
+            ),
+          ),
           signature,
         );
       }
