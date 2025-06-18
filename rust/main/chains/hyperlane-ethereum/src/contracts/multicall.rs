@@ -6,13 +6,9 @@ use itertools::{Either, Itertools};
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use hyperlane_core::{
-    utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider, U256,
-};
+use hyperlane_core::{ChainResult, HyperlaneDomain, HyperlaneProvider, H256, U256};
 
-use crate::{ConnectionConf, EthereumProvider};
-
-use super::EthereumMailboxCache;
+use crate::{BatchCache, EthereumProvider};
 
 const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 100;
 const MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR: u64 = 100;
@@ -26,24 +22,26 @@ const MULTICALL_OVERHEAD_PER_CALL: u64 = 3500;
 
 pub async fn build_multicall<M: Middleware + 'static>(
     provider: Arc<M>,
-    conn: &ConnectionConf,
     domain: HyperlaneDomain,
-    cache: Arc<Mutex<EthereumMailboxCache>>,
+    cache: Arc<Mutex<BatchCache>>,
+    multicall_contract_address: H256,
 ) -> eyre::Result<Multicall<M>> {
-    let address = conn
-        .op_submission_config
-        .batch_contract_address
-        .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
     let is_contract_cache = {
         let cache = cache.lock().await;
-        cache.is_contract.get(&address).cloned()
+        cache.is_contract.get(&multicall_contract_address).cloned()
     };
     let is_contract = match is_contract_cache {
         Some(is_contract) => is_contract,
         None => {
             let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
-            let is_contract = ethereum_provider.is_contract(&address).await?;
-            cache.lock().await.is_contract.insert(address, is_contract);
+            let is_contract = ethereum_provider
+                .is_contract(&multicall_contract_address)
+                .await?;
+            cache
+                .lock()
+                .await
+                .is_contract
+                .insert(multicall_contract_address, is_contract);
             is_contract
         }
     };
@@ -51,15 +49,16 @@ pub async fn build_multicall<M: Middleware + 'static>(
     if !is_contract {
         return Err(eyre::eyre!("Multicall contract not found at address"));
     }
-    let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {
-        Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
-        Err(err) => {
-            return Err(eyre::eyre!(
-                "Unable to build multicall contract: {}",
-                err.to_string()
-            ))
-        }
-    };
+    let multicall =
+        match Multicall::new(provider.clone(), Some(multicall_contract_address.into())).await {
+            Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
+            Err(err) => {
+                return Err(eyre::eyre!(
+                    "Unable to build multicall contract: {}",
+                    err.to_string()
+                ))
+            }
+        };
 
     Ok(multicall)
 }

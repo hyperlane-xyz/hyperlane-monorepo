@@ -19,9 +19,9 @@ use tokio::sync::Mutex;
 use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, utils::bytes_to_hex, BatchItem, BatchResult,
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    rpc_clients::call_and_retry_indefinitely, utils::bytes_to_hex, utils::hex_or_base58_to_h256,
+    BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
     HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage,
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
@@ -275,13 +275,18 @@ where
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
     cache: Arc<Mutex<EthereumMailboxCache>>,
+    batch_cache: Arc<Mutex<BatchCache>>,
 }
 
 #[derive(Debug, Default)]
 pub struct EthereumMailboxCache {
-    pub is_contract: HashMap<H256, bool>,
     pub latest_block: Option<Block<TxHash>>,
     pub eip1559_fee: Option<Eip1559Fee>,
+}
+
+#[derive(Debug, Default)]
+pub struct BatchCache {
+    pub is_contract: HashMap<H256, bool>,
 }
 
 impl<M> EthereumMailbox<M>
@@ -312,6 +317,7 @@ where
             arbitrum_node_interface,
             conn: conn.clone(),
             cache: Default::default(),
+            batch_cache: Default::default(),
         }
     }
 
@@ -572,11 +578,19 @@ where
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+
+        let address = self
+            .conn
+            .op_submission_config
+            .batch_contract_address
+            .unwrap_or(
+                hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap(),
+            );
         let mut multicall = build_multicall(
             self.provider.clone(),
-            &self.conn,
             self.domain.clone(),
-            self.cache.clone(),
+            self.batch_cache.clone(),
+            address,
         )
         .await
         .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
