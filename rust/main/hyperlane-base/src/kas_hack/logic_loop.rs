@@ -1,26 +1,18 @@
-use crate::contract_sync::cursors::Indexable;
-use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain};
-use tokio::{
-    sync::{
-        broadcast::Sender as BroadcastSender,
-        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
-        RwLock,
-    },
-    task::JoinHandle,
-};
+use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage};
+use tokio::
+    task::JoinHandle
+;
 use tokio_metrics::TaskMonitor;
-use tracing::{info_span, warn, Instrument};
+use tracing::{info_span, Instrument};
 
-use dymension_kaspa::{Deposit, RestProvider};
+use dymension_kaspa::RestProvider;
 
 use crate::db::HyperlaneRocksDB;
 
-use hyperlane_core::{Indexed, LogMeta};
 
-use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
 use super::new_deposit::{
-    dedupe_and_store_logs, deposits_to_logs, handle_observed_deposits, DepositCache,
+    handle_observed_deposits, DepositCache,
 };
 
 use std::time::Duration;

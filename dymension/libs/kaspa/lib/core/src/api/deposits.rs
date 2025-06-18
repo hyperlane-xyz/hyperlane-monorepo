@@ -93,8 +93,11 @@ impl HttpClient {
         let resolve_previous_outpoints = None;
         let acceptance = None;
 
+        let c = get_config(&self.url);
+        info!("FOO|GET_DEPOSITS_CONFIG c: {:?}", c.base_path);
+
         let res = transactions_page(
-            &get_config(&self.url),
+            &c, // TODO: need to share this instance across multiple requests
             args {
                 kaspa_address: address.to_string(),
                 limit: Some(limit),

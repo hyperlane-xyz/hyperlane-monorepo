@@ -102,8 +102,7 @@ impl RestProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let url = vec![Url::parse("http://localhost:16200").unwrap()];
-        let clients = url
+        let clients = vec![conf.clone().kaspa_rest_url]
             .iter()
             .map(|url| {
                 let metrics_config =

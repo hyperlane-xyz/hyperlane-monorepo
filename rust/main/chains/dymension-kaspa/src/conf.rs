@@ -10,16 +10,16 @@ use hyperlane_core::{
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    pub rest_url: Url,
+    pub kaspa_rest_url: Url,
     pub escrow_address: String,
 }
 
 impl ConnectionConf {
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
-    pub fn new(rest_url: Url, escrow_address: String) -> Self {
+    pub fn new(kaspa_rest_url: Url, escrow_address: String) -> Self {
         Self {
-            rest_url,
+            kaspa_rest_url,
             escrow_address,
         }
     }

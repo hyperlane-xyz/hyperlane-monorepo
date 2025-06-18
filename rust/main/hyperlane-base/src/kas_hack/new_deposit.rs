@@ -1,6 +1,6 @@
 use crate::contract_sync::cursors::Indexable;
 use hyperlane_core::{HyperlaneDomain, HyperlaneLogStore};
-use tracing::warn;
+use tracing::{info, warn};
 
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_relayer::deposit::on_new_deposit;
@@ -43,6 +43,7 @@ pub async fn handle_observed_deposits(
         .collect::<Vec<_>>();
     for deposit in &new_deposits {
         cache.seen.insert(deposit.clone());
+        info!("FOOX: New deposit: {:?}", deposit);
     }
 
     for deposit in &new_deposits {

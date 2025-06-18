@@ -16,7 +16,7 @@ mod tests {
     }
 
     const DAN_TESTNET_ADDR: &str =
-        "kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f";
+        "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
 
     #[tokio::test]
     #[ignore]
@@ -35,7 +35,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    // #[ignore]
     async fn test_txs() {
         let config = t_config();
         let addr = DAN_TESTNET_ADDR;
@@ -53,8 +53,10 @@ mod tests {
         // let lower_bound = Some(1i32);
         // let lower_bound = Some(1749505399i32);
         // let upper_bound = Some(1749508710i32);
-        let lower_bound = Some(0i64);
-        let upper_bound = Some(0i64);
+        // let lower_bound = Some(0i64);
+        // let upper_bound = Some(0i64);
+        let lower_bound = None;
+        let upper_bound = None;
 
         // 1 749 572 304 176
         // let upper_bound = None;

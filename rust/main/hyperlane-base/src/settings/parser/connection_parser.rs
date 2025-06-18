@@ -316,11 +316,16 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end();
 
+    let rest_url_s = chain
+        .chain(err)
+        .get_opt_key("kaspaRestUrl")
+        .parse_string()
+        .end()?;
+
+    let rest_url = Url::parse(&rest_url_s).unwrap();
+
     Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(
-            rpcs.to_owned().into_iter().next().unwrap(),
-            escrow_address.unwrap().to_string(),
-        ),
+        dymension_kaspa::ConnectionConf::new(rest_url, escrow_address.unwrap().to_string()),
     ))
 }
 

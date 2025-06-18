@@ -19,13 +19,14 @@ impl reqwest_ratelimit::RateLimiter for FooRateLimiter {
 
 pub fn get_config(url: &Url) -> Configuration {
     // 1 req per sec
-    let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
-    let rl = FooRateLimiter {
-        limiter: Arc::new(governor_limiter),
-    };
-    let client = ClientBuilder::new(reqwest::Client::new())
-        .with(reqwest_ratelimit::all(rl))
-        .build();
+    // let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
+    // let rl = FooRateLimiter {
+        // limiter: Arc::new(governor_limiter),
+    // };
+    // let client = ClientBuilder::new(reqwest::Client::new())
+        // .with(reqwest_ratelimit::all(rl))
+        // .build();
+    let client = ClientBuilder::new(reqwest::Client::new()).build();
     Configuration {
         base_path: url.to_string(),
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
