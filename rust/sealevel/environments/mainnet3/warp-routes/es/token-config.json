@@ -10,8 +10,16 @@
     "decimals": 6,
     "name": "Eclipse",
     "symbol": "ES",
-    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/ES/metadata.json",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/4cda00070dc122425caca6ddc243454bd41b0e0e/deployments/warp_routes/ES/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
     "owner": "3KK8L7UYd7NV575w9vWR2o1kNqdSFvEPUwcTA5353cax"
+  },
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Eclipse",
+    "symbol": "ES",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/4cda00070dc122425caca6ddc243454bd41b0e0e/deployments/warp_routes/ES/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
   }
 }
