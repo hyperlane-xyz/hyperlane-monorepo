@@ -1235,6 +1235,7 @@ mod test {
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
+    use eyre::eyre;
     use prometheus::{opts, IntGaugeVec, Registry};
     use reqwest::Url;
 
@@ -1544,26 +1545,43 @@ mod test {
         .await
     }
 
-    async fn check_relayer_metrics(agent: Relayer, metrics_port: u16) {
+    async fn check_relayer_metrics(agent: Relayer, metrics_port: u16, chain_count: u32) {
         let _ = tokio::task::spawn(async move {
             agent.run().await;
         });
 
         let metrics_url = format!("http://localhost:{metrics_port}/metrics");
         let sleep_duration = Duration::from_secs(3);
+        let metrics = "hyperlane_critical_error";
         loop {
             let res = reqwest::get(&metrics_url).await;
             let response = match res {
                 Ok(s) => s,
                 _ => {
-                    tokio::time::sleep(sleep_duration);
+                    tokio::time::sleep(sleep_duration).await;
                     continue;
                 }
             };
-            if response.status().is_success() {
-                break;
+
+            let status = response.status();
+            if status.is_success() {
+                if let Ok(body) = response.text().await {
+                    let matched_lines: eyre::Result<Vec<u32>> = body
+                        .lines()
+                        .filter(|l| l.starts_with(metrics))
+                        .map(|l| {
+                            let value = l.rsplit_once(' ').ok_or(eyre!("Unknown metric format"))?.1;
+                            Ok(value.parse::<u32>()?)
+                        })
+                        .collect();
+                    let failed_chain_count: u32 = matched_lines.unwrap_or_default().iter().sum();
+
+                    if failed_chain_count == chain_count {
+                        break;
+                    }
+                }
             }
-            tokio::time::sleep(sleep_duration);
+            tokio::time::sleep(sleep_duration).await;
         }
     }
 
@@ -1571,8 +1589,9 @@ mod test {
     async fn test_relayer_started_successfully(
         agent: Relayer,
         metrics_port: u16,
+        failed_chain_count: u32,
     ) -> Result<(), Elapsed> {
-        let future = check_relayer_metrics(agent, metrics_port);
+        let future = check_relayer_metrics(agent, metrics_port, failed_chain_count);
         tokio::time::timeout(Duration::from_secs(50), future).await
     }
 
@@ -1604,9 +1623,12 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_relayer_started_successfully(agent, metrics_port)
-            .await
-            .is_ok());
+        let failed_chain_count = 1;
+        assert!(
+            test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+                .await
+                .is_ok()
+        );
     }
 
     #[tracing_test::traced_test]
@@ -1645,9 +1667,12 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_relayer_started_successfully(agent, metrics_port)
-            .await
-            .is_ok());
+        let failed_chain_count = 3;
+        assert!(
+            test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+                .await
+                .is_ok()
+        );
     }
 
     #[tracing_test::traced_test]
@@ -1679,9 +1704,12 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_relayer_started_successfully(agent, metrics_port)
-            .await
-            .is_ok());
+        let failed_chain_count = 1;
+        assert!(
+            test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+                .await
+                .is_ok()
+        );
     }
 
     #[tracing_test::traced_test]
@@ -1727,9 +1755,12 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_relayer_started_successfully(agent, metrics_port)
-            .await
-            .is_ok());
+        let failed_chain_count = 3;
+        assert!(
+            test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+                .await
+                .is_ok()
+        );
     }
 
     #[tracing_test::traced_test]
@@ -1760,8 +1791,11 @@ mod test {
             .await
             .expect("Failed to build relayer");
 
-        assert!(test_relayer_started_successfully(agent, metrics_port)
-            .await
-            .is_ok());
+        let failed_chain_count = 1;
+        assert!(
+            test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+                .await
+                .is_ok()
+        );
     }
 }
