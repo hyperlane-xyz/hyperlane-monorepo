@@ -43,20 +43,6 @@ contract HypNative is MovableCollateralRouter {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _quoteTransferFee(_amount) +
-                _amount
-        });
-    }
-
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -77,6 +63,10 @@ contract HypNative is MovableCollateralRouter {
                 _hookMetadata,
                 _hook
             );
+    }
+
+    function _token() internal view override returns (address) {
+        return address(0);
     }
 
     function balanceOf(
