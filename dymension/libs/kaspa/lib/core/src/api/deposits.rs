@@ -4,7 +4,7 @@ use url::Url;
 
 use eyre::{Error, Result};
 
-use kaspa_consensus_core::tx::Transaction;
+use kaspa_consensus_core::tx::{Transaction, TransactionId};
 
 use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page;
@@ -12,22 +12,33 @@ use api_rs::models::TxModel;
 
 pub struct Deposit {
     // ATM its a part of Transaction struct, only id, payload, accepted are populated
-    pub transaction: Transaction,
+    pub payload: Vec<u8>,
+    // #[serde(with = "serde_bytes_fixed_ref")] // TODO: need?
+    id: TransactionId,
+    accepted: bool,
 }
 
 impl TryFrom<TxModel> for Deposit {
     type Error = Error;
 
     fn try_from(tx: TxModel) -> Result<Self> {
-        let id = tx.transaction_id.ok_or(eyre::eyre!("Transaction ID is missing"))?;
-        let payload = tx.payload.ok_or(eyre::eyre!("Transaction payload is missing"))?;
-        let accepted = tx.is_accepted.ok_or(eyre::eyre!("Transaction accepted is missing"))?;
+        let id = tx
+            .transaction_id
+            .ok_or(eyre::eyre!("Transaction ID is missing"))?;
+        let payload = tx
+            .payload
+            .ok_or(eyre::eyre!("Transaction payload is missing"))?;
+        let accepted = tx
+            .is_accepted
+            .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
+        let bz = id.as_bytes();
+        let tx_id = TransactionId::try_from(bz)?;
+        let payload_bz = payload.as_bytes().to_vec();
+
         Ok(Deposit {
-            transaction: Transaction {
-                id,
-                payload: tx.payload,
-                accepted: tx.accepted,
-            },
+            id: tx_id,
+            payload: payload_bz,
+            accepted: accepted,
         })
     }
 }
@@ -85,12 +96,7 @@ impl HttpClient {
 
         Ok(res
             .into_iter()
-            .map(|tx| Deposit {
-                tx_id: tx.tx_id,
-                block_height: tx.block_height,
-                block_time: tx.block_time,
-                amount: tx.amount,
-            })
-            .collect())
+            .map(Deposit::try_from)
+            .collect::<Result<Vec<Deposit>>>()?)
     }
 }

@@ -9,7 +9,7 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
 use kaspa_consensus_core::hashing::sighash::{
-    SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
+    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
 
 // Mimic a parallel multi-validator signing process

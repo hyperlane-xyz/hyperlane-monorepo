@@ -56,28 +56,27 @@ mod tests {
         // 1 749 572 304 176
         // let upper_bound = None;
 
-
         // TODO: i checked and this query indeed finds TXs which are DEPOSITS (as well as spends)
         /*
-        Explorer example
-            curl 'https://api-tn10.kaspa.org/addresses/kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p/full-transactions?limit=20&offset=0' \
-  -H 'accept: ...' \
-  -H 'accept-language: en-GB-oxendict,en;q=0.6' \
-  -H 'access-control-allow-origin: *' \
-  -H 'content-type: application/json' \
-  -H 'if-modified-since: Tue, 17 Jun 2025 16:08:14 GMT' \
-  -H 'origin: https://explorer-tn10.kaspa.org' \
-  -H 'priority: u=1, i' \
-  -H 'referer: https://explorer-tn10.kaspa.org/' \
-  -H 'sec-ch-ua: "Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"' \
-  -H 'sec-ch-ua-mobile: ?0' \
-  -H 'sec-ch-ua-platform: "macOS"' \
-  -H 'sec-fetch-dest: empty' \
-  -H 'sec-fetch-mode: cors' \
-  -H 'sec-fetch-site: same-site' \
-  -H 'sec-gpc: 1' \
-  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
-         */
+              Explorer example
+                  curl 'https://api-tn10.kaspa.org/addresses/kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p/full-transactions?limit=20&offset=0' \
+        -H 'accept: ...' \
+        -H 'accept-language: en-GB-oxendict,en;q=0.6' \
+        -H 'access-control-allow-origin: *' \
+        -H 'content-type: application/json' \
+        -H 'if-modified-since: Tue, 17 Jun 2025 16:08:14 GMT' \
+        -H 'origin: https://explorer-tn10.kaspa.org' \
+        -H 'priority: u=1, i' \
+        -H 'referer: https://explorer-tn10.kaspa.org/' \
+        -H 'sec-ch-ua: "Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"' \
+        -H 'sec-ch-ua-mobile: ?0' \
+        -H 'sec-ch-ua-platform: "macOS"' \
+        -H 'sec-fetch-dest: empty' \
+        -H 'sec-fetch-mode: cors' \
+        -H 'sec-fetch-site: same-site' \
+        -H 'sec-gpc: 1' \
+        -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+               */
 
         let res = get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get(
             &config,
