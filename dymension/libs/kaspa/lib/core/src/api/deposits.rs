@@ -4,12 +4,33 @@ use url::Url;
 
 use eyre::{Error, Result};
 
-use api_rs::apis::configuration::Configuration;
-use api_rs::apis::kaspa_addresses_api::{
-    get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
-};
+use kaspa_consensus_core::tx::Transaction;
 
-pub struct Deposit {}
+use api_rs::apis::configuration::Configuration;
+use api_rs::apis::kaspa_addresses_api::get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page;
+use api_rs::models::TxModel;
+
+pub struct Deposit {
+    // ATM its a part of Transaction struct, only id, payload, accepted are populated
+    pub transaction: Transaction,
+}
+
+impl TryFrom<TxModel> for Deposit {
+    type Error = Error;
+
+    fn try_from(tx: TxModel) -> Result<Self> {
+        let id = tx.transaction_id.ok_or(eyre::eyre!("Transaction ID is missing"))?;
+        let payload = tx.payload.ok_or(eyre::eyre!("Transaction payload is missing"))?;
+        let accepted = tx.is_accepted.ok_or(eyre::eyre!("Transaction accepted is missing"))?;
+        Ok(Deposit {
+            transaction: Transaction {
+                id,
+                payload: tx.payload,
+                accepted: tx.accepted,
+            },
+        })
+    }
+}
 
 pub fn get_deposits() -> Vec<Deposit> {
     info!("FOOBAR get_deposits");
@@ -62,11 +83,14 @@ impl HttpClient {
         )
         .await?;
 
-        Ok(res.into_iter().map(|tx| Deposit {
-            tx_id: tx.tx_id,
-            block_height: tx.block_height,
-            block_time: tx.block_time,
-            amount: tx.amount,
-        }).collect())
+        Ok(res
+            .into_iter()
+            .map(|tx| Deposit {
+                tx_id: tx.tx_id,
+                block_height: tx.block_height,
+                block_time: tx.block_time,
+                amount: tx.amount,
+            })
+            .collect())
     }
 }
