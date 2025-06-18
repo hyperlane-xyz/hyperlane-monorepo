@@ -3,8 +3,11 @@ use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+    config::OpSubmissionConfig, utils::hex_or_base58_to_h256, ChainCommunicationError, ChainResult,
+    ReorgPeriod, H256, U256,
 };
+
+static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -58,6 +61,13 @@ impl ConnectionConf {
             Http { url } => vec![url.clone()],
             Ws { url: _ } => panic!("Websocket connection is not supported"),
         }
+    }
+
+    /// Returns the address of the contract which batches operations.
+    pub fn batch_contract_address(&self) -> H256 {
+        self.op_submission_config
+            .batch_contract_address
+            .unwrap_or(hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT).unwrap())
     }
 }
 

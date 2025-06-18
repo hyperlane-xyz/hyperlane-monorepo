@@ -6,24 +6,25 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::types::{Block, H160, H256 as EthersH256};
-use ethers::{prelude::Middleware, types::TransactionReceipt};
+use ethers::prelude::Middleware;
+use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
 use ethers_contract::builders::ContractCall;
-use ethers_core::abi::Function;
+use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{BlockId, FeeHistory, U256 as EthersU256};
-use ethers_core::{abi::Address, types::BlockNumber};
-use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
+use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
+    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::{
-    get_finalized_block_number, BuildableWithProvider, ConnectionConf, EthereumReorgPeriod,
+    build_multicall, get_finalized_block_number, BatchCache, BuildableWithProvider, ConnectionConf,
+    EthereumReorgPeriod,
 };
 
 // From
@@ -110,6 +111,13 @@ pub trait EvmProviderForLander: Send + Sync {
         function: &Function,
     ) -> ChainResult<U256>;
 
+    /// Batches the transaction into a single transaction on the blockchain
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+    ) -> ChainResult<()>;
+
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
 
@@ -182,6 +190,22 @@ where
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
+    }
+
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+    ) -> ChainResult<()> {
+        let _multicall = build_multicall(
+            self.provider.clone(),
+            self.domain.clone(),
+            cache,
+            batch_contract_address,
+        )
+        .await?;
+
+        Ok(())
     }
 
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
@@ -404,10 +428,10 @@ where
 }
 
 /// Builder for hyperlane providers.
-pub struct SubmitterProviderBuilder {}
+pub struct LanderProviderBuilder {}
 
 #[async_trait]
-impl BuildableWithProvider for SubmitterProviderBuilder {
+impl BuildableWithProvider for LanderProviderBuilder {
     type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 

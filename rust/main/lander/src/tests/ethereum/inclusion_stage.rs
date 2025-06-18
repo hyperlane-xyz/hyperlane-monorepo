@@ -438,6 +438,7 @@ fn mock_ethereum_adapter(
         provider,
         reorg_period,
         nonce_manager,
+        _batch_cache: Default::default(),
     }
 }
 

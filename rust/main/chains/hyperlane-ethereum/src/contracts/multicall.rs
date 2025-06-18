@@ -20,6 +20,7 @@ const ALLOW_BATCH_FAILURES: bool = true;
 /// - https://dashboard.tenderly.co/tx/arbitrum/0xad644e431dc53c3fc0a074a749d118ff5517346c3f28d8e2513610cc9ab5c91a/gas-usage
 const MULTICALL_OVERHEAD_PER_CALL: u64 = 3500;
 
+/// Builds a Multicall contract instance for a given Ethereum provider and domain
 pub async fn build_multicall<M: Middleware + 'static>(
     provider: Arc<M>,
     domain: HyperlaneDomain,
