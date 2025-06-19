@@ -4,7 +4,7 @@ use derive_new::new;
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, NativeToken,
 };
 
 /// Kaspa connection configuration
@@ -13,16 +13,19 @@ pub struct ConnectionConf {
     pub kaspa_rest_url: Url,
     pub escrow_address: String,
     pub validator_hosts: Vec<String>,
+    pub validator_ids : Vec<H256>, // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
+
 }
 
 impl ConnectionConf {
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
-    pub fn new(kaspa_rest_url: Url, escrow_address: String, validator_hosts: Vec<String>) -> Self {
+    pub fn new(kaspa_rest_url: Url, escrow_address: String, validator_hosts: Vec<String>, validator_ids: Vec<H256>) -> Self {
         Self {
             kaspa_rest_url,
             escrow_address,
             validator_hosts,
+            validator_ids,
         }
     }
 }

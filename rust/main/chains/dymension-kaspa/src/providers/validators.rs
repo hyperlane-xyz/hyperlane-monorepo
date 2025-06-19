@@ -13,8 +13,8 @@ use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 
-use axum::http::StatusCode;
 use bytes::Bytes;
+use reqwest::StatusCode;
 use eyre::Result;
 
 use url::Url;
@@ -59,6 +59,8 @@ impl ValidatorsClient {
         // TODO: in parallel
         let mut results = Vec::new();
         for host in self.conf.validator_hosts.clone().into_iter() {
+            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+
             let res = validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => results.push(r),
@@ -71,10 +73,11 @@ impl ValidatorsClient {
     }
 }
 
+// see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
 pub async fn validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
-) -> Result<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
+) -> Result<Option<SignedCheckpointWithMessageId>> {
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
@@ -86,8 +89,9 @@ pub async fn validate_new_deposits(
     // TODO: need to return sigs here
     let status = res.status();
     if status == StatusCode::OK {
-        Ok(true)
+        let body = res.json::<SignedCheckpointWithMessageId>().await?;
+        Ok(Some(body))
     } else {
-        Ok(false)
+        Err(eyre::eyre!("Failed to validate deposits: {}", status))
     }
 }
