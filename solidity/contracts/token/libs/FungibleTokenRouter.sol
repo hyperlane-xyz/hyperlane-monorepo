@@ -9,19 +9,10 @@ import {Quote} from "../../interfaces/ITokenBridge.sol";
  * @author Abacus Works
  */
 abstract contract FungibleTokenRouter is TokenRouter {
-    uint128 public immutable scaleNumerator;
-    uint128 public immutable scaleDenominator;
-
-    uint128 public immutable feeNumerator;
-    uint128 public immutable feeDenominator;
-    address public immutable feeRecipient;
+    uint256 public immutable scale;
 
     constructor(uint256 _scale, address _mailbox) TokenRouter(_mailbox) {
-        scaleNumerator = uint128(_scale);
-        scaleDenominator = 1;
-        feeRecipient = address(1);
-        feeNumerator = 0;
-        feeDenominator = 1;
+        scale = _scale;
     }
 
     function quoteTransferRemote(
@@ -65,7 +56,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual override returns (uint256 _messageAmount) {
-        _messageAmount = (_localAmount * scaleNumerator) / scaleDenominator;
+        _messageAmount = _localAmount * scale;
     }
 
     /**
@@ -75,6 +66,6 @@ abstract contract FungibleTokenRouter is TokenRouter {
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual override returns (uint256 _localAmount) {
-        _localAmount = (_messageAmount * scaleDenominator) / scaleNumerator;
+        _localAmount = _messageAmount / scale;
     }
 }
