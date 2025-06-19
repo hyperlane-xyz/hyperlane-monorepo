@@ -1,28 +1,20 @@
-use std::future::Future;
-use std::time::Instant;
 
 use tonic::async_trait;
 
 use std::collections::HashMap;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber,
-    SignedCheckpointWithMessageId, H256, H512, U256,
-};
-use hyperlane_metric::prometheus_metric::{
-    ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, SignedCheckpointWithMessageId, H256,
 };
 
 use bytes::Bytes;
 use reqwest::StatusCode;
 use eyre::Result;
 
-use url::Url;
 
-use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
+use crate::ConnectionConf;
 
 use crate::endpoints::*;
-pub use dym_kas_core::api::deposits::*;
 use dym_kas_core::deposit::DepositFXG;
 
 #[derive(Debug, Clone)]
@@ -60,7 +52,7 @@ impl ValidatorsClient {
         let mut results = HashMap::new();
         for (host, validator_id) in self.conf.validator_hosts.clone().into_iter().zip(self.conf.validator_ids.clone().into_iter()) {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let res = validate_new_deposits(host, fxg).await;
+            let res = request_validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
@@ -80,7 +72,7 @@ impl ValidatorsClient {
 }
 
 // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
-pub async fn validate_new_deposits(
+pub async fn request_validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
 ) -> Result<Option<SignedCheckpointWithMessageId>> {

@@ -45,7 +45,7 @@ pub async fn handle_observed_deposits(
     }
 
     for deposit in &new_deposits {
-        let fxg = on_new_deposit(deposit); // local call
+        let fxg = on_new_deposit(deposit); // local call to F()
         if let Some(fxg) = fxg {
             let results = validators.validate_deposits(&fxg).await;
             match results {

@@ -1,5 +1,4 @@
 use super::endpoints::*;
-use async_trait::async_trait;
 use axum::{
     body::Bytes,
     extract::State,
@@ -10,9 +9,11 @@ use axum::{
 };
 use dym_kas_core::deposit::DepositFXG;
 use hyperlane_core::{
-    ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, SignedType, H256,
+    Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256,
 };
 use std::sync::Arc;
+
+use dym_kas_validator::deposit::validate_deposits;
 
 trait Signer: HyperlaneSignerExt + Send + Sync + 'static {}
 
@@ -36,11 +37,15 @@ struct AppState<S: Signer> {
     signer: Arc<S>,
 }
 
-async fn validate_new_deposits<S: Signer>(
+async fn respond_validate_new_deposits<S: Signer>(
     State(state): State<Arc<AppState<S>>>,
     body: Bytes,
 ) -> AppResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+
+    if !validate_deposits(&deposits) { // Call to G()
+        return Err(AppError(eyre::eyre!("Invalid deposit")));
+    }
 
     let message_id = H256::random();
     let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
@@ -71,7 +76,7 @@ pub fn router<S: Signer>(signer: Arc<S>) -> Router {
     Router::new()
         .route(
             ROUTE_VALIDATE_NEW_DEPOSITS,
-            post(validate_new_deposits::<S>),
+            post(respond_validate_new_deposits::<S>),
         )
         .with_state(state)
 }
