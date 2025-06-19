@@ -1,5 +1,4 @@
-import { BigNumber } from 'ethers';
-import { Account, Contract, MultiType } from 'starknet';
+import { Account, Contract, MultiType, cairo } from 'starknet';
 
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -71,8 +70,8 @@ export class StarknetCoreModule {
     const protocolFee = await this.deployer.deployContract(
       StarknetContractName.PROTOCOL_FEE,
       [
-        BigNumber.from(config.requiredHook.maxProtocolFee),
-        BigNumber.from(config.requiredHook.protocolFee),
+        cairo.uint256(config.requiredHook.maxProtocolFee),
+        cairo.uint256(config.requiredHook.protocolFee),
         config.requiredHook.beneficiary,
         config.owner,
         PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
