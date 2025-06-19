@@ -283,7 +283,7 @@ jobs:
           job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
 
-  cli-e2e-matrix:
+  cli-ethereum-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
@@ -332,7 +332,46 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:e2e
+        run: yarn --cwd typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cosmosnative-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
