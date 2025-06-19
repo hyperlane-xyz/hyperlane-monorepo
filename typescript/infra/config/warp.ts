@@ -84,6 +84,7 @@ import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
+import { getoXAUTTokenWarpConfig } from './environments/mainnet3/warp/configGetters/getoXAUTTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
@@ -143,6 +144,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   // TODO: uncomment after merging the staging route to registry
   // this has been commented out as it leads to check-warp-deploy cron job failing
   [WarpRouteIds.oUSDTSTAGE]: getoUSDTTokenStagingWarpConfig,
+  [WarpRouteIds.oXAUT]: getoXAUTTokenWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
     getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,

@@ -83,6 +83,7 @@ export enum WarpRouteIds {
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
   oUSDTSTAGE = 'oUSDT/staging',
+  oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',

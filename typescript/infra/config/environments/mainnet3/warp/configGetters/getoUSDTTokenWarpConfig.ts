@@ -80,7 +80,7 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   bob: lowerBufferCap,
   hashkey: lowerBufferCap,
 };
-const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
+export const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
 const lowerRateLimitPerSecond = '500000000'; // 0.5k/s = 0.5 * 10^3 ^ 10^6
 const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
