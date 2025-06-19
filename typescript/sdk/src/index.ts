@@ -23,7 +23,10 @@ export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,
 } from './consts/multisigIsm.js';
-export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
+export {
+  SEALEVEL_SPL_NOOP_ADDRESS,
+  SEALEVEL_PRIORITY_FEES,
+} from './consts/sealevel.js';
 export {
   multiProtocolTestChainMetadata,
   test1,
@@ -381,6 +384,7 @@ export {
   StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
+  TypedSigner,
   TypedTransaction,
   TypedTransactionReceipt,
   ViemContract,

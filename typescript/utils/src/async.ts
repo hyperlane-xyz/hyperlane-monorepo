@@ -33,17 +33,19 @@ export function timeout<T>(
  * Run a callback with a timeout.
  * @param timeoutMs How long to wait for the promise in milliseconds.
  * @param callback The callback to run.
+ * @param errorMessage The error message if a timeout occurs.
  * @returns callback return value
  * @throws Error if the timeout is reached before the callback completes
  */
 export async function runWithTimeout<T>(
   timeoutMs: number,
   callback: () => Promise<T>,
+  errorMessage?: string,
 ): Promise<T> {
   let timeoutId: NodeJS.Timeout;
   const timeoutProm = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`Timed out in ${timeoutMs}ms.`));
+      reject(new Error(errorMessage ?? `Timed out in ${timeoutMs}ms.`));
     }, timeoutMs);
   });
 
