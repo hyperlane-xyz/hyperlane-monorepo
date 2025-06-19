@@ -8,7 +8,7 @@ use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
 use hyperlane_core::{
     traits::TxOutcome, ChainCommunicationError, ChainResult, HyperlaneMessage, Indexed, LogMeta,
-    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, Metadata,
+    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, traits::PendingOperationResult,
 };
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
@@ -66,8 +66,13 @@ async fn gather_sigs_and_send_to_hub<M: Mailbox>(
     let threshold = 3usize;
     let multisig = to_multisig(&mut sigs_res, threshold)?;
 
-    let metadata = b"";
+    // let metadata = b"";
+    // unimplemented!()
     let outcome = hub_mailbox.process(&m, &[], None).await?
+}
+
+pub trait MetadataConstructor {
+    fn metadat(&self, message: &HyperlaneMessage) -> Result<[u8], PendingOperationResult>;
 }
 
 /*
