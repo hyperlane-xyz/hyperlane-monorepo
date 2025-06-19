@@ -176,6 +176,119 @@ async fn test_send_multiple_payloads_at_once_with_batching() {
     assert_eq!(queue.len().await, 0);
 }
 
+#[tokio::test]
+async fn test_adapter_returns_empty_result() {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_build_transactions()
+        .times(1)
+        .returning(|_| vec![]); // Adapter returns empty result
+    mock_adapter.expect_max_batch_size().returning(|| 1);
+    let (building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+
+    let payload_to_send = FullPayload::random();
+    initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+    queue.push_back(payload_to_send.clone()).await;
+
+    // Should not receive any payloads, but also not panic
+    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    assert!(payload_details_received.is_empty());
+    // The queue should still be empty, as the payload was "processed"
+    assert_eq!(queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_adapter_returns_result_with_empty_payloads() {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_build_transactions()
+        .times(1)
+        .returning(|_| vec![TxBuildingResult::new(vec![], None)]);
+    mock_adapter.expect_max_batch_size().returning(|| 1);
+    let (building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+
+    let payload_to_send = FullPayload::random();
+    initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+    queue.push_back(payload_to_send.clone()).await;
+
+    // Should not receive any payloads, but also not panic
+    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    assert!(payload_details_received.is_empty());
+    // The queue should still be empty, as the payload was "processed"
+    assert_eq!(queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_queue_filled_and_cleared() {
+    // Fill the queue, process, then ensure it's empty and can be refilled
+    let (building_stage, mut receiver, queue) = test_setup(3, true);
+
+    let payload1 = FullPayload::random();
+    let payload2 = FullPayload::random();
+    initialize_payload_db(&building_stage.state.payload_db, &payload1).await;
+    initialize_payload_db(&building_stage.state.payload_db, &payload2).await;
+    queue.push_back(payload1.clone()).await;
+    queue.push_back(payload2.clone()).await;
+
+    let payload_details_received = run_building_stage(2, &building_stage, &mut receiver).await;
+    assert_eq!(
+        payload_details_received,
+        vec![payload1.details.clone(), payload2.details.clone()]
+    );
+    assert_eq!(queue.len().await, 0);
+
+    // Refill and process again
+    let payload3 = FullPayload::random();
+    initialize_payload_db(&building_stage.state.payload_db, &payload3).await;
+    queue.push_back(payload3.clone()).await;
+    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    assert_eq!(payload_details_received, vec![payload3.details.clone()]);
+    assert_eq!(queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_channel_send_failure() {
+    // Simulate channel send failure by closing the receiver before running
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_build_transactions()
+        .returning(|payloads| dummy_built_tx(payloads.to_vec(), true));
+    mock_adapter.expect_max_batch_size().returning(|| 1);
+    let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
+    let state = DispatcherState::new(
+        payload_db,
+        tx_db,
+        adapter,
+        DispatcherMetrics::dummy_instance(),
+        "dummy_domain".to_string(),
+    );
+    let (sender, receiver) = tokio::sync::mpsc::channel(1);
+    let queue = BuildingStageQueue::new();
+    let building_stage =
+        BuildingStage::new(queue.clone(), sender, state, "test_domain".to_string());
+
+    let payload_to_send = FullPayload::random();
+    initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+    queue.push_back(payload_to_send.clone()).await;
+
+    // Drop the receiver to simulate channel send failure
+    drop(receiver);
+
+    // Should not panic, but an error will be logged
+    // (We can't assert log output here, but we can ensure no panic and the queue is empty)
+    let _ = tokio::time::timeout(
+        tokio::time::Duration::from_millis(100),
+        building_stage.run(),
+    )
+    .await;
+    assert_eq!(queue.len().await, 0);
+}
+
 async fn run_building_stage(
     sent_payload_count: usize,
     building_stage: &BuildingStage,
