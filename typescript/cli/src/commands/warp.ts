@@ -1,9 +1,12 @@
+import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -20,8 +23,16 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import { runForkCommand } from '../fork/fork.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -43,6 +54,7 @@ import {
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
+  forkCommandOptions,
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
@@ -65,8 +77,10 @@ export const warpCommand: CommandModule = {
       .command(apply)
       .command(check)
       .command(deploy)
+      .command(fork)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -147,7 +161,7 @@ export const deploy: CommandModuleWithWarpDeployContext<{
     },
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, dryRun, warpRouteId }) => {
+  handler: async ({ context, dryRun, warpRouteId, config }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -158,6 +172,7 @@ export const deploy: CommandModuleWithWarpDeployContext<{
         // Already fetched in the resolveWarpRouteConfigChains
         warpDeployConfig: context.warpDeployConfig,
         warpRouteId,
+        warpDeployConfigFileName: config,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -434,6 +449,91 @@ export const check: CommandModuleWithContext<{
   },
 };
 
+export const rebalancer: CommandModuleWithWriteContext<{
+  config: string;
+  checkFrequency: number;
+  withMetrics: boolean;
+  monitorOnly: boolean;
+  manual?: boolean;
+  origin?: string;
+  destination?: string;
+  amount?: string;
+}> = {
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
+  builder: {
+    config: {
+      type: 'string',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
+      demandOption: false,
+      default: 60000,
+    },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics (default: true)',
+      demandOption: false,
+      default: false,
+    },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode (default: false)',
+      demandOption: false,
+      default: false,
+    },
+    manual: {
+      type: 'boolean',
+      description:
+        'Trigger a rebalancer manual run (default: false, requires --origin, --destination, --amount)',
+      demandOption: false,
+      implies: ['origin', 'destination', 'amount'],
+    },
+    origin: {
+      type: 'string',
+      description: 'The origin chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    destination: {
+      type: 'string',
+      description: 'The destination chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    amount: {
+      type: 'string',
+      description:
+        'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
+      demandOption: false,
+      implies: 'manual',
+    },
+  },
+  handler: async (args) => {
+    let runner: RebalancerRunner;
+    try {
+      const { context, ...rest } = args;
+      runner = await RebalancerRunner.create(rest, context);
+    } catch (e: any) {
+      // exit on startup errors
+      errorRed('Rebalancer startup error:', util.format(e));
+      process.exit(1);
+    }
+
+    try {
+      await runner.run();
+    } catch (e: any) {
+      errorRed('Rebalancer error:', util.format(e));
+      process.exit(1);
+    }
+  },
+};
+
 export const verify: CommandModuleWithWriteContext<{
   symbol: string;
 }> = {
@@ -453,5 +553,73 @@ export const verify: CommandModuleWithWriteContext<{
     );
 
     return runVerifyWarpRoute({ context, warpCoreConfig });
+  },
+};
+
+const fork: CommandModuleWithContext<{
+  port?: number;
+  symbol?: string;
+  'deploy-config': string;
+  'fork-config'?: string;
+  warp?: string;
+  kill: boolean;
+  warpRouteId?: string;
+}> = {
+  command: 'fork',
+  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  builder: {
+    ...forkCommandOptions,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    'deploy-config': inputFileCommandOption({
+      description: 'The path to a warp route deployment configuration file',
+      demandOption: false,
+      alias: 'wd',
+    }),
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
+  },
+  handler: async ({
+    context,
+    symbol,
+    warpRouteId,
+    port,
+    kill,
+    warp,
+    deployConfig,
+    forkConfig: forkConfigPath,
+  }) => {
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: deployConfig,
+      warpCoreConfigPath: warp,
+    });
+
+    let forkConfig: RawForkedChainConfigByChain;
+    if (forkConfigPath) {
+      forkConfig = RawForkedChainConfigByChainSchema.parse(
+        readYamlOrJson(forkConfigPath),
+      );
+    } else {
+      forkConfig = {};
+    }
+
+    await runForkCommand({
+      context,
+      chainsToFork: new Set([
+        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
+        ...Object.keys(warpDeployConfig),
+      ]),
+      forkConfig,
+      basePort: port,
+      kill,
+    });
   },
 };

@@ -3,10 +3,11 @@
 
 use std::time::UNIX_EPOCH;
 
+use hyperlane_core::U256;
 use prometheus::{
     core::{AtomicU64, GenericGauge},
     labels, opts, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    Encoder, IntCounterVec, IntGaugeVec, Registry,
+    Encoder, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
 use tracing::{debug, info, warn};
 
@@ -41,6 +42,16 @@ pub struct DispatcherMetrics {
 
     // total time spent submitting transactions
     pub in_flight_transaction_time: IntGaugeVec,
+
+    // VM-specific metrics below. These aren't set when they don't apply
+    // on EIP-1559 chains, this is the max_fee_per_gas
+    pub gas_price: IntGaugeVec,
+    // only applies to EIP-1559 chains, this is the max_priority_fee_per_gas
+    pub priority_fee: IntGaugeVec,
+    /// Currently finalized nonce for each destination
+    finalized_nonce: IntGaugeVec,
+    /// Upper nonce, namely the nonce which can be used next for each destination
+    upper_nonce: IntGaugeVec,
 }
 
 impl DispatcherMetrics {
@@ -125,6 +136,38 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+        let gas_price = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("gas_price"),
+                "The gas price for transactions, if applicable",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
+        let priority_fee = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("priority_fee"),
+                "The priority fee for transactions, if applicable",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
+        let finalized_nonce = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("finalized_nonce"),
+                "Currently finalized nonce for each destination",
+            ),
+            &["destination", "signer",],
+            registry.clone()
+        )?;
+        let upper_nonce = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("upper_nonce"),
+                "Currently upper nonce for each destination",
+            ),
+            &["destination", "signer",],
+            registry.clone()
+        )?;
         Ok(Self {
             registry: registry.clone(),
             task_liveness,
@@ -137,6 +180,10 @@ impl DispatcherMetrics {
             finalized_transactions,
             call_retries,
             in_flight_transaction_time,
+            gas_price,
+            priority_fee,
+            finalized_nonce,
+            upper_nonce,
         })
     }
 
@@ -197,6 +244,39 @@ impl DispatcherMetrics {
             .inc();
     }
 
+    pub fn update_gas_price_metric(&self, gas_price: u64, domain: &str) {
+        self.gas_price
+            .with_label_values(&[domain])
+            .set(gas_price as i64);
+    }
+
+    pub fn update_priority_fee_metric(&self, priority_fee: u64, domain: &str) {
+        self.priority_fee
+            .with_label_values(&[domain])
+            .set(priority_fee as i64);
+    }
+
+    pub fn get_finalized_nonce(&self, destination: &str, signer: &str) -> IntGauge {
+        self.finalized_nonce
+            .with_label_values(&[destination, signer])
+            .clone()
+    }
+
+    pub fn get_upper_nonce(&self, destination: &str, signer: &str) -> IntGauge {
+        self.upper_nonce
+            .with_label_values(&[destination, signer])
+            .clone()
+    }
+
+    pub fn set_vm_specific_metrics(&self, vm_metrics: &VmSpecificMetricsSource, domain: &str) {
+        if let Some(gas_price) = vm_metrics.gas_price {
+            self.update_gas_price_metric(gas_price, domain);
+        }
+        if let Some(priority_fee) = vm_metrics.priority_fee {
+            self.update_priority_fee_metric(priority_fee, domain);
+        }
+    }
+
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
         let collected_metrics = self.registry.gather();
         let mut out_buf = Vec::with_capacity(1024 * 64);
@@ -211,4 +291,12 @@ impl DispatcherMetrics {
         let instance = Self::new(registry.clone());
         instance.unwrap()
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct VmSpecificMetricsSource {
+    // max fee per gas for EIP-1559 chains, or gas price for others
+    pub gas_price: Option<u64>,
+    // priority fee per gas for EIP-1559 chains, or None for others
+    pub priority_fee: Option<u64>,
 }

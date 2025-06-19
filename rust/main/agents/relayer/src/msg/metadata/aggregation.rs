@@ -288,8 +288,8 @@ impl AggregationIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
-    #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[instrument(err, skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,

@@ -176,9 +176,9 @@ mod tests {
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
     use hyperlane_core::KnownHyperlaneDomain;
 
-    use crate::{
-        dispatcher::test_utils::dummy_tx, payload::FullPayload, transaction::TransactionStatus,
-    };
+    use crate::tests::test_utils::dummy_tx;
+    use crate::transaction::TransactionUuid;
+    use crate::{payload::FullPayload, transaction::TransactionStatus};
 
     use super::TransactionDb;
 
