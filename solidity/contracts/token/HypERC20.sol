@@ -41,6 +41,7 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _FungibleTokenRouter_initialize();
     }
 
     function decimals() public view virtual override returns (uint8) {

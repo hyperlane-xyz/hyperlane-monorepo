@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./TokenRouter.sol";
 import {Quote} from "../../interfaces/ITokenBridge.sol";
 import {ITokenFee} from "../interfaces/ITokenFee.sol";
-import {LinearFee} from "../fees/LinearFee.sol";
+import {ZeroFee} from "../fees/ZeroFee.sol";
 
 /**
  * @title Hyperlane Fungible Token Router that extends TokenRouter with scaling logic for fungible tokens with different decimals.
@@ -13,12 +13,12 @@ import {LinearFee} from "../fees/LinearFee.sol";
 abstract contract FungibleTokenRouter is TokenRouter {
     uint256 public immutable scale;
 
+    ZeroFee public immutable zeroFeeRecipient = new ZeroFee();
     ITokenFee public feeRecipient;
 
     constructor(uint256 _scale, address _mailbox) TokenRouter(_mailbox) {
         scale = _scale;
-        // default to 0% fee for now
-        feeRecipient = new LinearFee(0, 1);
+        feeRecipient = zeroFeeRecipient;
     }
 
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
@@ -39,6 +39,15 @@ abstract contract FungibleTokenRouter is TokenRouter {
             token: _token(),
             amount: _quoteTransferFee(_amount) + _amount
         });
+    }
+
+    function _FungibleTokenRouter_initialize()
+        internal
+        virtual
+        onlyInitializing
+    {
+        // default to 0% fee for now
+        feeRecipient = zeroFeeRecipient;
     }
 
     function _token() internal view virtual returns (address);

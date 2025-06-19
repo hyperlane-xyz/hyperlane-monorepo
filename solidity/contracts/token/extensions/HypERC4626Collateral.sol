@@ -55,6 +55,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         address _owner
     ) public override initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _FungibleTokenRouter_initialize();
     }
 
     /**
