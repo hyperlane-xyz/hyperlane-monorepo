@@ -50,6 +50,7 @@ dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", p
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
 eyre = { workspace = true }
+bytes = { workspace = true }
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

@@ -324,6 +324,21 @@ pub fn build_kaspa_connection_conf(
 
     let rest_url = Url::parse(&rest_url_s).unwrap();
 
+    let validator_hosts = chain
+        .chain(err)
+        .get_opt_key("validatorHosts")
+        .parse_string()
+        .end()?;
+
+    let validator_ids = chain
+        .chain(err)
+        .get_opt_key("validatorIDS")
+        .parse_string()
+        .end()?;
+
+        
+
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(rest_url, escrow_address.unwrap().to_string()),
     ))
