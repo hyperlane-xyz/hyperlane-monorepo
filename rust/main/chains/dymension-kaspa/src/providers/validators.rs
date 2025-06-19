@@ -55,17 +55,23 @@ impl ValidatorsClient {
     pub async fn validate_deposits(
         &self,
         fxg: &DepositFXG,
-    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
+    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> { // map validator addr to sig(s)
         // TODO: in parallel
-        let mut results = Vec::new();
-        for host in self.conf.validator_hosts.clone().into_iter() {
+        let mut results = HashMap::new();
+        for (host, validator_id) in self.conf.validator_hosts.clone().into_iter().zip(self.conf.validator_ids.clone().into_iter()) {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-
             let res = validate_new_deposits(host, fxg).await;
             match res {
-                Ok(r) => results.push(r),
+                Ok(r) => match r {
+                    Some(sig) => {
+                        results.insert(validator_id, vec![sig]);
+                    }
+                    None => {
+                        // TODO: log
+                    }
+                },
                 Err(_e) => {
-                    results.push(false);
+                    // TODO: log error
                 }
             }
         }
