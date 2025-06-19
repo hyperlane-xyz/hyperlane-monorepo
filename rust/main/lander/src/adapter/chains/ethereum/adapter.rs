@@ -267,7 +267,7 @@ impl AdaptsChain for EthereumAdapter {
             return Ok(vec![]);
         }
 
-        // Batching case, estimate gas limit for the batch
+        // Batching case, simulate batch
         let payload_futures = tx
             .payload_details
             .iter()
