@@ -15,6 +15,7 @@ What needs to happen
 6. Return to relayer over network the digest
  */
 
+ // TODO: take some trait which can sign whats needed to sign
 pub fn router() -> Router {
     Router::new()
         .route(ROUTE_VALIDATE_NEW_DEPOSITS, post(validate_new_deposits))
@@ -35,7 +36,7 @@ async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
     }
 
     let to_sign : CheckpointWithMessageId = CheckpointWithMessageId {} // TODO: parse from request
-    
+
 
     // TODO: produce a digest sig
 }
