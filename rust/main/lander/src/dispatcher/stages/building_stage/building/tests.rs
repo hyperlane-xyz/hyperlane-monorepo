@@ -132,10 +132,6 @@ fn test_setup(
         .expect_build_transactions()
         .times(payloads_to_send)
         .returning(move |payloads| dummy_built_tx(payloads.to_vec(), successful_build.clone()));
-    mock_adapter
-        .expect_simulate_tx()
-        // .times(payloads_to_send)
-        .returning(move |_| Ok(vec![]));
     mock_adapter.expect_max_batch_size().returning(|| 1);
     dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
 }

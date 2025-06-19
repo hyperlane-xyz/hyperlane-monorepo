@@ -90,6 +90,35 @@ async fn test_failed_simulation() {
         .expect_simulate_tx()
         .returning(|_| Err(LanderError::SimulationFailed));
 
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
+
+    assert_eq!(txs_received.len(), 0);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Dropped(TxDropReason::FailedSimulation),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_failed_estimation() {
+    const TXS_TO_PROCESS: usize = 3;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+
     mock_adapter
         .expect_estimate_tx()
         .returning(|_| Err(LanderError::SimulationFailed));
@@ -159,7 +188,7 @@ async fn set_up_test_and_run_stage(
 async fn run_stage(
     sent_txs_count: usize,
     stage: InclusionStage,
-    receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
+    receiver: &mut mpsc::Receiver<Transaction>,
 ) -> Vec<Transaction> {
     // future that receives `sent_payload_count` payloads from the building stage
     let receiving_closure = async {
@@ -173,7 +202,7 @@ async fn run_stage(
 
     let stage = tokio::spawn(async move { stage.run().await });
 
-    // give the building stage 100ms to send the transaction(s) to the receiver
+    // give the inclusion stage 100ms to send the transaction(s) to the receiver
     let _ = tokio::select! {
         // this arm runs indefinitely
         res = stage => res,
@@ -182,7 +211,7 @@ async fn run_stage(
             return received;
         },
         // this arm is the timeout
-        _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+        _ = sleep(Duration::from_millis(100)) => {
             return vec![]
         },
     };
