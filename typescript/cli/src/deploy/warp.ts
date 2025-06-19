@@ -347,9 +347,17 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
+  const { multiProvider } = context;
+  const intermediateOwnerConfig = await promiseObjAll(
+    objMap(params.warpDeployConfig, async (chain, config) => ({
+      ...config,
+      owner: await multiProvider.getSignerAddress(chain),
+    })),
+  );
+
   // Extend the warp route and get the updated configs
   const updatedWarpCoreConfig = await extendWarpRoute(
-    params,
+    { ...params, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
   );
@@ -749,17 +757,33 @@ async function submitWarpApplyTransactions(
     ]),
   );
 
+  // copied from extendWarpRoute
+  const warpCoreConfigByChain = Object.fromEntries(
+    params.warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+
+  // Split between the existing and additional config
+  const [, initialExtendedConfigs] = splitWarpCoreAndExtendedConfigs(
+    params.warpDeployConfig,
+    warpCoreChains,
+  );
+
+  const extendedChains = Object.keys(initialExtendedConfigs);
+
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
       try {
         await retryAsync(
           async () => {
             const chain = chainIdToName[chainId];
+            const isExtendedChain = extendedChains.includes(chain);
             const submitter: TxSubmitterBuilder<ProtocolType> =
               await getWarpApplySubmitter({
                 chain,
                 context: params.context,
                 strategyUrl: params.strategyUrl,
+                isExtendedChain,
               });
             const transactionReceipts = await submitter.submit(...transactions);
             if (transactionReceipts) {
@@ -792,21 +816,24 @@ async function getWarpApplySubmitter({
   chain,
   context,
   strategyUrl,
+  isExtendedChain,
 }: {
   chain: ChainName;
   context: WriteCommandContext;
   strategyUrl?: string;
+  isExtendedChain?: boolean;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
   const { multiProvider } = context;
 
-  const submissionStrategy: SubmissionStrategy = strategyUrl
-    ? readChainSubmissionStrategy(strategyUrl)[chain]
-    : {
-        submitter: {
-          chain,
-          type: TxSubmitterType.JSON_RPC,
-        },
-      };
+  const submissionStrategy: SubmissionStrategy =
+    strategyUrl && !isExtendedChain
+      ? readChainSubmissionStrategy(strategyUrl)[chain]
+      : {
+          submitter: {
+            chain,
+            type: TxSubmitterType.JSON_RPC,
+          },
+        };
 
   return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
