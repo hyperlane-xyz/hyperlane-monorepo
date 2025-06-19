@@ -61,6 +61,8 @@ async fn gather_sigs_and_send_to_hub(
     let sigs_res = validators_client.get_deposit_sigs(&fxg).await;
 }
 
+fn to_multisig(sigs: HashMap<H256, Vec<SignedCheckpointWithMessageId>>)
+
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
 where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
