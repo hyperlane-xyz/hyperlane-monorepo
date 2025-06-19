@@ -46,10 +46,10 @@ impl ValidatorsClient {
     pub async fn get_deposit_sigs(
         &self,
         fxg: &DepositFXG,
-    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
+    ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         // map validator addr to sig(s)
         // TODO: in parallel
-        let mut results = HashMap::new();
+        let mut results = Vec::new();
         for (host, validator_id) in self
             .conf
             .validator_hosts
@@ -62,7 +62,7 @@ impl ValidatorsClient {
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
-                        results.insert(validator_id, vec![sig]);
+                        results.push(sig);
                     }
                     None => {
                         // TODO: log

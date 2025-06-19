@@ -6,7 +6,10 @@ use dym_kas_core::deposit::DepositFXG;
 use dym_kas_relayer::deposit::on_new_deposit;
 use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
-use hyperlane_core::{traits::TxOutcome, ChainResult, HyperlaneMessage, Indexed, LogMeta};
+use hyperlane_core::{
+    traits::TxOutcome, ChainCommunicationError, ChainResult, HyperlaneMessage, Indexed, LogMeta,
+    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId,
+};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
@@ -52,16 +55,33 @@ pub async fn handle_observed_deposits(
     }
 }
 
-async fn gather_sigs_and_send_to_hub(
+async fn gather_sigs_and_send_to_hub<M: Mailbox>(
     validators_client: &ValidatorsClient,
+    hub_mailbox: &M,
     fxg: &DepositFXG,
 ) -> ChainResult<TxOutcome> {
     // need to ultimately send to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/hyperlane-cosmos-native/src/mailbox.rs#L131
     let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
     let sigs_res = validators_client.get_deposit_sigs(&fxg).await;
+    let threshold = 3usize;
+    let multisig = to_multisig(&mut sigs_res, threshold)?;
+
+    let metadata = b"";
+    let outcome = hub_mailbox.process(&m, &[], None).await?
 }
 
-fn to_multisig(sigs: HashMap<H256, Vec<SignedCheckpointWithMessageId>>)
+fn to_multisig(
+    sigs: &mut Vec<SignedCheckpointWithMessageId>,
+    threshold: usize,
+) -> ChainResult<MultisigSignedCheckpoint> {
+    if sigs.len() < threshold {
+        unimplemented!()
+    }
+    let checkpoint: MultisigSignedCheckpoint = sigs
+        .try_into()
+        .map_err(|e| ChainCommunicationError::InvalidRequest { msg: e.to_string() })?;
+    Ok(checkpoint)
+}
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
 where

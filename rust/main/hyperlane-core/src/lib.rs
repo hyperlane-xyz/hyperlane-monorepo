@@ -18,7 +18,7 @@ pub use types::*;
 pub mod accumulator;
 
 /// Async Traits for contract instances for use in applications
-mod traits;
+pub mod traits;
 /// Utilities to match contract values
 pub mod utils;
 
