@@ -12,13 +12,10 @@ use hyperlane_metric::prometheus_metric::{
 };
 use url::Url;
 
-use dym_kas_core::api::deposits::*;
-
 use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
-use dym_kas_core::api::deposits::*;
-
 pub use dym_kas_core::api::deposits::*;
+use dym_kas_core::deposit::DepositFXG;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -43,7 +40,9 @@ impl ValidatorsClient {
         conf: ConnectionConf,
         // TODO: prom metrics?
     ) -> ChainResult<Self> {
+        Ok(ValidatorsClient { conf })
     }
+
 
     pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
 
