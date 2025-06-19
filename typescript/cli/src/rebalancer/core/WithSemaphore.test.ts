@@ -28,7 +28,7 @@ function buildTestConfig(
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         chain1: {
-          bridgeLockTime: 1,
+          bridgeLockTime: 60 * 1000,
           bridge: ethers.constants.AddressZero,
           weighted: {
             weight: BigInt(1),
