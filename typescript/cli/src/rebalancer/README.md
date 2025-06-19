@@ -6,72 +6,126 @@ The Hyperlane Warp Rebalancer is a tool that automatically manages the balance o
 
 The rebalancer uses a configuration file that defines both global settings and chain-specific configurations. The configuration file can be in either YAML or JSON format.
 
+The basic structure of the configuration is as follows:
+
+```yaml
+# Required: Unique identifier for the Warp Route. This is used to identify the
+# HypERC20 token that is being rebalanced.
+# The format is <TOKEN>/<LABEL>
+warpRouteId: ...
+
+# Required: The rebalancing strategy and chain-specific configurations
+strategy:
+  # Required: Rebalancing strategy ('weighted' or 'minAmount')
+  rebalanceStrategy: ...
+
+  # Required: Configuration for each chain involved in the rebalancing.
+  # Only chains included here will be considered for rebalancing.
+  chains:
+    <chainName1>:
+      # ... chain-specific config
+    <chainName2>:
+      # ... chain-specific config
+```
+
+Below are examples for each rebalancing strategy.
+
+### Weighted Strategy
+
+This strategy aims to maintain a weighted distribution of tokens across chains.
+
 ```yaml
 # Required: Unique identifier for the Warp Route
 warpRouteId: USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia
 
-# Required: Rebalancing strategy ('weighted', 'minAmount')
-rebalanceStrategy: weighted
+strategy:
+  # Required: Rebalancing strategy ('weighted', 'minAmount')
+  rebalanceStrategy: weighted
 
-# Chain configurations
-# Chains from the warp route that you want to rebalance have to be included in the config
-# If a collateral chain is not included here, it will be ignored
-sepolia:
-  # Required: The address of the bridge that will be used to perform cross-chain transfers
-  bridge: '0x1234...'
+  # Chain configurations
+  chains:
+    sepolia:
+      # Required: The address of the bridge for cross-chain transfers
+      bridge: '0x1234...'
+      # Required: Expected time in seconds for a bridge transfer to complete.
+      # This prevents new rebalances while a transfer is in progress.
+      bridgeLockTime: 300 # 5 minutes
+      # Optional: Minimum amount to bridge (in token units). Prevents dust transfers.
+      bridgeMinAcceptedAmount: 1 # 1 USDC
+      # Optional: Set to true if the bridge is another Warp Route.
+      bridgeIsWarp: false
 
-  # Required: Expected time in seconds for bridge to process a transfer
-  # Used to prevent triggering new rebalances while a transfer is in progress
-  bridgeLockTime: 300 # 5 minutes in seconds
+      # Optional: Override configurations for specific destination chains
+      override:
+        arbitrumsepolia: # Chain to override settings for
+          bridge: '0x4321...' # Use a different bridge when sending to this chain
+          bridgeLockTime: 600 # 10 minutes
+          bridgeMinAcceptedAmount: 2 # 2 USDC
+          bridgeIsWarp: true
 
-  # Optional: Minimum amount to bridge (in token units)
-  # Used to prevent transferring small amounts that are not worth the gas cost
-  bridgeMinAcceptedAmount: 1 # 1 USDC
+      # Strategy-specific parameters for 'weighted'
+      weighted:
+        # Required: Relative weight for this chain. If all chains have equal
+        # weight, rebalancing will aim for equal collateral on all chains.
+        weight: 100
+        # Required: Percentage of deviation from the target amount allowed before
+        # a rebalance is triggered (0-100). For a target of 100 USDC, a 5%
+        # tolerance allows the amount to drop to 95 before rebalancing.
+        tolerance: 5
 
-  # Optional: Set to true if the bridge is another Warp Route
-  # This is because bridges composed of other Warp Routes are interacted with differently
-  #
-  # NOTE: This flag will be deprecated once all bridges consistently use the `quoteTransferRemote`
-  # function for quote retrieval.
-  bridgeIsWarp: false
+    arbitrumsepolia:
+      bridge: '0xabcd...'
+      bridgeLockTime: 300
+      weighted:
+        weight: 50
+        tolerance: 10
+```
 
-  # Optional: Specify override configurations for specific chains
-  # This allows you to customize how this chain interacts with other particular chains
-  override:
-    arbitrumsepolia: # Chain name to override settings for
-      bridge: '0x4321...' # Use a different bridge when sending to this chain
-      bridgeLockTime: 600 # 10 minutes in seconds
-      bridgeMinAcceptedAmount: 2 # 2 USDC
-      bridgeIsWarp: true
+### MinAmount Strategy
 
-  # Strategy-specific parameters (depending on rebalanceStrategy)
-  # Use one set of values for the strategy you are using
+This strategy ensures that each chain maintains a minimum amount of tokens. It can be configured in two ways: `absolute` and `relative`.
 
-  # For weighted strategy:
-  weighted:
-    # Required: Relative weight for this chain
-    weight: 100 # If all chains have equal weight, rebalancing will balance all chains to have the same amounts of collateral
-    # Required: Determines how much deviation from the target amount is allowed before a rebalance is triggered (in percentage 0-100)
-    tolerance: 5 # Allow a 5% deviation from the target amount before a rebalance is triggered. E.g. if the target amount is 100 USDC, a tolerance of 5% allows the current amount to reach 95 USDC before a rebalance is triggered.
+**Note:** All chains must use the same `minAmount` type (`absolute` or `relative`).
 
-  # For minAmount strategy (absolute):
-  minAmount:
-    # Absolute requires exact token amounts
-    # Required: Minimum amount to maintain on this chain (token units)
-    min: 100 # 100 USDC
-    # Required: The objective value to rebalance to.
-    target: 110 # It should be bigger than `minAmount` to prevent immediate rebalance (110 USDC in this case)
-    type: 'absolute'
+#### Absolute `minAmount`
 
-  # For minAmount strategy (relative):
-  minAmount:
-    # Relative requires percentage values. 0 = 0%, 0.5 = 50%, 1 = 100%.
-    # 100% represents the sum of collaterals of rebalanceable amounts.
-    # Required: Minimum percentage to maintain on this chain.
-    min: 0.3 # 30%
-    # Required: The objective value to rebalance to.
-    target: 0.35 # It should be bigger than `minAmount` to prevent immediate rebalance (35% in this case)
-    type: 'relative'
+Uses absolute token amounts for thresholds.
+
+```yaml
+warpRouteId: USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    sepolia:
+      bridge: '0x1234...'
+      bridgeLockTime: 300
+      minAmount:
+        type: 'absolute'
+        # Required: Minimum amount to maintain on this chain (in token units).
+        min: 100 # 100 USDC
+        # Required: The target amount to rebalance to. Must be > min.
+        target: 110 # 110 USDC
+```
+
+#### Relative `minAmount`
+
+Uses percentages of the total rebalanceable amount for thresholds.
+
+```yaml
+warpRouteId: USDC/arbitrumsepolia-modetestnet-optimismsepolia-sepolia
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    sepolia:
+      bridge: '0x1234...'
+      bridgeLockTime: 300
+      minAmount:
+        type: 'relative'
+        # Required: Minimum percentage to maintain (0.0 to 1.0).
+        # 1.0 represents the total collateral of all rebalanceable chains.
+        min: 0.3 # 30%
+        # Required: The target percentage to rebalance to. Must be > min.
+        target: 0.35 # 35%
 ```
 
 ## Basic Usage
