@@ -180,15 +180,22 @@ See also https://github.com/dymensionxyz/hyperlane-monorepo/blob/d8f826ac813fe6a
 https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
  */
 
+ /*
+ message id 1-1 and populated
+ index 1-1 and zero 
+ root 1-1 and zero
+ domain hash(origin, zero) = (domain, merkle hook)
+
+ // TODO: check that signing is possible
+  */
 fn dummy_checkpoint_with_message_id() -> CheckpointWithMessageId {
+    let domain = 1; // POPULATED
+    let message_id = H256::random(); // POPULATED
     let check = Checkpoint {
-        merkle_tree_hook_address: H256::random(),
-        mailbox_domain: 1,
-        root: H256::random(),
-        index: 1,
+        mailbox_domain: domain,
     };
     CheckpointWithMessageId {
         checkpoint: check,
-        message_id: H256::random(),
+        message_id: message_id,
     }
 }

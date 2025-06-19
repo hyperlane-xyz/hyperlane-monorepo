@@ -3,6 +3,7 @@ use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use core::comms::endpoints::*;
 use core::deposit::DepositFXG;
 use dym_kas_validator::server_relayer::server::validate_new_deposits as validate_new_deposits_impl;
+use hyperlane_core::CheckpointWithMessageId;
 
 /*
 What needs to happen
@@ -24,12 +25,17 @@ pub fn router() -> Router {
         )
 }
 
+
+
 async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
     let deposits = body.try_into();
     match deposits {
         Ok(deposits) => Ok(validate_deposits(&deposits)),
         Err(e) => return Err(e),
     }
+
+    let to_sign : CheckpointWithMessageId = CheckpointWithMessageId {} // TODO: parse from request
+    
 
     // TODO: produce a digest sig
 }
