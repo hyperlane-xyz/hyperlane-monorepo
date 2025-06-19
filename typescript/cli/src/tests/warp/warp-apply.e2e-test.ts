@@ -7,6 +7,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
+  CORE_PROTOCOL_ANVIL_STATE,
   ChainMetadata,
   HookType,
   HypTokenRouterConfig,
@@ -31,7 +32,6 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   TEMP_PATH,
@@ -40,7 +40,6 @@ import {
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_OUTPUT_PATH,
-  deployOrUseExistingCore,
   exportWarpConfigsToFilePaths,
   getCombinedWarpRoutePath,
   getDeployedWarpAddress,
@@ -107,11 +106,7 @@ describe('hyperlane warp apply e2e tests', async function () {
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-
-    [, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+    chain3Addresses = CORE_PROTOCOL_ANVIL_STATE.addresses;
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath('ETH', [
       CHAIN_NAME_2,
@@ -406,7 +401,7 @@ describe('hyperlane warp apply e2e tests', async function () {
       for (const rebalancer of allowedRebalancerBridges) {
         const anvil2Config: WarpRouteDeployConfig = {
           anvil2: HypTokenRouterConfigMailboxOptionalSchema.parse({
-            ...warpDeployConfig,
+            ...warpDeployConfig.anvil2,
             owner: ANVIL_DEPLOYER_ADDRESS,
             remoteRouters: {
               [chain3DomainId]: { address: randomAddress() },

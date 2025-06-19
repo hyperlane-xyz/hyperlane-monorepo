@@ -15,6 +15,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
+  CORE_PROTOCOL_ANVIL_STATE,
   ChainMetadata,
   ChainName,
   HookConfig,
@@ -36,7 +37,6 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   KeyBoardKeys,
@@ -45,7 +45,6 @@ import {
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
-  deployOrUseExistingCore,
   deployToken,
   handlePrompts,
 } from '../commands/helpers.js';
@@ -78,17 +77,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   before(async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     chain3DomainId = chain3Metadata.domainId;
 
-    [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+    [chain2Addresses, chain3Addresses] = [
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+    ];
   });
 
   async function assertWarpRouteConfig(
