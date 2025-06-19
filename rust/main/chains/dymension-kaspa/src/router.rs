@@ -29,6 +29,7 @@ impl IntoResponse for AppError {
     }
 }
 
+/// docococ, http server shared state
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Clone)]
@@ -60,7 +61,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     let sig = state
         .signer
         // .sign_checkpoint(to_sign)
-        .sign(to_sign)
+        .sign(to_sign) // TODO: need to lock first?
         .await
         .map_err(|e| AppError(e.into()))?;
     let j =

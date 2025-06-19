@@ -7,7 +7,7 @@ use dym_kas_relayer::deposit::on_new_deposit;
 use dym_kas_validator::deposit::validate_deposits;
 use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
-use hyperlane_core::{Indexed, LogMeta};
+use hyperlane_core::{ChainResult, Indexed, LogMeta, TXOutcome};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
@@ -22,13 +22,6 @@ impl DepositCache {
         }
     }
 }
-
-// tODO: see https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
-
-struct Sigs{
-    sigs: Vec<Vec<u8>>,
-}
-
 
 pub async fn handle_observed_deposits(
     validators: &ValidatorsClient,
@@ -54,11 +47,13 @@ pub async fn handle_observed_deposits(
                 }
                 Err(e) => {
                     warn!(?e, "Error validating new kaspa deposits");
-                } 
+                }
             }
         }
     }
 }
+
+async fn gather_sigs_and_send_to_hub(deposits: &DepositFXG) -> ChainResult<TXOutcome> {}
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
 where
