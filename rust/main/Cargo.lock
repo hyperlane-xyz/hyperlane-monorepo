@@ -3701,6 +3701,7 @@ dependencies = [
  "cosmrs",
  "crypto",
  "derive-new",
+ "eyre",
  "futures",
  "hex 0.4.3",
  "http 1.2.0",

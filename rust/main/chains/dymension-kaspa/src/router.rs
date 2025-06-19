@@ -1,30 +1,21 @@
 use super::endpoints::*;
-use crate::deposit::validate_deposits;
 use async_trait::async_trait;
 use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use axum::{
     extract::State,
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::{IntoResponse, Response},
     routing::post,
     Router,
 };
-use core::comms::endpoints::*;
-use core::deposit::DepositFXG;
-use dym_kas_validator::server_relayer::server::validate_new_deposits as validate_new_deposits_impl;
+use dym_kas_core::comms::endpoints::*;
+use dym_kas_core::deposit::DepositFXG;
+use dym_kas_validator::deposit::validate_deposits;
 use hyperlane_core::CheckpointWithMessageId;
-use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
+use hyperlane_core::{ChainResult, Checkpoint, SignedType, H256};
 use std::sync::Arc;
 
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::get,
-    Json, Router,
-};
-use eyre::eyre;
-use serde::Serialize;
-use std::net::SocketAddr;
+use eyre::{eyre, Error};
 
 // --- Step 1: Create the custom error wrapper ---
 // This newtype satisfies the orphan rule.
@@ -72,12 +63,6 @@ What needs to happen
 6. Return to relayer over network the digest
  */
 
-// 1. The Signer trait (unchanged)
-trait Signer: Send + Sync + 'static {
-    // We'll have it sign a string slice for simplicity
-    fn sign(&self, data: &str) -> String;
-}
-
 #[async_trait]
 pub trait Signer {
     async fn sign_checkpoint(
@@ -95,10 +80,10 @@ impl<S: Signer> ISMHandler<S> {
     async fn validate_new_deposits(
         State(state): State<ISMHandler<S>>,
         body: Bytes,
-    // ) -> impl IntoResponse {
+        // ) -> impl IntoResponse {
     ) -> AppResult<String> {
-        let deposits = body.try_into();
-        match deposits {
+        let deposits = body.try_into()?;
+        // match deposits {
             Ok(deposits) => Ok(validate_deposits(&deposits)),
             Err(e) => return Err(e),
         }
@@ -106,13 +91,17 @@ impl<S: Signer> ISMHandler<S> {
         let message_id = H256::random(); // TODO: parse from request
         let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
             checkpoint: Checkpoint {
-                mailbox_domain: 1, // TODO: populate
+                mailbox_domain: 1,                        // TODO: populate
+                merkle_tree_hook_address: H256::random(), // TODO: zero
+                root: H256::random(),                     // TODO: zero
+                index: 0,
             },
             message_id: message_id,
         }; // TODO: parse from request
 
         let sig = state.signer.sign_checkpoint(to_sign).await;
 
+        // let j = serde_json::to_string_pretty(&sig).map_err(|e| AppError(e.into()))?;
         let j = serde_json::to_string_pretty(&sig)?;
         Ok(j)
 
@@ -127,7 +116,7 @@ impl<S: Signer> ISMHandler<S> {
 pub fn router<S: Signer>(handler: ISMHandler<S>) -> Router {
     Router::new().route(
         ROUTE_VALIDATE_NEW_DEPOSITS,
-        post(ISMHandler::validate_new_deposits),
+        post(ISMHandler::<S>::validate_new_deposits),
     )
     // .route(ROUTE_SIGN_PSKTS, post(sign_pskts))
     // .route(
