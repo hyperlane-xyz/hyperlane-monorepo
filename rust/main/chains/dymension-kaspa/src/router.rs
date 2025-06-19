@@ -9,9 +9,12 @@ use axum::{
     Router,
 };
 use dym_kas_core::deposit::DepositFXG;
-use hyperlane_core::{ChainResult, Checkpoint, CheckpointWithMessageId, SignedType, H256, HyperlaneSignerExt};
+use hyperlane_core::{
+    ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, SignedType, H256,
+};
 use std::sync::Arc;
 
+trait Signer: HyperlaneSignerExt + Send + Sync + 'static {}
 
 pub struct AppError(eyre::Report);
 
@@ -29,11 +32,11 @@ impl IntoResponse for AppError {
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Clone)]
-struct AppState<S: HyperlaneSignerExt> {
+struct AppState<S: Signer> {
     signer: Arc<S>,
 }
 
-async fn validate_new_deposits<S: HyperlaneSignerExt>(
+async fn validate_new_deposits<S: Signer>(
     State(state): State<Arc<AppState<S>>>,
     body: Bytes,
 ) -> AppResult<Json<String>> {
@@ -62,7 +65,7 @@ async fn validate_new_deposits<S: HyperlaneSignerExt>(
     Ok(Json(j))
 }
 
-pub fn router<S: HyperlaneSignerExt>(signer: Arc<S>) -> Router {
+pub fn router<S: Signer>(signer: Arc<S>) -> Router {
     let state = Arc::new(AppState { signer });
 
     Router::new()
