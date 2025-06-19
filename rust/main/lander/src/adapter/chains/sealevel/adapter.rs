@@ -16,7 +16,7 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::sync::Mutex;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -304,17 +304,19 @@ impl AdaptsChain for SealevelAdapter {
         transactions
     }
 
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError> {
+    async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
-        let success = self
-            .client
+        self.client
             .simulate_transaction(&svm_transaction)
             .await
-            .is_ok();
-        info!(?tx, success, "simulated transaction");
-        Ok(success)
+            .map_err(|e| {
+                error!(?tx, ?e, "failed to simulate transaction");
+                LanderError::SimulationFailed
+            })?;
+        info!(?tx, "simulated transaction successfully");
+        Ok(vec![])
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {

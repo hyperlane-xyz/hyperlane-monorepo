@@ -14,9 +14,7 @@ use super::{BuildingStage, BuildingStageQueue};
 async fn test_send_payloads_one_by_one() {
     const PAYLOADS_TO_SEND: usize = 3;
     let succesful_build = true;
-    let successful_simulation = true;
-    let (building_stage, mut receiver, queue) =
-        test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, succesful_build);
 
     // send a single payload to the building stage and check that it is sent to the receiver
     for _ in 0..PAYLOADS_TO_SEND {
@@ -42,9 +40,7 @@ async fn test_send_payloads_one_by_one() {
 async fn test_send_multiple_payloads_at_once() {
     const PAYLOADS_TO_SEND: usize = 3;
     let succesful_build = true;
-    let successful_simulation = true;
-    let (building_stage, mut receiver, queue) =
-        test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, succesful_build);
 
     let mut sent_payloads = Vec::new();
     for _ in 0..PAYLOADS_TO_SEND {
@@ -74,10 +70,8 @@ async fn test_send_multiple_payloads_at_once() {
 #[tokio::test]
 async fn test_txs_failed_to_build() {
     const PAYLOADS_TO_SEND: usize = 3;
-    let succesful_build = false;
-    let successful_simulation = true;
-    let (building_stage, mut receiver, queue) =
-        test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+    let successful_build = false;
+    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
 
     for _ in 0..PAYLOADS_TO_SEND {
         let payload_to_send = FullPayload::random();
@@ -126,8 +120,7 @@ async fn run_building_stage(
 
 fn test_setup(
     payloads_to_send: usize,
-    succesful_build: bool,
-    successful_simulation: bool,
+    successful_build: bool,
 ) -> (
     BuildingStage,
     tokio::sync::mpsc::Receiver<Transaction>,
@@ -138,11 +131,11 @@ fn test_setup(
     mock_adapter
         .expect_build_transactions()
         .times(payloads_to_send)
-        .returning(move |payloads| dummy_built_tx(payloads.to_vec(), succesful_build.clone()));
+        .returning(move |payloads| dummy_built_tx(payloads.to_vec(), successful_build.clone()));
     mock_adapter
         .expect_simulate_tx()
         // .times(payloads_to_send)
-        .returning(move |_| Ok(successful_simulation.clone()));
+        .returning(move |_| Ok(vec![]));
     mock_adapter.expect_max_batch_size().returning(|| 1);
     dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
 }

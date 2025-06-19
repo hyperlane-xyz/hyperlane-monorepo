@@ -8,7 +8,6 @@ use ethers::{
     prelude::{Block, BlockNumber, FeeHistory, TransactionReceipt},
     types::{transaction::eip2718::TypedTransaction, Address, H160, H256 as EthersH256},
 };
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
@@ -51,6 +50,13 @@ mockall::mock! {
             batch_contract_address: H256,
             precursors: Vec<(TypedTransaction, Function)>
         ) -> ChainResult<(TypedTransaction, Function)>;
+
+        async fn simulate(
+            &self,
+            cache: Arc<tokio::sync::Mutex<BatchCache>>,
+            batch_contract_address: H256,
+            precursors: Vec<(TypedTransaction, Function)>,
+        ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
 
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;

@@ -101,6 +101,20 @@ pub fn filter_failed<M, D>(
         })
 }
 
+/// Partition the results of a multicall into successful and failed indices
+pub fn filter(results: Vec<MulticallResult>) -> (Vec<usize>, Vec<usize>) {
+    results
+        .into_iter()
+        .enumerate()
+        .partition_map(|(index, result)| {
+            if result.success {
+                Either::Left(index)
+            } else {
+                Either::Right(index)
+            }
+        })
+}
+
 /// Estimate the gas limit for a batch of contract calls
 pub async fn estimate<M, D>(
     batch: ContractCall<M, D>,

@@ -265,10 +265,15 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
     let tx_building_result = TxBuildingResult::new(vec![payload.details.clone()], Some(tx));
     let txs = vec![tx_building_result];
+
     adapter
         .expect_build_transactions()
         .returning(move |_| txs.clone());
-    adapter.expect_simulate_tx().returning(move |_| Ok(true));
+
+    adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+
+    adapter.expect_estimate_tx().returning(|_| Ok(()));
+
     let mut counter = 0;
     adapter.expect_tx_status().returning(move |_| {
         counter += 1;
@@ -282,10 +287,6 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
         }
     });
     adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
-
-    adapter.expect_simulate_tx().returning(|_| Ok(true));
-
-    adapter.expect_estimate_tx().returning(|_| Ok(()));
 
     adapter.expect_submit().returning(|_| Ok(()));
 

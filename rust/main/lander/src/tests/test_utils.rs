@@ -24,17 +24,17 @@ mockall::mock! {
     impl AdaptsChain for Adapter {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, LanderError>;
         async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
-        async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError>;
+        async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
         async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError>;
-        async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError>;
         async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, LanderError>;
+        async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError>;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
-        async fn nonce_gap_exists(&self) -> bool;
-        async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
-        fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
         fn estimated_block_time(&self) -> &std::time::Duration;
         fn max_batch_size(&self) -> u32;
+        fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
+        async fn nonce_gap_exists(&self) -> bool;
+        async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
     }
 }
 

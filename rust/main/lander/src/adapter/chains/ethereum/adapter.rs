@@ -7,6 +7,7 @@ use ethers::{
 };
 use ethers_core::abi::Function;
 use eyre::eyre;
+use futures_util::future;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -26,7 +27,7 @@ use hyperlane_ethereum::{
 
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
-    dispatcher::PostInclusionMetricsSource,
+    dispatcher::{PayloadDb, TransactionDb, PostInclusionMetricsSource},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus, VmSpecificTxData},
     DispatcherMetrics, LanderError,
@@ -51,6 +52,7 @@ pub struct EthereumAdapter {
     pub nonce_manager: NonceManager,
     pub batch_cache: Arc<Mutex<BatchCache>>,
     pub batch_contract_address: H256,
+    pub payload_db: Arc<dyn PayloadDb>,
 }
 
 impl EthereumAdapter {
@@ -86,6 +88,8 @@ impl EthereumAdapter {
             dispatcher_metrics.get_upper_nonce(domain, &signer),
         );
 
+        let payload_db = db.clone() as Arc<dyn PayloadDb>;
+
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
         let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
 
@@ -99,6 +103,7 @@ impl EthereumAdapter {
             nonce_manager,
             batch_cache: Default::default(),
             batch_contract_address: connection_conf.batch_contract_address(),
+            payload_db,
         };
 
         Ok(adapter)
@@ -136,6 +141,15 @@ impl EthereumAdapter {
 
         info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
         Ok(())
+    }
+
+    fn filter<I: Clone>(items: &[I], successful: Vec<usize>) -> Vec<I> {
+        items
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| successful.contains(index))
+            .map(|(_, item)| item.clone())
+            .collect::<Vec<_>>()
     }
 
     fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
@@ -247,8 +261,70 @@ impl AdaptsChain for EthereumAdapter {
         results
     }
 
-    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, LanderError> {
-        todo!()
+    async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
+        if tx.payload_details.len() == 1 {
+            // We assume simulation successful for transaction containing a single payload
+            return Ok(vec![]);
+        }
+
+        // Batching case, estimate gas limit for the batch
+        let payload_futures = tx
+            .payload_details
+            .iter()
+            .map(|p| self.payload_db.retrieve_payload_by_uuid(&p.uuid))
+            .collect::<Vec<_>>();
+        let payloads = future::try_join_all(payload_futures).await?;
+        let payloads = payloads.into_iter().flatten().collect::<Vec<_>>();
+
+        if payloads.len() != tx.payload_details.len() {
+            // If we couldn't find all payloads, we can't proceed with batching
+            error!(
+                ?tx,
+                ?payloads,
+                "Failed to find all the payloads in the database for transaction simulation"
+            );
+            return Err(LanderError::SimulationFailed);
+        }
+
+        let precursors = payloads
+            .iter()
+            .map(|p| EthereumTxPrecursor::from_payload(p, self.provider.get_signer().unwrap()))
+            .map(|precursor| (precursor.tx, precursor.function))
+            .collect::<Vec<_>>();
+
+        let (successful, failed) = self
+            .provider
+            .simulate(
+                self.batch_cache.clone(),
+                self.batch_contract_address,
+                precursors.clone(),
+            )
+            .await?;
+
+        let payloads_successful = Self::filter(&payloads, successful);
+        let payloads_failed = Self::filter(&tx.payload_details, failed);
+
+        let tx_building_results = self.build_transactions(&payloads_successful).await;
+        let Some(tx_building_result) = tx_building_results.first() else {
+            error!(
+                ?payloads_successful,
+                "Failed to build transaction for payloads, no transaction building result"
+            );
+            return Err(LanderError::SimulationFailed);
+        };
+
+        let Some(transaction) = tx_building_result.maybe_tx.clone() else {
+            error!(
+                ?payloads_successful,
+                "Failed to build transaction for payloads, transaction was not built"
+            );
+            return Err(LanderError::SimulationFailed);
+        };
+
+        tx.payload_details = transaction.payload_details;
+        tx.vm_specific_data = transaction.vm_specific_data;
+
+        Ok(payloads_failed)
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -259,15 +335,21 @@ impl AdaptsChain for EthereumAdapter {
             );
             return Ok(());
         }
-        let precursor = tx.precursor_mut();
-        gas_limit_estimator::estimate_gas_limit(
-            self.provider.clone(),
-            precursor,
-            &self.transaction_overrides,
-            &self.domain,
-            true,
-        )
-        .await
+
+        if tx.payload_details.len() == 1 {
+            // No batching, estimate gas limit for the single payload
+            let precursor = tx.precursor_mut();
+            return gas_limit_estimator::estimate_gas_limit(
+                self.provider.clone(),
+                precursor,
+                &self.transaction_overrides,
+                &self.domain,
+                true,
+            )
+            .await;
+        }
+
+        Ok(())
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {

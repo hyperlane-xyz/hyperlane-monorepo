@@ -20,7 +20,7 @@ use tracing::{error, info, info_span, instrument, warn, Instrument};
 use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
-    payload::{FullPayload, PayloadStatus},
+    payload::{DropReason as PayloadDropReason, FullPayload, PayloadStatus},
     transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
@@ -201,6 +201,36 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
+        if tx.tx_hashes.is_empty() {
+            // simulate transaction before we submit it for the first time
+
+            let (transaction, failed_payloads) = call_until_success_or_nonretryable_error(
+                || {
+                    let tx_clone = tx.clone();
+                    async move {
+                        let mut tx_clone_inner = tx_clone.clone();
+                        let failed_payloads =
+                            state.adapter.simulate_tx(&mut tx_clone_inner).await?;
+                        Ok((tx_clone_inner, failed_payloads))
+                    }
+                },
+                "Simulating transaction",
+                state,
+            )
+            .await?;
+
+            // passing the simulated transaction to the next step
+            tx = transaction;
+
+            // drop failed payloads
+            state
+                .update_status_for_payloads(
+                    &failed_payloads,
+                    PayloadStatus::Dropped(PayloadDropReason::FailedSimulation),
+                )
+                .await;
+        }
+
         // Estimating transaction just before we submit it
         tx = call_until_success_or_nonretryable_error(
             || {
@@ -211,7 +241,7 @@ impl InclusionStage {
                     Ok(tx_clone_inner)
                 }
             },
-            "Simulating and estimating transaction",
+            "Estimating transaction",
             state,
         )
         .await?;

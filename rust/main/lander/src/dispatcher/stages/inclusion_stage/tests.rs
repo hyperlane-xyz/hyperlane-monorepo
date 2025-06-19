@@ -49,7 +49,7 @@ async fn test_unincluded_txs_reach_mempool() {
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
-    mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
 
     mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
 
@@ -86,7 +86,9 @@ async fn test_failed_simulation() {
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
-    mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
+    mock_adapter
+        .expect_simulate_tx()
+        .returning(|_| Err(LanderError::SimulationFailed));
 
     mock_adapter
         .expect_estimate_tx()

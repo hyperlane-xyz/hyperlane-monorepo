@@ -393,7 +393,14 @@ pub fn mock_dispatcher_state_with_provider(
     block_time: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer, block_time);
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db,
+        signer,
+        block_time,
+    );
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -405,8 +412,9 @@ pub fn mock_dispatcher_state_with_provider(
 
 fn mock_ethereum_adapter(
     provider: MockEvmProvider,
-    nonce_db: Arc<dyn NonceDb>,
+    payload_db: Arc<dyn PayloadDb>,
     tx_db: Arc<dyn TransactionDb>,
+    nonce_db: Arc<dyn NonceDb>,
     signer: H160,
     block_time: Duration,
 ) -> EthereumAdapter {
@@ -445,6 +453,7 @@ fn mock_ethereum_adapter(
         nonce_manager,
         batch_cache: Default::default(),
         batch_contract_address,
+        payload_db,
     }
 }
 

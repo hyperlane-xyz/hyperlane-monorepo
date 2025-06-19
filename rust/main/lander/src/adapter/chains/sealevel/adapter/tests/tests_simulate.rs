@@ -10,11 +10,11 @@ use crate::adapter::{
 async fn test_simulate_tx() {
     // given
     let adapter = adapter();
-    let transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(&payload(), precursor());
 
     // when
-    let simulated = adapter.simulate_tx(&transaction).await.unwrap();
+    let simulated = adapter.simulate_tx(&mut transaction).await.unwrap();
 
     // then
-    assert!(simulated);
+    assert!(simulated.is_empty());
 }

@@ -9,6 +9,7 @@ use derive_new::new;
 use ethers::prelude::Middleware;
 use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
 use ethers_contract::builders::ContractCall;
+use ethers_contract::Multicall;
 use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
@@ -111,13 +112,21 @@ pub trait EvmProviderForLander: Send + Sync {
         function: &Function,
     ) -> ChainResult<U256>;
 
-    /// Batches the transaction into a single transaction on the blockchain
+    /// Batches precursors into a single transaction
     async fn batch(
         &self,
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
         precursors: Vec<(TypedTransaction, Function)>,
     ) -> ChainResult<(TypedTransaction, Function)>;
+
+    /// Simulate the batch transaction without sending it to the blockchain
+    async fn simulate(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -199,25 +208,29 @@ where
         batch_contract_address: H256,
         precursors: Vec<(TypedTransaction, Function)>,
     ) -> ChainResult<(TypedTransaction, Function)> {
-        let mut multicall = multicall::build_multicall(
-            self.provider.clone(),
-            self.domain.clone(),
-            cache,
-            batch_contract_address,
-        )
-        .await?;
-
-        let contract_calls = precursors
-            .into_iter()
-            .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
-            .collect::<Vec<_>>();
-
+        let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
+        let contract_calls = self.create_contract_calls(precursors);
         let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
 
         let tx = multicall_contract_call.tx;
         let function = multicall_contract_call.function;
 
         Ok((tx, function))
+    }
+
+    async fn simulate(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<(Vec<usize>, Vec<usize>)> {
+        let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
+
+        let contract_calls = self.create_contract_calls(precursors);
+        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls.clone());
+        let call_results = multicall_contract_call.call().await?;
+
+        Ok(multicall::filter(call_results))
     }
 
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
@@ -283,6 +296,40 @@ where
 
     fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
+    }
+}
+
+impl<M> EthereumProvider<M>
+where
+    M: 'static + Middleware,
+{
+    fn create_contract_calls(
+        &self,
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> Vec<ContractCall<M, ()>> {
+        precursors
+            .into_iter()
+            .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
+            .collect::<Vec<_>>()
+    }
+}
+
+impl<M> EthereumProvider<M>
+where
+    M: 'static + Middleware,
+{
+    async fn create_multicall(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+    ) -> eyre::Result<Multicall<M>> {
+        multicall::build_multicall(
+            self.provider.clone(),
+            self.domain.clone(),
+            cache,
+            batch_contract_address,
+        )
+        .await
     }
 }
 
