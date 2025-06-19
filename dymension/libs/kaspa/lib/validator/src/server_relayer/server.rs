@@ -3,6 +3,10 @@ use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use core::deposit::DepositFXG;
 use eyre::Error;
 
+pub struct ConfirmedKaspaDeposit{
+    message 
+}
+
 
 pub async fn validate_new_deposits(body: Bytes) -> Result<bool, Error> {
     let deposits = body.try_into();
