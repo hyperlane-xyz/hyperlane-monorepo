@@ -219,7 +219,8 @@ impl BaseAgent for Validator {
             )
             .merge(
                 // TODO: config based
-                dymension_kaspa::dym_kas_validator::server_relayer::server::router(),
+                dym
+                dymension_kaspa::router()
             );
 
         let server = self
