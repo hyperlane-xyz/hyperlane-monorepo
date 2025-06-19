@@ -10,23 +10,16 @@ use axum::{
 };
 use dym_kas_core::comms::endpoints::*;
 use dym_kas_core::deposit::DepositFXG;
-use dym_kas_validator::deposit::validate_deposits;
 use hyperlane_core::CheckpointWithMessageId;
 use hyperlane_core::{ChainResult, Checkpoint, SignedType, H256};
 use std::sync::Arc;
 
-use eyre::{eyre, Error};
+use eyre::Error;
 
-// --- Step 1: Create the custom error wrapper ---
-// This newtype satisfies the orphan rule.
 pub struct AppError(eyre::Report);
 
-// --- Step 2: Implement IntoResponse for our error type ---
-// This is where we define how our error becomes an HTTP response.
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        // Here you could add logging, tracing, etc.
-        // For production, you likely want to avoid sending the full error report.
         eprintln!("Error: {:?}", self.0); // Log the full error to the console
 
         (
@@ -37,9 +30,6 @@ impl IntoResponse for AppError {
     }
 }
 
-// --- Step 3: Enable ergonomic error handling with `?` ---
-// This allows any error that can be converted into `eyre::Report`
-// to be automatically converted into our `AppError`.
 impl<E> From<E> for AppError
 where
     E: Into<eyre::Report>,
@@ -49,19 +39,7 @@ where
     }
 }
 
-// --- Step 4: Define a convenience type alias for our Result ---
-// Now we can just write `AppResult<T>` in our handlers.
 pub type AppResult<T> = Result<T, AppError>;
-
-/*
-What needs to happen
-1. Relayer has the vec<Deposit>
-2. Call F() to get FXG
-3. Call network to validator with FXG, and what's needed to produce a sig
-4. Call G(FXG) to check if to sign
-5. Possibly sign
-6. Return to relayer over network the digest
- */
 
 #[async_trait]
 pub trait Signer {
@@ -77,16 +55,21 @@ struct ISMHandler<S: Signer> {
 }
 
 impl<S: Signer> ISMHandler<S> {
+    /*
+    What needs to happen
+    1. Relayer has the vec<Deposit>
+    2. Call F() to get FXG
+    3. Call network to validator with FXG, and what's needed to produce a sig
+    4. Call G(FXG) to check if to sign
+    5. Possibly sign
+    6. Return to relayer over network the digest
+     */
     async fn validate_new_deposits(
         State(state): State<ISMHandler<S>>,
         body: Bytes,
         // ) -> impl IntoResponse {
     ) -> AppResult<String> {
-        let deposits = body.try_into()?;
-        // match deposits {
-            Ok(deposits) => Ok(validate_deposits(&deposits)),
-            Err(e) => return Err(e),
-        }
+        let deposits: DepositFXG = body.try_into()?;
 
         let message_id = H256::random(); // TODO: parse from request
         let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
@@ -99,7 +82,7 @@ impl<S: Signer> ISMHandler<S> {
             message_id: message_id,
         }; // TODO: parse from request
 
-        let sig = state.signer.sign_checkpoint(to_sign).await;
+        let sig = state.signer.sign_checkpoint(to_sign).await?;
 
         // let j = serde_json::to_string_pretty(&sig).map_err(|e| AppError(e.into()))?;
         let j = serde_json::to_string_pretty(&sig)?;
