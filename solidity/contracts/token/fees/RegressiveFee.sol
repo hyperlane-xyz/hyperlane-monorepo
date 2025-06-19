@@ -15,11 +15,11 @@ import {ITokenFee} from "../interfaces/ITokenFee.sol";
  * - Fee approaches but never reaches maxFee as amount increases
  * - Fee approaches 0 as amount approaches 0
  *
- * feeNumerator The maximum fee amount (in wei) that can be charged
- * feeDenominator The amount at which the fee equals half of maxFee
+ * maxFee The maximum fee amount (in wei) that can be charged
+ * halfAmount The amount at which the fee equals half of maxFee
  *
  * Example:
- * - If feeNumerator = 1000 and feeDenominator = 1000:
+ * - If maxFee = 1000 and halfAmount = 1000:
  *   - Transfer of 100 wei: fee = (1000 * 100) / (1000 + 100) = 90.9 wei (90.9%)
  *   - Transfer of 1000 wei: fee = (1000 * 1000) / (1000 + 1000) = 500 wei (50%)
  *   - Transfer of 10000 wei: fee = (1000 * 10000) / (1000 + 10000) = 909 wei (9.09%)
@@ -27,21 +27,21 @@ import {ITokenFee} from "../interfaces/ITokenFee.sol";
  * This structure encourages larger transfers while discouraging dust attacks and micro-transactions.
  */
 contract RegressiveFee is ITokenFee {
-    uint256 public immutable feeNumerator;
-    uint256 public immutable feeDenominator;
+    uint256 public immutable maxFee;
+    uint256 public immutable halfAmount;
 
-    constructor(uint256 _feeNumerator, uint256 _feeDenominator) {
-        feeNumerator = _feeNumerator;
-        feeDenominator = _feeDenominator;
+    constructor(uint256 _maxFee, uint256 _halfAmount) {
+        maxFee = _maxFee;
+        halfAmount = _halfAmount;
     }
 
     function quoteTransfer(
         uint256 amount
     ) external view override returns (uint256 fee) {
         // quadratic fee: fee = (maxFee * amount) / (halfAmount + amount)
-        // where feeNumerator is maxFee and feeDenominator is halfAmount
+        // where maxFee is maxFee and halfAmount is halfAmount
         // This makes the fee percentage higher for smaller amounts.
-        if (feeDenominator + amount == 0) return 0;
-        return (feeNumerator * amount) / (feeDenominator + amount);
+        if (halfAmount + amount == 0) return 0;
+        return (maxFee * amount) / (halfAmount + amount);
     }
 }
