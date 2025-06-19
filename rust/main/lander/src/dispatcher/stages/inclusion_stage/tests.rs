@@ -4,9 +4,13 @@ use crate::tests::test_utils::{
 };
 use crate::{
     dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
-    transaction::Transaction,
+    error::LanderError,
+    payload::{DropReason as PayloadDropReason, PayloadStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus},
 };
+use hyperlane_base::settings::parser::h_fuel::make_provider;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 #[tokio::test]
@@ -46,6 +50,10 @@ async fn test_unincluded_txs_reach_mempool() {
         .return_const(Duration::from_millis(10));
 
     mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
@@ -83,6 +91,10 @@ async fn test_failed_simulation() {
         .return_const(Duration::from_millis(10));
 
     mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
@@ -117,11 +129,15 @@ async fn test_failed_estimation() {
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+
     mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
 
     mock_adapter
         .expect_estimate_tx()
-        .returning(|_| Err(LanderError::SimulationFailed));
+        .returning(|_| Err(LanderError::EstimationFailed));
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
@@ -133,6 +149,181 @@ async fn test_failed_estimation() {
         &tx_db,
         &payload_db,
         TransactionStatus::Dropped(TxDropReason::FailedSimulation),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_channel_closed_before_any_tx() {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(1);
+
+    let state = DispatcherState::new(
+        payload_db.clone(),
+        tx_db.clone(),
+        Arc::new(MockAdapter::new()),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let inclusion_stage = InclusionStage::new(
+        building_stage_receiver,
+        finality_stage_sender,
+        state,
+        "test".to_string(),
+    );
+
+    // Drop sender before running stage
+    drop(building_stage_sender);
+
+    // Should return error due to closed channel
+    let result = tokio::time::timeout(Duration::from_millis(100), inclusion_stage.run()).await;
+    assert!(result.is_ok()); // run() should not panic
+}
+
+#[tokio::test]
+async fn test_transaction_status_dropped() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::FailedSimulation)));
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, 1).await;
+
+    assert_eq!(txs_received.len(), 0);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Dropped(TxDropReason::FailedSimulation),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_transaction_not_ready_for_resubmission() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| false);
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, 1).await;
+
+    assert_eq!(txs_received.len(), 0);
+    assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_failed_submission_after_simulation_and_estimation() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+    mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+    mock_adapter
+        .expect_submit()
+        .returning(|_| Err(LanderError::SimulationFailed));
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, 1).await;
+
+    assert_eq!(txs_received.len(), 0);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Dropped(TxDropReason::FailedSimulation),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_transaction_included_immediately() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::Included));
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, 1).await;
+
+    assert_eq!(txs_received.len(), 1);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Included,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_transaction_pending_then_included() {
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+    let mut call_count = 0;
+    mock_adapter.expect_tx_status().returning(move |_| {
+        call_count += 1;
+        if call_count == 1 {
+            Ok(TransactionStatus::PendingInclusion)
+        } else {
+            Ok(TransactionStatus::Included)
+        }
+    });
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+    mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+    mock_adapter.expect_submit().returning(|_| Ok(()));
+    mock_adapter
+        .expect_update_vm_specific_metrics()
+        .returning(|_, _| ());
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, 1).await;
+
+    // Should eventually be included
+    assert_eq!(txs_received.len(), 1);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Included,
     )
     .await;
 }

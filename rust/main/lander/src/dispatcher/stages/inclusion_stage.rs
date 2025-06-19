@@ -171,7 +171,7 @@ impl InclusionStage {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
-                return Self::process_pending_tx(tx, state, pool).await;
+                Self::process_pending_tx(tx, state, pool).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
@@ -179,7 +179,7 @@ impl InclusionStage {
                 finality_stage_sender.send(tx).await?;
                 info!(?tx_uuid, ?tx_status, "Transaction included in block");
                 pool.lock().await.remove(&tx_uuid);
-                return Ok(());
+                Ok(())
             }
             TransactionStatus::Dropped(_) => {
                 error!(
@@ -187,10 +187,9 @@ impl InclusionStage {
                     ?tx_status,
                     "Transaction has invalid status for inclusion stage"
                 );
+                Err(eyre!("Transaction has invalid status for inclusion stage"))
             }
         }
-
-        Ok(())
     }
 
     #[instrument(skip_all, name = "InclusionStage::process_pending_tx")]

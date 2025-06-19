@@ -29,6 +29,7 @@ mockall::mock! {
         async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError>;
         async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, LanderError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError>;
+        async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
         fn estimated_block_time(&self) -> &std::time::Duration;
         fn max_batch_size(&self) -> u32;
