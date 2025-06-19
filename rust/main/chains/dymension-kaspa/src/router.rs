@@ -20,6 +20,7 @@ async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
         return (StatusCode::BAD_REQUEST, 
     }
 
+
     // TODO: produce a digest sig
 }
 
@@ -39,4 +40,63 @@ pub fn router() -> Router {
             ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
             post(validate_confirmed_withdrawals),
         )
+}
+
+use crate::deposit::validate_deposits;
+use axum::{body::Bytes, http::StatusCode, routing::post, Router};
+use core::deposit::DepositFXG;
+use eyre::Error;
+
+pub struct ConfirmedKaspaDeposit{
+    messageID :
+}
+
+
+pub async fn validate_new_deposits(body: Bytes) -> Result<bool, Error> {
+    let deposits = body.try_into();
+    match deposits {
+        Ok(deposits) => Ok(validate_deposits(&deposits)),
+        Err(e) => return Err(e),
+    }
+}
+
+pub async fn sign_pskts(body: Bytes) -> (StatusCode, Bytes) {
+    unimplemented!()
+}
+
+pub async fn validate_confirmed_withdrawals(body: Bytes) -> bool {
+    unimplemented!()
+}
+
+
+pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<bool, Error> {
+    let bz = Bytes::from(deposits);
+    let c = reqwest::Client::new();
+    let res = c
+        .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
+        .body(bz)
+        .send()
+        .await?;
+    let status = res.status();
+    if status == StatusCode::OK {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+struct PSKTRes;
+struct PSKTFXG;
+
+pub async fn sign_pskts(host: String, pskts: &PSKTFXG) -> Result<PSKTRes, Error> {
+    unimplemented!()
+}
+
+struct WithdrawalFXG;
+
+pub async fn validate_confirmed_withdrawals(
+    host: String,
+    withdrawals: &WithdrawalFXG,
+) -> Result<bool, Error> {
+    unimplemented!()
 }

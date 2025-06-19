@@ -48,7 +48,7 @@ impl ValidatorsClient {
     pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
         // TODO: in parallel
         let mut results = Vec::new();
-        for host in self.conf.validator_hosts.clone().into_iter(){
+        for host in self.conf.validator_hosts.clone().into_iter() {
             let res = validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => results.push(r),
@@ -60,7 +60,6 @@ impl ValidatorsClient {
         Ok(results)
     }
 }
-
 
 pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<bool, Error> {
     let bz = Bytes::from(deposits);
