@@ -8,7 +8,7 @@ use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{
-    config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256, utils::hex_to_h256,
+    config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256, utils::{hex_or_base58_to_h256},
 };
 
 use hyperlane_starknet as h_starknet;
@@ -324,7 +324,7 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()?;
 
-    let rest_url = Url::parse(&rest_url_s).unwrap();
+    let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
 
     let validator_hosts: Vec<String> = chain
         .chain(err)
@@ -341,7 +341,7 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()?
         .split(',')
-        .map(|s| H256::from_str(s).unwrap())
+        .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
         .collect();
 
     Some(ChainConnectionConf::Kaspa(
