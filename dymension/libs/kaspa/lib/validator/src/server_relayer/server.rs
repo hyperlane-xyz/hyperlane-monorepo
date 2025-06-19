@@ -1,9 +1,7 @@
+use crate::deposit::validate_deposits;
 use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use core::comms::endpoints::*;
 use core::deposit::DepositFXG;
-use crate::deposit::validate_deposits;
-
-
 
 async fn validate_new_deposits(body: Bytes) -> StatusCode {
     let deposits: DepositFXG = body.try_into();

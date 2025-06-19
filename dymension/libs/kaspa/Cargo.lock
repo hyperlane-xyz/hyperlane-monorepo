@@ -811,6 +811,7 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
+ "bytes",
  "clap",
  "eyre",
  "governor",
