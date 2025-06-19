@@ -20,20 +20,18 @@ use dym_kas_core::api::deposits::*;
 
 pub use dym_kas_core::api::deposits::*;
 
-
-
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
     pub conf: ConnectionConf,
 }
 
 #[async_trait]
-impl BlockNumberGetter for ValidatorsClient { // TODO: needed?
+impl BlockNumberGetter for ValidatorsClient {
+    // TODO: needed?
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
     }
 }
-
 
 /// It needs to
 /// 1. Call validator.G() to see if validator is OK with a new deposit on Kaspa
@@ -45,11 +43,9 @@ impl ValidatorsClient {
         conf: ConnectionConf,
         // TODO: prom metrics?
     ) -> ChainResult<Self> {
-
     }
 
+    pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
 
-    pub async fn get_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
-        
     }
 }
