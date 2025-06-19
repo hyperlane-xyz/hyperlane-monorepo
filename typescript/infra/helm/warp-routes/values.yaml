@@ -6,6 +6,7 @@ hyperlane:
   context: hyperlane
   chains: []
   registryCommit:
+  registryFallbackEnabled:
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

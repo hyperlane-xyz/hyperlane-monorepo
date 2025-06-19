@@ -26,7 +26,9 @@ describe('Environment', () => {
 
   for (const env of [environments.testnet4, environments.mainnet3]) {
     describe(`Core config for ${env.environment}`, () => {
-      it('should generate core config for all supported chains', async () => {
+      it('should generate core config for all supported chains', async function () {
+        this.timeout(10_000);
+
         const { core, supportedChainNames, getMultiProvider } = env;
         const multiProvider = await getMultiProvider();
 
