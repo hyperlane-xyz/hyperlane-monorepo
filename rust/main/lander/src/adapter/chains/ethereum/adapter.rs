@@ -189,6 +189,28 @@ impl AdaptsChain for EthereumAdapter {
             })
             .unzip();
 
+        if precursors.is_empty() {
+            error!("No payloads found! Cannot build transactions");
+            return vec![];
+        }
+
+        if precursors.len() == 1 {
+            // If there's only one payload, we can build a single transaction directly
+            let (tx, function) = precursors[0].clone();
+            let precursor = EthereumTxPrecursor::new(tx, function);
+            let transaction = TransactionFactory::build(precursor, payload_details.clone());
+            let results = vec![TxBuildingResult {
+                payloads: payload_details,
+                maybe_tx: Some(transaction),
+            }];
+            info!(
+                ?payloads,
+                ?results,
+                "built transaction for a single payload"
+            );
+            return results;
+        }
+
         let multi_precursor = self
             .provider
             .batch(
@@ -213,7 +235,7 @@ impl AdaptsChain for EthereumAdapter {
 
         let results = vec![tx_building_result];
 
-        info!(?payloads, ?results, "built transactions for payloads");
+        info!(?payloads, ?results, "built transaction for payloads");
         results
     }
 
