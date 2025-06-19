@@ -50,7 +50,7 @@ pub async fn handle_observed_deposits(
             let results = validators.validate_deposits(&fxg).await;
             match results {
                 Ok(results) => {
-                    // TODO: need to return a sig
+                    // TODO: combine sigs and send up to hub
                 }
                 Err(e) => {
                     warn!(?e, "Error validating new kaspa deposits");
