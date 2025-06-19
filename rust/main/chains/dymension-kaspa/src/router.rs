@@ -16,6 +16,52 @@ use hyperlane_core::CheckpointWithMessageId;
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
 use std::sync::Arc;
 
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::get,
+    Json, Router,
+};
+use eyre::eyre;
+use serde::Serialize;
+use std::net::SocketAddr;
+
+// --- Step 1: Create the custom error wrapper ---
+// This newtype satisfies the orphan rule.
+pub struct AppError(eyre::Report);
+
+// --- Step 2: Implement IntoResponse for our error type ---
+// This is where we define how our error becomes an HTTP response.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        // Here you could add logging, tracing, etc.
+        // For production, you likely want to avoid sending the full error report.
+        eprintln!("Error: {:?}", self.0); // Log the full error to the console
+
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Something went wrong".to_string(),
+        )
+            .into_response()
+    }
+}
+
+// --- Step 3: Enable ergonomic error handling with `?` ---
+// This allows any error that can be converted into `eyre::Report`
+// to be automatically converted into our `AppError`.
+impl<E> From<E> for AppError
+where
+    E: Into<eyre::Report>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
+    }
+}
+
+// --- Step 4: Define a convenience type alias for our Result ---
+// Now we can just write `AppResult<T>` in our handlers.
+pub type AppResult<T> = Result<T, AppError>;
+
 /*
 What needs to happen
 1. Relayer has the vec<Deposit>
@@ -49,7 +95,8 @@ impl<S: Signer> ISMHandler<S> {
     async fn validate_new_deposits(
         State(state): State<ISMHandler<S>>,
         body: Bytes,
-    ) -> impl IntoResponse {
+    // ) -> impl IntoResponse {
+    ) -> AppResult<String> {
         let deposits = body.try_into();
         match deposits {
             Ok(deposits) => Ok(validate_deposits(&deposits)),
@@ -65,6 +112,9 @@ impl<S: Signer> ISMHandler<S> {
         }; // TODO: parse from request
 
         let sig = state.signer.sign_checkpoint(to_sign).await;
+
+        let j = serde_json::to_string_pretty(&sig)?;
+        Ok(j)
 
         // How are they bundled?
         // https://github.com/dymensionxyz/hyperlane-monorepo/blob/779828c92e48796ae9816fb9ccab23c9e56f82fb/rust/main/hyperlane-base/src/types/multisig.rs#L207
