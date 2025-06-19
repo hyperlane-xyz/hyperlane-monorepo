@@ -1,9 +1,12 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  CORE_PROTOCOL_ANVIL_STATE,
+  ChainMetadata,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
@@ -13,9 +16,10 @@ import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEMP_PATH,
@@ -23,10 +27,11 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-  deployOrUseExistingCore,
+  WARP_DEPLOY_OUTPUT_PATH,
   extendWarpConfig,
   getCombinedWarpRoutePath,
   getDomainId,
+  resetAnvilForksBatch,
   setupIncompleteWarpRouteExtension,
 } from '../commands/helpers.js';
 import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
@@ -35,26 +40,68 @@ describe('hyperlane warp apply recovery extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain3Addresses: ChainAddresses = {};
+  let combinedWarpCoreConfigPath: string;
 
-  before(async function () {
-    [, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+  let warpDeployConfig: WarpRouteDeployConfig;
+  // it will be replaced at the first deployment
+  let warpCoreConfig: WarpCoreConfig = { tokens: [] };
+  let deployedAnvilStateIdChain2: string;
+  let deployedAnvilStateIdChain3: string;
 
-    // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+  let chain2Provider: JsonRpcProvider;
+  let chain3Provider: JsonRpcProvider;
+
+  function resetWarpConfig() {
+    const rawWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-  });
+    warpDeployConfig = {
+      [CHAIN_NAME_2]: { ...rawWarpConfig.anvil1 },
+    };
 
-  beforeEach(async function () {
+    writeYamlOrJson(WARP_CONFIG_PATH_2, warpDeployConfig);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+    writeYamlOrJson(combinedWarpCoreConfigPath, warpCoreConfig);
+    writeYamlOrJson(
+      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+      warpDeployConfig,
+    );
+  }
+
+  before(async function () {
+    chain3Addresses = CORE_PROTOCOL_ANVIL_STATE.addresses;
+
+    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+
+    chain2Provider = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    chain3Provider = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);
+
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+    ]);
+
+    resetWarpConfig();
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
+    warpCoreConfig = readYamlOrJson(combinedWarpCoreConfigPath);
+
+    deployedAnvilStateIdChain2 = await chain2Provider.send('evm_snapshot', []);
+    deployedAnvilStateIdChain3 = await chain3Provider.send('evm_snapshot', []);
   });
 
-  it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
+  // Reset config before each test to avoid test changes intertwining
+  // Reset config before each test to avoid test changes intertwining
+  beforeEach(async function () {
+    resetWarpConfig();
+
+    [deployedAnvilStateIdChain2, deployedAnvilStateIdChain3] =
+      await resetAnvilForksBatch([
+        [chain2Provider, deployedAnvilStateIdChain2],
+        [chain3Provider, deployedAnvilStateIdChain3],
+      ]);
+  });
+
+  it.only('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
     const { multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
       key: ANVIL_KEY,

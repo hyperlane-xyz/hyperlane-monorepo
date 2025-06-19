@@ -13,6 +13,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
+  CORE_PROTOCOL_ANVIL_STATE,
   ChainMetadata,
   HookConfig,
   HookType,
@@ -43,11 +44,9 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
-  deployOrUseExistingCore,
   deployToken,
   getCombinedWarpRoutePath,
   resetAnvilForksBatch,
@@ -141,10 +140,10 @@ describe('hyperlane warp check e2e tests', async function () {
   }
 
   before(async function () {
-    [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+    [chain2Addresses, chain3Addresses] = [
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+    ];
 
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);

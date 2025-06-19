@@ -24,7 +24,13 @@ const chainsToPreConfigure = [
   },
 ];
 
-const allowedTests = new Set(['warp-deploy', 'warp-apply', 'warp-read']);
+const allowedTests = new Set([
+  'warp-deploy',
+  'warp-apply',
+  'warp-read',
+  'warp-check',
+  'warp-extend-recovery',
+]);
 
 function writeChainAddressesToRegistry(chainName: string) {
   writeYamlOrJson(
