@@ -329,7 +329,7 @@ pub(crate) async fn mock_evm_txs(
     txs
 }
 
-fn dummy_evm_tx(
+pub fn dummy_evm_tx(
     payloads: Vec<FullPayload>,
     status: TransactionStatus,
     signer: H160,
@@ -351,7 +351,7 @@ fn dummy_evm_tx(
     }
 }
 
-fn dummy_tx_precursor(signer: H160) -> EthereumTxPrecursor {
+pub fn dummy_tx_precursor(signer: H160) -> EthereumTxPrecursor {
     let function = Function {
         name: "baz".to_owned(),
         inputs: vec![
