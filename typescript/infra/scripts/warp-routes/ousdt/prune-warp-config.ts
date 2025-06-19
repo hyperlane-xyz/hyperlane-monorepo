@@ -64,7 +64,9 @@ async function main() {
       token.name = 'USDT';
       token.symbol = 'USD₮';
       token.standard = TokenStandard.EvmHypVSXERC20Lockbox;
-      token.logoURI = '/deployments/warp_routes/USDT/logo.svg';
+      token.logoURI = isStaging
+        ? undefined
+        : '/deployments/warp_routes/USDT/logo.svg';
     } else {
       token.name = 'OpenUSDT';
       token.symbol = isStaging ? 'oUSDTSTAGE' : 'oUSDT';
