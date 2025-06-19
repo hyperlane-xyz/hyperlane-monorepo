@@ -1,28 +1,27 @@
 use anyhow::Result;
-use hyperlane_core::{Decode, H256, HyperlaneMessage, HyperlaneProtocolError};
+use hyperlane_core::{Decode, H256, HyperlaneMessage};
 use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_rs::{
-    dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus},
-    hyperlane::core::v1::EventDispatch,
-};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::hashing::sighash_type::{
     SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY, SigHashType,
 };
+use kaspa_consensus_core::mass::transaction_output_estimated_serialized_size;
+use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_consensus_core::tx::{ScriptPublicKey, UtxoEntry};
 use kaspa_hashes;
 use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_rpc_core::{RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript;
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
-use kaspa_wallet_core::utxo::UtxoIterator;
+use kaspa_wallet_core::utxo::{NetworkParams, UtxoIterator};
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{PSKT, Signer};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
-
 // Assuming EscrowPublic is correctly defined in the `core` crate
 // and `core` is a dependency in this crate's Cargo.toml (e.g., `core = { path = "../core" }`)
 use core::escrow::EscrowPublic;
@@ -70,7 +69,7 @@ async fn build_kaspa_withdrawal_pskts_pending(
     current_hub_state: &TransactionOutpoint,
 ) -> Result<Option<Vec<PSKT<Signer>>>> {
     let mut prepared_pskts: Vec<PSKT<Signer>> = Vec::new();
- 
+
     let withdrawal_details: Vec<_> = messages
         .into_iter()
         .filter_map(|m| {
@@ -142,6 +141,76 @@ async fn build_kaspa_withdrawal_pskts_pending(
     }
 }
 
+const MIN_TO_SPEND: usize = 3; // consolidate ~3 inputs per tx
+
+async fn get_utxo_to_spend(
+    addr: kaspa_addresses::Address,
+    total: u64,
+    kaspa_rpc: &impl RpcApi,
+    network_id: NetworkId,
+) -> Result<Vec<RpcUtxosByAddressesEntry>> {
+    let mut utxos = kaspa_rpc
+        .get_utxos_by_addresses(vec![addr.clone()])
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get escrow UTXOs: {}", e))?;
+    
+    // Descending order – older UTXOs first
+    utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
+
+    let mut selected = Vec::new();
+    let mut total_in = 0u64;
+
+    let block = kaspa_rpc
+        .get_block_dag_info()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get block DAG info: {}", e))?;
+    let current_daa_score = block.virtual_daa_score;
+
+    for utxo in utxos {
+        if !is_mature(&utxo.utxo_entry, current_daa_score, network_id) {
+            continue;
+        }
+
+        // TODO: check if the utxo is not dust
+
+        total_in += utxo.utxo_entry.amount;
+        selected.push(utxo);
+
+        if selected.len() >= MIN_TO_SPEND && total_in >= total {
+            break;
+        }
+    }
+    
+    Ok(selected)
+}
+
+fn is_mature(utxo: &RpcUtxoEntry, current_daa_score: u64, network_id: NetworkId) -> bool {
+    match maturity_progress(utxo, current_daa_score, network_id) {
+        Some(_) => false,
+        None => true,
+    }
+}
+
+// Copy https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/core/src/storage/transaction/record.rs
+fn maturity_progress(
+    utxo: &RpcUtxoEntry,
+    current_daa_score: u64,
+    network_id: NetworkId,
+) -> Option<f64> {
+    let params = NetworkParams::from(network_id);
+    let maturity = if utxo.is_coinbase {
+        params.coinbase_transaction_maturity_period_daa()
+    } else {
+        params.user_transaction_maturity_period_daa()
+    };
+
+    if current_daa_score < utxo.block_daa_score + maturity {
+        Some((current_daa_score - utxo.block_daa_score) as f64 / maturity as f64)
+    } else {
+        None
+    }
+}
+
 /// Helper function to build a single withdrawal PSKT
 /// Adapts logic from withdraw.rs::build_withdrawal_tx
 async fn build_single_withdrawal_pskt(
@@ -150,15 +219,28 @@ async fn build_single_withdrawal_pskt(
     escrow_public: &EscrowPublic,
     relayer_kaspa_account: &Arc<dyn Account>,
     current_anchor_outpoint: &TransactionOutpoint,
+    network_id: NetworkId,
 ) -> Result<PSKT<Signer>> {
-    // 1. Get escrow UTXO (current anchor)
-    let utxos_e = kaspa_rpc
-        .get_utxos_by_addresses(vec![escrow_public.addr.clone()])
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get escrow UTXOs: {}", e))?;
+    let utxos = get_utxo_to_spend(
+        escrow_public.addr.clone(),
+        withdrawal_details.amount_satoshi,
+        kaspa_rpc,
+        network_id,
+    )
+    .await?;
+    
+    // TODO: include anchor UTXO
+
+    let utxos = get_utxo_to_spend(
+        relayer_kaspa_account.sw,
+        withdrawal_details.amount_satoshi,
+        kaspa_rpc,
+        network_id,
+    )
+        .await?;
 
     // Find the specific anchor UTXO we want to spend
-    let utxo_e_first = utxos_e
+    let utxo_e_first = valset_utxo
         .into_iter()
         .find(|utxo| {
             utxo.outpoint.transaction_id == current_anchor_outpoint.transaction_id
@@ -170,6 +252,7 @@ async fn build_single_withdrawal_pskt(
     let utxo_e_out = kaspa_consensus_core::tx::TransactionOutpoint::from(utxo_e_first.outpoint);
 
     // 2. Get relayer UTXO for fees
+    // We need to get as many UXTOs as we need to cover the fee
     let utxo_r = UtxoIterator::new(relayer_kaspa_account.utxo_context())
         .next()
         .ok_or_else(|| anyhow::anyhow!("Relayer has no UTXOs"))?;
