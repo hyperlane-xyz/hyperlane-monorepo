@@ -14,7 +14,9 @@ use kaspa_addresses::Prefix;
 use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
+
 pub struct DepositFXG;
+
 
 impl TryFrom<Bytes> for DepositFXG {
     type Error = EyreError;

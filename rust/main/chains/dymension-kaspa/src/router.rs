@@ -1,20 +1,17 @@
 use super::endpoints::*;
 use async_trait::async_trait;
-use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use axum::{
+    body::Bytes,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::post,
     Router,
 };
-use dym_kas_core::comms::endpoints::*;
 use dym_kas_core::deposit::DepositFXG;
 use hyperlane_core::CheckpointWithMessageId;
 use hyperlane_core::{ChainResult, Checkpoint, SignedType, H256};
 use std::sync::Arc;
-
-use eyre::Error;
 
 pub struct AppError(eyre::Report);
 
@@ -69,7 +66,7 @@ impl<S: Signer> ISMHandler<S> {
         body: Bytes,
         // ) -> impl IntoResponse {
     ) -> AppResult<String> {
-        let deposits: DepositFXG = body.try_into()?;
+        let deposits: DepositFXG = body.try_into()?; // TODO: use
 
         let message_id = H256::random(); // TODO: parse from request
         let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
