@@ -1,4 +1,5 @@
 import { Wallet, ethers } from 'ethers';
+import path from 'path';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import {
@@ -19,8 +20,9 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
+import { Address, assert, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { CommandContext } from '../../context/types.js';
@@ -30,6 +32,7 @@ import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import { hyperlaneCoreDeploy } from './core.js';
 import {
   hyperlaneWarpApply,
+  hyperlaneWarpApplyRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
 } from './warp.js';
@@ -44,9 +47,11 @@ export const ANVIL_DEPLOYER_ADDRESS =
   '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
+export const COINGECKO_API_KEY = 'CG-Gmk12Pz3A4L9qR5XtV7Kd8N3';
 
 export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
+export const CHAIN_NAME_4 = 'anvil4';
 
 export const EXAMPLES_PATH = './examples';
 export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
@@ -54,11 +59,27 @@ export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
+export const CHAIN_4_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_4}/metadata.yaml`;
 
 export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
-export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
-export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
+export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
+export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
+export const WARP_DEPLOY_2_ID = 'ETH/anvil2';
+export const WARP_CORE_CONFIG_PATH_2 = getCombinedWarpRoutePath('ETH', [
+  CHAIN_NAME_2,
+]);
+
+export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
+  originalDeployConfigPath: string,
+  symbol: string,
+): string => {
+  const fileName = path.parse(originalDeployConfigPath).name;
+
+  return getCombinedWarpRoutePath(symbol, [fileName]);
+};
+
+export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
@@ -66,8 +87,32 @@ export function getCombinedWarpRoutePath(
 ): string {
   return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains,
+    chains.sort().join('-'),
   )}-config.yaml`;
+}
+
+export function exportWarpConfigsToFilePaths({
+  warpRouteId,
+  warpConfig,
+  warpCoreConfig,
+}: {
+  warpRouteId: string;
+  warpConfig: WarpRouteDeployConfig;
+  warpCoreConfig: WarpCoreConfig;
+}): {
+  warpDeployPath: string;
+  warpCorePath: string;
+} {
+  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
+  const updatedWarpCorePath = `${basePath}-config.yaml`;
+  writeYamlOrJson(updatedWarpConfigPath, warpConfig);
+  writeYamlOrJson(updatedWarpCorePath, warpCoreConfig);
+
+  return {
+    warpDeployPath: updatedWarpConfigPath,
+    warpCorePath: updatedWarpCorePath,
+  };
 }
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
@@ -77,6 +122,8 @@ export enum KeyBoardKeys {
   ARROW_UP = '\x1b[A',
   ENTER = '\n',
   TAB = '\t',
+  ACCEPT = 'y',
+  DECLINE = 'n',
 }
 
 export async function asyncStreamInputWrite(
@@ -132,6 +179,19 @@ export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
   input: KeyBoardKeys.ENTER,
 };
 
+export const SELECT_MAINNET_CHAINS_ANVIL_2_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('--Mainnet Chains--'),
+  // Scroll down through the mainnet chains list and select anvil2
+  input: `${SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER}${KeyBoardKeys.ENTER}`,
+};
+
+export const CONFIRM_CHAIN_SELECTION_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Is this chain selection correct?'),
+  input: `${KeyBoardKeys.ENTER}`,
+};
+
 export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
   [
     {
@@ -148,28 +208,46 @@ export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
 
 export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
   check: (currentOutput: string) =>
-    currentOutput.includes('Detected owner address as'),
+    currentOutput.includes('Using owner address as'),
   input: KeyBoardKeys.ENTER,
 };
 
-export const SETUP_CHAIN_SIGNERS_MANUALLY_STEPS: ReadonlyArray<TestPromptAction> =
-  [
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-    {
-      check: (currentOutput) =>
-        currentOutput.includes('Please enter the private key for chain'),
-      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-    },
-  ];
+export const CONFIRM_DETECTED_PROXY_ADMIN_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Use an existing Proxy Admin contract'),
+  input: `${KeyBoardKeys.DECLINE}${KeyBoardKeys.ENTER}`,
+};
+
+export const CONFIRM_DETECTED_TRUSTED_ISM_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Do you want to use a trusted ISM for warp route?'),
+  input: `${KeyBoardKeys.DECLINE}${KeyBoardKeys.ENTER}`,
+};
+
+//
+
+export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput) =>
+    currentOutput.includes('Please enter the private key for chain'),
+  input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+};
+
+/**
+ * Retrieves the token address for a given chain from a warp config object.
+ * @param config The warp core config object.
+ * @param chainName The name of the chain.
+ * @returns The address of the token contract.
+ */
+export function getTokenAddressFromWarpConfig(
+  config: WarpCoreConfig,
+  chainName: string,
+): Address {
+  const tokenConfig = config.tokens.find((t) => t.chainName === chainName);
+  if (!tokenConfig || !tokenConfig.addressOrDenom) {
+    throw new Error(`Could not find token config for ${chainName}`);
+  }
+  return tokenConfig.addressOrDenom;
+}
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
@@ -224,6 +302,7 @@ export async function extendWarpConfig(params: {
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
+  warpRouteId?: string;
 }): Promise<string> {
   const {
     chain,
@@ -232,6 +311,7 @@ export async function extendWarpConfig(params: {
     warpCorePath,
     warpDeployPath,
     strategyUrl,
+    warpRouteId,
   } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
@@ -244,7 +324,12 @@ export async function extendWarpConfig(params: {
   delete warpDeployConfig[chain].destinationGas;
 
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
+  await hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+  });
 
   return warpDeployPath;
 }
@@ -374,6 +459,7 @@ export async function deployToken(
   chain: string,
   decimals = 18,
   symbol = 'TOKEN',
+  name = 'token',
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
     registryUris: [REGISTRY_PATH],
@@ -385,12 +471,7 @@ export async function deployToken(
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
-  ).deploy(
-    'token',
-    symbol.toLocaleUpperCase(),
-    '100000000000000000000',
-    decimals,
-  );
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
   await token.deployed();
 
   return token;
@@ -522,4 +603,39 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
+}
+
+export function createSnapshot(rpcUrl: string) {
+  return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+}
+
+export async function restoreSnapshot(
+  rpcUrl: string,
+  snapshotId: string,
+): Promise<void> {
+  const result = await snapshotBaseCall<boolean>(rpcUrl, 'evm_revert', [
+    snapshotId,
+  ]);
+  assert(result, 'Failed to restore snapshot');
+}
+
+async function snapshotBaseCall<T>(
+  rpcUrl: string,
+  method: string,
+  params: any[],
+): Promise<T> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: 1337,
+      jsonrpc: '2.0',
+      method,
+      params,
+    }),
+  });
+  const { result } = await response.json();
+  return result;
 }

@@ -10,7 +10,12 @@ import {
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
-import { DerivedRouterConfig, GasRouterConfigSchema } from '../router/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
+import {
+  DerivedRouterConfig,
+  GasRouterConfigSchema,
+  RemoteRouterDomainOrChainNameSchema,
+} from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -33,7 +38,7 @@ export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  decimals: z.number().optional(),
+  decimals: z.number().gt(0).optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
   contractVersion: z.string().optional(),
@@ -41,8 +46,30 @@ export const TokenMetadataSchema = z.object({
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+const MovableTokenRebalancingBridgeConfigSchema = z.object({
+  bridge: ZHash,
+  approvedTokens: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
+export const BaseMovableTokenConfigSchema = z.object({
+  allowedRebalancingBridges: z
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.array(MovableTokenRebalancingBridgeConfigSchema),
+    )
+    .optional(),
+  allowedRebalancers: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  ...BaseMovableTokenConfigSchema.shape,
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -84,6 +111,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
+    ...BaseMovableTokenConfigSchema.shape,
   },
 );
 
@@ -454,3 +482,10 @@ function extractCCIPIsmMap(
       break;
   }
 }
+
+const MovableTokenSchema = z.discriminatedUnion('type', [
+  CollateralTokenConfigSchema,
+  NativeTokenConfigSchema,
+]);
+export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;
+export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);

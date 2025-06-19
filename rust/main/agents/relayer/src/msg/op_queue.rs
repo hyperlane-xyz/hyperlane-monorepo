@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
 
-use crate::server::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
+use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -54,6 +54,7 @@ impl OpQueue {
                 break;
             }
         }
+
         // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {

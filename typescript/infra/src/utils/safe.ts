@@ -1,5 +1,7 @@
 import { JsonRpcSigner } from '@ethersproject/providers';
-import SafeApiKit from '@safe-global/api-kit';
+import SafeApiKit, {
+  SafeMultisigTransactionListResponse,
+} from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
@@ -10,6 +12,7 @@ import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
+  AnnotatedEV5Transaction,
   ChainNameOrId,
   MultiProvider,
   getSafe,
@@ -25,6 +28,9 @@ import {
 
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
+
+const TX_FETCH_RETRIES = 5;
+const TX_FETCH_RETRY_DELAY = 5000;
 
 export async function getSafeAndService(
   chain: ChainNameOrId,
@@ -177,21 +183,33 @@ export async function getSafeTx(
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
-  // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
 
-  if (!txDetailsResponse.ok) {
+  try {
+    return await retryAsync(
+      async () => {
+        const txDetailsResponse = await fetch(txDetailsUrl, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!txDetailsResponse.ok) {
+          throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+        }
+
+        return txDetailsResponse.json();
+      },
+      TX_FETCH_RETRIES,
+      TX_FETCH_RETRY_DELAY,
+    );
+  } catch (error) {
     rootLogger.error(
-      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+      chalk.red(
+        `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+      ),
     );
     return;
   }
-
-  return txDetailsResponse.json();
 }
 
 export async function deleteSafeTx(
@@ -439,7 +457,8 @@ export async function getPendingTxsForChains(
         return;
       }
 
-      let safeSdk, safeService;
+      let safeSdk: Safe.default;
+      let safeService: SafeApiKit.default;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
@@ -456,8 +475,34 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
-      if (pendingTxs.results.length === 0) {
+
+      let pendingTxs: SafeMultisigTransactionListResponse;
+      rootLogger.info(
+        chalk.gray.italic(
+          `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+        ),
+      );
+      try {
+        pendingTxs = await retryAsync(
+          () => safeService.getPendingTransactions(safes[chain]),
+          TX_FETCH_RETRIES,
+          TX_FETCH_RETRY_DELAY,
+        );
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+          ),
+        );
+        return;
+      }
+
+      if (!pendingTxs || pendingTxs.results.length === 0) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `No pending transactions found for safe ${safes[chain]} on ${chain}`,
+          ),
+        );
         return;
       }
 
@@ -497,4 +542,30 @@ export async function getPendingTxsForChains(
   return txs.sort(
     (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
   );
+}
+
+export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+  const safeInterface = new ethers.utils.Interface([
+    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+    'function approveHash(bytes32 hashToApprove)',
+    'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+    'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+    'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
+    'function changeThreshold(uint256 _threshold)',
+    'function enableModule(address module)',
+    'function disableModule(address prevModule, address module)',
+    'function setGuard(address guard)',
+    'function setFallbackHandler(address handler)',
+    'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
+    'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
+    'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
+    'function simulateAndRevert(address targetContract, bytes calldataPayload)',
+  ]);
+
+  const decoded = safeInterface.parseTransaction({
+    data: tx.data ?? '0x',
+    value: tx.value,
+  });
+
+  return decoded;
 }

@@ -1,5 +1,51 @@
 # @hyperlane-xyz/cli
 
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+- 0ca8676: Update warp apply to specify a warp route Id to read/write to using --warpRouteId
+- 4d66b73: Add support for zksync based networks
+
+### Patch Changes
+
+- 4d66b73: Reuse existing signer in CLI warp transfer instead of connecting a new signer from the multiprovider.
+- 4d66b73: Only prompt for API key for etherscan explorer type.
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- ac13dde: add cosmos native core cli commands
+
+### Patch Changes
+
+- 754f7ba: disable cosmos native signers and only allow evm signers for now again
+- 86a8502: Change info logs to debug logs in MultiProtocolSignerManager.extractPrivateKey().
+
+## 13.0.0
+
 ## 12.6.0
 
 ### Minor Changes

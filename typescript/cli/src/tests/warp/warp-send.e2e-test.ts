@@ -4,7 +4,10 @@ import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -28,6 +31,7 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
@@ -70,9 +74,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const tokenSymbol = await token.symbol();
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
       CHAIN_NAME_3,
     ]);
+
+    const warpId = createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3);
 
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
@@ -89,7 +94,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -140,8 +145,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
       const tokenSymbol = await token.symbol();
 
+      const warpId = createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3);
       const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_2,
         CHAIN_NAME_3,
       ]);
 
@@ -200,7 +205,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
       const config: ChainMap<Token> = (
         readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -253,7 +258,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
       tokenSymbolChain2,
-      [CHAIN_NAME_2, CHAIN_NAME_3],
+      [WARP_DEPLOY_DEFAULT_FILE_NAME],
     );
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -311,8 +316,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.synthetic}`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -368,8 +372,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.native}`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -424,8 +427,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   it(`should not be able to bridge between ${TokenType.native} and ${TokenType.native} when the token on the destination chain does not have enough collateral`, async function () {
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -476,7 +478,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
       tokenSymbolChain2,
-      [CHAIN_NAME_2, CHAIN_NAME_3],
+      [WARP_DEPLOY_DEFAULT_FILE_NAME],
     );
 
     const warpConfig: WarpRouteDeployConfig = {

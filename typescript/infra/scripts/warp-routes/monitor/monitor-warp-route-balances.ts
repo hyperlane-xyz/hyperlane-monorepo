@@ -44,7 +44,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './metrics.js';
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger, tryFn } from './utils.js';
+import { logger, setLoggerBindings, tryFn } from './utils.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
@@ -63,7 +63,12 @@ async function main() {
     .number('checkFrequency')
     .parse();
 
-  const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
+  const warpRouteId =
+    warpRouteIdArg || (await getWarpRouteIdInteractive(environment));
+
+  setLoggerBindings({
+    warp_route: warpRouteId,
+  });
 
   startMetricsServer(metricsRegister);
 
@@ -180,7 +185,8 @@ async function updateTokenMetrics(
 
     if (!warpDeployConfig) {
       logger.warn(
-        `Can't read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
+        { token: token.symbol, chain: token.chainName },
+        'Failed to read warp deploy config, skipping extra lockboxes',
       );
       return;
     }
@@ -191,7 +197,15 @@ async function updateTokenMetrics(
       currentTokenDeployConfig.type !== TokenType.XERC20 &&
       currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
     ) {
-      logger.error('Token is xERC20 but token deploy config is not');
+      logger.error(
+        {
+          expected: 'XERC20|XERC20Lockbox',
+          actual: currentTokenDeployConfig.type,
+          token: token.symbol,
+          chain: token.chainName,
+        },
+        'Invalid deploy config type for xERC20 token',
+      );
       return;
     }
 
@@ -255,7 +269,10 @@ async function getTokenBridgedBalance(
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<WarpRouteBalance | undefined> {
   if (!token.isHypToken()) {
-    logger.warn('Cannot get bridged balance for a non-Hyperlane token', token);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'No support for bridged balance on non-Hyperlane token',
+    );
     return undefined;
   }
 
@@ -263,7 +280,10 @@ async function getTokenBridgedBalance(
   let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
   const bridgedSupply = await adapter.getBridgedSupply();
   if (bridgedSupply === undefined) {
-    logger.warn('Bridged supply not found for token', token);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Failed to get bridged supply',
+    );
     return undefined;
   }
   const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
@@ -272,12 +292,16 @@ async function getTokenBridgedBalance(
   // Only record value for collateralized and xERC20 lockbox tokens.
   if (
     token.isCollateralized() ||
-    token.standard === TokenStandard.EvmHypXERC20Lockbox
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
   ) {
     tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
       .address;
   }
@@ -363,7 +387,10 @@ async function getXERC20Info(
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20 ||
+    token.standard === TokenStandard.EvmHypVSXERC20
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20Adapter;
@@ -371,7 +398,10 @@ async function getXERC20Info(
       limits: await getXERC20Limit(token, adapter),
       xERC20Address: (await adapter.getXERC20()).address,
     };
-  } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  } else if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20LockboxAdapter;
@@ -483,10 +513,16 @@ async function getExtraLockboxBalance(
   let balance;
   try {
     balance = await erc20tokenAdapter.getBalance(lockboxAddress);
-  } catch (e) {
+  } catch (err) {
     logger.error(
-      `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
-      e,
+      {
+        err,
+        chain: warpToken.chainName,
+        token: warpToken.symbol,
+        lockboxAddress,
+        erc20TokenAddress,
+      },
+      'Failed to get balance for contract at lockbox address',
     );
     return;
   }
@@ -514,7 +550,10 @@ async function tryGetTokenPrice(
   const coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
-    logger.warn('CoinGecko ID missing for token', token.symbol);
+    logger.warn(
+      { token: token.symbol, chain: token.chainName },
+      'Missing CoinGecko ID for token',
+    );
     return undefined;
   }
 
@@ -538,10 +577,10 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
       `${environment}-coingecko-api-key`,
       false,
     )) as string;
-  } catch (e) {
+  } catch (err) {
     logger.error(
-      'Error fetching CoinGecko API key, proceeding with public tier',
-      e,
+      err,
+      'Failed to fetch CoinGecko API key, proceeding with public tier',
     );
   }
 
@@ -567,7 +606,8 @@ function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
   const collateralTokens = warpCore.tokens.filter(
     (token) =>
       token.isCollateralized() ||
-      token.standard === TokenStandard.EvmHypXERC20Lockbox,
+      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      token.standard === TokenStandard.EvmHypVSXERC20Lockbox,
   );
 
   if (collateralTokens.length === 0) {
@@ -584,6 +624,6 @@ function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
 }
 
 main().catch((err) => {
-  logger.error('Error in main:', err);
+  logger.error(err);
   process.exit(1);
 });

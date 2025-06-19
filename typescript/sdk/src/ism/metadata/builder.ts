@@ -20,7 +20,7 @@ import { OffchainLookupMetadataBuilder } from './ccipread.js';
 import { decodeIsmMetadata } from './decode.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
-import { DefaultFallbackRoutingMetadataBuilder } from './routing.js';
+import { DynamicRoutingMetadataBuilder } from './routing.js';
 import type {
   MetadataBuilder,
   MetadataContext,
@@ -31,7 +31,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public nullMetadataBuilder: NullMetadataBuilder;
   public multisigMetadataBuilder: MultisigMetadataBuilder;
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
-  public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
+  public routingMetadataBuilder: DynamicRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
   public ccipReadMetadataBuilder: OffchainLookupMetadataBuilder;
 
@@ -41,9 +41,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   constructor(core: HyperlaneCore) {
     this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
     this.aggregationMetadataBuilder = new AggregationMetadataBuilder(this);
-    this.routingMetadataBuilder = new DefaultFallbackRoutingMetadataBuilder(
-      this,
-    );
+    this.routingMetadataBuilder = new DynamicRoutingMetadataBuilder(this);
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
     this.ccipReadMetadataBuilder = new OffchainLookupMetadataBuilder(core);
@@ -87,6 +85,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
       case IsmType.AMOUNT_ROUTING:
+      case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
         return this.routingMetadataBuilder.build(
           {
             ...context,
@@ -117,7 +116,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         });
 
       default:
-        throw new Error(`Unsupported ISM: ${ism}`);
+        throw new Error(`Unsupported ISM: ${JSON.stringify(ism)}`);
     }
   }
 

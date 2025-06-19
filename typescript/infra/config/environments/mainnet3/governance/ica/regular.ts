@@ -2,6 +2,8 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 export const regularIcas: ChainMap<Address> = {
+  // Apr 19, 2025 batch
+  // ----------------------------------------------------------
   ancient8: '0xf789D8a609247c448E28d3af5b8EFC6Cb786C4ee',
   alephzeroevmmainnet: '0xA3dfBa2447F0A50706F22e38f2785e0Bf30BC069',
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
@@ -9,7 +11,6 @@ export const regularIcas: ChainMap<Address> = {
   arbitrumnova: '0x83be90021870A93ff794E00E8CFe454547877E3E',
   arcadia: '0x32879753603c140E34D46375F43Db8BdC9a8c545',
   artela: '0x2754282484EBC6103042BE6c2f17acFA96B2546a',
-  arthera: '0x33fab5e0290b7b7a0f19Ba9Db8b97C6e7f7a8848',
   astar: '0x87433Bf4d46fB11C6c39c6F1876b95c9001D06E1',
   aurora: '0x793C99f45CF63dd101D7D6819e02333Fb6cFd57f',
   bouncebit: '0xa3EC6913675e9686bfC458F02a0F737EdD0362c8',
@@ -26,7 +27,7 @@ export const regularIcas: ChainMap<Address> = {
   conflux: '0x04b7cBD37eeFe304655c7e8638BbE4ddEff576E8',
   conwai: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   coredao: '0x100D940B953b20378242Fe0FbC45792805d50556',
-  corn: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
+  // corn: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   coti: '0x54b625734673868027c70F656B807588910f3a6f',
   cyber: '0x162F8F6B70f9EE57fED16C4337B90e939851ECA1',
   deepbrainchain: '0x1fbE174fc6B1d3123B890f34aBd982577377Bec8',
@@ -41,7 +42,7 @@ export const regularIcas: ChainMap<Address> = {
   flowmainnet: '0x8e9558D9bA4d3FB52ea75D18B337f778589AB1aF',
   form: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   fusemainnet: '0x4601d6260C532E73187248D0608cB88D446149AD',
-  glue: '0x0Fb0635eAbB9332eDc2544A57e7C15fBc5204C0B',
+  // glue: '0x0Fb0635eAbB9332eDc2544A57e7C15fBc5204C0B',
   gnosis: '0x2984A89A1A0331ae200FE2Cb46cCa190e795672E',
   gravity: '0x4Ce5ecE7349E467EBd77F39Eb4232Dd8C6a7314D',
   guru: '0x562FF51582Ec53466c4B8506d3a2FBD3B2F675f4',
@@ -65,7 +66,6 @@ export const regularIcas: ChainMap<Address> = {
   moonbeam: '0xb3178E470E959340206AD9d9eE4E53d0911b2ba9',
   morph: '0x83be90021870A93ff794E00E8CFe454547877E3E',
   nero: '0x4601d6260C532E73187248D0608cB88D446149AD',
-  // nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318', // temporary while looking into decimals
   oortmainnet: '0xBc2cc7372C018C2a0b1F78E29D8B49d21bc5f3bA',
   opbnb: '0x1fbE174fc6B1d3123B890f34aBd982577377Bec8',
   orderly: '0x83be90021870A93ff794E00E8CFe454547877E3E',
@@ -106,4 +106,21 @@ export const regularIcas: ChainMap<Address> = {
   xpla: '0x0Fb0635eAbB9332eDc2544A57e7C15fBc5204C0B',
   zetachain: '0x33d8605D4dF6661259640268DD32BC99A2F55a83',
   zoramainnet: '0xdbB6E8FDe96dE3a1604b93884d8fF9Cb521059fC',
+
+  // May 18, 2025 batch
+  // ----------------------------------------------------------
+  hashkey: '0x51e43Fe2Db5B950e115a9f5ad7603E07c656fBe9',
+  infinityvmmainnet: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  game7: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  fluence: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  peaq: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',
+  miraclechain: '0x4733050AdC12BCaad14A239418aAdD06cce2fB7d',
+  nibiru: '0x966A57078204CA6cA13f091eE66eE61Ada5D2318',
+  blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
+
+  // Jun 4, 2025 batch
+  // ----------------------------------------------------------
+  botanix: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
+  katana: '0x86F361C9d39F5cA4FC770449BAB5fa17489B37FF',
 };

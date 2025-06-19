@@ -22,15 +22,41 @@ import {
 $.verbose = true;
 
 /**
- * Deploys the Warp route to the specified chain using the provided config.
+ * Creates a warp route configuration with raw parameters.
+ */
+export function hyperlaneWarpInitRaw({
+  warpCorePath,
+  hypKey,
+  skipConfirmationPrompts,
+  privateKey,
+  advanced,
+}: {
+  warpCorePath?: string;
+  hypKey?: string;
+  skipConfirmationPrompts?: boolean;
+  privateKey?: string;
+  advanced?: boolean;
+}): ProcessPromise {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane warp init \
+        --registry ${REGISTRY_PATH} \
+        ${warpCorePath ? ['--out', warpCorePath] : []} \
+        ${privateKey ? ['--key', privateKey] : []} \
+        ${advanced ? ['--advanced'] : []} \
+        --verbosity debug \
+        ${skipConfirmationPrompts ? ['--yes'] : []}`;
+}
+
+/**
+ * Creates a warp route configuration.
  */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp init \
-        --registry ${REGISTRY_PATH} \
-        --out ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
+  return hyperlaneWarpInitRaw({
+    privateKey: ANVIL_KEY,
+    warpCorePath: warpCorePath,
+    skipConfirmationPrompts: true,
+  });
 }
 
 /**
@@ -38,33 +64,43 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
  */
 export function hyperlaneWarpDeployRaw({
   warpCorePath,
+  warpDeployPath,
   hypKey,
   skipConfirmationPrompts,
   privateKey,
+  warpRouteId,
 }: {
   warpCorePath?: string;
+  warpDeployPath?: string;
   hypKey?: string;
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${
-    hypKey ? ['HYP_KEY=' + hypKey] : ''
+    hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--config', warpCorePath] : ''} \
-        ${privateKey ? ['--key', privateKey] : ''} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCorePath ? ['--warp', warpCorePath] : []} \
+        ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export function hyperlaneWarpDeploy(warpCorePath: string): ProcessPromise {
+export function hyperlaneWarpDeploy(
+  warpDeployPath: string,
+  warpRouteId?: string,
+): ProcessPromise {
   return hyperlaneWarpDeployRaw({
     privateKey: ANVIL_KEY,
-    warpCorePath: warpCorePath,
+    warpDeployPath,
     skipConfirmationPrompts: true,
+    warpRouteId,
   });
 }
 
@@ -75,14 +111,35 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
   strategyUrl = '',
+  warpRouteId?: string,
 ) {
+  return hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+  });
+}
+
+export function hyperlaneWarpApplyRaw({
+  warpDeployPath,
+  warpCorePath,
+  strategyUrl,
+  warpRouteId,
+}: {
+  warpDeployPath?: string;
+  warpCorePath?: string;
+  strategyUrl?: string;
+  warpRouteId?: string;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        --config ${warpDeployPath} \
-        --warp ${warpCorePath} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCorePath ? ['--warp', warpCorePath] : []} \
+        ${strategyUrl ? ['--strategy', strategyUrl] : []} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --strategy ${strategyUrl} \
         --yes`;
 }
 
@@ -99,11 +156,11 @@ export function hyperlaneWarpReadRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp read \
         --registry ${REGISTRY_PATH} \
-        ${warpAddress ? ['--address', warpAddress] : ''} \
-        ${chain ? ['--chain', chain] : ''} \
-        ${symbol ? ['--symbol', symbol] : ''} \
+        ${warpAddress ? ['--address', warpAddress] : []} \
+        ${chain ? ['--chain', chain] : []} \
+        ${symbol ? ['--symbol', symbol] : []} \
         --verbosity debug \
-        ${outputPath ? ['--config', outputPath] : ''}`;
+        ${outputPath ? ['--config', outputPath] : []}`;
 }
 
 export function hyperlaneWarpRead(
@@ -131,11 +188,11 @@ export function hyperlaneWarpCheckRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
-        ${symbol ? ['--symbol', symbol] : ''} \
+        ${symbol ? ['--symbol', symbol] : []} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
-        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : ''} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''}`;
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
 }
 
 export function hyperlaneWarpCheck(
@@ -155,10 +212,10 @@ export function hyperlaneWarpSendRelay(
   destination: string,
   warpCorePath: string,
   relay = true,
-  value = 1,
+  value: number | string = 1,
 ): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
-        ${relay ? '--relay' : ''} \
+        ${relay ? '--relay' : []} \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
@@ -167,6 +224,31 @@ export function hyperlaneWarpSendRelay(
         --verbosity debug \
         --yes \
         --amount ${value}`;
+}
+
+export function hyperlaneWarpRebalancer(
+  checkFrequency: number,
+  config: string,
+  withMetrics: boolean,
+  monitorOnly?: boolean,
+  manual?: boolean,
+  origin?: string,
+  destination?: string,
+  amount?: string,
+  key?: string,
+): ProcessPromise {
+  return $`${localTestRunCmdPrefix()} hyperlane warp rebalancer \
+        --registry ${REGISTRY_PATH} \
+        --checkFrequency ${checkFrequency} \
+        --config ${config} \
+        --key ${key ?? ANVIL_KEY} \
+        --verbosity debug \
+        --withMetrics ${withMetrics ? ['true'] : ['false']} \
+        --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
+        ${manual ? ['--manual'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
+        ${amount ? ['--amount', amount] : []}`;
 }
 
 /**
@@ -287,6 +369,9 @@ export function generateWarpConfigs(
     TokenType.syntheticUri,
     // TODO Fix: sender not mailbox or relaying simply fails
     TokenType.collateralVault,
+    TokenType.collateralCctp,
+    TokenType.nativeOpL1,
+    TokenType.nativeOpL2,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

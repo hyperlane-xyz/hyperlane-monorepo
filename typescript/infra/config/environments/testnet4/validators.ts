@@ -245,18 +245,6 @@ export const validatorChainConfig = (
         'soneiumtestnet',
       ),
     },
-    suavetoliman: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('suavetoliman'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'suavetoliman',
-      ),
-    },
 
     unichaintestnet: {
       interval: 5,
@@ -392,6 +380,31 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'sonicblaze',
+      ),
+    },
+    paradexsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('paradexsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'paradexsepolia',
+      ),
+    },
+
+    starknetsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('starknetsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'starknetsepolia',
       ),
     },
 
@@ -569,6 +582,27 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xdb0128bb3d3f204eb18de7e8268e94fde0382daf'],
         },
         'bepolia',
+      ),
+    },
+
+    rometestnet2: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rometestnet2'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e'],
+        },
+        'rometestnet2',
+      ),
+    },
+    neuratestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('neuratestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d'],
+        },
+        'neuratestnet',
       ),
     },
   };

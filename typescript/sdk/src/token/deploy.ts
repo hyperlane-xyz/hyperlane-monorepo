@@ -7,6 +7,7 @@ import {
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
+  MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctp__factory,
@@ -29,8 +30,10 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
+import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
@@ -46,12 +49,12 @@ import {
   CctpTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
-  TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
   isOpL2TokenConfig,
@@ -110,7 +113,7 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
+    concurrentDeploy = true,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
@@ -200,10 +203,20 @@ abstract class TokenDeployer<
   static async deriveTokenMetadata(
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
-  ): Promise<TokenMetadata | undefined> {
-    for (const [chain, config] of Object.entries(configMap)) {
+  ): Promise<TokenMetadataMap> {
+    const metadataMap = new TokenMetadataMap();
+
+    const priorityGetter = (type: string) => {
+      return ['collateral', 'native'].indexOf(type);
+    };
+
+    const sortedEntries = Object.entries(configMap).sort(
+      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
+    );
+
+    for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
-        return TokenMetadataSchema.parse(config);
+        metadataMap.set(chain, TokenMetadataSchema.parse(config));
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
@@ -213,9 +226,13 @@ abstract class TokenDeployer<
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return TokenMetadataSchema.parse({
-            ...nativeToken,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
+          continue;
         }
       }
 
@@ -235,10 +252,14 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          return TokenMetadataSchema.parse({
-            name,
-            symbol,
-          });
+          metadataMap.set(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
+          continue;
         }
 
         let token: string;
@@ -267,15 +288,19 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        return TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-        });
+        metadataMap.set(
+          chain,
+          TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+          }),
+        );
       }
     }
 
-    return undefined;
+    metadataMap.finalize();
+    return metadataMap;
   }
 
   protected async configureCctpDomains(
@@ -327,10 +352,119 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setRebalancers(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const rebalancers = Array.from(config.allowedRebalancers ?? []);
+        for (const rebalancer of rebalancers) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addRebalancer(rebalancer),
+          );
+        }
+      }),
+    );
+  }
+
+  protected async setAllowedBridges(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const bridgesToAllow = Object.entries(
+          resolveRouterMapConfig(
+            this.multiProvider,
+            config.allowedRebalancingBridges ?? {},
+          ),
+        ).flatMap(([domain, allowedBridgesToAdd]) => {
+          return allowedBridgesToAdd.map((bridgeToAdd) => {
+            return {
+              domain,
+              bridge: bridgeToAdd.bridge,
+            };
+          });
+        });
+
+        for (const bridgeConfig of bridgesToAllow) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
+          );
+        }
+      }),
+    );
+  }
+
+  protected async setBridgesTokenApprovals(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
+        const tokenApprovalTxs = Object.values(
+          config.allowedRebalancingBridges ?? {},
+        ).flatMap((allowedBridgesToAdd) => {
+          return allowedBridgesToAdd.flatMap((bridgeToAdd) => {
+            return (bridgeToAdd.approvedTokens ?? []).map((token) => {
+              return {
+                bridge: bridgeToAdd.bridge,
+                token,
+              };
+            });
+          });
+        });
+
+        for (const bridgeConfig of tokenApprovalTxs) {
+          await this.multiProvider.handleTx(
+            chain,
+            movableToken.approveTokenForBridge(
+              bridgeConfig.token,
+              bridgeConfig.bridge,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
-    let tokenMetadata: TokenMetadata | undefined;
+    let tokenMetadataMap: TokenMetadataMap;
     try {
-      tokenMetadata = await TokenDeployer.deriveTokenMetadata(
+      tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
         this.multiProvider,
         configMap,
       );
@@ -339,8 +473,13 @@ abstract class TokenDeployer<
       throw err;
     }
 
-    const resolvedConfigMap = objMap(configMap, (_, config) => ({
-      ...tokenMetadata,
+    const resolvedConfigMap = objMap(configMap, (chain, config) => ({
+      name: tokenMetadataMap.getName(chain),
+      decimals: tokenMetadataMap.getDecimals(chain),
+      symbol:
+        tokenMetadataMap.getSymbol(chain) ||
+        tokenMetadataMap.getDefaultSymbol(),
+      scale: tokenMetadataMap.getScale(chain),
       gas: gasOverhead(config.type),
       ...config,
     }));
@@ -348,6 +487,12 @@ abstract class TokenDeployer<
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    await this.setRebalancers(configMap, deployedContractsMap);
+
+    await this.setAllowedBridges(configMap, deployedContractsMap);
+
+    await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
 
     return deployedContractsMap;
   }
@@ -358,7 +503,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
+    concurrentDeploy = true,
   ) {
     super(
       multiProvider,

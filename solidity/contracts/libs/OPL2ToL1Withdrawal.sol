@@ -25,4 +25,28 @@ library OPL2ToL1Withdrawal {
                 )
             );
     }
+
+    function encodeData(
+        bytes32 _proveMessageId,
+        bytes32 _finalizeMessageId
+    ) internal pure returns (bytes memory) {
+        return abi.encode(_proveMessageId, _finalizeMessageId);
+    }
+
+    function proveMessageId(
+        IOptimismPortal.WithdrawalTransaction memory _tx
+    ) internal pure returns (bytes32) {
+        (bytes32 _proveMessageId, ) = abi.decode(_tx.data, (bytes32, bytes32));
+        return _proveMessageId;
+    }
+
+    function finalizeMessageId(
+        IOptimismPortal.WithdrawalTransaction memory _tx
+    ) internal pure returns (bytes32) {
+        (, bytes32 _finalizeMessageId) = abi.decode(
+            _tx.data,
+            (bytes32, bytes32)
+        );
+        return _finalizeMessageId;
+    }
 }
