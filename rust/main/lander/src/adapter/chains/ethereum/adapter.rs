@@ -294,17 +294,17 @@ impl AdaptsChain for EthereumAdapter {
         Ok(reverted)
     }
 
-    fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
-        let metrics_source = Self::extract_vm_specific_metrics(tx);
-        metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
-    }
-
     fn estimated_block_time(&self) -> &std::time::Duration {
         &self.estimated_block_time
     }
 
     fn max_batch_size(&self) -> u32 {
         self.submission_config.max_batch_size
+    }
+
+    fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
+        let metrics_source = Self::extract_vm_specific_metrics(tx);
+        metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
     }
 }
 
