@@ -39,3 +39,5 @@ mod utils;
 pub mod pending_message;
 
 pub use gas_payment::GAS_EXPENDITURE_LOG_MESSAGE;
+
+pub mod dymension_submitter;
