@@ -44,14 +44,15 @@ impl ValidatorsClient {
         Ok(ValidatorsClient { conf })
     }
 
+    /// dococo
     pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
         // TODO: in parallel
         let mut results = Vec::new();
-        for host in self.conf.validator_hosts {
+        for host in self.conf.validator_hosts.clone().into_iter(){
             let res = validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => results.push(r),
-                Err(e) => {
+                Err(_e) => {
                     results.push(false);
                 }
             }

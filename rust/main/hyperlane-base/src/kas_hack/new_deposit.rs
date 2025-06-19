@@ -5,7 +5,7 @@ use tracing::{info, warn};
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_relayer::deposit::on_new_deposit;
 use dym_kas_validator::deposit::validate_deposits;
-use dymension_kaspa::{Deposit, RestProvider};
+use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
 use hyperlane_core::{Indexed, LogMeta};
 
@@ -23,17 +23,10 @@ impl DepositCache {
     }
 }
 
-// see https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
-
-// need to call to N validators
-// on each validator need to call https://github.com/dymensionxyz/hyperlane-monorepo/blob/759e5554b8d27a343220fea27f7c5382082b9b7b/dymension/libs/kaspa/lib/validator/src/deposit.rs#L3
-async fn gather_deposit_sigs(deposit: &Deposit) {
-    // TODO: needs to return the thing that relayer can send up to hub
-    unimplemented!()
-}
+// tODO: see https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
 
 pub async fn handle_observed_deposits(
-    provider: &RestProvider,
+    validators: &ValidatorsClient,
     cache: &mut DepositCache,
     deposits: Vec<Deposit>,
 ) {
@@ -49,8 +42,14 @@ pub async fn handle_observed_deposits(
     for deposit in &new_deposits {
         let fxg = on_new_deposit(deposit); // local call
         if let Some(fxg) = fxg {
-            if validate_deposits(&fxg) { // TODO: should not be teh validator call here
-                // TODO: now to need to get the merkle sig and send up to hub
+            let results = validators.validate_deposits(&fxg).await;
+            match results {
+                Ok(results) => {
+                    // TODO: need to return a sig
+                }
+                Err(e) => {
+                    warn!(?e, "Error validating new kaspa deposits");
+                } 
             }
         }
     }

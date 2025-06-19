@@ -18,7 +18,7 @@ pub struct ConnectionConf {
 impl ConnectionConf {
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
-    pub fn new(kaspa_rest_url: Url, escrow_address: String, validator_hosts: Vec<Url>) -> Self {
+    pub fn new(kaspa_rest_url: Url, escrow_address: String, validator_hosts: Vec<String>) -> Self {
         Self {
             kaspa_rest_url,
             escrow_address,

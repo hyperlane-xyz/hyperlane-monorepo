@@ -613,7 +613,7 @@ impl BaseAgent for Relayer {
                         origin.clone(),
                         kdb.clone().to_owned(),
                         task_monitor.clone(),
-                        kp.rest().to_owned(),
+                        kp,
                     )
                     .await,
                 );

@@ -3,7 +3,7 @@ use tokio::task::JoinHandle;
 use tokio_metrics::TaskMonitor;
 use tracing::{info_span, Instrument};
 
-use dymension_kaspa::RestProvider;
+use dymension_kaspa::KaspaProvider;
 
 use crate::db::HyperlaneRocksDB;
 
@@ -16,7 +16,7 @@ pub async fn run_kas_monitor(
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
     task_monitor: TaskMonitor,
-    provider: RestProvider,
+    provider: KaspaProvider,
 ) -> JoinHandle<()> {
     let name = "foo";
     tokio::task::Builder::new()
@@ -34,7 +34,7 @@ pub async fn run_kas_monitor(
 async fn kas_monitor_task(
     domain: &HyperlaneDomain,
     kdb: &HyperlaneRocksDB,
-    provider: &RestProvider,
+    provider: &KaspaProvider,
 ) {
     run_monitor(domain, kdb, provider).await;
 }
@@ -43,14 +43,14 @@ async fn kas_monitor_task(
 async fn run_monitor<S: HyperlaneLogStore<HyperlaneMessage>>(
     domain: &HyperlaneDomain,
     store: &S,
-    provider: &RestProvider,
+    provider: &KaspaProvider,
 ) where
     S: Clone + 'static,
 {
     let mut deposit_cache = DepositCache::new();
     loop {
-        let deposits = provider.get_deposits().await.unwrap();
-        handle_observed_deposits(provider, &mut deposit_cache, deposits).await;
+        let deposits = provider.rest().get_deposits().await.unwrap();
+        handle_observed_deposits(provider.validators(), &mut deposit_cache, deposits).await;
         // let logs = deposits_to_logs::<HyperlaneMessage>(deposits).await;
         // let stored= dedupe_and_store_logs(domain, store, logs).await;
         // unimplemented!()
