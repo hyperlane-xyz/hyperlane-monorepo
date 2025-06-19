@@ -3,20 +3,27 @@ use std::time::Instant;
 
 use tonic::async_trait;
 
+use std::collections::HashMap;
+
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber, H512,
-    U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber,
+    SignedCheckpointWithMessageId, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
+
+use axum::http::StatusCode;
+use bytes::Bytes;
+use eyre::Result;
+
 use url::Url;
 
 use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
+use crate::endpoints::*;
 pub use dym_kas_core::api::deposits::*;
 use dym_kas_core::deposit::DepositFXG;
-use crate::endpoints::*;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -44,8 +51,11 @@ impl ValidatorsClient {
         Ok(ValidatorsClient { conf })
     }
 
-    ///
-    pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Sigs> {
+    /// this runs on relayer
+    pub async fn validate_deposits(
+        &self,
+        fxg: &DepositFXG,
+    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
         // TODO: in parallel
         let mut results = Vec::new();
         for host in self.conf.validator_hosts.clone().into_iter() {
@@ -61,7 +71,10 @@ impl ValidatorsClient {
     }
 }
 
-pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<Sigs, Error> {
+pub async fn validate_new_deposits(
+    host: String,
+    deposits: &DepositFXG,
+) -> Result<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
@@ -77,20 +90,4 @@ pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Resul
     } else {
         Ok(false)
     }
-}
-
-struct PSKTRes;
-struct PSKTFXG;
-
-pub async fn sign_pskts(host: String, pskts: &PSKTFXG) -> Result<PSKTRes, Error> {
-    unimplemented!()
-}
-
-struct WithdrawalFXG;
-
-pub async fn validate_confirmed_withdrawals(
-    host: String,
-    withdrawals: &WithdrawalFXG,
-) -> Result<bool, Error> { // TODO: should be sigs too
-    unimplemented!()
 }
