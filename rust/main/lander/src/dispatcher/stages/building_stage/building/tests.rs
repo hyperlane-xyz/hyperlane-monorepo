@@ -13,8 +13,8 @@ use super::{BuildingStage, BuildingStageQueue};
 #[tokio::test]
 async fn test_send_payloads_one_by_one() {
     const PAYLOADS_TO_SEND: usize = 3;
-    let succesful_build = true;
-    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, succesful_build);
+    let successful_build = true;
+    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
 
     // send a single payload to the building stage and check that it is sent to the receiver
     for _ in 0..PAYLOADS_TO_SEND {
@@ -39,8 +39,8 @@ async fn test_send_payloads_one_by_one() {
 #[tokio::test]
 async fn test_send_multiple_payloads_at_once() {
     const PAYLOADS_TO_SEND: usize = 3;
-    let succesful_build = true;
-    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, succesful_build);
+    let successful_build = true;
+    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
 
     let mut sent_payloads = Vec::new();
     for _ in 0..PAYLOADS_TO_SEND {
