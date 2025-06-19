@@ -4,6 +4,16 @@ use core::comms::endpoints::*;
 use core::deposit::DepositFXG;
 use dym_kas_validator::server_relayer::server::{validate_new_deposits as validate_new_deposits_impl};
 
+/*
+What needs to happen
+1. Relayer has the vec<Deposit>
+2. Call F() to get FXG
+3. Call network to validator with FXG, and what's needed to produce a sig
+4. Call G(FXG) to check if to sign
+5. Possibly sign 
+6. Return to relayer over network the digest
+ */
+
 async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
     let res = validate_new_deposits_impl(body).await;
     if Err(e) = res {
