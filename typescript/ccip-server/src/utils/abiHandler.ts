@@ -2,6 +2,7 @@ import type { Interface } from '@ethersproject/abi';
 import type { BaseContract } from 'ethers';
 import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
+import { z } from 'zod';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
 
@@ -50,11 +51,29 @@ export function createAbiHandler<
         return res.status(400).json({ error: 'Missing callData' });
       }
 
+      // Validation block for sender and signature
+      const bodySchema = z.object({
+        sender: z
+          .string()
+          .startsWith('0x')
+          .length(42, 'Invalid Ethereum address'),
+        signature: z.string().startsWith('0x'),
+      });
+
+      if (verifyRelayerSignatureUrl) {
+        const parseResult = bodySchema.safeParse({ sender, signature });
+        if (!parseResult.success) {
+          return res
+            .status(400)
+            .json({
+              error: 'Invalid sender or signature format',
+              details: parseResult.error.errors,
+            });
+        }
+      }
+
       let relayer: string | undefined;
       if (verifyRelayerSignatureUrl) {
-        if (!sender || !signature) {
-          return res.status(400).json({ error: 'Missing sender or signature' });
-        }
         relayer = ethers.utils.verifyMessage(
           ethers.utils.arrayify(
             offchainLookupRequestMessageHash(
