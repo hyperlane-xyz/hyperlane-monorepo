@@ -1,0 +1,58 @@
+{
+  "ethereum": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "ethereum",
+      "safeAddress": "0x11BEBBf509248735203BAAAe90c1a27EEE70D567"
+    }
+  },
+  "superseed": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "superseed",
+      "safeAddress": "0x6652010BaCE855DF870D427daA6141c313994929"
+    }
+  },
+  "base": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "base",
+      "safeAddress": "0x11BEBBf509248735203BAAAe90c1a27EEE70D567"
+    }
+  },
+  "ink": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "ink",
+      "safeAddress": "0x11BEBBf509248735203BAAAe90c1a27EEE70D567"
+    }
+  },
+  "optimism": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "optimism",
+      "safeAddress": "0x11BEBBf509248735203BAAAe90c1a27EEE70D567"
+    }
+  },
+  "arbitrum": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "arbitrum",
+      "safeAddress": "0x11BEBBf509248735203BAAAe90c1a27EEE70D567"
+    }
+  },
+  "solanamainnet": {
+    "submitter": {
+      "type": "gnosisSafeTxBuilder",
+      "version": "1.0",
+      "chain": "solanamainnet",
+      "safeAddress": "JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE"
+    }
+  }
+}

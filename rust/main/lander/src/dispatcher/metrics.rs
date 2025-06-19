@@ -44,9 +44,9 @@ pub struct DispatcherMetrics {
     pub in_flight_transaction_time: IntGaugeVec,
 
     // VM-specific metrics below. These aren't set when they don't apply
-    // on EIP-1559 chains, this is the max_base_fee
+    // on EIP-1559 chains, this is the max_fee_per_gas
     pub gas_price: IntGaugeVec,
-    // only applies to EIP-1559 chains, this is the max_priority_fee
+    // only applies to EIP-1559 chains, this is the max_priority_fee_per_gas
     pub priority_fee: IntGaugeVec,
     /// Currently finalized nonce for each destination
     finalized_nonce: IntGaugeVec,
@@ -268,6 +268,15 @@ impl DispatcherMetrics {
             .clone()
     }
 
+    pub fn set_vm_specific_metrics(&self, vm_metrics: &VmSpecificMetricsSource, domain: &str) {
+        if let Some(gas_price) = vm_metrics.gas_price {
+            self.update_gas_price_metric(gas_price, domain);
+        }
+        if let Some(priority_fee) = vm_metrics.priority_fee {
+            self.update_priority_fee_metric(priority_fee, domain);
+        }
+    }
+
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
         let collected_metrics = self.registry.gather();
         let mut out_buf = Vec::with_capacity(1024 * 64);
@@ -282,4 +291,12 @@ impl DispatcherMetrics {
         let instance = Self::new(registry.clone());
         instance.unwrap()
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct VmSpecificMetricsSource {
+    // max fee per gas for EIP-1559 chains, or gas price for others
+    pub gas_price: Option<u64>,
+    // priority fee per gas for EIP-1559 chains, or None for others
+    pub priority_fee: Option<u64>,
 }
