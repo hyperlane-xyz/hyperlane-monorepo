@@ -50,7 +50,7 @@ impl KaspaProvider {
         &self.rest
     }
 
-       /// dococo
+    /// dococo
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
