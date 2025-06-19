@@ -94,13 +94,6 @@ export const rebalancerPollingErrorsTotal = new Counter({
   labelNames: ['warp_route_id'],
 });
 
-export const rebalancerConsecutiveExecutionFailures = new Gauge({
-  name: 'hyperlane_rebalancer_consecutive_execution_failures',
-  help: 'Number of consecutive failed rebalance execution attempts.',
-  registers: [metricsRegister],
-  labelNames: ['warp_route_id'],
-});
-
 const walletBalanceGauge = new Gauge({
   // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
   name: 'hyperlane_wallet_balance',

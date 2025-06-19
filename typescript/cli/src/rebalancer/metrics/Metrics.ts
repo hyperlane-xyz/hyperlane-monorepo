@@ -24,7 +24,6 @@ import { formatBigInt, monitorLogger, tryFn } from '../utils/index.js';
 import { PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
-  rebalancerConsecutiveExecutionFailures,
   rebalancerExecutionAmount,
   rebalancerExecutionTotal,
   rebalancerPollingErrorsTotal,
@@ -56,19 +55,10 @@ export class Metrics implements IMetrics {
     startMetricsServer(metricsRegister);
   }
 
-  initializeRebalancerMetrics() {
-    rebalancerConsecutiveExecutionFailures
-      .labels({ warp_route_id: this.warpRouteId })
-      .set(0);
-  }
-
   recordRebalancerSuccess() {
     rebalancerExecutionTotal
       .labels({ warp_route_id: this.warpRouteId, succeeded: 'true' })
       .inc();
-    rebalancerConsecutiveExecutionFailures
-      .labels({ warp_route_id: this.warpRouteId })
-      .set(0);
   }
 
   recordRebalanceAmount(
@@ -88,9 +78,6 @@ export class Metrics implements IMetrics {
   recordRebalancerFailure() {
     rebalancerExecutionTotal
       .labels({ warp_route_id: this.warpRouteId, succeeded: 'false' })
-      .inc();
-    rebalancerConsecutiveExecutionFailures
-      .labels({ warp_route_id: this.warpRouteId })
       .inc();
   }
 

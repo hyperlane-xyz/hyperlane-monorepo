@@ -122,8 +122,6 @@ export class RebalancerRunner {
       warnYellow(
         'Metrics collection has been enabled and will be gathered during execution',
       );
-      // Initialize execution status metrics, if metrics are enabled
-      metrics?.initializeRebalancerMetrics();
     }
 
     return new RebalancerRunner(
