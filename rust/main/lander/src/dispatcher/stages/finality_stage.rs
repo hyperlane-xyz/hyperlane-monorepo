@@ -171,22 +171,12 @@ impl FinalityStage {
             TransactionStatus::Included => {
                 // tx is not finalized yet, keep it in the pool
                 info!(?tx, "Transaction is not yet finalized");
-                let reverted_payloads = call_until_success_or_nonretryable_error(
-                    || state.adapter.reverted_payloads(&tx),
-                    "Checking reverted payloads",
-                    state,
-                )
-                .await?;
-                state
-                    .update_status_for_payloads(
-                        &reverted_payloads,
-                        PayloadStatus::Dropped(DropReason::Reverted),
-                    )
-                    .await;
+                Self::record_reverted_payloads(&mut tx, state).await?;
             }
             TransactionStatus::Finalized => {
                 // update tx status in db
                 update_tx_status(state, &mut tx, tx_status).await?;
+                Self::record_reverted_payloads(&mut tx, state).await?;
                 let tx_uuid = tx.uuid.clone();
                 info!(?tx_uuid, "Transaction is finalized");
                 let _ = pool.remove(&tx_uuid).await;
@@ -205,6 +195,25 @@ impl FinalityStage {
                 error!(?tx, "Transaction should not be in the finality stage.");
             }
         }
+        Ok(())
+    }
+
+    async fn record_reverted_payloads(
+        tx: &mut Transaction,
+        state: &DispatcherState,
+    ) -> Result<(), LanderError> {
+        let reverted_payloads = call_until_success_or_nonretryable_error(
+            || state.adapter.reverted_payloads(&tx),
+            "Checking reverted payloads",
+            state,
+        )
+        .await?;
+        state
+            .update_status_for_payloads(
+                &reverted_payloads,
+                PayloadStatus::Dropped(DropReason::Reverted),
+            )
+            .await;
         Ok(())
     }
 
