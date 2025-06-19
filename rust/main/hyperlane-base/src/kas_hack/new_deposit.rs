@@ -7,8 +7,9 @@ use dym_kas_relayer::deposit::on_new_deposit;
 use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
 use hyperlane_core::{
-    traits::TxOutcome, ChainCommunicationError, ChainResult, HyperlaneMessage, Indexed, LogMeta,
-    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, traits::PendingOperationResult,
+    traits::PendingOperationResult, traits::TxOutcome, ChainCommunicationError, ChainResult,
+    HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, MultisigSignedCheckpointError,
+    SignedCheckpointWithMessageId,
 };
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
@@ -62,17 +63,13 @@ async fn gather_sigs_and_send_to_hub<M: Mailbox>(
 ) -> ChainResult<TxOutcome> {
     // need to ultimately send to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/hyperlane-cosmos-native/src/mailbox.rs#L131
     let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
-    let sigs_res = validators_client.get_deposit_sigs(&fxg).await;
+    let sigs_res = validators_client.get_deposit_sigs(&fxg).await?;
+
     let threshold = 3usize;
-    let multisig = to_multisig(&mut sigs_res, threshold)?;
+    // let multisig = to_multisig(&mut sigs_res, threshold)?;
 
-    // let metadata = b"";
-    // unimplemented!()
-    let outcome = hub_mailbox.process(&m, &[], None).await?
-}
-
-pub trait MetadataConstructor {
-    fn metadat(&self, message: &HyperlaneMessage) -> Result<[u8], PendingOperationResult>;
+    unimplemented!()
+    // let outcome = hub_mailbox.process(&m, &[], None).await?
 }
 
 /*
@@ -81,14 +78,8 @@ We circumvent the ticker of the processor loop
     Because it would be a lot of work to fully integrate into it, and it probably has assumptions that would be tricky for us to satisfy (nonce etc)
     Instead we use the pending message builder and the metadata construction from that, and then do a direct chain send
  */
-fn get_metadata -> Result<Metadata, PendingOperationResult> {
-    let pending_msg = PendingMessage::maybe_from_persisted_retries(
-        msg,
-        destination_msg_ctx.clone(),
-        app_context,
-        self.max_retries,
-    )
-
+pub trait MetadataConstructor {
+    fn metadata(&self, message: &HyperlaneMessage) -> Result<&[u8], PendingOperationResult>;
 }
 
 fn to_multisig(
@@ -100,7 +91,7 @@ fn to_multisig(
     }
     let checkpoint: MultisigSignedCheckpoint = sigs
         .try_into()
-        .map_err(|e| ChainCommunicationError::InvalidRequest { msg: e.to_string() })?;
+        .map_err(|e: MultisigSignedCheckpointError| ChainCommunicationError::InvalidRequest { msg: e.to_string() })?;
     Ok(checkpoint)
 }
 
