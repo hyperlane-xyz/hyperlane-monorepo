@@ -8,7 +8,7 @@ use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
 use hyperlane_core::{
     traits::TxOutcome, ChainCommunicationError, ChainResult, HyperlaneMessage, Indexed, LogMeta,
-    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId,
+    Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, Metadata,
 };
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
@@ -68,6 +68,22 @@ async fn gather_sigs_and_send_to_hub<M: Mailbox>(
 
     let metadata = b"";
     let outcome = hub_mailbox.process(&m, &[], None).await?
+}
+
+/*
+We circumvent the ticker of the processor loop
+    https://github.com/dymensionxyz/hyperlane-monorepo/blob/bb9df82a19c0583b994adbb40436168a55b8442e/rust/main/agents/relayer/src/msg/processor.rs#L254
+    Because it would be a lot of work to fully integrate into it, and it probably has assumptions that would be tricky for us to satisfy (nonce etc)
+    Instead we use the pending message builder and the metadata construction from that, and then do a direct chain send
+ */
+fn get_metadata -> Result<Metadata, PendingOperationResult> {
+    let pending_msg = PendingMessage::maybe_from_persisted_retries(
+        msg,
+        destination_msg_ctx.clone(),
+        app_context,
+        self.max_retries,
+    )
+
 }
 
 fn to_multisig(
