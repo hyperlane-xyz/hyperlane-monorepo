@@ -218,7 +218,7 @@ impl BaseAgent for Validator {
                 .router(),
             )
             .merge(
-                // TODO: config based, and only if for kaspa
+                // TODO: config based, and only if for
                 dymension_kaspa::router(self.raw_signer.clone())
             );
 

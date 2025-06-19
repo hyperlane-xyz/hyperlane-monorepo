@@ -14,7 +14,6 @@ mod server;
 mod settings;
 mod submit;
 mod validator;
-mod dymension_test;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
