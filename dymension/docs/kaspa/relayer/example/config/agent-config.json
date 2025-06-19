@@ -75,7 +75,9 @@
         }
       ],
       "escrowAddress": "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p",
-      "kaspaRestUrl": "https://api-tn10.kaspa.org"
+      "kaspaRestUrl": "https://api-tn10.kaspa.org",
+      "validatorHosts": "",
+      "validatorIDS": ""
     }
   },
   "defaultRpcConsensusType": "fallback",

@@ -7,7 +7,9 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
+use hyperlane_core::{
+    config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256, utils::hex_to_h256,
+};
 
 use hyperlane_starknet as h_starknet;
 
@@ -324,23 +326,31 @@ pub fn build_kaspa_connection_conf(
 
     let rest_url = Url::parse(&rest_url_s).unwrap();
 
-    let validator_hosts = chain
+    let validator_hosts: Vec<String> = chain
         .chain(err)
-        .get_opt_key("validatorHosts")
+        .get_key("validatorHosts")
         .parse_string()
-        .end()?;
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
 
-    let validator_ids = chain
+    let validator_ids: Vec<H256> = chain
         .chain(err)
-        .get_opt_key("validatorIDS")
+        .get_key("validatorIDS")
         .parse_string()
-        .end()?;
-
-        
-
+        .end()?
+        .split(',')
+        .map(|s| H256::from_str(s).unwrap())
+        .collect();
 
     Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(rest_url, escrow_address.unwrap().to_string()),
+        dymension_kaspa::ConnectionConf::new(
+            rest_url,
+            escrow_address.unwrap().to_string(),
+            validator_hosts,
+            validator_ids,
+        ),
     ))
 }
 
