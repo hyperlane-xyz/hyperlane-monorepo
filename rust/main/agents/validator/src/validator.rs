@@ -219,8 +219,7 @@ impl BaseAgent for Validator {
             )
             .merge(
                 // TODO: config based
-                dym
-                dymension_kaspa::router()
+                dymension_kaspa::router(self.raw_signer.clone())
             );
 
         let server = self

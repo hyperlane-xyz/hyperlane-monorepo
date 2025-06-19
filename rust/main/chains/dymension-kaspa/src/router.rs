@@ -57,7 +57,11 @@ async fn validate_new_deposits<S: Signer>(
         message_id,
     };
 
-    let sig = state.signer.sign_checkpoint(to_sign).await?;
+    let sig = state
+        .signer
+        .sign_checkpoint(to_sign)
+        .await
+        .map_err(|e| AppError(e.into()))?;
     let j =
         serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
 
