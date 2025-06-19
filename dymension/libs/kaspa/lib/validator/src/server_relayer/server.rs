@@ -1,7 +1,20 @@
 use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use core::comms::endpoints::*;
+use core::deposit::DepositFXG;
+use crate::deposit::validate_deposits;
+
+
 
 async fn validate_new_deposits(body: Bytes) -> StatusCode {
+    let deposits: DepositFXG = body.try_into();
+    if let Err(e) = deposits {
+        return StatusCode::BAD_REQUEST;
+    }
+
+    if !validate_deposits(&deposits) {
+        return StatusCode::BAD_REQUEST;
+    }
+
     StatusCode::OK
 }
 
