@@ -4,16 +4,18 @@ use core::comms::endpoints::*;
 use core::deposit::DepositFXG;
 
 async fn validate_new_deposits(body: Bytes) -> StatusCode {
-    let deposits: DepositFXG = body.try_into();
-    if let Err(e) = deposits {
-        return StatusCode::BAD_REQUEST;
+    let deposits = body.try_into();
+    match deposits {
+        Ok(deposits) => {
+            if !validate_deposits(&deposits) {
+                return StatusCode::BAD_REQUEST
+            }
+            StatusCode::OK
+        }
+        Err(e) => {
+            return StatusCode::BAD_REQUEST
+        }
     }
-
-    if !validate_deposits(&deposits) {
-        return StatusCode::BAD_REQUEST;
-    }
-
-    StatusCode::OK
 }
 
 async fn sign_pskts(body: Bytes) -> (StatusCode, Bytes) {

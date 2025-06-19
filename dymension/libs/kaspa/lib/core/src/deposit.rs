@@ -1,6 +1,6 @@
 use super::escrow::*;
 
-use eyre::Error;
+use eyre::Error as EyreError;
 
 use bytes::Bytes;
 
@@ -17,7 +17,7 @@ use workflow_core::abortable::Abortable;
 pub struct DepositFXG;
 
 impl TryFrom<Bytes> for DepositFXG {
-    type Error = Error;
+    type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         unimplemented!()
