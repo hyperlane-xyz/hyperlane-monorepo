@@ -85,4 +85,8 @@ export const blacklistedMessageIds = [
   '0xd48b8599f52e75d43916a7d1ec9512c98c5025394bc4983bf7c6309744758b9e',
   '0x4f984fb0312da11f55b931a809563072bd8a46d44da0e42dfce40a9ccf1b97f2',
   '0x50b8a9b21a4a2c980db8232d819cab72fe04707e39fc1b78ef5e583a44c412cf',
+
+  // Messages to a recipient that Neutron doesn't seem to allow
+  '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
+  '0xc376df3e8d82de669b48b58e0521db5cf6c23a21fb2230487c30536f7b6503f7',
 ];
