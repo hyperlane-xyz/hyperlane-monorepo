@@ -2,7 +2,7 @@ use crate::deposit::validate_deposits;
 use axum::{body::Bytes, http::StatusCode, routing::post, Router};
 use core::comms::endpoints::*;
 use core::deposit::DepositFXG;
-use dym_kas_validator::server_relayer::server::{validate_new_deposits as validate_new_deposits_impl};
+use dym_kas_validator::server_relayer::server::validate_new_deposits as validate_new_deposits_impl;
 
 /*
 What needs to happen
@@ -10,27 +10,9 @@ What needs to happen
 2. Call F() to get FXG
 3. Call network to validator with FXG, and what's needed to produce a sig
 4. Call G(FXG) to check if to sign
-5. Possibly sign 
+5. Possibly sign
 6. Return to relayer over network the digest
  */
-
-async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
-    let res = validate_new_deposits_impl(body).await;
-    if Err(e) = res {
-        return (StatusCode::BAD_REQUEST, 
-    }
-
-
-    // TODO: produce a digest sig
-}
-
-async fn sign_pskts(body: Bytes) -> (StatusCode, Bytes) {
-    unimplemented!()
-}
-
-async fn validate_confirmed_withdrawals(body: Bytes) -> (StatusCode, Bytes) {
-    unimplemented!()
-}
 
 pub fn router() -> Router {
     Router::new()
@@ -42,61 +24,20 @@ pub fn router() -> Router {
         )
 }
 
-use crate::deposit::validate_deposits;
-use axum::{body::Bytes, http::StatusCode, routing::post, Router};
-use core::deposit::DepositFXG;
-use eyre::Error;
-
-pub struct ConfirmedKaspaDeposit{
-    messageID :
-}
-
-
-pub async fn validate_new_deposits(body: Bytes) -> Result<bool, Error> {
+async fn validate_new_deposits(body: Bytes) -> (StatusCode, Bytes) {
     let deposits = body.try_into();
     match deposits {
         Ok(deposits) => Ok(validate_deposits(&deposits)),
         Err(e) => return Err(e),
     }
+
+    // TODO: produce a digest sig
 }
 
-pub async fn sign_pskts(body: Bytes) -> (StatusCode, Bytes) {
+async fn sign_pskts(body: Bytes) -> (StatusCode, Bytes) {
     unimplemented!()
 }
 
-pub async fn validate_confirmed_withdrawals(body: Bytes) -> bool {
-    unimplemented!()
-}
-
-
-pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<bool, Error> {
-    let bz = Bytes::from(deposits);
-    let c = reqwest::Client::new();
-    let res = c
-        .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
-        .body(bz)
-        .send()
-        .await?;
-    let status = res.status();
-    if status == StatusCode::OK {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-
-struct PSKTRes;
-struct PSKTFXG;
-
-pub async fn sign_pskts(host: String, pskts: &PSKTFXG) -> Result<PSKTRes, Error> {
-    unimplemented!()
-}
-
-struct WithdrawalFXG;
-
-pub async fn validate_confirmed_withdrawals(
-    host: String,
-    withdrawals: &WithdrawalFXG,
-) -> Result<bool, Error> {
+async fn validate_confirmed_withdrawals(body: Bytes) -> (StatusCode, Bytes) {
     unimplemented!()
 }

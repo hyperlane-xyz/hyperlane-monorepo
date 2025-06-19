@@ -17,6 +17,8 @@ mod providers;
 mod signers;
 mod validator_announce;
 
+mod endpoints;
+
 mod libs;
 
 // Direct reexports of lib stuff:

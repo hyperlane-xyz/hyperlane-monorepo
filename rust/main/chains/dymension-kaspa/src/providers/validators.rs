@@ -16,7 +16,7 @@ use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
 pub use dym_kas_core::api::deposits::*;
 use dym_kas_core::deposit::DepositFXG;
-use dym_kas_relayer::client_validator::client::validate_new_deposits;
+use crate::endpoints::*;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -45,7 +45,7 @@ impl ValidatorsClient {
     }
 
     ///
-    pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
+    pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Sigs> {
         // TODO: in parallel
         let mut results = Vec::new();
         for host in self.conf.validator_hosts.clone().into_iter() {
@@ -61,7 +61,7 @@ impl ValidatorsClient {
     }
 }
 
-pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<bool, Error> {
+pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Result<Sigs, Error> {
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
@@ -69,6 +69,8 @@ pub async fn validate_new_deposits(host: String, deposits: &DepositFXG) -> Resul
         .body(bz)
         .send()
         .await?;
+
+    // TODO: need to return sigs here
     let status = res.status();
     if status == StatusCode::OK {
         Ok(true)
@@ -89,6 +91,6 @@ struct WithdrawalFXG;
 pub async fn validate_confirmed_withdrawals(
     host: String,
     withdrawals: &WithdrawalFXG,
-) -> Result<bool, Error> {
+) -> Result<bool, Error> { // TODO: should be sigs too
     unimplemented!()
 }

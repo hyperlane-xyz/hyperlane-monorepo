@@ -25,6 +25,11 @@ impl DepositCache {
 
 // tODO: see https://github.com/dymensionxyz/hyperlane-monorepo/blob/00b8642100af822767ceb605bc2627de7ddde610/rust/main/hyperlane-core/src/types/checkpoint.rs#L32-L51
 
+struct Sigs{
+    sigs: Vec<Vec<u8>>,
+}
+
+
 pub async fn handle_observed_deposits(
     validators: &ValidatorsClient,
     cache: &mut DepositCache,
