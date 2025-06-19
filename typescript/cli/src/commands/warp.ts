@@ -1,4 +1,4 @@
-import { format } from 'util';
+import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -521,13 +521,14 @@ export const rebalancer: CommandModuleWithWriteContext<{
       runner = await RebalancerRunner.create(rest, context);
     } catch (e: any) {
       // exit on startup errors
-      errorRed('Rebalancer startup error:', format(e));
+      errorRed('Rebalancer startup error:', util.format(e));
       process.exit(1);
     }
 
     try {
       await runner.run();
-    } catch {
+    } catch (e: any) {
+      errorRed('Rebalancer error:', util.format(e));
       process.exit(1);
     }
   },
