@@ -201,7 +201,7 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
-        if tx.tx_hashes.is_empty() {
+        if tx.submission_attempts == 0 {
             // simulate transaction before we submit it for the first time
 
             let (transaction, failed_payloads) = call_until_success_or_nonretryable_error(

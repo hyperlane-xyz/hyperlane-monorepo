@@ -26,6 +26,8 @@ pub enum LanderError {
     PayloadNotFound,
     #[error("Transaction simulation failed")]
     SimulationFailed,
+    #[error("Transaction estimation failed")]
+    EstimationFailed,
     #[error("Non-retryable error: {0}")]
     NonRetryableError(String),
 
@@ -48,6 +50,7 @@ impl LanderError {
             LanderError::EyreError(_) => "EyreError".to_string(),
             LanderError::PayloadNotFound => "PayloadNotFound".to_string(),
             LanderError::SimulationFailed => "SimulationFailed".to_string(),
+            LanderError::EstimationFailed => "EstimationFailed".to_string(),
             LanderError::NonRetryableError(_) => "NonRetryableError".to_string(),
             LanderError::DbError(_) => "DbError".to_string(),
             LanderError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
@@ -99,6 +102,7 @@ impl IsRetryable for LanderError {
             LanderError::NonRetryableError(_) => false,
             LanderError::TxReverted => false,
             LanderError::SimulationFailed => false,
+            LanderError::EstimationFailed => false,
             LanderError::ChannelClosed => false,
             LanderError::PayloadNotFound => false,
             LanderError::TxAlreadyExists => false,

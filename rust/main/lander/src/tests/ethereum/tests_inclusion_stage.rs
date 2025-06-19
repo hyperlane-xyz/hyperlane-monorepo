@@ -180,22 +180,81 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
-    let mut estimate_gas_call_counter = 0;
+    let mut simulate_call_counter = 0;
     mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(move |_, _| {
-            estimate_gas_call_counter += 1;
+        .expect_simulate()
+        .returning(move |_, _, _| {
+            simulate_call_counter += 1;
             // simulation passes on the first call, but fails on the second
-            if estimate_gas_call_counter < 2 {
-                Ok(21000.into())
+            if simulate_call_counter < 2 {
+                Ok((vec![], vec![]))
             } else {
                 Err(ChainCommunicationError::CustomError(
                     "transaction simulation failed".to_string(),
                 ))
             }
         });
+    let mut estimate_gas_call_counter = 0;
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(move |_, _| {
+            estimate_gas_call_counter += 1;
+            // estimation passes on the first call, but fails on the second
+            if estimate_gas_call_counter < 2 {
+                Ok(21000.into())
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction estimation failed".to_string(),
+                ))
+            }
+        });
 
     // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
+    // we keep resubmitting it until it finally gets included
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42)))) // Block number for the last submission
+            }
+        });
+
+    // assert sending the tx always works
+    mock_evm_provider
+        .expect_send()
+        .returning(move |_tx, _| Ok(H256::random()));
+
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_which_fails_estimation_after_submission_is_delivered() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    let mut estimate_gas_call_counter = 0;
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(move |_, _| {
+            estimate_gas_call_counter += 1;
+            // estimation passes on the first call, but fails on the second
+            if estimate_gas_call_counter < 2 {
+                Ok(21000.into())
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction estimation failed".to_string(),
+                ))
+            }
+        });
+
+    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing estimation,
     // we keep resubmitting it until it finally gets included
     let mut tx_receipt_call_counter = 0;
     mock_evm_provider
