@@ -178,16 +178,16 @@ impl AdaptsChain for EthereumAdapter {
             return vec![];
         };
 
-        let payload_details = payloads
+        let (payload_details, precursors): (
+            Vec<PayloadDetails>,
+            Vec<(TypedTransaction, Function)>,
+        ) = payloads
             .iter()
-            .map(|payload| payload.details.clone())
-            .collect::<Vec<PayloadDetails>>();
-
-        let precursors = payloads
-            .iter()
-            .map(|payload| EthereumTxPrecursor::from_payload(payload, signer))
-            .map(|precursor: EthereumTxPrecursor| (precursor.tx, precursor.function))
-            .collect::<Vec<(TypedTransaction, Function)>>();
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, signer);
+                (payload.details.clone(), (precursor.tx, precursor.function))
+            })
+            .unzip();
 
         let multi_precursor = self
             .provider
