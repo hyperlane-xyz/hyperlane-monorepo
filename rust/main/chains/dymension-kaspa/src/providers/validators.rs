@@ -16,6 +16,7 @@ use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
 
 pub use dym_kas_core::api::deposits::*;
 use dym_kas_core::deposit::DepositFXG;
+use dym_kas_relayer::client_validator::client::validate_new_deposits;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -43,15 +44,18 @@ impl ValidatorsClient {
         Ok(ValidatorsClient { conf })
     }
 
-
     pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
-        let c = reqwest::Client::new();
-        let res = c.post("http://localhost:8080/deposit/validate")
-            .json(fxg)
-            .send()
-            .await?;
-        let body = res.json::<Vec<bool>>().await?;
-        Ok(body)
-
+        // TODO: in parallel
+        let mut results = Vec::new();
+        for host in self.conf.validator_hosts {
+            let res = validate_new_deposits(host, fxg).await;
+            match res {
+                Ok(r) => results.push(r),
+                Err(e) => {
+                    results.push(false);
+                }
+            }
+        }
+        Ok(results)
     }
 }

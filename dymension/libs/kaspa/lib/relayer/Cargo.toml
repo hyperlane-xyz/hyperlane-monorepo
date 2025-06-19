@@ -17,3 +17,6 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
+reqwest = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }

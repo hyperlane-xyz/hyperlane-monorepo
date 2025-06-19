@@ -3868,7 +3868,9 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 name = "relayer"
 version = "0.2.0"
 dependencies = [
+ "bytes",
  "core",
+ "eyre",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -3878,6 +3880,7 @@ dependencies = [
  "kaspa-wallet-core",
  "kaspa-wallet-pskt",
  "log",
+ "reqwest",
  "secp256k1",
  "tokio",
  "workflow-core",

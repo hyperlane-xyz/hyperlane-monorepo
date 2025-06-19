@@ -24,6 +24,12 @@ impl TryFrom<Bytes> for DepositFXG {
     }
 }
 
+impl From<&DepositFXG> for Bytes {
+    fn from(deposit: &DepositFXG) -> Self {
+        unimplemented!()
+    }
+}
+
 pub async fn deposit(
     w: &Arc<Wallet>,
     secret: &Secret,

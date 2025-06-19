@@ -10289,7 +10289,9 @@ dependencies = [
 name = "relayer"
 version = "0.2.0"
 dependencies = [
+ "bytes",
  "core",
+ "eyre",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -10299,6 +10301,7 @@ dependencies = [
  "kaspa-wallet-core",
  "kaspa-wallet-pskt",
  "log",
+ "reqwest 0.12.15",
  "secp256k1 0.29.1",
  "tokio",
  "workflow-core",

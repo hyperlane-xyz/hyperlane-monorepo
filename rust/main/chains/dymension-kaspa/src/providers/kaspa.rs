@@ -11,6 +11,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use super::RestProvider;
+use super::validators::ValidatorsClient;
 
 use crate::{ConnectionConf, Signer};
 
@@ -21,6 +22,7 @@ pub struct KaspaProvider {
     conf: ConnectionConf,
     rest: RestProvider,
     // TODO: wrpc
+    validators: ValidatorsClient,
 }
 
 impl KaspaProvider {
@@ -33,11 +35,13 @@ impl KaspaProvider {
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
+        let validators = ValidatorsClient::new(conf.clone())?;
 
         Ok(KaspaProvider {
             domain: locator.domain.clone(),
             conf: conf.clone(),
             rest,
+            validators,
         })
     }
 
@@ -45,6 +49,12 @@ impl KaspaProvider {
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
+
+       /// dococo
+    pub fn validators(&self) -> &ValidatorsClient {
+        &self.validators
+    }
+     
 }
 
 impl HyperlaneChain for KaspaProvider {

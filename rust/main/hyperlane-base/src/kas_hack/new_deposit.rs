@@ -49,7 +49,7 @@ pub async fn handle_observed_deposits(
     for deposit in &new_deposits {
         let fxg = on_new_deposit(deposit); // local call
         if let Some(fxg) = fxg {
-            if validate_deposits(&fxg) {
+            if validate_deposits(&fxg) { // TODO: should not be teh validator call here
                 // TODO: now to need to get the merkle sig and send up to hub
             }
         }

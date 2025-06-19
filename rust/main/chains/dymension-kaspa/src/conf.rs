@@ -12,7 +12,7 @@ use hyperlane_core::{
 pub struct ConnectionConf {
     pub kaspa_rest_url: Url,
     pub escrow_address: String,
-    pub validator_hosts: Vec<Url>,
+    pub validator_hosts: Vec<String>,
 }
 
 impl ConnectionConf {
