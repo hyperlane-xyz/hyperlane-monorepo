@@ -1,0 +1,24 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Commitment {
+  commitment           String
+  revealMessageId      String   @id
+  calls                Json
+  relayers             Json
+  salt                 String
+  ica                  String
+  commitmentDispatchTx String
+  originDomain         Int
+  createdAt            DateTime @default(now())
+}
