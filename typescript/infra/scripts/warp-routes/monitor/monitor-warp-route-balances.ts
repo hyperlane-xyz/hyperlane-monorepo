@@ -44,7 +44,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './metrics.js';
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger, tryFn } from './utils.js';
+import { logger, setLoggerBindings, tryFn } from './utils.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
@@ -63,7 +63,12 @@ async function main() {
     .number('checkFrequency')
     .parse();
 
-  const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
+  const warpRouteId =
+    warpRouteIdArg || (await getWarpRouteIdInteractive(environment));
+
+  setLoggerBindings({
+    warp_route: warpRouteId,
+  });
 
   startMetricsServer(metricsRegister);
 

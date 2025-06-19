@@ -108,7 +108,7 @@ pub trait EvmProviderForLander: Send + Sync {
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError>;
+    ) -> ChainResult<U256>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -117,7 +117,11 @@ pub trait EvmProviderForLander: Send + Sync {
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
     /// Get the next nonce to use for a given address (using the finalized block)
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256>;
 
     /// Get the fee history
     async fn fee_history(
@@ -174,7 +178,7 @@ where
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError> {
+    ) -> ChainResult<U256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
@@ -200,9 +204,19 @@ where
         Ok(success)
     }
 
-    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256> {
+        let finalized_block_number = self.get_finalized_block_number(reorg_period).await?;
         self.provider
-            .get_transaction_count(*address, Some(BlockId::Number(BlockNumber::Finalized)))
+            .get_transaction_count(
+                *address,
+                Some(BlockId::Number(BlockNumber::Number(
+                    finalized_block_number.into(),
+                ))),
+            )
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(Into::into)
@@ -394,7 +408,7 @@ pub struct SubmitterProviderBuilder {}
 
 #[async_trait]
 impl BuildableWithProvider for SubmitterProviderBuilder {
-    type Output = Box<dyn EvmProviderForLander>;
+    type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 
     // the submitter does not use the ethers submission middleware.
@@ -410,7 +424,7 @@ impl BuildableWithProvider for SubmitterProviderBuilder {
         _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumProvider::new(
+        Arc::new(EthereumProvider::new(
             Arc::new(provider),
             locator.domain.clone(),
         ))

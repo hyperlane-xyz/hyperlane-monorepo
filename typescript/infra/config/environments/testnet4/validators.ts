@@ -585,14 +585,14 @@ export const validatorChainConfig = (
       ),
     },
 
-    rometestnet: {
+    rometestnet2: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('rometestnet'),
+      reorgPeriod: getReorgPeriod('rometestnet2'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x259eec09dd54c34043bc991f1aae014294235b8e'],
+          [Contexts.Hyperlane]: ['0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e'],
         },
-        'rometestnet',
+        'rometestnet2',
       ),
     },
     neuratestnet: {

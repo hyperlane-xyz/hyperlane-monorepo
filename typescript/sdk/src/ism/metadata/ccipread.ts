@@ -20,7 +20,9 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
   ): Promise<string> {
     const { ism, message } = context;
-    const provider = this.core.multiProvider.getProvider(message.parsed.origin);
+    const provider = this.core.multiProvider.getProvider(
+      message.parsed.destination,
+    );
     const contract = AbstractCcipReadIsm__factory.connect(
       ism.address,
       provider,
@@ -45,6 +47,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       string[],
       Uint8Array,
     ];
+
     const callDataHex = utils.hexlify(callData);
 
     const signer = this.core.multiProvider.getSigner(
