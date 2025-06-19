@@ -42,7 +42,7 @@ mockall::mock! {
             &self,
             tx: &TypedTransaction,
             function: &Function,
-        ) -> Result<U256, ChainCommunicationError>;
+        ) -> ChainResult<U256>;
 
         async fn batch(
             &self,
@@ -57,6 +57,12 @@ mockall::mock! {
             batch_contract_address: H256,
             precursors: Vec<(TypedTransaction, Function)>,
         ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
+
+        async fn estimate_batch(
+            &self,
+            multi_precursor: (TypedTransaction, Function),
+            precursors: Vec<(TypedTransaction, Function)>,
+        ) -> ChainResult<U256>;
 
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;

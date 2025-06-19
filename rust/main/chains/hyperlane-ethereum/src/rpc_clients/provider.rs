@@ -54,23 +54,6 @@ pub struct EthereumProvider<M> {
     domain: HyperlaneDomain,
 }
 
-impl<M> EthereumProvider<M> {
-    /// Create a ContractCall object for a given transaction and function.
-    pub fn build_contract_call<D>(
-        &self,
-        tx: TypedTransaction,
-        function: Function,
-    ) -> ContractCall<M, D> {
-        ContractCall {
-            tx,
-            function,
-            block: None,
-            client: self.provider.clone(),
-            datatype: PhantomData::<D>,
-        }
-    }
-}
-
 impl<M> HyperlaneChain for EthereumProvider<M>
 where
     M: Middleware + 'static,
@@ -127,6 +110,13 @@ pub trait EvmProviderForLander: Send + Sync {
         batch_contract_address: H256,
         precursors: Vec<(TypedTransaction, Function)>,
     ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
+
+    /// Estimate the batch transaction, which includes a multi-precursor transaction
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -232,6 +222,21 @@ where
         Ok(multicall::filter(call_results))
     }
 
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256> {
+        let (multi_tx, multi_function) = multi_precursor;
+        let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
+        let contract_calls = self.create_contract_calls(precursors);
+
+        let estimated = multicall::estimate(multicall_contract_call, contract_calls).await?;
+        let gas_limit = estimated.tx.gas().unwrap().into();
+
+        Ok(gas_limit)
+    }
+
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let pending = contract_call
@@ -302,6 +307,21 @@ impl<M> EthereumProvider<M>
 where
     M: 'static + Middleware,
 {
+    /// Create a ContractCall object for a given transaction and function.
+    fn build_contract_call<D>(
+        &self,
+        tx: TypedTransaction,
+        function: Function,
+    ) -> ContractCall<M, D> {
+        ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<D>,
+        }
+    }
+
     fn create_contract_calls(
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
@@ -311,12 +331,7 @@ where
             .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
             .collect::<Vec<_>>()
     }
-}
 
-impl<M> EthereumProvider<M>
-where
-    M: 'static + Middleware,
-{
     async fn create_multicall(
         &self,
         cache: Arc<Mutex<BatchCache>>,
@@ -329,6 +344,20 @@ where
             batch_contract_address,
         )
         .await
+    }
+
+    #[instrument(err, skip(self))]
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
+        let storage = self
+            .provider
+            .get_storage_at(
+                ethers_core_types::H160::from(address),
+                location.into(),
+                None,
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(storage.into())
     }
 }
 
@@ -463,25 +492,6 @@ where
             block.base_fee_per_gas.map(Into::into),
         );
         Ok(Some(chain_metrics))
-    }
-}
-
-impl<M> EthereumProvider<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
-        let storage = self
-            .provider
-            .get_storage_at(
-                ethers_core_types::H160::from(address),
-                location.into(),
-                None,
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        Ok(storage.into())
     }
 }
 

@@ -22,7 +22,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256};
 use hyperlane_ethereum::{
-    BatchCache, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
+    multicall, BatchCache, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
 use crate::{
@@ -152,6 +152,34 @@ impl EthereumAdapter {
             .collect::<Vec<_>>()
     }
 
+    async fn load_payloads(&self, tx: &Transaction) -> Result<Vec<FullPayload>, LanderError> {
+        let payload_futures = tx
+            .payload_details
+            .iter()
+            .map(|p| self.payload_db.retrieve_payload_by_uuid(&p.uuid))
+            .collect::<Vec<_>>();
+        let payloads = future::try_join_all(payload_futures).await?;
+        let payloads = payloads.into_iter().flatten().collect::<Vec<_>>();
+
+        if payloads.len() != tx.payload_details.len() {
+            // If we couldn't find all payloads, we can't proceed with batching
+            error!(
+                ?tx,
+                ?payloads,
+                "Failed to find all the payloads in the database for transaction simulation"
+            );
+            return Err(LanderError::PayloadNotFound);
+        }
+        Ok(payloads)
+    }
+
+    fn create_precursors(&self, payloads: &[FullPayload]) -> Vec<EthereumTxPrecursor> {
+        payloads
+            .iter()
+            .map(|p| EthereumTxPrecursor::from_payload(p, self.provider.get_signer().unwrap()))
+            .collect::<Vec<_>>()
+    }
+
     fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
         let mut metrics_source = PostInclusionMetricsSource::default();
         let precursor = tx.precursor().clone();
@@ -268,27 +296,10 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         // Batching case, simulate batch
-        let payload_futures = tx
-            .payload_details
-            .iter()
-            .map(|p| self.payload_db.retrieve_payload_by_uuid(&p.uuid))
-            .collect::<Vec<_>>();
-        let payloads = future::try_join_all(payload_futures).await?;
-        let payloads = payloads.into_iter().flatten().collect::<Vec<_>>();
-
-        if payloads.len() != tx.payload_details.len() {
-            // If we couldn't find all payloads, we can't proceed with batching
-            error!(
-                ?tx,
-                ?payloads,
-                "Failed to find all the payloads in the database for transaction simulation"
-            );
-            return Err(LanderError::SimulationFailed);
-        }
-
-        let precursors = payloads
-            .iter()
-            .map(|p| EthereumTxPrecursor::from_payload(p, self.provider.get_signer().unwrap()))
+        let payloads = self.load_payloads(tx).await?;
+        let precursors = self
+            .create_precursors(&payloads)
+            .into_iter()
             .map(|precursor| (precursor.tx, precursor.function))
             .collect::<Vec<_>>();
 
@@ -348,6 +359,38 @@ impl AdaptsChain for EthereumAdapter {
             )
             .await;
         }
+
+        // Batching case, estimate batch
+        let payloads = self.load_payloads(tx).await?;
+        let mut precursors = self.create_precursors(&payloads);
+
+        let payload_estimate_futures = precursors
+            .iter_mut()
+            .map(|p| {
+                gas_limit_estimator::estimate_gas_limit(
+                    self.provider.clone(),
+                    p,
+                    &self.transaction_overrides,
+                    &self.domain,
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+        future::try_join_all(payload_estimate_futures).await?;
+
+        let multi_precursor = tx.precursor().clone();
+        let multi_precursor = (multi_precursor.tx, multi_precursor.function);
+        let precursors = precursors
+            .into_iter()
+            .map(|p| (p.tx, p.function))
+            .collect::<Vec<_>>();
+
+        let gas_limit = self
+            .provider
+            .estimate_batch(multi_precursor, precursors)
+            .await?;
+
+        tx.precursor_mut().tx.set_gas(gas_limit);
 
         Ok(())
     }
