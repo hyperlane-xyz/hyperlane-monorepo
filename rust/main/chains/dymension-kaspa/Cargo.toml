@@ -43,6 +43,7 @@ pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
+reqwest = { workspace = true }
 hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub
 dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}

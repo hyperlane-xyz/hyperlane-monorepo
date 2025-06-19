@@ -45,6 +45,13 @@ impl ValidatorsClient {
 
 
     pub async fn validate_deposits(&self, fxg: &DepositFXG) -> ChainResult<Vec<bool>> {
+        let c = reqwest::Client::new();
+        let res = c.post("http://localhost:8080/deposit/validate")
+            .json(fxg)
+            .send()
+            .await?;
+        let body = res.json::<Vec<bool>>().await?;
+        Ok(body)
 
     }
 }

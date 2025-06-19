@@ -3715,6 +3715,7 @@ dependencies = [
  "pin-project",
  "protobuf",
  "relayer 0.2.0",
+ "reqwest 0.11.27",
  "ripemd",
  "serde",
  "serde_json",

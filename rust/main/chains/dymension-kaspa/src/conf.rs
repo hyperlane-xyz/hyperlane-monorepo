@@ -12,15 +12,17 @@ use hyperlane_core::{
 pub struct ConnectionConf {
     pub kaspa_rest_url: Url,
     pub escrow_address: String,
+    pub validator_hosts: Vec<Url>,
 }
 
 impl ConnectionConf {
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
-    pub fn new(kaspa_rest_url: Url, escrow_address: String) -> Self {
+    pub fn new(kaspa_rest_url: Url, escrow_address: String, validator_hosts: Vec<Url>) -> Self {
         Self {
             kaspa_rest_url,
             escrow_address,
+            validator_hosts,
         }
     }
 }
