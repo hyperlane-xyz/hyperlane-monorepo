@@ -169,6 +169,14 @@ impl AdaptsChain for EthereumAdapter {
         todo!()
     }
 
+    /// Builds a transaction for the given payloads.
+    ///
+    /// If there is only one payload, it builds a transaction without batching.
+    /// If there are multiple payloads, it batches them into a single transaction.
+    /// The order of individual calls in the batched transaction is determined
+    /// by the order of payloads.
+    /// The order should not change since the simulation and estimation of the batched transaction
+    /// depend on the order of payloads.
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         use super::transaction::TransactionFactory;
 
