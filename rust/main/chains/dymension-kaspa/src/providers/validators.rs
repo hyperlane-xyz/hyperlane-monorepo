@@ -1,16 +1,15 @@
-
 use tonic::async_trait;
 
 use std::collections::HashMap;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, SignedCheckpointWithMessageId, H256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult,
+    SignedCheckpointWithMessageId, H256,
 };
 
 use bytes::Bytes;
-use reqwest::StatusCode;
 use eyre::Result;
-
+use reqwest::StatusCode;
 
 use crate::ConnectionConf;
 
@@ -44,13 +43,20 @@ impl ValidatorsClient {
     }
 
     /// this runs on relayer
-    pub async fn validate_deposits(
+    pub async fn get_deposit_sigs(
         &self,
         fxg: &DepositFXG,
-    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> { // map validator addr to sig(s)
+    ) -> ChainResult<HashMap<H256, Vec<SignedCheckpointWithMessageId>>> {
+        // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = HashMap::new();
-        for (host, validator_id) in self.conf.validator_hosts.clone().into_iter().zip(self.conf.validator_ids.clone().into_iter()) {
+        for (host, validator_id) in self
+            .conf
+            .validator_hosts
+            .clone()
+            .into_iter()
+            .zip(self.conf.validator_ids.clone().into_iter())
+        {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let res = request_validate_new_deposits(host, fxg).await;
             match res {
@@ -79,6 +85,7 @@ pub async fn request_validate_new_deposits(
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
+        // calls to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/dymension-kaspa/src/router.rs#L40
         .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
         .body(bz)
         .send()

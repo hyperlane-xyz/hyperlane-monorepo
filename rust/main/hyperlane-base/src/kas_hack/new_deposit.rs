@@ -4,10 +4,9 @@ use tracing::{info, warn};
 
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_relayer::deposit::on_new_deposit;
-use dym_kas_validator::deposit::validate_deposits;
 use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
-use hyperlane_core::{ChainResult, Indexed, LogMeta, TXOutcome};
+use hyperlane_core::{traits::TxOutcome, ChainResult, HyperlaneMessage, Indexed, LogMeta};
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
@@ -24,7 +23,7 @@ impl DepositCache {
 }
 
 pub async fn handle_observed_deposits(
-    validators: &ValidatorsClient,
+    validators_client: &ValidatorsClient,
     cache: &mut DepositCache,
     deposits: Vec<Deposit>,
 ) {
@@ -40,7 +39,7 @@ pub async fn handle_observed_deposits(
     for deposit in &new_deposits {
         let fxg = on_new_deposit(deposit); // local call to F()
         if let Some(fxg) = fxg {
-            let results = validators.validate_deposits(&fxg).await;
+            let results = validators_client.get_deposit_sigs(&fxg).await;
             match results {
                 Ok(results) => {
                     // TODO: combine sigs and send up to hub
@@ -53,7 +52,14 @@ pub async fn handle_observed_deposits(
     }
 }
 
-async fn gather_sigs_and_send_to_hub(deposits: &DepositFXG) -> ChainResult<TXOutcome> {}
+async fn gather_sigs_and_send_to_hub(
+    validators_client: &ValidatorsClient,
+    fxg: &DepositFXG,
+) -> ChainResult<TxOutcome> {
+    // need to ultimately send to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/hyperlane-cosmos-native/src/mailbox.rs#L131
+    let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
+    let sigs_res = validators_client.get_deposit_sigs(&fxg).await;
+}
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
 where
