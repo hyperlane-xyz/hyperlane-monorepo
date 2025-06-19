@@ -135,13 +135,7 @@ impl EthereumAdapter {
 
     fn extract_vm_specific_metrics(tx: &Transaction) -> VmSpecificMetricsSource {
         let mut metrics_source = VmSpecificMetricsSource::default();
-        let VmSpecificTxData::Evm(precursor) = &tx.vm_specific_data else {
-            warn!(
-                ?tx,
-                "Transaction does not have EVM-specific data, skipping metrics update"
-            );
-            return metrics_source;
-        };
+        let precursor = tx.precursor().clone();
 
         if let TypedTransaction::Eip1559(precursor) = &precursor.tx {
             if let Some(max_prio_fee) = precursor.max_priority_fee_per_gas {
