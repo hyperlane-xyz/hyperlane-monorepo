@@ -37,7 +37,7 @@ async fn test_send_payloads_one_by_one() {
 }
 
 #[tokio::test]
-async fn test_send_multiple_payloads_at_once() {
+async fn test_send_multiple_payloads_at_once_without_batching() {
     const PAYLOADS_TO_SEND: usize = 3;
     let successful_build = true;
     let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
@@ -54,8 +54,8 @@ async fn test_send_multiple_payloads_at_once() {
     let payload_details_received =
         run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
     let expected_payload_details = sent_payloads
-        .iter()
-        .map(|payload| payload.details.clone())
+        .into_iter()
+        .map(|payload| payload.details)
         .collect::<Vec<_>>();
     assert_eq!(payload_details_received, expected_payload_details);
     assert_db_status_for_payloads(
