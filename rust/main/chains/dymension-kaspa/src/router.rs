@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 use dym_kas_validator::deposit::validate_deposits;
 
-trait Signer: HyperlaneSignerExt + Send + Sync + 'static {}
 
 pub struct AppError(eyre::Report);
 
@@ -33,11 +32,11 @@ impl IntoResponse for AppError {
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Clone)]
-struct AppState<S: Signer> {
+struct AppState<S: HyperlaneSignerExt + Send + Sync + 'static> { // TODO: needs to be shared across routers?
     signer: Arc<S>,
 }
 
-async fn respond_validate_new_deposits<S: Signer>(
+async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(state): State<Arc<AppState<S>>>,
     body: Bytes,
 ) -> AppResult<Json<String>> {
@@ -70,7 +69,7 @@ async fn respond_validate_new_deposits<S: Signer>(
     Ok(Json(j))
 }
 
-pub fn router<S: Signer>(signer: Arc<S>) -> Router {
+pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
     let state = Arc::new(AppState { signer });
 
     Router::new()
