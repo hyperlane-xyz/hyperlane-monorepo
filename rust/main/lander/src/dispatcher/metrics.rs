@@ -138,7 +138,7 @@ impl DispatcherMetrics {
         )?;
         let gas_price = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced("lander_gas_price"),
+                namespaced("gas_price"),
                 "The gas price for transactions, if applicable",
             ),
             &["destination",],
@@ -146,7 +146,7 @@ impl DispatcherMetrics {
         )?;
         let priority_fee = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced("lander_priority_fee"),
+                namespaced("priority_fee"),
                 "The priority fee for transactions, if applicable",
             ),
             &["destination",],
