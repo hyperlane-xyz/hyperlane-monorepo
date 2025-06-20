@@ -74,7 +74,7 @@ export async function runForkCommand({
     registries: [registry, new PartialRegistry({ chainMetadata })],
   });
   const httpRegistryServer = new HttpServer(async () => mergedRegistry);
-  httpRegistryServer.start();
+  await httpRegistryServer.start(basePort - 10);
 }
 
 async function forkChain(
