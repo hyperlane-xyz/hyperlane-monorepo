@@ -41,7 +41,7 @@ use crate::{
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_happy_path() {
-    let block_time = Duration::from_millis(100);
+    let block_time = Duration::from_millis(10);
     let mock_evm_provider = mocked_evm_provider();
 
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
@@ -50,7 +50,7 @@ async fn test_inclusion_happy_path() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_spike() {
-    let block_time = Duration::from_millis(100);
+    let block_time = Duration::from_millis(10);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
@@ -95,7 +95,7 @@ async fn test_inclusion_gas_spike() {
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(500);
-    let inclusion_stage_processing_delay = Duration::from_millis(50);
+    let inclusion_stage_processing_delay = Duration::from_millis(100);
     let block_time_clone = block_time.clone();
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
@@ -122,7 +122,7 @@ async fn test_inclusion_gas_spike() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_underpriced() {
-    let block_time = Duration::from_millis(100);
+    let block_time = Duration::from_millis(10);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
@@ -175,7 +175,7 @@ async fn test_inclusion_gas_underpriced() {
 #[tokio::test]
 #[traced_test]
 async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
-    let block_time = Duration::from_millis(100);
+    let block_time = Duration::from_millis(10);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
