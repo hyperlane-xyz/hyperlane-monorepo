@@ -9,12 +9,14 @@ use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{info, info_span, warn, Instrument};
 
-use dym_kas_core::deposit::DepositFXG;
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_relayer::deposit::on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
+
+use hyperlane_cosmos_dymension_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
@@ -46,8 +48,8 @@ where
         }
     }
 
-    pub fn run(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
-        let name = "foo";
+    pub fn run_deposit_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
+        let name = "dymension_kaspa_deposit_loop";
         tokio::task::Builder::new()
             .name(name)
             .spawn(TaskMonitor::instrument(
@@ -77,7 +79,7 @@ where
             for d in &deposits_new {
                 // Call to relayer.F()
                 if let Some(fxg) = on_new_deposit(d) {
-                    let res = self.get_validator_sigs_and_send_to_hub(&fxg).await;
+                    let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                     // TODO: check result
                 }
             }
@@ -85,16 +87,16 @@ where
         }
     }
 
-    async fn get_validator_sigs_and_send_to_hub(&self, fxg: &DepositFXG) -> ChainResult<TxOutcome> {
+    async fn get_deposit_validator_sigs_and_send_to_hub(&self, fxg: &DepositFXG) -> ChainResult<TxOutcome> {
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        if sigs.len() < self.provider.validators().threshold() as usize {
+        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
             return Err(ChainCommunicationError::InvalidRequest {
                 msg: format!(
                     "insufficient validator signatures: got {}, need {}",
                     sigs.len(),
-                    self.provider.validators().threshold()
+                    self.provider.validators().hub_ism_threshold()
                 ),
             });
         }
@@ -135,6 +137,62 @@ where
         }
 
         logs
+    }
+
+    pub fn run_confirmation_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
+        let name = "dymension_kaspa_confirmation_loop";
+        tokio::task::Builder::new()
+            .name(name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    self.confirmation_loop().await;
+                }
+                .instrument(info_span!("Kaspa Monitor")),
+            ))
+            .expect("Failed to spawn kaspa monitor task")
+    }
+
+    async fn confirmation_loop(&mut self) {
+        loop {
+            /*
+            - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
+            - [ ] Relayer will need to reach out to validators to gather the signatures over the progress indication
+            - [ ] Validator will need endpoint
+            - [ ] Validator will need to call VERIFY
+            - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
+            - [ ] Validator will need to sign appropriately
+            - [ ] Validator return
+            - [ ] Relayer post to hub
+                     */
+
+            time::sleep(Duration::from_secs(10)).await;
+        }
+    }
+
+    async fn get_confirmation_validator_sigs_and_send_to_hub(&self, fxg: &ConfirmationFXG) -> ChainResult<TxOutcome> {
+        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
+        let mut sigs = self.provider.validators().get_confirmation_sigs(fxg).await?;
+
+        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: format!(
+                    "insufficient validator signatures: got {}, need {}",
+                    sigs.len(),
+                    self.provider.validators().hub_ism_threshold()
+                ),
+            });
+        }
+
+        // TODO: construct appropriate metadata and send up to hub
+        unimplemented!()
+    }
+
+    pub async fn on_new_progress_indication(
+        &self,
+        progress_indication: ProgressIndication,
+    ) -> ChainResult<TxOutcome> {
+        unimplemented!()
     }
 }
 

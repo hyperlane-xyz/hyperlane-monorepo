@@ -14,7 +14,7 @@ use reqwest::StatusCode;
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
-use dym_kas_core::deposit::DepositFXG;
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -76,7 +76,17 @@ impl ValidatorsClient {
         Ok(results)
     }
 
-    pub fn threshold(&self) -> usize {
+        /// this runs on relayer
+        pub async fn get_confirmation_sigs(
+            &self,
+            fxg: &ConfirmationFXG,
+        ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
+            // TODO: impl, maybe need to change return type
+            unimplemented!()
+        
+        }
+
+    pub fn hub_ism_threshold(&self) -> usize { // TODO: clearly distinguish with kaspa multisig
         self.conf.kaspa_multisig_threshold
     }
 }
@@ -104,3 +114,5 @@ pub async fn request_validate_new_deposits(
         Err(eyre::eyre!("Failed to validate deposits: {}", status))
     }
 }
+
+// TODO: impl confirmation sig, mimic https://github.com/dymensionxyz/dymension/blob/6dfedd4126df6fa332ef95c750d2375c65e655ce/x/kas/keeper/msg_server.go#L42-L48

@@ -1464,7 +1464,9 @@ impl Relayer {
             metadata_getter,
         );
 
-        tasks.push(foo.run(task_monitor.clone()));
+        tasks.push(foo.run_deposit_loop(task_monitor.clone()));
+
+        // TODO: confirmation loop 
 
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
