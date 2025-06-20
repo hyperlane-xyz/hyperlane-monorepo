@@ -90,19 +90,4 @@ contract HypERC20Collateral is MovableCollateralRouter {
     ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }
-
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ITokenBridge bridge
-    ) internal override {
-        wrappedToken.safeApprove({spender: address(bridge), value: amount});
-        MovableCollateralRouter._rebalance({
-            domain: domain,
-            recipient: recipient,
-            amount: amount,
-            bridge: bridge
-        });
-    }
 }
