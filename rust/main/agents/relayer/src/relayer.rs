@@ -125,6 +125,7 @@ pub struct Relayer {
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
     kas_provider: Option<KaspaProvider>,
+    dym_mailbox: Option<Arc<dyn Mailbox>>
 }
 
 impl Debug for Relayer {
@@ -199,6 +200,7 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -504,6 +506,7 @@ impl BaseAgent for Relayer {
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
             kas_provider: kas_chain_provider,
+            dym_mailbox: mailboxes.get(&HyperlaneDomain::new(1, "dym", HyperlaneDomainProtocol::Dymension)).cloned(),
         })
     }
 
@@ -612,8 +615,8 @@ impl BaseAgent for Relayer {
                 let kas_provider = self.kas_provider.clone().unwrap();
                 
                 let metadata_getter = PendingMessageMetadataGetter::new_alt();
-                
-                let hub_mailbox : Mailbox = 
+
+                let hub_mailbox = self.dym_mailbox.clone().unwrap();
 
                 let foo = Foo::new(
                     origin.clone(),
@@ -623,15 +626,7 @@ impl BaseAgent for Relayer {
                     metadata_getter,
                 );
 
-                tasks.push(
-                    run_kas_monitor(
-                        origin.clone(),
-                        kas_db.clone().to_owned(),
-                        task_monitor.clone(),
-                        kas_provider,
-                    )
-                    .await,
-                );
+                tasks.push(foo.run(task_monitor.clone()));
 
                 // it observes the local db and makes sure messages are eventually written to the destination chain
                 tasks.push(self.run_message_processor(

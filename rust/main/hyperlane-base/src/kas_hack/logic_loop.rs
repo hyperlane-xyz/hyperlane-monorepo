@@ -131,7 +131,7 @@ where
 
         // let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
         let checkpoint: MultisigSignedCheckpoint =
-            MultisigSignedCheckpoint::try_from(&mut sigs_res)?;
+            MultisigSignedCheckpoint::try_from(&mut sigs_res).unwrap();
         // let metadata = MultisigMetadata::new(checkpoint, 0, None);
         let _threshold = 3usize; // TODO: threshold check
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
