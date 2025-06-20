@@ -113,8 +113,13 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   botanix: middleRateLimitPerSecond,
 };
 
-const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = ['bob', 'hashkey'];
-const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = ['swell', 'botanix'];
+const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = [
+  'bob',
+  'hashkey',
+  'swell',
+  'botanix',
+];
+const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
