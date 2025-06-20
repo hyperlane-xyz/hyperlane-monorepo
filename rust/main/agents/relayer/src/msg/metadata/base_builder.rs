@@ -310,6 +310,7 @@ impl BaseMetadataBuilder {
     }
 }
 
+/// DYMENSION: it allow metadata creation even if this stuff is not used but it's needed for type construction
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
 #[derive(new, Debug)]

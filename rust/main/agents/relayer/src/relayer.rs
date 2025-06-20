@@ -49,7 +49,7 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
-use super::dymension_submitter::PendingMessageMetadataGetter;
+use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
@@ -614,7 +614,7 @@ impl BaseAgent for Relayer {
 
                 let kas_provider = self.kas_provider.clone().unwrap();
 
-                let metadata_getter = PendingMessageMetadataGetter::new_alt();
+                let metadata_getter = PendingMessageMetadataGetter::new();
 
                 let hub_mailbox = self.dym_mailbox.clone().unwrap();
 
