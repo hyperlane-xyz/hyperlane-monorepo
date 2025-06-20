@@ -1,0 +1,17 @@
+{
+  "mainnet3": {
+    "hyperlane": "0xa3948a15e1d0778a7d53268b651B2411AF198FE3",
+    "neutron": "",
+    "rc": ""
+  },
+  "test": {
+    "hyperlane": "",
+    "neutron": "",
+    "rc": ""
+  },
+  "testnet4": {
+    "hyperlane": "0x97Ec110a7891A6Ac0501c0b6e40D991e288868A1",
+    "neutron": "",
+    "rc": ""
+  }
+}
