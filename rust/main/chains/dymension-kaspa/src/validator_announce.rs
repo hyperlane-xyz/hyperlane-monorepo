@@ -7,6 +7,7 @@ use hyperlane_core::{
 
 use crate::KaspaProvider;
 
+/// UNUSED
 #[derive(Debug)]
 pub struct KaspaValidatorAnnounce {
     domain: HyperlaneDomain,
