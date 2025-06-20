@@ -806,8 +806,9 @@ async function submitWarpApplyTransactions(
               });
             const transactionReceipts = await submitter.submit(...transactions);
             if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${submitter.txSubmitterType
-                }-${Date.now()}-receipts.json`;
+              const receiptPath = `${params.receiptsDir}/${chain}-${
+                submitter.txSubmitterType
+              }-${Date.now()}-receipts.json`;
               writeYamlOrJson(receiptPath, transactionReceipts);
               logGreen(
                 `Transactions receipts successfully written to ${receiptPath}`,
@@ -847,11 +848,11 @@ async function getWarpApplySubmitter({
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
       : {
-        submitter: {
-          chain,
-          type: TxSubmitterType.JSON_RPC,
-        },
-      };
+          submitter: {
+            chain,
+            type: TxSubmitterType.JSON_RPC,
+          },
+        };
 
   return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
