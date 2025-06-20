@@ -41,7 +41,7 @@ use crate::{
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_happy_path() {
-    let block_time = Duration::from_millis(10);
+    let block_time = Duration::from_millis(100);
     let mock_evm_provider = mocked_evm_provider();
 
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
