@@ -92,6 +92,14 @@ export class MultiChainResolver implements ChainResolver {
     argv.context.warpDeployConfig = warpDeployConfig;
     argv.context.chains = Object.keys(warpDeployConfig);
 
+    if (argv.chains) {
+      const chains = argv.chains.split(',').map((item: string) => item.trim());
+
+      argv.context.chains = argv.context.chains.filter((chain: ChainName) =>
+        chains.includes(chain),
+      );
+    }
+
     assert(
       argv.context.chains.length !== 0,
       'No chains found in warp route deployment config',
