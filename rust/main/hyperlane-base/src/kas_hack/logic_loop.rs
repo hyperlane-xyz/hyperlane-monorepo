@@ -37,7 +37,7 @@ impl DepositCache {
 }
 
 pub trait MetadataConstructor {
-    pub fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
 }
 
 pub struct Foo<C: MetadataConstructor> {
