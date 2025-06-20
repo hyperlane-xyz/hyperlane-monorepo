@@ -451,6 +451,10 @@
     "amount": "0.5",
     "decimals": 1
   },
+  "solaxy": {
+    "amount": "0.5",
+    "decimals": 1
+  },
   "soneium": {
     "amount": "0.001000921",
     "decimals": 9
