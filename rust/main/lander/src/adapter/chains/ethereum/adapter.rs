@@ -1,6 +1,7 @@
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use ethers::prelude::H160;
 use ethers::{
     contract::builders::ContractCall, prelude::U64, providers::Middleware,
     types::transaction::eip2718::TypedTransaction,
@@ -267,6 +268,7 @@ impl AdaptsChain for EthereumAdapter {
                 self.batch_cache.clone(),
                 self.batch_contract_address,
                 precursors,
+                signer,
             )
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));

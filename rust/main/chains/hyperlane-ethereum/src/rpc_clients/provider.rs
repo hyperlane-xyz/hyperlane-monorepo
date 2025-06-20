@@ -101,6 +101,7 @@ pub trait EvmProviderForLander: Send + Sync {
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
         precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
     ) -> ChainResult<(TypedTransaction, Function)>;
 
     /// Simulate the batch transaction without sending it to the blockchain
@@ -197,12 +198,15 @@ where
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
         precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
     ) -> ChainResult<(TypedTransaction, Function)> {
         let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
         let contract_calls = self.create_contract_calls(precursors);
         let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
 
-        let tx = multicall_contract_call.tx;
+        let mut tx = multicall_contract_call.tx;
+        tx.set_from(signer);
+
         let function = multicall_contract_call.function;
 
         Ok((tx, function))
