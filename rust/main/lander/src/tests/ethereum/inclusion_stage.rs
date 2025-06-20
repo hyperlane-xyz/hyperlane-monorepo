@@ -4,6 +4,7 @@ use core::panic;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
+    vec,
 };
 
 use ethers::{
@@ -22,8 +23,9 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 
-use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
-use crate::tests::test_utils::tmp_dbs;
+use crate::{
+    adapter::chains::ethereum::EthereumAdapterMetrics, tests::test_utils::tmp_dbs_at_path,
+};
 use crate::{
     adapter::{
         chains::ethereum::{
@@ -220,6 +222,132 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
 
+#[tokio::test]
+#[traced_test]
+async fn test_restart_with_txs_broadcast_but_not_included() {
+    let block_time = Duration::from_millis(20);
+    let signer = H160::random();
+    let db_path = tempfile::tempdir().unwrap();
+    let tx = send_tx_that_gets_stuck(signer, block_time, db_path.path()).await;
+
+    // drop previous provider and state, simulating a restart
+    println!("Restarting inclusion stage...");
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // instantiate the provider, state and inclusion stage again, simulating a restart
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+    mock_send(&mut mock_evm_provider);
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(move |_, _, _| Ok(mock_fee_history(400000, 50)));
+
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| Ok(Some(mock_tx_receipt(Some(42)))));
+    let dispatcher_state = mock_dispatcher_state_with_provider_and_db_path(
+        mock_evm_provider,
+        signer,
+        block_time,
+        db_path.path(),
+    );
+    let (tx_sender, tx_receiver) = mpsc::channel(100);
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage =
+        mock_inclusion_stage(dispatcher_state.clone(), tx_receiver, finality_stage_sender);
+    // send the tx again, simulating a restart
+    tx_sender.send(tx.clone()).await.unwrap();
+    let mut success = false;
+    run_inclusion_stage_and_receive_txs_with_timeout(
+        &mut success,
+        inclusion_stage,
+        &mut finality_stage_receiver,
+        vec![tx.clone()],
+    )
+    .await;
+    assert!(
+        success,
+        "Inclusion stage did not process the txs successfully after restart"
+    );
+}
+
+async fn send_tx_that_gets_stuck(
+    signer: H160,
+    block_time: Duration,
+    db_path: &std::path::Path,
+) -> Transaction {
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+    mock_send(&mut mock_evm_provider);
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
+
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| Ok(Some(mock_tx_receipt(None))));
+
+    let inclusion_stage_processing_delay = Duration::from_millis(30);
+
+    let dispatcher_state = mock_dispatcher_state_with_provider_and_db_path(
+        mock_evm_provider,
+        signer,
+        block_time,
+        db_path,
+    );
+    let (tx_sender, tx_receiver) = mpsc::channel(100);
+    let (finality_stage_sender, _) = mpsc::channel(100);
+    let inclusion_stage = mock_inclusion_stage(
+        dispatcher_state.clone(),
+        tx_receiver,
+        finality_stage_sender.clone(),
+    );
+    let txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+    )
+    .await;
+    tx_sender.send(txs[0].clone()).await.unwrap();
+    // run one iteration of the inclusion stage to process the txs
+    let inclusion_stage_receive_future = InclusionStage::receive_txs(
+        inclusion_stage.tx_receiver,
+        inclusion_stage.pool.clone(),
+        dispatcher_state.clone(),
+        dispatcher_state.domain.clone(),
+    );
+    let inclusion_stage_process_future = InclusionStage::process_txs(
+        inclusion_stage.pool.clone(),
+        finality_stage_sender,
+        dispatcher_state.clone(),
+        dispatcher_state.domain.clone(),
+    );
+    let inclusion_stage_futures = async {
+        tokio::join!(
+            inclusion_stage_receive_future,
+            inclusion_stage_process_future
+        )
+    };
+
+    select! {
+        _ = inclusion_stage_futures => {
+            panic!("Inclusion stage should not end");
+        },
+        _ = tokio::time::sleep(inclusion_stage_processing_delay) => {
+            return txs[0].clone();
+        }
+    };
+}
+
 async fn run_and_expect_successful_inclusion(
     mock_evm_provider: MockEvmProvider,
     block_time: Duration,
@@ -244,8 +372,27 @@ async fn run_and_expect_successful_inclusion(
     for tx in txs_created.iter() {
         tx_sender.send(tx.clone()).await.unwrap();
     }
-    // need to manually set this because panics don't propagate through the select! macro
     let mut success = false;
+    run_inclusion_stage_and_receive_txs_with_timeout(
+        &mut success,
+        inclusion_stage,
+        &mut finality_stage_receiver,
+        txs_created,
+    )
+    .await;
+
+    assert!(
+        success,
+        "Inclusion stage did not process the txs successfully"
+    );
+}
+
+async fn run_inclusion_stage_and_receive_txs_with_timeout(
+    success: &mut bool,
+    inclusion_stage: InclusionStage,
+    finality_stage_receiver: &mut mpsc::Receiver<Transaction>,
+    txs_created: Vec<Transaction>,
+) {
     select! {
         _ = inclusion_stage.run() => {
             // inclusion stage should process the txs
@@ -253,16 +400,12 @@ async fn run_and_expect_successful_inclusion(
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
             assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
-            success = true;
+            *success = true;
         },
         _ = tokio::time::sleep(Duration::from_millis(5000)) => {
             panic!("Inclusion stage did not process the txs in time");
         }
     }
-    assert!(
-        success,
-        "Inclusion stage did not process the txs successfully"
-    );
 }
 
 fn mocked_evm_provider() -> MockEvmProvider {
@@ -381,7 +524,18 @@ pub fn mock_dispatcher_state_with_provider(
     signer: H160,
     block_time: Duration,
 ) -> DispatcherState {
-    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path();
+    mock_dispatcher_state_with_provider_and_db_path(provider, signer, block_time, db_path)
+}
+
+pub fn mock_dispatcher_state_with_provider_and_db_path(
+    provider: MockEvmProvider,
+    signer: H160,
+    block_time: Duration,
+    db_path: &std::path::Path,
+) -> DispatcherState {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs_at_path(db_path);
     let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer, block_time);
     DispatcherState::new(
         payload_db,

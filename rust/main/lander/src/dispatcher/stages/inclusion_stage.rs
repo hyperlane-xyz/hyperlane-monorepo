@@ -35,7 +35,7 @@ pub const STAGE_NAME: &str = "InclusionStage";
 
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
-    tx_receiver: mpsc::Receiver<Transaction>,
+    pub(crate) tx_receiver: mpsc::Receiver<Transaction>,
     finality_stage_sender: mpsc::Sender<Transaction>,
     state: DispatcherState,
     domain: String,
@@ -83,7 +83,7 @@ impl InclusionStage {
         }
     }
 
-    async fn receive_txs(
+    pub(crate) async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
         state: DispatcherState,
@@ -109,7 +109,7 @@ impl InclusionStage {
         }
     }
 
-    async fn process_txs(
+    pub(crate) async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
         state: DispatcherState,
