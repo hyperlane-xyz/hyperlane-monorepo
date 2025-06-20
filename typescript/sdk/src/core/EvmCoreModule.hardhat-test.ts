@@ -319,9 +319,7 @@ describe('EvmCoreModule', async () => {
       await sendTxs(updateTxs);
 
       const updatedConfig = await evmCoreModuleInstance.read();
-      expect((updatedConfig as any)[hookType]).to.not.equal(
-        constants.AddressZero,
-      );
+      expect(updatedConfig[hookType]).to.not.equal(constants.AddressZero);
 
       // Verify the hook was actually updated by checking the mailbox
       const newHookAddress = await hookAddressGetter();
