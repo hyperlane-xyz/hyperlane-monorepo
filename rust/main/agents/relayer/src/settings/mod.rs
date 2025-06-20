@@ -115,6 +115,19 @@ struct RawRelayerSettings(Value);
 
 impl_loadable_from_settings!(Relayer, RawRelayerSettings -> RelayerSettings);
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use crate::settings::loader::case_adapter::CaseAdapter;
+    use hyperlane_base::settings::loader::load_settings;
+
+    #[test]
+    fn test_loading_env_and_cli() {
+        let result = load_settings::<RawRelayerSettings, RelayerSettings>();
+        assert!(result.is_ok());
+    }
+}
+
 impl FromRawConf<RawRelayerSettings> for RelayerSettings {
     fn from_config_filtered(
         raw: RawRelayerSettings,
