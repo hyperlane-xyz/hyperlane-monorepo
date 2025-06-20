@@ -1985,11 +1985,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  rometestnet: {
+  rometestnet2: {
     threshold: 1,
     validators: [
       {
-        address: '0x259eec09dd54c34043bc991f1aae014294235b8e',
+        address: '0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -2166,6 +2166,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  solaxy: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

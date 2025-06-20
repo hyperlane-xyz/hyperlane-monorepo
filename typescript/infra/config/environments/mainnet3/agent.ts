@@ -25,6 +25,7 @@ import {
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  matchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
@@ -32,7 +33,7 @@ import {
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, mustBeValidContext } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
+import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
@@ -180,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -330,6 +332,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -480,6 +483,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -674,9 +678,24 @@ const vanguardMatchingList = [
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
   const warpContexts = Object.values(WarpRouteIds).map((warpRouteId) => {
+    let warpMatchingList = undefined;
+
+    // oUSDT has some remote routers but that don't have any limits set yet.
+    // Some people have been sending to e.g. Ink outside the UI, so to reduce alert noise
+    // we remove these from the matching list.
+    // TODO: once Ink or Worldchain have limits set, we should remove this.
+    if (warpRouteId === WarpRouteIds.oUSDT) {
+      const ousdtAddresses = getWarpAddresses(warpRouteId);
+      delete ousdtAddresses['ink'];
+      delete ousdtAddresses['worldchain'];
+      warpMatchingList = matchingList(ousdtAddresses);
+    } else {
+      warpMatchingList = warpRouteMatchingList(warpRouteId);
+    }
+
     return {
       name: warpRouteId,
-      matchingList: warpRouteMatchingList(warpRouteId),
+      matchingList: warpMatchingList,
     };
   });
 
@@ -808,7 +827,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: 'fe8f2cd-20250620-104910',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -822,7 +841,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: 'fe8f2cd-20250620-104910',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -848,7 +867,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28d04ae-20250616-150106',
+      tag: '8185c87-20250618-151232',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -886,7 +905,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b18655-20250606-081749',
+      tag: '8185c87-20250618-151232',
     },
     blacklist,
     gasPaymentEnforcement,

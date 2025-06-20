@@ -9,7 +9,7 @@ use ethers::{
 };
 use eyre::eyre;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -25,6 +25,7 @@ use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterPro
 
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    dispatcher::PostInclusionMetricsSource,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus, VmSpecificTxData},
     DispatcherMetrics, LanderError,
@@ -131,6 +132,27 @@ impl EthereumAdapter {
         info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
         Ok(())
     }
+
+    fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
+        let mut metrics_source = PostInclusionMetricsSource::default();
+        let precursor = tx.precursor().clone();
+
+        if let TypedTransaction::Eip1559(precursor) = &precursor.tx {
+            if let Some(max_prio_fee) = precursor.max_priority_fee_per_gas {
+                metrics_source.priority_fee = Some(max_prio_fee.as_u64());
+            }
+            if let Some(max_fee) = precursor.max_fee_per_gas {
+                metrics_source.gas_price = Some(max_fee.as_u64());
+            }
+        } else {
+            // for legacy transactions, we can only set the gas price
+            if let Some(gas_price) = precursor.tx.gas_price() {
+                metrics_source.gas_price = Some(gas_price.as_u64());
+            }
+        }
+        metrics_source.gas_limit = precursor.tx.gas().map(|g| g.as_u64());
+        metrics_source
+    }
 }
 
 #[async_trait]
@@ -173,6 +195,13 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        if tx.precursor().tx.gas().is_some() {
+            debug!(
+                ?tx,
+                "skipping gas limit estimation for transaction, as it was already estimated"
+            );
+            return Ok(());
+        }
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_gas_limit(
             self.provider.clone(),
@@ -239,29 +268,8 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
-        let VmSpecificTxData::Evm(precursor) = &tx.vm_specific_data else {
-            warn!(
-                ?tx,
-                "Transaction does not have EVM-specific data, skipping metrics update"
-            );
-            return;
-        };
-        if let Some(gas_price) = precursor.tx.gas_price() {
-            let gas_price = gas_price.as_u64();
-            metrics.update_gas_price_metric(gas_price, self.domain.as_ref());
-        } else {
-            warn!(
-                ?tx,
-                "Transaction does not have gas price set, skipping gas price metric update"
-            );
-        }
-        // if a priority fee is set, update the priority fee metric
-        if let TypedTransaction::Eip1559(precursor) = &precursor.tx {
-            if let Some(max_prio_fee) = precursor.max_priority_fee_per_gas {
-                let max_prio_fee = max_prio_fee.as_u64();
-                metrics.update_priority_fee_metric(max_prio_fee, self.domain.as_ref());
-            }
-        }
+        let metrics_source = Self::extract_vm_specific_metrics(tx);
+        metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
@@ -270,5 +278,121 @@ impl AdaptsChain for EthereumAdapter {
 
     fn max_batch_size(&self) -> u32 {
         self.submission_config.max_batch_size
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers::types::{
+        transaction::{eip2718::TypedTransaction, eip2930::AccessList},
+        Eip1559TransactionRequest, Eip2930TransactionRequest, TransactionRequest, H160, H256,
+    };
+
+    use crate::{
+        adapter::EthereumTxPrecursor,
+        dispatcher::PostInclusionMetricsSource,
+        tests::ethereum::inclusion_stage::{dummy_evm_tx, dummy_tx_precursor},
+        transaction::VmSpecificTxData,
+    };
+
+    #[test]
+    fn vm_specific_metrics_are_extracted_correctly_legacy() {
+        use super::EthereumAdapter;
+        use crate::transaction::Transaction;
+
+        let mut evm_tx = dummy_evm_tx(
+            vec![],
+            crate::TransactionStatus::PendingInclusion,
+            H160::random(),
+        );
+
+        if let VmSpecificTxData::Evm(ethereum_tx_precursor) = &mut evm_tx.vm_specific_data {
+            ethereum_tx_precursor.tx = TypedTransaction::Legacy(TransactionRequest {
+                from: Some(H160::random()),
+                to: Some(H160::random().into()),
+                nonce: Some(0.into()),
+                gas: Some(21000.into()),
+                gas_price: Some(1000000000.into()),
+                value: Some(1.into()),
+                ..Default::default()
+            });
+        }
+
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: None,
+            gas_limit: Some(21000),
+        };
+
+        let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
+    }
+
+    #[test]
+    fn vm_specific_metrics_are_extracted_correctly_eip1559() {
+        use super::EthereumAdapter;
+        use crate::transaction::Transaction;
+
+        let mut evm_tx = dummy_evm_tx(
+            vec![],
+            crate::TransactionStatus::PendingInclusion,
+            H160::random(),
+        );
+
+        if let VmSpecificTxData::Evm(ethereum_tx_precursor) = &mut evm_tx.vm_specific_data {
+            ethereum_tx_precursor.tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+                from: Some(H160::random()),
+                to: Some(H160::random().into()),
+                nonce: Some(0.into()),
+                gas: Some(21000.into()),
+                max_fee_per_gas: Some(1000000000.into()),
+                max_priority_fee_per_gas: Some(22222.into()),
+                value: Some(1.into()),
+                ..Default::default()
+            });
+        }
+
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: Some(22222),
+            gas_limit: Some(21000),
+        };
+        let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
+    }
+
+    #[test]
+    fn vm_specific_metrics_are_extracted_correctly_eip2930() {
+        use super::EthereumAdapter;
+        use crate::transaction::Transaction;
+
+        let mut evm_tx = dummy_evm_tx(
+            vec![],
+            crate::TransactionStatus::PendingInclusion,
+            H160::random(),
+        );
+
+        if let VmSpecificTxData::Evm(ethereum_tx_precursor) = &mut evm_tx.vm_specific_data {
+            ethereum_tx_precursor.tx = TypedTransaction::Eip2930(Eip2930TransactionRequest {
+                tx: TransactionRequest {
+                    from: Some(H160::random()),
+                    to: Some(H160::random().into()),
+                    nonce: Some(0.into()),
+                    gas: Some(21000.into()),
+                    gas_price: Some(1000000000.into()),
+                    value: Some(1.into()),
+                    ..Default::default()
+                },
+                access_list: AccessList::default(),
+            });
+        }
+
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: None,
+            gas_limit: Some(21000), // Default gas limit for EIP-2930 transactions
+        };
+        let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
     }
 }

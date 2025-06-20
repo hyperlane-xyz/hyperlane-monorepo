@@ -52,19 +52,9 @@ async fn test_inclusion_happy_path() {
 async fn test_inclusion_gas_spike() {
     let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
-    mock_evm_provider
-        .expect_get_block()
-        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_reorg_period| {
-            Ok(43) // Mocked block number
-        });
-    mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(|_, _| {
-            Ok(21000.into()) // Mocked gas limit
-        });
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
 
     let mut fee_history_call_counter = 0;
     mock_evm_provider
@@ -134,20 +124,10 @@ async fn test_inclusion_gas_spike() {
 async fn test_inclusion_gas_underpriced() {
     let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_reorg_period| {
-            Ok(43) // Mocked block number
-        });
-    mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(|_, _| {
-            Ok(21000.into()) // Mocked gas limit
-        });
-
-    mock_evm_provider
-        .expect_fee_history()
-        .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
 
     // after the tx is sent and gets a tx hash, immediately report it as included
     mock_evm_provider
@@ -189,9 +169,50 @@ async fn test_inclusion_gas_underpriced() {
         }
     });
 
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    let mut estimate_gas_call_counter = 0;
     mock_evm_provider
-        .expect_get_block()
-        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
+        .expect_estimate_gas_limit()
+        .returning(move |_, _| {
+            estimate_gas_call_counter += 1;
+            // simulation passes on the first call, but fails on the second
+            if estimate_gas_call_counter < 2 {
+                Ok(21000.into())
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction simulation failed".to_string(),
+                ))
+            }
+        });
+
+    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
+    // we keep resubmitting it until it finally gets included
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42)))) // Block number for the last submission
+            }
+        });
+
+    // assert sending the tx always works
+    mock_evm_provider
+        .expect_send()
+        .returning(move |_tx, _| Ok(H256::random()));
 
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
@@ -247,16 +268,8 @@ async fn run_and_expect_successful_inclusion(
 
 fn mocked_evm_provider() -> MockEvmProvider {
     let mut mock_evm_provider = MockEvmProvider::new();
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_reorg_period| {
-            Ok(43) // Mocked block number
-        });
-    mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(|_, _| {
-            Ok(21000.into()) // Mocked gas limit
-        });
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_evm_provider.expect_get_block().returning(|_| {
         Ok(Some(Default::default())) // Mocked block retrieval
     });
@@ -316,7 +329,7 @@ pub(crate) async fn mock_evm_txs(
     txs
 }
 
-fn dummy_evm_tx(
+pub fn dummy_evm_tx(
     payloads: Vec<FullPayload>,
     status: TransactionStatus,
     signer: H160,
@@ -338,7 +351,7 @@ fn dummy_evm_tx(
     }
 }
 
-fn dummy_tx_precursor(signer: H160) -> EthereumTxPrecursor {
+pub fn dummy_tx_precursor(signer: H160) -> EthereumTxPrecursor {
     let function = Function {
         name: "baz".to_owned(),
         inputs: vec![
@@ -452,6 +465,30 @@ fn mock_block(block_number: u64, base_fee: u32) -> ethers::types::Block<EthersH2
         gas_limit: 30000000.into(),
         ..Default::default()
     }
+}
+
+fn mock_default_fee_history(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
+}
+
+fn mock_finalized_block_number(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_get_finalized_block_number()
+        .returning(|_reorg_period| Ok(43)); // Mocked block number
+}
+
+fn mock_estimate_gas_limit(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(21000.into())); // Mocked gas limit
+}
+
+fn mock_get_block(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_get_block()
+        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
 }
 
 fn assert_gas_prices_and_timings(

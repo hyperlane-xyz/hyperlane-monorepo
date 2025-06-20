@@ -7,14 +7,16 @@ function cleanup() {
   rm -rf ./test-configs/anvil/deployments
   rm -f ./test-configs/anvil/chains/anvil2/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil3/addresses.yaml
+  rm -f ./test-configs/anvil/chains/anvil4/addresses.yaml
   set -e
 }
 
 cleanup
 
-echo "Starting anvil2 and anvil3 chain for E2E tests"
+echo "Starting anvil2, anvil3 and anvil4 chains for E2E tests"
 anvil --chain-id 31338 -p 8555 --gas-price 1 > /dev/null &
 anvil --chain-id 31347 -p 8600 --gas-price 1 > /dev/null &
+anvil --chain-id 31348 -p 8601 --gas-price 1 > /dev/null &
 
 echo "Running E2E tests"
 if [ -n "${CLI_E2E_TEST}" ]; then
