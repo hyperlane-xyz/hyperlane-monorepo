@@ -22,9 +22,8 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> 
             ROUTE_VALIDATE_NEW_DEPOSITS,
             post(respond_validate_new_deposits::<S>),
         )
-       // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request 
+        // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request
         .with_state(state)
-
 }
 
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
@@ -40,11 +39,13 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 
     let message_id = H256::random(); // TODO: extract from FXG
     let domain = 1; // TODO: extract from FXG
+
+    let zero_array = [0u8; 32];
     let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
         checkpoint: Checkpoint {
             mailbox_domain: domain,
-            merkle_tree_hook_address: H256::random(),
-            root: H256::random(),
+            merkle_tree_hook_address: H256::from_slice(&zero_array),
+            root: H256::from_slice(&zero_array),
             index: 0,
         },
         message_id,
@@ -52,10 +53,10 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 
     let sig = state
         .signer
-        // .sign_checkpoint(to_sign)
         .sign(to_sign) // TODO: need to lock first?
         .await
         .map_err(|e| AppError(e.into()))?;
+
     let j =
         serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
 
@@ -83,5 +84,4 @@ type HandlerResult<T> = Result<T, AppError>;
 struct HandlerState<S: HyperlaneSignerExt + Send + Sync + 'static> {
     // TODO: needs to be shared across routers?
     signer: Arc<S>,
-    
 }
