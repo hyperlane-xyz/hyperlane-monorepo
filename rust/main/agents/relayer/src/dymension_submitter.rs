@@ -1,6 +1,6 @@
 use crate::msg::{
     metadata::Metadata, pending_message::MessageContext, pending_message::PendingMessage,
-    metadata::multisig::MessageIdMultisigMetadataBuilder,
+    metadata::multisig::{MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder},
 };
 
 use hyperlane_core::{traits::PendingOperationResult, HyperlaneMessage, MultisigSignedCheckpoint};
@@ -8,11 +8,17 @@ use std::sync::Arc;
 
 use eyre::Result;
 
-struct PendingMessageMedataConstructor{
+struct PendingMessageMetadataGetter{
     builder: MessageIdMultisigMetadataBuilder,
 }
 
-impl PendingMessageMedataConstructor {
+impl PendingMessageMetadataGetter {
+    pub fn new(builder: MessageIdMultisigMetadataBuilder) -> Self {
+        Self { builder }
+    }
+}
+
+impl PendingMessageMetadataGetter {
     pub fn metadata(
         &self,
         checkpoint: MultisigSignedCheckpoint,
@@ -25,6 +31,7 @@ impl PendingMessageMedataConstructor {
             None,
         );
 
-        self.builder.format_metadata(meta)
+        let formatter = self.builder.as_ref() as &dyn MultisigIsmMetadataBuilder;
+        formatter.format_metadata(meta)
     }
 }
