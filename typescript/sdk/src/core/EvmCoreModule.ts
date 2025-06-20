@@ -37,6 +37,8 @@ import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.
 import { ProxyFactoryFactoriesAddresses } from '../deploy/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
+import { DerivedHookConfig, HookConfig } from '../hook/types.js';
+import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
@@ -113,17 +115,37 @@ export class EvmCoreModule extends HyperlaneModule<
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedEV5Transaction[] = [];
-    transactions.push(
+    const transactions: AnnotatedEV5Transaction[] = [
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
-      ...proxyAdminUpdateTxs(
-        this.chainId,
-        this.args.addresses.mailbox,
-        actualConfig,
-        expectedConfig,
-      ),
-    );
+    ];
+
+    const proxyAdminAddress =
+      expectedConfig.proxyAdmin?.address ??
+      actualConfig.proxyAdmin?.address ??
+      this.args.addresses.proxyAdmin;
+
+    if (!expectedConfig.requiredHook) {
+      transactions.push(
+        ...(await this.createHookUpdateTxs(
+          proxyAdminAddress,
+          Mailbox__factory.createInterface().getFunction('setRequiredHook')
+            .name,
+          actualConfig.requiredHook,
+          expectedConfig.requiredHook,
+        )),
+      );
+    }
+
+    if (!expectedConfig.defaultHook) {
+      transactions.push(
+        ...(await this.createHookUpdateTxs(
+          proxyAdminAddress,
+          Mailbox__factory.createInterface().getFunction('setDefaultHook').name,
+          actualConfig.defaultHook,
+          expectedConfig.defaultHook,
+        )),
+      );
+    }
 
     if (expectedConfig.interchainAccountRouter && this.evmIcaModule) {
       transactions.push(
@@ -133,7 +155,42 @@ export class EvmCoreModule extends HyperlaneModule<
       );
     }
 
+    transactions.push(
+      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.mailbox,
+        actualConfig,
+        expectedConfig,
+      ),
+    );
+
     return transactions;
+  }
+
+  async createHookUpdateTxs(
+    proxyAdminAddress: Address,
+    setHookFunctionName: string,
+    actualConfig: DerivedHookConfig,
+    expectedConfig: HookConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
+      actualConfig: actualConfig,
+      expectedConfig: expectedConfig,
+      evmChainId: this.chainId,
+      evmChainName: this.chainName,
+      hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+        this.args.addresses,
+      ),
+      contractToCallAbi: Mailbox__factory.abi,
+      setHookFunctionName,
+      logger: this.logger,
+      mailbox: this.args.addresses.mailbox,
+      multiProvider: this.multiProvider,
+      proxyAdminAddress,
+      ccipContractCache: undefined,
+      contractVerifier: undefined,
+    });
   }
 
   /**

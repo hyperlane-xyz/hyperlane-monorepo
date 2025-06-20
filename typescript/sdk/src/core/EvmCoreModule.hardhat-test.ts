@@ -187,6 +187,7 @@ describe('EvmCoreModule', async () => {
         paused: false,
       },
     ];
+
     it('should deploy and set a new defaultIsm', async () => {
       for (const ismConfig of ismConfigToUpdate) {
         const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
