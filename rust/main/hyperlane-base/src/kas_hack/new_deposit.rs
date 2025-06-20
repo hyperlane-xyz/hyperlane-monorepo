@@ -8,8 +8,8 @@ use dymension_kaspa::{Deposit, RestProvider, ValidatorsClient};
 
 use hyperlane_core::{
     traits::PendingOperationResult, traits::TxOutcome, ChainCommunicationError, ChainResult,
-    HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, MultisigSignedCheckpointError,
-    SignedCheckpointWithMessageId,
+    HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
+    MultisigSignedCheckpointError, SignedCheckpointWithMessageId,
 };
 
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
@@ -30,6 +30,7 @@ pub async fn handle_observed_deposits(
     validators_client: &ValidatorsClient,
     cache: &mut DepositCache,
     deposits: Vec<Deposit>,
+    hub_mailbox: &M,
 ) {
     let new_deposits: Vec<Deposit> = deposits
         .into_iter()
@@ -43,34 +44,35 @@ pub async fn handle_observed_deposits(
     for deposit in &new_deposits {
         let fxg = on_new_deposit(deposit); // local call to F()
         if let Some(fxg) = fxg {
-            let results = validators_client.get_deposit_sigs(&fxg).await;
-            match results {
-                Ok(results) => {
-                    // TODO: combine sigs and send up to hub
-                }
-                Err(e) => {
-                    warn!(?e, "Error validating new kaspa deposits");
-                }
-            }
+            let res = gather_sigs_and_send_to_hub(validators_client, hub_mailbox, &fxg).await;
         }
     }
 }
 
-async fn gather_sigs_and_send_to_hub<M: Mailbox>(
+async fn gather_sigs_and_send_to_hub<M: Mailbox, C: MetadataConstructor>(
     validators_client: &ValidatorsClient,
     hub_mailbox: &M,
+    metadata_constructor: &C,
     fxg: &DepositFXG,
 ) -> ChainResult<TxOutcome> {
     // need to ultimately send to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/hyperlane-cosmos-native/src/mailbox.rs#L131
     let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
     let sigs_res = validators_client.get_deposit_sigs(&fxg).await?;
 
-    let threshold = 3usize;
-    // let multisig = to_multisig(&mut sigs_res, threshold)?;
+    // now mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/agents/relayer/src/msg/metadata/multisig/base.rs#L226-L235
 
-    unimplemented!()
-    // let outcome = hub_mailbox.process(&m, &[], None).await?
+    let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
+    // let metadata = MultisigMetadata::new(checkpoint, 0, None);
+    let threshold = 3usize; // TODO: threshold check
+    let metadata = metadata_constructor.metadata(&checkpoint)?;
+
+    let outcome = hub_mailbox.process(&m, &[], None).await?;
 }
+
+/*
+Metadata construction:
+    Need to mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/hyperlane-base/src/types/multisig.rs#L167
+ */
 
 /*
 We circumvent the ticker of the processor loop
@@ -79,20 +81,10 @@ We circumvent the ticker of the processor loop
     Instead we use the pending message builder and the metadata construction from that, and then do a direct chain send
  */
 pub trait MetadataConstructor {
-    fn metadata(&self, message: &HyperlaneMessage) -> Result<&[u8], PendingOperationResult>;
-}
-
-fn to_multisig(
-    sigs: &mut Vec<SignedCheckpointWithMessageId>,
-    threshold: usize,
-) -> ChainResult<MultisigSignedCheckpoint> {
-    if sigs.len() < threshold {
-        unimplemented!()
-    }
-    let checkpoint: MultisigSignedCheckpoint = sigs
-        .try_into()
-        .map_err(|e: MultisigSignedCheckpointError| ChainCommunicationError::InvalidRequest { msg: e.to_string() })?;
-    Ok(checkpoint)
+    fn metadata(
+        &self,
+        checkpoint: &MultisigSignedCheckpoint,
+    ) -> Result<Vec<u8>, PendingOperationResult>;
 }
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
