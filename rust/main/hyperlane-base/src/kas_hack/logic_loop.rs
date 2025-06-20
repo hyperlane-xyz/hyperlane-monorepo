@@ -2,8 +2,8 @@ use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
-    ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox,
-    MultisigSignedCheckpoint, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, TxOutcome,
 };
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -89,7 +89,16 @@ where
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        let t = self.provider.validators().threshold(); // TODO: use it
+        if sigs.len() < self.provider.validators().threshold() as usize {
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: format!(
+                    "insufficient validator signatures: got {}, need {}",
+                    sigs.len(),
+                    self.provider.validators().threshold()
+                ),
+            });
+        }
+
         let checkpoint = MultisigSignedCheckpoint::try_from(&mut sigs).unwrap();
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
 
