@@ -1,3 +1,5 @@
+use std::cell::LazyCell;
+use std::convert::Into;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -9,8 +11,8 @@ use ethers::{
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod,
-    H256, U256,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
+    MerkleTreeHook, ReorgPeriod, H256, U256,
 };
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
 
@@ -48,7 +50,7 @@ mockall::mock! {
         async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
         /// Get the next nonce to use for a given address (using the finalized block)
-        async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+        async fn get_next_nonce_on_finalized_block(&self, address: &Address, reorg_period: &EthereumReorgPeriod) -> ChainResult<U256>;
 
         /// Get the fee history
         async fn fee_history(

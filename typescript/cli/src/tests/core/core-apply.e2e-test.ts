@@ -157,7 +157,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const coreConfigChain3IcaConfig = coreConfigChain3.interchainAccountRouter!;
 
     // Add the remote ica on chain anvil3
-    coreConfigChain2IcaConfig.remoteIcaRouters = {
+    coreConfigChain2IcaConfig.remoteRouters = {
       [chain3DomainId]: {
         address: coreConfigChain3IcaConfig.address,
       },
@@ -184,11 +184,11 @@ describe('hyperlane core apply e2e tests', async function () {
         readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
       ]);
     expect(
-      updatedChain2Config.interchainAccountRouter?.remoteIcaRouters,
+      updatedChain2Config.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal(expectedChain2RemoteRoutersConfig);
 
     expect(
-      updatedChain3Config.interchainAccountRouter?.remoteIcaRouters,
+      updatedChain3Config.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal(expectedChain3RemoteRoutersConfig);
   });
 
@@ -210,7 +210,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
     const coreConfigChain3IcaConfig = coreConfigChain3.interchainAccountRouter!;
 
-    coreConfigChain2IcaConfig.remoteIcaRouters = {
+    coreConfigChain2IcaConfig.remoteRouters = {
       [chain3DomainId]: {
         address: coreConfigChain3IcaConfig.address,
       },
@@ -228,12 +228,11 @@ describe('hyperlane core apply e2e tests', async function () {
     const updatedChain2ConfigAfterEnrollment: DerivedCoreConfig =
       await readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
     expect(
-      updatedChain2ConfigAfterEnrollment.interchainAccountRouter
-        ?.remoteIcaRouters,
+      updatedChain2ConfigAfterEnrollment.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal(expectedRemoteRoutersConfigAfterEnrollment);
 
     // Remove all remote ICAs
-    updatedChain2ConfigAfterEnrollment.interchainAccountRouter!.remoteIcaRouters =
+    updatedChain2ConfigAfterEnrollment.interchainAccountRouter!.remoteRouters =
       {};
     writeYamlOrJson(
       CORE_READ_CHAIN_2_CONFIG_PATH,
@@ -249,11 +248,11 @@ describe('hyperlane core apply e2e tests', async function () {
       ]);
 
     expect(
-      updatedChain2Config.interchainAccountRouter?.remoteIcaRouters,
+      updatedChain2Config.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal({});
 
     expect(
-      updatedChain3Config.interchainAccountRouter?.remoteIcaRouters,
+      updatedChain3Config.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal({});
   });
 });

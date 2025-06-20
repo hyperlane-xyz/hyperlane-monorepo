@@ -22,7 +22,7 @@ export enum WarpRouteIds {
   EclipseSolanaEzSOL = 'EZSOL/eclipsemainnet-solanamainnet',
   EclipseSolanaORCA = 'ORCA/eclipsemainnet-solanamainnet',
   EclipseSolanaJitoSOL = 'jitoSOL/eclipsemainnet-solanamainnet',
-  EclipseSolanaKySOL = 'kySOL/eclipsemainnet-solanamainnet',
+  EclipseSolanaKySOL = 'kySOL/kyros',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
@@ -53,7 +53,7 @@ export enum WarpRouteIds {
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
-  BobaBsquaredSoneiumSwellUBTC = 'UBTC/boba-bsquared-soneium-swell',
+  BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   EthereumSuperseedUSDC = 'USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
@@ -81,7 +81,8 @@ export enum WarpRouteIds {
   EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
-  oUSDT = 'oUSDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  oUSDT = 'oUSDT/production',
+  oUSDTSTAGE = 'oUSDT/staging',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
@@ -98,6 +99,9 @@ export enum WarpRouteIds {
   SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  // Not present in the registry
+  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

@@ -1,8 +1,10 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { z } from 'zod';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
+  CallData,
   addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
@@ -26,11 +28,14 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
+  knownAccounts: Record<Address, AccountConfig | undefined>;
+
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+    this.knownAccounts = {};
   }
 
   override async remoteChains(chainName: string): Promise<ChainName[]> {
@@ -161,6 +166,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Interchain account recovered at ${destinationAccount}`,
       );
     }
+
+    this.knownAccounts[destinationAccount] = config;
+
     return destinationAccount;
   }
 
@@ -197,21 +205,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       { value: quote },
     );
     return callEncoded;
-  }
-
-  async getAccountConfig(
-    chain: ChainName,
-    account: Address,
-  ): Promise<AccountConfig> {
-    const accountOwner = await this.router(
-      this.contractsMap[chain],
-    ).accountOwners(account);
-    const originChain = this.multiProvider.getChainName(accountOwner.origin);
-    return {
-      origin: originChain,
-      owner: accountOwner.owner,
-      localRouter: this.router(this.contractsMap[chain]).address,
-    };
   }
 
   // general helper for different overloaded callRemote functions
@@ -261,4 +254,83 @@ export async function deployInterchainAccount(
     config,
   );
   return interchainAccountApp.deployAccount(chain, config);
+}
+
+export function encodeIcaCalls(calls: CallData[], salt: string) {
+  return (
+    salt +
+    utils.defaultAbiCoder
+      .encode(
+        ['tuple(bytes32 to,uint256 value,bytes data)[]'],
+        [
+          calls.map((c) => ({
+            to: addressToBytes32(c.to),
+            value: c.value || 0,
+            data: c.data,
+          })),
+        ],
+      )
+      .slice(2)
+  );
+}
+
+// Convenience function to transform value strings to bignumber
+export type RawCallData = {
+  to: string;
+  value?: string | number;
+  data: string;
+};
+
+export function normalizeCalls(calls: RawCallData[]): CallData[] {
+  return calls.map((call) => ({
+    to: addressToBytes32(call.to),
+    value: BigNumber.from(call.value || 0),
+    data: call.data,
+  }));
+}
+
+export function commitmentFromIcaCalls(
+  calls: CallData[],
+  salt: string,
+): string {
+  return utils.keccak256(encodeIcaCalls(calls, salt));
+}
+
+export const PostCallsSchema = z.object({
+  calls: z
+    .array(
+      z.object({
+        to: z.string(),
+        data: z.string(),
+        value: z.string().optional(),
+      }),
+    )
+    .min(1),
+  relayers: z.array(z.string()),
+  salt: z.string(),
+  commitmentDispatchTx: z.string(),
+  originDomain: z.number(),
+});
+
+export type PostCallsType = z.infer<typeof PostCallsSchema>;
+
+export async function shareCallsWithPrivateRelayer(
+  serverUrl: string,
+  payload: PostCallsType,
+): Promise<Response> {
+  const resp = await fetch(serverUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    // Read body
+    const body = await resp.text();
+    throw new Error(
+      `Failed to share calls with relayer: ${resp.status} ${body}`,
+    );
+  }
+
+  return resp;
 }

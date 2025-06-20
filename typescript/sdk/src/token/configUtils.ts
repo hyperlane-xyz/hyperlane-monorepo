@@ -5,9 +5,11 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  deepCopy,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isObjEmpty,
   objFilter,
   objMap,
   promiseObjAll,
@@ -34,6 +36,7 @@ import {
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 
 /**
@@ -328,8 +331,22 @@ export function transformConfigToCheck(
     ),
   );
 
+  const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
+
+  if (isMovableCollateralTokenConfig(clonedTokenConfig)) {
+    clonedTokenConfig.allowedRebalancers = clonedTokenConfig.allowedRebalancers
+      ?.length
+      ? clonedTokenConfig.allowedRebalancers
+      : undefined;
+    clonedTokenConfig.allowedRebalancingBridges = !isObjEmpty(
+      clonedTokenConfig.allowedRebalancingBridges ?? {},
+    )
+      ? clonedTokenConfig.allowedRebalancingBridges
+      : undefined;
+  }
+
   return sortArraysInObject(
-    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+    transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),
     sortArraysInConfigToCheck,
   );
 }
