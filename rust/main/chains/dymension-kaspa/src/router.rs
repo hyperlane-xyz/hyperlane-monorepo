@@ -13,43 +13,36 @@ use std::sync::Arc;
 
 use dym_kas_validator::deposit::validate_deposits;
 
-pub struct AppError(eyre::Report);
+/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
+pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
+    let state = Arc::new(HandlerState { signer });
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        eprintln!("Error: {:?}", self.0);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "An internal error occurred".to_string(),
+    Router::new()
+        .route(
+            ROUTE_VALIDATE_NEW_DEPOSITS,
+            post(respond_validate_new_deposits::<S>),
         )
-            .into_response()
-    }
-}
+       // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request 
+        .with_state(state)
 
-/// docococ, http server shared state
-pub type AppResult<T> = Result<T, AppError>;
-
-#[derive(Clone)]
-struct AppState<S: HyperlaneSignerExt + Send + Sync + 'static> {
-    // TODO: needs to be shared across routers?
-    signer: Arc<S>,
 }
 
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(state): State<Arc<AppState<S>>>,
+    State(state): State<Arc<HandlerState<S>>>,
     body: Bytes,
-) -> AppResult<Json<String>> {
+) -> HandlerResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
+    // Call to validator.G()
     if !validate_deposits(&deposits) {
-        // Call to G()
         return Err(AppError(eyre::eyre!("Invalid deposit")));
     }
 
-    let message_id = H256::random();
+    let message_id = H256::random(); // TODO: extract from FXG
+    let domain = 1; // TODO: extract from FXG
     let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
         checkpoint: Checkpoint {
-            mailbox_domain: 1,
+            mailbox_domain: domain,
             merkle_tree_hook_address: H256::random(),
             root: H256::random(),
             index: 0,
@@ -69,13 +62,26 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     Ok(Json(j))
 }
 
-pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
-    let state = Arc::new(AppState { signer });
+/// Allows automatic error mapping
+struct AppError(eyre::Report);
 
-    Router::new()
-        .route(
-            ROUTE_VALIDATE_NEW_DEPOSITS,
-            post(respond_validate_new_deposits::<S>),
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        eprintln!("Error: {:?}", self.0);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "An internal error occurred".to_string(),
         )
-        .with_state(state)
+            .into_response()
+    }
+}
+
+/// Allows handler to have some state
+type HandlerResult<T> = Result<T, AppError>;
+
+#[derive(Clone)]
+struct HandlerState<S: HyperlaneSignerExt + Send + Sync + 'static> {
+    // TODO: needs to be shared across routers?
+    signer: Arc<S>,
+    
 }
