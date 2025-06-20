@@ -22,7 +22,6 @@ import {
   assert,
   deepEquals,
   difference,
-  eqAddress,
   isObjEmpty,
   normalizeAddressEvm,
   objMap,
@@ -45,7 +44,7 @@ import {
 } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
-import { EvmHookModule } from '../hook/EvmHookModule.js';
+import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -62,7 +61,6 @@ import {
   MovableTokenConfig,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
-  derivedHookAddress,
   derivedIsmAddress,
   isMovableCollateralTokenConfig,
 } from './types.js';
@@ -666,40 +664,35 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-
-    if (!expectedConfig.hook || expectedConfig.hook === zeroAddress) {
+    if (!expectedConfig.hook) {
       return [];
     }
 
-    const actualDeployedHook = derivedHookAddress(actualConfig);
+    const proxyAdminAddress =
+      expectedConfig.proxyAdmin?.address ?? actualConfig.proxyAdmin?.address;
+    assert(proxyAdminAddress, 'ProxyAdmin address is undefined');
 
-    // Try to deploy or update Hook with the expected config
-    const {
-      deployedHook: expectedDeployedHook,
-      updateTransactions: hookUpdateTransactions,
-    } = await this.deployOrUpdateHook(actualConfig, expectedConfig);
-
-    // If a Hook is updated in-place, push the update txs
-    updateTransactions.push(...hookUpdateTransactions);
-
-    // If a new Hook is deployed, push the setHook tx
-    if (!eqAddress(actualDeployedHook, expectedDeployedHook)) {
-      const contractToUpdate = MailboxClient__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
-      updateTransactions.push({
-        chainId: this.chainId,
-        annotation: `Setting Hook for Warp Route to ${expectedDeployedHook}`,
-        to: contractToUpdate.address,
-        data: contractToUpdate.interface.encodeFunctionData('setHook', [
-          expectedDeployedHook,
-        ]),
-      });
-    }
-
-    return updateTransactions;
+    return getEvmHookUpdateTransactions(
+      this.args.addresses.deployedTokenRoute,
+      {
+        actualConfig: actualConfig.hook,
+        expectedConfig: expectedConfig.hook,
+        ccipContractCache: this.ccipContractCache,
+        contractVerifier: this.contractVerifier,
+        evmChainId: this.chainId,
+        evmChainName: this.chainName,
+        hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
+          this.args.addresses,
+        ),
+        contractToCallAbi: MailboxClient__factory.abi,
+        setHookFunctionName:
+          MailboxClient__factory.createInterface().getFunction('setHook').name,
+        logger: this.logger,
+        mailbox: actualConfig.mailbox,
+        multiProvider: this.multiProvider,
+        proxyAdminAddress,
+      },
+    );
   }
 
   /**
@@ -759,92 +752,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };
-  }
-
-  /**
-   * Updates or deploys the hook using the provided configuration.
-   *
-   * @returns Object with deployedHook address, and update Transactions
-   */
-  async deployOrUpdateHook(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<{
-    deployedHook: Address;
-    updateTransactions: AnnotatedEV5Transaction[];
-  }> {
-    assert(expectedConfig.hook, 'No hook config');
-    if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
-      return this.deployNewHook(expectedConfig);
-    }
-
-    return this.updateExistingHook(expectedConfig, actualConfig);
-  }
-
-  async deployNewHook(expectedConfig: HypTokenRouterConfig): Promise<{
-    deployedHook: Address;
-    updateTransactions: AnnotatedEV5Transaction[];
-  }> {
-    this.logger.info(
-      `No hook deployed for warp route, deploying new hook on ${this.args.chain} chain`,
-    );
-
-    assert(expectedConfig.hook, 'Hook is undefined');
-    assert(
-      expectedConfig.proxyAdmin?.address,
-      'ProxyAdmin address is undefined',
-    );
-
-    const hookModule = await EvmHookModule.create({
-      chain: this.args.chain,
-      config: expectedConfig.hook,
-      proxyFactoryFactories: extractIsmAndHookFactoryAddresses(
-        this.args.addresses,
-      ),
-      coreAddresses: {
-        mailbox: expectedConfig.mailbox,
-        proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
-      },
-      contractVerifier: this.contractVerifier,
-      multiProvider: this.multiProvider,
-    });
-    const { deployedHook } = hookModule.serialize();
-    return { deployedHook, updateTransactions: [] };
-  }
-
-  async updateExistingHook(
-    expectedConfig: HypTokenRouterConfig,
-    actualConfig: DerivedTokenRouterConfig,
-  ): Promise<{
-    deployedHook: Address;
-    updateTransactions: AnnotatedEV5Transaction[];
-  }> {
-    assert(actualConfig.proxyAdmin?.address, 'ProxyAdmin address is undefined');
-    assert(actualConfig.hook, 'Hook is undefined');
-
-    const hookModule = new EvmHookModule(
-      this.multiProvider,
-      {
-        chain: this.args.chain,
-        config: actualConfig.hook,
-        addresses: {
-          ...extractIsmAndHookFactoryAddresses(this.args.addresses),
-          mailbox: actualConfig.mailbox,
-          proxyAdmin: actualConfig.proxyAdmin?.address,
-          deployedHook: derivedHookAddress(actualConfig),
-        },
-      },
-      this.ccipContractCache,
-      this.contractVerifier,
-    );
-
-    this.logger.info(
-      `Comparing target Hook config with ${this.args.chain} chain`,
-    );
-    const updateTransactions = await hookModule.update(expectedConfig.hook!);
-    const { deployedHook } = hookModule.serialize();
-
-    return { deployedHook, updateTransactions };
   }
 
   /**
