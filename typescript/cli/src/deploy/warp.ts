@@ -428,6 +428,35 @@ async function deployWarpExtensionContracts(
 }
 
 /**
+ * Splits warp configs into existing and extended, and returns details about the extension.
+ * @param warpCoreConfig The warp core config.
+ * @param warpDeployConfig The warp deploy config.
+ * @returns An object containing the split configs, extended chains, and warp core config by chain.
+ */
+function getWarpRouteExtensionDetails(
+  warpCoreConfig: WarpCoreConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
+  const warpCoreConfigByChain = Object.fromEntries(
+    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+
+  // Split between the existing and additional config
+  const [existingConfigs, initialExtendedConfigs] =
+    splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
+
+  const extendedChains = Object.keys(initialExtendedConfigs);
+
+  return {
+    existingConfigs,
+    initialExtendedConfigs,
+    extendedChains,
+    warpCoreConfigByChain,
+  };
+}
+
+/**
  * Extends an existing Warp route to include new chains.
  * This function manages the entire extension workflow:
  * 1. Divides the configuration into existing and new chain segments.
@@ -442,16 +471,13 @@ export async function extendWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
-  const warpCoreConfigByChain = Object.fromEntries(
-    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
-  );
-  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+  const {
+    existingConfigs,
+    initialExtendedConfigs,
+    extendedChains,
+    warpCoreConfigByChain,
+  } = getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  // Split between the existing and additional config
-  const [existingConfigs, initialExtendedConfigs] =
-    splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
-
-  const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) {
     return warpCoreConfig;
   }
@@ -759,19 +785,10 @@ async function submitWarpApplyTransactions(
     ]),
   );
 
-  // copied from extendWarpRoute
-  const warpCoreConfigByChain = Object.fromEntries(
-    params.warpCoreConfig.tokens.map((token) => [token.chainName, token]),
-  );
-  const warpCoreChains = Object.keys(warpCoreConfigByChain);
-
-  // Split between the existing and additional config
-  const [, initialExtendedConfigs] = splitWarpCoreAndExtendedConfigs(
+  const { extendedChains } = getWarpRouteExtensionDetails(
+    params.warpCoreConfig,
     params.warpDeployConfig,
-    warpCoreChains,
   );
-
-  const extendedChains = Object.keys(initialExtendedConfigs);
 
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
@@ -789,9 +806,8 @@ async function submitWarpApplyTransactions(
               });
             const transactionReceipts = await submitter.submit(...transactions);
             if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${
-                submitter.txSubmitterType
-              }-${Date.now()}-receipts.json`;
+              const receiptPath = `${params.receiptsDir}/${chain}-${submitter.txSubmitterType
+                }-${Date.now()}-receipts.json`;
               writeYamlOrJson(receiptPath, transactionReceipts);
               logGreen(
                 `Transactions receipts successfully written to ${receiptPath}`,
@@ -831,11 +847,11 @@ async function getWarpApplySubmitter({
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
       : {
-          submitter: {
-            chain,
-            type: TxSubmitterType.JSON_RPC,
-          },
-        };
+        submitter: {
+          chain,
+          type: TxSubmitterType.JSON_RPC,
+        },
+      };
 
   return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
