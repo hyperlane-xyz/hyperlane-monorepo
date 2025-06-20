@@ -1,42 +1,30 @@
 #![allow(deprecated)]
 
 use core::panic;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use ethers::{
-    abi::{Function, Param, ParamType, StateMutability},
-    types::{
-        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt,
-        H160, H256 as EthersH256,
-    },
-};
+use ethers::abi::{Function, Param, ParamType, StateMutability};
+use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::types::{Eip1559TransactionRequest, TransactionReceipt, H160, H256 as EthersH256};
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
-    HyperlaneDomain, KnownHyperlaneDomain, H256, U256,
-};
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDomain, H256, U256};
 use hyperlane_ethereum::EthereumReorgPeriod;
 
-use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
-use crate::tests::test_utils::tmp_dbs;
-use crate::{
-    adapter::{
-        chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
-            tests::MockEvmProvider,
-            EthereumAdapter,
-        },
-        EthereumTxPrecursor,
-    },
-    dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
-    transaction::{Transaction, VmSpecificTxData},
-    DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
+use crate::adapter::chains::ethereum::{
+    nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
+    tests::MockEvmProvider,
+    EthereumAdapter, EthereumAdapterMetrics,
 };
+use crate::adapter::EthereumTxPrecursor;
+use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
+use crate::tests::test_utils::tmp_dbs;
+use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 
 #[tokio::test]
 #[traced_test]

@@ -203,7 +203,7 @@ impl FinalityStage {
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
         let reverted_payloads = call_until_success_or_nonretryable_error(
-            || state.adapter.reverted_payloads(&tx),
+            || state.adapter.reverted_payloads(tx),
             "Checking reverted payloads",
             state,
         )

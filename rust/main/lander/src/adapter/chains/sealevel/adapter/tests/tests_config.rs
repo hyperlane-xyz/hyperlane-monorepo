@@ -5,7 +5,9 @@ use hyperlane_core::{
     config::OpSubmissionConfig, HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType,
 };
 
-use crate::adapter::{chains::sealevel::adapter::tests::tests_common::adapter_config, AdaptsChain};
+use crate::adapter::AdaptsChain;
+
+use super::tests_common::adapter_config;
 
 #[test]
 fn test_configuration_fields() {

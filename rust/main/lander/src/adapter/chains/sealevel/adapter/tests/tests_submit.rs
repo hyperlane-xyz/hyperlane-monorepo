@@ -1,10 +1,7 @@
-use crate::adapter::{
-    chains::sealevel::{
-        adapter::tests::tests_common::{adapter, payload, precursor},
-        transaction::TransactionFactory,
-    },
-    AdaptsChain,
-};
+use crate::adapter::AdaptsChain;
+
+use super::super::TransactionFactory;
+use super::tests_common::{adapter, payload, precursor};
 
 #[tokio::test]
 async fn test_submit() {

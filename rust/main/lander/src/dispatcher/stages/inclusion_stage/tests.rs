@@ -1,17 +1,19 @@
-use super::*;
+use std::sync::Arc;
+use std::time::Duration;
+
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+
+use crate::dispatcher::{
+    metrics::DispatcherMetrics, DispatcherState, InclusionStage, InclusionStagePool, PayloadDb,
+    TransactionDb,
+};
+use crate::error::LanderError;
+use crate::payload::{DropReason as PayloadDropReason, PayloadStatus};
 use crate::tests::test_utils::{
     are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs, MockAdapter,
 };
-use crate::{
-    dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
-    error::LanderError,
-    payload::{DropReason as PayloadDropReason, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus},
-};
-use hyperlane_base::settings::parser::h_fuel::make_provider;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc;
+use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionStatus};
 
 #[tokio::test]
 async fn test_processing_included_txs() {

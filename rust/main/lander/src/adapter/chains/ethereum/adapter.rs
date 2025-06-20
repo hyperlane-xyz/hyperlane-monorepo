@@ -27,7 +27,7 @@ use hyperlane_ethereum::{
 
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
-    dispatcher::{PayloadDb, TransactionDb, PostInclusionMetricsSource},
+    dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus, VmSpecificTxData},
     DispatcherMetrics, LanderError,
@@ -143,11 +143,11 @@ impl EthereumAdapter {
         Ok(())
     }
 
-    fn filter<I: Clone>(items: &[I], successful: Vec<usize>) -> Vec<I> {
+    fn filter<I: Clone>(items: &[I], indices: Vec<usize>) -> Vec<I> {
         items
             .iter()
             .enumerate()
-            .filter(|(index, _)| successful.contains(index))
+            .filter(|(index, _)| indices.contains(index))
             .map(|(_, item)| item.clone())
             .collect::<Vec<_>>()
     }
@@ -473,7 +473,7 @@ mod tests {
     use crate::{
         adapter::EthereumTxPrecursor,
         dispatcher::PostInclusionMetricsSource,
-        tests::ethereum::inclusion_stage::{dummy_evm_tx, dummy_tx_precursor},
+        tests::ethereum::tests_inclusion_stage::{dummy_evm_tx, dummy_tx_precursor},
         transaction::VmSpecificTxData,
     };
 
