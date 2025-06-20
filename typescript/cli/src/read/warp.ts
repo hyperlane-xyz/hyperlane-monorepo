@@ -151,8 +151,7 @@ function validateCompatibility(
       const protocol = chainMetadata[chain].protocol;
       return !supportedProtocols.includes(protocol);
     })
-    .map(([chain]) => chain);
-
+    .map((chain) => chain);
   if (nonCompatibleChains.length > 0) {
     const chainList = nonCompatibleChains.join(', ');
     const verb = nonCompatibleChains.length > 1 ? 'are' : 'is';
