@@ -269,16 +269,10 @@ fn mocked_evm_provider() -> MockEvmProvider {
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
-    mock_evm_provider.expect_get_block().returning(|_| {
-        Ok(Some(Default::default())) // Mocked block retrieval
-    });
-
-    mock_evm_provider.expect_send().returning(|_, _| {
-        Ok(H256::random()) // Mocked transaction hash
-    });
-    mock_evm_provider
-        .expect_fee_history()
-        .returning(|_, _, _| Ok(mock_fee_history(0, 0)));
+    mock_get_block(&mut mock_evm_provider);
+    mock_send(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
     mock_evm_provider
         .expect_get_transaction_receipt()
@@ -289,10 +283,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
                 ..Default::default()
             }))
         });
-    mock_evm_provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::one()));
-
     mock_evm_provider
 }
 
@@ -494,6 +484,12 @@ fn mock_get_block(mock_evm_provider: &mut MockEvmProvider) {
     mock_evm_provider
         .expect_get_block()
         .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
+}
+
+fn mock_send(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random())); // Mocked send method
 }
 
 fn assert_gas_prices_and_timings(
