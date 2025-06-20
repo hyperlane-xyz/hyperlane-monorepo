@@ -149,7 +149,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       compareVersions(
         tokenConfig.contractVersion!,
         REBALANCING_CONTRACT_VERSION,
-      ) > 0;
+      ) >= 0;
 
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
