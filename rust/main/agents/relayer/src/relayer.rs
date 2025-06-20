@@ -39,7 +39,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
     Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H256, H512,
     U256,
@@ -477,6 +477,8 @@ impl BaseAgent for Relayer {
             None
         };
 
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+
         Ok(Self {
             dbs,
             _cache: cache,
@@ -504,13 +506,7 @@ impl BaseAgent for Relayer {
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
             kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes
-                .get(&HyperlaneDomain::new(
-                    1,
-                    "dym",
-                    HyperlaneDomainProtocol::Dymension,
-                ))
-                .cloned(),
+            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
         })
     }
 

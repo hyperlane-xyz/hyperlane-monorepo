@@ -10,6 +10,7 @@ use crate::msg::{
     pending_message::PendingMessage,
 };
 
+use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
 use hyperlane_core::{
     traits::PendingOperationResult, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm,
@@ -40,8 +41,8 @@ impl PendingMessageMetadataGetter {
     }
 }
 
-impl PendingMessageMetadataGetter {
-    pub fn metadata(&self, checkpoint: MultisigSignedCheckpoint) -> Result<Vec<u8>> {
+impl MetadataConstructor for PendingMessageMetadataGetter {
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>> {
         // now mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/agents/relayer/src/msg/metadata/multisig/base.rs#L226-L235
         let meta: MultisigMetadata = MultisigMetadata::new(checkpoint, 0, None);
 
