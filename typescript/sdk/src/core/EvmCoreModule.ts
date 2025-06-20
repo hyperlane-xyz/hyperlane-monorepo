@@ -124,7 +124,7 @@ export class EvmCoreModule extends HyperlaneModule<
       actualConfig.proxyAdmin?.address ??
       this.args.addresses.proxyAdmin;
 
-    if (!expectedConfig.requiredHook) {
+    if (expectedConfig.requiredHook) {
       transactions.push(
         ...(await this.createHookUpdateTxs(
           proxyAdminAddress,
@@ -136,7 +136,7 @@ export class EvmCoreModule extends HyperlaneModule<
       );
     }
 
-    if (!expectedConfig.defaultHook) {
+    if (expectedConfig.defaultHook) {
       transactions.push(
         ...(await this.createHookUpdateTxs(
           proxyAdminAddress,

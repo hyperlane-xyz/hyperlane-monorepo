@@ -13,6 +13,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
+import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -170,7 +171,7 @@ describe('EvmCoreModule', async () => {
     });
   });
 
-  describe('Update', async () => {
+  describe(`${EvmCoreModule.prototype.update.name} (Ism Updates)`, async () => {
     const ismConfigToUpdate: IsmConfig[] = [
       {
         type: IsmType.TRUSTED_RELAYER,
@@ -287,6 +288,117 @@ describe('EvmCoreModule', async () => {
         owner: newOwner,
       });
       expect(txs.length).to.equal(0);
+    });
+  });
+
+  describe(`${EvmCoreModule.prototype.update.name} (Hook Updates)`, async () => {
+    type HookConfigKey = keyof Pick<CoreConfig, 'requiredHook' | 'defaultHook'>;
+    const hookFields: HookConfigKey[] = ['requiredHook', 'defaultHook'];
+
+    const testHookUpdate = async (
+      hookType: HookConfigKey,
+      newHookConfig: HookConfig,
+      hookAddressGetter: () => Promise<string>,
+    ) => {
+      const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+        chain: CHAIN,
+        config,
+        addresses: {
+          ...evmCoreModule.serialize(),
+        },
+      });
+
+      const expectedConfig: CoreConfig = {
+        ...(await evmCoreModuleInstance.read()),
+        [hookType]: newHookConfig,
+      };
+
+      const updateTxs = await evmCoreModuleInstance.update(expectedConfig);
+      expect(updateTxs.length).to.be.greaterThan(0);
+
+      await sendTxs(updateTxs);
+
+      const updatedConfig = await evmCoreModuleInstance.read();
+      expect((updatedConfig as any)[hookType]).to.not.equal(
+        constants.AddressZero,
+      );
+
+      // Verify the hook was actually updated by checking the mailbox
+      const newHookAddress = await hookAddressGetter();
+      expect(newHookAddress).to.not.equal(constants.AddressZero);
+    };
+
+    const hookAddressGetters: Record<HookConfigKey, () => Promise<string>> = {
+      requiredHook: () => mailboxContract.requiredHook(),
+      defaultHook: () => mailboxContract.defaultHook(),
+    };
+
+    for (const hookField of hookFields) {
+      it(`should update the ${hookField}`, async () => {
+        const newHookConfig: HookConfig = {
+          type: HookType.ROUTING,
+          domains: {},
+          owner: signer.address,
+        };
+
+        await testHookUpdate(
+          hookField,
+          newHookConfig,
+          hookAddressGetters[hookField],
+        );
+      });
+
+      it(`should deploy a new ${hookField} when config requires new deployment`, async () => {
+        const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+          chain: CHAIN,
+          config,
+          addresses: {
+            ...evmCoreModule.serialize(),
+          },
+        });
+
+        // Get the current hook address before update
+        const initialConfig = await evmCoreModuleInstance.read();
+        const currentHookAddress = await hookAddressGetters[hookField]();
+
+        // Create a different hook config that requires deployment
+        const newHookConfig: HookConfig = {
+          type: HookType.PROTOCOL_FEE,
+          maxProtocolFee: '100000000000000000', // 0.1 ether in wei
+          protocolFee: '50000000000000000', // 0.05 ether in wei
+          beneficiary: randomAddress(),
+          owner: signer.address,
+        };
+
+        const expectedConfig: CoreConfig = {
+          ...initialConfig,
+          [hookField]: newHookConfig,
+        };
+
+        const updateTxs = await evmCoreModuleInstance.update(expectedConfig);
+        expect(updateTxs.length).to.be.greaterThan(0);
+
+        await sendTxs(updateTxs);
+
+        const newHookAddress = await hookAddressGetters[hookField]();
+        expect(newHookAddress).to.not.equal(currentHookAddress);
+        expect(newHookAddress).to.not.equal(constants.AddressZero);
+      });
+    }
+
+    it('should not update hooks if config is the same', async () => {
+      const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+        chain: CHAIN,
+        config,
+        addresses: {
+          ...evmCoreModule.serialize(),
+        },
+      });
+
+      const existingConfig: CoreConfig = await evmCoreModuleInstance.read();
+      const updateTxs = await evmCoreModuleInstance.update(existingConfig);
+
+      expect(updateTxs.length).to.equal(0);
     });
   });
 });
