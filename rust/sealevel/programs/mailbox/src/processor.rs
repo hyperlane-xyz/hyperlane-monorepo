@@ -385,7 +385,7 @@ fn inbox_process(
         .map_err(|e| ProgramError::BorshIoError(e.to_string()))?;
 
     // Now call into the recipient program with the verified message!
-    let handle_intruction = Instruction::new_with_bytes(
+    let handle_instruction = Instruction::new_with_bytes(
         recipient_program_id,
         &MessageRecipientInstruction::Handle(HandleInstruction::new(
             message.origin,
@@ -396,7 +396,7 @@ fn inbox_process(
         recipient_account_metas,
     );
     invoke_signed(
-        &handle_intruction,
+        &handle_instruction,
         &recipient_infos,
         &[mailbox_process_authority_pda_seeds!(
             &recipient_program_id,
