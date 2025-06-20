@@ -9125,7 +9125,7 @@
       },
       "displayName": "Fluence",
       "domainId": 9999999,
-      "gasCurrencyCoinGeckoId": "fluence",
+      "gasCurrencyCoinGeckoId": "fluence-2",
       "name": "fluence",
       "nativeToken": {
         "decimals": 18,
@@ -9919,7 +9919,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 0.4,
+        "estimateBlockTime": 1.2,
         "reorgPeriod": 0
       },
       "chainId": 1936682104,
