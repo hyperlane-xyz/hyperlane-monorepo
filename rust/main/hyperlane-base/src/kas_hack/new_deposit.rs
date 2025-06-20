@@ -61,12 +61,15 @@ async fn gather_sigs_and_send_to_hub<M: Mailbox, C: MetadataConstructor>(
 
 
 
-    let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
+    // let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
+    let checkpoint: MultisigSignedCheckpoint = MultisigSignedCheckpoint::try_from(&mut sigs_res)?;
     // let metadata = MultisigMetadata::new(checkpoint, 0, None);
     let threshold = 3usize; // TODO: threshold check
     let metadata = metadata_constructor.metadata(&checkpoint)?;
 
-    let outcome = hub_mailbox.process(&m, &[], None).await?;
+    let slice = metadata.as_slice();
+
+    hub_mailbox.process(&m, slice, None).await
 }
 
 /*
