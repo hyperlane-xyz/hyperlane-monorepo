@@ -55,6 +55,7 @@ async fn test_inclusion_gas_spike() {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
     let mut fee_history_call_counter = 0;
     mock_evm_provider
@@ -128,6 +129,7 @@ async fn test_inclusion_gas_underpriced() {
     mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
     // after the tx is sent and gets a tx hash, immediately report it as included
     mock_evm_provider
@@ -180,6 +182,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
     let mut estimate_gas_call_counter = 0;
     mock_evm_provider
         .expect_estimate_gas_limit()
@@ -218,13 +221,9 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
 }
 
 async fn run_and_expect_successful_inclusion(
-    mut mock_evm_provider: MockEvmProvider,
+    mock_evm_provider: MockEvmProvider,
     block_time: Duration,
 ) {
-    mock_evm_provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::from(0)));
-
     let signer = H160::random();
     let dispatcher_state =
         mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
@@ -483,6 +482,12 @@ fn mock_estimate_gas_limit(mock_evm_provider: &mut MockEvmProvider) {
     mock_evm_provider
         .expect_estimate_gas_limit()
         .returning(|_, _| Ok(21000.into())); // Mocked gas limit
+}
+
+fn mock_get_next_nonce_on_finalized_block(mock_evm_provider: &mut MockEvmProvider) {
+    mock_evm_provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::zero())); // Mocked nonce
 }
 
 fn mock_get_block(mock_evm_provider: &mut MockEvmProvider) {

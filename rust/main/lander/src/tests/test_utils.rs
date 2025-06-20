@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -40,7 +41,13 @@ mockall::mock! {
 
 pub(crate) fn tmp_dbs() -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>, Arc<dyn NonceDb>) {
     let temp_dir = tempfile::tempdir().unwrap();
-    let db = DB::from_path(temp_dir.path()).unwrap();
+    tmp_dbs_at_path(&temp_dir.path())
+}
+
+pub(crate) fn tmp_dbs_at_path(
+    path: &Path,
+) -> (Arc<dyn PayloadDb>, Arc<dyn TransactionDb>, Arc<dyn NonceDb>) {
+    let db = DB::from_path(&path).unwrap();
     let domain = KnownHyperlaneDomain::Arbitrum.into();
     let rocksdb = Arc::new(HyperlaneRocksDB::new(&domain, db));
 
