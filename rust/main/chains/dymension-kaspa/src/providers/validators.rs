@@ -75,6 +75,10 @@ impl ValidatorsClient {
         }
         Ok(results)
     }
+
+    pub fn threshold(&self) -> usize {
+        self.conf.kaspa_multisig_threshold
+    }
 }
 
 // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80

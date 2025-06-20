@@ -11,34 +11,10 @@ use tracing::{info, info_span, warn, Instrument};
 
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_relayer::deposit::on_new_deposit;
-use dymension_kaspa::{Deposit, KaspaProvider, ValidatorsClient};
+use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
-
-struct DepositCache {
-    seen: HashSet<Deposit>,
-}
-
-impl DepositCache {
-    pub fn new() -> Self {
-        Self {
-            seen: HashSet::new(),
-        }
-    }
-
-    fn has_seen(&self, deposit: &Deposit) -> bool {
-        self.seen.contains(deposit)
-    }
-
-    fn mark_as_seen(&mut self, deposit: Deposit) {
-        self.seen.insert(deposit);
-    }
-}
-
-pub trait MetadataConstructor {
-    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
-}
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
@@ -77,70 +53,57 @@ where
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
-                    self.kas_monitor_task().await;
+                    self.deposit_loop().await;
                 }
                 .instrument(info_span!("Kaspa Monitor")),
             ))
             .expect("Failed to spawn kaspa monitor task")
     }
 
-    async fn kas_monitor_task(&mut self) {
-        self.run_monitor().await;
-    }
-
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
-    async fn run_monitor(&mut self) {
+    async fn deposit_loop(&mut self) {
         loop {
             let deposits = self.provider.rest().get_deposits().await.unwrap();
-            self.handle_observed_deposits(deposits).await;
-            // let logs = self.deposits_to_logs::<HyperlaneMessage>(deposits).await;
-            // let stored= self.dedupe_and_store_logs(&self.kdb, logs).await;
-            // unimplemented!()
+            let deposits_new: Vec<Deposit> = deposits
+                .into_iter()
+                .filter(|deposit| !self.deposit_cache.has_seen(deposit))
+                .collect::<Vec<_>>();
+
+            for d in &deposits_new {
+                self.deposit_cache.mark_as_seen(d.clone());
+                info!("FOOX: New deposit: {:?}", d);
+            }
+
+            for d in &deposits_new {
+                if let Some(fxg) = on_new_deposit(d) {
+                    let res = self.get_validator_sigs_and_send_to_hub(&fxg).await;
+                    // TODO: check result
+                }
+            }
             time::sleep(Duration::from_secs(10)).await;
         }
     }
 
-    pub async fn handle_observed_deposits(&mut self, deposits: Vec<Deposit>) {
-        let new_deposits: Vec<Deposit> = deposits
-            .into_iter()
-            .filter(|deposit| !self.deposit_cache.has_seen(deposit))
-            .collect::<Vec<_>>();
+    async fn get_validator_sigs_and_send_to_hub(&self, fxg: &DepositFXG) -> ChainResult<TxOutcome> {
+        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
+        let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        for deposit in &new_deposits {
-            self.deposit_cache.mark_as_seen(deposit.clone());
-            info!("FOOX: New deposit: {:?}", deposit);
-        }
-
-        for deposit in &new_deposits {
-            if let Some(fxg) = on_new_deposit(deposit) {
-                // local call to F()
-                let _res = self.gather_sigs_and_send_to_hub(&fxg).await;
-            }
-        }
-    }
-
-    async fn gather_sigs_and_send_to_hub(&self, fxg: &DepositFXG) -> ChainResult<TxOutcome> {
-        // need to ultimately send to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/hyperlane-cosmos-native/src/mailbox.rs#L131
-        let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
-        let mut sigs_res = self.provider.validators().get_deposit_sigs(fxg).await?;
-
-        let checkpoint: MultisigSignedCheckpoint =
-            MultisigSignedCheckpoint::try_from(&mut sigs_res).unwrap();
-        let _threshold = 3usize; // TODO: threshold check
+        let t = self.provider.validators().threshold(); // TODO: use it
+        let checkpoint = MultisigSignedCheckpoint::try_from(&mut sigs).unwrap();
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
 
         let slice = metadata.as_slice();
 
-        self.hub_mailbox.process(&m, slice, None).await
+        self.hub_mailbox.process(&msg, slice, None).await
     }
 
     /// TODO: unused for now because we skirt the usual DB management
+    /// if bringing back, see https://github.com/dymensionxyz/hyperlane-monorepo/blob/093dba37d696acc0c4440226c68f80dc85e42ce6/rust/main/hyperlane-base/src/kas_hack/logic_loop.rs#L92-L94
     async fn deposits_to_logs<T>(&self, _deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
     {
-        vec![]
-        // unimplemented!()
+        unimplemented!()
     }
 
     /// TODO: unused for now because we skirt the usual DB management
@@ -163,4 +126,28 @@ where
 
         logs
     }
+}
+
+struct DepositCache {
+    seen: HashSet<Deposit>,
+}
+
+impl DepositCache {
+    pub fn new() -> Self {
+        Self {
+            seen: HashSet::new(),
+        }
+    }
+
+    fn has_seen(&self, deposit: &Deposit) -> bool {
+        self.seen.contains(deposit)
+    }
+
+    fn mark_as_seen(&mut self, deposit: Deposit) {
+        self.seen.insert(deposit);
+    }
+}
+
+pub trait MetadataConstructor {
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
 }

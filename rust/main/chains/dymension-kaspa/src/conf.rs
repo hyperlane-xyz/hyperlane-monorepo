@@ -13,8 +13,8 @@ pub struct ConnectionConf {
     pub kaspa_rest_url: Url,
     pub escrow_address: String,
     pub validator_hosts: Vec<String>,
-    pub validator_ids: Vec<H256>,// TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
-    pub threshold: usize,
+    pub validator_ids: Vec<H256>, // TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
+    pub kaspa_multisig_threshold: usize,
 }
 
 impl ConnectionConf {
@@ -26,14 +26,13 @@ impl ConnectionConf {
         validator_hosts: Vec<String>,
         validator_ids: Vec<H256>,
         threshold: usize,
-
     ) -> Self {
         Self {
             kaspa_rest_url,
             escrow_address,
             validator_hosts,
             validator_ids,
-            threshold,
+            kaspa_multisig_threshold: threshold,
         }
     }
 }
