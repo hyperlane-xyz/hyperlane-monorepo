@@ -31,6 +31,7 @@ pub async fn handle_observed_deposits(
     cache: &mut DepositCache,
     deposits: Vec<Deposit>,
     hub_mailbox: &M,
+    
 ) {
     let new_deposits: Vec<Deposit> = deposits
         .into_iter()
