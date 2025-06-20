@@ -157,6 +157,7 @@ export class WarpCore {
       const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
         sender,
+        originToken.igpTokenAddressOrDenom,
       );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;
@@ -397,6 +398,7 @@ export class WarpCore {
         amount: interchainFee.amount,
         addressOrDenom: interchainFee.token.addressOrDenom,
       },
+      customHook: token.igpTokenAddressOrDenom,
     });
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
 
