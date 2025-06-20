@@ -1985,16 +1985,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  rometestnet2: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   ronin: {
     threshold: 4,
     validators: [
