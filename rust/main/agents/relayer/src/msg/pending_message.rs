@@ -588,7 +588,8 @@ impl PendingMessage {
         Some(pending_message)
     }
 
-    pub fn direct( // TODO: remove?
+    pub fn direct(
+        // TODO: remove?
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
         app_context: Option<String>,

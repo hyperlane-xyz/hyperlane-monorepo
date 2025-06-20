@@ -49,8 +49,8 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
-use dymension_kaspa::KaspaProvider;
 use super::dymension_submitter::PendingMessageMetadataGetter;
+use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
 use crate::{
@@ -60,10 +60,8 @@ use crate::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
         metadata::{
-            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
-            IsmCachePolicyClassifier,
-            multisig::MessageIdMultisigMetadataBuilder,
-            MessageMetadataBuilder,
+            multisig::MessageIdMultisigMetadataBuilder, BaseMetadataBuilder, DefaultIsmCache,
+            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuilder,
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
@@ -125,7 +123,7 @@ pub struct Relayer {
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
     kas_provider: Option<KaspaProvider>,
-    dym_mailbox: Option<Arc<dyn Mailbox>>
+    dym_mailbox: Option<Arc<dyn Mailbox>>,
 }
 
 impl Debug for Relayer {
@@ -506,7 +504,13 @@ impl BaseAgent for Relayer {
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
             kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes.get(&HyperlaneDomain::new(1, "dym", HyperlaneDomainProtocol::Dymension)).cloned(),
+            dym_mailbox: mailboxes
+                .get(&HyperlaneDomain::new(
+                    1,
+                    "dym",
+                    HyperlaneDomainProtocol::Dymension,
+                ))
+                .cloned(),
         })
     }
 
@@ -613,7 +617,7 @@ impl BaseAgent for Relayer {
                 let kas_db = self.dbs.get(origin).unwrap();
 
                 let kas_provider = self.kas_provider.clone().unwrap();
-                
+
                 let metadata_getter = PendingMessageMetadataGetter::new_alt();
 
                 let hub_mailbox = self.dym_mailbox.clone().unwrap();

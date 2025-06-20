@@ -8,7 +8,8 @@ use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{
-    config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256, utils::{hex_or_base58_to_h256},
+    config::ConfigParsingError, utils::hex_or_base58_to_h256, HyperlaneDomainProtocol, NativeToken,
+    H256,
 };
 
 use hyperlane_starknet as h_starknet;

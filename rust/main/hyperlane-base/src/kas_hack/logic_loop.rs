@@ -1,9 +1,4 @@
-use std::{
-    collections::HashSet,
-    fmt::Debug,
-    hash::Hash,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
@@ -19,6 +14,7 @@ use dym_kas_relayer::deposit::on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider, ValidatorsClient};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
+use std::sync::Arc;
 
 struct DepositCache {
     seen: HashSet<Deposit>,
@@ -44,25 +40,24 @@ pub trait MetadataConstructor {
     fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
 }
 
-pub struct Foo<M: Mailbox, C: MetadataConstructor> {
+pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
     provider: KaspaProvider,
-    hub_mailbox: M,
+    hub_mailbox: Arc<dyn Mailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
 }
 
-impl<M: Mailbox, C: MetadataConstructor> Foo<M, C>
+impl<C: MetadataConstructor> Foo<C>
 where
-    M: Send + Sync + 'static,
     C: Send + Sync + 'static,
 {
     pub fn new(
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
         provider: KaspaProvider,
-        hub_mailbox: M,
+        hub_mailbox: Arc<dyn Mailbox>,
         metadata_constructor: C,
     ) -> Self {
         Self {

@@ -10,8 +10,8 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
-use super::RestProvider;
 use super::validators::ValidatorsClient;
+use super::RestProvider;
 
 use crate::{ConnectionConf, Signer};
 
@@ -54,7 +54,6 @@ impl KaspaProvider {
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
-     
 }
 
 impl HyperlaneChain for KaspaProvider {

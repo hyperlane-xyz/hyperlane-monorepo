@@ -28,8 +28,7 @@ pub use dym_kas_validator;
 
 mod router;
 
-
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::signers::*, self::validator_announce::*, self::router::*,
+    self::providers::*, self::router::*, self::signers::*, self::validator_announce::*,
 };

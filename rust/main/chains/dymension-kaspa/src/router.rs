@@ -8,13 +8,10 @@ use axum::{
     Router,
 };
 use dym_kas_core::deposit::DepositFXG;
-use hyperlane_core::{
-    Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256,
-};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256};
 use std::sync::Arc;
 
 use dym_kas_validator::deposit::validate_deposits;
-
 
 pub struct AppError(eyre::Report);
 
@@ -33,7 +30,8 @@ impl IntoResponse for AppError {
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Clone)]
-struct AppState<S: HyperlaneSignerExt + Send + Sync + 'static> { // TODO: needs to be shared across routers?
+struct AppState<S: HyperlaneSignerExt + Send + Sync + 'static> {
+    // TODO: needs to be shared across routers?
     signer: Arc<S>,
 }
 
@@ -43,7 +41,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 ) -> AppResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    if !validate_deposits(&deposits) { // Call to G()
+    if !validate_deposits(&deposits) {
+        // Call to G()
         return Err(AppError(eyre::eyre!("Invalid deposit")));
     }
 
