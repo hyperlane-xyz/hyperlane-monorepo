@@ -348,6 +348,8 @@ export async function runWarpRouteApply(
     );
 
   const { multiProvider } = context;
+  // temporarily configure deployer as owner so that warp update after extension
+  // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
     objMap(params.warpDeployConfig, async (chain, config) => ({
       ...config,
