@@ -380,10 +380,6 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
         .expect_build_transactions()
         .returning(move |_| txs.clone());
 
-    adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
-
-    adapter.expect_estimate_tx().returning(|_| Ok(()));
-
     let mut counter = 0;
     adapter.expect_tx_status().returning(move |_| {
         counter += 1;
@@ -396,13 +392,22 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
             _ => Ok(TransactionStatus::Finalized),
         }
     });
-    adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
+
+    adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+
+    adapter.expect_estimate_tx().returning(|_| Ok(()));
+
+    adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
 
     adapter.expect_submit().returning(|_| Ok(()));
 
     adapter
         .expect_update_vm_specific_metrics()
         .returning(|_, _| ());
+
+    adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
 
     adapter.expect_max_batch_size().returning(|| 1);
 
