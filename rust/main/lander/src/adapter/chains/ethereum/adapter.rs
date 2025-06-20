@@ -321,6 +321,7 @@ impl AdaptsChain for EthereumAdapter {
         let Some(tx_building_result) = tx_building_results.first() else {
             error!(
                 ?payloads_successful,
+                ?payloads_failed,
                 "Failed to build transaction for payloads, no transaction building result"
             );
             return Err(LanderError::SimulationFailed);
@@ -329,6 +330,7 @@ impl AdaptsChain for EthereumAdapter {
         let Some(transaction) = tx_building_result.maybe_tx.clone() else {
             error!(
                 ?payloads_successful,
+                ?payloads_failed,
                 "Failed to build transaction for payloads, transaction was not built"
             );
             return Err(LanderError::SimulationFailed);
