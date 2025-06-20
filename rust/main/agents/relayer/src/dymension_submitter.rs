@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use eyre::Result;
 
-struct PendingMessageMetadataGetter{
+pub struct PendingMessageMetadataGetter{
     builder: MessageIdMultisigMetadataBuilder,
 }
 

@@ -50,7 +50,8 @@ use lander::{
 };
 
 use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kas_hack::{is_kas, run_kas_monitor};
+use super::dymension_submitter::PendingMessageMetadataGetter;
+use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -61,6 +62,7 @@ use crate::{
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
+            multisig::MessageIdMultisigMetadataBuilder,
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
@@ -604,16 +606,34 @@ impl BaseAgent for Relayer {
                 // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
                 // we run our own loop for dispatch polling
 
-                let kdb = self.dbs.get(origin).unwrap();
+                let kas_db = self.dbs.get(origin).unwrap();
 
-                let kp = self.kas_provider.clone().unwrap();
+                let kas_provider = self.kas_provider.clone().unwrap();
+
+                let hub_mailbox : Mailbox = 
+
+                let metadata_getter = PendingMessageMetadataGetter::new(
+                    MessageIdMultisigMetadataBuilder::new(
+                        origin.clone(),
+                        destination_chain_setup.clone(),
+                        prover_syncs[origin].clone(),
+                    ),
+                );
+
+                let foo = Foo::new(
+                    origin.clone(),
+                    kas_db.clone().to_owned(),
+                    kas_provider,
+                    hub_mailbox,
+                    metadata_getter,
+                );
 
                 tasks.push(
                     run_kas_monitor(
                         origin.clone(),
-                        kdb.clone().to_owned(),
+                        kas_db.clone().to_owned(),
                         task_monitor.clone(),
-                        kp,
+                        kas_provider,
                     )
                     .await,
                 );
