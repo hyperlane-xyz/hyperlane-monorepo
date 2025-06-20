@@ -53,8 +53,6 @@ use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
-mod dymension_tasks;
-
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
@@ -609,33 +607,12 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) {
-                // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
-                // we run our own loop for dispatch polling
-
-                let kas_db = self.dbs.get(origin).unwrap();
-
-                let kas_provider = self.kas_provider.clone().unwrap();
-
-                let metadata_getter = PendingMessageMetadataGetter::new();
-
-                let hub_mailbox = self.dym_mailbox.clone().unwrap();
-
-                let foo = Foo::new(
-                    origin.clone(),
-                    kas_db.clone().to_owned(),
-                    kas_provider,
-                    hub_mailbox,
-                    metadata_getter,
-                );
-
-                tasks.push(foo.run(task_monitor.clone()));
-
-                // it observes the local db and makes sure messages are eventually written to the destination chain
-                tasks.push(self.run_message_processor(
+                self.launch_dymension_kaspa_tasks(
                     origin,
-                    send_channels.clone(),
+                    &mut tasks,
                     task_monitor.clone(),
-                ));
+                    send_channels.clone(),
+                );
                 continue;
             }
             let maybe_broadcaster = self
@@ -1484,5 +1461,39 @@ mod test {
             .get_metric_with_label_values(&["optimism"])
             .unwrap();
         assert_eq!(metric.get(), 1);
+    }
+}
+
+impl Relayer {
+    fn launch_dymension_kaspa_tasks(
+        &self,
+        origin: &HyperlaneDomain,
+        tasks: &mut Vec<JoinHandle<()>>,
+        task_monitor: TaskMonitor,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) {
+        // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
+        // we run our own loop for dispatch polling
+
+        let kas_db = self.dbs.get(origin).unwrap();
+
+        let kas_provider = self.kas_provider.clone().unwrap();
+
+        let metadata_getter = PendingMessageMetadataGetter::new();
+
+        let hub_mailbox = self.dym_mailbox.clone().unwrap();
+
+        let foo = Foo::new(
+            origin.clone(),
+            kas_db.clone().to_owned(),
+            kas_provider,
+            hub_mailbox,
+            metadata_getter,
+        );
+
+        tasks.push(foo.run(task_monitor.clone()));
+
+        // it observes the local db and makes sure messages are eventually written to the destination chain
+        tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
     }
 }
