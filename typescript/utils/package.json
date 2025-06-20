@@ -62,5 +62,8 @@
   "sideEffects": false,
   "engines": {
     "node": ">=16"
+  },
+  "optionalDependencies": {
+    "@google-cloud/pino-logging-gcp-config": "^1.0.0"
   }
 }

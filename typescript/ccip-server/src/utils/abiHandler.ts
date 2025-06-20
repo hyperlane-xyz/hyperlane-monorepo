@@ -36,6 +36,12 @@ export function createAbiHandler<
 ) {
   const iface = contractFactory.createInterface();
   return async (req: Request, res: Response) => {
+    // Create ABI handler logger for this handler's logging
+    const handlerLogger = req.log.child({
+      handler: 'abiHandler',
+      function: functionName as string,
+    });
+
     try {
       const { skipResultEncoding = false, verifyRelayerSignatureUrl } = options;
       // request body fields
@@ -48,6 +54,7 @@ export function createAbiHandler<
         (req.query?.callData as string) ||
         '';
       if (!data) {
+        handlerLogger.warn('Missing callData in request');
         return res.status(400).json({ error: 'Missing callData' });
       }
 
@@ -83,13 +90,16 @@ export function createAbiHandler<
           signature,
         );
       }
+      handlerLogger.info({ callData: data }, 'Processing ABI handler request');
 
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
       const args = fragment.inputs.map((_, i) => decoded[i]);
-      const finalArgs = [...args];
+      const finalArgs = [...args, req.log];
       if (relayer) finalArgs.push(relayer);
       const result = await serviceMethod(...finalArgs);
+
+      handlerLogger.info('ABI handler completed successfully');
 
       if (skipResultEncoding) {
         return res.json({ data: result });
@@ -100,7 +110,13 @@ export function createAbiHandler<
       );
       return res.json({ data: encoded });
     } catch (err: any) {
-      console.error(`Error in ABI handler ${functionName}:`, err);
+      handlerLogger.error(
+        {
+          error: err.message,
+          stack: err.stack,
+        },
+        `Error in ABI handler ${functionName}`,
+      );
       return res.status(500).json({ error: err.message });
     }
   };

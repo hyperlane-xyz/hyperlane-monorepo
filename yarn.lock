@@ -8126,6 +8126,7 @@ __metadata:
     "@prisma/client": "npm:^6.8.2"
     "@types/cors": "npm:^2"
     "@types/node": "npm:^18.14.5"
+    "@types/pino-http": "npm:^5.8.4"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
     cors: "npm:^2.8.5"
@@ -8135,6 +8136,7 @@ __metadata:
     ethers: "npm:^5.8.0"
     jest: "npm:^29.7.0"
     nodemon: "npm:^3.0.3"
+    pino-http: "npm:^10.2.0"
     prettier: "npm:^3.5.3"
     prisma: "npm:^6.8.2"
     prom-client: "npm:^14.0.1"
@@ -8541,6 +8543,7 @@ __metadata:
   dependencies:
     "@cosmjs/encoding": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
+    "@google-cloud/pino-logging-gcp-config": "npm:^1.0.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@solana/web3.js": "npm:^1.95.4"
     "@types/lodash-es": "npm:^4.17.12"
@@ -8564,6 +8567,9 @@ __metadata:
     starknet: "npm:^7.4.0"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
+  dependenciesMeta:
+    "@google-cloud/pino-logging-gcp-config":
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -17305,6 +17311,46 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10/d15024b1957c21cf3b8887329d9bd8dfde754cf13a09d76ae25f1391cfc62bb8b8d7b760773c5dbaa748172fba8b3e0c3dbe962af6ccbd69b76df12a48dfba40
+  languageName: node
+  linkType: hard
+
+"@types/pino-http@npm:^5.8.4":
+  version: 5.8.4
+  resolution: "@types/pino-http@npm:5.8.4"
+  dependencies:
+    "@types/pino": "npm:6.3"
+  checksum: 10/9520c7ea5e2f4b6950d0635d26d3e37f70ef8199c3f6815e9f8dca887a9e967f81b4f1228b91d63b9506f4e9f3cac921170fd84b07ba62fbbe675b4d2579951a
+  languageName: node
+  linkType: hard
+
+"@types/pino-pretty@npm:*":
+  version: 4.7.5
+  resolution: "@types/pino-pretty@npm:4.7.5"
+  dependencies:
+    "@types/node": "npm:*"
+    "@types/pino": "npm:6.3"
+  checksum: 10/80b3e80d1d9b52f015382bbd544206228d0c35eed1a0e1443245568eee01191b5fe916e7821de2922846f267e5d0693f4796562d3bcf24266156d1abc9e2e673
+  languageName: node
+  linkType: hard
+
+"@types/pino-std-serializers@npm:*":
+  version: 2.4.1
+  resolution: "@types/pino-std-serializers@npm:2.4.1"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10/a156e25882db9aade2576dbe6414379efcdd4fad24211d3f22f20e0cd4bee569215799ee5cd9b2b15282f18461a8a54573ff42bf6bee5d35b72513be2f78bdec
+  languageName: node
+  linkType: hard
+
+"@types/pino@npm:6.3":
+  version: 6.3.12
+  resolution: "@types/pino@npm:6.3.12"
+  dependencies:
+    "@types/node": "npm:*"
+    "@types/pino-pretty": "npm:*"
+    "@types/pino-std-serializers": "npm:*"
+    sonic-boom: "npm:^2.1.0"
+  checksum: 10/c7e49c483fdf9a2ff9cc922c8246fdc54eede07b2b42ee9c8bc4ceefe7416002191f3508355968e36452d603d1c0b97db3fe709d5133434942396f19e0ec8a47
   languageName: node
   linkType: hard
 
@@ -32846,6 +32892,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pino-http@npm:^10.2.0":
+  version: 10.5.0
+  resolution: "pino-http@npm:10.5.0"
+  dependencies:
+    get-caller-file: "npm:^2.0.5"
+    pino: "npm:^9.0.0"
+    pino-std-serializers: "npm:^7.0.0"
+    process-warning: "npm:^5.0.0"
+  checksum: 10/74941bf3a194b897ba5e2d89baf4a1453065d9c7e15b08605ee8cf8f38cf2d44ce11549c46c7cf3367b4a58d9cc94a070d422a85607920d5230eb76645fe962d
+  languageName: node
+  linkType: hard
+
 "pino-std-serializers@npm:^4.0.0":
   version: 4.0.0
   resolution: "pino-std-serializers@npm:4.0.0"
@@ -32909,7 +32967,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pino@npm:^9.6.0":
+"pino@npm:^9.0.0, pino@npm:^9.6.0":
   version: 9.7.0
   resolution: "pino@npm:9.7.0"
   dependencies:
@@ -36306,7 +36364,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sonic-boom@npm:^2.2.1":
+"sonic-boom@npm:^2.1.0, sonic-boom@npm:^2.2.1":
   version: 2.8.0
   resolution: "sonic-boom@npm:2.8.0"
   dependencies:
