@@ -156,6 +156,7 @@ fn attempt_program_deploy(
         program_keypair_path.to_str().unwrap(),
         "--buffer",
         buffer_keypair_path.to_str().unwrap(),
+        "--use-rpc",
     ];
 
     let compute_unit_price_str = compute_unit_price.to_string();

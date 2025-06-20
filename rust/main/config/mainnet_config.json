@@ -9907,6 +9907,47 @@
         "key": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "address": "0x0000000000000000000000000000000000000000000000000000000000000000"
       }
+    },
+    "solaxy": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://solscan.io",
+          "family": "other",
+          "name": "Solaxy Explorer",
+          "url": "https://solscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
+      "chainId": 1936682104,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Solaxy",
+      "domainId": 1936682104,
+      "gasCurrencyCoinGeckoId": "usd-coin",
+      "name": "solaxy",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Solaxy",
+        "symbol": "SOLX"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://mainnet.rpc.solaxy.io"
+        }
+      ],
+      "technicalStack": "other",
+      "interchainGasPaymaster": "3SDcBbfZUF9ykR3yudYN198ja3KJSq17Q3rKw7JKfJR6",
+      "interchainSecurityModule": "BMyTd7BBTw6ewENKkvzQsmPXPBHsTDW4oLHSYkv78spP",
+      "mailbox": "6VdnmP8MfYkPNMwyU2ZY9S3ickYyewF58LPC38y9FAVU",
+      "merkleTreeHook": "6VdnmP8MfYkPNMwyU2ZY9S3ickYyewF58LPC38y9FAVU",
+      "validatorAnnounce": "28S9ToSehVxdE7rTGEAA3vAX3AchHJh1MXcq9AeM1rL8"
     }
   }
 }

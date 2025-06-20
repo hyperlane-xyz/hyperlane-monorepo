@@ -120,6 +120,9 @@ function getChainConnections(
       ['eclipsemainnet', 'sonicsvm'],
       ['eclipsemainnet', 'soon'],
       ['eclipsemainnet', 'katana'],
+      // for solaxy routes
+      ['solaxy', 'solanamainnet'],
+      ['solaxy', 'ethereum'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
