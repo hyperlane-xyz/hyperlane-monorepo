@@ -116,6 +116,7 @@ export const mainnet3SupportedChainNames = [
   'shibarium',
   'snaxchain',
   'solanamainnet',
+  'solaxy',
   'soneium',
   'sonic',
   'sonicsvm',
