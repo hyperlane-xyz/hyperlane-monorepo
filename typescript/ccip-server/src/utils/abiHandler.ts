@@ -63,12 +63,10 @@ export function createAbiHandler<
       if (verifyRelayerSignatureUrl) {
         const parseResult = bodySchema.safeParse({ sender, signature });
         if (!parseResult.success) {
-          return res
-            .status(400)
-            .json({
-              error: 'Invalid sender or signature format',
-              details: parseResult.error.errors,
-            });
+          return res.status(400).json({
+            error: 'Invalid sender or signature format',
+            details: parseResult.error.errors,
+          });
         }
       }
 
