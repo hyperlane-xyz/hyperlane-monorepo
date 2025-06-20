@@ -431,7 +431,10 @@ impl AdaptsChain for EthereumAdapter {
         let payload_details_and_precursors = tx
             .payload_details
             .iter()
-            .filter_map(|d| EthereumTxPrecursor::from_success_criteria(d).map(|p| (d, p)))
+            .filter_map(|d| {
+                EthereumTxPrecursor::from_success_criteria(d, self.provider.get_signer().unwrap())
+                    .map(|p| (d, p))
+            })
             .collect::<Vec<_>>();
 
         let mut reverted = Vec::new();
