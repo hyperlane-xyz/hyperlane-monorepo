@@ -37,7 +37,7 @@ async function startServer() {
         console.warn(`⚠️  Module '${name}' not found; skipping`);
         continue;
       }
-      const service = await ServiceClass.initialize(); // module reads its own ENV config
+      const service = await ServiceClass.initialize(name); // module reads its own ENV config
 
       app.use(`/${name}`, (req, res, next) => {
         res.on('finish', () => {

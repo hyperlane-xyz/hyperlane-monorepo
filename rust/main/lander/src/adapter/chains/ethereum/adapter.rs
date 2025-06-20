@@ -25,7 +25,7 @@ use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, SubmitterPro
 
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
-    dispatcher::VmSpecificMetricsSource,
+    dispatcher::PostInclusionMetricsSource,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus, VmSpecificTxData},
     DispatcherMetrics, LanderError,
@@ -133,8 +133,8 @@ impl EthereumAdapter {
         Ok(())
     }
 
-    fn extract_vm_specific_metrics(tx: &Transaction) -> VmSpecificMetricsSource {
-        let mut metrics_source = VmSpecificMetricsSource::default();
+    fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
+        let mut metrics_source = PostInclusionMetricsSource::default();
         let precursor = tx.precursor().clone();
 
         if let TypedTransaction::Eip1559(precursor) = &precursor.tx {
@@ -150,6 +150,7 @@ impl EthereumAdapter {
                 metrics_source.gas_price = Some(gas_price.as_u64());
             }
         }
+        metrics_source.gas_limit = precursor.tx.gas().map(|g| g.as_u64());
         metrics_source
     }
 }
@@ -268,7 +269,7 @@ impl AdaptsChain for EthereumAdapter {
 
     fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
         let metrics_source = Self::extract_vm_specific_metrics(tx);
-        metrics.set_vm_specific_metrics(&metrics_source, self.domain.as_ref());
+        metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
@@ -289,6 +290,7 @@ mod tests {
 
     use crate::{
         adapter::EthereumTxPrecursor,
+        dispatcher::PostInclusionMetricsSource,
         tests::ethereum::inclusion_stage::{dummy_evm_tx, dummy_tx_precursor},
         transaction::VmSpecificTxData,
     };
@@ -316,9 +318,14 @@ mod tests {
             });
         }
 
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: None,
+            gas_limit: Some(21000),
+        };
+
         let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
-        assert_eq!(metrics_source.gas_price.unwrap(), 1000000000);
-        assert_eq!(metrics_source.priority_fee, None);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
     }
 
     #[test]
@@ -337,6 +344,7 @@ mod tests {
                 from: Some(H160::random()),
                 to: Some(H160::random().into()),
                 nonce: Some(0.into()),
+                gas: Some(21000.into()),
                 max_fee_per_gas: Some(1000000000.into()),
                 max_priority_fee_per_gas: Some(22222.into()),
                 value: Some(1.into()),
@@ -344,9 +352,13 @@ mod tests {
             });
         }
 
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: Some(22222),
+            gas_limit: Some(21000),
+        };
         let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
-        assert_eq!(metrics_source.gas_price.unwrap(), 1000000000);
-        assert_eq!(metrics_source.priority_fee.unwrap(), 22222);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
     }
 
     #[test]
@@ -375,8 +387,12 @@ mod tests {
             });
         }
 
+        let expected_post_inclusion_metrics_source = PostInclusionMetricsSource {
+            gas_price: Some(1000000000),
+            priority_fee: None,
+            gas_limit: Some(21000), // Default gas limit for EIP-2930 transactions
+        };
         let metrics_source = EthereumAdapter::extract_vm_specific_metrics(&evm_tx);
-        assert_eq!(metrics_source.gas_price.unwrap(), 1000000000);
-        assert_eq!(metrics_source.priority_fee, None);
+        assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
     }
 }

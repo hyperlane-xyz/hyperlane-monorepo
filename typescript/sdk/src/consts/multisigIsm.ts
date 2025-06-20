@@ -2171,6 +2171,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  solaxy: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   somniatestnet: {
     threshold: 1,
     validators: [

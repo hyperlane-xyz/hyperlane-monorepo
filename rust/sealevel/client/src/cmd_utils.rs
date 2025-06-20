@@ -156,6 +156,8 @@ fn attempt_program_deploy(
         program_keypair_path.to_str().unwrap(),
         "--buffer",
         buffer_keypair_path.to_str().unwrap(),
+        // Some chains/RPCs don't support TPUs (e.g. Solaxy), so we use RPC instead
+        "--use-rpc",
     ];
 
     let compute_unit_price_str = compute_unit_price.to_string();
