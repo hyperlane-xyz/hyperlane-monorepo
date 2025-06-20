@@ -1,6 +1,6 @@
 use crate::msg::{
     metadata::Metadata, pending_message::MessageContext, pending_message::PendingMessage,
-    metadata::multisig::{MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder},
+    metadata::multisig::{MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata},
 };
 
 use hyperlane_core::{traits::PendingOperationResult, HyperlaneMessage, MultisigSignedCheckpoint};
