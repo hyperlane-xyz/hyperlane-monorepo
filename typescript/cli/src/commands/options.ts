@@ -193,13 +193,6 @@ export const symbolCommandOption: Options = {
   description: 'Token symbol (e.g. ETH, USDC)',
 };
 
-export const chainsCommandOption: Options = {
-  type: 'string',
-  alias: ['c'],
-  description:
-    'Only update this subset of chains with warp apply (comma separated list)',
-};
-
 export const validatorCommandOption: Options = {
   type: 'string',
   description: 'Comma separated list of validator addresses',

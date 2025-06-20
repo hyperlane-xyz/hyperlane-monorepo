@@ -53,7 +53,7 @@ import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
-  chainsCommandOption,
+  chainTargetsCommandOption,
   dryRunCommandOption,
   forkCommandOptions,
   fromAddressCommandOption,
@@ -112,7 +112,7 @@ export const apply: CommandModuleWithWarpApplyContext<{
       demandOption: false,
     },
     chains: {
-      ...chainsCommandOption,
+      ...chainTargetsCommandOption,
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
