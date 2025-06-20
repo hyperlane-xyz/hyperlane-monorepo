@@ -10,10 +10,5 @@ It needs to launch a task which
        If OK, then sign the HL message ID using the custom ISM
        Gather all of these over http, and send direct to hub using cosmos-rs
 
-__________
-Somewhere else need to
-    1. 
-    2. 
 
-
-
+TODO: finish

@@ -13,7 +13,7 @@ pub struct ConnectionConf {
     pub kaspa_rest_url: Url,
     pub escrow_address: String,
     pub validator_hosts: Vec<String>,
-    pub validator_ids: Vec<H256>, // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
+    pub validator_ids: Vec<H256>,// TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
 }
 
 impl ConnectionConf {
