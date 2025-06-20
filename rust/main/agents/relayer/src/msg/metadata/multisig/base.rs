@@ -54,7 +54,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
 
     fn token_layout(&self) -> Vec<MetadataToken>;
 
-    fn format_metadata(&self, metadata: MultisigMetadata) -> Result<Vec<u8>> {
+    pub fn format_metadata(&self, metadata: MultisigMetadata) -> Result<Vec<u8>> {
         let build_token = |token: &MetadataToken| -> Result<Vec<u8>> {
             match token {
                 MetadataToken::CheckpointMerkleRoot => {

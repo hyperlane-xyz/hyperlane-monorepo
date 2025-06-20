@@ -24,6 +24,7 @@ impl PendingMessageMedataConstructor {
             0,
             None,
         );
-        Ok(meta.to_vec().as_slice())
+
+        self.builder.format_metadata(meta)
     }
 }
