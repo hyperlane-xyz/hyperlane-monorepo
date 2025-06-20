@@ -10,7 +10,7 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../
  * @title SimpleMessageSenderReceiver
  * @notice A simple contract to test sending and receiving Hyperlane messages
  * using a Mailbox configured with PolymerISM.
- * Assumes Mailbox uses MockHook, so dispatch calls don't require value.
+ * Supports protocol fees by forwarding msg.value to mailbox dispatch calls.
  */
 contract SimpleMessageSenderReceiver is
     IMessageRecipient,
@@ -65,18 +65,18 @@ contract SimpleMessageSenderReceiver is
      * @param _destinationDomain The target chain's domain ID.
      * @param _recipientAddress The address of the recipient contract on the destination chain.
      * @param _messageBody The content of the message to send.
+     * @dev Now payable to support protocol fees. Pass fee as msg.value.
      */
     function sendMessage(
         uint32 _destinationDomain,
         address _recipientAddress,
         bytes calldata _messageBody
-    ) external {
+    ) external payable returns (bytes32) {
         // Convert recipient address to bytes32 for Mailbox dispatch
         bytes32 recipientBytes32 = _recipientAddress.addressToBytes32();
 
-        // Dispatch the message using the basic dispatch function.
-        // Assumes Mailbox uses MockHook, so no msg.value is needed.
-        bytes32 messageId = mailbox.dispatch(
+        // Dispatch the message, forwarding any fee sent with this transaction
+        bytes32 messageId = mailbox.dispatch{value: msg.value}(
             _destinationDomain,
             recipientBytes32,
             _messageBody
@@ -88,6 +88,29 @@ contract SimpleMessageSenderReceiver is
             _messageBody,
             messageId
         );
+
+        return messageId;
+    }
+
+    /**
+     * @notice Quote the fee required to dispatch a message.
+     * @param _destinationDomain The target chain's domain ID.
+     * @param _recipientAddress The address of the recipient contract on the destination chain.
+     * @param _messageBody The content of the message to send.
+     * @return fee The fee required to dispatch this message.
+     */
+    function quoteDispatch(
+        uint32 _destinationDomain,
+        address _recipientAddress,
+        bytes calldata _messageBody
+    ) external view returns (uint256 fee) {
+        bytes32 recipientBytes32 = _recipientAddress.addressToBytes32();
+        return
+            mailbox.quoteDispatch(
+                _destinationDomain,
+                recipientBytes32,
+                _messageBody
+            );
     }
 
     // --- Receiving Logic (IMessageRecipient) ---
