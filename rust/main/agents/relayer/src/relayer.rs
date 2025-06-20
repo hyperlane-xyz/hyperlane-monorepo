@@ -63,6 +63,7 @@ use crate::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
             multisig::MessageIdMultisigMetadataBuilder,
+            MessageMetadataBuilder,
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
@@ -613,7 +614,7 @@ impl BaseAgent for Relayer {
                 let hub_mailbox : Mailbox = 
 
                 let metadata_getter = PendingMessageMetadataGetter::new(
-                    MessageIdMultisigMetadataBuilder::new(
+                    MessageMetadataBuilder::new(
                         origin.clone(),
                         destination_chain_setup.clone(),
                         prover_syncs[origin].clone(),

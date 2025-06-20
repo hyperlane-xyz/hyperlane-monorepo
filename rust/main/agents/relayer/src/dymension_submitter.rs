@@ -1,6 +1,8 @@
 use crate::msg::{
     metadata::Metadata, pending_message::MessageContext, pending_message::PendingMessage,
-    metadata::multisig::{MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata},
+    metadata::multisig::{MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata
+    },
+    metadata::BuildsBaseMetadata
 };
 
 use hyperlane_core::{traits::PendingOperationResult, HyperlaneMessage, MultisigSignedCheckpoint};
@@ -35,3 +37,7 @@ impl PendingMessageMetadataGetter {
         formatter.format_metadata(meta)
     }
 }
+
+struct DummyBuildsBaseMetadata;
+
+impl BuildsBaseMetadata for Dumm 
