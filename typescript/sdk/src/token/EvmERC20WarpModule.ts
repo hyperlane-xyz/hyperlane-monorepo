@@ -679,14 +679,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig: expectedConfig.hook,
         ccipContractCache: this.ccipContractCache,
         contractVerifier: this.contractVerifier,
-        evmChainId: this.chainId,
         evmChainName: this.chainName,
         hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
           this.args.addresses,
         ),
-        contractToCallAbi: MailboxClient__factory.abi,
-        setHookFunctionName:
-          MailboxClient__factory.createInterface().getFunction('setHook').name,
+        setHookFunctionCallEncoder: (newHookAddress: string) =>
+          MailboxClient__factory.createInterface().encodeFunctionData(
+            'setHook',
+            [newHookAddress],
+          ),
         logger: this.logger,
         mailbox: actualConfig.mailbox,
         multiProvider: this.multiProvider,

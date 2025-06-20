@@ -23,6 +23,7 @@ import {
 } from '../contracts/types.js';
 import {
   CoreConfig,
+  CoreConfigHookFieldKey,
   CoreConfigSchema,
   DeployedCoreAddresses,
   DerivedCoreConfig,
@@ -128,8 +129,7 @@ export class EvmCoreModule extends HyperlaneModule<
       transactions.push(
         ...(await this.createHookUpdateTxs(
           proxyAdminAddress,
-          Mailbox__factory.createInterface().getFunction('setRequiredHook')
-            .name,
+          'requiredHook',
           actualConfig.requiredHook,
           expectedConfig.requiredHook,
         )),
@@ -140,7 +140,7 @@ export class EvmCoreModule extends HyperlaneModule<
       transactions.push(
         ...(await this.createHookUpdateTxs(
           proxyAdminAddress,
-          Mailbox__factory.createInterface().getFunction('setDefaultHook').name,
+          'defaultHook',
           actualConfig.defaultHook,
           expectedConfig.defaultHook,
         )),
@@ -170,26 +170,34 @@ export class EvmCoreModule extends HyperlaneModule<
 
   async createHookUpdateTxs(
     proxyAdminAddress: Address,
-    setHookFunctionName: string,
+    setHookFunctionName: CoreConfigHookFieldKey,
     actualConfig: DerivedHookConfig,
     expectedConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
       actualConfig: actualConfig,
       expectedConfig: expectedConfig,
-      evmChainId: this.chainId,
       evmChainName: this.chainName,
       hookAndIsmFactories: extractIsmAndHookFactoryAddresses(
         this.args.addresses,
       ),
-      contractToCallAbi: Mailbox__factory.abi,
-      setHookFunctionName,
+      setHookFunctionCallEncoder: (newHookAddress: string) => {
+        if (setHookFunctionName === 'requiredHook') {
+          return Mailbox__factory.createInterface().encodeFunctionData(
+            'setRequiredHook',
+            [newHookAddress],
+          );
+        }
+
+        return Mailbox__factory.createInterface().encodeFunctionData(
+          'setDefaultHook',
+          [newHookAddress],
+        );
+      },
       logger: this.logger,
       mailbox: this.args.addresses.mailbox,
       multiProvider: this.multiProvider,
       proxyAdminAddress,
-      ccipContractCache: undefined,
-      contractVerifier: undefined,
     });
   }
 

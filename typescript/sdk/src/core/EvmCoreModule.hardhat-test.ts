@@ -21,7 +21,7 @@ import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
-import { CoreConfig } from './types.js';
+import { CoreConfig, CoreConfigHookFieldKey } from './types.js';
 
 describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test4;
@@ -292,11 +292,13 @@ describe('EvmCoreModule', async () => {
   });
 
   describe(`${EvmCoreModule.prototype.update.name} (Hook Updates)`, async () => {
-    type HookConfigKey = keyof Pick<CoreConfig, 'requiredHook' | 'defaultHook'>;
-    const hookFields: HookConfigKey[] = ['requiredHook', 'defaultHook'];
+    const hookFields: CoreConfigHookFieldKey[] = [
+      'requiredHook',
+      'defaultHook',
+    ];
 
     const testHookUpdate = async (
-      hookType: HookConfigKey,
+      hookType: CoreConfigHookFieldKey,
       newHookConfig: HookConfig,
       hookAddressGetter: () => Promise<string>,
     ) => {
@@ -326,7 +328,10 @@ describe('EvmCoreModule', async () => {
       expect(newHookAddress).to.not.equal(constants.AddressZero);
     };
 
-    const hookAddressGetters: Record<HookConfigKey, () => Promise<string>> = {
+    const hookAddressGetters: Record<
+      CoreConfigHookFieldKey,
+      () => Promise<string>
+    > = {
       requiredHook: () => mailboxContract.requiredHook(),
       defaultHook: () => mailboxContract.defaultHook(),
     };

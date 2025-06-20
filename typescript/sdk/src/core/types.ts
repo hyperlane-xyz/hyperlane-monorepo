@@ -50,6 +50,11 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   upgrade?: UpgradeConfig;
 };
 
+export type CoreConfigHookFieldKey = keyof Pick<
+  CoreConfig,
+  'requiredHook' | 'defaultHook'
+>;
+
 export type DerivedCoreConfig = z.infer<typeof DerivedCoreConfigSchema> & {
   requiredHook: DerivedHookConfig;
   defaultHook: DerivedHookConfig;

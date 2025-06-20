@@ -1,9 +1,7 @@
 import { Logger } from 'pino';
-import { Abi, encodeFunctionData } from 'viem';
 
 import {
   Address,
-  EvmChainId,
   deepCopy,
   eqAddress,
   isZeroishAddress,
@@ -24,7 +22,6 @@ type ReadOnlyDerivedHookConfig = Readonly<DerivedHookConfig>;
 type ReadOnlyHookConfig = Readonly<NonNullable<HypTokenRouterConfig['hook']>>;
 
 type UpdateHookParams = {
-  evmChainId: EvmChainId;
   evmChainName: ChainName;
   mailbox: string;
   proxyAdminAddress: string;
@@ -33,8 +30,7 @@ type UpdateHookParams = {
   logger: Logger;
   hookAndIsmFactories: ReturnType<typeof extractIsmAndHookFactoryAddresses>;
   multiProvider: MultiProvider;
-  setHookFunctionName: string;
-  contractToCallAbi: Abi;
+  setHookFunctionCallEncoder: (newHookAddress: Address) => string;
   ccipContractCache?: CCIPContractCache;
   contractVerifier?: ContractVerifier;
 };
@@ -74,14 +70,12 @@ export async function getEvmHookUpdateTransactions(
     )
   ) {
     updateTransactions.push({
-      chainId: updateHookParams.evmChainId,
+      chainId: updateHookParams.multiProvider.getEvmChainId(
+        updateHookParams.evmChainName,
+      ),
       annotation: `Setting Hook for Warp Route to ${expectedDeployedHook}`,
       to: clientContractAddress,
-      data: encodeFunctionData({
-        abi: updateHookParams.contractToCallAbi,
-        functionName: updateHookParams.setHookFunctionName,
-        args: [expectedDeployedHook],
-      }),
+      data: updateHookParams.setHookFunctionCallEncoder(expectedDeployedHook),
     });
   }
 
@@ -108,7 +102,6 @@ async function deployOrUpdateHook(updateHookParams: UpdateHookParams): Promise<{
 }
 
 async function deployNewHook({
-  evmChainId,
   evmChainName,
   mailbox,
   proxyAdminAddress,
