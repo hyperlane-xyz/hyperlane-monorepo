@@ -311,8 +311,8 @@ impl PendingOperation for PendingMessage {
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
-        // reverting. This is defined behavior, so we just log the error an
-        // move onto the next tick.d
+        // reverting. This is defined behavior, so we just log the error and
+        // move onto the next tick.
         let tx_cost_estimate = match tx_cost_estimate {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
@@ -585,17 +585,6 @@ impl PendingMessage {
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
-        Some(pending_message)
-    }
-
-    pub fn direct(
-        // TODO: remove?
-        message: HyperlaneMessage,
-        ctx: Arc<MessageContext>,
-        app_context: Option<String>,
-    ) -> Option<Self> {
-        let status = PendingOperationStatus::ReadyToSubmit;
-        let mut pending_message = Self::new(message, ctx, status, app_context, 1);
         Some(pending_message)
     }
 
