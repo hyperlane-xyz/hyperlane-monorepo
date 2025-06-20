@@ -101,7 +101,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       ]);
   });
 
-  it.only('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
+  it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
     const { multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
       key: ANVIL_KEY,

@@ -10,6 +10,7 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  E2E_TEST_WARP_ROUTE_REGISTRY_PATH,
   REGISTRY_PATH,
 } from './commands/helpers.js';
 
@@ -39,14 +40,10 @@ function writeChainAddressesToRegistry(chainName: string) {
   );
 }
 
-const canLoadCoreDeploymentData = () =>
-  allowedTests.has(process.env.CLI_E2E_TEST ?? '');
+const canLoadCoreDeploymentData = (currentTestFile = '') =>
+  allowedTests.has(process.env.CLI_E2E_TEST ?? currentTestFile);
 
-before(async () => {
-  if (!canLoadCoreDeploymentData()) {
-    return;
-  }
-
+before(async function () {
   await Promise.all(
     chainsToPreConfigure.map(async (config) => {
       try {
@@ -71,14 +68,18 @@ before(async () => {
 });
 
 // Reset the test registry for each test invocation
-beforeEach(() => {
-  const deploymentPaths = `${REGISTRY_PATH}/deployments/warp_routes`;
-
-  if (fs.existsSync(deploymentPaths)) {
-    fs.rmSync(deploymentPaths, { recursive: true, force: true });
+beforeEach(function () {
+  if (fs.existsSync(E2E_TEST_WARP_ROUTE_REGISTRY_PATH)) {
+    fs.rmSync(E2E_TEST_WARP_ROUTE_REGISTRY_PATH, {
+      recursive: true,
+      force: true,
+    });
   }
 
-  if (!canLoadCoreDeploymentData()) {
+  // Get the current file name and extract the corresponding primary name:
+  // Example: warp-read.e2e-test.ts -> warp-read
+  const currentTestFileName = this.test?.ctx?.currentTest?.file?.split('.')[0];
+  if (!canLoadCoreDeploymentData(currentTestFileName)) {
     return;
   }
 

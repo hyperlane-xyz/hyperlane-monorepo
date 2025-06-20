@@ -63,6 +63,7 @@ export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deplo
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_DEPLOY_2_ID = 'ETH/anvil2';
+export const E2E_TEST_WARP_ROUTE_REGISTRY_PATH = `${REGISTRY_PATH}/deployments/warp_routes`;
 export const WARP_CORE_CONFIG_PATH_2 = getCombinedWarpRoutePath('ETH', [
   CHAIN_NAME_2,
 ]);
@@ -80,7 +81,7 @@ export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],
 ): string {
-  return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
+  return `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
     chains.sort().join('-'),
   )}-config.yaml`;
@@ -98,7 +99,7 @@ export function exportWarpConfigsToFilePaths({
   warpDeployPath: string;
   warpCorePath: string;
 } {
-  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const basePath = `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${warpRouteId}`;
   const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
   const updatedWarpCorePath = `${basePath}-config.yaml`;
   writeYamlOrJson(updatedWarpConfigPath, warpConfig);
