@@ -13,7 +13,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 
-use crate::{ConnectionConf};
+use crate::ConnectionConf;
 
 use hyperlane_cosmos_native::Signer;
 
