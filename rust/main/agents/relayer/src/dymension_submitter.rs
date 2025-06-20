@@ -2,8 +2,9 @@ use crate::msg::{
     metadata::multisig::{
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
     },
-    metadata::BuildsBaseMetadata,
+    metadata::BuildsBaseMetadata,,
     metadata::MessageMetadataBuilder,
+    metadata::DummyBuildsBaseMetadata,
     metadata::Metadata,
     pending_message::MessageContext,
     pending_message::PendingMessage,
