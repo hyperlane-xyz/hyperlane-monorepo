@@ -3,7 +3,7 @@ mod base;
 mod base_builder;
 mod ccip_read;
 mod message_builder;
-mod multisig;
+pub mod multisig;
 mod null_metadata;
 mod routing;
 

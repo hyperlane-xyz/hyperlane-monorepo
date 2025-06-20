@@ -11,7 +11,7 @@ use hyperlane_core::{
     HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
     MultisigSignedCheckpointError, SignedCheckpointWithMessageId,
 };
-
+use eyre::Result as EyreResult;
 use std::{collections::HashSet, fmt::Debug, hash::Hash};
 
 pub struct DepositCache {
@@ -59,7 +59,7 @@ async fn gather_sigs_and_send_to_hub<M: Mailbox, C: MetadataConstructor>(
     let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
     let sigs_res = validators_client.get_deposit_sigs(&fxg).await?;
 
-    // now mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/agents/relayer/src/msg/metadata/multisig/base.rs#L226-L235
+
 
     let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
     // let metadata = MultisigMetadata::new(checkpoint, 0, None);
@@ -84,7 +84,7 @@ pub trait MetadataConstructor {
     fn metadata(
         &self,
         checkpoint: &MultisigSignedCheckpoint,
-    ) -> Result<Vec<u8>, PendingOperationResult>;
+    ) -> EyreResult<Vec<u8>>;
 }
 
 pub async fn deposits_to_logs<T>(deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
