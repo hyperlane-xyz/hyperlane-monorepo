@@ -53,6 +53,8 @@ use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
+mod dymension_tasks;
+
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
