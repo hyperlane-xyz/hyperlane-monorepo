@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {ITokenFee} from "../interfaces/ITokenFee.sol";
+import {BaseFee} from "./BaseFee.sol";
 
 /**
  * @title Linear Fee Structure
@@ -20,15 +20,12 @@ import {ITokenFee} from "../interfaces/ITokenFee.sol";
  * @dev The fee is always rounded down due to integer division
  * @dev halfAmount should be greater than 0 to avoid division by zero
  */
-contract LinearFee is ITokenFee {
-    uint256 public immutable maxFee;
-    uint256 public immutable halfAmount;
-
-    constructor(uint256 _maxFee, uint256 _halfAmount) {
-        require(_halfAmount > 0, "LinearFee: halfAmount must be non‑zero");
-        maxFee = _maxFee;
-        halfAmount = _halfAmount;
-    }
+contract LinearFee is BaseFee {
+    constructor(
+        uint256 _maxFee,
+        uint256 _halfAmount,
+        address beneficiary
+    ) BaseFee(_maxFee, _halfAmount, beneficiary) {}
 
     function quoteTransfer(
         uint256 amount

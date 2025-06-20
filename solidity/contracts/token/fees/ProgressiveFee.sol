@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {ITokenFee} from "../interfaces/ITokenFee.sol";
+import {BaseFee} from "./BaseFee.sol";
 
 /**
  * @title Progressive Fee Structure
@@ -26,14 +26,12 @@ import {ITokenFee} from "../interfaces/ITokenFee.sol";
  *
  * This structure encourages smaller transactions while applying higher fees to larger transfers.
  */
-contract ProgressiveFee is ITokenFee {
-    uint256 public immutable maxFee;
-    uint256 public immutable halfAmount;
-
-    constructor(uint256 _maxFee, uint256 _halfAmount) {
-        maxFee = _maxFee;
-        halfAmount = _halfAmount;
-    }
+contract ProgressiveFee is BaseFee {
+    constructor(
+        uint256 _maxFee,
+        uint256 _halfAmount,
+        address beneficiary
+    ) BaseFee(_maxFee, _halfAmount, beneficiary) {}
 
     function quoteTransfer(
         uint256 amount
