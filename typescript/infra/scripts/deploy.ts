@@ -160,7 +160,15 @@ async function main() {
     );
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
+    config = objMap(core.getRouterConfig(envConfig.owners), (chain, conf) => ({
+      ...conf,
+      commitmentIsm: {
+        urls: [
+          'http://localhost:3000/callCommitments/getCallsFromRevealMessage',
+        ], // Default URL for local ICA deployment
+      },
+    }));
+
     deployer = new InterchainAccountDeployer(
       multiProvider,
       contractVerifier,
