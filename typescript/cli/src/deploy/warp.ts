@@ -337,7 +337,7 @@ export async function runWarpRouteApply(
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  assert(chains, `no chains found for warp apply`);
+  assert(chains && chains.length, `no chains found for warp apply`);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
