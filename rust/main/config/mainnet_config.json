@@ -9911,10 +9911,10 @@
     "solaxy": {
       "blockExplorers": [
         {
-          "apiUrl": "https://solscan.io",
+          "apiUrl": "https://explorer.solaxy.io",
           "family": "other",
           "name": "Solaxy Explorer",
-          "url": "https://solscan.io"
+          "url": "https://explorer.solaxy.io"
         }
       ],
       "blocks": {
