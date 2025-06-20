@@ -332,12 +332,12 @@ export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
-  const { chainMetadata, skipConfirmation } = context;
+  const { chainMetadata, skipConfirmation, chains } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  const chains = Object.keys(warpDeployConfig);
+  assert(chains, `no chains found for warp apply`);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -435,7 +435,7 @@ export async function extendWarpRoute(
   const warpCoreConfigByChain = Object.fromEntries(
     warpCoreConfig.tokens.map((token) => [token.chainName, token]),
   );
-  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+  const warpCoreChains = Object.keys(params.context.chains || []);
 
   // Split between the existing and additional config
   const [existingConfigs, initialExtendedConfigs] =
@@ -478,7 +478,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ) {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const { multiProvider, registry, chains } = params.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -504,6 +504,13 @@ async function updateExistingWarpRoute(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         logBlue(`Skipping non-EVM chain ${chain}`);
+        return;
+      }
+
+      if (!(chains || []).includes(chain)) {
+        logBlue(
+          `Skipping chain ${chain} because it was excluded via the --chains flag`,
+        );
         return;
       }
 

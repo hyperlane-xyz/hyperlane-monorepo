@@ -5,6 +5,7 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
+  ChainName,
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
@@ -44,6 +45,7 @@ export interface WriteCommandContext extends CommandContext {
   isDryRun?: boolean;
   dryRunChain?: string;
   apiKeys?: ChainMap<string>;
+  chains?: ChainName[];
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
