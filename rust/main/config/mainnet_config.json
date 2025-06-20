@@ -9929,7 +9929,7 @@
       },
       "displayName": "Solaxy",
       "domainId": 1936682104,
-      "gasCurrencyCoinGeckoId": "usd-coin",
+      "gasCurrencyCoinGeckoId": "solaxy",
       "name": "solaxy",
       "nativeToken": {
         "decimals": 9,
