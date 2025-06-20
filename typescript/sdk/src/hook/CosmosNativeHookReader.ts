@@ -7,7 +7,7 @@ import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
-  HookConfig,
+  DerivedHookConfig,
   HookType,
   IgpHookConfig,
   MailboxDefaultHookConfig,
@@ -26,7 +26,7 @@ export class CosmosNativeHookReader {
       | SigningHyperlaneModuleClient,
   ) {}
 
-  async deriveHookConfig(address: Address): Promise<HookConfig> {
+  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
     try {
       if (await this.isIgpHook(address)) {
         return this.deriveIgpConfig(address);
