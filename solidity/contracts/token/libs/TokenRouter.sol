@@ -105,9 +105,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual returns (bytes32 messageId) {
-        bytes memory _tokenMetadata = _deductAmountAndFeeFromSender(
-            _amountOrId
-        );
+        bytes memory _tokenMetadata = _chargeSender(_amountOrId);
 
         uint256 outboundAmount = _outboundAmount(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
@@ -128,10 +126,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     // default behavior is no fee
-    function _deductAmountAndFeeFromSender(
-        uint256 _amount
+    function _chargeSender(
+        uint256 _amountOrId
     ) internal virtual returns (bytes memory) {
-        return _transferFromSender(_amount);
+        return _transferFromSender(_amountOrId);
     }
 
     /**

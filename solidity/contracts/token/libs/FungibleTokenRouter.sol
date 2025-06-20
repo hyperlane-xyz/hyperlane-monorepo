@@ -58,7 +58,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         return feeRecipient.quoteTransfer(_amount);
     }
 
-    function _deductAmountAndFeeFromSender(
+    function _chargeSender(
         uint256 _amount
     ) internal virtual override returns (bytes memory metadata) {
         uint256 fee = _quoteTransferFee(_amount);
