@@ -17,7 +17,6 @@ use workflow_core::abortable::Abortable;
 
 pub struct DepositFXG;
 
-
 impl TryFrom<Bytes> for DepositFXG {
     type Error = EyreError;
 

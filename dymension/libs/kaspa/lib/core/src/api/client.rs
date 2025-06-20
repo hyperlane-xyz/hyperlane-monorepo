@@ -28,7 +28,7 @@ pub fn get_config(url: &Url) -> Configuration {
         .build();
     // let client = ClientBuilder::new(reqwest::Client::new()).build();
     let raw_base = "https://api-tn10.kaspa.org".to_string(); // TODO: need to use passed url!
-    // let url_base = url.to_string();
+                                                             // let url_base = url.to_string();
     Configuration {
         base_path: raw_base,
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),

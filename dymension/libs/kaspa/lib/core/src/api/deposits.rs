@@ -38,7 +38,6 @@ impl PartialEq for Deposit {
     }
 }
 
-
 impl Eq for Deposit {}
 
 impl TryFrom<TxModel> for Deposit {

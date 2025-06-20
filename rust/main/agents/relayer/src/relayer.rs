@@ -39,10 +39,10 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage, KnownHyperlaneDomain,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H256, H512,
-    U256,
+    KnownHyperlaneDomain, Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType,
+    ValidatorAnnounce, H256, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
