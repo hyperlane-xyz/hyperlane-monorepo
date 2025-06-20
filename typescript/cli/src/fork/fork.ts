@@ -2,7 +2,10 @@ import { JsonRpcProvider, Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
 
+import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
+import { HttpServer } from '@hyperlane-xyz/registry/express';
 import {
+  ChainMap,
   ChainName,
   EventAssertion,
   EventAssertionType,
@@ -27,6 +30,8 @@ import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 
+type EndPoint = string;
+
 export async function runForkCommand({
   context,
   chainsToFork,
@@ -40,6 +45,7 @@ export async function runForkCommand({
   kill: boolean;
   basePort?: number;
 }): Promise<void> {
+  const { registry } = context;
   const filteredChainsToFork = Array.from(chainsToFork).filter(
     (chain) =>
       context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
@@ -50,17 +56,25 @@ export async function runForkCommand({
     forkConfig,
     readYamlOrJson,
   );
+  const chainMetadata: ChainMap<{ rpcUrls: { http: string }[] }> = {};
   for (const chainName of filteredChainsToFork) {
-    await forkChain(
+    const endpoint = await forkChain(
       context.multiProvider,
       chainName,
       port,
       kill,
       parsedForkConfig[chainName],
     );
+    chainMetadata[chainName] = { rpcUrls: [{ http: endpoint }] };
 
     port++;
   }
+
+  const mergedRegistry = new MergedRegistry({
+    registries: [registry, new PartialRegistry({ chainMetadata })],
+  });
+  const httpRegistryServer = new HttpServer(async () => mergedRegistry);
+  httpRegistryServer.start();
 }
 
 async function forkChain(
@@ -69,7 +83,7 @@ async function forkChain(
   forkPort: number,
   kill: boolean,
   forkConfig?: ForkedChainConfig,
-): Promise<void> {
+): Promise<EndPoint> {
   let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
     const chainMetadata = await multiProvider.getChainMetadata(chainName);
@@ -97,7 +111,7 @@ async function forkChain(
     process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
 
     if (!forkConfig) {
-      return;
+      return endpoint;
     }
 
     await handleImpersonations(
@@ -111,6 +125,8 @@ async function forkChain(
     if (kill) {
       await killAnvilProcess(false);
     }
+
+    return endpoint;
   } catch (error) {
     // Kill any running anvil process otherwise the process will keep running
     // in the background.
