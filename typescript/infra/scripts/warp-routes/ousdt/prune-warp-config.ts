@@ -12,7 +12,6 @@ import { getRegistry } from '../../../config/registry.js';
 
 const collateralChains = ['celo', 'ethereum'];
 const chainsToPrune = [
-  'ink',
   'worldchain',
   'ronin',
   'bitlayer',
