@@ -1166,7 +1166,9 @@ impl ChainConf {
                 ChainConnectionConf::CosmosNative(_) => {
                     Box::new(conf.build::<h_cosmos_native::Signer>().await?)
                 }
-                ChainConnectionConf::Kaspa(_) => Box::new(conf.build::<dym_kaspa::Signer>().await?),
+                ChainConnectionConf::Kaspa(_) => {
+                    Box::new(conf.build::<hyperlane_cosmos_native::Signer>().await?)
+                }
             };
             Ok(Some(chain_signer))
         } else {
@@ -1202,7 +1204,7 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn kaspa_signer(&self) -> Result<Option<dym_kaspa::Signer>> {
+    async fn kaspa_signer(&self) -> Result<Option<hyperlane_cosmos_native::Signer>> {
         self.signer().await
     }
 
@@ -1399,7 +1401,7 @@ pub fn build_kaspa_provider(
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
     locator: &ContractLocator,
-    signer: Option<dym_kaspa::Signer>,
+    signer: Option<hyperlane_cosmos_native::Signer>,
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let metrics = metrics.client_metrics();

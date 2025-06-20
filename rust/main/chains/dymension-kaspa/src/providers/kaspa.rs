@@ -13,7 +13,9 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 
-use crate::{ConnectionConf, Signer};
+use crate::{ConnectionConf};
+
+use hyperlane_cosmos_native::Signer;
 
 /// dococo
 #[derive(Debug, Clone)]

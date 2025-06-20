@@ -240,26 +240,6 @@ impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
     }
 }
 
-#[async_trait]
-impl BuildableWithSignerConf for dymension_kaspa::Signer {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::KaspaKey {
-            key,
-            prefix,
-            account_address_type,
-        } = conf
-        {
-            Ok(dymension_kaspa::Signer::new(
-                key.as_bytes().to_vec(),
-                prefix.clone(),
-                account_address_type,
-            )?)
-        } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
-        }
-    }
-}
-
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
         self.address.to_string()
@@ -271,15 +251,6 @@ impl ChainSigner for hyperlane_starknet::Signer {
 }
 
 impl ChainSigner for hyperlane_cosmos_native::Signer {
-    fn address_string(&self) -> String {
-        self.address_string.clone()
-    }
-    fn address_h256(&self) -> H256 {
-        self.address_h256()
-    }
-}
-
-impl ChainSigner for dymension_kaspa::Signer {
     fn address_string(&self) -> String {
         self.address_string.clone()
     }

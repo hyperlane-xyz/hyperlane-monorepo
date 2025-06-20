@@ -14,7 +14,6 @@ mod ism;
 mod mailbox;
 mod prometheus;
 mod providers;
-mod signers;
 mod validator_announce;
 
 mod endpoints;
@@ -30,5 +29,5 @@ mod router;
 
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::router::*, self::signers::*, self::validator_announce::*,
+    self::providers::*, self::router::*, self::validator_announce::*,
 };

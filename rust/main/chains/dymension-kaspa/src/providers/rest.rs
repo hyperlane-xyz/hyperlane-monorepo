@@ -14,7 +14,8 @@ use url::Url;
 
 use dym_kas_core::api::deposits::*;
 
-use crate::{ConnectionConf, HyperlaneKaspaError, Signer};
+use crate::{ConnectionConf, HyperlaneKaspaError};
+use hyperlane_cosmos_native::Signer;
 
 use dym_kas_core::api::deposits::*;
 

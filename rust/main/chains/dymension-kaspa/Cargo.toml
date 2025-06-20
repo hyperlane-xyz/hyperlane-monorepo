@@ -57,3 +57,6 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface = { workspace = true }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+hyperlane-cosmos-native = { path = "../hyperlane-cosmos-native" }
+# hyperlane-cosmos-native = { workspace = true }
+

@@ -3709,6 +3709,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
+ "hyperlane-cosmos-native",
  "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
