@@ -610,16 +610,10 @@ impl BaseAgent for Relayer {
                 let kas_db = self.dbs.get(origin).unwrap();
 
                 let kas_provider = self.kas_provider.clone().unwrap();
-
+                
+                let metadata_getter = PendingMessageMetadataGetter::new_alt();
+                
                 let hub_mailbox : Mailbox = 
-
-                let metadata_getter = PendingMessageMetadataGetter::new(
-                    MessageMetadataBuilder::new(
-                        origin.clone(),
-                        destination_chain_setup.clone(),
-                        prover_syncs[origin].clone(),
-                    ),
-                );
 
                 let foo = Foo::new(
                     origin.clone(),
