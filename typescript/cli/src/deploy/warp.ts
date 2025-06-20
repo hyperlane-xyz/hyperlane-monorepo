@@ -435,7 +435,7 @@ export async function extendWarpRoute(
   const warpCoreConfigByChain = Object.fromEntries(
     warpCoreConfig.tokens.map((token) => [token.chainName, token]),
   );
-  const warpCoreChains = Object.keys(params.context.chains || []);
+  const warpCoreChains = params.context.chains || [];
 
   // Split between the existing and additional config
   const [existingConfigs, initialExtendedConfigs] =
