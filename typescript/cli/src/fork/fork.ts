@@ -20,6 +20,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   retryAsync,
 } from '@hyperlane-xyz/utils';
@@ -74,7 +75,9 @@ export async function runForkCommand({
     registries: [registry, new PartialRegistry({ chainMetadata })],
   });
   const httpRegistryServer = new HttpServer(async () => mergedRegistry);
-  await httpRegistryServer.start(basePort - 10);
+  const httpServerPort = basePort - 10;
+  assert(httpServerPort > 0, 'HTTP server port must be greater than 0');
+  await httpRegistryServer.start(httpServerPort);
 }
 
 async function forkChain(
