@@ -345,12 +345,19 @@ pub fn build_kaspa_connection_conf(
         .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
         .collect();
 
+    let threshold = chain
+        .chain(err)
+        .get_key("kaspaMultisigThreshold")
+        .parse_u32()
+        .end()?;
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             rest_url,
             escrow_address.unwrap().to_string(),
             validator_hosts,
             validator_ids,
+            threshold as usize,
         ),
     ))
 }

@@ -124,10 +124,8 @@ where
         let m: HyperlaneMessage = HyperlaneMessage::default(); // TODO: from depositsfx
         let mut sigs_res = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        // let checkpoint: MultisigSignedCheckpoint = sigs_res.try_into()?;
         let checkpoint: MultisigSignedCheckpoint =
             MultisigSignedCheckpoint::try_from(&mut sigs_res).unwrap();
-        // let metadata = MultisigMetadata::new(checkpoint, 0, None);
         let _threshold = 3usize; // TODO: threshold check
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
 
@@ -136,18 +134,7 @@ where
         self.hub_mailbox.process(&m, slice, None).await
     }
 
-    /*
-    Metadata construction:
-        Need to mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/hyperlane-base/src/types/multisig.rs#L167
-     */
-
-    /*
-    We circumvent the ticker of the processor loop
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/bb9df82a19c0583b994adbb40436168a55b8442e/rust/main/agents/relayer/src/msg/processor.rs#L254
-        Because it would be a lot of work to fully integrate into it, and it probably has assumptions that would be tricky for us to satisfy (nonce etc)
-        Instead we use the pending message builder and the metadata construction from that, and then do a direct chain send
-     */
-
+    /// TODO: unused for now because we skirt the usual DB management
     async fn deposits_to_logs<T>(&self, _deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -156,6 +143,7 @@ where
         // unimplemented!()
     }
 
+    /// TODO: unused for now because we skirt the usual DB management
     async fn dedupe_and_store_logs<T, S>(
         &self,
         store: &S,
