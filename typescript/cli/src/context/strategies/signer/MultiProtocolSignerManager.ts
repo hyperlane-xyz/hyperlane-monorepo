@@ -240,7 +240,9 @@ export class MultiProtocolSignerManager {
         return signer.account.address;
       }
       default: {
-        throw new Error(`Protocol Type ${metadata.protocol} not supported`);
+        throw new Error(
+          `Signer for protocol type ${metadata.protocol} not supported`,
+        );
       }
     }
   }
@@ -264,7 +266,7 @@ export class MultiProtocolSignerManager {
       case ProtocolType.CosmosNative: {
         assert(
           params.denom,
-          'need denom to get balance of Cosmos Native chain',
+          `need denom to get balance of Cosmos Native chain ${params.chain}`,
         );
         const provider =
           await this.multiProtocolProvider.getCosmJsNativeProvider(
@@ -274,7 +276,9 @@ export class MultiProtocolSignerManager {
         return BigNumber.from(balance.amount);
       }
       default: {
-        throw new Error(`Protocol Type ${metadata.protocol} not supported`);
+        throw new Error(
+          `Retrieving balance for account of protocol type ${metadata.protocol} not supported on chain ${params.chain}`,
+        );
       }
     }
   }

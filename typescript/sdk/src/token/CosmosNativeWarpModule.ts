@@ -119,7 +119,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
-   * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
+   * @returns An array with Cosmos Native transactions that need to be executed to enroll the routers
    */
   createEnrollRemoteRoutersUpdateTxs(
     actualConfig: HypTokenRouterConfig,

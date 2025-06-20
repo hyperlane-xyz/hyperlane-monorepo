@@ -198,7 +198,7 @@ export async function runWarpRouteDeploy({
     'warp',
     initialBalances,
     null,
-    deploymentChains!,
+    deploymentChains,
   );
 }
 
@@ -281,7 +281,6 @@ async function executeDeploy(
           ? new HypERC721Deployer(multiProvider)
           : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
-        // TODO: enroll non-evm routes
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {
           ...deployedContracts,

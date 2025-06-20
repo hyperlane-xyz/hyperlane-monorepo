@@ -14,7 +14,7 @@ import {
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
@@ -58,14 +58,12 @@ export class CosmosNativeWarpRouteReader {
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
-    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
       ...baseMetadata,
       ...tokenConfig,
       remoteRouters,
-      proxyAdmin,
       destinationGas,
       type,
     } as DerivedTokenRouterConfig;
@@ -159,19 +157,6 @@ export class CosmosNativeWarpRouteReader {
     return RemoteRoutersSchema.parse(routers);
   }
 
-  async fetchProxyAdminConfig(
-    tokenAddress: Address,
-  ): Promise<DeployedOwnableConfig> {
-    const { token } = await this.cosmosProviderOrSigner.query.warp.Token({
-      id: tokenAddress,
-    });
-
-    return {
-      address: tokenAddress,
-      owner: token?.owner ?? '',
-    };
-  }
-
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
@@ -180,10 +165,11 @@ export class CosmosNativeWarpRouteReader {
         id: warpRouteAddress,
       });
 
-    const destinationGas: DestinationGas = {};
-    for (const router of remote_routers) {
-      destinationGas[router.receiver_domain] = router.gas;
-    }
-    return destinationGas;
+    return Object.fromEntries(
+      remote_routers.map((routerConfig) => [
+        routerConfig.receiver_domain,
+        routerConfig.gas,
+      ]),
+    );
   }
 }

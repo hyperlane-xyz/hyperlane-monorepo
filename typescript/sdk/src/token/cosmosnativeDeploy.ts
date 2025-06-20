@@ -3,13 +3,14 @@ import { Logger } from 'pino';
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
+  ProtocolType,
   assert,
   objFilter,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
@@ -19,7 +20,7 @@ export class CosmosNativeDeployer {
   protected logger: Logger;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<SigningHyperlaneModuleClient>,
   ) {
     this.logger = rootLogger.child({ module: 'CosmosNativeDeployer' });
@@ -37,7 +38,9 @@ export class CosmosNativeDeployer {
 
     const configMapToDeploy = objFilter(
       resolvedConfigMap,
-      (_, config: any): config is any => !config.foreignDeployment,
+      (chain: string, config: any): config is any =>
+        this.metadataManager.getProtocol(chain) === ProtocolType.CosmosNative &&
+        !config.foreignDeployment,
     );
 
     for (const chain of Object.keys(configMapToDeploy)) {
@@ -67,7 +70,9 @@ export class CosmosNativeDeployer {
           break;
         }
         default: {
-          throw new Error(`Token type ${config.type} not supported`);
+          throw new Error(
+            `Token type ${config.type} not supported on chain ${chain}`,
+          );
         }
       }
 
