@@ -59,12 +59,13 @@ dymension-kaspa = { path = "../../chains/dymension-kaspa" }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
+mockall.workspace = true
 
 [dev-dependencies]
 axum = { workspace = true, features = ["macros"] }
 http-body-util.workspace = true
 once_cell.workspace = true
-mockall.workspace = true
+# mockall.workspace = true
 tokio-test.workspace = true
 tower.workspace = true
 tracing-test.workspace = true
