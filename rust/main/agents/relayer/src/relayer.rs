@@ -122,8 +122,7 @@ pub struct Relayer {
     pub tokio_console_server: Option<console_subscriber::Server>,
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
-    kas_provider: Option<KaspaProvider>,
-    dym_mailbox: Option<Arc<dyn Mailbox>>,
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 }
 
 impl Debug for Relayer {
@@ -449,35 +448,12 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
-        let has_kaspa = settings.origin_chains.iter().any(|chain| is_kas(chain)); // TODO: or destination chain
-
-        let kas_chain_provider = if has_kaspa {
-            let kaspa_chain_conf = settings
-                .origin_chains
-                .iter()
-                .find(|chain| is_kas(chain))
-                .unwrap();
-            let chain_conf = core
-                .settings
-                .chain_setup(kaspa_chain_conf)
-                .unwrap()
-                .to_owned();
-            let locator = chain_conf.locator(H256::zero());
-
-            match chain_conf.connection.clone() {
-                ChainConnectionConf::Kaspa(conf) => {
-                    let kaspa_provider =
-                        build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
-                            .expect("Failed to build Kaspa provider");
-                    Some(kaspa_provider)
-                }
-                _ => return Err(eyre!("Foo!")),
-            }
-        } else {
-            None
-        };
-
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+        let d_k_args = Self::get_dymension_kaspa_args(
+            &settings.origin_chains,
+            &core,
+            &core_metrics,
+            &mailboxes,
+        )?;
 
         Ok(Self {
             dbs,
@@ -505,8 +481,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
-            kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+            dymension_kaspa_args: d_k_args,
         })
     }
 
@@ -606,7 +581,7 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
-            if is_kas(origin) {
+            if is_kas(origin) && self.dymension_kaspa_args.is_some() {
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
@@ -1472,16 +1447,14 @@ impl Relayer {
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) {
-        // we do not run IGP or merkle insertion or merkle tree building, we do not run dispatch indexer
-        // we run our own loop for dispatch polling
-
         let kas_db = self.dbs.get(origin).unwrap();
 
-        let kas_provider = self.kas_provider.clone().unwrap();
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+
+        let kas_provider = args.kas_provider.clone().unwrap(); // TODO: check
+        let hub_mailbox = args.dym_mailbox.clone().unwrap();
 
         let metadata_getter = PendingMessageMetadataGetter::new();
-
-        let hub_mailbox = self.dym_mailbox.clone().unwrap();
 
         let foo = Foo::new(
             origin.clone(),
@@ -1495,5 +1468,41 @@ impl Relayer {
 
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
+    }
+}
+
+struct DymensionKaspaArgs {
+    kas_provider: Option<KaspaProvider>,
+    dym_mailbox: Option<Arc<dyn Mailbox>>,
+}
+
+impl Relayer {
+    fn get_dymension_kaspa_args(
+        origin_chains: &HashSet<HyperlaneDomain>,
+        core: &HyperlaneAgentCore,
+        core_metrics: &CoreMetrics,
+        mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+    ) -> Result<Option<DymensionKaspaArgs>> {
+        if !origin_chains.iter().any(|chain| is_kas(chain)) {
+            return Ok(None);
+        }
+
+        let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
+        let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
+        let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+
+        let kas_chain_provider = match chain_conf.connection.clone() {
+            ChainConnectionConf::Kaspa(conf) => Some(
+                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
+                    .expect("Failed to build Kaspa provider"),
+            ),
+            _ => None,
+        };
+
+        Ok(Some(DymensionKaspaArgs {
+            kas_provider: kas_chain_provider,
+            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+        }))
     }
 }
