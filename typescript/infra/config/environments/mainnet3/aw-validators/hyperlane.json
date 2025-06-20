@@ -398,6 +398,9 @@
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
+  "solaxy": {
+    "validators": ["0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5"]
+  },
   "soneium": {
     "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
   },
@@ -487,8 +490,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "solaxy": {
-    "validators": ["0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5"]
   }
 }
