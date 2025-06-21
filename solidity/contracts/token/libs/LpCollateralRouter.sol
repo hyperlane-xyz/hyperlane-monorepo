@@ -22,21 +22,26 @@ abstract contract LpCollateralRouter is
         return lpAssets;
     }
 
+    // modeled after ERC4626Upgradeable._deposit
     function _deposit(
         address caller,
         address receiver,
         uint256 assets,
         uint256 shares
     ) internal virtual override {
+        // checks
+        _transferFromSender(assets);
+
+        // effects
         lpAssets += assets;
 
-        // modeled after ERC4626Upgradeable._deposit
-        _transferFromSender(assets);
+        // interactions
         _mint(receiver, shares);
 
         emit Deposit(caller, receiver, assets, shares);
     }
 
+    // modeled after ERC4626Upgradeable._withdraw
     function _withdraw(
         address caller,
         address receiver,
@@ -44,20 +49,26 @@ abstract contract LpCollateralRouter is
         uint256 assets,
         uint256 shares
     ) internal virtual override {
-        lpAssets -= assets;
-
-        // modeled after ERC4626Upgradeable._withdraw
+        // checks
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);
         }
         _burn(owner, shares);
+
+        // effects
+        lpAssets -= assets;
+
+        // interactions
         _transferTo(receiver, assets, msg.data[0:0]);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
 
     function donate(uint256 amount) external {
+        // checks
         _transferFromSender(amount);
+
+        // effects
         lpAssets += amount;
         emit Donation(msg.sender, amount);
     }
