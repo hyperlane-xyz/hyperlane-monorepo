@@ -1,5 +1,25 @@
 # @hyperlane-xyz/sdk
 
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- e48e5346f: add warp fork and fork commands
+- fe1d8ab2d: Remove SG-1 from manta, neutron validators. Add botanix, katana, paradex, starknet validators. Remove arthera, corn, glue, trumpchain.
+- 19384e74b: sdk support for cosmos hyperlane module v1.0.1
+- 1efce4979: Add rebalancer config schemas
+
+### Patch Changes
+
+- 64092311c: Update SmartProvider to throw with `cause` and update Warp Reader to use the thrown `cause`
+- Updated dependencies [0ec92f775]
+- Updated dependencies [19384e74b]
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/starknet-core@13.4.0
+  - @hyperlane-xyz/cosmos-sdk@13.4.0
+  - @hyperlane-xyz/core@8.0.1
+
 ## 13.3.0
 
 ### Minor Changes
