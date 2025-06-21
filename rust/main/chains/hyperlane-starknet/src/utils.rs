@@ -2,10 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::rpc_clients::call_and_retry_n_times;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::ExecutionV3;
 use starknet::core::types::ReceiptBlock;
@@ -36,10 +36,14 @@ pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: Felt,
 ) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
+
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+    const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
@@ -56,8 +60,8 @@ pub async fn get_transaction_receipt(
                 Ok(tx.receipt)
             })
         },
-        8,
-        Some(Duration::from_millis(2000)),
+        N,
+        Some(Duration::from_secs(POLLING_INTERVAL)),
     )
     .await
 }
