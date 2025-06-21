@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -13,16 +13,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is MovableCollateralRouter {
+contract HypNative is LpCollateralRouter {
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
-
-    /**
-     * @dev Emitted when native tokens are donated to the contract.
-     * @param sender The address of the sender.
-     * @param amount The amount of native tokens donated.
-     */
-    event Donation(address indexed sender, uint256 amount);
 
     constructor(
         uint256 _scale,
@@ -41,7 +34,7 @@ contract HypNative is MovableCollateralRouter {
         address _owner
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _FungibleTokenRouter_initialize();
+        _LpCollateralRouter_initialize();
     }
 
     function _transferRemote(
@@ -70,12 +63,6 @@ contract HypNative is MovableCollateralRouter {
         return address(0);
     }
 
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return _account.balance;
-    }
-
     /**
      * @inheritdoc TokenRouter
      */
@@ -96,9 +83,5 @@ contract HypNative is MovableCollateralRouter {
         bytes calldata // no metadata
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
-    }
-
-    receive() external payable {
-        emit Donation(msg.sender, msg.value);
     }
 }

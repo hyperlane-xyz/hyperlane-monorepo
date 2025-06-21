@@ -44,7 +44,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         public
         view
         virtual
-        override(TokenRouter, ERC721Upgradeable, IERC721Upgradeable)
+        override(ERC721Upgradeable, IERC721Upgradeable)
         returns (uint256)
     {
         return ERC721Upgradeable.balanceOf(_account);

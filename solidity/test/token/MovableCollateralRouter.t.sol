@@ -19,12 +19,6 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
         return address(0);
     }
 
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return 0;
-    }
-
     function _transferFromSender(
         uint256 _amount
     ) internal override returns (bytes memory) {}
@@ -139,22 +133,11 @@ contract MovableCollateralRouterTest is Test {
         router.rebalance(destinationDomain, 1e18, vtb);
     }
 
-    function testApproveTokenForBridge() public {
-        // Configuration
-        // Execute
-        router.approveTokenForBridge(token, vtb);
-
-        // Assert
-        assertEq(
-            token.allowance(address(router), address(vtb)),
-            type(uint256).max
-        );
-    }
-
     function testAddBridge() public {
         router.addBridge(destinationDomain, vtb);
         assertEq(router.allowedBridges(destinationDomain).length, 1);
         assertEq(router.allowedBridges(destinationDomain)[0], address(vtb));
+        // TODO: check infinite approval
     }
 
     function testRemoveBridge() public {
@@ -197,15 +180,6 @@ contract MovableCollateralRouterTest is Test {
         router.unenrollRemoteRouter(destinationDomain);
         vm.expectRevert(); // router not enrolled
         router.addBridge(destinationDomain, vtb);
-    }
-
-    function testApproveTokenForBridge_NotOwner() public {
-        address notAdmin = address(1);
-        vm.expectRevert("Ownable: caller is not the owner");
-
-        // Execute
-        vm.prank(notAdmin);
-        router.approveTokenForBridge(token, vtb);
     }
 
     function testDefaultRecipient() public {

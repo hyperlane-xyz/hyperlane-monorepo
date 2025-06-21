@@ -164,13 +164,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     ) internal virtual returns (bytes memory metadata);
 
     /**
-     * @notice Returns the balance of `account` on this token router.
-     * @param account The address to query the balance of.
-     * @return The balance of `account`.
-     */
-    function balanceOf(address account) external virtual returns (uint256);
-
-    /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The domain of the router.
      * @param _recipient The address of the recipient on the destination chain.
