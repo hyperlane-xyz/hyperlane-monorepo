@@ -84,4 +84,8 @@ contract HypNative is LpCollateralRouter {
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
     }
+
+    receive() external payable {
+        donate(msg.value);
+    }
 }

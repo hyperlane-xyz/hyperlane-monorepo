@@ -22,6 +22,10 @@ abstract contract LpCollateralRouter is
         return lpAssets;
     }
 
+    function asset() public view override returns (address) {
+        return _token();
+    }
+
     // modeled after ERC4626Upgradeable._deposit
     function _deposit(
         address caller,
@@ -64,7 +68,8 @@ abstract contract LpCollateralRouter is
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
 
-    function donate(uint256 amount) external {
+    // can be used to distribute rewards to LPs pro rata
+    function donate(uint256 amount) public {
         // checks
         _transferFromSender(amount);
 
