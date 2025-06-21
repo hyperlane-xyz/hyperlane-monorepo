@@ -113,10 +113,9 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         );
 
         for (uint256 i = 0; i < quotes.length; i++) {
-            Quote memory quote = quotes[i];
-            if (quote.token == _token()) {
+            if (quotes[i].token == _token()) {
                 // charge the rebalancer the bridging fee to avoid undercollateralization
-                _transferFromSender(quote.amount - amount);
+                _transferFromSender(quotes[i].amount - amount);
             }
         }
 
