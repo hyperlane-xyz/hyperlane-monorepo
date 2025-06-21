@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { LevelWithSilent, Logger, pino } from 'pino';
+import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
 import { safelyAccessEnvVar } from './env.js';
 
@@ -110,4 +110,56 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
     return BigNumber.from(value.hex).toString();
   }
   return value;
+}
+
+export async function tryInitializeGcpLogger(options?: {
+  service?: string;
+  version?: string;
+}): Promise<boolean> {
+  const isKubernetes = process.env.KUBERNETES_SERVICE_HOST !== undefined;
+  if (!isKubernetes) return false;
+
+  try {
+    const { createGcpLoggingPinoConfig } = await import(
+      '@google-cloud/pino-logging-gcp-config'
+    );
+    const serviceContext = options
+      ? {
+          service: options.service ?? 'hyperlane-service',
+          version: options.version ?? 'unknown',
+        }
+      : {};
+    const gcpConfig = createGcpLoggingPinoConfig(
+      { serviceContext },
+      {
+        base: undefined,
+        name: 'hyperlane',
+      },
+    ) as LoggerOptions<never>;
+    const gcpLogger = pino(gcpConfig);
+    setRootLogger(gcpLogger);
+    rootLogger.info('Initialized GCP structured logging');
+    return true;
+  } catch (err) {
+    rootLogger.warn(
+      err,
+      'Could not initialize GCP structured logging, ensure @google-cloud/pino-logging-gcp-config is installed',
+    );
+    return false;
+  }
+}
+
+export async function createServiceLogger(options: {
+  service: string;
+  version: string;
+  module?: string;
+}): Promise<Logger> {
+  const { service, version, module } = options;
+
+  if (await tryInitializeGcpLogger({ service, version })) {
+    return rootLogger;
+  }
+
+  // For local development, create a child logger with module info
+  return rootLogger.child({ module: module ?? service });
 }
