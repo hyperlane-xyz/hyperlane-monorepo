@@ -29,7 +29,12 @@ abstract contract LpCollateralRouter is
         uint256 shares
     ) internal virtual override {
         lpAssets += assets;
-        ERC4626Upgradeable._deposit(caller, receiver, assets, shares);
+
+        // modeled after ERC4626Upgradeable._deposit
+        _transferFromSender(assets);
+        _mint(receiver, shares);
+
+        emit Deposit(caller, receiver, assets, shares);
     }
 
     function _withdraw(
@@ -40,7 +45,15 @@ abstract contract LpCollateralRouter is
         uint256 shares
     ) internal virtual override {
         lpAssets -= assets;
-        ERC4626Upgradeable._withdraw(caller, receiver, owner, assets, shares);
+
+        // modeled after ERC4626Upgradeable._withdraw
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
+        }
+        _burn(owner, shares);
+        _transferTo(receiver, assets, msg.data[0:0]);
+
+        emit Withdraw(caller, receiver, owner, assets, shares);
     }
 
     function donate(uint256 amount) external {
