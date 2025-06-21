@@ -372,6 +372,7 @@ export function generateWarpConfigs(
     TokenType.collateralCctp,
     TokenType.nativeOpL1,
     TokenType.nativeOpL2,
+    TokenType.collateralDex,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

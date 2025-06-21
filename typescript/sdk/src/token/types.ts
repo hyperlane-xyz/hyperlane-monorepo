@@ -105,6 +105,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralVaultRebase,
       TokenType.collateralFiat,
       TokenType.collateralUri,
+      TokenType.collateralDex,
     ]),
     token: z
       .string()

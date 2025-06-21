@@ -15,6 +15,7 @@ export enum TokenType {
   nativeOpL1 = 'nativeOpL1',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  collateralDex = 'collateralDex',
 }
 
 // A token is defined movable collateral if its solidity contract implementation
@@ -35,6 +36,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.synthetic]: false,
   [TokenType.syntheticRebase]: false,
   [TokenType.syntheticUri]: false,
+  [TokenType.collateralDex]: false,
 } as const;
 
 export type MovableTokenType = {
