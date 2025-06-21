@@ -6,7 +6,7 @@ use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf, Settings},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
 use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
 use tokio::sync::RwLock;
@@ -107,11 +107,12 @@ pub fn dummy_message_context(
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> MessageContext {
     MessageContext {
+        origin: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
         destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
         origin_db: Arc::new(db.clone()),
         cache,
         metadata_builder: base_metadata_builder,
-        origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
+        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new([], db.clone()))),
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),

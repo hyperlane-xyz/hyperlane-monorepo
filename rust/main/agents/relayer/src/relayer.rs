@@ -307,10 +307,10 @@ impl BaseAgent for Relayer {
             .iter()
             .filter_map(|domain| match dbs.get(domain) {
                 Some(db) => {
-                    let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+                    let gas_payment_enforcer = Arc::new(RwLock::new(GasPaymentEnforcer::new(
                         settings.gas_payment_enforcement.clone(),
                         db.clone(),
-                    ));
+                    )));
                     Some((domain.clone(), gas_payment_enforcer))
                 }
                 None => {
@@ -420,6 +420,7 @@ impl BaseAgent for Relayer {
                         destination: destination.id(),
                     },
                     Arc::new(MessageContext {
+                        origin: origin.clone(),
                         destination_mailbox: dest_mailbox.clone(),
                         origin_db: Arc::new(db),
                         cache: cache.clone(),
@@ -600,10 +601,17 @@ impl BaseAgent for Relayer {
         // create a db mapping for server handlers
         let dbs: HashMap<u32, HyperlaneRocksDB> =
             self.dbs.iter().map(|(k, v)| (k.id(), v.clone())).collect();
+
+        let gas_enforcers: HashMap<_, _> = self
+            .msg_ctxs
+            .values()
+            .map(|ctx| (ctx.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
+            .collect();
         let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
+            .with_gas_enforcers(gas_enforcers)
             .router();
 
         let server = self
