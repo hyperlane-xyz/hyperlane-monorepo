@@ -242,4 +242,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amountOrId
+    ) internal virtual {
+        _transferTo(_recipient, _amountOrId, msg.data[0:0]);
+    }
 }
