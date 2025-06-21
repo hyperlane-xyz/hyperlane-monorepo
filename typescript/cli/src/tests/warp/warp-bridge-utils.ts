@@ -21,7 +21,7 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
-  REGISTRY_PATH,
+  E2E_TEST_WARP_ROUTE_REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
@@ -71,7 +71,7 @@ export async function runWarpBridgeTests(
       config.tokenChain3Symbol,
     );
     const warpRouteId = `${symbol}/hyperlane`;
-    const routeConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-config.yaml`;
+    const routeConfigPath = `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${warpRouteId}-config.yaml`;
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpRouteId);
 

@@ -15,6 +15,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
+  CORE_PROTOCOL_ANVIL_STATE,
   ChainMetadata,
   ChainName,
   HookConfig,
@@ -36,16 +37,14 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  E2E_TEST_WARP_ROUTE_REGISTRY_PATH,
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   KeyBoardKeys,
-  REGISTRY_PATH,
   TEMP_PATH,
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
-  deployOrUseExistingCore,
   deployToken,
   handlePrompts,
 } from '../commands/helpers.js';
@@ -78,17 +77,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   before(async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     chain3DomainId = chain3Metadata.domainId;
 
-    [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+    [chain2Addresses, chain3Addresses] = [
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+    ];
   });
 
   async function assertWarpRouteConfig(
@@ -310,7 +309,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
       const warpRouteId = 'ETH/custom-warp-route-id';
-      const warpDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
+      const warpDeployPath = `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${warpRouteId}-deploy.yaml`;
       writeYamlOrJson(warpDeployPath, warpConfig);
 
       const steps: TestPromptAction[] = [
@@ -343,7 +342,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
 
-      const warpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-config.yaml`;
+      const warpCorePath = `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${warpRouteId}-config.yaml`;
       expect(fs.existsSync(warpCorePath)).to.be.true;
     });
 
@@ -739,7 +738,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         await vaultChain2.symbol(),
         path.parse(baseFileName).name.replace('-deployment', ''),
       );
-      const expectedWarpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${expectedFileName}-config.yaml`;
+      const expectedWarpCorePath = `${E2E_TEST_WARP_ROUTE_REGISTRY_PATH}/${expectedFileName}-config.yaml`;
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
