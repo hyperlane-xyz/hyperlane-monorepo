@@ -170,6 +170,19 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
+    // Special handling for aggregation hooks
+    if (
+      typeof normalizedCurrentConfig === 'object' &&
+      typeof normalizedTargetConfig === 'object' &&
+      normalizedCurrentConfig.type === HookType.AGGREGATION &&
+      normalizedTargetConfig.type === HookType.AGGREGATION
+    ) {
+      return this.updateAggregationHook({
+        current: normalizedCurrentConfig,
+        target: normalizedTargetConfig,
+      });
+    }
+
     if (
       this.shouldDeployNewHook(normalizedCurrentConfig, normalizedTargetConfig)
     ) {
@@ -242,6 +255,124 @@ export class EvmHookModule extends HyperlaneModule<
           [normalizedTargetConfig.owner],
         ),
       });
+    }
+
+    return updateTxs;
+  }
+
+  /**
+   * Updates an aggregation hook by updating mutable components in-place when possible
+   */
+  protected async updateAggregationHook({
+    current,
+    target,
+  }: {
+    current: AggregationHookConfig;
+    target: AggregationHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const logger = this.logger.child({
+      destination: this.chain,
+      hookType: 'aggregation',
+    });
+
+    // If hook count changed, redeploy the entire aggregation
+    if (current.hooks.length !== target.hooks.length) {
+      logger.debug('Hook count changed, redeploying aggregation hook');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedHook = contract.address;
+      return [];
+    }
+
+    let hasStructuralChange = false;
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    const hookAddresses = await StaticAggregationHook__factory.connect(
+      this.args.addresses.deployedHook,
+      this.multiProvider.getProvider(this.chain),
+    ).hooks(ZERO_ADDRESS_HEX_32);
+
+    const hookConfigMap: Record<string, number> = {};
+
+    for (const hook of hookAddresses) {
+      const derivedHookConfig =
+        await this.reader.deriveHookConfigFromAddress(hook);
+      const normalizedHookConfig = normalizeConfig(derivedHookConfig);
+
+      const hookIndex = current.hooks.findIndex((h) =>
+        deepEquals(h, normalizedHookConfig),
+      );
+      if (hookIndex === -1) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      hookConfigMap[hook] = hookIndex;
+    }
+
+    // Check each hook to see if we can update in place
+    for (const [hookAddress, hookIndex] of Object.entries(hookConfigMap)) {
+      if (hasStructuralChange) {
+        break;
+      }
+
+      const currentHook = normalizeConfig(current.hooks[hookIndex]);
+      const targetHook = normalizeConfig(target.hooks[hookIndex]);
+
+      // If hooks are identical, skip
+      if (deepEquals(currentHook, targetHook)) {
+        continue;
+      }
+
+      // If hook types are different or hook is not mutable, mark as structural change
+      if (
+        typeof currentHook === 'string' ||
+        typeof targetHook === 'string' ||
+        currentHook.type !== targetHook.type ||
+        !MUTABLE_HOOK_TYPE.includes(targetHook.type)
+      ) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      // Hook is mutable and only config changed - update in place
+      logger.debug(`Updating hook ${hookIndex} (${targetHook.type}) in place`);
+
+      // Create a temporary hook module instance for this component
+      const moduleInstance = new EvmHookModule(
+        this.multiProvider,
+        {
+          addresses: {
+            ...this.args.addresses,
+            deployedHook: hookAddress,
+          },
+          chain: this.args.chain,
+          config: currentHook,
+        },
+        undefined, // ccipContractCache
+        this.contractVerifier,
+      );
+
+      // Update the hook in place
+      const hookTxs = await moduleInstance.update(targetHook);
+
+      // If the address changed, update the config to reuse the deployed hook
+      if (!eqAddress(moduleInstance.args.addresses.deployedHook, hookAddress)) {
+        hasStructuralChange = true;
+        // Update the target config to reuse the existing deployed hook address
+        target.hooks[hookIndex] = moduleInstance.args.addresses.deployedHook;
+        break;
+      }
+
+      // Finally, push the hook updates
+      updateTxs.push(...hookTxs);
+    }
+
+    // If there were structural changes, redeploy the entire aggregation
+    if (hasStructuralChange) {
+      logger.debug('Structural changes detected, redeploying aggregation hook');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedHook = contract.address;
+      return [];
     }
 
     return updateTxs;

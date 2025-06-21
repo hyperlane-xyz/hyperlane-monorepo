@@ -1,14 +1,20 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
+import {
+  DomainRoutingIsm__factory,
+  PausableIsm__factory,
+  StaticAggregationIsm__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -30,12 +36,14 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
+  AggregationIsmConfig,
   DeployedIsm,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
+  PausableIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -118,14 +126,23 @@ export class EvmIsmModule extends HyperlaneModule<
       'normalized targetConfig should be an object',
     );
 
-    // if it's a fallback routing ISM, do a mailbox diff check
-
     // If configs match, no updates needed
     if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
-    // Else, we have to figure out what an update for this ISM entails
+    // Special handling for aggregation ISMs
+    if (
+      typeof currentConfig === 'object' &&
+      currentConfig.type === IsmType.AGGREGATION &&
+      targetConfig.type === IsmType.AGGREGATION
+    ) {
+      return this.updateAggregationIsm({
+        current: currentConfig,
+        target: targetConfig,
+      });
+    }
+
     // Check if we need to deploy a new ISM
     if (
       // if updating from an address/custom config to a proper ISM config, do a new deploy
@@ -169,6 +186,11 @@ export class EvmIsmModule extends HyperlaneModule<
         target: targetConfig,
         logger,
       });
+    } else if (targetConfig.type === IsmType.PAUSABLE) {
+      updateTxs = await this.updatePausableIsm({
+        current: currentConfig,
+        target: targetConfig,
+      });
     }
 
     // Lastly, check if the resolved owner is different from the current owner
@@ -180,6 +202,131 @@ export class EvmIsmModule extends HyperlaneModule<
         targetConfig,
       ),
     );
+
+    return updateTxs;
+  }
+
+  /**
+   * Updates an aggregation ISM by updating mutable components in-place when possible
+   */
+  protected async updateAggregationIsm({
+    current,
+    target,
+  }: {
+    current: AggregationIsmConfig;
+    target: AggregationIsmConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const logger = this.logger.child({
+      destination: this.chain,
+      ismType: 'aggregation',
+    });
+
+    // If threshold changed or module count changed, redeploy the entire aggregation
+    if (
+      current.threshold !== target.threshold ||
+      current.modules.length !== target.modules.length
+    ) {
+      logger.debug(
+        'Threshold or module count changed, redeploying aggregation ISM',
+      );
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedIsm = contract.address;
+      return [];
+    }
+
+    let hasStructuralChange = false;
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    const [ismAddresses, _] = await StaticAggregationIsm__factory.connect(
+      this.args.addresses.deployedIsm,
+      this.multiProvider.getProvider(this.chain),
+    ).modulesAndThreshold(ZERO_ADDRESS_HEX_32);
+
+    const ismConfigMap: Record<string, number> = {};
+
+    for (const ism of ismAddresses) {
+      const derivedIsmConfig =
+        await this.reader.deriveIsmConfigFromAddress(ism);
+      const normalizedIsmConfig = normalizeConfig(derivedIsmConfig);
+
+      const ismIndex = current.modules.findIndex((h) =>
+        deepEquals(h, normalizedIsmConfig),
+      );
+      if (ismIndex === -1) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      ismConfigMap[ism] = ismIndex;
+    }
+
+    // Check each module to see if we can update in place
+    for (const [ismAddress, ismIndex] of Object.entries(ismConfigMap)) {
+      if (hasStructuralChange) {
+        break;
+      }
+
+      const currentModule = normalizeConfig(current.modules[ismIndex]);
+      const targetModule = normalizeConfig(target.modules[ismIndex]);
+
+      // If modules are identical, skip
+      if (deepEquals(currentModule, targetModule)) {
+        continue;
+      }
+
+      // If module types are different or module is not mutable, mark as structural change
+      if (
+        typeof currentModule === 'string' ||
+        typeof targetModule === 'string' ||
+        currentModule.type !== targetModule.type ||
+        !MUTABLE_ISM_TYPE.includes(targetModule.type)
+      ) {
+        hasStructuralChange = true;
+        break;
+      }
+
+      // Module is mutable and only config changed - update in place
+      logger.debug(
+        `Updating module ${ismIndex} (${targetModule.type}) in place`,
+      );
+
+      // Create a temporary ISM module instance for this component
+      const moduleInstance = new EvmIsmModule(
+        this.multiProvider,
+        {
+          addresses: {
+            ...this.args.addresses,
+            deployedIsm: ismAddress,
+          },
+          chain: this.args.chain,
+          config: currentModule,
+        },
+        undefined, // ccipContractCache
+        this.contractVerifier,
+      );
+
+      // Update the module in place
+      const moduleTxs = await moduleInstance.update(targetModule);
+
+      // If the address changed, update the config to reuse the deployed module
+      if (!eqAddress(moduleInstance.args.addresses.deployedIsm, ismAddress)) {
+        hasStructuralChange = true;
+        // Update the target config to reuse the existing deployed module address
+        target.modules[ismIndex] = moduleInstance.args.addresses.deployedIsm;
+        break;
+      }
+
+      // Finally, push the module updates
+      updateTxs.push(...moduleTxs);
+    }
+
+    // If there were structural changes, redeploy the entire aggregation
+    if (hasStructuralChange) {
+      logger.debug('Structural changes detected, redeploying aggregation ISM');
+      const contract = await this.deploy({ config: target });
+      this.args.addresses.deployedIsm = contract.address;
+      return [];
+    }
 
     return updateTxs;
   }
@@ -221,6 +368,34 @@ export class EvmIsmModule extends HyperlaneModule<
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;
+  }
+
+  protected async updatePausableIsm({
+    current,
+    target,
+  }: {
+    current: PausableIsmConfig;
+    target: PausableIsmConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    if (current.paused !== target.paused) {
+      // Have to encode separately otherwise tsc will complain
+      // about being unable to infer types correctly
+      const pausableInterface = PausableIsm__factory.createInterface();
+      const data = target.paused
+        ? pausableInterface.encodeFunctionData('pause')
+        : pausableInterface.encodeFunctionData('unpause');
+
+      updateTxs.push({
+        annotation: `Updating paused state to ${target.paused}`,
+        chainId: this.chainId,
+        to: this.args.addresses.deployedIsm,
+        data,
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async updateRoutingIsm({
