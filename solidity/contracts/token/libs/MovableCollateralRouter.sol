@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {ITokenBridge} from "../../interfaces/ITokenBridge.sol";
+import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -70,6 +70,10 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         _allowedBridges[domain].add(address(bridge));
+        address token = _token();
+        if (token != address(0)) {
+            IERC20(token).safeApprove(address(bridge), type(uint256).max);
+        }
     }
 
     function removeBridge(
@@ -77,19 +81,6 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         ITokenBridge bridge
     ) external onlyOwner {
         _allowedBridges[domain].remove(address(bridge));
-    }
-
-    /**
-     * @notice Approves the token for the bridge.
-     * @param token The token to approve.
-     * @param bridge The bridge to approve the token for.
-     * @dev We need this to support bridges that charge fees in ERC20 tokens.
-     */
-    function approveTokenForBridge(
-        IERC20 token,
-        ITokenBridge bridge
-    ) external onlyOwner {
-        token.safeApprove(address(bridge), type(uint256).max);
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
@@ -113,20 +104,41 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint256 amount,
         ITokenBridge bridge
     ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
-        address rebalancer = _msgSender();
+        bytes32 recipient = _recipient(domain);
 
-        bytes32 recipient = allowedRecipient[domain];
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            domain,
+            recipient,
+            amount
+        );
+
+        uint256 nativeAmount = 0;
+        uint256 tokenAmount = 0;
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == _token()) {
+                tokenAmount += quotes[i].amount;
+            }
+
+            if (quotes[i].token == address(0)) {
+                nativeAmount += quotes[i].amount;
+            }
+        }
+
+        // charge the rebalancer any bridging fees denominated in the collateral
+        // token to avoid undercollateralization
+        _transferFromSender(tokenAmount - amount);
+
+        bridge.transferRemote{value: nativeAmount}(domain, recipient, amount);
+        emit CollateralMoved(domain, recipient, amount, msg.sender);
+    }
+
+    function _recipient(
+        uint32 domain
+    ) internal view returns (bytes32 recipient) {
+        recipient = allowedRecipient[domain];
         if (recipient == bytes32(0)) {
             recipient = _mustHaveRemoteRouter(domain);
         }
-
-        _rebalance(domain, recipient, amount, bridge);
-        emit CollateralMoved({
-            domain: domain,
-            recipient: recipient,
-            amount: amount,
-            rebalancer: rebalancer
-        });
     }
 
     /// @dev This function in `EnumerableSet` was introduced in OpenZeppelin v5. We are using 4.9
@@ -150,14 +162,5 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         delete allowedRecipient[domain];
         _clear(_allowedBridges[domain]._inner);
         Router._unenrollRemoteRouter(domain);
-    }
-
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ITokenBridge bridge
-    ) internal virtual {
-        bridge.transferRemote{value: msg.value}(domain, recipient, amount);
     }
 }
