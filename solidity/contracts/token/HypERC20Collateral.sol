@@ -18,7 +18,7 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,7 +26,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
@@ -56,6 +55,7 @@ contract HypERC20Collateral is MovableCollateralRouter {
         address _owner
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _FungibleTokenRouter_initialize();
     }
 
     function balanceOf(
@@ -64,17 +64,8 @@ contract HypERC20Collateral is MovableCollateralRouter {
         return wrappedToken.balanceOf(_account);
     }
 
-    function quoteTransferRemote(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destinationDomain, _recipient, _amount)
-        });
-        quotes[1] = Quote({token: address(wrappedToken), amount: _amount});
+    function _token() internal view override returns (address) {
+        return address(wrappedToken);
     }
 
     /**
@@ -104,7 +95,7 @@ contract HypERC20Collateral is MovableCollateralRouter {
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) internal override {
         wrappedToken.safeApprove({spender: address(bridge), value: amount});
         MovableCollateralRouter._rebalance({

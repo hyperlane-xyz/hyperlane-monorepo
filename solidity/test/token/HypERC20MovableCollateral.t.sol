@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge} from "contracts/token/interfaces/ValueTransferBridge.sol";
-import {MockValueTransferBridge} from "./MovableCollateralRouter.t.sol";
+import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
+import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 // import {HypERC20MovableCollateral} from "contracts/token/HypERC20MovableCollateral.sol";
 
@@ -13,7 +13,7 @@ import "forge-std/Test.sol";
 
 contract HypERC20MovableCollateralRouterTest is Test {
     HypERC20Collateral internal router;
-    MockValueTransferBridge internal vtb;
+    MockITokenBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
@@ -28,7 +28,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
 
-        vtb = new MockValueTransferBridge(token);
+        vtb = new MockITokenBridge(token);
     }
 
     function _configure(bytes32 _recipient) internal {

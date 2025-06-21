@@ -4,8 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -42,19 +41,7 @@ contract HypNative is MovableCollateralRouter {
         address _owner
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-    }
-
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _amount
-        });
+        _FungibleTokenRouter_initialize();
     }
 
     function _transferRemote(
@@ -73,10 +60,14 @@ contract HypNative is MovableCollateralRouter {
                 _destination,
                 _recipient,
                 _amount,
-                msg.value - _amount,
+                _value - _amount,
                 _hookMetadata,
                 _hook
             );
+    }
+
+    function _token() internal view override returns (address) {
+        return address(0);
     }
 
     function balanceOf(
@@ -120,17 +111,13 @@ contract HypNative is MovableCollateralRouter {
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) internal override {
         uint fee = msg.value + amount;
         require(
             address(this).balance >= fee,
             "Native: rebalance amount exceeds balance"
         );
-        bridge.transferRemote{value: fee}({
-            destinationDomain: domain,
-            recipient: recipient,
-            amountOut: amount
-        });
+        bridge.transferRemote{value: fee}(domain, recipient, amount);
     }
 }

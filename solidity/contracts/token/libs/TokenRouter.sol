@@ -57,7 +57,14 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                msg.value,
+                _GasRouter_hookMetadata(_destination),
+                address(hook)
+            );
     }
 
     /**
@@ -94,28 +101,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
-        uint256 _value
-    ) internal returns (bytes32 messageId) {
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _value,
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
-    }
-
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId,
         uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual returns (bytes32 messageId) {
-        bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
+        bytes memory _tokenMetadata = _chargeSender(_amountOrId);
 
         uint256 outboundAmount = _outboundAmount(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
@@ -133,6 +123,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         );
 
         emit SentTransferRemote(_destination, _recipient, outboundAmount);
+    }
+
+    // default behavior is no fee
+    function _chargeSender(
+        uint256 _amountOrId
+    ) internal virtual returns (bytes memory) {
+        return _transferFromSender(_amountOrId);
     }
 
     /**
@@ -252,4 +249,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amountOrId
+    ) internal virtual {
+        _transferTo(_recipient, _amountOrId, msg.data[0:0]);
+    }
 }

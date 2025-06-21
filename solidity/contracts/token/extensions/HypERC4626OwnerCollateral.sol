@@ -50,6 +50,7 @@ contract HypERC4626OwnerCollateral is HypERC20Collateral {
     ) public override initializer {
         wrappedToken.approve(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _FungibleTokenRouter_initialize();
     }
 
     /**

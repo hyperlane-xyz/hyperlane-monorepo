@@ -43,6 +43,7 @@ contract OpL2NativeTokenBridge is HypNative {
     ) public virtual initializer {
         // ISM should not be set (contract does not receive messages currently)
         _MailboxClient_initialize(_hook, address(0), _owner);
+        _FungibleTokenRouter_initialize();
     }
 
     function quoteTransferRemote(
