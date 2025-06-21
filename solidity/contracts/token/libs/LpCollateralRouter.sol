@@ -63,7 +63,7 @@ abstract contract LpCollateralRouter is
         lpAssets -= assets;
 
         // interactions
-        _transferTo(receiver, assets, msg.data[0:0]);
+        _transferTo(receiver, assets);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
