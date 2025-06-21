@@ -25,6 +25,9 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     /// @notice Set of addresses that are allowed to rebalance.
     EnumerableSet.AddressSet internal _allowedRebalancers;
 
+    // gap for future extensions
+    uint256[50] private __gap;
+
     event CollateralMoved(
         uint32 indexed domain,
         bytes32 recipient,
