@@ -450,7 +450,7 @@ export class WarpCore {
   }
 
   /**
-   * Computes the max transferable amount of the from the given
+   * Computes the max transferable amount from the given
    * token balance, accounting for local and interchain gas fees
    */
   async getMaxTransferAmount({
