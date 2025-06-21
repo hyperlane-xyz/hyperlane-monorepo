@@ -6,7 +6,7 @@ import {
 import { isTypes } from '@hyperlane-xyz/cosmos-types';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import {
   DerivedIsmConfig,
@@ -21,7 +21,7 @@ export class CosmosNativeIsmReader {
   });
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly cosmosProviderOrSigner:
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
@@ -103,7 +103,7 @@ export class CosmosNativeIsmReader {
     const domains: DomainRoutingIsmConfig['domains'] = {};
 
     for (const route of ism.routes) {
-      const chainName = this.multiProvider.tryGetChainName(route.domain);
+      const chainName = this.metadataManager.tryGetChainName(route.domain);
       if (!chainName) {
         this.logger.warn(
           `Unknown domain ID ${route.domain}, skipping domain configuration`,

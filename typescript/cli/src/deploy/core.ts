@@ -56,18 +56,18 @@ export async function runCoreDeploy(params: DeployParams) {
     config,
   };
 
+  await runPreflightChecksForChains({
+    ...deploymentParams,
+    chains: [chain],
+    minGas: MINIMUM_CORE_DEPLOY_GAS,
+  });
+
   let deployedAddresses: ChainAddresses;
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
         await runDeployPlanStep(deploymentParams);
-
-        await runPreflightChecksForChains({
-          ...deploymentParams,
-          chains: [chain],
-          minGas: MINIMUM_CORE_DEPLOY_GAS,
-        });
 
         const userAddress = await signer.getAddress();
 
@@ -99,7 +99,6 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.CosmosNative:
       {
-        await multiProtocolSigner?.initSigner(chain);
         const signer =
           multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
         assert(signer, 'Cosmos Native signer failed!');
@@ -136,6 +135,12 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider, multiProtocolSigner } = context;
 
+  await runPreflightChecksForChains({
+    context,
+    chains: [chain],
+    minGas: MINIMUM_CORE_DEPLOY_GAS,
+  });
+
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
@@ -165,7 +170,6 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     case ProtocolType.CosmosNative: {
-      await multiProtocolSigner?.initSigner(chain);
       const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
       assert(signer, 'Cosmos Native signer failed!');
 
