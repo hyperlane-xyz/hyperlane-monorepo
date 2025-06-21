@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
@@ -40,6 +41,11 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     if (config.interchainSecurityModule) {
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
+
+    assert(
+      config.commitmentIsm.urls.length > 0,
+      'Commitment ISM URLs are required for deployment of ICA Routers. Please provide at least one URL in the commitmentIsm.urls array.',
+    );
 
     const owner = await this.multiProvider.getSignerAddress(chain);
     const interchainAccountRouter = await this.deployContract(
