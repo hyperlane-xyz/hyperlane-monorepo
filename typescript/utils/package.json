@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "13.2.1",
+  "version": "13.3.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
@@ -9,7 +9,7 @@
     "ethers": "^5.8.0",
     "lodash-es": "^4.17.21",
     "pino": "^8.19.0",
-    "starknet": "^6.24.1",
+    "starknet": "^7.4.0",
     "yaml": "2.4.5"
   },
   "devDependencies": {

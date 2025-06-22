@@ -67,12 +67,39 @@ function formatAndPrintLogs(rawLogs: string) {
       .split('\n')
       .map((line) => JSON.parse(line));
     logs.forEach((log) => {
-      const { time, module, msg, labels, balance, valueUSD } = log;
-      const timestamp = new Date(time).toISOString();
+      const { time, msg, labels, balance, valueUSD } = log;
+
+      // Handle both standard timestamps and GCP timestamp format
+      let timestamp: string;
+      if (typeof time === 'string') {
+        // Standard timestamp format
+        timestamp = new Date(time).toISOString();
+      } else if (
+        time &&
+        typeof time === 'object' &&
+        'seconds' in time &&
+        'nanos' in time
+      ) {
+        // GCP timestamp format: { seconds: number, nanos: number }
+        const seconds = (time as { seconds: number; nanos: number }).seconds;
+        const nanos = (time as { seconds: number; nanos: number }).nanos;
+        const milliseconds = seconds * 1000 + nanos / 1000000;
+        timestamp = new Date(milliseconds).toISOString();
+      } else {
+        // Fallback to current time if timestamp is invalid
+        timestamp = new Date().toISOString();
+      }
+
+      // Try our default fields first, then fall back to GCP fields
+      const module =
+        labels?.module ?? log?.serviceContext?.service ?? 'Unknown Module';
       const chain = labels?.chain_name || 'Unknown Chain';
       const token = labels?.token_name || 'Unknown Token';
       const warpRoute = labels?.warp_route_id || 'Unknown Warp Route';
-      const tokenStandard = labels?.token_standard || 'Unknown Standard';
+      const tokenStandard =
+        labels?.token_standard ??
+        labels?.collateral_token_standard ??
+        'Unknown Standard';
       const tokenAddress = labels?.token_address || 'Unknown Token Address';
       const walletAddress = labels?.wallet_address || 'Unknown Wallet';
 
@@ -90,16 +117,16 @@ function formatAndPrintLogs(rawLogs: string) {
       if (valueUSD) {
         logMessage += chalk.green.italic(`Value (USD): ${valueUSD} `);
       }
-      logMessage += chalk.white(`→ ${msg}\n`);
+      logMessage += chalk.white(`→ ${msg ?? log.message}\n`);
 
       rootLogger.info(logMessage);
     });
-  } catch (error) {
-    rootLogger.error(`Failed to parse logs: ${error}`);
+  } catch (err) {
+    rootLogger.error(err, 'Failed to parse logs');
   }
 }
 
 main().catch((err) => {
-  rootLogger.error('Error in main:', err);
+  rootLogger.error(err);
   process.exit(1);
 });

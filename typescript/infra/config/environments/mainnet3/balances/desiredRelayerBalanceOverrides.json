@@ -1,6 +1,5 @@
 {
   "artela": 2200,
-  "arthera": 0.5,
   "coti": 0.1,
   "deepbrainchain": 100,
   "fluence": 2000,
@@ -12,6 +11,7 @@
   "paradex": 0,
   "plume": 0.05,
   "reactive": 0.1,
+  "solaxy": 0.05,
   "sophon": 50,
   "tangle": 6,
   "vana": 0.001

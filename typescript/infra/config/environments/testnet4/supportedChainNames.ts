@@ -36,7 +36,7 @@ export const testnet4SupportedChainNames = [
   'paradexsepolia',
   'plumetestnet2',
   'polygonamoy',
-  'rometestnet',
+  'rometestnet2',
   'scrollsepolia',
   'sepolia',
   'solanatestnet',
