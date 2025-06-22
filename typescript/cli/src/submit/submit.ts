@@ -26,7 +26,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
     registry,
   );
 
-  return new TxSubmitterBuilder<TProtocol>(submitter, []);
+  return new TxSubmitterBuilder<TProtocol>(submitter);
 }
 
 async function getSubmitter<TProtocol extends ProtocolType>(

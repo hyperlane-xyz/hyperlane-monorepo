@@ -443,20 +443,6 @@ export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethers
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 
-export { TxTransformerInterface } from './providers/transactions/transformer/TxTransformerInterface.js';
-export { TxTransformerType } from './providers/transactions/transformer/TxTransformerTypes.js';
-export {
-  TransformerMetadata,
-  TransformerMetadataSchema,
-} from './providers/transactions/transformer/types.js';
-
-export { EV5InterchainAccountTxTransformer } from './providers/transactions/transformer/ethersV5/EV5InterchainAccountTxTransformer.js';
-export { EV5TxTransformerInterface } from './providers/transactions/transformer/ethersV5/EV5TxTransformerInterface.js';
-export {
-  EV5InterchainAccountTxTransformerProps,
-  EV5InterchainAccountTxTransformerPropsSchema,
-} from './providers/transactions/transformer/ethersV5/types.js';
-
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export {
   CCIPContractCache,
