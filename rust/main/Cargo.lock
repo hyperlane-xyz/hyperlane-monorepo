@@ -5541,6 +5541,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-cosmos-rs"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc98aea32657307552b9e58d53d2af8de83cda7f99ce8ea1daa8884221feba46"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
+]
+
+[[package]]
 name = "hyperlane-cosmwasm-interface"
 version = "0.0.6-rc6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
