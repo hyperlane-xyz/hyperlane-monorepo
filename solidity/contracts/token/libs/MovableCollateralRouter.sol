@@ -69,11 +69,11 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
+        _addBridge(domain, bridge);
+    }
+
+    function _addBridge(uint32 domain, ITokenBridge bridge) internal virtual {
         _allowedBridges[domain].add(address(bridge));
-        address token = _token();
-        if (token != address(0)) {
-            IERC20(token).safeApprove(address(bridge), type(uint256).max);
-        }
     }
 
     function removeBridge(
