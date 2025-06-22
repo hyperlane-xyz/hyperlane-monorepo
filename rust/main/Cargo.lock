@@ -10307,13 +10307,20 @@ dependencies = [
 name = "relayer"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "bytes",
  "core",
  "eyre",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-native",
+ "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
  "kaspa-grpc-client",
+ "kaspa-hashes",
  "kaspa-rpc-core",
  "kaspa-txscript",
  "kaspa-wallet-core",
