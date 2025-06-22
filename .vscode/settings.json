@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
+
         "./rust/main/Cargo.toml",
-        "./rust/sealevel/Cargo.toml",
+        // "./rust/sealevel/Cargo.toml",
     ],
 }
