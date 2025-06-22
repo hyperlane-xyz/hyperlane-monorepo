@@ -3,7 +3,7 @@ mod base;
 mod base_builder;
 mod ccip_read;
 mod message_builder;
-mod multisig;
+pub mod multisig;
 mod null_metadata;
 mod routing;
 
@@ -12,5 +12,5 @@ pub(crate) use base::{
     IsmCachePolicy, IsmCachePolicyClassifier, MessageMetadataBuildParams, Metadata,
     MetadataBuildError, MetadataBuilder,
 };
-pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata};
+pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata, DummyBuildsBaseMetadata};
 pub(crate) use message_builder::MessageMetadataBuilder;

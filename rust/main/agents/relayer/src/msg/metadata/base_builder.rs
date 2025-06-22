@@ -309,3 +309,80 @@ impl BaseMetadataBuilder {
         Ok(None)
     }
 }
+
+/// DYMENSION: it allow metadata creation even if this stuff is not used but it's needed for type construction
+/// Base metadata builder with types used by higher level metadata builders.
+#[allow(clippy::too_many_arguments)]
+#[derive(new, Debug)]
+pub struct DummyBuildsBaseMetadata;
+
+#[async_trait::async_trait]
+impl BuildsBaseMetadata for DummyBuildsBaseMetadata {
+    fn origin_domain(&self) -> &HyperlaneDomain {
+        todo!()
+    }
+
+    fn destination_domain(&self) -> &HyperlaneDomain {
+        todo!()
+    }
+
+    fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
+        todo!()
+    }
+
+    fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier {
+        todo!()
+    }
+
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
+        todo!()
+    }
+
+    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
+        todo!()
+    }
+
+    async fn highest_known_leaf_index(&self) -> Option<u32> {
+        todo!()
+    }
+
+    async fn get_merkle_leaf_id_by_message_id(
+        &self,
+        message_id: H256,
+    ) -> eyre::Result<Option<u32>> {
+        todo!()
+    }
+
+    async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
+        todo!()
+    }
+
+    async fn build_routing_ism(&self, address: H256) -> eyre::Result<Box<dyn RoutingIsm>> {
+        todo!()
+    }
+
+    async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>> {
+        todo!()
+    }
+
+    async fn build_aggregation_ism(&self, address: H256) -> eyre::Result<Box<dyn AggregationIsm>> {
+        todo!()
+    }
+
+    async fn build_ccip_read_ism(&self, address: H256) -> eyre::Result<Box<dyn CcipReadIsm>> {
+        todo!()
+    }
+
+    async fn build_checkpoint_syncer(
+        &self,
+        message: &HyperlaneMessage,
+        validators: &[H256],
+        app_context: Option<String>,
+    ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
+        todo!()
+    }
+
+    fn get_signer(&self) -> Option<&Signers> {
+        todo!()
+    }
+}

@@ -6,6 +6,8 @@ use std::{
     time::Instant,
 };
 
+use eyre::eyre;
+
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -28,7 +30,10 @@ use hyperlane_base::{
     cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
+    settings::build_kaspa_provider,
+    settings::{
+        ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics,
+    },
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
@@ -36,12 +41,17 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    KnownHyperlaneDomain, Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType,
+    ValidatorAnnounce, H256, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
+
+use super::dymension_metadata::PendingMessageMetadataGetter;
+use dymension_kaspa::KaspaProvider;
+use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -50,8 +60,8 @@ use crate::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
         metadata::{
-            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
-            IsmCachePolicyClassifier,
+            multisig::MessageIdMultisigMetadataBuilder, BaseMetadataBuilder, DefaultIsmCache,
+            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuilder,
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
@@ -112,6 +122,7 @@ pub struct Relayer {
     pub tokio_console_server: Option<console_subscriber::Server>,
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 }
 
 impl Debug for Relayer {
@@ -186,6 +197,7 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -436,6 +448,13 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
+        let d_k_args = Self::get_dymension_kaspa_args(
+            &settings.origin_chains,
+            &core,
+            &core_metrics,
+            &mailboxes,
+        )?;
+
         Ok(Self {
             dbs,
             _cache: cache,
@@ -462,6 +481,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
+            dymension_kaspa_args: d_k_args,
         })
     }
 
@@ -561,6 +581,15 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
+            if is_kas(origin) && self.dymension_kaspa_args.is_some() {
+                self.launch_dymension_kaspa_tasks(
+                    origin,
+                    &mut tasks,
+                    task_monitor.clone(),
+                    send_channels.clone(),
+                );
+                continue;
+            }
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
@@ -1407,5 +1436,75 @@ mod test {
             .get_metric_with_label_values(&["optimism"])
             .unwrap();
         assert_eq!(metric.get(), 1);
+    }
+}
+
+impl Relayer {
+    fn launch_dymension_kaspa_tasks(
+        &self,
+        origin: &HyperlaneDomain,
+        tasks: &mut Vec<JoinHandle<()>>,
+        task_monitor: TaskMonitor,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) {
+        let kas_db = self.dbs.get(origin).unwrap();
+
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+
+        let kas_provider = args.kas_provider.clone().unwrap(); // TODO: check
+        let hub_mailbox = args.dym_mailbox.clone().unwrap();
+
+        let metadata_getter = PendingMessageMetadataGetter::new();
+
+        let foo = Foo::new(
+            origin.clone(),
+            kas_db.clone().to_owned(),
+            kas_provider,
+            hub_mailbox,
+            metadata_getter,
+        );
+
+        tasks.push(foo.run_deposit_loop(task_monitor.clone()));
+
+        // TODO: confirmation loop 
+
+        // it observes the local db and makes sure messages are eventually written to the destination chain
+        tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
+    }
+}
+
+struct DymensionKaspaArgs {
+    kas_provider: Option<KaspaProvider>,
+    dym_mailbox: Option<Arc<dyn Mailbox>>,
+}
+
+impl Relayer {
+    fn get_dymension_kaspa_args(
+        origin_chains: &HashSet<HyperlaneDomain>,
+        core: &HyperlaneAgentCore,
+        core_metrics: &CoreMetrics,
+        mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+    ) -> Result<Option<DymensionKaspaArgs>> {
+        if !origin_chains.iter().any(|chain| is_kas(chain)) {
+            return Ok(None);
+        }
+
+        let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
+        let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
+        let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+
+        let kas_chain_provider = match chain_conf.connection.clone() {
+            ChainConnectionConf::Kaspa(conf) => Some(
+                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
+                    .expect("Failed to build Kaspa provider"),
+            ),
+            _ => None,
+        };
+
+        Ok(Some(DymensionKaspaArgs {
+            kas_provider: kas_chain_provider,
+            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+        }))
     }
 }

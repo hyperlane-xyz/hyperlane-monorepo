@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use kaspa_addresses::Address;
 use kaspa_consensus_core::hashing::sighash_type::{
-    SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY, SigHashType,
+    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
 };
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;

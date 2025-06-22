@@ -64,7 +64,13 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
+dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
+dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
+hyperlane-cosmos-dymension-rs = "0.1.4-dymension-v3.2.1" # it would be nice if we could avoid this import
+
 
 # dependency version is determined by etheres
 rusoto_core = "*"

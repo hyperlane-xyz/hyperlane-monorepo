@@ -49,6 +49,15 @@ pub enum SignerConf {
         /// Whether the Starknet signer is legacy
         is_legacy: bool,
     },
+    /// Kaspa Specific key
+    KaspaKey {
+        /// Private key value
+        key: H256,
+        /// Prefix for kaspa address
+        prefix: String,
+        /// Account address type for kaspa address
+        account_address_type: AccountAddressType,
+    },
     /// Assume node will sign on RPC calls
     #[default]
     Node,
@@ -106,6 +115,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
+            SignerConf::KaspaKey { .. } => {
+                bail!("kaspaKey signer is not supported by Ethereum")
+            }
         })
     }
 }

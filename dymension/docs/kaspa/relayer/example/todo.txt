@@ -1,0 +1,1 @@
+Maybe better to have example in demos/ or tests/

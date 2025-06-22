@@ -11,6 +11,7 @@ use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
+use dymension_kaspa;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
@@ -33,6 +34,7 @@ use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
+use hyperlane_base::kas_hack::is_kas;
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -205,7 +207,7 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let router = Router::new()
+        let mut router = Router::new()
             .merge(validator_server::router(
                 self.origin_chain.clone(),
                 self.core.metrics.clone(),
@@ -216,6 +218,12 @@ impl BaseAgent for Validator {
                 )
                 .router(),
             );
+        if is_kas(&self.origin_chain) {
+            router = router.merge(
+                // TODO: config based, and only if validator is actually for kaspa chain
+                dymension_kaspa::router(Arc::new(self.raw_signer.clone())),
+            )
+        }
 
         let server = self
             .core

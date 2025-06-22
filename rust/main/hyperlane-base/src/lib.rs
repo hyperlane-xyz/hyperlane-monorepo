@@ -36,3 +36,6 @@ pub use types::*;
 
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;
+
+#[allow(missing_docs)]
+pub mod kas_hack;
