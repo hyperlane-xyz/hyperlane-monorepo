@@ -457,7 +457,7 @@ async function createWarpIsm({
 
       const cosmosIsmModule = await CosmosNativeIsmModule.create({
         chain,
-        multiProvider: context.multiProvider,
+        metadataManager: context.multiProvider,
         addresses: {
           deployedIsm: '',
           mailbox: chainAddresses.mailbox,

@@ -17,7 +17,6 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
@@ -106,17 +105,17 @@ export class CosmosNativeHookModule extends HyperlaneModule<
     chain,
     config,
     addresses,
-    multiProvider,
+    metadataManager,
     signer,
   }: {
     chain: ChainNameOrId;
     config: HookConfig;
     addresses: HookModuleAddresses;
-    multiProvider: MultiProvider;
+    metadataManager: ChainMetadataManager;
     signer: SigningHyperlaneModuleClient;
   }): Promise<CosmosNativeHookModule> {
     const module = new CosmosNativeHookModule(
-      multiProvider,
+      metadataManager,
       {
         addresses,
         chain,

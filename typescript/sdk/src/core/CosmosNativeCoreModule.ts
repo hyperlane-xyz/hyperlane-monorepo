@@ -17,7 +17,6 @@ import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
 import { DerivedHookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -69,19 +68,19 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   public static async create(params: {
     chain: ChainNameOrId;
     config: CoreConfig;
-    multiProvider: MultiProvider;
+    metadataManager: ChainMetadataManager;
     signer: SigningHyperlaneModuleClient;
   }): Promise<CosmosNativeCoreModule> {
-    const { chain, config, multiProvider, signer } = params;
+    const { chain, config, metadataManager, signer } = params;
     const addresses = await CosmosNativeCoreModule.deploy({
       config,
-      multiProvider,
+      metadataManager,
       chain,
       signer,
     });
 
     // Create CoreModule and deploy the Core contracts
-    const module = new CosmosNativeCoreModule(multiProvider, signer, {
+    const module = new CosmosNativeCoreModule(metadataManager, signer, {
       addresses,
       chain,
       config,
@@ -96,14 +95,14 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
    */
   static async deploy(params: {
     config: CoreConfig;
-    multiProvider: MultiProvider;
+    metadataManager: ChainMetadataManager;
     chain: ChainNameOrId;
     signer: SigningHyperlaneModuleClient;
   }): Promise<DeployedCoreAddresses> {
-    const { config, multiProvider, chain, signer } = params;
+    const { config, metadataManager, chain, signer } = params;
 
-    const chainName = multiProvider.getChainName(chain);
-    const domainId = multiProvider.getDomainId(chain);
+    const chainName = metadataManager.getChainName(chain);
+    const domainId = metadataManager.getDomainId(chain);
 
     // 1. Deploy default ISM
     const ismModule = await CosmosNativeIsmModule.create({
@@ -113,7 +112,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
         deployedIsm: '',
         mailbox: '',
       },
-      multiProvider,
+      metadataManager,
       signer,
     });
 
@@ -135,7 +134,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.id,
       },
-      multiProvider,
+      metadataManager,
       signer,
     });
 
@@ -149,7 +148,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.id,
       },
-      multiProvider,
+      metadataManager,
       signer,
     });
 

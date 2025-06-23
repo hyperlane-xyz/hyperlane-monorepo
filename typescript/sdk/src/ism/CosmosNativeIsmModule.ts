@@ -20,7 +20,6 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
@@ -90,6 +89,14 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       );
     }
 
+    if (!this.args.addresses.deployedIsm) {
+      this.args.addresses.deployedIsm = await this.deploy({
+        config: expectedConfig,
+      });
+
+      return [];
+    }
+
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const actualConfig = normalizeConfig(await this.read());
@@ -141,17 +148,17 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     chain,
     config,
     addresses,
-    multiProvider,
+    metadataManager,
     signer,
   }: {
     chain: ChainNameOrId;
     config: IsmConfig;
     addresses: IsmModuleAddresses;
-    multiProvider: MultiProvider;
+    metadataManager: ChainMetadataManager;
     signer: SigningHyperlaneModuleClient;
   }): Promise<CosmosNativeIsmModule> {
     const module = new CosmosNativeIsmModule(
-      multiProvider,
+      metadataManager,
       {
         addresses,
         chain,

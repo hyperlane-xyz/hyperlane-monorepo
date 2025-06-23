@@ -108,7 +108,7 @@ export async function runCoreDeploy(params: DeployParams) {
         const cosmosNativeCoreModule = await CosmosNativeCoreModule.create({
           chain,
           config,
-          multiProvider,
+          metadataManager: multiProvider,
           signer,
         });
 

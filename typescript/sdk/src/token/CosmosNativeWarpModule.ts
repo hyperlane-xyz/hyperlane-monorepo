@@ -321,7 +321,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
 
     const actualDeployedIsm = (
       actualConfig.interchainSecurityModule as DerivedIsmConfig
-    ).address;
+    )?.address;
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -400,7 +400,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
           mailbox: expectedConfig.mailbox,
           deployedIsm: (
             actualConfig.interchainSecurityModule as DerivedIsmConfig
-          ).address,
+          )?.address,
         },
       },
       this.signer,
