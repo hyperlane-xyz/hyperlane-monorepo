@@ -94,13 +94,14 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use hyperlane_base::mock_checkpoint_syncer::{
+    use hyperlane_base::tests::dummy_validators;
+    use hyperlane_base::tests::mock_checkpoint_syncer::{
         build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint,
     };
     use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
     use hyperlane_core::{
         Checkpoint, CheckpointWithMessageId, HyperlaneDomain, HyperlaneMessage,
-        KnownHyperlaneDomain, H256,
+        KnownHyperlaneDomain, H160, H256,
     };
 
     use crate::msg::metadata::multisig::{
@@ -108,21 +109,6 @@ mod tests {
     };
     use crate::msg::metadata::MessageMetadataBuilder;
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
-
-    const PRIVATE_KEY_1: &str = "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb";
-    const PUBLIC_KEY_1: &str = "c4bED0DD629b734C96779D30e1fcFa5346863C4C";
-
-    const PRIVATE_KEY_2: &str = "5c5ec0dd04b7a8b4ea7d204bb8d30159fe33bdf29c0015986b430ff5b952b5fb";
-    const PUBLIC_KEY_2: &str = "96DE69f859ed40FB625454db3BFc4f2Da4848dcF";
-
-    const PRIVATE_KEY_3: &str = "113c56f0b006dd07994ec518eb02a9b37ddd2187232bc8ea820b1fe7d719c6cd";
-    const PUBLIC_KEY_3: &str = "c7504D7F7FC865Ba69abad3b18c639372AE687Ec";
-
-    const PRIVATE_KEY_4: &str = "9ccd363180a8e11730d017cf945c93533070a5e755f178e171bee861407b225a";
-    const PUBLIC_KEY_4: &str = "197325f955852A61a5b2DEFb7BAffB8763D1acE8";
-
-    const PRIVATE_KEY_5: &str = "3fdfa6dd5c1e40e5c7dc84e82253cdb96c90a6d400542e21d5e69965adc44077";
-    const PUBLIC_KEY_5: &str = "2C8Ac45c649C1d242706FB1fc078bc0759c02f80";
 
     #[tracing_test::traced_test]
     #[tokio::test]
@@ -138,13 +124,21 @@ mod tests {
             message_id: message.id(),
         };
 
-        let validators = dummy_validators(checkpoint.clone());
+        let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
+        validators[0].latest_index = Some(1010);
+        validators[0].fetch_checkpoint = Some(checkpoint.clone());
+        validators[1].latest_index = Some(1008);
+        validators[2].latest_index = Some(1006);
+        validators[3].latest_index = Some(1004);
+        validators[3].fetch_checkpoint = Some(checkpoint.clone());
+        validators[4].latest_index = Some(1002);
+        validators[4].fetch_checkpoint = Some(checkpoint.clone());
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
 
         let validator_addresses = validators
             .iter()
-            .map(|validator| validator.public_key.clone().into())
+            .map(|validator| validator.public_key.parse::<H160>().unwrap().into())
             .collect::<Vec<_>>();
 
         let signed_checkpoint = generate_multisig_signed_checkpoint(&validators, checkpoint).await;

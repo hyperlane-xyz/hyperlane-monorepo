@@ -11,7 +11,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::Signers;
 
-use crate::CheckpointSyncer;
+use crate::{tests::TestValidator, CheckpointSyncer};
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
@@ -138,19 +138,6 @@ impl CheckpointSyncer for MockCheckpointSyncer {
     }
 }
 
-/// parameters for a validator for creating a mock checkpoint syncer
-#[derive(Clone, Debug)]
-pub struct TestValidator {
-    /// private key
-    pub private_key: String,
-    /// public key
-    pub public_key: H160,
-    /// latest index response
-    pub latest_index: Option<u32>,
-    /// fetch checkpoint response
-    pub fetch_checkpoint: Option<CheckpointWithMessageId>,
-}
-
 /// Generate a hashmap of mock checkpoint syncers
 pub async fn build_mock_checkpoint_syncs(
     validators: &[TestValidator],
@@ -180,7 +167,7 @@ pub async fn build_mock_checkpoint_syncs(
             .lock()
             .unwrap()
             .push_back(sig);
-        let key = validator.public_key;
+        let key: H160 = validator.public_key.parse().unwrap();
         let val = syncer;
         syncers.insert(key, val);
     }
