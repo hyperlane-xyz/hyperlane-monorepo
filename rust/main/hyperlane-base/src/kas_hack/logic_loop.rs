@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
@@ -265,4 +266,8 @@ impl DepositCache {
 
 pub trait MetadataConstructor {
     fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
+}
+
+trait AsAny {
+    fn as_any(&self) -> &dyn Any;
 }

@@ -7,7 +7,7 @@ mod error;
 mod indexers;
 mod ism;
 mod libs;
-mod mailbox;
+pub mod mailbox;
 mod prometheus;
 mod providers;
 mod signers;
