@@ -87,7 +87,7 @@ impl ValidatorsClient {
 
     pub fn hub_ism_threshold(&self) -> usize {
         // TODO: clearly distinguish with kaspa multisig
-        self.conf.kaspa_multisig_threshold
+        self.conf.multisig_threshold_hub_ism
     }
 }
 
