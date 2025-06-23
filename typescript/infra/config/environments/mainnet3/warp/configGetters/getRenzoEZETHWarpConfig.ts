@@ -66,10 +66,11 @@ export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this w
 export async function getRenzoLegacyHook(params: {
   multiProvider: MultiProvider;
   chain: ChainName;
-  defaultHook: Address;
+  defaultHookAddress: Address;
   existingProtocolFee: ChainMap<Address>;
 }): Promise<HookConfig> {
-  const { multiProvider, chain, defaultHook, existingProtocolFee } = params;
+  const { multiProvider, chain, defaultHookAddress, existingProtocolFee } =
+    params;
   const hookReader = new EvmHookReader(multiProvider, chain);
   const { address, ...hookConfig } =
     await hookReader.deriveHookConfigFromAddress(existingProtocolFee[chain]);
@@ -79,7 +80,7 @@ export async function getRenzoLegacyHook(params: {
   );
   return {
     type: HookType.AGGREGATION,
-    hooks: [defaultHook, hookConfig],
+    hooks: [defaultHookAddress, hookConfig],
   };
 }
 
@@ -94,7 +95,7 @@ export async function getRenzoLegacyHook(params: {
 const OUTBOUND_ONLY_CHAIN = 'blast';
 export async function getRenzoHook(params: {
   multiProvider: MultiProvider;
-  defaultHook: Address;
+  defaultHookAddress: Address;
   origin: ChainName;
   destinationChains: ChainName[];
   owner: Address;
@@ -102,19 +103,16 @@ export async function getRenzoHook(params: {
 }): Promise<HookConfig> {
   const {
     multiProvider,
-    defaultHook,
+    defaultHookAddress,
     origin,
     destinationChains,
     owner,
     existingProtocolFee,
   } = params;
 
-  let routingHook: HookConfig;
-  let protocolFeeHook: HookConfig;
-
-  routingHook =
+  const routingHook: HookConfig =
     origin === OUTBOUND_ONLY_CHAIN
-      ? defaultHook
+      ? defaultHookAddress
       : {
           type: HookType.ROUTING,
           owner: owner,
@@ -122,7 +120,7 @@ export async function getRenzoHook(params: {
             destinationChains
               .filter((c) => c !== origin)
               .filter((c) => c !== OUTBOUND_ONLY_CHAIN)
-              .map((dest) => [dest, defaultHook]),
+              .map((dest) => [dest, defaultHookAddress]),
           ),
         };
 
@@ -523,7 +521,7 @@ export function getRenzoWarpConfigGenerator(params: {
               mailbox,
               multiProvider.getProvider(chain),
             );
-            const defaultHook = await mailboxContract.defaultHook();
+            const defaultHookAddress = await mailboxContract.defaultHook();
             const ret: [string, HypTokenRouterConfig] = [
               chain,
               {
@@ -549,12 +547,12 @@ export function getRenzoWarpConfigGenerator(params: {
                   ? await getRenzoLegacyHook({
                       multiProvider,
                       chain,
-                      defaultHook,
+                      defaultHookAddress,
                       existingProtocolFee,
                     })
                   : await getRenzoHook({
                       multiProvider,
-                      defaultHook,
+                      defaultHookAddress,
                       origin: chain,
                       destinationChains: chainsToDeploy,
                       owner: safes[chain],
