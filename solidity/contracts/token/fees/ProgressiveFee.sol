@@ -44,7 +44,7 @@ contract ProgressiveFee is BaseFee {
             (halfAmount * halfAmount + amount * amount);
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.PROGRESSIVE;
     }
 }
