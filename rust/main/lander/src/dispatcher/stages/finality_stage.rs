@@ -1,6 +1,3 @@
-// TODO: re-enable clippy warnings
-#![allow(dead_code)]
-
 use std::{
     collections::{HashMap, VecDeque},
     future::Future,

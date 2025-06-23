@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use hyperlane_base::db::DbError;
 
 use crate::transaction::Transaction;
