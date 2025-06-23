@@ -404,6 +404,10 @@ export function bytesToAddressCosmos(
   return toBech32(prefix, bytes);
 }
 
+export function bytesToAddressCosmosNative(bytes: Uint8Array): Address {
+  return ensure0x(Buffer.from(bytes).toString('hex'));
+}
+
 export function bytesToAddressStarknet(bytes: Uint8Array): Address {
   const hexString = encode.buf2hex(bytes);
   return addAddressPadding(hexString);
@@ -425,7 +429,7 @@ export function bytesToProtocolAddress(
   } else if (toProtocol === ProtocolType.Cosmos) {
     return bytesToAddressCosmos(bytes, prefix!);
   } else if (toProtocol === ProtocolType.CosmosNative) {
-    return bytesToAddressCosmos(bytes, prefix!);
+    return bytesToAddressCosmosNative(bytes);
   } else if (toProtocol === ProtocolType.Starknet) {
     return bytesToAddressStarknet(bytes);
   } else {
