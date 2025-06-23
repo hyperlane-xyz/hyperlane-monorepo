@@ -848,7 +848,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -859,7 +859,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     resources: scraperResources,
   },
@@ -874,7 +874,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
