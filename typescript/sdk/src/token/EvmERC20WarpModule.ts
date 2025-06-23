@@ -149,14 +149,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     /**
      * @remark
      * The order of operations matter
-     * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 1. upgradeWarpRouteImplementationTx() must always be FIRST because subsequent updates may depend on the latest implementation
+     * 2. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
+     * 3. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
         actualConfig,
         expectedConfig,
       )),
+      ...(await this.createFeeRecipientUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
@@ -179,7 +181,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
-      ...(await this.createFeeRecipientUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
