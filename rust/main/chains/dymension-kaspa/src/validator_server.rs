@@ -104,16 +104,17 @@ struct SignableProgressIndication {
 
 impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
-        // see bytes derivation https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76
+        // see bytes derivation https://github.com/dymensionxyz/dymension/blob/64f69cae45ea93797299b97716e63bcada64ca25/x/kas/types/d.go#L87-L98
         // see checkpoint example https://github.com/dymensionxyz/hyperlane-monorepo/blob/b372a9062d8cc6de604c32cc0ba200337707c350/rust/main/hyperlane-core/src/types/checkpoint.rs#L35
 
-        // https://docs.rs/cosmos-sdk-proto/latest/src/cosmos_sdk_proto/traits.rs.html#19-24
-        let bz_res = self.progress_indication.to_bytes(); // TODO: check!! maybe not deterministic / does not match gogoproto
-        if bz_res.is_err() {
-            panic!("Failed to marshal progress indication");
+        let mut bz = vec![];
+        bz.extend(self.progress_indication.old_outpoint.clone().unwrap().transaction_id);
+        bz.extend(self.progress_indication.old_outpoint.clone().unwrap().index.to_be_bytes());
+        bz.extend(self.progress_indication.new_outpoint.clone().unwrap().transaction_id);
+        bz.extend(self.progress_indication.new_outpoint.clone().unwrap().index.to_be_bytes());
+        for w in self.progress_indication.processed_withdrawals.clone() {
+            bz.extend(w.message_id.as_bytes());
         }
-        let bz = bz_res.unwrap();
-
         H256::from_slice(Keccak256::new().chain(bz).finalize().as_slice())
     }
 }
