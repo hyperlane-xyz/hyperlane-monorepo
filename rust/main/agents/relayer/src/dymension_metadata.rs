@@ -6,6 +6,7 @@ use crate::msg::{
     metadata::MessageMetadataBuilder,
 };
 
+
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
 use hyperlane_core::{MultisigSignedCheckpoint, H256};
 use std::sync::Arc;
@@ -21,6 +22,7 @@ impl MetadataConstructor for PendingMessageMetadataGetter {
     }
 }
 
+/// A convenience way to properly format signature metadata, without requiring a huge amount of unused context objects
 pub struct PendingMessageMetadataGetter {
     builder: MessageIdMultisigMetadataBuilder,
 }

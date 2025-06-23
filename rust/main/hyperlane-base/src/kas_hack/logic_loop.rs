@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 use eyre::Result as EyreResult;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, TxOutcome,
+    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, TxOutcome,
 };
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -108,7 +108,6 @@ where
 
         let checkpoint = MultisigSignedCheckpoint::try_from(&mut sigs).unwrap();
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-
         let slice = metadata.as_slice();
 
         self.hub_mailbox.process(&msg, slice, None).await
@@ -201,6 +200,9 @@ where
     - [ ] Validator return
     - [ ] Relayer post to hub
         */
+    // needs to satisfy
+    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
+    //  https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     pub async fn on_new_progress_indication(
         &self,
         fxg: &ConfirmationFXG,
@@ -212,6 +214,30 @@ where
             .get_confirmation_sigs(fxg)
             .await?;
         unimplemented!()
+    }
+
+    async fn get_metadata(
+        &self,
+        sigs: &mut Vec<SignedCheckpointWithMessageId>,
+        require: usize,
+    ) -> ChainResult<&[u8]> {
+        if sigs.len() < require {
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: format!(
+                    "insufficient validator signatures: got {}, need {}",
+                    sigs.len(),
+                    require
+                ),
+            });
+        }
+
+        let checkpoint = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
+            ChainCommunicationError::InvalidRequest {
+                msg: "failed to convert sigs to checkpoint".to_string(),
+            }
+        })?;
+        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
+        Ok(metadata.as_slice())
     }
 }
 
