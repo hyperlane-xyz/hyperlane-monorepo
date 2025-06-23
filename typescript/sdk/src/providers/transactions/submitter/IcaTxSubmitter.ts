@@ -34,11 +34,11 @@ export class EvmIcaTxSubmitter
   readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.INTERCHAIN_ACCOUNT;
 
-  private constructor(
-    private readonly config: EvmIcaTxSubmitterConstructorConfig,
-    private readonly submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
-    private readonly multiProvider: MultiProvider,
-    private readonly interchainAccountApp: InterchainAccount,
+  protected constructor(
+    protected readonly config: EvmIcaTxSubmitterConstructorConfig,
+    protected readonly submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
+    protected readonly multiProvider: MultiProvider,
+    protected readonly interchainAccountApp: InterchainAccount,
   ) {}
 
   static async fromConfig(
@@ -52,19 +52,22 @@ export class EvmIcaTxSubmitter
       registry,
     );
 
-    const owner =
-      config.owner ?? (await multiProvider.getSignerAddress(config.chain));
-
     const interchainAccountApp: InterchainAccount =
-      await buildInterchainAccountApp(multiProvider, config.chain, {
-        owner,
-        origin: config.chain,
-        localRouter: config.originInterchainAccountRouter,
-      });
+      await buildInterchainAccountApp(
+        multiProvider,
+        config.chain,
+        {
+          owner: config.owner,
+          origin: config.chain,
+          localRouter: config.originInterchainAccountRouter,
+          ismOverride: config.interchainSecurityModule,
+        },
+        registry,
+      );
 
     return new EvmIcaTxSubmitter(
       {
-        owner,
+        owner: config.owner,
         chain: config.chain,
         destinationChain: config.destinationChain,
         originInterchainAccountRouter: config.originInterchainAccountRouter,

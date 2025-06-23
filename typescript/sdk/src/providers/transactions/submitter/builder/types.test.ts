@@ -33,10 +33,17 @@ describe('ChainSubmissionStrategySchema', () => {
     });
   });
 
-  const testCases: SubmissionStrategy[] = [
+  const testCases: ReadonlyArray<SubmissionStrategy> = [
     {
       submitter: {
         type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN_MOCK,
+        userAddress: ADDRESS_MOCK,
+      },
+    },
+    {
+      submitter: {
+        type: TxSubmitterType.IMPERSONATED_ACCOUNT,
         chain: CHAIN_MOCK,
         userAddress: ADDRESS_MOCK,
       },
@@ -96,6 +103,66 @@ describe('ChainSubmissionStrategySchema', () => {
   }
 
   describe(TxSubmitterType.INTERCHAIN_ACCOUNT, () => {
+    it(`should set the internalSubmitter to ${TxSubmitterType.JSON_RPC} if no internalSubmitter is set`, () => {
+      const emptyStrategy = {
+        [DESTINATION_CHAIN_MOCK]: {
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: CHAIN_MOCK,
+            owner: OWNER_ADDRESS_MOCK,
+          },
+        },
+      };
+
+      const result = ChainSubmissionStrategySchema.safeParse(emptyStrategy);
+      expect(result.success).to.be.true;
+      assert(result.success, 'Expected valid chain submission strategy');
+
+      const { data } = result;
+      expect(data[DESTINATION_CHAIN_MOCK].submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      assert(
+        data[DESTINATION_CHAIN_MOCK].submitter.type ===
+          TxSubmitterType.INTERCHAIN_ACCOUNT,
+        `Expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
+      );
+      expect(data[DESTINATION_CHAIN_MOCK].submitter.chain).to.equal(CHAIN_MOCK);
+      expect(data[DESTINATION_CHAIN_MOCK].submitter.owner).to.equal(
+        OWNER_ADDRESS_MOCK,
+      );
+      expect(
+        data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(
+        data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.chain,
+      ).to.equal(CHAIN_MOCK);
+    });
+
+    const unsetOwnerTestCases = testCases.filter(
+      (config) =>
+        config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT &&
+        config.submitter.type !== TxSubmitterType.GNOSIS_SAFE &&
+        config.submitter.type !== TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+
+    for (const testCase of unsetOwnerTestCases) {
+      it(`should fail if the internalSubmitter is not a multisig and the owner is not set (${testCase.submitter.type})`, () => {
+        const emptyStrategy = {
+          [DESTINATION_CHAIN_MOCK]: {
+            submitter: {
+              type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+              chain: CHAIN_MOCK,
+              internalSubmitter: testCase,
+            },
+          },
+        };
+
+        const result = ChainSubmissionStrategySchema.safeParse(emptyStrategy);
+        expect(result.success).to.be.false;
+      });
+    }
+
     it('should preprocess interchain account strategy and set destinationChain from key', () => {
       const inputStrategy = {
         [DESTINATION_CHAIN_MOCK]: {

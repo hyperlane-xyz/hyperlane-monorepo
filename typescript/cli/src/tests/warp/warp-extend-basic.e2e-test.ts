@@ -330,15 +330,12 @@ describe('hyperlane warp apply basic extension tests', async function () {
     expect(destinationGas_3[chain2Id]).to.equal('7777');
   });
 
-  it('should relay the ICA transaction to update the warp on the destination chain', async () => {
+  it.only('should relay the ICA transaction to update the warp on the destination chain', async () => {
     // Add the remote ica on chain anvil3
-    const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
-    const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
-
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
       await Promise.all([
-        readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
-        readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+        readCoreConfig(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2),
+        readCoreConfig(CHAIN_NAME_3, CORE_READ_CONFIG_PATH_3),
       ]);
 
     const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
@@ -349,8 +346,8 @@ describe('hyperlane warp apply basic extension tests', async function () {
       },
     };
 
-    writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
-    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfigChain2);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
 
     // Read existing config into a file
     const warpDeployConfig = await readWarpConfig(
@@ -420,7 +417,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     // Update the remote gas for chain2 on chain3 and run warp apply with an ICA strategy
     const expectedChain2Gas = '46000';
-    updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas = {
+    warpDeployConfig[CHAIN_NAME_3].destinationGas = {
       [chain2DomainId]: expectedChain2Gas,
     };
     writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);

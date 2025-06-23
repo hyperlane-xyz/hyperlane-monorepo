@@ -5,6 +5,8 @@ anvil3:
     chain: anvil2
     # The destination chain for the transactions
     destinationChain: anvil3
+    # The owner of the interchain account. It is required when the internal submitter is not a multisig.
+    owner: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
     # Specifies how the ICA transactions will be sent to the destination chain. If omitted it
     # will default to use a JSON RPC submitter
     internalSubmitter:

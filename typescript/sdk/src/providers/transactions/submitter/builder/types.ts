@@ -28,7 +28,15 @@ export const ChainSubmissionStrategySchema = z.preprocess(
           return strategy;
         }
 
-        const { internalSubmitter, destinationChain } = strategy.submitter;
+        // Setting the default internal submitter config for interchain accounts here
+        // instead of using zod's default() modifier because we require the chain property to be set
+        const {
+          internalSubmitter = {
+            type: TxSubmitterType.JSON_RPC,
+            chain: strategy.submitter.chain,
+          },
+          destinationChain,
+        } = strategy.submitter;
         const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
           {
             ...internalSubmitter,

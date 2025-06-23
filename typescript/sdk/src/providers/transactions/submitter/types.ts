@@ -8,7 +8,7 @@ import { EvmSubmitterMetadataSchema } from './ethersV5/types.js';
 export const EvmIcaTxSubmitterPropsSchema = z.object({
   type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
   chain: ZChainName,
-  owner: ZHash.optional(),
+  owner: ZHash,
   destinationChain: ZChainName,
   originInterchainAccountRouter: ZHash.optional(),
   destinationInterchainAccountRouter: ZHash.optional(),
