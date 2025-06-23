@@ -20,6 +20,7 @@ tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 anyhow = "1.0"
 hex = "0.4.3"
+api-rs = { path = "../api", package = "openapi" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
