@@ -3,6 +3,7 @@ use tracing::{error, info, trace, warn};
 
 pub use self::{fallback::*, provider::*, retrying::*, trait_builder::*};
 
+mod error;
 mod fallback;
 mod provider;
 mod retrying;

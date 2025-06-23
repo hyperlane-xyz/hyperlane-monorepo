@@ -8,14 +8,13 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
 use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
-use ethers_contract::builders::ContractCall;
-use ethers_contract::Multicall;
+use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
 use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
@@ -24,8 +23,8 @@ use hyperlane_core::{
 };
 
 use crate::{
-    get_finalized_block_number, multicall, BatchCache, BuildableWithProvider, ConnectionConf,
-    EthereumReorgPeriod,
+    get_finalized_block_number, multicall, rpc_clients::error, BatchCache, BuildableWithProvider,
+    ConnectionConf, EthereumReorgPeriod,
 };
 
 // From
@@ -215,10 +214,25 @@ where
         multi_precursor: (TypedTransaction, Function),
     ) -> ChainResult<(Vec<usize>, Vec<usize>)> {
         let (multi_tx, multi_function) = multi_precursor;
-        let multicall_contract_call = self.build_contract_call(multi_tx, multi_function);
+        let multicall_contract_call =
+            self.build_contract_call::<Vec<MulticallResult>>(multi_tx, multi_function);
         let call_results = multicall_contract_call.call().await?;
 
-        Ok(multicall::filter(call_results))
+        let (successful, failed) = multicall::filter(&call_results);
+
+        // log revert reasons for failed calls
+        let revert_reasons = call_results
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| failed.contains(index))
+            .map(|(_, item)| {
+                error::decode_revert_reason(&item.return_data)
+                    .map_or("No revert reason".to_string(), |r| r.to_string())
+            })
+            .collect::<Vec<_>>();
+        warn!(?revert_reasons, "Revert reasons for failed calls");
+
+        Ok((successful, failed))
     }
 
     async fn estimate_batch(
