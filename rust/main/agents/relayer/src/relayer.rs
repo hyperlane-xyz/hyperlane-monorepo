@@ -1466,7 +1466,7 @@ impl Relayer {
 
         tasks.push(b.run_deposit_loop(task_monitor.clone()));
 
-        // TODO: confirmation loop 
+        // TODO: confirmation loop
 
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));

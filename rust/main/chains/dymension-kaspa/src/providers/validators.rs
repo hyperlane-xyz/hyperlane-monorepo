@@ -76,17 +76,17 @@ impl ValidatorsClient {
         Ok(results)
     }
 
-        /// this runs on relayer
-        pub async fn get_confirmation_sigs(
-            &self,
-            fxg: &ConfirmationFXG,
-        ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-            // TODO: impl, maybe need to change return type
-            unimplemented!()
-        
-        }
+    /// this runs on relayer
+    pub async fn get_confirmation_sigs(
+        &self,
+        fxg: &ConfirmationFXG,
+    ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
+        // TODO: impl, maybe need to change return type
+        unimplemented!()
+    }
 
-    pub fn hub_ism_threshold(&self) -> usize { // TODO: clearly distinguish with kaspa multisig
+    pub fn hub_ism_threshold(&self) -> usize {
+        // TODO: clearly distinguish with kaspa multisig
         self.conf.kaspa_multisig_threshold
     }
 }

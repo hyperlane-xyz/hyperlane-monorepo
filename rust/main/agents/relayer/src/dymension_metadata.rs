@@ -7,9 +7,7 @@ use crate::msg::{
 };
 
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
-use hyperlane_core::{
-    MultisigSignedCheckpoint, H256,
-};
+use hyperlane_core::{MultisigSignedCheckpoint, H256};
 use std::sync::Arc;
 
 use eyre::Result;
