@@ -21,12 +21,15 @@ use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
     payload::{FullPayload, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
 use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
 
-pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
+#[cfg(test)]
+pub mod tests;
+
+pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
 pub const STAGE_NAME: &str = "InclusionStage";
 
@@ -94,7 +97,7 @@ impl InclusionStage {
                 // the lock is held until the metric is updated, to prevent race conditions
                 let mut pool_lock = pool.lock().await;
                 let pool_len = pool_lock.len();
-                pool_lock.insert(tx.id.clone(), tx.clone());
+                pool_lock.insert(tx.uuid.clone(), tx.clone());
                 info!(?tx, "Received transaction");
                 state
                     .metrics
@@ -144,7 +147,7 @@ impl InclusionStage {
     #[instrument(
         skip_all,
         name = "InclusionStage::try_process_tx",
-        fields(tx_id = ?tx.id, tx_status = ?tx.status, payloads = ?tx.payload_details)
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
         mut tx: Transaction,
@@ -163,7 +166,7 @@ impl InclusionStage {
 
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
-                info!(tx_id = ?tx.id, ?tx_status, "Transaction is pending inclusion");
+                info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
@@ -172,10 +175,10 @@ impl InclusionStage {
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
-                let tx_id = tx.id.clone();
+                let tx_uuid = tx.uuid.clone();
                 finality_stage_sender.send(tx).await?;
-                info!(?tx_id, ?tx_status, "Transaction included in block");
-                pool.lock().await.remove(&tx_id);
+                info!(?tx_uuid, ?tx_status, "Transaction included in block");
+                pool.lock().await.remove(&tx_uuid);
                 return Ok(());
             }
             TransactionStatus::Dropped(_) => {
@@ -197,25 +200,8 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
-        // TODO: simulating the transaction is commented out for now, because
-        // on SVM the tx is simulated in the `submit` call.
-        // let simulation_success = call_until_success_or_nonretryable_error(
-        //     || state.adapter.simulate_tx(&tx),
-        //     "Simulating transaction",
-        //     state,
-        // )
-        // .await
-        // // if simulation fails or hits a non-retryable error, drop the tx
-        // .unwrap_or(false);
-        // if !simulation_success {
-        //     warn!(?tx, "Transaction simulation failed");
-        //     return Err(eyre!("Transaction simulation failed"));
-        // }
-        // info!(?tx, "Transaction simulation succeeded");
 
         // Estimating transaction just before we submit it
-        // TODO we will need to re-classify `ChainCommunicationError` into `LanderError::EstimateError` in the future.
-        // At the moment, both errors are non-retryable, so we can keep them as is.
         tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
@@ -230,17 +216,20 @@ impl InclusionStage {
         )
         .await?;
 
+        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
+        // set by previous retries when calling `adapter.submit`
+        let tx_shared = Arc::new(Mutex::new(tx.clone()));
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
         tx = call_until_success_or_nonretryable_error(
             || {
-                let tx_clone = tx.clone();
+                let tx_shared_clone = tx_shared.clone();
                 async move {
-                    let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.submit(&mut tx_clone_inner).await?;
-                    Ok(tx_clone_inner)
+                    let mut tx_guard = tx_shared_clone.lock().await;
+                    state.adapter.submit(&mut tx_guard).await?;
+                    Ok(tx_guard.clone())
                 }
             },
             "Submitting transaction",
@@ -254,11 +243,14 @@ impl InclusionStage {
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
+        state
+            .adapter
+            .update_vm_specific_metrics(&tx, &state.metrics);
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
         // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
-        pool.lock().await.insert(tx.id.clone(), tx.clone());
+        pool.lock().await.insert(tx.uuid.clone(), tx.clone());
         Ok(())
     }
 
@@ -272,229 +264,7 @@ impl InclusionStage {
         let new_tx_status = TransactionStatus::Dropped(reason);
         // this will drop the payloads as well
         update_tx_status(state, tx, new_tx_status.clone()).await?;
-        pool.lock().await.remove(&tx.id);
+        pool.lock().await.remove(&tx.uuid);
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        dispatcher::{
-            metrics::DispatcherMetrics,
-            test_utils::{
-                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
-                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
-            },
-            PayloadDb, TransactionDb,
-        },
-        transaction::{Transaction, TransactionId},
-    };
-    use eyre::Result;
-    use std::sync::Arc;
-    use tokio::sync::mpsc;
-
-    #[tokio::test]
-    async fn test_processing_included_txs() {
-        const TXS_TO_PROCESS: usize = 3;
-
-        let mut mock_adapter = MockAdapter::new();
-        mock_adapter
-            .expect_estimated_block_time()
-            .return_const(Duration::from_millis(10));
-
-        mock_adapter
-            .expect_tx_status()
-            .returning(|_| Ok(TransactionStatus::Included));
-
-        let (txs_created, txs_received, tx_db, payload_db, pool) =
-            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
-
-        assert_eq!(txs_received.len(), TXS_TO_PROCESS);
-        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
-        assert_tx_status(
-            txs_received.clone(),
-            &tx_db,
-            &payload_db,
-            TransactionStatus::Included,
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_unincluded_txs_reach_mempool() {
-        const TXS_TO_PROCESS: usize = 3;
-
-        let mut mock_adapter = MockAdapter::new();
-        mock_adapter
-            .expect_estimated_block_time()
-            .return_const(Duration::from_millis(10));
-
-        mock_adapter
-            .expect_tx_status()
-            .returning(|_| Ok(TransactionStatus::PendingInclusion));
-
-        mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
-
-        mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
-
-        mock_adapter.expect_submit().returning(|_| Ok(()));
-
-        let (txs_created, txs_received, tx_db, payload_db, pool) =
-            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
-
-        assert_eq!(txs_received.len(), 0);
-        assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
-        assert_tx_status(
-            txs_received.clone(),
-            &tx_db,
-            &payload_db,
-            TransactionStatus::Mempool,
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_failed_simulation() {
-        const TXS_TO_PROCESS: usize = 3;
-
-        let mut mock_adapter = MockAdapter::new();
-        mock_adapter
-            .expect_estimated_block_time()
-            .return_const(Duration::from_millis(10));
-
-        mock_adapter
-            .expect_tx_status()
-            .returning(|_| Ok(TransactionStatus::PendingInclusion));
-
-        mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
-
-        mock_adapter
-            .expect_estimate_tx()
-            .returning(|_| Err(LanderError::SimulationFailed));
-
-        let (txs_created, txs_received, tx_db, payload_db, pool) =
-            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
-
-        assert_eq!(txs_received.len(), 0);
-        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
-        assert_tx_status(
-            txs_received.clone(),
-            &tx_db,
-            &payload_db,
-            TransactionStatus::Dropped(TxDropReason::FailedSimulation),
-        )
-        .await;
-    }
-
-    async fn set_up_test_and_run_stage(
-        mock_adapter: MockAdapter,
-        txs_to_process: usize,
-    ) -> (
-        Vec<Transaction>,
-        Vec<Transaction>,
-        Arc<dyn TransactionDb>,
-        Arc<dyn PayloadDb>,
-        InclusionStagePool,
-    ) {
-        let (payload_db, tx_db) = tmp_dbs();
-        let (building_stage_sender, building_stage_receiver) = mpsc::channel(txs_to_process);
-        let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(txs_to_process);
-
-        let state = DispatcherState::new(
-            payload_db.clone(),
-            tx_db.clone(),
-            Arc::new(mock_adapter),
-            DispatcherMetrics::dummy_instance(),
-            "test".to_string(),
-        );
-        let inclusion_stage = InclusionStage::new(
-            building_stage_receiver,
-            finality_stage_sender,
-            state,
-            "test".to_string(),
-        );
-        let pool = inclusion_stage.pool.clone();
-
-        let txs_created = create_random_txs_and_store_them(
-            txs_to_process,
-            &payload_db,
-            &tx_db,
-            TransactionStatus::PendingInclusion,
-        )
-        .await;
-        for tx in txs_created.iter() {
-            building_stage_sender.send(tx.clone()).await.unwrap();
-        }
-        let txs_received = run_stage(
-            txs_to_process,
-            inclusion_stage,
-            &mut finality_stage_receiver,
-        )
-        .await;
-        (txs_created, txs_received, tx_db, payload_db, pool)
-    }
-
-    async fn run_stage(
-        sent_txs_count: usize,
-        stage: InclusionStage,
-        receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
-    ) -> Vec<Transaction> {
-        // future that receives `sent_payload_count` payloads from the building stage
-        let receiving_closure = async {
-            let mut received = Vec::new();
-            while received.len() < sent_txs_count {
-                let tx_received = receiver.recv().await.unwrap();
-                received.push(tx_received);
-            }
-            received
-        };
-
-        let stage = tokio::spawn(async move { stage.run().await });
-
-        // give the building stage 100ms to send the transaction(s) to the receiver
-        let _ = tokio::select! {
-            // this arm runs indefinitely
-            res = stage => res,
-            // this arm runs until all sent payloads are sent as txs
-            received = receiving_closure => {
-                return received;
-            },
-            // this arm is the timeout
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                return vec![]
-            },
-        };
-        vec![]
-    }
-
-    async fn assert_tx_status(
-        txs: Vec<Transaction>,
-        tx_db: &Arc<dyn TransactionDb>,
-        payload_db: &Arc<dyn PayloadDb>,
-        expected_status: TransactionStatus,
-    ) {
-        // check that the payload and tx dbs were updated
-        for tx in txs {
-            let tx_from_db = tx_db
-                .retrieve_transaction_by_id(&tx.id)
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(tx_from_db.status, expected_status.clone());
-
-            for detail in tx.payload_details.iter() {
-                let payload = payload_db
-                    .retrieve_payload_by_id(&detail.id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(
-                    payload.status,
-                    PayloadStatus::InTransaction(expected_status.clone())
-                );
-            }
-        }
     }
 }

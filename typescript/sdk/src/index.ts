@@ -13,10 +13,10 @@ export {
 export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
 export { S3Validator } from './aws/validator.js';
 export {
-  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
-  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
   getProtocolExchangeRateDecimals,
   getProtocolExchangeRateScale,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export {
@@ -124,8 +124,8 @@ export {
 export * as verificationUtils from './deploy/verify/utils.js';
 export { executeWarpDeploy } from './deploy/warp.js';
 export {
-  SealevelOverheadIgpAdapter,
   SealevelIgpAdapter,
+  SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
 export {
   SealevelInterchainGasPaymasterConfig,
@@ -139,10 +139,10 @@ export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker.js';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
-  StorageGasOracleConfig,
-  StorageGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  StorageGasOracleConfig,
+  StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
@@ -167,9 +167,9 @@ export {
   HookConfig,
   HookConfigSchema,
   HooksConfig,
-  HooksConfigSchema,
-  HooksConfigMapSchema,
   HooksConfigMap,
+  HooksConfigMapSchema,
+  HooksConfigSchema,
   HookType,
   IgpHookConfig,
   IgpSchema,
@@ -201,7 +201,6 @@ export {
   DeployedIsmType,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
-  IcaRoutingIsmConfig,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -273,8 +272,8 @@ export {
   ChainStatus,
   ChainTechnicalStack,
   DisabledChainSchema,
-  EthJsonRpcBlockParameterTag,
   EnabledChainSchema,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,
@@ -301,12 +300,18 @@ export {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
-export { InterchainAccount } from './middleware/account/InterchainAccount.js';
-export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
 export {
-  InterchainAccountConfig,
-  InterchainAccountDeployer,
-} from './middleware/account/InterchainAccountDeployer.js';
+  InterchainAccount,
+  RawCallData,
+  encodeIcaCalls,
+  commitmentFromIcaCalls,
+  normalizeCalls,
+  shareCallsWithPrivateRelayer,
+  PostCallsSchema,
+  PostCallsType,
+} from './middleware/account/InterchainAccount.js';
+export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
+export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';
 export {
   AccountConfig,
   AccountConfigSchema,
@@ -451,6 +456,14 @@ export {
   EV5InterchainAccountTxTransformerPropsSchema,
 } from './providers/transactions/transformer/ethersV5/types.js';
 
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export {
+  CCIPContractCache,
+  getCCIPChains,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getChainNameFromCCIPSelector,
+} from './ccip/utils.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -476,15 +489,15 @@ export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
   IcaRouterConfig,
+  IcaRouterConfig as InterchainAccountConfig,
   IcaRouterConfigSchema,
-  RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
 export {
   chainMetadataToCosmosChain,
-  chainMetadataToViemChain,
   chainMetadataToStarknetChain,
+  chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export {
@@ -521,7 +534,6 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -538,19 +550,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
-  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypVSXERC20Adapter,
+  EvmHypVSXERC20LockboxAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
-  EvmHypVSXERC20LockboxAdapter,
-  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
+  EvmXERC20VSAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
-  IHypXERC20Adapter,
   IHypVSXERC20Adapter,
+  IHypXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -614,7 +626,7 @@ export {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
-  TOKEN_TYPE_TO_STANDARD,
+  EVM_TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -630,17 +642,20 @@ export {
   HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
-  isXERC20TokenConfig,
+  isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
   SyntheticRebaseTokenConfigSchema,
   SyntheticTokenConfig,
   SyntheticTokenConfigSchema,
+  CctpTokenConfig,
+  CctpTokenConfigSchema,
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
@@ -653,9 +668,11 @@ export {
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20TokenMetadata,
   XERC20LimitConfig,
+  XERC20TokenExtraBridgesLimits,
+  XERC20TokenMetadata,
 } from './token/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   ChainMap,
   ProtocolMap,
@@ -690,9 +707,9 @@ export {
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
+  extractIsmAndHookFactoryAddresses,
   multisigIsmVerificationCost,
   normalizeConfig,
-  extractIsmAndHookFactoryAddresses,
 } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
@@ -716,13 +733,25 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export {
-  getChainNameFromCCIPSelector,
-  getCCIPChainSelector,
-  getCCIPRouterAddress,
-  getCCIPChains,
-  CCIPContractCache,
-} from './ccip/utils.js';
-export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+  RebalancerStrategyOptions,
+  RebalancerMinAmountType,
+  RebalancerWeightedChainConfigSchema,
+  RebalancerMinAmountConfigSchema,
+  RebalancerBaseChainConfigSchema,
+  RebalancerConfigSchema,
+  StrategyConfigSchema,
+} from './rebalancer/types.js';
+export type {
+  RebalancerWeightedChainConfig,
+  RebalancerMinAmountChainConfig,
+  RebalancerConfig,
+  RebalancerConfigFileInput,
+  StrategyConfig,
+  MinAmountStrategy,
+  MinAmountStrategyConfig,
+  WeightedStrategy,
+  WeightedStrategyConfig,
+} from './rebalancer/types.js';
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   StarknetContractName,
@@ -732,3 +761,30 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export {
+  EventAssertion,
+  EventAssertionSchema,
+  ForkedChainConfig,
+  ForkedChainConfigByChain,
+  ForkedChainConfigByChainSchema,
+  ForkedChainConfigSchema,
+  RawForkedChainConfig,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
+  RawForkedChainConfigSchema,
+  SafeTx,
+  SafeTxFileSchema,
+  ForkedChainTransactionConfigSchema,
+  RawForkedChainTransactionConfig,
+  RawForkedChainTransactionConfigSchema,
+  TransactionConfigType,
+  TransactionDataType,
+  ForkedChainTransactionConfig,
+  EventAssertionType,
+  forkedChainConfigByChainFromRaw,
+  RevertAssertion,
+  RevertAssertionSchema,
+} from './fork/types.js';
+export { resolveRouterMapConfig } from './router/types.js';
+export { verifyScale } from './utils/decimals.js';
+export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';

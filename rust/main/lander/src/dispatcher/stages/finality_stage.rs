@@ -21,7 +21,7 @@ use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
     payload::{DropReason, FullPayload, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
 use super::{
@@ -149,7 +149,7 @@ impl FinalityStage {
         skip(tx, pool, building_stage_queue, state),
         name = "FinalityStage::try_process_tx"
         fields(
-            tx_id = ?tx.id,
+            tx_uuid = ?tx.uuid,
             tx_status = ?tx.status,
             payloads = ?tx.payload_details
     ))]
@@ -187,9 +187,9 @@ impl FinalityStage {
             TransactionStatus::Finalized => {
                 // update tx status in db
                 update_tx_status(state, &mut tx, tx_status).await?;
-                let tx_id = tx.id.clone();
-                info!(?tx_id, "Transaction is finalized");
-                let _ = pool.remove(&tx_id).await;
+                let tx_uuid = tx.uuid.clone();
+                info!(?tx_uuid, "Transaction is finalized");
+                let _ = pool.remove(&tx_uuid).await;
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
@@ -227,7 +227,7 @@ impl FinalityStage {
         for payload in payloads.iter() {
             if let Some(full_payload) = state
                 .payload_db
-                .retrieve_payload_by_id(&payload.id)
+                .retrieve_payload_by_uuid(&payload.uuid)
                 .await
                 .ok()
                 .flatten()
@@ -240,16 +240,16 @@ impl FinalityStage {
                 // just link the payload to the null tx id
                 state
                     .payload_db
-                    .store_tx_id_by_payload_id(&payload.id, &TransactionId::default())
+                    .store_tx_uuid_by_payload_uuid(&payload.uuid, &TransactionUuid::default())
                     .await?;
                 info!(
                     ?payload,
                     "Pushing payload to the front of the building stage queue"
                 );
-                building_stage_queue.lock().await.push_front(full_payload);
+                building_stage_queue.push_front(full_payload).await;
             }
         }
-        let _ = pool.remove(&tx.id).await;
+        let _ = pool.remove(&tx.uuid).await;
         Ok(())
     }
 }
@@ -257,20 +257,15 @@ impl FinalityStage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        dispatcher::{
-            metrics::DispatcherMetrics,
-            stages::{building_stage, finality_stage},
-            test_utils::{
-                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
-                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
-            },
-            PayloadDb, TransactionDb,
-        },
-        payload::{PayloadDetails, PayloadId},
-        transaction::{Transaction, TransactionId},
+    use crate::tests::test_utils::{
+        are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them, tmp_dbs,
+        MockAdapter,
     };
-    use eyre::Result;
+    use crate::{
+        dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
+        payload::PayloadDetails,
+        transaction::Transaction,
+    };
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
@@ -319,7 +314,7 @@ mod tests {
             .expect_tx_status()
             .returning(|_| Ok(TransactionStatus::Included));
 
-        let (payload_db, tx_db) = tmp_dbs();
+        let (payload_db, tx_db, _) = tmp_dbs();
 
         let generated_txs = create_random_txs_and_store_them(
             TXS_TO_PROCESS,
@@ -338,7 +333,7 @@ mod tests {
 
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(TXS_TO_PROCESS);
 
-        let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_queue = BuildingStageQueue::new();
 
         let state = DispatcherState::new(
             payload_db.clone(),
@@ -437,7 +432,7 @@ mod tests {
         .await;
 
         // all payloads are in the building stage queue
-        assert_eq!(queue.lock().await.len(), TXS_TO_PROCESS);
+        assert_eq!(queue.len().await, TXS_TO_PROCESS);
         for tx in txs_received {
             assert_payloads_status(
                 tx.payload_details.clone(),
@@ -485,10 +480,10 @@ mod tests {
         FinalityStage,
         BuildingStageQueue,
     ) {
-        let (payload_db, tx_db) = tmp_dbs();
+        let (payload_db, tx_db, _) = tmp_dbs();
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(txs_to_process);
 
-        let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_queue = BuildingStageQueue::new();
 
         let state = DispatcherState::new(
             payload_db.clone(),
@@ -556,7 +551,7 @@ mod tests {
         // check that the payload and tx dbs were updated
         for tx in txs {
             let tx_from_db = tx_db
-                .retrieve_transaction_by_id(&tx.id)
+                .retrieve_transaction_by_uuid(&tx.uuid)
                 .await
                 .unwrap()
                 .unwrap();
@@ -577,7 +572,7 @@ mod tests {
     ) {
         for payload in payloads {
             let payload = payload_db
-                .retrieve_payload_by_id(&payload.id)
+                .retrieve_payload_by_uuid(&payload.uuid)
                 .await
                 .unwrap()
                 .unwrap();

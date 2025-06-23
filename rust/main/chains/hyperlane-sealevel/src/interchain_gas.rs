@@ -237,7 +237,6 @@ impl SealevelInterchainGasPaymasterIndexer {
 #[async_trait]
 impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    #[instrument(err, skip(self))]
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -268,7 +267,6 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         Ok(payments)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         // we should not report block height since SequenceAwareIndexer uses block slot in
@@ -280,7 +278,6 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self

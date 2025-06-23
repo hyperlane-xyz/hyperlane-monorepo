@@ -2,23 +2,22 @@ use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use tokio::{sync::Mutex, time::sleep};
 
+use crate::adapter::TxBuildingResult;
+use crate::dispatcher::metrics::DispatcherMetrics;
+use crate::dispatcher::{BuildingStageQueue, DispatcherState, PayloadDbLoader};
+use crate::tests::test_utils::{dummy_tx, tmp_dbs, MockAdapter};
+use crate::transaction::TransactionUuid;
 use crate::{
-    adapter::TxBuildingResult,
-    dispatcher::{
-        metrics::DispatcherMetrics,
-        test_utils::{dummy_tx, tmp_dbs, MockAdapter},
-        BuildingStageQueue, DispatcherState, PayloadDbLoader,
-    },
-    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId,
-    PayloadStatus, TransactionStatus,
+    Dispatcher, DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus,
+    PayloadUuid, TransactionStatus,
 };
 
 use super::PayloadDb;
 
 #[tokio::test]
 async fn test_entrypoint_send_is_detected_by_loader() {
-    let (payload_db, tx_db) = tmp_dbs();
-    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let building_stage_queue = BuildingStageQueue::new();
     let domain = "dummy_domain".to_string();
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
@@ -47,10 +46,7 @@ async fn test_entrypoint_send_is_detected_by_loader() {
 
     // Check if the loader detects the new payload
     sleep(Duration::from_millis(100)).await; // Wait for the loader to process the payload
-    let detected_payload_count = {
-        let queue = building_stage_queue.lock().await;
-        queue.len()
-    };
+    let detected_payload_count = building_stage_queue.len().await;
     assert_eq!(
         detected_payload_count, 1,
         "Loader did not detect the new payload"
@@ -74,7 +70,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     // wait until the payload status is InTransaction(Finalized)
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -131,7 +127,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             println!("Payload status: {:?}", payload_status);
             matches!(
@@ -179,7 +175,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
-        payload.id(),
+        payload.uuid(),
         |payload_status| {
             matches!(
                 payload_status,
@@ -208,9 +204,10 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
 async fn mock_entrypoint_and_dispatcher(
     adapter: Arc<MockAdapter>,
 ) -> (DispatcherEntrypoint, Dispatcher) {
-    let (payload_db, tx_db) = tmp_dbs();
-    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
     let domain = "test_domain".to_string();
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let building_stage_queue = BuildingStageQueue::new();
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
         building_stage_queue.clone(),
@@ -242,14 +239,14 @@ async fn mock_entrypoint_and_dispatcher(
 
 async fn wait_until_payload_status<F>(
     payload_db: Arc<dyn PayloadDb>,
-    payload_id: &PayloadId,
+    payload_uuid: &PayloadUuid,
     status_check: F,
 ) where
     F: Fn(&PayloadStatus) -> bool,
 {
     loop {
         let stored_payload = payload_db
-            .retrieve_payload_by_id(payload_id)
+            .retrieve_payload_by_uuid(payload_uuid)
             .await
             .unwrap()
             .unwrap();
@@ -291,6 +288,13 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     adapter.expect_estimate_tx().returning(|_| Ok(()));
 
     adapter.expect_submit().returning(|_| Ok(()));
+
+    adapter
+        .expect_update_vm_specific_metrics()
+        .returning(|_, _| ());
+
+    adapter.expect_max_batch_size().returning(|| 1);
+
     adapter
 }
 

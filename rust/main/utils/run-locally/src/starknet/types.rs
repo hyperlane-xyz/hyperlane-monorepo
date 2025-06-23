@@ -51,7 +51,6 @@ pub struct AgentConfigSigner {
     pub typ: String,
     pub key: String,
     pub address: String,
-    pub version: String,
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +71,11 @@ pub struct AgentUrl {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct NativeTokenConfig {
+    pub denom: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfig {
     pub name: String,
@@ -86,6 +90,8 @@ pub struct AgentConfig {
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
     pub contract_address_bytes: usize,
+    pub native_token: NativeTokenConfig,
+    pub max_batch_size: u32,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -102,9 +108,14 @@ impl AgentConfig {
             domain_id: network.domain,
             metrics_port: network.metrics_port,
             mailbox: network.deployments.mailbox.clone(),
+            max_batch_size: 10,
             interchain_gas_paymaster: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84".to_string(),
             validator_announce: network.deployments.va.clone(),
             merkle_tree_hook: network.deployments.hook_merkle.clone(),
+            native_token: NativeTokenConfig {
+                denom: "0x04718F5A0FC34CC1AF16A1CDEE98FFB20C31F5CD61D6AB07201858F4287C938D"
+                    .to_string(),
+            }, // We use STARK as the native token for the E2E tests
             protocol: "starknet".to_string(),
             rpc_urls: vec![AgentUrl {
                 http: format!("{}", network.launch_resp.endpoint.rpc_addr),
@@ -113,7 +124,6 @@ impl AgentConfig {
                 typ: "starkKey".to_string(),
                 key: validator.private_key.clone(),
                 address: validator.address.clone(),
-                version: "1".to_string(),
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex {
