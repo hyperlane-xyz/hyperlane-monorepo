@@ -1,19 +1,16 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::sync::Arc;
+use std::time::Duration;
+
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
-use std::{
-    collections::{HashMap, VecDeque},
-    future::Future,
-    sync::Arc,
-    time::Duration,
-};
-use tokio::{
-    sync::{mpsc, Mutex},
-    time::sleep,
-};
+use tokio::sync::{mpsc, Mutex};
+use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
