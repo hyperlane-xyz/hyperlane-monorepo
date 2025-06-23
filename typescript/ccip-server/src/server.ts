@@ -1,79 +1,83 @@
-import { Server } from '@chainlink/ccip-read-server';
+import cors from 'cors';
+import express from 'express';
 
-import { CCTPServiceAbi } from './abis/CCTPServiceAbi.js';
-import { OPStackServiceAbi } from './abis/OPStackServiceAbi.js';
-import { ProofsServiceAbi } from './abis/ProofsServiceAbi.js';
-import * as config from './config.js';
+import { getEnabledModules } from './config.js';
+import { BaseService } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
+import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
-import { ProofsService } from './services/ProofsService.js';
+import {
+  PrometheusMetrics,
+  startPrometheusServer,
+} from './utils/prometheus.js';
 
-// Initialize Services
-const proofsService = new ProofsService(
-  {
-    lightClientAddress: config.LIGHT_CLIENT_ADDR,
-    stepFunctionId: config.STEP_FN_ID,
-    platformUrl: config.SUCCINCT_PLATFORM_URL,
-    apiKey: config.SUCCINCT_API_KEY,
-  },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: `${config.SERVER_URL_PREFIX}:${config.SERVER_PORT}` },
-);
+export const moduleRegistry: Record<string, typeof BaseService> = {
+  callCommitments: CallCommitmentsService,
+  cctp: CCTPService,
+  opstack: OPStackService,
+};
 
-const opStackService = new OPStackService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: config.L2_RPC_ADDRESS, chainId: config.L2_CHAIN_ID },
-  {
-    l1: {
-      AddressManager: config.L1_ADDRESS_MANAGER,
-      L1CrossDomainMessenger: config.L1_CROSS_DOMAIN_MESSENGER,
-      L1StandardBridge: config.L1_STANDARD_BRIDGE,
-      StateCommitmentChain: config.L1_STATE_COMMITMENT_CHAIN,
-      CanonicalTransactionChain: config.L1_CANONICAL_TRANSACTION_CHAIN,
-      BondManager: config.L1_BOND_MANAGER,
-      OptimismPortal: config.L1_OPTIMISM_PORTAL,
-      L2OutputOracle: config.L2_OUTPUT_ORACLE,
-    },
-  },
-);
+async function startServer() {
+  const app = express();
+  app.use(cors());
+  app.use(express.json() as express.RequestHandler);
 
-const cctpService = new CCTPService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.CCTP_ATTESTATION_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-);
+  if (getEnabledModules().length === 0) {
+    console.warn(
+      '⚠️  No modules enabled. Set ENABLED_MODULES environment variable to mount services.',
+    );
+  }
 
-// Initialize Server and add Service handlers
-const server = new Server();
+  // Dynamically mount only modules listed in the ENABLED_MODULES env var
+  for (const name of getEnabledModules()) {
+    try {
+      const ServiceClass = moduleRegistry[name];
+      if (!ServiceClass) {
+        console.warn(`⚠️  Module '${name}' not found; skipping`);
+        continue;
+      }
+      const service = await ServiceClass.initialize(name); // module reads its own ENV config
 
-server.add(ProofsServiceAbi, [
-  { type: 'getProofs', func: proofsService.getProofs.bind(this) },
-]);
+      app.use(`/${name}`, (req, res, next) => {
+        res.on('finish', () => {
+          PrometheusMetrics.logLookupRequest(name, res.statusCode);
+        });
+        next();
+      });
+      app.use(`/${name}`, service.router);
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getWithdrawalProof',
-    func: opStackService.getWithdrawalProof.bind(opStackService),
-  },
-]);
+      console.log(`✅  Mounted '${name}' at '/${name}'`);
+    } catch (error) {
+      console.error(`Error initializing module ${name}`);
+      throw error;
+    }
+  }
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getFinalizeWithdrawalTx',
-    func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
-  },
-]);
+  // Register Health Service
+  const healthService = await HealthService.initialize();
+  app.use(`/health`, healthService.router);
 
-server.add(CCTPServiceAbi, [
-  {
-    type: 'getCCTPAttestation',
-    func: cctpService.getCCTPAttestation.bind(cctpService),
-  },
-]);
+  // Log and handle undefined endpoints
+  app.use((req, res) => {
+    console.log(`Undefined request: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: 'Endpoint not found' });
+  });
 
-// Start Server
-const app = server.makeApp(config.SERVER_URL_PREFIX);
-app.listen(config.SERVER_PORT, () =>
-  console.log(`Listening on port ${config.SERVER_PORT}`),
-);
+  const port = parseInt(process.env.SERVER_PORT ?? '3000');
+  app.listen(port, () => console.log(`Listening on port ${port}`));
+}
+
+startServer().then(console.log).catch(console.error);
+startPrometheusServer().then(console.log).catch(console.error);
+
+/*
+ * TODO: if PRISMA throws an error the entire express application crashes.
+ *  This is a temporary workaround to catch these kind of errors.
+ * */
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', JSON.stringify(err.message));
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', JSON.stringify(reason));
+});

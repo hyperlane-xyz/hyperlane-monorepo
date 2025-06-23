@@ -158,6 +158,19 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setRebalancerKeys = () => {
+    const rebalancerKey = getRebalancerKey(agentConfig);
+    // Assign the single rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.Rebalancer]: {
+          [rebalancerKey.identifier]: rebalancerKey,
+        },
+      };
+    }
+  };
+
   for (const role of agentConfig.rolesWithKeys) {
     switch (role) {
       case Role.Validator:
@@ -171,6 +184,9 @@ function getRoleKeyMapPerChain(
         break;
       case Role.Deployer:
         setDeployerKeys();
+        break;
+      case Role.Rebalancer:
+        setRebalancerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -239,6 +255,8 @@ export function getCloudAgentKey(
       return getKathyKeyForChain(agentConfig, chainName);
     case Role.Deployer:
       return getDeployerKey(agentConfig);
+    case Role.Rebalancer:
+      return getRebalancerKey(agentConfig);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -291,6 +309,19 @@ export function getKathyKeyForChain(
 export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   debugLog('Retrieving deployer key');
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+}
+
+// Returns the rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getRebalancerKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  debugLog('Retrieving rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.Rebalancer,
+  );
 }
 
 // Helper function to determine if a chain is Starknet
