@@ -315,7 +315,10 @@ impl AdaptsChain for EthereumAdapter {
 
         let payloads = self.load_payloads(tx).await?;
         let payloads_successful = Self::filter(&payloads, successful);
-        let payloads_details_failed = Self::filter(&tx.payload_details, failed);
+        let payloads_details_failed = Self::filter(
+            &tx.payload_details,
+            failed.iter().map(|(i, _)| *i).collect(),
+        );
 
         info!(
             ?payloads_successful,
@@ -327,9 +330,14 @@ impl AdaptsChain for EthereumAdapter {
             error!(
                 ?payloads_successful,
                 ?payloads_details_failed,
+                ?failed,
                 "Failed to build transaction for payloads, no successful payloads after simulation"
             );
-            return Err(LanderError::SimulationFailed);
+            let reasons = failed
+                .iter()
+                .map(|(_, reason)| reason.to_string())
+                .collect::<Vec<_>>();
+            return Err(LanderError::SimulationFailed(reasons));
         }
 
         let tx_building_results = self.build_transactions(&payloads_successful).await;
@@ -339,7 +347,9 @@ impl AdaptsChain for EthereumAdapter {
                 ?payloads_details_failed,
                 "Failed to build transaction for payloads, no transaction building result"
             );
-            return Err(LanderError::SimulationFailed);
+            return Err(LanderError::SimulationFailed(vec![
+                "no transaction building result".to_string(),
+            ]));
         };
 
         let Some(transaction) = tx_building_result.maybe_tx.clone() else {
@@ -348,7 +358,9 @@ impl AdaptsChain for EthereumAdapter {
                 ?payloads_details_failed,
                 "Failed to build transaction for payloads, transaction was not built"
             );
-            return Err(LanderError::SimulationFailed);
+            return Err(LanderError::SimulationFailed(vec![
+                "transaction was not built".to_string(),
+            ]));
         };
 
         info!(

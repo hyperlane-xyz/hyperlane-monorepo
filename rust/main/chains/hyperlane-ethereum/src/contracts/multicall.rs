@@ -8,7 +8,7 @@ use tracing::warn;
 
 use hyperlane_core::{ChainResult, HyperlaneDomain, HyperlaneProvider, H256, U256};
 
-use crate::{BatchCache, EthereumProvider};
+use crate::{decode_revert_reason, BatchCache, EthereumProvider};
 
 const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 100;
 const MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR: u64 = 100;
@@ -102,12 +102,14 @@ pub fn filter_failed<M, D>(
 }
 
 /// Partition the results of a multicall into successful and failed indices
-pub fn filter(results: &[MulticallResult]) -> (Vec<usize>, Vec<usize>) {
+pub fn filter(results: &[MulticallResult]) -> (Vec<usize>, Vec<(usize, String)>) {
     results.iter().enumerate().partition_map(|(index, result)| {
         if result.success {
             Either::Left(index)
         } else {
-            Either::Right(index)
+            let reason = decode_revert_reason(&result.return_data)
+                .map_or("No revert reason provided".to_string(), |r| r.to_string());
+            Either::Right((index, reason))
         }
     })
 }

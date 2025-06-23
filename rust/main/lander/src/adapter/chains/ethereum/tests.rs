@@ -55,7 +55,7 @@ mockall::mock! {
         async fn simulate(
             &self,
             multi_precursor: (TypedTransaction, Function),
-        ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
+        ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
 
         async fn estimate_batch(
             &self,

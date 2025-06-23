@@ -100,9 +100,11 @@ async fn test_failed_simulation() {
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
-    mock_adapter
-        .expect_simulate_tx()
-        .returning(|_| Err(LanderError::SimulationFailed));
+    mock_adapter.expect_simulate_tx().returning(|_| {
+        Err(LanderError::SimulationFailed(vec![
+            "simulation error".to_string()
+        ]))
+    });
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
@@ -248,9 +250,11 @@ async fn test_failed_submission_after_simulation_and_estimation() {
         .returning(|_| true);
     mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
     mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
-    mock_adapter
-        .expect_submit()
-        .returning(|_| Err(LanderError::SimulationFailed));
+    mock_adapter.expect_submit().returning(|_| {
+        Err(LanderError::SimulationFailed(vec![
+            "simulation error".to_string()
+        ]))
+    });
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, 1).await;

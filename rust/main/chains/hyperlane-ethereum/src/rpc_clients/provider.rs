@@ -14,7 +14,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use hyperlane_core::{
     ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
@@ -23,8 +23,8 @@ use hyperlane_core::{
 };
 
 use crate::{
-    get_finalized_block_number, multicall, rpc_clients::error, BatchCache, BuildableWithProvider,
-    ConnectionConf, EthereumReorgPeriod,
+    get_finalized_block_number, multicall, BatchCache, BuildableWithProvider, ConnectionConf,
+    EthereumReorgPeriod,
 };
 
 // From
@@ -107,7 +107,7 @@ pub trait EvmProviderForLander: Send + Sync {
     async fn simulate(
         &self,
         multi_precursor: (TypedTransaction, Function),
-    ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
 
     /// Estimate the batch transaction, which includes a multi-precursor transaction
     async fn estimate_batch(
@@ -212,25 +212,13 @@ where
     async fn simulate(
         &self,
         multi_precursor: (TypedTransaction, Function),
-    ) -> ChainResult<(Vec<usize>, Vec<usize>)> {
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)> {
         let (multi_tx, multi_function) = multi_precursor;
         let multicall_contract_call =
             self.build_contract_call::<Vec<MulticallResult>>(multi_tx, multi_function);
         let call_results = multicall_contract_call.call().await?;
 
         let (successful, failed) = multicall::filter(&call_results);
-
-        // log revert reasons for failed calls
-        let revert_reasons = call_results
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| failed.contains(index))
-            .map(|(_, item)| {
-                error::decode_revert_reason(&item.return_data)
-                    .map_or("No revert reason".to_string(), |r| r.to_string())
-            })
-            .collect::<Vec<_>>();
-        warn!(?revert_reasons, "Revert reasons for failed calls");
 
         Ok((successful, failed))
     }

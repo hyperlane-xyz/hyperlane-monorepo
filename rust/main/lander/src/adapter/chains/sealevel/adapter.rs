@@ -313,7 +313,7 @@ impl AdaptsChain for SealevelAdapter {
             .await
             .map_err(|e| {
                 error!(?tx, ?e, "failed to simulate transaction");
-                LanderError::SimulationFailed
+                LanderError::SimulationFailed(vec![e.to_string()])
             })?;
         info!(?tx, "simulated transaction successfully");
         Ok(vec![])

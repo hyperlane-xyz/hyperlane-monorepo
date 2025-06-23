@@ -117,7 +117,9 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission_but_finali
         } else {
             // the second time around, the estimation fails, say due to a network race condition
             // where the payload was delivered by someone else and now it reverts
-            Err(LanderError::SimulationFailed)
+            Err(LanderError::SimulationFailed(vec![
+                "simulation failed".to_string()
+            ]))
         }
     });
     let adapter = mock_adapter_methods(adapter, payload.clone());
@@ -166,9 +168,11 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
 
     let mut adapter = MockAdapter::new();
     // the payload always fails simulation
-    adapter
-        .expect_simulate_tx()
-        .returning(move |_| Err(LanderError::SimulationFailed));
+    adapter.expect_simulate_tx().returning(move |_| {
+        Err(LanderError::SimulationFailed(vec![
+            "simulation failed".to_string()
+        ]))
+    });
     let adapter = mock_adapter_methods(adapter, payload.clone());
     let adapter = Arc::new(adapter);
     let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;

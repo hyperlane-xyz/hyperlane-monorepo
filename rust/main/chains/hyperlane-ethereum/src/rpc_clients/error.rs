@@ -5,7 +5,8 @@ use hex_literal::hex;
 // The 4-byte selector for Error(string)
 const ERROR_SELECTOR: [u8; 4] = hex!("08c379a0");
 
-pub(super) fn decode_revert_reason(return_data: &Bytes) -> Option<String> {
+/// Decode the revert reason from the return data of a transaction
+pub fn decode_revert_reason(return_data: &Bytes) -> Option<String> {
     if return_data.0.len() >= 4 && return_data.0[..4] == ERROR_SELECTOR {
         // It's an Error(string)
         // Skip selector and decode the rest as string
