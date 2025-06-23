@@ -394,6 +394,10 @@ mod tests {
             .expect_tx_status()
             .returning(|_| Ok(TransactionStatus::Finalized));
 
+        mock_adapter
+            .expect_reverted_payloads()
+            .returning(|_| Ok(vec![]));
+
         let (txs_created, txs_received, tx_db, payload_db, pool, _) =
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized)
                 .await;
