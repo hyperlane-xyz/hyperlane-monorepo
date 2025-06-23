@@ -16,7 +16,7 @@ import {
   GasRouterConfigSchema,
   RemoteRouterDomainOrChainNameSchema,
 } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableSchema } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';
@@ -45,6 +45,22 @@ export const TokenMetadataSchema = z.object({
 });
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
+
+// should match FeeType in BaseFee.sol
+export enum FeeCurve {
+  ZERO = 'zero',
+  LINEAR = 'linear',
+  REGRESSIVE = 'regressive',
+  PROGRESSIVE = 'progressive',
+}
+
+export const TokenFeeConfigSchema = OwnableSchema.extend({
+  type: z.nativeEnum(FeeCurve),
+  maxFee: z.string().or(z.number()),
+  halfAmount: z.string().or(z.number()),
+});
+
+export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
 const MovableTokenRebalancingBridgeConfigSchema = z.object({
   bridge: ZHash,
@@ -222,16 +238,22 @@ export type HypTokenRouterVirtualConfig = z.infer<
  * The discriminatedUnion is basically a switch statement for zod schemas
  * It uses the 'type' key to pick from the array of schemas to validate
  */
-export const HypTokenConfigSchema = z.discriminatedUnion('type', [
-  NativeTokenConfigSchema,
-  OpL2TokenConfigSchema,
-  OpL1TokenConfigSchema,
-  CollateralTokenConfigSchema,
-  XERC20TokenConfigSchema,
-  SyntheticTokenConfigSchema,
-  SyntheticRebaseTokenConfigSchema,
-  CctpTokenConfigSchema,
-]);
+export const HypTokenConfigSchema = z
+  .discriminatedUnion('type', [
+    NativeTokenConfigSchema,
+    OpL2TokenConfigSchema,
+    OpL1TokenConfigSchema,
+    CollateralTokenConfigSchema,
+    XERC20TokenConfigSchema,
+    SyntheticTokenConfigSchema,
+    SyntheticRebaseTokenConfigSchema,
+    CctpTokenConfigSchema,
+  ])
+  .and(
+    z.object({
+      tokenFee: TokenFeeConfigSchema.optional(),
+    }),
+  );
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
 export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
@@ -240,8 +262,9 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
-export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  z.infer<typeof GasRouterConfigSchema> &
+export type DerivedTokenRouterConfig = z.infer<
+  typeof HypTokenRouterConfigSchema
+> &
   DerivedRouterConfig;
 
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;

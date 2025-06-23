@@ -5,6 +5,7 @@ import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
+  FungibleTokenRouter__factory,
   GasRouter__factory,
   IERC20__factory,
   MailboxClient__factory,
@@ -57,6 +58,7 @@ import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
+  FeeCurve,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
@@ -178,6 +180,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       ),
+      ...(await this.createFeeRecipientUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
@@ -1016,5 +1019,42 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     return warpModule;
+  }
+
+  protected async createFeeRecipientUpdateTxs(
+    actual: DerivedTokenRouterConfig,
+    expected: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (deepEquals(actual.tokenFee, expected.tokenFee)) {
+      return [];
+    }
+
+    if (expected.tokenFee) {
+      let feeRecipient: Address;
+      if (expected.tokenFee.type === FeeCurve.ZERO) {
+        feeRecipient = zeroAddress;
+      } else {
+        const deployer = new HypERC20Deployer(this.multiProvider);
+        const feeContract = await deployer.deployFeeRecipient(
+          this.chainName,
+          expected.tokenFee,
+        );
+        feeRecipient = feeContract.address;
+      }
+
+      return [
+        {
+          chainId: this.chainId,
+          annotation: `Setting fee recipient to ${feeRecipient} (${expected.tokenFee.type})`,
+          to: this.args.addresses.deployedTokenRoute,
+          data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+            'setFeeRecipient',
+            [feeRecipient],
+          ),
+        },
+      ];
+    }
+
+    return [];
   }
 }

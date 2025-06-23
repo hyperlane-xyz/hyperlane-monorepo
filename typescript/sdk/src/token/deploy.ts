@@ -1,8 +1,10 @@
 import { constants } from 'ethers';
 
 import {
+  BaseFee,
   ERC20__factory,
   ERC721Enumerable__factory,
+  FungibleTokenRouter,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
@@ -40,6 +42,7 @@ import {
   HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
+  feeFactories,
   hypERC20contracts,
   hypERC20factories,
   hypERC721contracts,
@@ -47,8 +50,10 @@ import {
 } from './contracts.js';
 import {
   CctpTokenConfig,
+  FeeCurve,
   HypTokenConfig,
   HypTokenRouterConfig,
+  TokenFeeConfig,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -515,10 +520,12 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): GasRouter {
+  router(
+    contracts: HyperlaneContracts<HypERC20Factories>,
+  ): FungibleTokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as unknown as FungibleTokenRouter;
       }
     }
     throw new Error('No matching contract found');
@@ -531,6 +538,34 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
 
   routerContractName(config: HypTokenRouterConfig): string {
     return hypERC20contracts[this.routerContractKey(config)];
+  }
+
+  async deployFeeRecipient(
+    chain: ChainName,
+    config: TokenFeeConfig,
+  ): Promise<BaseFee> {
+    assert(config.type !== FeeCurve.ZERO, 'Zero fee curve is 0 address');
+
+    const feeFactory = feeFactories[config.type];
+
+    return this.deployContractFromFactory(
+      chain,
+      feeFactory,
+      `${config.type}Fee`,
+      [config.maxFee, config.halfAmount, config.owner],
+    );
+  }
+
+  async deployContracts(chain: ChainName, config: HypTokenRouterConfig) {
+    const contracts = await super.deployContracts(chain, config);
+    if (config.tokenFee && config.tokenFee.type !== FeeCurve.ZERO) {
+      const feeContract = await this.deployFeeRecipient(chain, config.tokenFee);
+      await this.multiProvider.handleTx(
+        chain,
+        this.router(contracts).setFeeRecipient(feeContract.address),
+      );
+    }
+    return contracts;
   }
 }
 
