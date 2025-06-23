@@ -98,7 +98,7 @@ where
 
         let formatted_sigs = self.format_signatures(
             &mut sigs,
-            self.provider.validators().hub_ism_threshold() as usize,
+            self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
         self.hub_mailbox.process(&msg, &formatted_sigs, None).await
