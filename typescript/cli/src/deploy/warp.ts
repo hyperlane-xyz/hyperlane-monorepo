@@ -31,6 +31,7 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
+  SubmissionStrategySchema,
   TokenFactories,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
