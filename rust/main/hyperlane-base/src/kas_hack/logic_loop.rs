@@ -87,7 +87,10 @@ where
         }
     }
 
-    async fn get_deposit_validator_sigs_and_send_to_hub(&self, fxg: &DepositFXG) -> ChainResult<TxOutcome> {
+    async fn get_deposit_validator_sigs_and_send_to_hub(
+        &self,
+        fxg: &DepositFXG,
+    ) -> ChainResult<TxOutcome> {
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
@@ -139,6 +142,7 @@ where
         logs
     }
 
+    // TODO: why is it a loop?
     pub fn run_confirmation_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
         let name = "dymension_kaspa_confirmation_loop";
         tokio::task::Builder::new()
@@ -170,9 +174,16 @@ where
         }
     }
 
-    async fn get_confirmation_validator_sigs_and_send_to_hub(&self, fxg: &ConfirmationFXG) -> ChainResult<TxOutcome> {
+    async fn get_confirmation_validator_sigs_and_send_to_hub(
+        &self,
+        fxg: &ConfirmationFXG,
+    ) -> ChainResult<TxOutcome> {
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
-        let mut sigs = self.provider.validators().get_confirmation_sigs(fxg).await?;
+        let mut sigs = self
+            .provider
+            .validators()
+            .get_confirmation_sigs(fxg)
+            .await?;
 
         if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
             return Err(ChainCommunicationError::InvalidRequest {
