@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
@@ -17,8 +16,8 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
 
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
