@@ -161,17 +161,6 @@ where
 
     async fn confirmation_loop(&mut self) {
         loop {
-            /*
-            - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
-            - [ ] Relayer will need to reach out to validators to gather the signatures over the progress indication
-            - [ ] Validator will need endpoint
-            - [ ] Validator will need to call VERIFY
-            - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
-            - [ ] Validator will need to sign appropriately
-            - [ ] Validator return
-            - [ ] Relayer post to hub
-                     */
-
             time::sleep(Duration::from_secs(10)).await;
         }
     }
@@ -201,10 +190,27 @@ where
         unimplemented!()
     }
 
+    // TODO: this is a workaround for now because Michael works on the calling of it
+    /*
+    - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
+    - [ ] Relayer will need to reach out to validators to gather the signatures over the progress indication
+    - [ ] Validator will need endpoint
+    - [ ] Validator will need to call VERIFY
+    - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
+    - [ ] Validator will need to sign appropriately
+    - [ ] Validator return
+    - [ ] Relayer post to hub
+        */
     pub async fn on_new_progress_indication(
         &self,
-        progress_indication: ProgressIndication,
+        fxg: &ConfirmationFXG,
     ) -> ChainResult<TxOutcome> {
+        let u: ProgressIndication = ProgressIndication::default(); // TODO: get from fxg
+        let mut sigs = self
+            .provider
+            .validators()
+            .get_confirmation_sigs(fxg)
+            .await?;
         unimplemented!()
     }
 }
