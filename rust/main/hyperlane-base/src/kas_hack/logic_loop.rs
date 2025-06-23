@@ -96,21 +96,12 @@ where
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
-            return Err(ChainCommunicationError::InvalidRequest {
-                msg: format!(
-                    "insufficient validator signatures: got {}, need {}",
-                    sigs.len(),
-                    self.provider.validators().hub_ism_threshold()
-                ),
-            });
-        }
+        let formatted_sigs = self.format_signatures(
+            &mut sigs,
+            self.provider.validators().hub_ism_threshold() as usize,
+        )?;
 
-        let checkpoint = MultisigSignedCheckpoint::try_from(&mut sigs).unwrap();
-        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        let slice = metadata.as_slice();
-
-        self.hub_mailbox.process(&msg, slice, None).await
+        self.hub_mailbox.process(&msg, &formatted_sigs, None).await
     }
 
     /// TODO: unused for now because we skirt the usual DB management
@@ -213,14 +204,20 @@ where
             .validators()
             .get_confirmation_sigs(fxg)
             .await?;
-        unimplemented!()
+
+        let formatted_sigs = self.format_signatures(
+            &mut sigs,
+            self.provider.validators().multisig_threshold_hub_ism() as usize,
+        )?;
+
+        // TODO: deliver to hub
     }
 
-    async fn get_metadata(
+    fn format_signatures(
         &self,
         sigs: &mut Vec<SignedCheckpointWithMessageId>,
         require: usize,
-    ) -> ChainResult<&[u8]> {
+    ) -> ChainResult<Vec<u8>> {
         if sigs.len() < require {
             return Err(ChainCommunicationError::InvalidRequest {
                 msg: format!(
@@ -237,7 +234,7 @@ where
             }
         })?;
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        Ok(metadata.as_slice())
+        Ok(metadata.to_vec())
     }
 }
 

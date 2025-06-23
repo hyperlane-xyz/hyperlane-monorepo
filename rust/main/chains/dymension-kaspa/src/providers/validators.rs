@@ -85,10 +85,11 @@ impl ValidatorsClient {
         unimplemented!()
     }
 
-    pub fn hub_ism_threshold(&self) -> usize {
+    pub fn multisig_threshold_hub_ism(&self) -> usize {
         // TODO: clearly distinguish with kaspa multisig
         self.conf.multisig_threshold_hub_ism
     }
+
 }
 
 // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
