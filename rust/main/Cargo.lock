@@ -10282,6 +10282,7 @@ dependencies = [
  "http-body-util",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-metric",
  "hyperlane-operation-verifier",

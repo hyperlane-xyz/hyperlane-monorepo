@@ -17,13 +17,14 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
 
-use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 use hyperlane_cosmos_dymension_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_native::{mailbox::CosmosNativeMailbox, providers::CosmosNativeProvider};
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
     provider: KaspaProvider,
+    dym_provider: CosmosNativeProvider,
     hub_mailbox: Arc<dyn Mailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
@@ -37,6 +38,8 @@ where
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
         provider: KaspaProvider,
+        dym_provider: CosmosNativeProvider,
+
         hub_mailbox: Arc<dyn Mailbox>,
         metadata_constructor: C,
     ) -> Self {
@@ -44,6 +47,7 @@ where
             domain,
             kdb,
             provider,
+            dym_provider,
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
@@ -157,31 +161,6 @@ where
         }
     }
 
-    async fn get_confirmation_validator_sigs_and_send_to_hub(
-        &self,
-        fxg: &ConfirmationFXG,
-    ) -> ChainResult<TxOutcome> {
-        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
-        let mut sigs = self
-            .provider
-            .validators()
-            .get_confirmation_sigs(fxg)
-            .await?;
-
-        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
-            return Err(ChainCommunicationError::InvalidRequest {
-                msg: format!(
-                    "insufficient validator signatures: got {}, need {}",
-                    sigs.len(),
-                    self.provider.validators().hub_ism_threshold()
-                ),
-            });
-        }
-
-        // TODO: construct appropriate metadata and send up to hub
-        unimplemented!()
-    }
-
     // TODO: this is a workaround for now because Michael works on the calling of it
     /*
     - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
@@ -212,8 +191,12 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        if let Some(hub) = self.hub_mailbox.as_any().downcast_ref::<CosmosNativeMailbox>() {
-            self.hub_mailbox.indicate_progress(formatted_sigs, u).await
+        if let Some(hub) = self
+            .hub_mailbox
+            .as_any()
+            .downcast_ref::<CosmosNativeMailbox>()
+        {
+            self..indicate_progress(formatted_sigs, u).await
         } else {
             panic!("hub mailbox is not a cosmos native object")
         }

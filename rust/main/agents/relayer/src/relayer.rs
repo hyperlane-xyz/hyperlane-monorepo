@@ -51,6 +51,7 @@ use lander::{
 
 use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
+use hyperlane_cosmos_native::providers::CosmosNativeProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
 
 use crate::{
@@ -1460,6 +1461,7 @@ impl Relayer {
             origin.clone(),
             kas_db.clone().to_owned(),
             kas_provider,
+            args.dym_provider.clone(),
             hub_mailbox,
             metadata_getter,
         );
@@ -1477,6 +1479,7 @@ struct DymensionKaspaArgs {
     kas_provider: Option<KaspaProvider>,
     // dym_mailbox: Option<Arc<dyn Mailbox>>,
     dym_mailbox: CosmosNativeMailbox,
+    dym_provider: CosmosNativeProvider,
 }
 
 impl Relayer {
@@ -1515,7 +1518,8 @@ impl Relayer {
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider: kas_chain_provider,
-            // dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+            dym_provider,
         }))
     }
 }
