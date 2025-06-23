@@ -449,9 +449,6 @@
   "treasure": {
     "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
   },
-  "trumpchain": {
-    "validators": ["0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e"]
-  },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
   },

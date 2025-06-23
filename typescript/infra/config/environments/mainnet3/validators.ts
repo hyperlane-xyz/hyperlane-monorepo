@@ -739,18 +739,6 @@ export const validatorChainConfig = (
         'proofofplay',
       ),
     },
-    real: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('real'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'real',
-      ),
-    },
     sanko: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sanko'),
@@ -1468,17 +1456,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xc11cba01d67f2b9f0288c4c8e8b23c0eca03f26e'],
         },
         'xpla',
-      ),
-    },
-
-    trumpchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('trumpchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e'],
-        },
-        'trumpchain',
       ),
     },
 

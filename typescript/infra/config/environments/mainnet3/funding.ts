@@ -33,7 +33,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['real', 'trumpchain'],
+  chainsToSkip: [],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
@@ -70,7 +70,6 @@ export const keyFunderConfig: KeyFunderConfig<
     polygon: '85',
     polygonzkevm: '0.05',
     proofofplay: '0',
-    real: '0',
     redstone: '0',
     sanko: '0',
     scroll: '0.05',
@@ -127,7 +126,6 @@ export const keyFunderConfig: KeyFunderConfig<
     polygon: '20',
     polygonzkevm: '0.1',
     proofofplay: '0.025',
-    real: '0.05',
     redstone: '0.1',
     sanko: '1',
     scroll: '0.1',

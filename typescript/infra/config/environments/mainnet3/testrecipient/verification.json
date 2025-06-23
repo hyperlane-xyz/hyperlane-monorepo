@@ -63,14 +63,6 @@
       "name": "TestRecipient"
     }
   ],
-  "real": [
-    {
-      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "TestRecipient"
-    }
-  ],
   "sanko": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
