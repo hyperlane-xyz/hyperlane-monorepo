@@ -161,11 +161,11 @@ where
     /*
     - [x] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
     - [x] Relayer will need to reach out to validators to gather the signatures over the progress indication
-    - [ ] Validator will need endpoint
-    - [ ] Validator will need to call VERIFY
-    - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
-    - [ ] Validator will need to sign appropriately
-    - [ ] Validator return
+    - [x] Validator will need endpoint
+    - [x] Validator will need to call VERIFY
+    - [x] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
+    - [x] Validator will need to sign appropriately TODO: check/fix/test this part
+    - [x] Validator return
     - [x] Relayer post to hub
         */
     // needs to satisfy
