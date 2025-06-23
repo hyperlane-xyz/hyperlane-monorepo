@@ -1475,11 +1475,12 @@ impl Relayer {
 
 struct DymensionKaspaArgs {
     kas_provider: Option<KaspaProvider>,
-    dym_mailbox: Option<Arc<dyn Mailbox>>,
+    // dym_mailbox: Option<Arc<dyn Mailbox>>,
+    dym_mailbox: CosmosNativeMailbox,
 }
 
 impl Relayer {
-    fn get_dymension_kaspa_args(
+    async fn get_dymension_kaspa_args(
         origin_chains: &HashSet<HyperlaneDomain>,
         core: &HyperlaneAgentCore,
         core_metrics: &CoreMetrics,
@@ -1492,19 +1493,29 @@ impl Relayer {
         let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
         let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
         let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
-
-        let kas_chain_provider = match chain_conf.connection.clone() {
+        match chain_conf.connection.clone() {
             ChainConnectionConf::Kaspa(conf) => Some(
                 build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
                     .expect("Failed to build Kaspa provider"),
             ),
             _ => None,
         };
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+
+        // TODO: technically should use destination chains here
+        let conf = origin_chains.get(&dym_domain).cloned().unwrap();
+        let chain_conf = core.settings.chain_setup(&conf).unwrap().to_owned();
+        // https://github.com/dymensionxyz/hyperlane-monorepo/blob/512ff25f6c6eaa66e611c5b5aee0c54bf36ec06c/rust/main/hyperlane-base/src/settings/chains.rs#L330
+        let locator = chain_conf.locator(chain_conf.addresses.mailbox);
+        let signer = chain_conf.cosmos_native_signer().await.context(ctx)?;
+
+        // TODO: it's ok to have two of these?
+        let dym_provider = build_cosmos_native_provider(&chain_conf, &conf, &core_metrics, &locator, signer)
+            .expect("Failed to build Cosmos Native provider");
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+            // dym_mailbox: mailboxes.get(&dym_domain).cloned(),
         }))
     }
 }
