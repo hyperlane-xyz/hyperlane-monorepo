@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {BaseFee} from "./BaseFee.sol";
+import {BaseFee, FeeType} from "./BaseFee.sol";
 
 /**
  * @title Regressive Fee Structure
@@ -40,5 +40,9 @@ contract RegressiveFee is BaseFee {
         // This makes the fee percentage decrease as the amount increases
         if (halfAmount + amount == 0) return 0;
         return (maxFee * amount) / (halfAmount + amount);
+    }
+
+    function feeType() external view override returns (FeeType) {
+        return FeeType.REGRESSIVE;
     }
 }

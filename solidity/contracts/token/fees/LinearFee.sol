@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {BaseFee} from "./BaseFee.sol";
+import {BaseFee, FeeType} from "./BaseFee.sol";
 
 /**
  * @title Linear Fee Structure
@@ -32,5 +32,9 @@ contract LinearFee is BaseFee {
     ) external view override returns (uint256 fee) {
         uint256 uncapped = (amount * maxFee) / halfAmount;
         return uncapped > maxFee ? maxFee : uncapped;
+    }
+
+    function feeType() external view override returns (FeeType) {
+        return FeeType.LINEAR;
     }
 }

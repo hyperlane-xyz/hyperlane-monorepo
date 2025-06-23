@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {BaseFee} from "./BaseFee.sol";
+import {BaseFee, FeeType} from "./BaseFee.sol";
 
 /**
  * @title Progressive Fee Structure
@@ -42,5 +42,9 @@ contract ProgressiveFee is BaseFee {
         return
             (maxFee * amount * amount) /
             (halfAmount * halfAmount + amount * amount);
+    }
+
+    function feeType() external view override returns (FeeType) {
+        return FeeType.PROGRESSIVE;
     }
 }

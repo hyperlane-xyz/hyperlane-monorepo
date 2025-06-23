@@ -41,7 +41,6 @@ contract HypNative is MovableCollateralRouter {
         address _owner
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _FungibleTokenRouter_initialize();
     }
 
     function _transferRemote(
