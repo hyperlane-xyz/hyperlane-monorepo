@@ -408,6 +408,12 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -447,6 +453,12 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -485,6 +497,12 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
