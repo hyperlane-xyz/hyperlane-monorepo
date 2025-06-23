@@ -84,13 +84,13 @@
     },
     {
       "address": "0x94087079Bf22D8e2BCE02e2180e738C3F21dD44E",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xd5ab9FaC601Ed731d5e9c87E5977D2e5fD380666",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x374961678da5911083599314974B94094513F95c",
@@ -146,7 +146,7 @@
       "address": "0x8A516672De99D8615E87E85014bC15EEe6428d69",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x1aFD5191738d365C8079e955E4cEdDfe7e01C62d",
@@ -232,7 +232,7 @@
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
@@ -338,7 +338,7 @@
     },
     {
       "address": "0xf9E264C10E9176c97c22790E0Ece8D98927Bca71",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xD2a0c68ed92D1Eb3C699D2808b06dd7b70367F92",
@@ -350,7 +350,7 @@
       "address": "0x4ce08bEcdada43aa1FC9628886f4e6Adc1f079ec",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xCa152b249791Adf7A09C6c1bdbAb05e4A594966e",
@@ -436,7 +436,7 @@
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x8584590ad637C61C7cDF72eFF3381Ee1c3D1bC8E",
@@ -522,7 +522,7 @@
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
@@ -638,7 +638,7 @@
     },
     {
       "address": "0x930c36A0c978B0b86B544859692A1D94c5148204",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x683a81E0e1a238dcA7341e04c08d3bba6f0Cb74f",
@@ -650,7 +650,7 @@
       "address": "0xD47593C21C2429de56AcA808bb2Bbc236c6311DE",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xff93F32997Ac5450995121385aCE96b184efe89E",
@@ -736,7 +736,7 @@
       "address": "0x8CF9aB5F805072A007dAd0ae56E0099e83B14b61",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
@@ -842,7 +842,7 @@
     },
     {
       "address": "0xCd76aC44337BbA003bb4Bed2Ac37604148F36bA9",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xE8F752e5C4E1A6a2e3eAfa42d44D601A22d78f2b",
@@ -854,7 +854,7 @@
       "address": "0x063C2D908EAb532Cd207F309F0fd176ae6b2e1d1",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     }
   ],
   "optimismsepolia": [
@@ -916,7 +916,7 @@
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
@@ -1002,7 +1002,7 @@
       "address": "0x10c9FF6EEE4BaD29734322467f541C84001422C2",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x7924A1569fE0b860F1eA3c7b4Ed97b5528946f83",
@@ -1076,7 +1076,7 @@
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
@@ -1162,7 +1162,7 @@
     },
     {
       "address": "0x7fFe8C9c17F46F94D784E148FbadD4bF66477722",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x17866ebE0e503784a9461d3e753dEeD0d3F61153",
@@ -1174,7 +1174,7 @@
       "address": "0xea80345322520d37770dbDeD3FE9c53ba93E70D8",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
@@ -1280,7 +1280,7 @@
     },
     {
       "address": "0x67543F48DBe592F1A15FD9aE37b1AbD104c70cf3",
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
@@ -1292,7 +1292,7 @@
       "address": "0x9b0CC3BD9030CE269EF3124Bb36Cf954a490688e",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0x4afB48e864d308409d0D80E98fB7d5d6aA5b245f",
@@ -1378,7 +1378,7 @@
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true,
-      "name": "DomaingRoutingIsm"
+      "name": "DomainRoutingIsm"
     },
     {
       "address": "0xE67CfA164cDa449Ae38a0a09391eF6bCDf8e4e2c",
@@ -1461,7 +1461,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -1547,7 +1547,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -1633,7 +1633,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x4863236F3a05A1A1F0850fF8cd09afeBAE82d953",
       "constructorArguments": "",
       "isProxy": true
@@ -1719,7 +1719,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -1805,7 +1805,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -1891,7 +1891,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -1977,7 +1977,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2063,7 +2063,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2149,7 +2149,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2247,7 +2247,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2333,7 +2333,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2419,7 +2419,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -2505,7 +2505,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2591,7 +2591,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2677,7 +2677,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2733,7 +2733,7 @@
       "isProxy": true
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2813,7 +2813,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2899,7 +2899,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -2985,7 +2985,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3071,7 +3071,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3157,7 +3157,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -3243,7 +3243,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3329,7 +3329,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x10c9FF6EEE4BaD29734322467f541C84001422C2",
       "constructorArguments": "",
       "isProxy": true
@@ -3415,7 +3415,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
       "constructorArguments": "",
       "isProxy": true
@@ -3501,7 +3501,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0xc2f12d971Bccd2cfAe792E22D06EA63ED6E8A302",
       "constructorArguments": "",
       "isProxy": true
@@ -3557,7 +3557,7 @@
       "isProxy": true
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3631,7 +3631,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3717,7 +3717,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3803,7 +3803,7 @@
       "isProxy": false
     },
     {
-      "name": "DomaingRoutingIsm",
+      "name": "DomainRoutingIsm",
       "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
       "constructorArguments": "",
       "isProxy": true
@@ -3829,92 +3829,6 @@
     {
       "name": "StaticMessageIdWeightedMultisigIsm",
       "address": "0x7fFe8C9c17F46F94D784E148FbadD4bF66477722",
-      "constructorArguments": "",
-      "isProxy": true
-    }
-  ],
-  "rometestnet": [
-    {
-      "name": "StaticMerkleRootMultisigIsmFactory",
-      "address": "0x4da6f7E710137657008D5BCeF26151aac5c9884f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticMerkleRootMultisigIsm",
-      "address": "0xF561E0e79649Fe32Ce7b2d175e67Ea1fFb7820B5",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticMessageIdMultisigIsmFactory",
-      "address": "0x48a53E3B176383BC98fcF4a24c9D470c19475164",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticMessageIdMultisigIsm",
-      "address": "0x9E2987311FB808f1BD62c7D95927FDFE92aa0273",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticAggregationIsmFactory",
-      "address": "0x1E98EA1EABA7137b6eC0B42400701b8539Ef2945",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticAggregationIsm",
-      "address": "0xF0dD91DA3F9506cB2dFb00971B573C51F9a8Fb91",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticAggregationHookFactory",
-      "address": "0x919Af376D02751bFCaD9CBAD6bad0c3089dAE33f",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticAggregationHook",
-      "address": "0xD9E2284105dB99170B746D1a814ccf330463d483",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "DomainRoutingIsmFactory",
-      "address": "0xD9dc83Ea22C6F1A224e51562B32b580695905A1A",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "DomaingRoutingIsm",
-      "address": "0x940402BE7f7923A8933D0004afA70a407330C730",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticMerkleRootWeightedMultisigIsmFactory",
-      "address": "0xeae732713B44dBf8Bb158Dff914e5E1a6215201B",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticMerkleRootWeightedMultisigIsm",
-      "address": "0x0D7dAb41B4BB026203aBCDDeF88b4020e8A5c88F",
-      "constructorArguments": "",
-      "isProxy": true
-    },
-    {
-      "name": "StaticMessageIdWeightedMultisigIsmFactory",
-      "address": "0xF64c33DcC5F9Dd8CE9A7bc61A4DabeB1Ac6CCE27",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "StaticMessageIdWeightedMultisigIsm",
-      "address": "0x3C92Ff30a35B0401415F9c4c93Cc6Fed1827E992",
       "constructorArguments": "",
       "isProxy": true
     }

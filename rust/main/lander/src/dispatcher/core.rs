@@ -71,7 +71,7 @@ impl Dispatcher {
     #[instrument(skip(self), fields(domain = %self.domain))]
     pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
-        let building_stage_queue: BuildingStageQueue = Arc::new(Mutex::new(VecDeque::new()));
+        let building_stage_queue = BuildingStageQueue::new();
         let (inclusion_stage_sender, inclusion_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
         let (finality_stage_sender, finality_stage_receiver) =

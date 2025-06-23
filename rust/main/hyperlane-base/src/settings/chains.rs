@@ -196,6 +196,7 @@ impl ChainConnectionConf {
             Self::Ethereum(conf) => Some(&conf.op_submission_config),
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
+            Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }
@@ -1116,10 +1117,8 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn starknet_signer(&self) -> Result<h_starknet::Signer> {
-        self.signer()
-            .await?
-            .ok_or_else(|| eyre!("Starknet requires a signer to construct contract instances"))
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
     }
 
     async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {

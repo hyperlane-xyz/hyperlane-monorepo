@@ -83,7 +83,7 @@ contract RateLimitedHook is
         require(_isLatestDispatched(_message.id()), "InvalidDispatchedMessage");
 
         uint256 newAmount = _message.body().amount();
-        validateAndConsumeFilledLevel(newAmount);
+        _validateAndConsumeFilledLevel(newAmount);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

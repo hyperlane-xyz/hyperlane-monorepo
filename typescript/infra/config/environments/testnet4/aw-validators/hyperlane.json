@@ -2,6 +2,9 @@
   "abstracttestnet": {
     "validators": ["0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e"]
   },
+  "weavevmtestnet": {
+    "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
+  },
   "alephzeroevmtestnet": {
     "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
   },
@@ -110,9 +113,6 @@
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
-  "rometestnet": {
-    "validators": ["0x259eec09dd54c34043bc991f1aae014294235b8e"]
-  },
   "scrollsepolia": {
     "validators": [
       "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
@@ -147,8 +147,5 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
-  },
-  "weavevmtestnet": {
-    "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
   }
 }
