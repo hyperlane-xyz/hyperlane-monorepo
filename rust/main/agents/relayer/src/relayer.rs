@@ -52,7 +52,7 @@ use lander::{
 use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
-use hyperlane_cosmos_native::providers::CosmosNativeProvider;
+use hyperlane_cosmos_native::CosmosNativeMailbox;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -454,7 +454,7 @@ impl BaseAgent for Relayer {
             &core,
             &core_metrics,
             &mailboxes,
-        )?;
+        ).await?;
 
         Ok(Self {
             dbs,
