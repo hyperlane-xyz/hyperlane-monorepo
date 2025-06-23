@@ -185,6 +185,8 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     const interchainGas = await signer.query.warp.QuoteRemoteTransfer({
       id: token.id,
       destination_domain: remoteRouter.receiver_domain.toString(),
+      custom_hook_id: '',
+      custom_hook_metadata: '',
     });
 
     // ACT
