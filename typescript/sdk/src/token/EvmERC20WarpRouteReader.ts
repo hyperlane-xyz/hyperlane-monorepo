@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 
 import {
   BaseFee__factory,
@@ -26,6 +26,7 @@ import {
   Address,
   arrayToObject,
   assert,
+  eqAddress,
   getLogLevel,
   isZeroishAddress,
   objFilter,
@@ -415,7 +416,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
     if (compareVersions(config.contractVersion, TOKEN_FEE_VERSION) >= 0) {
-      config.tokenFee = await this.fetchTokenFees(warpRouteAddress);
+      config.tokenFee = await this.fetchTokenFee(warpRouteAddress);
     }
 
     return HypTokenConfigSchema.parse(config);
@@ -652,11 +653,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     return { name, symbol, decimals, isNft: false };
   }
 
-  async fetchTokenFees(routerAddress: Address): Promise<TokenFeeConfig> {
+  async fetchTokenFee(
+    routerAddress: Address,
+  ): Promise<TokenFeeConfig | undefined> {
     const address = await FungibleTokenRouter__factory.connect(
       routerAddress,
       this.provider,
     ).feeRecipient();
+
+    if (eqAddress(address, ethers.constants.AddressZero)) {
+      return undefined;
+    }
+
     const feeRecipient = BaseFee__factory.connect(address, this.provider);
 
     const [feeType, maxFee, halfAmount, owner] = await Promise.all([
