@@ -58,7 +58,6 @@ import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
-  FeeCurve,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
@@ -1030,18 +1029,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     if (expected.tokenFee) {
-      let feeRecipient: Address;
-      if (expected.tokenFee.type === FeeCurve.ZERO) {
-        feeRecipient = zeroAddress;
-      } else {
-        const deployer = new HypERC20Deployer(this.multiProvider);
-        const feeContract = await deployer.deployFeeRecipient(
-          this.chainName,
-          expected.tokenFee,
-        );
-        feeRecipient = feeContract.address;
-      }
-
+      const deployer = new HypERC20Deployer(this.multiProvider);
+      const feeRecipient = await deployer.deployFeeRecipient(
+        this.chainName,
+        expected.tokenFee,
+      );
       return [
         {
           chainId: this.chainId,

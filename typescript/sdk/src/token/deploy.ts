@@ -1,7 +1,6 @@
-import { constants } from 'ethers';
+import { constants, ethers } from 'ethers';
 
 import {
-  BaseFee,
   ERC20__factory,
   ERC721Enumerable__factory,
   FungibleTokenRouter,
@@ -15,6 +14,7 @@ import {
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
+  Address,
   ProtocolType,
   assert,
   objFilter,
@@ -543,26 +543,34 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   async deployFeeRecipient(
     chain: ChainName,
     config: TokenFeeConfig,
-  ): Promise<BaseFee> {
-    assert(config.type !== FeeCurve.ZERO, 'Zero fee curve is 0 address');
+  ): Promise<Address> {
+    if (config.type === FeeCurve.ZERO) {
+      return ethers.constants.AddressZero;
+    }
 
     const feeFactory = feeFactories[config.type];
 
-    return this.deployContractFromFactory(
+    const feeContract = await this.deployContractFromFactory(
       chain,
       feeFactory,
       `${config.type}Fee`,
       [config.maxFee, config.halfAmount, config.owner],
     );
+
+    return feeContract.address;
   }
 
   async deployContracts(chain: ChainName, config: HypTokenRouterConfig) {
     const contracts = await super.deployContracts(chain, config);
     if (config.tokenFee && config.tokenFee.type !== FeeCurve.ZERO) {
-      const feeContract = await this.deployFeeRecipient(chain, config.tokenFee);
+      const feeRecipient = await this.deployFeeRecipient(
+        chain,
+        config.tokenFee,
+      );
+      // requires signer is owner
       await this.multiProvider.handleTx(
         chain,
-        this.router(contracts).setFeeRecipient(feeContract.address),
+        this.router(contracts).setFeeRecipient(feeRecipient),
       );
     }
     return contracts;
