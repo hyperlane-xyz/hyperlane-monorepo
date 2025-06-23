@@ -246,7 +246,7 @@ impl FinalityStage {
                     ?payload,
                     "Pushing payload to the front of the building stage queue"
                 );
-                building_stage_queue.lock().await.push_front(full_payload);
+                building_stage_queue.push_front(full_payload).await;
             }
         }
         let _ = pool.remove(&tx.uuid).await;
@@ -333,7 +333,7 @@ mod tests {
 
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(TXS_TO_PROCESS);
 
-        let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_queue = BuildingStageQueue::new();
 
         let state = DispatcherState::new(
             payload_db.clone(),
@@ -432,7 +432,7 @@ mod tests {
         .await;
 
         // all payloads are in the building stage queue
-        assert_eq!(queue.lock().await.len(), TXS_TO_PROCESS);
+        assert_eq!(queue.len().await, TXS_TO_PROCESS);
         for tx in txs_received {
             assert_payloads_status(
                 tx.payload_details.clone(),
@@ -483,7 +483,7 @@ mod tests {
         let (payload_db, tx_db, _) = tmp_dbs();
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(txs_to_process);
 
-        let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_queue = BuildingStageQueue::new();
 
         let state = DispatcherState::new(
             payload_db.clone(),
