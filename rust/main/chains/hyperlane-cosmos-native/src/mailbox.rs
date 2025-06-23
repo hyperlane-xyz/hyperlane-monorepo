@@ -196,7 +196,7 @@ impl CosmosNativeMailbox {
     pub async fn indicate_progress(
         &self,
         metadata: &[u8],
-        u: ProgressIndication,
+        u: &ProgressIndication,
     ) -> ChainResult<TxOutcome> {
         let msg = MsgIndicateProgress {
             signer: self.address.encode_hex(),

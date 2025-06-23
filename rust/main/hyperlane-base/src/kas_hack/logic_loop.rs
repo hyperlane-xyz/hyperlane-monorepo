@@ -24,8 +24,7 @@ pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
     provider: KaspaProvider,
-    dym_provider: CosmosNativeProvider,
-    hub_mailbox: Arc<dyn Mailbox>,
+    hub_mailbox: CosmosNativeMailbox,
     metadata_constructor: C,
     deposit_cache: DepositCache,
 }
@@ -38,16 +37,13 @@ where
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
         provider: KaspaProvider,
-        dym_provider: CosmosNativeProvider,
-
-        hub_mailbox: Arc<dyn Mailbox>,
+        hub_mailbox: CosmosNativeMailbox,
         metadata_constructor: C,
     ) -> Self {
         Self {
             domain,
             kdb,
             provider,
-            dym_provider,
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
@@ -174,7 +170,7 @@ where
         */
     // needs to satisfy
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
-    //  https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
+    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     pub async fn on_new_progress_indication(
         &self,
         fxg: &ConfirmationFXG,
@@ -191,15 +187,9 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        if let Some(hub) = self
-            .hub_mailbox
-            .as_any()
-            .downcast_ref::<CosmosNativeMailbox>()
-        {
-            self..indicate_progress(formatted_sigs, u).await
-        } else {
-            panic!("hub mailbox is not a cosmos native object")
-        }
+        self.hub_mailbox
+            .indicate_progress(&formatted_sigs, &u)
+            .await
     }
 
     fn format_signatures(
@@ -249,8 +239,4 @@ impl DepositCache {
 
 pub trait MetadataConstructor {
     fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
-}
-
-trait AsAny {
-    fn as_any(&self) -> &dyn Any;
 }

@@ -30,7 +30,7 @@ use hyperlane_base::{
     cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::build_kaspa_provider,
+    settings::{build_cosmos_native_provider, build_kaspa_provider},
     settings::{
         ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics,
     },
@@ -51,8 +51,8 @@ use lander::{
 
 use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
-use hyperlane_cosmos_native::providers::CosmosNativeProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
+use hyperlane_cosmos_native::providers::CosmosNativeProvider;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -1461,7 +1461,6 @@ impl Relayer {
             origin.clone(),
             kas_db.clone().to_owned(),
             kas_provider,
-            args.dym_provider.clone(),
             hub_mailbox,
             metadata_getter,
         );
@@ -1479,7 +1478,6 @@ struct DymensionKaspaArgs {
     kas_provider: Option<KaspaProvider>,
     // dym_mailbox: Option<Arc<dyn Mailbox>>,
     dym_mailbox: CosmosNativeMailbox,
-    dym_provider: CosmosNativeProvider,
 }
 
 impl Relayer {
@@ -1513,13 +1511,15 @@ impl Relayer {
         let signer = chain_conf.cosmos_native_signer().await.context(ctx)?;
 
         // TODO: it's ok to have two of these?
-        let dym_provider = build_cosmos_native_provider(&chain_conf, &conf, &core_metrics, &locator, signer)
-            .expect("Failed to build Cosmos Native provider");
+        let dym_provider =
+            build_cosmos_native_provider(&chain_conf, &conf, &core_metrics, &locator, signer)
+                .expect("Failed to build Cosmos Native provider");
+
+        let dym_mailbox = CosmosNativeMailbox::new(dym_provider, locator.clone());
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
-            dym_provider,
+            dym_mailbox,
         }))
     }
 }

@@ -1376,7 +1376,7 @@ fn build_cosmos_wasm_provider(
     )
 }
 
-fn build_cosmos_native_provider(
+pub fn build_cosmos_native_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_cosmos_native::ConnectionConf,
     metrics: &CoreMetrics,
