@@ -490,7 +490,11 @@ export {
   chainMetadataToStarknetChain,
   chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export {
+  AnnotatedEV5Transaction,
+  AnnotatedCosmJsNativeTransaction,
+  GroupedTransactions,
+} from './providers/ProviderType.js';
 export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,

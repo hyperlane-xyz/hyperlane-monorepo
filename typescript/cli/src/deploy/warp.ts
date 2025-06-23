@@ -1,5 +1,4 @@
 import { confirm } from '@inquirer/prompts';
-import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -11,7 +10,7 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AnnotatedEV5Transaction,
+  AnnotatedCosmJsNativeTransaction,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -25,6 +24,7 @@ import {
   EvmHookModule,
   EvmIsmModule,
   ExplorerLicenseType,
+  GroupedTransactions,
   HookConfig,
   HypERC20Deployer,
   HypERC20Factories,
@@ -153,7 +153,16 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
-  const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
+  const { deployedContracts, deployments } = await executeDeploy(
+    deploymentParams,
+    apiKeys,
+  );
+
+  await enrollCrossChainRouters(
+    { context, warpDeployConfig },
+    deployedContracts,
+    deployments,
+  );
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
@@ -218,7 +227,10 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
-): Promise<ChainMap<Address>> {
+): Promise<{
+  deployedContracts: ChainMap<Address>;
+  deployments: WarpCoreConfig;
+}> {
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
   const {
@@ -323,10 +335,8 @@ async function executeDeploy(
     ...warpCoreConfig.options,
   };
 
-  await enrollCrossChainRouters(params, deployedContracts, deployments);
-
   logGreen('✅ Warp contract deployments complete');
-  return deployedContracts;
+  return { deployedContracts, deployments };
 }
 
 async function writeDeploymentArtifacts(
@@ -655,16 +665,18 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+  const transactions = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
     updatedWarpCoreConfig,
   );
 
-  if (transactions.length == 0)
+  if (Object.keys(transactions).length === 0) {
     return logGreen(`Warp config is the same as target. No updates needed.`);
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+  }
+
+  await submitWarpApplyTransactions(params, transactions);
 }
 
 /**
@@ -689,7 +701,7 @@ async function deployWarpExtensionContracts(
     initialExtendedConfigs,
   );
 
-  const newDeployedContracts = await executeDeploy(
+  const { deployedContracts: newDeployedContracts } = await executeDeploy(
     {
       context: params.context,
       warpDeployConfig: extendedConfigs,
@@ -775,19 +787,11 @@ async function updateExistingWarpRoute(
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-) {
+): Promise<GroupedTransactions> {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
-  const registryAddresses =
-    (await registry.getAddresses()) as ChainMap<ChainAddresses>;
-  const ccipContractCache = new CCIPContractCache(registryAddresses);
-  const contractVerifier = new ContractVerifier(
-    multiProvider,
-    apiKeys,
-    coreBuildArtifact,
-    ExplorerLicenseType.MIT,
-  );
-  const transactions: AnnotatedEV5Transaction[] = [];
+
+  let protocolTransactions = {} as GroupedTransactions;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -799,41 +803,103 @@ async function updateExistingWarpRoute(
     deployedRoutersAddresses,
   });
 
+  const registryAddresses =
+    (await registry.getAddresses()) as ChainMap<ChainAddresses>;
+
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        logBlue(`Skipping non-EVM chain ${chain}`);
-        return;
-      }
+      const protocol = multiProvider.getProtocol(chain);
 
-      await retryAsync(async () => {
-        const deployedTokenRoute = deployedRoutersAddresses[chain];
-        assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
-        const configWithMailbox = {
-          ...config,
-          mailbox: registryAddresses[chain].mailbox,
-        };
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          await retryAsync(async () => {
+            const ccipContractCache = new CCIPContractCache(registryAddresses);
+            const contractVerifier = new ContractVerifier(
+              multiProvider,
+              apiKeys,
+              coreBuildArtifact,
+              ExplorerLicenseType.MIT,
+            );
 
-        const evmERC20WarpModule = new EvmERC20WarpModule(
-          multiProvider,
-          {
-            config: configWithMailbox,
-            chain,
-            addresses: {
-              deployedTokenRoute,
-              ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
+            const deployedTokenRoute = deployedRoutersAddresses[chain];
+            assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
+            const configWithMailbox = {
+              ...config,
+              mailbox: registryAddresses[chain].mailbox,
+            };
+
+            const evmERC20WarpModule = new EvmERC20WarpModule(
+              multiProvider,
+              {
+                config: configWithMailbox,
+                chain,
+                addresses: {
+                  deployedTokenRoute,
+                  ...extractIsmAndHookFactoryAddresses(
+                    registryAddresses[chain],
+                  ),
+                },
+              },
+              ccipContractCache,
+              contractVerifier,
+            );
+
+            const transactions =
+              await evmERC20WarpModule.update(configWithMailbox);
+
+            if (transactions.length) {
+              if (!protocolTransactions[ProtocolType.Ethereum]) {
+                protocolTransactions[ProtocolType.Ethereum] = {};
+              }
+
+              protocolTransactions[ProtocolType.Ethereum][chain] = transactions;
+            }
+          });
+          break;
+        }
+        case ProtocolType.CosmosNative: {
+          const deployedTokenRoute = deployedRoutersAddresses[chain];
+          assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
+          const configWithMailbox = {
+            ...config,
+            mailbox: registryAddresses[chain].mailbox,
+          };
+
+          const signer =
+            params.context.multiProtocolSigner!.getCosmosNativeSigner(chain);
+
+          const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+            multiProvider,
+            {
+              config: configWithMailbox,
+              chain,
+              addresses: {
+                deployedTokenRoute,
+              },
             },
-          },
-          ccipContractCache,
-          contractVerifier,
-        );
-        transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox)),
-        );
-      });
+            signer,
+          );
+
+          const transactions =
+            await cosmosNativeWarpModule.update(configWithMailbox);
+
+          if (transactions.length) {
+            if (!protocolTransactions[ProtocolType.CosmosNative]) {
+              protocolTransactions[ProtocolType.CosmosNative] = {};
+            }
+
+            protocolTransactions[ProtocolType.CosmosNative][chain] =
+              transactions;
+          }
+          break;
+        }
+        default: {
+          throw new Error(`Protocol type ${protocol} not supported`);
+        }
+      }
     }),
   );
-  return transactions;
+  return protocolTransactions;
 }
 
 /**
@@ -1034,38 +1100,72 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
  */
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
-  chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
+  protocolTransactions: GroupedTransactions,
 ): Promise<void> {
-  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
-  const chains = Object.keys(params.warpDeployConfig);
-  const chainIdToName = Object.fromEntries(
-    chains.map((chain) => [
-      params.context.multiProvider.getChainId(chain),
-      chain,
-    ]),
-  );
-
   await promiseObjAll(
-    objMap(chainTransactions, async (chainId, transactions) => {
+    objMap(protocolTransactions, async (protocol, chainTransactions) => {
       try {
         await retryAsync(
           async () => {
-            const chain = chainIdToName[chainId];
-            const submitter: TxSubmitterBuilder<ProtocolType> =
-              await getWarpApplySubmitter({
-                chain,
-                context: params.context,
-                strategyUrl: params.strategyUrl,
-              });
-            const transactionReceipts = await submitter.submit(...transactions);
-            if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${
-                submitter.txSubmitterType
-              }-${Date.now()}-receipts.json`;
-              writeYamlOrJson(receiptPath, transactionReceipts);
-              logGreen(
-                `Transactions receipts successfully written to ${receiptPath}`,
-              );
+            switch (protocol) {
+              case ProtocolType.Ethereum: {
+                for (const chain of Object.keys(chainTransactions)) {
+                  const submitter: TxSubmitterBuilder<ProtocolType> =
+                    await getWarpApplySubmitter({
+                      chain,
+                      context: params.context,
+                      strategyUrl: params.strategyUrl,
+                    });
+                  const transactionReceipts = await submitter.submit(
+                    ...chainTransactions[chain],
+                  );
+                  if (transactionReceipts) {
+                    const receiptPath = `${params.receiptsDir}/${chain}-${
+                      submitter.txSubmitterType
+                    }-${Date.now()}-receipts.json`;
+                    writeYamlOrJson(receiptPath, transactionReceipts);
+                    logGreen(
+                      `Transactions receipts successfully written to ${receiptPath}`,
+                    );
+                  }
+                }
+                break;
+              }
+              case ProtocolType.CosmosNative: {
+                for (const chain of Object.keys(chainTransactions)) {
+                  const signer =
+                    params.context.multiProtocolSigner!.getCosmosNativeSigner(
+                      chain,
+                    );
+
+                  const response = await signer.signAndBroadcast(
+                    signer.account.address,
+                    chainTransactions[
+                      chain
+                    ] as AnnotatedCosmJsNativeTransaction[],
+                    2,
+                  );
+
+                  assert(
+                    response.code === 0,
+                    `Transactions failed with status code ${response.code}`,
+                  );
+
+                  if (response) {
+                    const receiptPath = `${params.receiptsDir}/${chain}-${
+                      TxSubmitterType.JSON_RPC
+                    }-${Date.now()}-receipts.json`;
+                    writeYamlOrJson(receiptPath, response);
+                    logGreen(
+                      `Transactions receipts successfully written to ${receiptPath}`,
+                    );
+                  }
+                }
+                break;
+              }
+              default: {
+                throw new Error(`Protocol type ${protocol} not supported`);
+              }
             }
           },
           5, // attempts
@@ -1073,7 +1173,6 @@ async function submitWarpApplyTransactions(
         );
       } catch (e) {
         logBlue(`Error in submitWarpApplyTransactions`, e);
-        console.dir(transactions);
       }
     }),
   );
@@ -1140,6 +1239,8 @@ async function enrollCrossChainRouters(
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
 
+    let protocolTransactions = {} as GroupedTransactions;
+
     switch (protocol) {
       case ProtocolType.Ethereum: {
         const registryAddresses = await context.registry.getAddresses();
@@ -1185,16 +1286,9 @@ async function enrollCrossChainRouters(
         const transactions = await evmWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          const chainTransactions = groupBy(transactions, 'chainId');
-          await submitWarpApplyTransactions(
-            {
-              context,
-              warpDeployConfig,
-              warpCoreConfig: deployments,
-              receiptsDir: './generated/transactions',
-            },
-            chainTransactions,
-          );
+          protocolTransactions[ProtocolType.Ethereum] = {
+            [chain]: transactions,
+          };
         }
 
         break;
@@ -1232,16 +1326,9 @@ async function enrollCrossChainRouters(
           await cosmosNativeWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          const response = await signer.signAndBroadcast(
-            signer.account.address,
-            transactions,
-            2,
-          );
-
-          assert(
-            response.code === 0,
-            `Transactions failed with status code ${response.code}`,
-          );
+          protocolTransactions[ProtocolType.CosmosNative] = {
+            [chain]: transactions,
+          };
         }
 
         break;
