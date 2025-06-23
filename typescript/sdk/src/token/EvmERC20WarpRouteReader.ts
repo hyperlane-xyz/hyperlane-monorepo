@@ -666,8 +666,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       feeRecipient.owner(),
     ]);
 
+    const curves = Object.values(FeeCurve);
+    assert(feeType < curves.length, `Unknown fee type: ${feeType}`);
+
     return {
-      type: Object.values(FeeCurve)[feeType],
+      type: curves[feeType],
       maxFee: maxFee.toString(),
       halfAmount: halfAmount.toString(),
       owner,
