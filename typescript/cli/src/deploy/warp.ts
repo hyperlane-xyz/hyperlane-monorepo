@@ -17,6 +17,7 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  EVM_TOKEN_TYPE_TO_STANDARD,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -30,8 +31,6 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
-  SubmissionStrategySchema,
-  TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
@@ -294,7 +293,7 @@ function generateTokenConfigs(
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      standard: EVM_TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
       symbol: config.symbol || symbol,
       name,

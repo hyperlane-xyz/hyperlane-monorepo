@@ -585,16 +585,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    rometestnet2: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('rometestnet2'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e'],
-        },
-        'rometestnet2',
-      ),
-    },
     neuratestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('neuratestnet'),
