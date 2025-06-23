@@ -7,11 +7,13 @@ use axum::{
     routing::post,
     Router,
 };
-use dym_kas_core::deposit::{DepositFXG, ConfirmationFXG};
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, H256};
+use dym_kas_core::confirmation::ConfirmationFXG;
+use dym_kas_core::deposit::DepositFXG;
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use std::sync::Arc;
 
-use dym_kas_validator::deposit::{validate_deposits, validate_confirmed_withdrawals};
+use dym_kas_validator::deposit::{validate_confirmed_withdrawals, validate_deposits};
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
@@ -78,23 +80,13 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         return Err(AppError(eyre::eyre!("Invalid deposit")));
     }
 
-    let message_id = H256::random(); // TODO: extract from FXG
-    let domain = 1; // TODO: extract from FXG
-
-    let zero_array = [0u8; 32];
-    let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
-        checkpoint: Checkpoint {
-            mailbox_domain: domain,
-            merkle_tree_hook_address: H256::from_slice(&zero_array),
-            root: H256::from_slice(&zero_array),
-            index: 0,
-        },
-        message_id,
-    };
+    let progress_indication = ProgressIndication::default(); // TODO: get from fxg
 
     let sig = state
-        .signer
-        .sign(to_sign) // TODO: need to lock first?
+        .signer // TODO: need to lock?
+        .sign(SignableProgressIndication {
+            progress_indication,
+        })
         .await
         .map_err(|e| AppError(e.into()))?;
 
@@ -102,6 +94,18 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
 
     Ok(Json(j))
+}
+
+struct SignableProgressIndication {
+    progress_indication: ProgressIndication,
+}
+
+impl Signable for SignableProgressIndication {
+    fn signing_hash(&self) -> H256 {
+        // see bytes derivation https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76
+        let signable: [u8; 32] = [0; 32]; // TODO: for real
+    }
+    fn eth_signed_message_hash(&self) -> H256 {}
 }
 
 /// Allows automatic error mapping

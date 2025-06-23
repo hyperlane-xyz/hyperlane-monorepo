@@ -3709,8 +3709,8 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
- "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -6170,19 +6170,6 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "url",
-]
-
-[[package]]
-name = "hyperlane-cosmos-rs"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc98aea32657307552b9e58d53d2af8de83cda7f99ce8ea1daa8884221feba46"
-dependencies = [
- "cosmrs",
- "prost 0.13.4",
- "serde",
- "tendermint-proto",
- "tonic 0.12.3",
 ]
 
 [[package]]
