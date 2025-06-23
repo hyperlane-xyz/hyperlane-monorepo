@@ -3,7 +3,7 @@ import { ESLint } from 'eslint';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
@@ -51,7 +51,8 @@ async function main() {
     });
 
     try {
-      registry.addWarpRouteConfig(yamlParse(results[0].output!), {
+      assert(results[0].output, 'No output from ESLint');
+      registry.addWarpRouteConfig(yamlParse(results[0].output), {
         warpRouteId,
       });
     } catch (error) {
