@@ -220,7 +220,7 @@ where
     ) -> ChainResult<(Vec<usize>, Vec<usize>)> {
         let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
         let contract_calls = self.create_contract_calls(precursors);
-        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls.clone());
+        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
         let call_results = multicall_contract_call.call().await?;
 
         Ok(multicall::filter(call_results))
