@@ -11,6 +11,7 @@ use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::deposit::DepositFXG;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 
 use dym_kas_validator::deposit::{validate_confirmed_withdrawals, validate_deposits};
@@ -103,11 +104,10 @@ struct SignableProgressIndication {
 impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
         // see bytes derivation https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76
+        // see checkpoint example https://github.com/dymensionxyz/hyperlane-monorepo/blob/b372a9062d8cc6de604c32cc0ba200337707c350/rust/main/hyperlane-core/src/types/checkpoint.rs#L35
         let signable: [u8; 32] = [0; 32]; // TODO: use protobuf marshal
-        H256::from_slice(&signable)
-    }
-    fn eth_signed_message_hash(&self) -> H256 {
-        unimplemented!()
+
+        H256::from_slice(Keccak256::new().chain(signable).finalize().as_slice())
     }
 }
 

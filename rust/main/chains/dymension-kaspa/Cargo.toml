@@ -26,6 +26,7 @@ ripemd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+sha3 = { workspace = true }
 sha256 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
 tendermint-rpc = { workspace = true }

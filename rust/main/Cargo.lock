@@ -3726,6 +3726,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sha256",
+ "sha3 0.10.8",
  "tendermint",
  "tendermint-rpc",
  "thiserror 1.0.63",
