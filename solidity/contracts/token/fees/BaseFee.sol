@@ -19,15 +19,14 @@ abstract contract BaseFee is Ownable, ITokenFee {
     constructor(
         uint256 _maxFee,
         uint256 _halfAmount,
-        address beneficiary
+        address _owner
     ) Ownable() {
         maxFee = _maxFee;
         halfAmount = _halfAmount;
-        _transferOwnership(beneficiary);
+        _transferOwnership(_owner);
     }
 
-    function claim(address token) external {
-        address beneficiary = owner();
+    function claim(address token, address beneficiary) external onlyOwner {
         payable(beneficiary).transfer(address(this).balance);
         if (token != address(0)) {
             uint256 balance = IERC20(token).balanceOf(address(this));

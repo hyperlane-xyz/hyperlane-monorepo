@@ -13,14 +13,12 @@ import {RegressiveFee} from "../../contracts/token/fees/RegressiveFee.sol";
 
 abstract contract BaseFeeTest is Test {
     BaseFee public feeContract;
-    address internal constant BENEFICIARY = address(0x123);
+    address internal constant OWNER = address(0x123);
+    address internal constant BENEFICIARY = address(0x456);
 
     function setUp() public virtual {
+        vm.label(OWNER, "Owner");
         vm.label(BENEFICIARY, "Beneficiary");
-    }
-
-    function test_OwnerIsBeneficiary() public {
-        assertEq(feeContract.owner(), BENEFICIARY);
     }
 
     function test_Claim() public {
@@ -29,8 +27,8 @@ abstract contract BaseFeeTest is Test {
         vm.deal(address(feeContract), nativeAmount);
 
         uint256 beneficiaryNativeBalanceBefore = BENEFICIARY.balance;
-        vm.prank(BENEFICIARY);
-        feeContract.claim(address(0)); // address(0) for native
+        vm.prank(OWNER);
+        feeContract.claim(address(0), BENEFICIARY); // address(0) for native
         uint256 beneficiaryNativeBalanceAfter = BENEFICIARY.balance;
 
         assertEq(
@@ -50,8 +48,8 @@ abstract contract BaseFeeTest is Test {
         token.mintTo(address(feeContract), erc20Amount);
 
         uint256 beneficiaryErc20BalanceBefore = token.balanceOf(BENEFICIARY);
-        vm.prank(BENEFICIARY);
-        feeContract.claim(address(token));
+        vm.prank(OWNER);
+        feeContract.claim(address(token), BENEFICIARY);
         uint256 beneficiaryErc20BalanceAfter = token.balanceOf(BENEFICIARY);
 
         assertEq(
@@ -78,7 +76,7 @@ contract LinearFeeTest is BaseFeeTest {
         feeContract = new LinearFee(
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
-            BENEFICIARY
+            OWNER
         );
     }
 
@@ -93,11 +91,7 @@ contract LinearFeeTest is BaseFeeTest {
     ) public {
         vm.assume(halfAmount > 0);
 
-        LinearFee localLinearFee = new LinearFee(
-            maxFee,
-            halfAmount,
-            BENEFICIARY
-        );
+        LinearFee localLinearFee = new LinearFee(maxFee, halfAmount, OWNER);
 
         uint256 uncapped = (uint256(amount) * maxFee) / halfAmount;
         uint256 expectedFee = uncapped > maxFee ? maxFee : uncapped;
@@ -128,7 +122,7 @@ contract ProgressiveFeeTest is BaseFeeTest {
         feeContract = new ProgressiveFee(
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
-            BENEFICIARY
+            OWNER
         );
     }
 
@@ -152,7 +146,7 @@ contract ProgressiveFeeTest is BaseFeeTest {
         ProgressiveFee localProgressiveFee = new ProgressiveFee(
             maxFee,
             halfAmount,
-            BENEFICIARY
+            OWNER
         );
 
         uint256 expectedFee = (uint256(maxFee) * amountSq) /
@@ -177,7 +171,7 @@ contract RegressiveFeeTest is BaseFeeTest {
         feeContract = new RegressiveFee(
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
-            BENEFICIARY
+            OWNER
         );
     }
 
@@ -196,7 +190,7 @@ contract RegressiveFeeTest is BaseFeeTest {
         RegressiveFee localRegressiveFee = new RegressiveFee(
             maxFee,
             halfAmount,
-            BENEFICIARY
+            OWNER
         );
 
         uint256 expectedFee = (uint256(maxFee) * amount) /
