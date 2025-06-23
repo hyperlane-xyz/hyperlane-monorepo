@@ -1,5 +1,6 @@
 use cosmrs::Any;
 use hex::ToHex;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
@@ -185,5 +186,24 @@ impl Mailbox for CosmosNativeMailbox {
 
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
+    }
+}
+
+/// DYMENSION: required for Kaspa bridge, a special indicate progress TX
+/// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L29
+impl CosmosNativeMailbox {
+    /// atomically update the hub with a new outpoint anchor and set of completed withdrawals
+    pub fn indicate_progress(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+        u: ProgressIndication,
+    ) -> ChainResult<TxOutcome> {
+        let msg = MsgIndicateProgress {
+            signer: self.address.encode_hex(),
+            metadata: metadata.to_vec().into(),
+            payload: Some(u),
+        };
+        unimplemented!()
     }
 }

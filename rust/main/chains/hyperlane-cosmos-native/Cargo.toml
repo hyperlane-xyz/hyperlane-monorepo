@@ -43,7 +43,10 @@ pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
-hyperlane-cosmos-rs = "0.1.4"
+# hyperlane-cosmos-rs = "0.1.4" DYMENSION: CHANGED to our fork
+# hyperlane-cosmos-dymension-rs = "0.1.4-dymension-v3.2.1" # it would be nice if we could avoid this import
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs" }
+
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

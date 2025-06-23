@@ -5988,7 +5988,7 @@ dependencies = [
  "futures-util",
  "hyperlane-core",
  "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-fuel",
@@ -6134,6 +6134,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-cosmos-dymension-rs"
+version = "0.1.4-dymension-v3.2.1"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs#2c9cdd73943021b5bb02299fa95b93da4e2b40a5"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
+]
+
+[[package]]
 name = "hyperlane-cosmos-native"
 version = "0.1.0"
 dependencies = [
@@ -6149,7 +6161,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (git+https://github.com/dymensionxyz/hyperlane-cosmos-rs)",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "itertools 0.13.0",
