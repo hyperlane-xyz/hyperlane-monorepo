@@ -302,25 +302,18 @@ impl AdaptsChain for EthereumAdapter {
             return Ok(vec![]);
         }
 
+        // Batching case, simulate batch
+
         info!(?tx, "simulating transaction with batching");
 
-        // Batching case, simulate batch
-        let payloads = self.load_payloads(tx).await?;
-        let precursors = self
-            .create_precursors(&payloads)
-            .into_iter()
-            .map(|precursor| (precursor.tx, precursor.function))
-            .collect::<Vec<_>>();
+        let precursor = tx.precursor().clone();
 
         let (successful, failed) = self
             .provider
-            .simulate(
-                self.batch_cache.clone(),
-                self.batch_contract_address,
-                precursors.clone(),
-            )
+            .simulate((precursor.tx, precursor.function))
             .await?;
 
+        let payloads = self.load_payloads(tx).await?;
         let payloads_successful = Self::filter(&payloads, successful);
         let payloads_details_failed = Self::filter(&tx.payload_details, failed);
 

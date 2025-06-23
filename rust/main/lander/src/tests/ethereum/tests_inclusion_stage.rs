@@ -169,19 +169,17 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
     let mut simulate_call_counter = 0;
-    mock_evm_provider
-        .expect_simulate()
-        .returning(move |_, _, _| {
-            simulate_call_counter += 1;
-            // simulation passes on the first call, but fails on the second
-            if simulate_call_counter < 2 {
-                Ok((vec![], vec![]))
-            } else {
-                Err(ChainCommunicationError::CustomError(
-                    "transaction simulation failed".to_string(),
-                ))
-            }
-        });
+    mock_evm_provider.expect_simulate().returning(move |_| {
+        simulate_call_counter += 1;
+        // simulation passes on the first call, but fails on the second
+        if simulate_call_counter < 2 {
+            Ok((vec![], vec![]))
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "transaction simulation failed".to_string(),
+            ))
+        }
+    });
     let mut estimate_gas_call_counter = 0;
     mock_evm_provider
         .expect_estimate_gas_limit()

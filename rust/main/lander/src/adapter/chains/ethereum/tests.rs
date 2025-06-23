@@ -54,9 +54,7 @@ mockall::mock! {
 
         async fn simulate(
             &self,
-            cache: Arc<tokio::sync::Mutex<BatchCache>>,
-            batch_contract_address: H256,
-            precursors: Vec<(TypedTransaction, Function)>,
+            multi_precursor: (TypedTransaction, Function),
         ) -> ChainResult<(Vec<usize>, Vec<usize>)>;
 
         async fn estimate_batch(
