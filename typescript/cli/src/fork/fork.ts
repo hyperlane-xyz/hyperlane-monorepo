@@ -57,7 +57,7 @@ export async function runForkCommand({
     forkConfig,
     readYamlOrJson,
   );
-  const chainMetadata: ChainMap<{ rpcUrls: { http: string }[] }> = {};
+  const chainMetadataOverrides: ChainMap<{ rpcUrls: { http: string }[] }> = {};
   for (const chainName of filteredChainsToFork) {
     const endpoint = await forkChain(
       context.multiProvider,
@@ -66,13 +66,16 @@ export async function runForkCommand({
       kill,
       parsedForkConfig[chainName],
     );
-    chainMetadata[chainName] = { rpcUrls: [{ http: endpoint }] };
+    chainMetadataOverrides[chainName] = { rpcUrls: [{ http: endpoint }] };
 
     port++;
   }
 
   const mergedRegistry = new MergedRegistry({
-    registries: [registry, new PartialRegistry({ chainMetadata })],
+    registries: [
+      registry,
+      new PartialRegistry({ chainMetadata: chainMetadataOverrides }),
+    ],
   });
   const httpRegistryServer = new HttpServer(async () => mergedRegistry);
   const httpServerPort = basePort - 10;
