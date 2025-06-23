@@ -135,7 +135,7 @@ where
         logs
     }
 
-    // TODO: why is it a loop?
+    // TODO: not used yet, and why would it be a loop?
     pub fn run_confirmation_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
         let name = "dymension_kaspa_confirmation_loop";
         tokio::task::Builder::new()
@@ -158,14 +158,14 @@ where
 
     // TODO: this is a workaround for now because Michael works on the calling of it
     /*
-    - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
-    - [ ] Relayer will need to reach out to validators to gather the signatures over the progress indication
+    - [x] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
+    - [x] Relayer will need to reach out to validators to gather the signatures over the progress indication
     - [ ] Validator will need endpoint
     - [ ] Validator will need to call VERIFY
     - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
     - [ ] Validator will need to sign appropriately
     - [ ] Validator return
-    - [ ] Relayer post to hub
+    - [x] Relayer post to hub
         */
     // needs to satisfy
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48

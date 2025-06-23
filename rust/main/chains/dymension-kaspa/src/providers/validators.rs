@@ -81,8 +81,33 @@ impl ValidatorsClient {
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-        // TODO: impl, maybe need to change return type
-        unimplemented!()
+        // map validator addr to sig(s)
+        // TODO: in parallel
+        let mut results = Vec::new();
+        for (host, validator_id) in self
+            .conf
+            .validator_hosts
+            .clone()
+            .into_iter()
+            .zip(self.conf.validator_ids.clone().into_iter())
+        {
+            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let res = request_validate_new_deposits(host, fxg).await;
+            match res {
+                Ok(r) => match r {
+                    Some(sig) => {
+                        results.push(sig);
+                    }
+                    None => {
+                        // TODO: log
+                    }
+                },
+                Err(_e) => {
+                    // TODO: log error
+                }
+            }
+        }
+        Ok(results)
     }
 
     pub fn multisig_threshold_hub_ism(&self) -> usize {
@@ -115,4 +140,23 @@ pub async fn request_validate_new_deposits(
     }
 }
 
-// TODO: impl confirmation sig, mimic https://github.com/dymensionxyz/dymension/blob/6dfedd4126df6fa332ef95c750d2375c65e655ce/x/kas/keeper/msg_server.go#L42-L48
+pub async fn request_validate_new_confirmation(
+    host: String,
+    confirmation: &ConfirmationFXG,
+) -> Result<Option<SignedCheckpointWithMessageId>> {
+    let bz = Bytes::from(confirmation);
+    let c = reqwest::Client::new();
+    let res = c
+        .post(format!("{}{}", host, ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS))
+        .body(bz)
+        .send()
+        .await?;
+
+    let status = res.status();
+    if status == StatusCode::OK {
+        let body = res.json::<SignedCheckpointWithMessageId>().await?;
+        Ok(Some(body))
+    } else {
+        Err(eyre::eyre!("Failed to validate deposits: {}", status))
+    }
+}
