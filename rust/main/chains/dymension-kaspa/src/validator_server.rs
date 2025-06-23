@@ -103,9 +103,12 @@ struct SignableProgressIndication {
 impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
         // see bytes derivation https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76
-        let signable: [u8; 32] = [0; 32]; // TODO: for real
+        let signable: [u8; 32] = [0; 32]; // TODO: use protobuf marshal
+        H256::from_slice(&signable)
     }
-    fn eth_signed_message_hash(&self) -> H256 {}
+    fn eth_signed_message_hash(&self) -> H256 {
+        unimplemented!()
+    }
 }
 
 /// Allows automatic error mapping
