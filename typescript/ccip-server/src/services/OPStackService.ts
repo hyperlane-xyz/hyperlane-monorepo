@@ -1,38 +1,68 @@
 import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
-import {
-  CoreCrossChainMessage,
-  CrossChainMessenger,
-  DeepPartial,
-  OEContractsLike,
-} from '@eth-optimism/sdk';
+import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
+import { Router } from 'express';
+import { z } from 'zod';
 
+import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
+
+import { createAbiHandler } from '../utils/abiHandler.js';
+
+import { BaseService } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
-type RPCConfig = {
-  readonly url: string;
-  readonly chainId: string;
-};
-
-type HyperlaneConfig = {
-  readonly url: string;
-};
+const EnvSchema = z.object({
+  HYPERLANE_EXPLORER_API: z.string().url(),
+  RPC_ADDRESS: z.string().url(),
+  CHAIN_ID: z.string(),
+  L2_RPC_ADDRESS: z.string().url(),
+  L2_CHAIN_ID: z.string(),
+  L1_ADDRESS_MANAGER: z.string(),
+  L1_CROSS_DOMAIN_MESSENGER: z.string(),
+  L1_STANDARD_BRIDGE: z.string(),
+  L1_STATE_COMMITMENT_CHAIN: z.string(),
+  L1_CANONICAL_TRANSACTION_CHAIN: z.string(),
+  L1_BOND_MANAGER: z.string(),
+  L1_OPTIMISM_PORTAL: z.string(),
+  L2_OUTPUT_ORACLE: z.string(),
+});
 
 // Service that requests proofs from Succinct and RPC Provider
-class OPStackService {
+export class OPStackService extends BaseService {
   // External Services
   crossChainMessenger: CrossChainMessenger;
   l1RpcService: RPCService;
   l2RpcService: RPCService;
   hyperlaneService: HyperlaneService;
+  public readonly router: Router;
 
-  constructor(
-    hyperlaneConfig: Required<HyperlaneConfig>,
-    l1RpcConfig: Required<RPCConfig>,
-    l2RpcConfig: Required<RPCConfig>,
-    opContracts?: DeepPartial<OEContractsLike>,
-  ) {
+  constructor() {
+    super();
+    const env = EnvSchema.parse(process.env);
+    // Read configs from environment
+    const hyperlaneConfig = { url: env.HYPERLANE_EXPLORER_API };
+    const l1RpcConfig = {
+      url: env.RPC_ADDRESS,
+      chainId: env.CHAIN_ID,
+    };
+    const l2RpcConfig = {
+      url: env.L2_RPC_ADDRESS,
+      chainId: env.L2_CHAIN_ID,
+    };
+    const opContracts = {
+      l1: {
+        AddressManager: env.L1_ADDRESS_MANAGER,
+        L1CrossDomainMessenger: env.L1_CROSS_DOMAIN_MESSENGER,
+        L1StandardBridge: env.L1_STANDARD_BRIDGE,
+        StateCommitmentChain: env.L1_STATE_COMMITMENT_CHAIN,
+        CanonicalTransactionChain: env.L1_CANONICAL_TRANSACTION_CHAIN,
+        BondManager: env.L1_BOND_MANAGER,
+        OptimismPortal: env.L1_OPTIMISM_PORTAL,
+        L2OutputOracle: env.L2_OUTPUT_ORACLE,
+      },
+    };
+
     this.crossChainMessenger = new CrossChainMessenger({
       bedrock: true,
       l1ChainId: l1RpcConfig.chainId,
@@ -46,6 +76,50 @@ class OPStackService {
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
     this.l1RpcService = new RPCService(l1RpcConfig.url);
     this.l2RpcService = new RPCService(l2RpcConfig.url);
+    this.router = Router();
+    // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
+    this.router.get(
+      '/getWithdrawalProof/:sender/:callData.json',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getWithdrawalProof
+    this.router.post(
+      '/getWithdrawalProof',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: GET /getFinalizeWithdrawalTx/:sender/:callData.json
+    this.router.get(
+      '/getFinalizeWithdrawalTx/:sender/:callData.json',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getFinalizeWithdrawalTx
+    this.router.post(
+      '/getFinalizeWithdrawalTx',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
+  }
+
+  static initialize(): Promise<BaseService> {
+    return Promise.resolve(new OPStackService());
   }
 
   async getWithdrawalTransactionFromReceipt(
@@ -146,5 +220,3 @@ class OPStackService {
     throw new Error('Proof is not ready');
   }
 }
-
-export { OPStackService };

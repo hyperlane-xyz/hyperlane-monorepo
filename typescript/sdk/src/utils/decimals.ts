@@ -1,22 +1,34 @@
-import {
-  HypTokenRouterVirtualConfig,
-  WarpRouteDeployConfigMailboxRequired,
-} from '@hyperlane-xyz/sdk';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
-import { TokenMetadata } from '../token/types.js';
+import {
+  TokenMetadata,
+  WarpRouteDeployConfigMailboxRequired,
+} from '../token/types.js';
+import { ChainMap } from '../types.js';
 
 export function verifyScale(
-  configMap:
-    | Map<string, TokenMetadata>
-    | WarpRouteDeployConfigMailboxRequired
-    | Record<string, Partial<HypTokenRouterVirtualConfig>>,
+  configMap: Map<string, TokenMetadata> | WarpRouteDeployConfigMailboxRequired,
 ): boolean {
-  if (!areDecimalsUniform(configMap)) {
+  const chainDecimalConfigPairs =
+    configMap instanceof Map
+      ? Object.fromEntries(configMap.entries())
+      : configMap;
+  const decimalsByChain: ChainMap<{ decimals: number; scale?: number }> =
+    objMap(chainDecimalConfigPairs, (chain, config) => {
+      assert(
+        config.decimals,
+        `Decimals must be defined for token config on chain ${chain}`,
+      );
+
+      return { decimals: config.decimals, scale: config.scale };
+    });
+
+  if (!areDecimalsUniform(decimalsByChain)) {
     const maxDecimals = Math.max(
-      ...Object.values(configMap).map((config) => config.decimals!),
+      ...Object.values(decimalsByChain).map((config) => config.decimals!),
     );
 
-    for (const [_, config] of Object.entries(configMap)) {
+    for (const [_, config] of Object.entries(decimalsByChain)) {
       if (config.decimals) {
         const calculatedScale = 10 ** (maxDecimals - config.decimals);
         if (
@@ -32,10 +44,7 @@ export function verifyScale(
 }
 
 function areDecimalsUniform(
-  configMap:
-    | Map<string, TokenMetadata>
-    | WarpRouteDeployConfigMailboxRequired
-    | Record<string, Partial<HypTokenRouterVirtualConfig>>,
+  configMap: ChainMap<{ decimals: number; scale?: number }>,
 ): boolean {
   const values = [...Object.values(configMap)];
   const [first, ...rest] = values;

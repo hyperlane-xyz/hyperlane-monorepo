@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "5.0",
+    "amount": "4.0",
     "decimals": 9
   },
   "everclear": {
@@ -448,6 +448,10 @@
     "decimals": 9
   },
   "solanamainnet": {
+    "amount": "0.5",
+    "decimals": 1
+  },
+  "solaxy": {
     "amount": "0.5",
     "decimals": 1
   },

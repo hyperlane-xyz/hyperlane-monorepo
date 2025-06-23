@@ -13,6 +13,7 @@ use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
 
+use super::super::metrics::EthereumAdapterMetrics;
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
 use super::state::{NonceAction, NonceManagerState};
@@ -30,6 +31,7 @@ impl NonceManager {
         chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
         provider: Arc<dyn EvmProviderForLander>,
+        metrics: EthereumAdapterMetrics,
     ) -> eyre::Result<Self> {
         let address = Self::address(chain_conf).await?;
         let reorg_period = EthereumReorgPeriod::try_from(&chain_conf.reorg_period)?;
@@ -37,7 +39,7 @@ impl NonceManager {
 
         let nonce_db = db.clone() as Arc<dyn NonceDb>;
         let tx_db = db.clone() as Arc<dyn TransactionDb>;
-        let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address));
+        let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
         let nonce_updater =
             NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
@@ -69,7 +71,7 @@ impl NonceManager {
         }
 
         self.nonce_updater
-            .update()
+            .update_boundaries()
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
