@@ -21,28 +21,46 @@ use api_rs::apis::{
 
 
 
-/// Trace transactions from a starting transaction ID to a target transaction ID,
-/// collecting payloads along the way.
+/// Prepare a progress indication for the Hub x/kas module
+/// This function traces back from a new UTXO to the old UTXO and collects
+/// all withdrawal payloads that were processed in between.
 /// 
 /// # Arguments
 /// * `config` - The Kaspa API client configuration for querying transactions
+/// * `cosmos_provider` - The Cosmos provider for querying Hub state
 /// * `addr` - The address of the UTXO
-/// * `start_tx_id` - The transaction ID to start tracing from
-/// * `target_tx_id` - The transaction ID to trace to
-/// * `start_output_index` - The output index in the starting transaction (usually 0 for anchor UTXO)
+/// * `new_utxo_transaction_id` - The transaction ID of the new UTXO to trace from
 /// 
 /// # Returns
-/// * `Result<Vec<Vec<u8>>, Error>` - Vector of collected payloads from the transactions
-async fn trace_transactions(
+/// * `Result<ProgressIndication, Error>` - The progress indication with old and new outpoints
+///   and a list of processed withdrawal IDs
+pub async fn prepare_progress_indication(
     config: &Configuration,
+    // cosmos_provider: &CosmosNativeProvider,
+    // addr: Address,
+    anchor_utxo: TransactionOutpoint,
     new_utxo: TransactionOutpoint,
-    current_anchor_utxo: TransactionOutpoint,
-) -> Result<Vec<Vec<u8>>, Error> {
-    
-    println!("Starting transaction trace from {:?} to {:?}", 
-    new_utxo, current_anchor_utxo);
-    
-    
+) -> Result<ProgressIndication, Error> {
+    println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
+
+    /*
+    // DISABLED, assumed to be supplied by the caller
+
+    // Step 1: Query the old_outpoint using the cosmos_provider
+    println!("Step 1: Querying old outpoint from Hub x/kas module...");
+    let old_outpoint_response = cosmos_provider
+        .grpc()
+        .outpoint(None)
+        .await
+        .map_err(|e| {
+            let error_msg = format!("Failed to query outpoint from x/kas module: {}", e);
+            println!("Error: {}", error_msg);
+            Error::Custom(error_msg)
+        })?;
+        // TODO: add validation that the old outpoint is valid?
+        println!("Old outpoint retrieved: {:?}", old_outpoint);
+    */
+
 
 
     // FIXME: validate new_utxo and current_utxo transaction
@@ -51,7 +69,64 @@ async fn trace_transactions(
     
     
     
-    let mut processed_withdrawals_payload: Vec<Vec<u8>> = Vec::new();
+
+    // Trace transactions from the new UTXO back to the old one.
+    println!("Tracing transactions to extract withdrawal IDs...");
+    let processed_withdrawals: Vec<WithdrawalId> = trace_transactions(
+        config,
+        new_utxo,
+        anchor_utxo
+    ).await?;
+    println!("Extracted {} withdrawal IDs from payloads", processed_withdrawals.len());
+
+
+    // Create new outpoint for the progress indication
+    let new_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+        transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
+        index: new_utxo.index,
+    });
+    let anchor_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+        transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
+        index: anchor_utxo.index,
+    });
+
+    let progress_indication = ProgressIndication {
+        old_outpoint: anchor_outpoint_indication,
+        new_outpoint: new_outpoint_indication,
+        processed_withdrawals,
+    };
+
+    println!("ProgressIndication: {:?}", progress_indication);
+
+    Ok(progress_indication)
+}
+
+
+
+
+/// Trace transactions from a starting transaction ID to a target transaction ID,
+/// collecting payloads along the way.
+/// 
+/// # Arguments
+/// * `config` - The Kaspa API client configuration for querying transactions
+/// * `new_utxo` - The transaction ID to start tracing from
+/// * `current_anchor_utxo` - The transaction ID to trace to
+/// 
+/// # Returns
+/// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
+async fn trace_transactions(
+    config: &Configuration,
+    new_utxo: TransactionOutpoint,
+    current_anchor_utxo: TransactionOutpoint,
+) -> Result<Vec<WithdrawalId>, Error> {
+    
+    println!("Starting transaction trace from {:?} to {:?}", 
+    new_utxo, current_anchor_utxo);
+    
+    
+
+    
+    let mut processed_withdrawals: Vec<WithdrawalId> = Vec::new();
     let mut current_utxo = new_utxo;
     let mut step = 0;
     let max_steps = 10;
@@ -59,9 +134,7 @@ async fn trace_transactions(
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
-            let error_msg = "Exceeded maximum number of steps in transaction trace".to_string();
-            println!("Error: {}", error_msg);
-            return Err(Error::Custom(error_msg));
+            return Err(Error::Custom("Exceeded maximum number of steps in transaction trace".to_string()));
         }
 
         println!("Processing step {}: UTXO {:?}", step, current_utxo);
@@ -82,7 +155,8 @@ async fn trace_transactions(
         // Extract payload from transaction
         if let Some(payload) = transaction.payload {
             println!("Found payload in transaction: {:?}", payload);
-            processed_withdrawals_payload.push(payload.into_bytes());
+            // FIXME: encoding logic
+            processed_withdrawals.push(payload.into_bytes());
         } else {
             return Err(Error::Custom("No payload found in transaction".to_string()));
         }
@@ -131,86 +205,12 @@ async fn trace_transactions(
     }
 
     println!("Trace completed. Found {} transactions with payloads in {} steps", 
-             processed_withdrawals_payload.len(), step);
-    Ok(processed_withdrawals_payload)
+             processed_withdrawals.len(), step);
+    Ok(processed_withdrawals)
 }
 
-/// Prepare a progress indication for the Hub x/kas module
-/// This function traces back from a new UTXO to the old UTXO and collects
-/// all withdrawal payloads that were processed in between.
-/// 
-/// # Arguments
-/// * `config` - The Kaspa API client configuration for querying transactions
-/// * `cosmos_provider` - The Cosmos provider for querying Hub state
-/// * `addr` - The address of the UTXO
-/// * `new_utxo_transaction_id` - The transaction ID of the new UTXO to trace from
-/// 
-/// # Returns
-/// * `Result<ProgressIndication, Error>` - The progress indication with old and new outpoints
-///   and a list of processed withdrawal IDs
-pub async fn prepare_progress_indication(
-    config: &Configuration,
-    // cosmos_provider: &CosmosNativeProvider,
-    // addr: Address,
-    anchor_utxo: TransactionOutpoint,
-    new_utxo: TransactionOutpoint,
-) -> Result<ProgressIndication, Error> {
-    println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
 
-    /*
-    // DISABLED, assumed to be supplied by the caller
 
-    // Step 1: Query the old_outpoint using the cosmos_provider
-    println!("Step 1: Querying old outpoint from Hub x/kas module...");
-    let old_outpoint_response = cosmos_provider
-        .grpc()
-        .outpoint(None)
-        .await
-        .map_err(|e| {
-            let error_msg = format!("Failed to query outpoint from x/kas module: {}", e);
-            println!("Error: {}", error_msg);
-            Error::Custom(error_msg)
-        })?;
-        // TODO: add validation that the old outpoint is valid?
-        println!("Old outpoint retrieved: {:?}", old_outpoint);
-    */
-    
-
-    // Step 2: Trace transactions from the new UTXO back to the old one.
-    let processed_withdrawals_payload = trace_transactions(
-        config,
-        new_utxo,
-        anchor_utxo
-    ).await?;
-
-    // Step 3: Parse payloads to extract withdrawal IDs
-    println!("Step 3: Parsing payloads to extract withdrawal IDs...");
-    let processed_withdrawals: Vec<WithdrawalId> = parse_withdrawal_payloads(&processed_withdrawals_payload)?;
-    println!("Extracted {} withdrawal IDs from payloads", processed_withdrawals.len());
-
-    // Step 4: Create new outpoint for the progress indication
-    let new_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-        transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
-        index: new_utxo.index,
-    });
-    let anchor_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-        transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
-        index: anchor_utxo.index,
-    });
-
-    // Step 5: Create and return the ProgressIndication struct
-    println!("Step 5: Creating ProgressIndication struct...");
-    let progress_indication = ProgressIndication {
-        old_outpoint: anchor_outpoint_indication,
-        new_outpoint: new_outpoint_indication,
-        processed_withdrawals,
-    };
-
-    println!("Progress indication preparation completed successfully!");
-    println!("ProgressIndication: {:?}", progress_indication);
-
-    Ok(progress_indication)
-}
 
 /// Parse withdrawal payloads to extract withdrawal IDs
 /// This function takes the raw payload data and extracts the withdrawal IDs
@@ -221,7 +221,7 @@ pub async fn prepare_progress_indication(
 /// 
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of parsed withdrawal IDs
-fn parse_withdrawal_payloads(payloads: &[Vec<u8>]) -> Result<Vec<WithdrawalId>, Error> {
+fn parse_withdrawal_payload(payloads: &[Vec<u8>]) -> Result<Vec<WithdrawalId>, Error> {
     let mut withdrawal_ids: Vec<WithdrawalId> = Vec::new();
 
     for (index, payload) in payloads.iter().enumerate() {
