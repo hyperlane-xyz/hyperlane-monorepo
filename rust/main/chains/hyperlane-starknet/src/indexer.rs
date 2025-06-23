@@ -256,6 +256,17 @@ async fn fetch_logs_in_range<T>(
 where
     T: std::fmt::Debug,
 {
+    // sanity check the range, because the provider doesn't return an error if the range is invalid
+    // and only returns an empty list
+    let current_block = get_block_height_u32(provider, &ReorgPeriod::None).await?;
+    if *range.start() > current_block || *range.end() > current_block {
+        return Err(HyperlaneStarknetError::Other(format!(
+            "range {:?} is not valid for current block {}",
+            range, current_block
+        ))
+        .into());
+    }
+
     let key = get_selector_from_name(key)
         .map_err(|_| HyperlaneStarknetError::from_other("get selector cannot fail"))?;
 
