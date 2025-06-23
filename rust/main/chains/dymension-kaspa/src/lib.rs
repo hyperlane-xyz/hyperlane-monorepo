@@ -29,5 +29,5 @@ mod validator_server;
 
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::validator_server::*, self::validator_announce::*,
+    self::providers::*, self::validator_announce::*, self::validator_server::*,
 };
