@@ -5,7 +5,6 @@ import {
   AggregationIsmConfig,
   ChainMap,
   ChainName,
-  EvmHookModule,
   EvmHookReader,
   HookConfig,
   HookType,
@@ -16,7 +15,6 @@ import {
   RoutingIsmConfig,
   TokenType,
   buildAggregationIsmConfigs,
-  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -85,17 +83,16 @@ export async function getRenzoLegacyHook(params: {
 }
 
 /**
- * For EZETH, which uses the default hook and protocolFee addresses (except for blast)
+ * For EZETH, which uses the DefaultHook config and protocolFee addresses (except for blast)
  *
  * hook:
  *   hooks:
- *    - "0x68a3963D2fE3427cfD044806B40AF41feCaae845"
+ *    - type: HookType.MAILBOX_DEFAULT
  *    - "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
  */
 const OUTBOUND_ONLY_CHAIN = 'blast';
 export async function getRenzoHook(params: {
   multiProvider: MultiProvider;
-  defaultHookAddress: Address;
   origin: ChainName;
   destinationChains: ChainName[];
   owner: Address;
@@ -103,16 +100,19 @@ export async function getRenzoHook(params: {
 }): Promise<HookConfig> {
   const {
     multiProvider,
-    defaultHookAddress,
     origin,
     destinationChains,
     owner,
     existingProtocolFee,
   } = params;
 
+  const defaultHook = {
+    type: HookType.MAILBOX_DEFAULT,
+  } as const;
+
   const routingHook: HookConfig =
     origin === OUTBOUND_ONLY_CHAIN
-      ? defaultHookAddress
+      ? defaultHook
       : {
           type: HookType.ROUTING,
           owner: owner,
@@ -120,13 +120,13 @@ export async function getRenzoHook(params: {
             destinationChains
               .filter((c) => c !== origin)
               .filter((c) => c !== OUTBOUND_ONLY_CHAIN)
-              .map((dest) => [dest, defaultHookAddress]),
+              .map((dest) => [dest, defaultHook]),
           ),
         };
 
   // By using the reader, we can validate the hook address
   const hookReader = new EvmHookReader(multiProvider, origin);
-  const { address: protoclFeeHookAddress, type } =
+  const { address: protocolFeeHookAddress, type } =
     await hookReader.deriveHookConfigFromAddress(existingProtocolFee[origin]);
   assert(
     type === HookType.PROTOCOL_FEE,
@@ -135,7 +135,7 @@ export async function getRenzoHook(params: {
 
   return {
     type: HookType.AGGREGATION,
-    hooks: [routingHook, protoclFeeHookAddress],
+    hooks: [routingHook, protocolFeeHookAddress],
   };
 }
 
@@ -552,7 +552,6 @@ export function getRenzoWarpConfigGenerator(params: {
                     })
                   : await getRenzoHook({
                       multiProvider,
-                      defaultHookAddress,
                       origin: chain,
                       destinationChains: chainsToDeploy,
                       owner: safes[chain],
