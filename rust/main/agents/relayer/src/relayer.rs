@@ -51,7 +51,7 @@ use lander::{
 
 use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
+use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -1456,7 +1456,7 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let foo = Foo::new(
+        let b = KaspaBridgeFoo::new(
             origin.clone(),
             kas_db.clone().to_owned(),
             kas_provider,
@@ -1464,7 +1464,7 @@ impl Relayer {
             metadata_getter,
         );
 
-        tasks.push(foo.run_deposit_loop(task_monitor.clone()));
+        tasks.push(b.run_deposit_loop(task_monitor.clone()));
 
         // TODO: confirmation loop 
 
