@@ -2465,6 +2465,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  tac: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x606561d6a45188ba0a486e513e440bfc421dbc36',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   taiko: {
     threshold: 3,
     validators: [
