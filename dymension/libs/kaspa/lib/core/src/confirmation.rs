@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use eyre::Error as EyreError;
 
-// NOTE: it should be possible to get a ProgressIndication from it
+// NOTE: it should be possible to get a ProgressIndication from it!
 pub struct ConfirmationFXG;
 
 impl TryFrom<Bytes> for ConfirmationFXG {
