@@ -123,7 +123,7 @@ impl InclusionStage {
         }
     }
 
-    async fn process_txs_step(
+    pub async fn process_txs_step(
         pool: &InclusionStagePool,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,

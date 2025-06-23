@@ -2,6 +2,7 @@
 
 use core::panic;
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -13,7 +14,10 @@ use ethers::{
         H160, H256 as EthersH256,
     },
 };
-use tokio::{select, sync::mpsc};
+use tokio::{
+    select,
+    sync::{mpsc, Mutex},
+};
 use tracing_test::traced_test;
 
 use hyperlane_core::{
@@ -22,7 +26,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::EthereumReorgPeriod;
 
-use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
+use crate::adapter::chains::ethereum::{transaction::Precursor, EthereumAdapterMetrics};
 use crate::tests::test_utils::tmp_dbs;
 use crate::{
     adapter::{
@@ -217,7 +221,19 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
 }
 
+struct ExpectedTxState {
+    nonce: U256,
+    gas_limit: u64,
+    // either gas price or max fee per gas
+    gas_price: u32,
+    priority_fee: Option<u32>,
+}
+
+/// Arguments that need explaining:
+/// `expected_tx_states` - for each expected iteration of the inclusion stage, we expect the DB to reflect a tx with the following properties
+/// arguments
 async fn run_and_expect_successful_inclusion(
+    expected_tx_states: Vec<ExpectedTxState>,
     mut mock_evm_provider: MockEvmProvider,
     block_time: Duration,
 ) {
@@ -228,32 +244,49 @@ async fn run_and_expect_successful_inclusion(
     let signer = H160::random();
     let dispatcher_state =
         mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
-    let (tx_sender, tx_receiver) = mpsc::channel(100);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
-    let inclusion_stage =
-        mock_inclusion_stage(dispatcher_state.clone(), tx_receiver, finality_stage_sender);
+    let mut inclusion_stage_pool = Arc::new(Mutex::new(HashMap::new()));
 
-    let txs_to_process = 1;
-    let txs_created = mock_evm_txs(
-        txs_to_process,
+    let created_txs = mock_evm_txs(
+        1,
         &dispatcher_state.payload_db,
         &dispatcher_state.tx_db,
         TransactionStatus::PendingInclusion,
         signer,
     )
     .await;
-    for tx in txs_created.iter() {
-        tx_sender.send(tx.clone()).await.unwrap();
-    }
+    let created_tx = created_txs[0].clone();
+    let mock_domain = "test";
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
     // need to manually set this because panics don't propagate through the select! macro
     let mut success = false;
+
+    for expected_tx_state in expected_tx_states {
+        InclusionStage::process_txs_step(
+            &inclusion_stage_pool,
+            &finality_stage_sender,
+            &dispatcher_state,
+            mock_domain,
+        )
+        .await
+        .unwrap();
+
+        assert_tx_db_state(
+            expected_tx_state,
+            &dispatcher_state.tx_db,
+            &dispatcher_state.payload_db,
+            &created_tx,
+        )
+        .await;
+    }
+
     select! {
-        _ = inclusion_stage.run() => {
-            // inclusion stage should process the txs
-        },
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
-            assert_eq!(tx_received.payload_details[0].uuid, txs_created[0].payload_details[0].uuid);
+            assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
             success = true;
         },
         _ = tokio::time::sleep(Duration::from_millis(5000)) => {
@@ -264,6 +297,45 @@ async fn run_and_expect_successful_inclusion(
         success,
         "Inclusion stage did not process the txs successfully"
     );
+}
+
+async fn assert_tx_db_state(
+    expected: ExpectedTxState,
+    tx_db: &Arc<dyn TransactionDb>,
+    payload_db: &Arc<dyn PayloadDb>,
+    created_tx: &Transaction,
+) {
+    let retrieved_tx = tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    let evm_specific_data = retrieved_tx.precursor().clone().tx;
+    assert_eq!(retrieved_tx.status, TransactionStatus::PendingInclusion);
+
+    assert_eq!(
+        retrieved_tx.vm_specific_data,
+        VmSpecificTxData::Evm(evm_specific_data.clone())
+    );
+    assert_eq!(retrieved_tx.payload_details, created_tx.payload_details);
+    assert_eq!(retrieved_tx.submission_attempts, 1);
+
+    assert_eq!(evm_specific_data.nonce, Some(expected.nonce));
+    assert_eq!(evm_specific_data.gas_limit, Some(expected.gas_limit.into()));
+    if let TypedTransaction::Eip1559(eip1559_tx) = evm_specific_data.tx {
+        assert_eq!(eip1559_tx.from, Some(expected.nonce.into()));
+        assert_eq!(eip1559_tx.gas_price, None);
+        assert_eq!(eip1559_tx.max_fee_per_gas, Some(expected.gas_price.into()));
+        assert_eq!(
+            eip1559_tx.max_priority_fee_per_gas,
+            expected.priority_fee.map(|fee| fee.into())
+        );
+    } else {
+        panic!(
+            "Expected EIP-1559 transaction, but got {:?}",
+            evm_specific_data.tx
+        );
+    }
 }
 
 fn mocked_evm_provider() -> MockEvmProvider {
@@ -295,19 +367,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
         .returning(|_, _| Ok(U256::one()));
 
     mock_evm_provider
-}
-
-fn mock_inclusion_stage(
-    state: DispatcherState,
-    tx_receiver: mpsc::Receiver<Transaction>,
-    finality_stage_sender: mpsc::Sender<Transaction>,
-) -> InclusionStage {
-    InclusionStage::new(
-        tx_receiver,
-        finality_stage_sender,
-        state,
-        "test".to_string(),
-    )
 }
 
 pub(crate) async fn mock_evm_txs(
