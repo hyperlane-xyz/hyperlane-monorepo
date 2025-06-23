@@ -67,7 +67,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
-        "gasPrice": "5000000000",
+        "gasPrice": "4000000000",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -373,7 +373,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "33708000000000000000000",
-        "gasPrice": "5000000000",
+        "gasPrice": "4000000000",
         "tokenDecimals": 18
       },
       "overhead": 151966
