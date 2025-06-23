@@ -22,8 +22,6 @@ async function main() {
     : Object.keys(warpConfigGetterMap);
   const eslint = new ESLint({
     fix: true,
-    overrideConfigFile:
-      '/Users/leyu/Desktop/Code/hyperlane/hyperlane-registry/eslint.config.js',
   });
 
   for (const warpRouteId of warpIdsToCheck) {
