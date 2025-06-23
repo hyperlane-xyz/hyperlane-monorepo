@@ -146,7 +146,7 @@ async fn trace_transactions(
                 block_hash: None,
                 inputs: Some(true),
                 outputs: Some(true),
-                resolve_previous_outpoints: None,
+                resolve_previous_outpoints: Some("full".to_string()),
             },
         ).await.map_err(|e| {
             Error::Custom(format!("Failed to get transaction {}: {}", current_utxo.transaction_id, e))
@@ -155,17 +155,26 @@ async fn trace_transactions(
         // Extract payload from transaction
         if let Some(payload) = transaction.payload {
             println!("Found payload in transaction: {:?}", payload);
-            // FIXME: encoding logic
-            processed_withdrawals.push(payload.into_bytes());
+            // Parse the payload string to extract the message ID
+            // FIXME: might need tuning after integration
+            let withdrawal_id = WithdrawalId {
+                message_id: payload,
+            };
+            processed_withdrawals.push(withdrawal_id);
         } else {
             return Err(Error::Custom("No payload found in transaction".to_string()));
         }
 
         // Find the next UTXO to trace by checking all inputs
         let mut found_anchor = false;
-        if let Some(inputs) = transaction.inputs {
+        if let Some(inputs) = &transaction.inputs {
             // check if we reached the anchor transaction_id
-            for input in &inputs {
+            for input in inputs {
+                // Validate previous_outpoint_hash populated
+                if input.previous_outpoint_hash.is_empty() {
+                    return Err(Error::Custom("Empty previous_outpoint_hash".to_string()));
+                }
+
                 // If this input's previous_outpoint_hash matches the anchor transaction_id, break
                 if input.previous_outpoint_hash == current_anchor_utxo.transaction_id.to_string() {
                     println!("Reached anchor transaction_id in input: {}", input.previous_outpoint_hash);
@@ -175,10 +184,10 @@ async fn trace_transactions(
             }
         }
                 
-        
         if found_anchor {
             break;
         }
+
 
         // FIXME: this logic needs rework. currently we assume single hop, which supposed to be handled above
         let mut found_next_utxo = false;
@@ -187,11 +196,15 @@ async fn trace_transactions(
                 println!("Checking input: {:?}", input.index);
                 // check if this input is canonical (part of the escrow account lineage)
                 if check_if_input_is_canonical(input) {
+                    // Use the previous outpoint of this canonical input as the next UTXO
                     current_utxo = TransactionOutpoint {
-                        transaction_id: TransactionId::from_bytes(input.previous_outpoint_hash.as_bytes()),
-                        index: input.previous_outpoint_index,
+                        transaction_id: kaspa_hashes::Hash::from_bytes(
+                            input.previous_outpoint_hash.as_bytes().try_into().unwrap()
+                        ),
+                        index: input.previous_outpoint_index.parse().unwrap(),
                     };
                     found_next_utxo = true;
+                    println!("Found next canonical UTXO: {:?}", current_utxo);
                     break;
                 }
             }
@@ -210,52 +223,8 @@ async fn trace_transactions(
 }
 
 
-
-
-/// Parse withdrawal payloads to extract withdrawal IDs
-/// This function takes the raw payload data and extracts the withdrawal IDs
-/// that were encoded in the transaction payloads.
-/// 
-/// # Arguments
-/// * `payloads` - Vector of raw payload data from transactions
-/// 
-/// # Returns
-/// * `Result<Vec<WithdrawalId>, Error>` - Vector of parsed withdrawal IDs
-fn parse_withdrawal_payload(payloads: &[Vec<u8>]) -> Result<Vec<WithdrawalId>, Error> {
-    let mut withdrawal_ids: Vec<WithdrawalId> = Vec::new();
-
-    for (index, payload) in payloads.iter().enumerate() {
-        println!("Parsing payload {}: {:?}", index, payload);
-        
-        // TODO: Implement proper payload parsing logic
-        // For now, we'll create a placeholder withdrawal ID
-        // This should be replaced with actual parsing logic based on the payload format
-        
-        if payload.len() >= 32 {
-            // Assume the first 32 bytes contain the message ID
-            let message_id_bytes = &payload[0..32];
-            let message_id_hex = hex::encode(message_id_bytes);
-            
-            let withdrawal_id = WithdrawalId {
-                message_id: message_id_hex,
-            };
-            
-            println!("Extracted withdrawal ID: {:?}", withdrawal_id);
-            withdrawal_ids.push(withdrawal_id);
-        } else {
-            println!("Payload {} too short, skipping", index);
-        }
-    }
-
-    println!("Successfully parsed {} withdrawal IDs from {} payloads", withdrawal_ids.len(), payloads.len());
-    Ok(withdrawal_ids)
-}
-
-
-
-
-
-
+// This is a placeholder for the canonical input check logic.
+// It should be implemented to find the TxInput that is canonical (part of the escrow account lineage)
 fn check_if_input_is_canonical(_input: &api_rs::models::TxInput) -> bool {
     // FIXME: implement canonical input check logic here
     println!("Called check_if_input_is_canonical");
@@ -271,26 +240,14 @@ mod tests {
     use kaspa_hashes::Hash;
 
     #[test]
-    fn test_parse_withdrawal_payloads() {
-        // Test with empty payloads
-        let empty_payloads: Vec<Vec<u8>> = Vec::new();
-        let result = parse_withdrawal_payloads(&empty_payloads);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
-
-        // Test with valid payload
-        let test_payload = vec![1u8; 32]; // 32 bytes of 1s
-        let payloads = vec![test_payload.clone()];
-        let result = parse_withdrawal_payloads(&payloads);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 1);
-
-        // Test with short payload
-        let short_payload = vec![1u8; 16]; // Only 16 bytes
-        let payloads = vec![short_payload];
-        let result = parse_withdrawal_payloads(&payloads);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0); // Should skip short payloads
+    fn test_withdrawal_id_creation() {
+        // Test creating a WithdrawalId with a message ID
+        let message_id = "test_message_id_1234567890abcdef".to_string();
+        let withdrawal_id = WithdrawalId {
+            message_id: message_id.clone(),
+        };
+        
+        assert_eq!(withdrawal_id.message_id, message_id);
     }
 
     #[test]
