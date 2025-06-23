@@ -361,9 +361,6 @@
   "reactive": {
     "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
   },
-  "real": {
-    "validators": ["0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec"]
-  },
   "redstone": {
     "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
@@ -398,6 +395,9 @@
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
+  "solaxy": {
+    "validators": ["0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5"]
+  },
   "soneium": {
     "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
   },
@@ -430,6 +430,9 @@
   },
   "swell": {
     "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
+  },
+  "tac": {
+    "validators": ["0x606561d6a45188ba0a486e513e440bfc421dbc36"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]

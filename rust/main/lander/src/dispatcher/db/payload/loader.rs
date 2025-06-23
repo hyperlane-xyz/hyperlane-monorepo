@@ -50,7 +50,7 @@ impl LoadableFromDb for PayloadDbLoader {
     async fn load(&self, item: FullPayload) -> Result<LoadingOutcome, LanderError> {
         match item.status {
             PayloadStatus::ReadyToSubmit | PayloadStatus::Retry(_) => {
-                self.building_stage_queue.lock().await.push_back(item);
+                self.building_stage_queue.push_back(item).await;
                 Ok(LoadingOutcome::Loaded)
             }
             PayloadStatus::Dropped(_) | PayloadStatus::InTransaction(_) => {

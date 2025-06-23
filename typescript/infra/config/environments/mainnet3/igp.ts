@@ -15,10 +15,10 @@ import {
 import { getChain } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
-import gasPrices from './gasPrices.json';
+import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import rawTokenPrices from './tokenPrices.json';
+import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
