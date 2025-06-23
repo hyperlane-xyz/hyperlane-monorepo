@@ -323,6 +323,15 @@ impl AdaptsChain for EthereumAdapter {
             "successful and failed payloads after simulation"
         );
 
+        if payloads_successful.is_empty() {
+            error!(
+                ?payloads_successful,
+                ?payloads_details_failed,
+                "Failed to build transaction for payloads, no successful payloads after simulation"
+            );
+            return Err(LanderError::SimulationFailed);
+        }
+
         let tx_building_results = self.build_transactions(&payloads_successful).await;
         let Some(tx_building_result) = tx_building_results.first() else {
             error!(
