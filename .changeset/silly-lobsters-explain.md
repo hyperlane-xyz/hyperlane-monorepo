@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/utils": major
+"@hyperlane-xyz/utils": minor
 ---
 
 Fix CosmosNative address parsing
