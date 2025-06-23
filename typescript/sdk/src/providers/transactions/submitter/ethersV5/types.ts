@@ -40,43 +40,22 @@ export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
 export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<
   typeof EV5ImpersonatedAccountTxSubmitterPropsSchema
 >;
-export type EvmIcaTxSubmitterProps = z.infer<
-  typeof EvmIcaTxSubmitterPropsSchema
->;
 
-export const EvmIcaTxSubmitterInternalSubmitterConfigSchema = z
-  .discriminatedUnion('type', [
-    z.object({
-      type: z.literal(TxSubmitterType.JSON_RPC),
-    }),
-    z
-      .object({
-        type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
-      })
-      .merge(EV5GnosisSafeTxBuilderPropsSchema.omit({ chain: true })),
-    z
-      .object({
-        type: z.literal(TxSubmitterType.GNOSIS_SAFE),
-      })
-      .merge(EV5GnosisSafeTxSubmitterPropsSchema.omit({ chain: true })),
-    z
-      .object({
-        type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
-      })
-      .merge(
-        EV5ImpersonatedAccountTxSubmitterPropsSchema.omit({ chain: true }),
-      ),
-  ])
-  .default({
-    type: TxSubmitterType.JSON_RPC,
-  });
-
-export const EvmIcaTxSubmitterPropsSchema = z.object({
-  chain: ZChainName,
-  owner: ZHash.optional(),
-  destinationChain: ZChainName,
-  originInterchainAccountRouter: ZHash.optional(),
-  destinationInterchainAccountRouter: ZHash.optional(),
-  interchainSecurityModule: ZHash.optional(),
-  internalSubmitter: EvmIcaTxSubmitterInternalSubmitterConfigSchema,
-});
+export const EvmSubmitterMetadataSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(TxSubmitterType.JSON_RPC),
+    ...EV5JsonRpcTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
+    ...EV5ImpersonatedAccountTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.GNOSIS_SAFE),
+    ...EV5GnosisSafeTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
+    ...EV5GnosisSafeTxBuilderPropsSchema.shape,
+  }),
+]);

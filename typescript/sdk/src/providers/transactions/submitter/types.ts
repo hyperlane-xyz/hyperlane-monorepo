@@ -1,35 +1,28 @@
 import { z } from 'zod';
 
-import { TxSubmitterType } from './TxSubmitterTypes.js';
-import {
-  EV5GnosisSafeTxBuilderPropsSchema,
-  EV5GnosisSafeTxSubmitterPropsSchema,
-  EV5ImpersonatedAccountTxSubmitterPropsSchema,
-  EV5JsonRpcTxSubmitterPropsSchema,
-  EvmIcaTxSubmitterPropsSchema,
-} from './ethersV5/types.js';
+import { ZChainName, ZHash } from '../../../metadata/customZodTypes.js';
 
-export const SubmitterMetadataSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal(TxSubmitterType.JSON_RPC),
-    ...EV5JsonRpcTxSubmitterPropsSchema.shape,
-  }),
-  z.object({
-    type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
-    ...EV5ImpersonatedAccountTxSubmitterPropsSchema.shape,
-  }),
-  z.object({
-    type: z.literal(TxSubmitterType.GNOSIS_SAFE),
-    ...EV5GnosisSafeTxSubmitterPropsSchema.shape,
-  }),
-  z.object({
-    type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
-    ...EV5GnosisSafeTxBuilderPropsSchema.shape,
-  }),
-  z.object({
-    type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
-    ...EvmIcaTxSubmitterPropsSchema.shape,
-  }),
+import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { EvmSubmitterMetadataSchema } from './ethersV5/types.js';
+
+export const EvmIcaTxSubmitterPropsSchema = z.object({
+  type: z.literal(TxSubmitterType.INTERCHAIN_ACCOUNT),
+  chain: ZChainName,
+  owner: ZHash.optional(),
+  destinationChain: ZChainName,
+  originInterchainAccountRouter: ZHash.optional(),
+  destinationInterchainAccountRouter: ZHash.optional(),
+  interchainSecurityModule: ZHash.optional(),
+  internalSubmitter: EvmSubmitterMetadataSchema,
+});
+
+export type EvmIcaTxSubmitterProps = z.infer<
+  typeof EvmIcaTxSubmitterPropsSchema
+>;
+
+export const SubmitterMetadataSchema = z.union([
+  EvmSubmitterMetadataSchema,
+  EvmIcaTxSubmitterPropsSchema,
 ]);
 
 export type SubmitterMetadata = z.infer<typeof SubmitterMetadataSchema>;

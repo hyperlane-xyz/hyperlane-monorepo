@@ -1,6 +1,4 @@
-import { z } from 'zod';
-
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -20,22 +18,18 @@ import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
-import { EvmIcaTxSubmitterPropsSchema } from './ethersV5/types.js';
+import { EvmIcaTxSubmitterProps } from './types.js';
 
-const EvmIcaTxSubmitterConfigSchema = EvmIcaTxSubmitterPropsSchema.required({
-  originInterchainAccountRouter: true,
-});
+type EvmIcaTxSubmitterConfig = EvmIcaTxSubmitterProps & {
+  originInterchainAccountRouter: Address;
+};
 
-/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-const EvmIcaTxSubmitterConstructorConfigSchema =
-  EvmIcaTxSubmitterConfigSchema.omit({ internalSubmitter: true }).required({
-    owner: true,
-  });
-
-type EvmIcaTxSubmitterConfig = z.infer<typeof EvmIcaTxSubmitterConfigSchema>;
-type EvmIcaTxSubmitterConstructorConfig = z.infer<
-  typeof EvmIcaTxSubmitterConstructorConfigSchema
->;
+type EvmIcaTxSubmitterConstructorConfig = Omit<
+  EvmIcaTxSubmitterConfig,
+  'internalSubmitter' | 'type'
+> & {
+  owner: Address;
+};
 
 type SubmitterFactoryMapping<
   E extends TxSubmitterType,
@@ -59,25 +53,21 @@ async function getInternalSubmitter(
   > = {
     [TxSubmitterType.GNOSIS_SAFE]: (config) => {
       return EV5GnosisSafeTxSubmitter.create(multiProvider, {
-        chain,
         ...config,
       });
     },
     [TxSubmitterType.GNOSIS_TX_BUILDER]: (config) => {
       return EV5GnosisSafeTxBuilder.create(multiProvider, {
-        chain,
         ...config,
       });
     },
     [TxSubmitterType.IMPERSONATED_ACCOUNT]: (config) => {
       return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
-        chain,
         ...config,
       });
     },
     [TxSubmitterType.JSON_RPC]: (config) => {
       return new EV5JsonRpcTxSubmitter(multiProvider, {
-        chain,
         ...config,
       });
     },
