@@ -193,9 +193,8 @@ impl Mailbox for CosmosNativeMailbox {
 /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L29
 impl CosmosNativeMailbox {
     /// atomically update the hub with a new outpoint anchor and set of completed withdrawals
-    pub fn indicate_progress(
+    pub async fn indicate_progress(
         &self,
-        message: &HyperlaneMessage,
         metadata: &[u8],
         u: ProgressIndication,
     ) -> ChainResult<TxOutcome> {
@@ -204,6 +203,24 @@ impl CosmosNativeMailbox {
             metadata: metadata.to_vec().into(),
             payload: Some(u),
         };
-        unimplemented!()
+        let a = Any {
+            type_url: MsgIndicateProgress::type_url(),
+            value: msg.encode_to_vec(),
+        };
+        let gas_limit = None;
+        let response = self.provider.rpc().send(vec![a], gas_limit).await?;
+
+        // we assume that the underlying cosmos chain does not have gas refunds
+        // in that case the gas paid will always be:
+        // gas_wanted * gas_price
+        let gas_price =
+            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
+
+        Ok(TxOutcome {
+            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+            executed: response.tx_result.code.is_ok() && response.check_tx.code.is_ok(),
+            gas_used: response.tx_result.gas_used.into(),
+            gas_price,
+        })
     }
 }
