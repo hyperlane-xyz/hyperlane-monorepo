@@ -10,7 +10,7 @@ use tokio_metrics::TaskMonitor;
 use tracing::{info, info_span, warn, Instrument};
 
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
-use dym_kas_relayer::deposit::on_new_deposit;
+use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
@@ -73,12 +73,12 @@ where
 
             for d in &deposits_new {
                 self.deposit_cache.mark_as_seen(d.clone());
-                info!("FOOX: New deposit: {:?}", d);
+                info!("DYMENSION DEBUG: new deposit seen: {:?}", d);
             }
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                if let Some(fxg) = on_new_deposit(d) {
+                if let Some(fxg) = relayer_on_new_deposit(d) {
                     let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                     // TODO: check result
                 }
@@ -92,6 +92,8 @@ where
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
+
+        // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
         if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
