@@ -95,8 +95,10 @@ export function createAbiHandler<
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
       const args = fragment.inputs.map((_, i) => decoded[i]);
-      const finalArgs = [...args, req.log];
+      const finalArgs = [...args];
+      // For methods that expect (message, relayer, logger), we need to insert relayer before logger
       if (relayer) finalArgs.push(relayer);
+      finalArgs.push(req.log); // Logger goes last
       const result = await serviceMethod(...finalArgs);
 
       handlerLogger.info('ABI handler completed successfully');

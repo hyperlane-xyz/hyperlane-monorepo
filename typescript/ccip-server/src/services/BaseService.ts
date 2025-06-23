@@ -11,21 +11,40 @@ export const REGISTRY_URI_SCHEMA = z
   .transform((val) => val.split(',').map((s) => s.trim()))
   .optional();
 
+export interface ServiceConfig {
+  logger: Logger;
+  namespace?: string;
+}
+
+export interface ServiceConfigWithMultiProvider extends ServiceConfig {
+  multiProvider: MultiProvider;
+}
+
+export interface ServiceConfigWithBaseUrl
+  extends ServiceConfigWithMultiProvider {
+  baseUrl: string;
+}
+
+export interface ServiceFactory {
+  create(config: ServiceConfig): Promise<BaseService>;
+}
+
 export abstract class BaseService {
   public readonly router: Router;
   protected logger: Logger;
+  protected config: ServiceConfig;
 
-  protected constructor(...args: [...any[], Logger]) {
+  protected constructor(config: ServiceConfig) {
     this.router = Router();
-    const logger = args[args.length - 1] as Logger;
-    this.logger = logger;
+    this.logger = config.logger;
+    this.config = config;
   }
 
-  static async initialize(
-    _namespace: string,
-    _logger: Logger,
-  ): Promise<BaseService> {
-    throw new Error('Service must implement static initialize method');
+  /**
+   * Factory method that subclasses must implement
+   */
+  static async create(_config: ServiceConfig): Promise<BaseService> {
+    throw new Error('Service must implement static create method');
   }
 
   /**
@@ -38,7 +57,9 @@ export abstract class BaseService {
     });
   }
 
-  static async getMultiProvider(registryUri: string[] | undefined) {
+  protected static async getMultiProvider(
+    registryUri: string[] | undefined,
+  ): Promise<MultiProvider> {
     const registryUris = registryUri ?? [DEFAULT_GITHUB_REGISTRY];
     const registry = getRegistry({
       registryUris: registryUris,

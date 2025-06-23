@@ -27,7 +27,12 @@ import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 import { PrometheusMetrics } from '../utils/prometheus.js';
 
-import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
+import {
+  BaseService,
+  REGISTRY_URI_SCHEMA,
+  ServiceConfig,
+  ServiceConfigWithBaseUrl,
+} from './BaseService.js';
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
@@ -43,23 +48,27 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
-  constructor(
-    private multiProvider: MultiProvider,
-    baseUrl: string,
-    logger: Logger,
-  ) {
-    super(logger);
-    this.registerRoutes(this.router, baseUrl);
+  private multiProvider: MultiProvider;
+  private baseUrl: string;
+
+  constructor(config: ServiceConfigWithBaseUrl) {
+    super(config);
+    this.multiProvider = config.multiProvider;
+    this.baseUrl = config.baseUrl;
+    this.registerRoutes(this.router, this.baseUrl);
   }
 
-  static async initialize(namespace: string, logger: Logger) {
+  static async create(config: ServiceConfig): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
-    return new CallCommitmentsService(
+    const namespace = config.namespace || 'callCommitments';
+    const baseUrl = env.SERVER_BASE_URL + '/' + namespace;
+
+    return new CallCommitmentsService({
+      ...config,
       multiProvider,
-      env.SERVER_BASE_URL + '/' + namespace,
-      logger,
-    );
+      baseUrl,
+    });
   }
 
   public async handleCommitment(req: Request, res: Response) {

@@ -7,7 +7,7 @@ import { createServiceLogger } from '@hyperlane-xyz/utils';
 import packageJson from '../package.json' with { type: 'json' };
 
 import { getEnabledModules } from './config.js';
-import { BaseService } from './services/BaseService.js';
+import { ServiceFactory } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
@@ -17,7 +17,7 @@ import {
   startPrometheusServer,
 } from './utils/prometheus.js';
 
-export const moduleRegistry: Record<string, typeof BaseService> = {
+export const moduleRegistry: Record<string, ServiceFactory> = {
   callCommitments: CallCommitmentsService,
   cctp: CCTPService,
   opstack: OPStackService,
@@ -54,7 +54,10 @@ async function startServer() {
         );
         continue;
       }
-      const service = await ServiceClass.initialize(name, logger); // module reads its own ENV config
+      const service = await ServiceClass.create({
+        logger,
+        namespace: name,
+      });
 
       app.use(`/${name}`, (req, res, next) => {
         res.on('finish', () => {
@@ -84,7 +87,7 @@ async function startServer() {
   }
 
   // Register Health Service
-  const healthService = await HealthService.initialize(logger);
+  const healthService = await HealthService.create({ logger });
   app.use(`/health`, healthService.router);
 
   // Log and handle undefined endpoints

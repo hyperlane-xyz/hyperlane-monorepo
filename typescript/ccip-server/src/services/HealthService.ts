@@ -1,19 +1,12 @@
-import { Router } from 'express';
-import { Logger } from 'pino';
-
-import { BaseService } from './BaseService.js';
+import { BaseService, ServiceConfig } from './BaseService.js';
 
 class HealthService extends BaseService {
-  // External Services
-  public readonly router: Router;
-
-  static initialize(logger: Logger): Promise<BaseService> {
-    return Promise.resolve(new HealthService(logger));
+  static async create(config: ServiceConfig): Promise<HealthService> {
+    return new HealthService(config);
   }
 
-  constructor(logger: Logger) {
-    super(logger);
-    this.router = Router();
+  constructor(config: ServiceConfig) {
+    super(config);
 
     this.router.get('', (_, res) => {
       res.status(200).send('OK');

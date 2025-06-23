@@ -13,7 +13,12 @@ import { parseMessage } from '@hyperlane-xyz/utils';
 import { createAbiHandler } from '../utils/abiHandler.js';
 import { PrometheusMetrics } from '../utils/prometheus.js';
 
-import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
+import {
+  BaseService,
+  REGISTRY_URI_SCHEMA,
+  ServiceConfig,
+  ServiceConfigWithMultiProvider,
+} from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 
@@ -25,29 +30,33 @@ const EnvSchema = z.object({
 
 class CCTPService extends BaseService {
   // External Services
-  hyperlaneService: HyperlaneService;
-  cctpAttestationService: CCTPAttestationService;
-  public readonly router: Router;
+  public router: Router;
+  private hyperlaneService: HyperlaneService;
+  private cctpAttestationService: CCTPAttestationService;
+  private multiProvider: MultiProvider;
 
-  static async initialize(logger: Logger): Promise<BaseService> {
+  static async create(config: ServiceConfig): Promise<CCTPService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
-    return Promise.resolve(new CCTPService(multiProvider, logger));
+
+    return new CCTPService({
+      ...config,
+      multiProvider,
+    });
   }
 
-  constructor(
-    private multiProvider: MultiProvider,
-    logger: Logger,
-  ) {
-    super(logger);
+  constructor(config: ServiceConfigWithMultiProvider) {
+    super(config);
+    this.multiProvider = config.multiProvider;
+
     const env = EnvSchema.parse(process.env);
     this.hyperlaneService = new HyperlaneService(
       env.HYPERLANE_EXPLORER_URL,
-      logger,
+      config.logger,
     );
     this.cctpAttestationService = new CCTPAttestationService(
       env.CCTP_ATTESTATION_URL,
-      logger,
+      config.logger,
     );
 
     this.router = Router();

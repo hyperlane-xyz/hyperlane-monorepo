@@ -8,7 +8,7 @@ import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { BaseService } from './BaseService.js';
+import { BaseService, ServiceConfig } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 
@@ -31,14 +31,17 @@ const EnvSchema = z.object({
 // Service that requests proofs from Succinct and RPC Provider
 export class OPStackService extends BaseService {
   // External Services
-  crossChainMessenger: CrossChainMessenger;
-  l1RpcService: RPCService;
-  l2RpcService: RPCService;
-  hyperlaneService: HyperlaneService;
   public readonly router: Router;
+  private crossChainMessenger: CrossChainMessenger;
+  private l2RpcService: RPCService;
+  private hyperlaneService: HyperlaneService;
 
-  constructor() {
-    super();
+  static async create(config: ServiceConfig): Promise<OPStackService> {
+    return new OPStackService(config);
+  }
+
+  constructor(config: ServiceConfig) {
+    super(config);
     const env = EnvSchema.parse(process.env);
     // Read configs from environment
     const hyperlaneConfig = { url: env.HYPERLANE_EXPLORER_API };
@@ -73,8 +76,10 @@ export class OPStackService extends BaseService {
       contracts: opContracts,
     });
 
-    this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
-    this.l1RpcService = new RPCService(l1RpcConfig.url);
+    this.hyperlaneService = new HyperlaneService(
+      hyperlaneConfig.url,
+      config.logger,
+    );
     this.l2RpcService = new RPCService(l2RpcConfig.url);
     this.router = Router();
     // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
@@ -116,10 +121,6 @@ export class OPStackService extends BaseService {
         this.getFinalizeWithdrawalTx.bind(this),
       ),
     );
-  }
-
-  static initialize(): Promise<BaseService> {
-    return Promise.resolve(new OPStackService());
   }
 
   async getWithdrawalTransactionFromReceipt(
