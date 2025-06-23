@@ -48,7 +48,8 @@ mockall::mock! {
             &self,
             cache: Arc<tokio::sync::Mutex<BatchCache>>,
             batch_contract_address: H256,
-            precursors: Vec<(TypedTransaction, Function)>
+            precursors: Vec<(TypedTransaction, Function)>,
+            signer: H160,
         ) -> ChainResult<(TypedTransaction, Function)>;
 
         async fn simulate(
