@@ -16,6 +16,7 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
 
+use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 use hyperlane_cosmos_dymension_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
@@ -210,7 +211,11 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        // TODO: deliver to hub
+        if let Some(hub) = self.hub_mailbox.as_any().downcast_ref::<CosmosNativeMailbox>() {
+            self.hub_mailbox.indicate_progress(formatted_sigs, u).await
+        } else {
+            panic!("hub mailbox is not a cosmos native object")
+        }
     }
 
     fn format_signatures(
