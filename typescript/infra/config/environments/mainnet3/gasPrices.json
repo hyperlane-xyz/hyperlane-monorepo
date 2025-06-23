@@ -523,10 +523,6 @@
     "amount": "31.25",
     "decimals": 9
   },
-  "treasure": {
-    "amount": "1048.556132041",
-    "decimals": 9
-  },
   "unichain": {
     "amount": "0.00100063",
     "decimals": 9

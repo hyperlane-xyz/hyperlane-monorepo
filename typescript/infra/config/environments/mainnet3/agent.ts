@@ -199,7 +199,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -349,7 +348,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -499,7 +497,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -629,8 +626,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('paradex') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
-      // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
   },
   {

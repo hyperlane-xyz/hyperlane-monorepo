@@ -6032,64 +6032,6 @@
       "isProxy": false
     }
   ],
-  "treasure": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x038F9F4e93e88Af2C688da265222FdE80e455aA4",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0xA3949b37109d64b10De93252EeFebBB2E6B8944F",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000eeee",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x9BbDf86b272d224323136E15594fdCe487F40ce7",
-      "constructorArguments": "000000000000000000000000a3949b37109d64b10de93252eefebbb2e6b8944f000000000000000000000000038f9f4e93e88af2c688da265222fde80e455aa400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xA3949b37109d64b10De93252EeFebBB2E6B8944F"
-    },
-    {
-      "name": "MerkleTreeHook",
-      "address": "0xc1FC99Ea4D8B2b06b674A2e91b5A4617c1dcFd22",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7",
-      "isProxy": false
-    },
-    {
-      "name": "FallbackDomainRoutingHook",
-      "address": "0x697a90753B7dCf6512189c239E612fC12baaE500",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000c1fc99ea4d8b2b06b674a2e91b5a4617c1dcfd22",
-      "isProxy": false
-    },
-    {
-      "name": "StorageGasOracle",
-      "address": "0xc364cfedefE854c1275B0f4088EaFA9695e1FC56",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0xA1ADFCa9666Bcd68b7b5C8b55e3ecC465DcDfE65",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "TransparentUpgradeableProxy",
-      "address": "0x388289cd5862e17AAfD6ffF7F46A9Ec48a969bCd",
-      "constructorArguments": "000000000000000000000000a1adfca9666bcd68b7b5c8b55e3ecc465dcdfe65000000000000000000000000038f9f4e93e88af2c688da265222fde80e455aa400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "expectedimplementation": "0xA1ADFCa9666Bcd68b7b5C8b55e3ecC465DcDfE65"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0x73a82061Cd258d02BEa145fe183120456e718c2A",
-      "constructorArguments": "0000000000000000000000009bbdf86b272d224323136e15594fdce487f40ce7",
-      "isProxy": false
-    }
-  ],
   "aurora": [
     {
       "name": "ProxyAdmin",

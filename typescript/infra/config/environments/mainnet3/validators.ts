@@ -1212,16 +1212,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    treasure: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('treasure'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x6ad994819185553e8baa01533f0cd2c7cadfe6cc'],
-        },
-        'treasure',
-      ),
-    },
     zklink: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zklink'),
