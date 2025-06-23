@@ -1,10 +1,10 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
-import { ChainName } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -14,10 +14,7 @@ import { CallData } from '../types.js';
 
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
-import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
-import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
-import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
+import { getSubmitter } from './submitterBuilderGetter.js';
 import { EvmIcaTxSubmitterProps } from './types.js';
 
 type EvmIcaTxSubmitterConfig = EvmIcaTxSubmitterProps & {
@@ -30,59 +27,6 @@ type EvmIcaTxSubmitterConstructorConfig = Omit<
 > & {
   owner: Address;
 };
-
-type SubmitterFactoryMapping<
-  E extends TxSubmitterType,
-  TConfig extends { type: E },
-  TResult,
-> = {
-  [K in E]: (
-    config: Extract<TConfig, { type: K }>,
-  ) => Promise<TResult> | TResult;
-};
-
-async function getInternalSubmitter(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  config: EvmIcaTxSubmitterConfig['internalSubmitter'],
-): Promise<TxSubmitterInterface<ProtocolType.Ethereum>> {
-  const internalSubmitterMap: SubmitterFactoryMapping<
-    EvmIcaTxSubmitterConfig['internalSubmitter']['type'],
-    EvmIcaTxSubmitterConfig['internalSubmitter'],
-    TxSubmitterInterface<ProtocolType.Ethereum>
-  > = {
-    [TxSubmitterType.GNOSIS_SAFE]: (config) => {
-      return EV5GnosisSafeTxSubmitter.create(multiProvider, {
-        ...config,
-      });
-    },
-    [TxSubmitterType.GNOSIS_TX_BUILDER]: (config) => {
-      return EV5GnosisSafeTxBuilder.create(multiProvider, {
-        ...config,
-      });
-    },
-    [TxSubmitterType.IMPERSONATED_ACCOUNT]: (config) => {
-      return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
-        ...config,
-      });
-    },
-    [TxSubmitterType.JSON_RPC]: (config) => {
-      return new EV5JsonRpcTxSubmitter(multiProvider, {
-        ...config,
-      });
-    },
-  };
-
-  const internalSubmitterFactory = internalSubmitterMap[config.type];
-  // Sanity check
-  if (!internalSubmitterFactory) {
-    throw new Error(
-      `Internal submitter factory not found for type: ${config.type}`,
-    );
-  }
-
-  return internalSubmitterFactory(config as any);
-}
 
 export class EvmIcaTxSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
@@ -100,11 +44,12 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterConfig,
     multiProvider: MultiProvider,
+    registry: Readonly<IRegistry>,
   ): Promise<EvmIcaTxSubmitter> {
-    const internalSubmitter = await getInternalSubmitter(
-      config.chain,
+    const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
+      registry,
     );
 
     const owner =

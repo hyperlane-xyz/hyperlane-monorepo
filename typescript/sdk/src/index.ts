@@ -442,6 +442,10 @@ export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/subm
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
+export {
+  SubmitterBuilderSettings,
+  getSubmitterBuilder,
+} from './providers/transactions/submitter/submitterBuilderGetter.js';
 
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export {

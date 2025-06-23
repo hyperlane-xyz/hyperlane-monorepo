@@ -47,6 +47,7 @@ import {
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
+  getSubmitterBuilder,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -73,7 +74,6 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,

@@ -1,19 +1,24 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import {
-  EV5GnosisSafeTxBuilder,
-  EV5GnosisSafeTxSubmitter,
-  EV5ImpersonatedAccountTxSubmitter,
-  EV5JsonRpcTxSubmitter,
-  EvmIcaTxSubmitter,
-  MultiProvider,
-  SubmitterMetadata,
-  TxSubmitterBuilder,
-  TxSubmitterInterface,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { SubmitterBuilderSettings } from './types.js';
+import { MultiProvider } from '../../MultiProvider.js';
+
+import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
+import { TxSubmitterInterface } from './TxSubmitterInterface.js';
+import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
+import { SubmissionStrategy } from './builder/types.js';
+import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
+import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
+import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
+import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
+import { SubmitterMetadata } from './types.js';
+
+export type SubmitterBuilderSettings = {
+  submissionStrategy: SubmissionStrategy;
+  multiProvider: MultiProvider;
+  registry: IRegistry;
+};
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
@@ -29,7 +34,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   return new TxSubmitterBuilder<TProtocol>(submitter);
 }
 
-async function getSubmitter<TProtocol extends ProtocolType>(
+export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
   submitterMetadata: SubmitterMetadata,
   registry: IRegistry,
@@ -73,6 +78,7 @@ async function getSubmitter<TProtocol extends ProtocolType>(
           originInterchainAccountRouter: interchainAccountRouterAddress,
         },
         multiProvider,
+        registry,
       );
     default:
       throw new Error(`Invalid TxSubmitterType.`);
