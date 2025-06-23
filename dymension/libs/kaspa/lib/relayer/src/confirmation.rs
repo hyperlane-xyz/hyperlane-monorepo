@@ -193,15 +193,15 @@ pub async fn prepare_progress_indication(
         transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
         index: new_utxo.index,
     });
-    let old_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-        transaction_id: old_outpoint.transaction_id.as_bytes().to_vec(),
-        index: old_outpoint.index,
+    let anchor_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+        transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
+        index: anchor_utxo.index,
     });
 
     // Step 5: Create and return the ProgressIndication struct
     println!("Step 5: Creating ProgressIndication struct...");
     let progress_indication = ProgressIndication {
-        old_outpoint: old_outpoint_indication,
+        old_outpoint: anchor_outpoint_indication,
         new_outpoint: new_outpoint_indication,
         processed_withdrawals,
     };
@@ -251,29 +251,10 @@ fn parse_withdrawal_payloads(payloads: &[Vec<u8>]) -> Result<Vec<WithdrawalId>, 
     Ok(withdrawal_ids)
 }
 
-/// Broadcast the progress indication to the Hub x/kas module
-/// This function sends the prepared progress indication to the Hub
-/// to update the state of processed withdrawals.
-/// 
-/// # Arguments
-/// * `cosmos_provider` - The Cosmos provider for broadcasting to Hub
-/// * `progress_indication` - The progress indication to broadcast
-/// 
-/// # Returns
-/// * `Result<(), Error>` - Success or error result
-pub async fn broadcast_progress_indication(
-    cosmos_provider: &CosmosNativeProvider,
-    progress_indication: ProgressIndication,
-) -> Result<(), Error> {
-    println!("Broadcasting progress indication to Hub x/kas module...");
-    println!("ProgressIndication to broadcast: {:?}", progress_indication);
 
-    // TODO: Implement the actual broadcast logic using the cosmos_provider
-    // This should call the appropriate gRPC method to update the Hub state
-    
-    println!("Progress indication broadcast completed successfully!");
-    Ok(())
-}
+
+
+
 
 fn check_if_input_is_canonical(_input: &api_rs::models::TxInput) -> bool {
     // FIXME: implement canonical input check logic here
@@ -281,6 +262,8 @@ fn check_if_input_is_canonical(_input: &api_rs::models::TxInput) -> bool {
     true
 }
 
+
+// FIXME: AI generated tests. review and rewrite
 #[cfg(test)]
 mod tests {
     use super::*;
