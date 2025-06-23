@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 use eyre::Result as EyreResult;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, TxOutcome,
+    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, TxOutcome, Signature, CheckpointWithMessageId, Checkpoint, H256
 };
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -97,7 +97,7 @@ where
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        let formatted_sigs = self.format_signatures(
+        let formatted_sigs = self.format_checkpoint_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
@@ -181,7 +181,7 @@ where
             .get_confirmation_sigs(fxg)
             .await?;
 
-        let formatted_sigs = self.format_signatures(
+        let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
@@ -191,7 +191,8 @@ where
             .await
     }
 
-    fn format_signatures(
+    // TODO: can probably just use the ad hoc method
+    fn format_checkpoint_signatures(
         &self,
         sigs: &mut Vec<SignedCheckpointWithMessageId>,
         require: usize,
@@ -211,6 +212,42 @@ where
                 msg: "failed to convert sigs to checkpoint".to_string(),
             }
         })?;
+        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
+        Ok(metadata.to_vec())
+    }
+
+    fn format_ad_hoc_signatures(
+        &self,
+        sigs: &mut Vec<Signature>,
+        require: usize,
+    ) -> ChainResult<Vec<u8>> {
+        if sigs.len() < require {
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: format!(
+                    "insufficient validator signatures: got {}, need {}",
+                    sigs.len(),
+                    require
+                ),
+            });
+        }
+
+        // Technically there is no need for checkpoint since it's not used in the metadata formatting, 
+        // so we can just create this directly
+        let checkpoint = MultisigSignedCheckpoint {
+            // this part not important (not used)!
+            checkpoint: CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::default(),
+                    mailbox_domain: 0,
+                    root: H256::default(),
+                    index: 0,
+                },
+                message_id: H256::default(),
+            },
+            // signatures are important
+            signatures: sigs.clone(),
+        };
+      
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
         Ok(metadata.to_vec())
     }

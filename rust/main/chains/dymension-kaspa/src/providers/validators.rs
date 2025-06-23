@@ -1,9 +1,7 @@
 use tonic::async_trait;
 
-use std::collections::HashMap;
-
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
     SignedCheckpointWithMessageId, H256,
 };
 
@@ -80,7 +78,7 @@ impl ValidatorsClient {
     pub async fn get_confirmation_sigs(
         &self,
         fxg: &ConfirmationFXG,
-    ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
+    ) -> ChainResult<Vec<Signature>> {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
@@ -92,7 +90,7 @@ impl ValidatorsClient {
             .zip(self.conf.validator_ids.clone().into_iter())
         {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let res = request_validate_new_deposits(host, fxg).await;
+            let res = request_validate_new_confirmation(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
@@ -143,7 +141,7 @@ pub async fn request_validate_new_deposits(
 pub async fn request_validate_new_confirmation(
     host: String,
     confirmation: &ConfirmationFXG,
-) -> Result<Option<SignedCheckpointWithMessageId>> {
+) -> Result<Option<Signature>> {
     let bz = Bytes::from(confirmation);
     let c = reqwest::Client::new();
     let res = c
@@ -154,7 +152,7 @@ pub async fn request_validate_new_confirmation(
 
     let status = res.status();
     if status == StatusCode::OK {
-        let body = res.json::<SignedCheckpointWithMessageId>().await?;
+        let body = res.json::<Signature>().await?;
         Ok(Some(body))
     } else {
         Err(eyre::eyre!("Failed to validate deposits: {}", status))
