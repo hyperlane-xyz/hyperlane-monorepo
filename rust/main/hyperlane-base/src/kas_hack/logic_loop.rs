@@ -17,8 +17,8 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
 
-use hyperlane_cosmos_dymension_rs::dymensionxyz::dymension::kas::ProgressIndication;
-use hyperlane_cosmos_native::{mailbox::CosmosNativeMailbox, providers::CosmosNativeProvider};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,

@@ -201,7 +201,7 @@ impl CosmosNativeMailbox {
         let msg = MsgIndicateProgress {
             signer: self.address.encode_hex(),
             metadata: metadata.to_vec().into(),
-            payload: Some(u),
+            payload: Some(u.clone()),
         };
         let a = Any {
             type_url: MsgIndicateProgress::type_url(),
