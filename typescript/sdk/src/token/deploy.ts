@@ -387,9 +387,9 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.router(deployedContractsMap[chain]);
         const movableToken = MovableCollateralRouter__factory.connect(
-          router,
+          router.address,
           this.multiProvider.getSigner(chain),
         );
 
@@ -405,13 +405,18 @@ abstract class TokenDeployer<
         ).flatMap(([domain, allowedBridgesToAdd]) => {
           return allowedBridgesToAdd.map((bridgeToAdd) => {
             return {
-              domain,
+              domain: Number(domain),
               bridge: bridgeToAdd.bridge,
             };
           });
         });
 
-        for (const bridgeConfig of bridgesToAllow) {
+        // Filter out domains that are not enrolled to avoid errors
+        const routerDomains = await router.domains();
+        const bridgesToAllowOnRouter = bridgesToAllow.filter(({ domain }) =>
+          routerDomains.includes(domain),
+        );
+        for (const bridgeConfig of bridgesToAllowOnRouter) {
           await this.multiProvider.handleTx(
             chain,
             movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
