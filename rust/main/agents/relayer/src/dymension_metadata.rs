@@ -6,7 +6,6 @@ use crate::msg::{
     metadata::MessageMetadataBuilder,
 };
 
-
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
 use hyperlane_core::{MultisigSignedCheckpoint, H256};
 use std::sync::Arc;

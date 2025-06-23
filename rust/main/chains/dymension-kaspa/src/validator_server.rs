@@ -90,8 +90,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .await
         .map_err(|e| AppError(e.into()))?;
 
-    let j =
-        serde_json::to_string_pretty(&sig.signature).map_err(|e: serde_json::Error| AppError(e.into()))?;
+    let j = serde_json::to_string_pretty(&sig.signature)
+        .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
     Ok(Json(j))
 }

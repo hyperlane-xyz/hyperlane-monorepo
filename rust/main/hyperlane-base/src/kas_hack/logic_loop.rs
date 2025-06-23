@@ -2,8 +2,9 @@ use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, TxOutcome, Signature, CheckpointWithMessageId, Checkpoint, H256
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
+    HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
+    Signature, SignedCheckpointWithMessageId, TxOutcome, H256,
 };
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -231,7 +232,7 @@ where
             });
         }
 
-        // Technically there is no need for checkpoint since it's not used in the metadata formatting, 
+        // Technically there is no need for checkpoint since it's not used in the metadata formatting,
         // so we can just create this directly
         let checkpoint = MultisigSignedCheckpoint {
             // this part not important (not used)!
@@ -247,7 +248,7 @@ where
             // signatures are important
             signatures: sigs.clone(),
         };
-      
+
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
         Ok(metadata.to_vec())
     }
