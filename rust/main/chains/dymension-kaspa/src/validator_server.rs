@@ -91,6 +91,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .map_err(|e| AppError(e.into()))?;
 
     let j =
+   // TODO: want this to match https://github.com/dymensionxyz/hyperlane-monorepo/blob/80a3c98f72192e59a7a23412c117208add358d3f/rust/main/hyperlane-core/src/types/checkpoint.rs#L54 
         serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
 
     Ok(Json(j))
