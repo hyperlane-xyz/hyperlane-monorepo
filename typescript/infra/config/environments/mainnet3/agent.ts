@@ -181,7 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -332,7 +332,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -483,7 +483,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -595,6 +595,10 @@ const contextBase = {
   },
 } as const;
 
+const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
+  '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -626,6 +630,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
       { destinationDomain: getDomainId('starknet') },
       { destinationDomain: getDomainId('paradex') },
+      // Being more generous with some Velo message module messages, which occasionally underpay
+      ...veloMessageModuleMatchingList,
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -725,9 +731,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // The only exception is Metal, which had an initial misconfiguration that the Velo
       // team resolved with a different contract deploy. We can still only match on this address
       // as Metal is the only exception, so it's always receiving from or sending messages to this address.
-      matchingList: consistentSenderRecipientMatchingList(
-        '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
-      ),
+      matchingList: veloMessageModuleMatchingList,
     },
     {
       name: 'velo_token_bridge',
@@ -827,7 +831,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe8f2cd-20250620-104910',
+      tag: '5f60dee-20250623-071346',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -841,7 +845,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'fe8f2cd-20250620-104910',
+      tag: '5f60dee-20250623-071346',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -852,7 +856,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: '5f60dee-20250623-071346',
     },
     resources: scraperResources,
   },
@@ -867,7 +871,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8185c87-20250618-151232',
+      tag: '5f60dee-20250623-071346',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -905,7 +909,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8185c87-20250618-151232',
+      tag: '5f60dee-20250623-071346',
     },
     blacklist,
     gasPaymentEnforcement,
