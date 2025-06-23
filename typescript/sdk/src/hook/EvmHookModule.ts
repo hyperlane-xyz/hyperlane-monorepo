@@ -174,7 +174,7 @@ export class EvmHookModule extends HyperlaneModule<
       this.shouldDeployNewHook(normalizedCurrentConfig, normalizedTargetConfig)
     ) {
       const contract = await this.deploy({
-        config: this.initialConfig,
+        config: normalizedTargetConfig,
       });
 
       this.args.addresses.deployedHook = contract.address;

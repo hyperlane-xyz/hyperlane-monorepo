@@ -20,12 +20,10 @@ export abstract class HyperlaneModule<
   TAddressMap extends Record<string, any>,
 > {
   protected abstract readonly logger: Logger;
-  protected readonly initialConfig: TConfig;
+
   protected constructor(
     protected readonly args: HyperlaneModuleParams<TConfig, TAddressMap>,
-  ) {
-    this.initialConfig = this.args.config;
-  }
+  ) {}
 
   public serialize(): TAddressMap {
     return this.args.addresses;
