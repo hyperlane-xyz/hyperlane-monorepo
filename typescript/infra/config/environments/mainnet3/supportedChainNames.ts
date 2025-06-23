@@ -130,6 +130,7 @@ export const mainnet3SupportedChainNames = [
   'superpositionmainnet',
   'svmbnb',
   'swell',
+  'tac',
   'taiko',
   'tangle',
   'telos',
