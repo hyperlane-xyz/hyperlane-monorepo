@@ -7,6 +7,7 @@ use axum::{
     routing::post,
     Router,
 };
+use cosmrs::tx::MessageExt;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::deposit::DepositFXG;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
@@ -105,9 +106,15 @@ impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
         // see bytes derivation https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76
         // see checkpoint example https://github.com/dymensionxyz/hyperlane-monorepo/blob/b372a9062d8cc6de604c32cc0ba200337707c350/rust/main/hyperlane-core/src/types/checkpoint.rs#L35
-        let signable: [u8; 32] = [0; 32]; // TODO: use protobuf marshal
 
-        H256::from_slice(Keccak256::new().chain(signable).finalize().as_slice())
+        // https://docs.rs/cosmos-sdk-proto/latest/src/cosmos_sdk_proto/traits.rs.html#19-24
+        let bz_res = self.progress_indication.to_bytes(); // TODO: check!! maybe not deterministic / does not match gogoproto
+        if bz_res.is_err() {
+            panic!("Failed to marshal progress indication");
+        }
+        let bz = bz_res.unwrap();
+
+        H256::from_slice(Keccak256::new().chain(bz).finalize().as_slice())
     }
 }
 
