@@ -16,40 +16,25 @@ abstract contract BaseFeeTest is Test {
     address internal constant OWNER = address(0x123);
     address internal constant BENEFICIARY = address(0x456);
 
+    ERC20Test token = new ERC20Test("Test Token", "TST", 0, 18);
+
+    uint32 internal constant destination = 1;
+    bytes32 internal constant recipient =
+        bytes32(uint256(uint160(address(0x789))));
+
     function setUp() public virtual {
         vm.label(OWNER, "Owner");
         vm.label(BENEFICIARY, "Beneficiary");
     }
 
     function test_Claim() public {
-        // Test claiming native currency
-        uint256 nativeAmount = 1 ether;
-        vm.deal(address(feeContract), nativeAmount);
-
-        uint256 beneficiaryNativeBalanceBefore = BENEFICIARY.balance;
-        vm.prank(OWNER);
-        feeContract.claim(address(0), BENEFICIARY); // address(0) for native
-        uint256 beneficiaryNativeBalanceAfter = BENEFICIARY.balance;
-
-        assertEq(
-            beneficiaryNativeBalanceAfter - beneficiaryNativeBalanceBefore,
-            nativeAmount,
-            "Native claim failed"
-        );
-        assertEq(
-            address(feeContract).balance,
-            0,
-            "Native balance not zero after claim"
-        );
-
         // Test claiming ERC20 tokens
-        ERC20Test token = new ERC20Test("Test Token", "TST", 0, 18);
         uint256 erc20Amount = 100 * 10 ** 18;
         token.mintTo(address(feeContract), erc20Amount);
 
         uint256 beneficiaryErc20BalanceBefore = token.balanceOf(BENEFICIARY);
         vm.prank(OWNER);
-        feeContract.claim(address(token), BENEFICIARY);
+        feeContract.claim(BENEFICIARY);
         uint256 beneficiaryErc20BalanceAfter = token.balanceOf(BENEFICIARY);
 
         assertEq(
@@ -74,6 +59,7 @@ contract LinearFeeTest is BaseFeeTest {
     function setUp() public override {
         super.setUp();
         feeContract = new LinearFee(
+            address(token),
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
             OWNER
@@ -91,13 +77,19 @@ contract LinearFeeTest is BaseFeeTest {
     ) public {
         vm.assume(halfAmount > 0);
 
-        LinearFee localLinearFee = new LinearFee(maxFee, halfAmount, OWNER);
+        LinearFee localLinearFee = new LinearFee(
+            address(token),
+            maxFee,
+            halfAmount,
+            OWNER
+        );
 
         uint256 uncapped = (uint256(amount) * maxFee) / halfAmount;
         uint256 expectedFee = uncapped > maxFee ? maxFee : uncapped;
 
         assertEq(
-            localLinearFee.quoteTransfer(amount),
+            localLinearFee
+            .quoteTransferRemote(destination, recipient, amount)[0].amount,
             expectedFee,
             "Linear fee mismatch"
         );
@@ -105,9 +97,9 @@ contract LinearFeeTest is BaseFeeTest {
 
     function test_RevertIf_ZeroHalfAmount(uint96 maxFee, uint96 amount) public {
         vm.assume(amount > 0);
-        LinearFee fee = new LinearFee(maxFee, 0, BENEFICIARY);
+        LinearFee fee = new LinearFee(address(token), maxFee, 0, BENEFICIARY);
         vm.expectRevert();
-        fee.quoteTransfer(amount);
+        fee.quoteTransferRemote(destination, recipient, amount);
     }
 }
 
@@ -120,6 +112,7 @@ contract ProgressiveFeeTest is BaseFeeTest {
     function setUp() public override {
         super.setUp();
         feeContract = new ProgressiveFee(
+            address(token),
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
             OWNER
@@ -144,6 +137,7 @@ contract ProgressiveFeeTest is BaseFeeTest {
         vm.assume(type(uint256).max - halfSq >= amountSq);
 
         ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
             maxFee,
             halfAmount,
             OWNER
@@ -153,7 +147,8 @@ contract ProgressiveFeeTest is BaseFeeTest {
             (halfSq + amountSq);
 
         assertEq(
-            localProgressiveFee.quoteTransfer(amount),
+            localProgressiveFee
+            .quoteTransferRemote(destination, recipient, amount)[0].amount,
             expectedFee,
             "Progressive fee mismatch"
         );
@@ -169,6 +164,7 @@ contract RegressiveFeeTest is BaseFeeTest {
     function setUp() public override {
         super.setUp();
         feeContract = new RegressiveFee(
+            address(token),
             DEFAULT_MAX_FEE,
             DEFAULT_HALF_AMOUNT,
             OWNER
@@ -188,6 +184,7 @@ contract RegressiveFeeTest is BaseFeeTest {
         vm.assume(type(uint256).max - halfAmount >= amount);
 
         RegressiveFee localRegressiveFee = new RegressiveFee(
+            address(token),
             maxFee,
             halfAmount,
             OWNER
@@ -197,7 +194,8 @@ contract RegressiveFeeTest is BaseFeeTest {
             (uint256(halfAmount) + amount);
 
         assertEq(
-            localRegressiveFee.quoteTransfer(amount),
+            localRegressiveFee
+            .quoteTransferRemote(destination, recipient, amount)[0].amount,
             expectedFee,
             "Regressive fee mismatch"
         );

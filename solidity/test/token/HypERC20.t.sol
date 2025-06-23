@@ -292,18 +292,36 @@ abstract contract HypTokenTest is Test {
     }
 
     function testRemoteTransfer_withFee() public virtual {
-        feeContract = new LinearFee(1e18, 100e18, address(this));
+        feeContract = new LinearFee(
+            address(primaryToken),
+            1e18,
+            100e18,
+            address(this)
+        );
         localToken.setFeeRecipient(address(feeContract));
-        uint256 fee = feeContract.quoteTransfer(TRANSFER_AMT);
+        uint256 fee = feeContract
+        .quoteTransferRemote(DESTINATION, BOB.addressToBytes32(), TRANSFER_AMT)[
+            0
+        ].amount;
 
         Quote[] memory quotes = localToken.quoteTransferRemote(
             DESTINATION,
             BOB.addressToBytes32(),
             TRANSFER_AMT
         );
-        uint256 nativeValue = quotes[0].amount;
-        if (quotes.length > 1) {
-            uint256 tokenValue = quotes[1].amount;
+
+        uint256 nativeValue = 0;
+        uint256 tokenValue = 0;
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == address(primaryToken)) {
+                tokenValue += quotes[i].amount;
+            }
+            if (quotes[i].token == address(0)) {
+                nativeValue += quotes[i].amount;
+            }
+        }
+
+        if (tokenValue > 0 && address(primaryToken) != address(0)) {
             vm.prank(ALICE);
             primaryToken.approve(address(localToken), tokenValue);
         }
@@ -379,6 +397,7 @@ contract HypERC20Test is HypTokenTest {
         );
         localToken = HypERC20(address(proxy));
         erc20Token = HypERC20(address(proxy));
+        primaryToken = ERC20Test(address(erc20Token));
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
@@ -704,6 +723,7 @@ contract HypNativeTest is HypTokenTest {
 
         localToken = new HypNative(SCALE, address(localMailbox));
         nativeToken = HypNative(payable(address(localToken)));
+        primaryToken = ERC20Test(address(0));
 
         nativeToken.enrollRemoteRouter(
             DESTINATION,
@@ -819,6 +839,7 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
         localToken = HypERC20(address(proxy));
         erc20Token = HypERC20(address(proxy));
+        primaryToken = ERC20Test(address(erc20Token));
         erc20Token.transfer(ALICE, 100 * TRANSFER_AMT);
 
         _enrollLocalTokenRouter();

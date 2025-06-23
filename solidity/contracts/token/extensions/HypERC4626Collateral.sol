@@ -67,12 +67,10 @@ contract HypERC4626Collateral is HypERC20Collateral {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32 messageId) {
-        // Can't override _transferFromSender only because we need to pass shares in the token message
-        _transferFromSender(_amount);
+        uint256 unspentValue = _chargeSender(_destination, _recipient, _amount);
         uint256 _shares = _depositIntoVault(_amount);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
@@ -92,7 +90,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
 
         messageId = _Router_dispatch(
             _destination,
-            _value,
+            unspentValue,
             _tokenMessage,
             _hookMetadata,
             _hook
@@ -136,7 +134,6 @@ contract HypERC4626Collateral is HypERC20Collateral {
             _destinationDomain,
             NULL_RECIPIENT,
             0,
-            msg.value,
             _hookMetadata,
             _hook
         );

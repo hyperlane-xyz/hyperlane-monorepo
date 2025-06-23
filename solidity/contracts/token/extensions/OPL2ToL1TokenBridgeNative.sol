@@ -97,7 +97,6 @@ contract OpL2NativeTokenBridge is HypNative {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32) {
@@ -111,7 +110,6 @@ contract OpL2NativeTokenBridge is HypNative {
             _destination,
             _recipient,
             0,
-            _value,
             _proveHookMetadata(),
             _hook
         );
@@ -120,7 +118,6 @@ contract OpL2NativeTokenBridge is HypNative {
             _destination,
             _recipient,
             _amount,
-            address(this).balance,
             _finalizeHookMetadata(),
             _hook
         );
@@ -174,7 +171,6 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
     function _transferRemote(
         uint32,
         bytes32,
-        uint256,
         uint256,
         bytes memory,
         address
