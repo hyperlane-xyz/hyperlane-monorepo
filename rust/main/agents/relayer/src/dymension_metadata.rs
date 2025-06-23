@@ -2,19 +2,13 @@ use crate::msg::{
     metadata::multisig::{
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
     },
-    metadata::BuildsBaseMetadata,
     metadata::DummyBuildsBaseMetadata,
     metadata::MessageMetadataBuilder,
-    metadata::Metadata,
-    pending_message::MessageContext,
-    pending_message::PendingMessage,
 };
 
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
 use hyperlane_core::{
-    traits::PendingOperationResult, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, MultisigSignedCheckpoint, RoutingIsm,
-    H256,
+    MultisigSignedCheckpoint, H256,
 };
 use std::sync::Arc;
 
