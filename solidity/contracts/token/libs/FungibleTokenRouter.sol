@@ -22,24 +22,6 @@ abstract contract FungibleTokenRouter is TokenRouter {
         feeRecipient = ITokenFee(_feeRecipient);
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
-        });
-        quotes[1] = Quote({
-            token: _token(),
-            amount: _quoteTransferFee(_amount) + _amount
-        });
-    }
-
-    function _token() internal view virtual returns (address);
-
     function _quoteTransferFee(
         uint256 _amount
     ) internal view returns (uint256) {

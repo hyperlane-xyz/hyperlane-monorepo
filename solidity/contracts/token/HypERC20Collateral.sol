@@ -59,12 +59,24 @@ contract HypERC20Collateral is MovableCollateralRouter {
 
     function balanceOf(
         address _account
-    ) external view override returns (uint256) {
+    ) external view virtual override returns (uint256) {
         return wrappedToken.balanceOf(_account);
     }
 
-    function _token() internal view override returns (address) {
-        return address(wrappedToken);
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view virtual override returns (Quote[] memory quotes) {
+        quotes = new Quote[](2);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        });
+        quotes[1] = Quote({
+            token: address(wrappedToken),
+            amount: _quoteTransferFee(_amount) + _amount
+        });
     }
 
     /**
