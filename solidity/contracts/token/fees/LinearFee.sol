@@ -34,7 +34,7 @@ contract LinearFee is BaseFee {
         return uncapped > maxFee ? maxFee : uncapped;
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.LINEAR;
     }
 }

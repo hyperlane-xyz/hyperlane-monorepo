@@ -42,7 +42,7 @@ contract RegressiveFee is BaseFee {
         return (maxFee * amount) / (halfAmount + amount);
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.REGRESSIVE;
     }
 }

@@ -24,6 +24,8 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
+import {FungibleTokenRouter} from "../../contracts/token/libs/FungibleTokenRouter.sol";
 
 import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
@@ -37,6 +39,7 @@ import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
@@ -60,7 +63,7 @@ abstract contract HypTokenTest is Test {
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
-    TokenRouter internal localToken;
+    FungibleTokenRouter internal localToken;
     HypERC20 internal remoteToken;
     MockMailbox internal localMailbox;
     MockMailbox internal remoteMailbox;
@@ -80,6 +83,8 @@ abstract contract HypTokenTest is Test {
         bytes32 indexed recipient,
         uint256 amount
     );
+
+    LinearFee internal feeContract;
 
     function setUp() public virtual {
         localMailbox = new MockMailbox(ORIGIN);
@@ -169,13 +174,8 @@ abstract contract HypTokenTest is Test {
         assertEq(remoteToken.balanceOf(_user), _balance);
     }
 
-    function _processTransfers(address _recipient, uint256 _amount) internal {
-        vm.prank(address(remoteMailbox));
-        remoteToken.handle(
-            ORIGIN,
-            address(localToken).addressToBytes32(),
-            abi.encodePacked(_recipient.addressToBytes32(), _amount)
-        );
+    function _processTransfers() internal {
+        remoteMailbox.processNextInboundMessage();
     }
 
     function _handleLocalTransfer(uint256 _transferAmount) internal {
@@ -217,7 +217,7 @@ abstract contract HypTokenTest is Test {
 
         vm.expectEmit(true, true, false, true);
         emit ReceivedTransferRemote(ORIGIN, BOB.addressToBytes32(), _amount);
-        _processTransfers(BOB, _amount);
+        _processTransfers();
 
         assertEq(remoteToken.balanceOf(BOB), _amount);
     }
@@ -256,7 +256,7 @@ abstract contract HypTokenTest is Test {
             _hookMetadata,
             address(_hook)
         );
-        _processTransfers(BOB, _amount);
+        _processTransfers();
         assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 
@@ -289,6 +289,65 @@ abstract contract HypTokenTest is Test {
         );
         uint256 gasAfter = gasleft();
         console.log("Overhead gas usage: %d", gasBefore - gasAfter);
+    }
+
+    function testRemoteTransfer_withFee() public virtual {
+        feeContract = new LinearFee(1e18, 100e18, address(this));
+        localToken.setFeeRecipient(address(feeContract));
+        uint256 fee = feeContract.quoteTransfer(TRANSFER_AMT);
+
+        Quote[] memory quotes = localToken.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        uint256 nativeValue = quotes[0].amount;
+        if (quotes.length > 1) {
+            uint256 tokenValue = quotes[1].amount;
+            vm.prank(ALICE);
+            primaryToken.approve(address(localToken), tokenValue);
+        }
+
+        (
+            uint256 senderBefore,
+            uint256 beneficiaryBefore,
+            uint256 recipientBefore
+        ) = _getBalances(ALICE, BOB);
+
+        vm.prank(ALICE);
+        localToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        _processTransfers();
+        (
+            uint256 senderAfter,
+            uint256 beneficiaryAfter,
+            uint256 recipientAfter
+        ) = _getBalances(ALICE, BOB);
+
+        assertEq(senderAfter, senderBefore - (TRANSFER_AMT + fee));
+        assertEq(beneficiaryAfter, beneficiaryBefore + fee);
+        assertEq(recipientAfter, recipientBefore + TRANSFER_AMT);
+    }
+
+    function _getBalances(
+        address sender,
+        address recipient
+    )
+        internal
+        virtual
+        returns (
+            uint256 senderBalance,
+            uint256 beneficiaryBalance,
+            uint256 recipientBalance
+        )
+    {
+        senderBalance = localToken.balanceOf(sender);
+        beneficiaryBalance = localToken.balanceOf(address(feeContract));
+        recipientBalance = remoteToken.balanceOf(recipient);
     }
 }
 
@@ -325,7 +384,7 @@ contract HypERC20Test is HypTokenTest {
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
-        erc20Token.transfer(ALICE, 1000e18);
+        erc20Token.transfer(ALICE, 100 * TRANSFER_AMT);
 
         _enrollRemoteTokenRouter();
     }
@@ -760,7 +819,7 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
         localToken = HypERC20(address(proxy));
         erc20Token = HypERC20(address(proxy));
-        erc20Token.transfer(ALICE, TRANSFER_AMT);
+        erc20Token.transfer(ALICE, 100 * TRANSFER_AMT);
 
         _enrollLocalTokenRouter();
         _enrollRemoteTokenRouter();
@@ -792,5 +851,22 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
 
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+
+    function _getBalances(
+        address sender,
+        address recipient
+    )
+        internal
+        override
+        returns (
+            uint256 senderBalance,
+            uint256 beneficiaryBalance,
+            uint256 recipientBalance
+        )
+    {
+        (senderBalance, beneficiaryBalance, recipientBalance) = super
+            ._getBalances(sender, recipient);
+        recipientBalance = recipientBalance / EFFECTIVE_SCALE;
     }
 }
