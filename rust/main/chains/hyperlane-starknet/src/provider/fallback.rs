@@ -19,7 +19,7 @@ use starknet::providers::{
     JsonRpcClient, Provider, ProviderRequestData,
 };
 use tokio::time::sleep;
-use tracing::{trace, warn_span};
+use tracing::{warn, warn_span};
 use url::Url;
 
 use crate::HyperlaneStarknetError;
@@ -124,6 +124,9 @@ impl JsonRpcTransport for FallbackHttpTransport {
                 let _enter = span.enter();
                 let provider = &self.inner.providers[priority.index];
 
+                // TODO: fix at some point
+                // use the fallback from the core package, right now the trait constraints are too tidy for it to work
+
                 // first handle the stalled providers to not span the result of `send_request` in this future
                 // we have to do this, because the result does not implement the `Send` trait
                 let _ = self.handle_stalled_provider(priority, provider).await;
@@ -133,7 +136,7 @@ impl JsonRpcTransport for FallbackHttpTransport {
                 match result {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
-                        trace!(
+                        warn!(
                             error=?e,
                             "Got error from inner fallback provider",
                         );
