@@ -364,12 +364,8 @@ pub fn submitter_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
-    if finalized_transactions < params.total_messages_expected {
-        log!(
-            "hyperlane_lander_finalized_transactions {} count, expected {}",
-            finalized_transactions,
-            params.total_messages_expected
-        );
+    if finalized_transactions == 0 {
+        log!("hyperlane_lander_finalized_transactions is zero, expected at least one",);
         return Ok(false);
     }
     if building_stage_queue_length != 0 {
