@@ -487,5 +487,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "tac": {
+    "validators": ["0x606561d6a45188ba0a486e513e440bfc421dbc36"]
   }
 }
