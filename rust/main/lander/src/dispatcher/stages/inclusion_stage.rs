@@ -1,16 +1,15 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use derive_new::new;
+use eyre::{eyre, Result};
+use futures_util::future::try_join_all;
 use std::{
     collections::{HashMap, VecDeque},
     future::Future,
     sync::Arc,
     time::Duration,
 };
-
-use derive_new::new;
-use eyre::{eyre, Result};
-use futures_util::future::try_join_all;
 use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
@@ -150,7 +149,7 @@ impl InclusionStage {
         fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
-        mut tx: Transaction,
+        tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
@@ -162,8 +161,24 @@ impl InclusionStage {
             state,
         )
         .await?;
-        info!(?tx, ?tx_status, "Transaction status");
+        info!(?tx, next_tx_status = ?tx_status, "Transaction status");
 
+        Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
+            .await
+    }
+
+    #[instrument(
+        skip_all,
+        name = "InclusionStage::try_process_tx_with_next_status",
+        fields(tx_uuid = ?tx.uuid, previous_tx_status = ?tx.status, next_tx_status = ?tx_status, payloads = ?tx.payload_details)
+    )]
+    async fn try_process_tx_with_next_status(
+        mut tx: Transaction,
+        tx_status: TransactionStatus,
+        finality_stage_sender: &mpsc::Sender<Transaction>,
+        state: &DispatcherState,
+        pool: &InclusionStagePool,
+    ) -> Result<()> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
