@@ -10,7 +10,7 @@ use ethers_core::abi::Function;
 use eyre::eyre;
 use futures_util::future;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -291,11 +291,18 @@ impl AdaptsChain for EthereumAdapter {
         results
     }
 
+    #[instrument(
+        skip_all,
+        name = "EthereumAdapter::simulate_tx",
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
     async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
         if tx.payload_details.len() == 1 {
             // We assume simulation successful for transaction containing a single payload
             return Ok(vec![]);
         }
+
+        info!(?tx, "simulating transaction with batching");
 
         // Batching case, simulate batch
         let payloads = self.load_payloads(tx).await?;
@@ -315,13 +322,19 @@ impl AdaptsChain for EthereumAdapter {
             .await?;
 
         let payloads_successful = Self::filter(&payloads, successful);
-        let payloads_failed = Self::filter(&tx.payload_details, failed);
+        let payloads_details_failed = Self::filter(&tx.payload_details, failed);
+
+        info!(
+            ?payloads_successful,
+            ?payloads_details_failed,
+            "successful and failed payloads after simulation"
+        );
 
         let tx_building_results = self.build_transactions(&payloads_successful).await;
         let Some(tx_building_result) = tx_building_results.first() else {
             error!(
                 ?payloads_successful,
-                ?payloads_failed,
+                ?payloads_details_failed,
                 "Failed to build transaction for payloads, no transaction building result"
             );
             return Err(LanderError::SimulationFailed);
@@ -330,16 +343,23 @@ impl AdaptsChain for EthereumAdapter {
         let Some(transaction) = tx_building_result.maybe_tx.clone() else {
             error!(
                 ?payloads_successful,
-                ?payloads_failed,
+                ?payloads_details_failed,
                 "Failed to build transaction for payloads, transaction was not built"
             );
             return Err(LanderError::SimulationFailed);
         };
 
+        info!(
+            rebuilt_transaction = ?transaction,
+            "rebuilt transaction after simulation"
+        );
+
         tx.payload_details = transaction.payload_details;
         tx.vm_specific_data = transaction.vm_specific_data;
 
-        Ok(payloads_failed)
+        info!(?tx, "updated transaction after simulation");
+
+        Ok(payloads_details_failed)
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
