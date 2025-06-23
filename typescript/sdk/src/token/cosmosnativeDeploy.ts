@@ -76,6 +76,14 @@ export class CosmosNativeDeployer {
         }
       }
 
+      if (config.interchainSecurityModule) {
+        await this.setIsm(
+          chain,
+          result[chain],
+          config.interchainSecurityModule,
+        );
+      }
+
       this.logger.info(`Successfully deployed contracts on ${chain}`);
     }
 
@@ -104,5 +112,20 @@ export class CosmosNativeDeployer {
       origin_mailbox: originMailbox,
     });
     return response.id;
+  }
+
+  private async setIsm(
+    chain: ChainName,
+    tokenAddress: string,
+    ismAddress: string,
+  ) {
+    const { code } = await this.signersMap[chain].setToken({
+      token_id: tokenAddress,
+      ism_id: ismAddress,
+      new_owner: '',
+      renounce_ownership: false,
+    });
+
+    assert(code === 0, `failed to set ISM for token ${tokenAddress}`);
   }
 }

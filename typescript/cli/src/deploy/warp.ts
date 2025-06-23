@@ -1133,6 +1133,11 @@ async function submitWarpApplyTransactions(
               }
               case ProtocolType.CosmosNative: {
                 for (const chain of Object.keys(chainTransactions)) {
+                  console.log(
+                    'submitWarpApplyTransactions',
+                    chain,
+                    JSON.stringify(chainTransactions),
+                  );
                   const signer =
                     params.context.multiProtocolSigner!.getCosmosNativeSigner(
                       chain,
