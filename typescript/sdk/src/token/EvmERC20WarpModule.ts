@@ -1030,22 +1030,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const targetFee = expected.tokenFee ?? {
-      type: FeeCurve.ZERO,
-      owner: ethers.constants.AddressZero,
-      maxFee: '0',
-      halfAmount: '0',
-    };
+    let feeRecipient: Address;
+    if (expected.tokenFee && expected.tokenFee.type !== FeeCurve.ZERO) {
+      const deployer = new HypERC20Deployer(this.multiProvider);
+      feeRecipient = await deployer.deployFeeRecipient(
+        this.chainName,
+        expected.tokenFee,
+      );
+    } else {
+      feeRecipient = ethers.constants.AddressZero;
+    }
 
-    const deployer = new HypERC20Deployer(this.multiProvider);
-    const feeRecipient = await deployer.deployFeeRecipient(
-      this.chainName,
-      targetFee,
-    );
     return [
       {
         chainId: this.chainId,
-        annotation: `Setting fee recipient to ${feeRecipient} (${targetFee.type})`,
+        annotation: `Setting fee recipient to ${feeRecipient}`,
         to: this.args.addresses.deployedTokenRoute,
         data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
           'setFeeRecipient',

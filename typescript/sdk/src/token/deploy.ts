@@ -1,4 +1,4 @@
-import { constants, ethers } from 'ethers';
+import { constants } from 'ethers';
 
 import {
   ERC20__factory,
@@ -544,9 +544,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     chain: ChainName,
     config: TokenFeeConfig,
   ): Promise<Address> {
-    if (config.type === FeeCurve.ZERO) {
-      return ethers.constants.AddressZero;
-    }
+    assert(config.type !== FeeCurve.ZERO, 'Zero fee curve is 0 address');
 
     const feeFactory = feeFactories[config.type];
 

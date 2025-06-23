@@ -54,11 +54,17 @@ export enum FeeCurve {
   PROGRESSIVE = 'progressive',
 }
 
-export const TokenFeeConfigSchema = OwnableSchema.extend({
-  type: z.nativeEnum(FeeCurve),
-  maxFee: z.string().or(z.number()),
-  halfAmount: z.string().or(z.number()),
-});
+export const TokenFeeConfigSchema = z
+  .object({
+    type: z.literal(FeeCurve.ZERO),
+  })
+  .or(
+    OwnableSchema.extend({
+      type: z.nativeEnum(FeeCurve),
+      maxFee: z.string().or(z.number()),
+      halfAmount: z.string().or(z.number()),
+    }),
+  );
 
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
