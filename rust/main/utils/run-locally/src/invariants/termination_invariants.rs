@@ -402,9 +402,9 @@ pub fn lander_metrics_invariants_met(
     // simulation in the `TestTokenRecipient` contract. Even though we have a retry mechanism
     // in place to simulate transactions, we still expect some payloads maybe dropped when
     // a transaction is included in a block with hash ending in 0.
-    if dropped_payloads <= params.total_messages_expected {
+    if dropped_payloads >= params.total_messages_expected {
         log!(
-            "hyperlane_lander_dropped_payloads {} count, expected less or equal to {}",
+            "hyperlane_lander_dropped_payloads {} count, expected less than {}",
             dropped_payloads,
             params.total_messages_expected
         );
