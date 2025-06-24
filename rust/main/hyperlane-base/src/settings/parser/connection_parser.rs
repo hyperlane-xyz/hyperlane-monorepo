@@ -7,7 +7,10 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
+use hyperlane_core::{
+    config::ConfigParsingError, utils::hex_or_base58_to_h256, HyperlaneDomainProtocol, NativeToken,
+    H256,
+};
 
 use hyperlane_starknet as h_starknet;
 
@@ -304,6 +307,61 @@ pub fn build_cosmos_native_connection_conf(
     }
 }
 
+pub fn build_kaspa_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let escrow_address = chain
+        .chain(err)
+        .get_opt_key("escrowAddress")
+        .parse_string()
+        .end();
+
+    let rest_url_s = chain
+        .chain(err)
+        .get_opt_key("kaspaRestUrl")
+        .parse_string()
+        .end()?;
+
+    let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
+
+    let validator_hosts: Vec<String> = chain
+        .chain(err)
+        .get_key("validatorHosts")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    let validator_ids: Vec<H256> = chain
+        .chain(err)
+        .get_key("validatorIDS")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
+        .collect();
+
+    let threshold = chain
+        .chain(err)
+        .get_key("kaspaMultisigThreshold")
+        .parse_u32()
+        .end()?;
+
+    Some(ChainConnectionConf::Kaspa(
+        dymension_kaspa::ConnectionConf::new(
+            rest_url,
+            escrow_address.unwrap().to_string(),
+            validator_hosts,
+            validator_ids,
+            threshold as usize,
+        ),
+    ))
+}
+
 fn build_sealevel_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -530,6 +588,9 @@ pub fn build_connection_conf(
         }),
         HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Kaspa => {
+            build_kaspa_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

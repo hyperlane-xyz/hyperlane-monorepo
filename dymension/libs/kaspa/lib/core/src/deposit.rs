@@ -1,5 +1,9 @@
 use super::escrow::*;
 
+use eyre::Error as EyreError;
+
+use bytes::Bytes;
+
 use std::sync::Arc;
 
 use kaspa_wallet_core::error::Error;
@@ -10,6 +14,22 @@ use kaspa_addresses::Prefix;
 use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
+
+pub struct DepositFXG;
+
+impl TryFrom<Bytes> for DepositFXG {
+    type Error = EyreError;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        unimplemented!()
+    }
+}
+
+impl From<&DepositFXG> for Bytes {
+    fn from(deposit: &DepositFXG) -> Self {
+        unimplemented!()
+    }
+}
 
 pub async fn deposit(
     w: &Arc<Wallet>,

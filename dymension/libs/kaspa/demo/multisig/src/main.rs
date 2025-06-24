@@ -37,7 +37,7 @@ use kaspa_txscript::{
     pay_to_script_hash_script,
 };
 
-use secp256k1::{Keypair, rand::thread_rng};
+use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;

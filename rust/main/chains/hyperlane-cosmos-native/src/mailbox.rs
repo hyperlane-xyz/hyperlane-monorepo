@@ -1,5 +1,6 @@
 use cosmrs::Any;
 use hex::ToHex;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
@@ -185,5 +186,41 @@ impl Mailbox for CosmosNativeMailbox {
 
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
+    }
+}
+
+/// DYMENSION: required for Kaspa bridge, a special indicate progress TX
+/// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L29
+impl CosmosNativeMailbox {
+    /// atomically update the hub with a new outpoint anchor and set of completed withdrawals
+    pub async fn indicate_progress(
+        &self,
+        metadata: &[u8],
+        u: &ProgressIndication,
+    ) -> ChainResult<TxOutcome> {
+        let msg = MsgIndicateProgress {
+            signer: self.address.encode_hex(),
+            metadata: metadata.to_vec().into(),
+            payload: Some(u.clone()),
+        };
+        let a = Any {
+            type_url: MsgIndicateProgress::type_url(),
+            value: msg.encode_to_vec(),
+        };
+        let gas_limit = None;
+        let response = self.provider.rpc().send(vec![a], gas_limit).await?;
+
+        // we assume that the underlying cosmos chain does not have gas refunds
+        // in that case the gas paid will always be:
+        // gas_wanted * gas_price
+        let gas_price =
+            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
+
+        Ok(TxOutcome {
+            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+            executed: response.tx_result.code.is_ok() && response.check_tx.code.is_ok(),
+            gas_used: response.tx_result.gas_used.into(),
+            gas_price,
+        })
     }
 }

@@ -8,6 +8,7 @@ members = [
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
   "chains/hyperlane-cosmos-native",
+  "chains/dymension-kaspa",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
@@ -185,6 +186,8 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+
+
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

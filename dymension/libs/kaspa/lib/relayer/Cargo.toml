@@ -1,7 +1,7 @@
 [package]
 name = "relayer"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
 
 [dependencies]
 core = { path = "../core" }
@@ -18,6 +18,9 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
+reqwest = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }
 anyhow = "1.0"
 hex = "0.4.3"
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }

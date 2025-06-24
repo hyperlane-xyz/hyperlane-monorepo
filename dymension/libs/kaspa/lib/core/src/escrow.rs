@@ -5,7 +5,7 @@ use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
 
-use secp256k1::{Keypair, PublicKey, rand::thread_rng};
+use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 
 pub struct Escrow {
     pub keys: Vec<Keypair>,

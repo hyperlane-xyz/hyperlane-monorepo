@@ -1,3 +1,4 @@
+pub mod deposit;
 pub mod hub_to_kaspa_builder;
 pub mod withdraw;
 

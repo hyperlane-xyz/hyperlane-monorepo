@@ -69,6 +69,7 @@ pub use signers::*;
 pub use trace::*;
 
 mod envs {
+    pub use dymension_kaspa as h_kaspa;
     pub use hyperlane_cosmos as h_cosmos;
     pub use hyperlane_cosmos_native as h_cosmos_native;
     pub use hyperlane_ethereum as h_eth;
@@ -81,6 +82,7 @@ pub(crate) mod aws_credentials;
 mod base;
 /// Chain configuration
 mod chains;
+pub use chains::build_kaspa_provider;
 pub mod loader;
 /// Signer configuration
 mod signers;

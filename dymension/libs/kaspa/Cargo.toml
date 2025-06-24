@@ -43,7 +43,10 @@ tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 tracing-test = "0.2.2"
 # reqwest = "0.11"
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart"] } # had to use 0.12 to be compatible with open ai generation
+bytes = "1"
 
 # HYPERLANE
 axum = "0.8.4"
+url = "2.3"
+eyre = "=0.6.8"

@@ -1,7 +1,7 @@
 [package]
 name = "core"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
 
 [dependencies]
 kaspa-addresses = { workspace = true }
@@ -18,3 +18,14 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 clap = { workspace = true }
 log = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+api-rs = { path = "../api", package = "openapi" }
+tokio = { workspace = true }
+url = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }
+
+reqwest-middleware = "0.4"
+reqwest-ratelimit = "0.4.1"
+governor = "0.10"
