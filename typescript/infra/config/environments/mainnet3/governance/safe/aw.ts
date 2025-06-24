@@ -46,7 +46,6 @@ export const awSafes: ChainMap<Address> = {
   abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   zksync: '0x9C81aA0cC233e9BddeA426F5d395Ab5B65135450',
   zklink: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
-  treasure: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   sophon: '0x3D1baf8cA4935f416671640B1Aa9E17E005986eE',
 
   // ousdt extension
