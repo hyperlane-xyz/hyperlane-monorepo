@@ -3,6 +3,7 @@ import {
   MultiType,
   Uint256,
   byteArray,
+  cairo,
   eth,
   getChecksumAddress,
   uint256,
@@ -77,7 +78,7 @@ export class StarknetERC20WarpModule {
             {
               decimals: decimals,
               mailbox: mailbox!,
-              total_supply: 0,
+              total_supply: cairo.uint256(0),
               name: [byteArray.byteArrayFromString(name)],
               symbol: [byteArray.byteArrayFromString(symbol)],
               hook: getChecksumAddress(0),
@@ -213,29 +214,31 @@ export class StarknetERC20WarpModule {
         },
       );
 
-      this.logger.info(
-        `Batch enrolling ${domains.length} remote routers on ${chain}`,
-      );
+      if (domains.length > 0) {
+        this.logger.info(
+          `Batch enrolling ${domains.length} remote routers on ${chain}`,
+        );
 
-      const tx = await routerContract.invoke('enroll_remote_routers', [
-        domains,
-        routers,
-      ]);
+        const tx = await routerContract.invoke('enroll_remote_routers', [
+          domains,
+          routers,
+        ]);
 
-      const receipt = await account.waitForTransaction(tx.transaction_hash);
+        const receipt = await account.waitForTransaction(tx.transaction_hash);
 
-      receipt.match({
-        success: (tx) => {
-          this.logger.info(
-            `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
-          );
-        },
-        _: () => {
-          this.logger.error(
-            `Failed to enroll all remote routers on ${chain}. Transaction: ${tx?.transaction_hash}`,
-          );
-        },
-      });
+        receipt.match({
+          success: (tx) => {
+            this.logger.info(
+              `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+            );
+          },
+          _: () => {
+            this.logger.error(
+              `Failed to enroll all remote routers on ${chain}. Transaction: ${tx?.transaction_hash}`,
+            );
+          },
+        });
+      }
     }
   }
 }
