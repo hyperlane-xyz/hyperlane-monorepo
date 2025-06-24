@@ -232,9 +232,7 @@ where
         let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
         let contract_calls = self.create_contract_calls(precursors);
 
-        let estimated = multicall::estimate(multicall_contract_call, contract_calls).await?;
-        let gas_limit = estimated.tx.gas().unwrap().into();
-
+        let gas_limit = multicall::estimate(&multicall_contract_call, contract_calls).await?;
         Ok(gas_limit)
     }
 

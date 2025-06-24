@@ -116,9 +116,9 @@ pub fn filter(results: &[MulticallResult]) -> (Vec<usize>, Vec<(usize, String)>)
 
 /// Estimate the gas limit for a batch of contract calls
 pub async fn estimate<M, D>(
-    batch: ContractCall<M, D>,
+    batch: &ContractCall<M, D>,
     calls: Vec<ContractCall<M, ()>>,
-) -> ChainResult<ContractCall<M, D>>
+) -> ChainResult<U256>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -151,5 +151,5 @@ where
     let scaled_down_gas_limit = gas_limit * MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR
         / MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR;
 
-    Ok(batch.gas(scaled_down_gas_limit))
+    Ok(scaled_down_gas_limit)
 }

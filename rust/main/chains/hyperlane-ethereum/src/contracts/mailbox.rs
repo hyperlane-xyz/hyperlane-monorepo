@@ -459,8 +459,8 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         if let Some(mut submittable_batch) = self.call {
-            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
-            submittable_batch.call = estimated;
+            let gas_limit = multicall::estimate(&submittable_batch.call, self.successful).await?;
+            submittable_batch.call.tx.set_gas(gas_limit);
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
