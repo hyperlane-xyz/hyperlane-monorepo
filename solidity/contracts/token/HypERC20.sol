@@ -59,6 +59,10 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
         return ERC20Upgradeable.balanceOf(_account);
     }
 
+    function token() public view virtual override returns (address) {
+        return address(this);
+    }
+
     /**
      * @dev Burns `_amount` of token from `msg.sender` balance.
      * @inheritdoc TokenRouter

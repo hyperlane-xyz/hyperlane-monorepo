@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge, Quote} from "contracts/token/interfaces/ValueTransferBridge.sol";
+import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -9,7 +9,7 @@ import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 
 import "forge-std/Test.sol";
 
-contract MockValueTransferBridgeEth is ValueTransferBridge {
+contract MockITokenBridgeEth is ITokenBridge {
     constructor() {}
 
     function transferRemote(
@@ -31,7 +31,7 @@ contract MockValueTransferBridgeEth is ValueTransferBridge {
 
 contract HypNativeMovableTest is Test {
     HypNative internal router;
-    MockValueTransferBridgeEth internal vtb;
+    MockITokenBridgeEth internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
@@ -45,7 +45,7 @@ contract HypNativeMovableTest is Test {
             destinationDomain,
             bytes32(uint256(uint160(0)))
         );
-        vtb = new MockValueTransferBridgeEth();
+        vtb = new MockITokenBridgeEth();
     }
 
     function testMovingCollateral() public {
