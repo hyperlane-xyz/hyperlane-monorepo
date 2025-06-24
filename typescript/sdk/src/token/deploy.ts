@@ -132,6 +132,8 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
+    console.log('config', config);
+
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const scale = config.scale ?? 1;
 

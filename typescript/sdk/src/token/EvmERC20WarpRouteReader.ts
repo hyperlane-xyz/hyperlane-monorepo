@@ -1,4 +1,3 @@
-import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, ethers } from 'ethers';
 
 import {
@@ -415,9 +414,9 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const config = await deriveFunction(warpRouteAddress);
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
-    if (compareVersions(config.contractVersion, TOKEN_FEE_VERSION) >= 0) {
-      config.tokenFee = await this.fetchTokenFee(warpRouteAddress);
-    }
+    // if (compareVersions(config.contractVersion, TOKEN_FEE_VERSION) >= 0) {
+    config.tokenFee = await this.fetchTokenFee(warpRouteAddress);
+    // }
 
     return HypTokenConfigSchema.parse(config);
   }
