@@ -17,6 +17,7 @@ cainome.workspace = true
 derive-new = { workspace = true }
 starknet.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
