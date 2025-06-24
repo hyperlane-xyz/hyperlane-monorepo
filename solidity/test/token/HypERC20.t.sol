@@ -303,27 +303,16 @@ abstract contract HypTokenTest is Test {
         .quoteTransferRemote(DESTINATION, BOB.addressToBytes32(), TRANSFER_AMT)[
             0
         ].amount;
+        uint256 total = TRANSFER_AMT + fee;
 
-        Quote[] memory quotes = localToken.quoteTransferRemote(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT
-        );
-
-        uint256 nativeValue = 0;
-        uint256 tokenValue = 0;
-        for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == address(primaryToken)) {
-                tokenValue += quotes[i].amount;
-            }
-            if (quotes[i].token == address(0)) {
-                nativeValue += quotes[i].amount;
-            }
-        }
-
-        if (tokenValue > 0 && address(primaryToken) != address(0)) {
+        uint256 nativeValue = REQUIRED_VALUE;
+        if (address(primaryToken) != address(0)) {
+            deal(address(primaryToken), ALICE, total);
             vm.prank(ALICE);
-            primaryToken.approve(address(localToken), tokenValue);
+            primaryToken.approve(address(localToken), total);
+        } else {
+            vm.deal(ALICE, total);
+            nativeValue += total;
         }
 
         (
@@ -403,7 +392,7 @@ contract HypERC20Test is HypTokenTest {
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
-        erc20Token.transfer(ALICE, 100 * TRANSFER_AMT);
+        erc20Token.transfer(ALICE, 1000e18);
 
         _enrollRemoteTokenRouter();
     }
@@ -450,7 +439,12 @@ contract HypERC20Test is HypTokenTest {
 
     function testRemoteTransfer_invalidAmount() public {
         vm.expectRevert("ERC20: burn amount exceeds balance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
+        vm.prank(ALICE);
+        localToken.transferRemote{value: REQUIRED_VALUE}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT * 11
+        );
         assertEq(erc20Token.balanceOf(ALICE), 1000e18);
     }
 
@@ -511,7 +505,12 @@ contract HypERC20CollateralTest is HypTokenTest {
 
     function testRemoteTransfer_invalidAllowance() public {
         vm.expectRevert("ERC20: insufficient allowance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
+        vm.prank(ALICE);
+        localToken.transferRemote{value: REQUIRED_VALUE}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
         assertEq(localToken.balanceOf(ALICE), 1000e18);
     }
 
@@ -745,8 +744,6 @@ contract HypNativeTest is HypTokenTest {
 
         uint256 value = REQUIRED_VALUE + TRANSFER_AMT;
 
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
         bytes32 messageId = _performRemoteTransferWithHook(
             value,
             TRANSFER_AMT,
@@ -766,9 +763,11 @@ contract HypNativeTest is HypTokenTest {
 
     function testRemoteTransfer_invalidAmount() public {
         vm.expectRevert("Native: amount exceeds msg.value");
-        _performRemoteTransfer(
-            REQUIRED_VALUE + TRANSFER_AMT,
-            TRANSFER_AMT * 10
+        vm.prank(ALICE);
+        localToken.transferRemote{value: REQUIRED_VALUE + TRANSFER_AMT}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            REQUIRED_VALUE + TRANSFER_AMT + 1
         );
         assertEq(localToken.balanceOf(ALICE), 1000e18);
     }
@@ -776,11 +775,10 @@ contract HypNativeTest is HypTokenTest {
     function testRemoteTransfer_withCustomGasConfig() public {
         _setCustomGasConfig();
 
-        _performRemoteTransferAndGas(
-            REQUIRED_VALUE,
-            TRANSFER_AMT,
-            TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
-        );
+        uint256 balanceBefore = ALICE.balance;
+        uint256 gasOverhead = GAS_LIMIT * igp.gasPrice();
+        _performRemoteTransfer(TRANSFER_AMT + gasOverhead, TRANSFER_AMT);
+        assertEq(ALICE.balance, balanceBefore - REQUIRED_VALUE - gasOverhead);
     }
 
     function test_transferRemote_reverts_whenAmountExceedsValue(
@@ -839,8 +837,8 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
         localToken = HypERC20(address(proxy));
         erc20Token = HypERC20(address(proxy));
+        erc20Token.transfer(ALICE, TRANSFER_AMT);
         primaryToken = ERC20Test(address(erc20Token));
-        erc20Token.transfer(ALICE, 100 * TRANSFER_AMT);
 
         _enrollLocalTokenRouter();
         _enrollRemoteTokenRouter();
@@ -857,7 +855,12 @@ contract HypERC20ScaledTest is HypTokenTest {
             TRANSFER_AMT * EFFECTIVE_SCALE
         );
 
-        _performRemoteTransferAndGas(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        vm.prank(ALICE);
+        localToken.transferRemote{value: REQUIRED_VALUE}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
     }
 
     function testHandle() public {
@@ -872,6 +875,24 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
 
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+
+    function testTransfer_withHookSpecified(
+        uint256 fee,
+        bytes calldata metadata
+    ) public override {
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        vm.prank(ALICE);
+        bytes32 messageId = localToken.transferRemote{value: REQUIRED_VALUE}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata,
+            address(hook)
+        );
+        assertTrue(hook.messageDispatched(messageId));
     }
 
     function _getBalances(
