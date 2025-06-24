@@ -53,20 +53,6 @@ contract HypNative is MovableCollateralRouter {
         return address(0);
     }
 
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256 unspentValue) {
-        unspentValue = FungibleTokenRouter._chargeSender(
-            _destination,
-            _recipient,
-            _amount
-        );
-        require(unspentValue >= _amount, "Native: insufficient native amount");
-        return unspentValue - _amount;
-    }
-
     /**
      * @inheritdoc TokenRouter
      */
