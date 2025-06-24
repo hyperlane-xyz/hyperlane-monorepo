@@ -6162,7 +6162,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (git+https://github.com/dymensionxyz/hyperlane-cosmos-rs)",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "itertools 0.13.0",
