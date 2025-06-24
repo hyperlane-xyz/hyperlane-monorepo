@@ -75,19 +75,19 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     State(state): State<Arc<HandlerState<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
-    let deposits: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let confirmation_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_confirmed_withdrawals(&deposits) {
-        return Err(AppError(eyre::eyre!("Invalid deposit")));
+    if !validate_confirmed_withdrawals(&confirmation_fxg) {
+        return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
-    let progress_indication = ProgressIndication::default(); // TODO: get from fxg
+    let progress_indication = &confirmation_fxg.progress_indication;
 
     let sig = state
         .signer // TODO: need to lock?
         .sign(SignableProgressIndication {
-            progress_indication,
+            progress_indication: progress_indication.clone(),
         })
         .await
         .map_err(|e| AppError(e.into()))?;

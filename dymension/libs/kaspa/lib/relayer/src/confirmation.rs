@@ -19,28 +19,25 @@ use api_rs::apis::{
     },
 };
 
+use core::confirmation::ConfirmationFXG;
 
-
-/// Prepare a progress indication for the Hub x/kas module
+/// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
 /// all withdrawal payloads that were processed in between.
 /// 
 /// # Arguments
 /// * `config` - The Kaspa API client configuration for querying transactions
-/// * `cosmos_provider` - The Cosmos provider for querying Hub state
-/// * `addr` - The address of the UTXO
-/// * `new_utxo_transaction_id` - The transaction ID of the new UTXO to trace from
+/// * `anchor_utxo` - The anchor UTXO to trace to
+/// * `new_utxo` - The new UTXO to trace from
 /// 
 /// # Returns
-/// * `Result<ProgressIndication, Error>` - The progress indication with old and new outpoints
+/// * `Result<ConfirmationFXG, Error>` - The confirmation FXG containing the progress indication with old and new outpoints
 ///   and a list of processed withdrawal IDs
 pub async fn prepare_progress_indication(
     config: &Configuration,
-    // cosmos_provider: &CosmosNativeProvider,
-    // addr: Address,
     anchor_utxo: TransactionOutpoint,
     new_utxo: TransactionOutpoint,
-) -> Result<ProgressIndication, Error> {
+) -> Result<ConfirmationFXG, Error> {
     println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
 
     /*
@@ -98,11 +95,9 @@ pub async fn prepare_progress_indication(
 
     println!("ProgressIndication: {:?}", progress_indication);
 
-    Ok(progress_indication)
+    let confirmation_fxg = ConfirmationFXG::new(progress_indication);
+    Ok(confirmation_fxg)
 }
-
-
-
 
 /// Trace transactions from a starting transaction ID to a target transaction ID,
 /// collecting payloads along the way.

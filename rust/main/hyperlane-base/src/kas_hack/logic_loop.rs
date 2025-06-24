@@ -175,7 +175,7 @@ where
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<TxOutcome> {
-        let u: ProgressIndication = ProgressIndication::default(); // TODO: get from fxg
+        let progress_indication = &fxg.progress_indication;
         let mut sigs = self
             .provider
             .validators()
@@ -188,7 +188,7 @@ where
         )?;
 
         self.hub_mailbox
-            .indicate_progress(&formatted_sigs, &u)
+            .indicate_progress(&formatted_sigs, progress_indication)
             .await
     }
 
