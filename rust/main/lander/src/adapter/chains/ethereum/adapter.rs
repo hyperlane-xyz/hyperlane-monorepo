@@ -201,6 +201,55 @@ impl EthereumAdapter {
         metrics_source.gas_limit = precursor.tx.gas().map(|g| g.as_u64());
         metrics_source
     }
+
+    /// Helper to build a single transaction from a precursor and payload details.
+    fn build_single_transaction(
+        &self,
+        precursor: EthereumTxPrecursor,
+        payload_details: Vec<PayloadDetails>,
+    ) -> TxBuildingResult {
+        use super::transaction::TransactionFactory;
+        let transaction = TransactionFactory::build(precursor, payload_details.clone());
+        TxBuildingResult {
+            payloads: payload_details,
+            maybe_tx: Some(transaction),
+        }
+    }
+
+    /// Helper to build a batched transaction from multiple precursors and payload details.
+    async fn build_batched_transaction(
+        &self,
+        precursors: Vec<(TypedTransaction, Function)>,
+        payload_details: Vec<PayloadDetails>,
+        signer: H160,
+    ) -> Vec<TxBuildingResult> {
+        use super::transaction::TransactionFactory;
+
+        let multi_precursor = self
+            .provider
+            .batch(
+                self.batch_cache.clone(),
+                self.batch_contract_address,
+                precursors,
+                signer,
+            )
+            .await
+            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
+
+        let Ok(multi_precursor) = multi_precursor else {
+            error!("Failed to batch payloads");
+            return vec![];
+        };
+
+        let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
+
+        let tx_building_result = TxBuildingResult {
+            payloads: payload_details,
+            maybe_tx: Some(transaction),
+        };
+
+        vec![tx_building_result]
+    }
 }
 
 #[async_trait]
@@ -249,11 +298,7 @@ impl AdaptsChain for EthereumAdapter {
             // If there's only one payload, we can build a single transaction directly
             let (tx, function) = precursors[0].clone();
             let precursor = EthereumTxPrecursor::new(tx, function);
-            let transaction = TransactionFactory::build(precursor, payload_details.clone());
-            let results = vec![TxBuildingResult {
-                payloads: payload_details,
-                maybe_tx: Some(transaction),
-            }];
+            let results = vec![self.build_single_transaction(precursor, payload_details)];
             info!(
                 ?payloads,
                 ?results,
@@ -262,30 +307,10 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
-        let multi_precursor = self
-            .provider
-            .batch(
-                self.batch_cache.clone(),
-                self.batch_contract_address,
-                precursors,
-                signer,
-            )
-            .await
-            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
-
-        let Ok(multi_precursor) = multi_precursor else {
-            error!("Failed to batch payloads");
-            return vec![];
-        };
-
-        let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
-
-        let tx_building_result = TxBuildingResult {
-            payloads: payload_details,
-            maybe_tx: Some(transaction),
-        };
-
-        let results = vec![tx_building_result];
+        // Batched transaction
+        let results = self
+            .build_batched_transaction(precursors, payload_details, signer)
+            .await;
 
         info!(?payloads, ?results, "built transaction for payloads");
         results
