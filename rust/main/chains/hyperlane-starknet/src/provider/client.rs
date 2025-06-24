@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use hyperlane_core::{
@@ -11,17 +10,25 @@ use starknet::core::types::{
     Transaction, TransactionReceipt,
 };
 use starknet::macros::selector;
-use starknet::providers::jsonrpc::HttpTransport;
-use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
+use starknet::providers::{JsonRpcClient, Provider};
 use tracing::instrument;
 
+use crate::provider::fallback::FallbackHttpTransport;
 use crate::types::{HyH256, HyU256};
 use crate::{ConnectionConf, HyperlaneStarknetError};
+
+/// JsonProvider type, that includes the fallback behavior
+pub type JsonProvider = JsonRpcClient<FallbackHttpTransport>;
+
+/// Builds a new starknet json provider that has fallback behavior
+pub(crate) fn build_json_provider(conn: &ConnectionConf) -> JsonProvider {
+    JsonRpcClient::new(FallbackHttpTransport::new(conn.urls.clone()))
+}
 
 #[derive(Debug, Clone)]
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
 pub struct StarknetProvider {
-    rpc_client: Arc<AnyProvider>,
+    rpc_client: JsonRpcClient<FallbackHttpTransport>,
     domain: HyperlaneDomain,
     fee_token_address: Felt,
 }
@@ -29,21 +36,21 @@ pub struct StarknetProvider {
 impl StarknetProvider {
     /// Create a new Starknet provider.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        let provider =
-            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
+        let provider = JsonRpcClient::new(FallbackHttpTransport::new(conf.urls.clone()));
 
         // Fee token address is used to check balances
         let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
+
         Self {
             domain,
-            rpc_client: Arc::new(provider),
+            rpc_client: provider,
             fee_token_address,
         }
     }
 
     /// Get the RPC client.
-    pub fn rpc_client(&self) -> Arc<AnyProvider> {
-        self.rpc_client.clone()
+    pub fn rpc_client(&self) -> &JsonRpcClient<FallbackHttpTransport> {
+        &self.rpc_client
     }
 
     /// Get the hyperlane domain.
@@ -99,7 +106,7 @@ impl HyperlaneProvider for StarknetProvider {
         let receipt = match receipt.receipt {
             TransactionReceipt::Invoke(invoke_receipt) => invoke_receipt,
             _ => {
-                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
+                return Err(HyperlaneStarknetError::InvalidBlock.into());
             }
         };
 

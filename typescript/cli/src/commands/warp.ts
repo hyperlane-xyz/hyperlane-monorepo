@@ -1,3 +1,4 @@
+import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -23,8 +24,15 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -33,7 +41,6 @@ import {
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { selectRegistryWarpRoute } from '../utils/tokens.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,
@@ -42,13 +49,11 @@ import {
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
-  DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
   forkCommandOptions,
   fromAddressCommandOption,
-  inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   symbolCommandOption,
@@ -72,6 +77,7 @@ export const warpCommand: CommandModule = {
       .command(fork)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -80,27 +86,36 @@ export const warpCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const apply: CommandModuleWithWarpApplyContext<{
-  config?: string;
-  warp?: string;
-  symbol?: string;
-  warpRouteId?: string;
-  strategy?: string;
-  receiptsDir: string;
-}> = {
+const SELECT_WARP_ROUTE_BUILDER = {
+  config: warpDeploymentConfigCommandOption,
+  warpRouteId: {
+    ...warpRouteIdCommandOption,
+    demandOption: false,
+  },
+  warp: {
+    ...warpCoreConfigCommandOption,
+    demandOption: false,
+  },
+  symbol: {
+    ...symbolCommandOption,
+    demandOption: false,
+  },
+} as const;
+
+type SelectWarpRouteBuilder = Partial<
+  Record<keyof typeof SELECT_WARP_ROUTE_BUILDER, string>
+>;
+
+export const apply: CommandModuleWithWarpApplyContext<
+  SelectWarpRouteBuilder & {
+    strategy?: string;
+    receiptsDir: string;
+  }
+> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
   builder: {
-    config: warpDeploymentConfigCommandOption,
-    warpRouteId: warpRouteIdCommandOption,
-    warp: {
-      ...warpCoreConfigCommandOption,
-      demandOption: false,
-    },
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
+    ...SELECT_WARP_ROUTE_BUILDER,
     strategy: { ...strategyCommandOption, demandOption: false },
     'receipts-dir': {
       type: 'string',
@@ -133,24 +148,18 @@ export const apply: CommandModuleWithWarpApplyContext<{
   },
 };
 
-export const deploy: CommandModuleWithWarpDeployContext<{
-  config?: string;
-  'dry-run': string;
-  'from-address': string;
-  symbol?: string;
-  warpRouteId?: string;
-}> = {
+export const deploy: CommandModuleWithWarpDeployContext<
+  SelectWarpRouteBuilder & {
+    'dry-run': string;
+    'from-address': string;
+  }
+> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
   builder: {
-    config: warpDeploymentConfigCommandOption,
+    ...SELECT_WARP_ROUTE_BUILDER,
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
-    warpRouteId: warpRouteIdCommandOption,
   },
   handler: async ({ context, dryRun, warpRouteId, config }) => {
     logCommandHeader(
@@ -199,19 +208,16 @@ export const init: CommandModuleWithContext<{
   },
 };
 
-export const read: CommandModuleWithContext<{
-  chain?: string;
-  address?: string;
-  config?: string;
-  symbol?: string;
-}> = {
+export const read: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    chain?: string;
+    address?: string;
+  }
+> = {
   command: 'read',
   describe: 'Derive the warp route config from onchain artifacts',
   builder: {
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
+    ...SELECT_WARP_ROUTE_BUILDER,
     chain: {
       ...chainCommandOption,
       demandOption: false,
@@ -219,11 +225,6 @@ export const read: CommandModuleWithContext<{
     address: addressCommandOption(
       'Address of the router contract to read.',
       false,
-    ),
-    config: outputFileCommandOption(
-      DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
-      false,
-      'The path to output a Warp Config JSON or YAML file.',
     ),
   },
   handler: async ({
@@ -256,26 +257,18 @@ export const read: CommandModuleWithContext<{
 };
 
 const send: CommandModuleWithWriteContext<
-  MessageOptionsArgTypes & {
-    warp?: string;
-    symbol?: string;
-    router?: string;
-    amount: string;
-    recipient?: string;
-  }
+  MessageOptionsArgTypes &
+    SelectWarpRouteBuilder & {
+      router?: string;
+      amount: string;
+      recipient?: string;
+    }
 > = {
   command: 'send',
   describe: 'Send a test token transfer on a warp route',
   builder: {
     ...messageSendOptions,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
-    warp: {
-      ...warpCoreConfigCommandOption,
-      demandOption: false,
-    },
+    ...SELECT_WARP_ROUTE_BUILDER,
     amount: {
       type: 'string',
       description: 'Amount to send (in smallest unit)',
@@ -355,31 +348,11 @@ const send: CommandModuleWithWriteContext<
   },
 };
 
-export const check: CommandModuleWithContext<{
-  config?: string;
-  symbol?: string;
-  warp?: string;
-  warpRouteId?: string;
-}> = {
+export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
   command: 'check',
   describe:
     'Verifies that a warp route configuration matches the on chain configuration.',
-  builder: {
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
-    warp: {
-      ...warpCoreConfigCommandOption,
-      demandOption: false,
-    },
-    config: inputFileCommandOption({
-      description: 'The path to a warp route deployment configuration file',
-      demandOption: false,
-      alias: 'wd',
-    }),
-    warpRouteId: warpRouteIdCommandOption,
-  },
+  builder: SELECT_WARP_ROUTE_BUILDER,
   handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
@@ -440,55 +413,122 @@ export const check: CommandModuleWithContext<{
   },
 };
 
-export const verify: CommandModuleWithWriteContext<{
-  symbol: string;
+export const rebalancer: CommandModuleWithWriteContext<{
+  config: string;
+  checkFrequency: number;
+  withMetrics: boolean;
+  monitorOnly: boolean;
+  manual?: boolean;
+  origin?: string;
+  destination?: string;
+  amount?: string;
 }> = {
-  command: 'verify',
-  describe: 'Verify deployed contracts on explorers',
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
   builder: {
-    symbol: {
-      ...symbolCommandOption,
+    config: {
+      type: 'string',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
       demandOption: false,
+      default: 60000,
+    },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics (default: true)',
+      demandOption: false,
+      default: false,
+    },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode (default: false)',
+      demandOption: false,
+      default: false,
+    },
+    manual: {
+      type: 'boolean',
+      description:
+        'Trigger a rebalancer manual run (default: false, requires --origin, --destination, --amount)',
+      demandOption: false,
+      implies: ['origin', 'destination', 'amount'],
+    },
+    origin: {
+      type: 'string',
+      description: 'The origin chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    destination: {
+      type: 'string',
+      description: 'The destination chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    amount: {
+      type: 'string',
+      description:
+        'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
+      demandOption: false,
+      implies: 'manual',
     },
   },
-  handler: async ({ context, symbol }) => {
+  handler: async (args) => {
+    let runner: RebalancerRunner;
+    try {
+      const { context, ...rest } = args;
+      runner = await RebalancerRunner.create(rest, context);
+    } catch (e: any) {
+      // exit on startup errors
+      errorRed('Rebalancer startup error:', util.format(e));
+      process.exit(1);
+    }
+
+    try {
+      await runner.run();
+    } catch (e: any) {
+      errorRed('Rebalancer error:', util.format(e));
+      process.exit(1);
+    }
+  },
+};
+
+export const verify: CommandModuleWithWriteContext<SelectWarpRouteBuilder> = {
+  command: 'verify',
+  describe: 'Verify deployed contracts on explorers',
+  builder: SELECT_WARP_ROUTE_BUILDER,
+  handler: async ({ context, symbol, config, warp, warpRouteId }) => {
     logCommandHeader('Hyperlane Warp Verify');
-    const warpCoreConfig = await selectRegistryWarpRoute(
-      context.registry,
+
+    const { warpCoreConfig } = await getWarpConfigs({
+      context,
       symbol,
-    );
+      warpRouteId,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
+    });
 
     return runVerifyWarpRoute({ context, warpCoreConfig });
   },
 };
 
-const fork: CommandModuleWithContext<{
-  port?: number;
-  symbol?: string;
-  'deploy-config': string;
-  'fork-config'?: string;
-  warp?: string;
-  kill: boolean;
-  warpRouteId?: string;
-}> = {
+const fork: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    port?: number;
+    'fork-config'?: string;
+    kill: boolean;
+  }
+> = {
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
   builder: {
     ...forkCommandOptions,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
-    'deploy-config': inputFileCommandOption({
-      description: 'The path to a warp route deployment configuration file',
-      demandOption: false,
-      alias: 'wd',
-    }),
-    warp: {
-      ...warpCoreConfigCommandOption,
-      demandOption: false,
-    },
-    warpRouteId: warpRouteIdCommandOption,
+    ...SELECT_WARP_ROUTE_BUILDER,
   },
   handler: async ({
     context,
@@ -497,14 +537,14 @@ const fork: CommandModuleWithContext<{
     port,
     kill,
     warp,
-    deployConfig,
+    config,
     forkConfig: forkConfigPath,
   }) => {
     const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
       warpRouteId,
       symbol,
-      warpDeployConfigPath: deployConfig,
+      warpDeployConfigPath: config,
       warpCoreConfigPath: warp,
     });
 
