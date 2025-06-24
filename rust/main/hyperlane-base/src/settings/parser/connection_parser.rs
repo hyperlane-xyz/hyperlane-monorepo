@@ -308,7 +308,7 @@ fn build_starknet_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-    _operation_batch: OpSubmissionConfig,
+    operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let native_token_address = chain
         .chain(err)
@@ -328,6 +328,7 @@ fn build_starknet_connection_conf(
     Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
         urls: urls.to_vec(),
         native_token_address,
+        op_submission_config: operation_batch,
     }))
 }
 

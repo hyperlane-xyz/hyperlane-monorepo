@@ -431,6 +431,9 @@
   "swell": {
     "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
   },
+  "tac": {
+    "validators": ["0x606561d6a45188ba0a486e513e440bfc421dbc36"]
+  },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },

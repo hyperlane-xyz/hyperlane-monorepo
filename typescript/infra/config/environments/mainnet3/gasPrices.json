@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "5.0",
+    "amount": "4.0",
     "decimals": 9
   },
   "everclear": {
@@ -505,6 +505,10 @@
   },
   "swell": {
     "amount": "0.001000251",
+    "decimals": 9
+  },
+  "tac": {
+    "amount": "28.125",
     "decimals": 9
   },
   "taiko": {

@@ -195,6 +195,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
@@ -346,6 +347,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
@@ -497,6 +499,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
@@ -837,6 +840,12 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -845,7 +854,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -856,7 +865,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     resources: scraperResources,
   },
@@ -871,7 +880,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '2fc626d-20250623-121531',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -880,6 +889,12 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -915,6 +930,12 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },

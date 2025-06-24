@@ -1822,5 +1822,16 @@ export const validatorChainConfig = (
         'solaxy',
       ),
     },
+
+    tac: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('tac'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x606561d6a45188ba0a486e513e440bfc421dbc36'],
+        },
+        'tac',
+      ),
+    },
   };
 };
