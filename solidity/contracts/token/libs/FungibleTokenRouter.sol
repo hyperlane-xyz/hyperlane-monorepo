@@ -37,13 +37,13 @@ abstract contract FungibleTokenRouter is TokenRouter {
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
         quotes[1] = Quote({
-            token: _token(),
+            token: token(),
             amount: _feeAmount(_destination, _recipient, _amount) + _amount
         });
         return quotes;
     }
 
-    function _token() internal view virtual returns (address);
+    function token() public view virtual returns (address);
 
     function _feeAmount(
         uint32 _destination,
@@ -60,7 +60,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
             _amount
         );
         require(
-            quotes.length == 1 && quotes[0].token == _token(),
+            quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
         );
         return quotes[0].amount;

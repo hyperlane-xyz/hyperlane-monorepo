@@ -64,7 +64,7 @@ contract HypNative is MovableCollateralRouter {
         });
     }
 
-    function _token() internal view virtual override returns (address) {
+    function token() public view virtual override returns (address) {
         return address(0);
     }
 
