@@ -51,8 +51,7 @@ async function main() {
       {
         alias: string;
         default: string;
-        reorg: ReorgEvent;
-      }
+      } & ReorgEvent
     >
   > = {};
 
@@ -127,7 +126,7 @@ async function main() {
             validators[chain][validator] = {
               alias,
               default: alias ? '✅' : '',
-              reorg: reorgStatus,
+              ...reorgStatus,
             };
           }
         } catch (error) {
@@ -145,6 +144,11 @@ async function main() {
   );
 
   // Print table for each chain's validators
+  if (Object.keys(validators).length === 0) {
+    rootLogger.info('No reorgs found for all provided chains');
+    process.exit(0);
+  }
+
   Object.entries(validators).forEach(([chain, chainValidators]) => {
     if (Object.keys(chainValidators).length === 0) {
       rootLogger.info(`No reorgs found for chain ${chain}`);
@@ -159,7 +163,7 @@ async function main() {
         if (a.default !== b.default) {
           return b.default.localeCompare(a.default); // ✅ comes before empty string
         }
-        return b.reorg.checkpointIndex - a.reorg.checkpointIndex;
+        return b.checkpointIndex - a.checkpointIndex;
       }),
     );
     // eslint-disable-next-line no-console
