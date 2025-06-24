@@ -178,9 +178,6 @@
   "proofofplay": {
     "validators": ["0xc18b802596b5d939c35c8e58afa5ef0872d3f792"]
   },
-  "real": {
-    "validators": ["0x005c82fe794ef230153d22584f295d43dfc89438"]
-  },
   "redstone": {
     "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
   },

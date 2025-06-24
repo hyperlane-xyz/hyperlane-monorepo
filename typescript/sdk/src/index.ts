@@ -626,7 +626,7 @@ export {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
-  TOKEN_TYPE_TO_STANDARD,
+  EVM_TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -787,3 +787,4 @@ export {
 } from './fork/types.js';
 export { resolveRouterMapConfig } from './router/types.js';
 export { verifyScale } from './utils/decimals.js';
+export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';

@@ -18,6 +18,7 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   addressToBytes32,
   bytes32ToAddress,
+  eqAddress,
   messageId,
 } from '@hyperlane-xyz/utils';
 
@@ -28,6 +29,7 @@ import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
+  SERVER_BASE_URL: z.string(),
 });
 
 // Zod schema for retrieving a commitment record, reusing PostCallsSchema for common fields
@@ -39,15 +41,21 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
-  constructor(private multiProvider: MultiProvider) {
+  constructor(
+    private multiProvider: MultiProvider,
+    baseUrl: string,
+  ) {
     super();
-    this.registerRoutes(this.router);
+    this.registerRoutes(this.router, baseUrl);
   }
 
-  static async initialize() {
+  static async initialize(namespace: string) {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
-    return new CallCommitmentsService(multiProvider);
+    return new CallCommitmentsService(
+      multiProvider,
+      env.SERVER_BASE_URL + '/' + namespace,
+    );
   }
 
   public async handleCommitment(req: Request, res: Response) {
@@ -78,10 +86,20 @@ export class CallCommitmentsService extends BaseService {
     return;
   }
 
-  public async handleFetchCommitment(message: string) {
+  public async handleFetchCommitment(message: string, relayer: string) {
     try {
       const revealMsgId = messageId(message);
       const record = await this.fetchCommitmentRecord(revealMsgId);
+
+      if (
+        record.relayers.length > 0 &&
+        !record.relayers.find((r) => eqAddress(r, relayer))
+      ) {
+        throw new Error(
+          `Relayer ${relayer} not authorized for this commitment`,
+        );
+      }
+
       const encoded =
         record.ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
@@ -269,7 +287,7 @@ export class CallCommitmentsService extends BaseService {
   /**
    * Register routes onto an Express Router or app.
    */
-  private registerRoutes(router: Router): void {
+  private registerRoutes(router: Router, baseUrl: string): void {
     router.post('/calls', this.handleCommitment.bind(this));
     router.post(
       '/getCallsFromRevealMessage',
@@ -277,7 +295,10 @@ export class CallCommitmentsService extends BaseService {
         CommitmentReadIsmService__factory,
         'getCallsFromRevealMessage',
         this.handleFetchCommitment.bind(this),
-        true, // Skip ABI encoding of the result
+        {
+          skipResultEncoding: true,
+          verifyRelayerSignatureUrl: `${baseUrl}/getCallsFromRevealMessage`,
+        },
       ),
     );
   }

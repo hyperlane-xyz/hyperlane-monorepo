@@ -196,6 +196,12 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // For Solana, special min cost
     solanamainnet: 1.2,
   };
+
+  if (local === 'ethereum' && remote === 'solanamainnet') {
+    minUsdCost = 0.5;
+    remoteMinCostOverrides['solanamainnet'] = 0.9;
+  }
+
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {
     minUsdCost = Math.max(minUsdCost, override);

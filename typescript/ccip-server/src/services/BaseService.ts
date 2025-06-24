@@ -16,7 +16,7 @@ export abstract class BaseService {
     this.router = Router();
   }
 
-  static async initialize(): Promise<BaseService> {
+  static async initialize(_namespace: string): Promise<BaseService> {
     throw new Error('Service must implement static initialize method');
   }
 
