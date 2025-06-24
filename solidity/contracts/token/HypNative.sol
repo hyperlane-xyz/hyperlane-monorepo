@@ -68,6 +68,28 @@ contract HypNative is MovableCollateralRouter {
         return address(0);
     }
 
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
+        // include for legible error instead of underflow
+        _transferFromSender(_amount);
+
+        return
+            super._transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                msg.value - _amount,
+                _hookMetadata,
+                _hook
+            );
+    }
+
     /**
      * @inheritdoc TokenRouter
      */
