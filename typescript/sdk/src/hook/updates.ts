@@ -1,11 +1,6 @@
 import { Logger } from 'pino';
 
-import {
-  Address,
-  deepCopy,
-  eqAddress,
-  isZeroishAddress,
-} from '@hyperlane-xyz/utils';
+import { Address, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -37,141 +32,68 @@ type UpdateHookParams = {
 
 export async function getEvmHookUpdateTransactions(
   clientContractAddress: string,
-  updateHookParams: UpdateHookParams,
+  updateHookParams: Readonly<UpdateHookParams>,
 ): Promise<AnnotatedEV5Transaction[]> {
   const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-  const { expectedConfig: expectedHookConfig, actualConfig: actualHookConfig } =
-    updateHookParams;
-
-  if (
-    typeof expectedHookConfig === 'string' &&
-    isZeroishAddress(expectedHookConfig)
-  ) {
-    return [];
-  }
-
-  // Try to deploy or update Hook with the expected config
   const {
-    deployedHook: expectedDeployedHook,
-    updateTransactions: hookUpdateTransactions,
-  } = await deployOrUpdateHook(updateHookParams);
-
-  // If a Hook is updated in-place, push the update txs
-  updateTransactions.push(...hookUpdateTransactions);
-
-  // If a new Hook is deployed, push the setHook tx
-  if (
-    !eqAddress(
-      typeof actualHookConfig === 'string'
-        ? actualHookConfig
-        : actualHookConfig.address,
-      expectedDeployedHook,
-    )
-  ) {
-    updateTransactions.push({
-      chainId: updateHookParams.multiProvider.getEvmChainId(
-        updateHookParams.evmChainName,
-      ),
-      annotation: `Setting Hook for Warp Route to ${expectedDeployedHook}`,
-      to: clientContractAddress,
-      data: updateHookParams.setHookFunctionCallEncoder(expectedDeployedHook),
-    });
-  }
-
-  return updateTransactions;
-}
-
-/**
- * Updates or deploys the hook using the provided configuration.
- *
- * @returns Object with deployedHook address, and update Transactions
- */
-async function deployOrUpdateHook(updateHookParams: UpdateHookParams): Promise<{
-  deployedHook: Address;
-  updateTransactions: AnnotatedEV5Transaction[];
-}> {
-  if (
-    typeof updateHookParams.actualConfig === 'string' &&
-    isZeroishAddress(updateHookParams.actualConfig)
-  ) {
-    return deployNewHook(updateHookParams);
-  }
-
-  return updateExistingHook(updateHookParams);
-}
-
-async function deployNewHook({
-  evmChainName,
-  mailbox,
-  proxyAdminAddress,
-  expectedConfig,
-  logger,
-  hookAndIsmFactories,
-  multiProvider,
-  ccipContractCache,
-  contractVerifier,
-}: UpdateHookParams): Promise<{
-  deployedHook: Address;
-  updateTransactions: AnnotatedEV5Transaction[];
-}> {
-  logger.info(
-    `No hook deployed for warp route, deploying new hook on ${evmChainName} chain`,
-  );
-
-  const hookModule = await EvmHookModule.create({
-    chain: evmChainName,
-    config: deepCopy(expectedConfig),
-    proxyFactoryFactories: hookAndIsmFactories,
-    coreAddresses: {
-      mailbox: mailbox,
-      proxyAdmin: proxyAdminAddress, // Assume that a proxyAdmin is always deployed with a WarpRoute
-    },
+    actualConfig: actualHookConfig,
+    evmChainName,
+    mailbox,
+    proxyAdminAddress,
+    expectedConfig,
+    logger,
+    hookAndIsmFactories,
+    multiProvider,
     ccipContractCache,
     contractVerifier,
-    multiProvider,
-  });
-  const { deployedHook } = hookModule.serialize();
-  return { deployedHook, updateTransactions: [] };
-}
+  } = updateHookParams;
 
-async function updateExistingHook({
-  evmChainName,
-  mailbox,
-  proxyAdminAddress,
-  expectedConfig,
-  logger,
-  actualConfig,
-  hookAndIsmFactories,
-  multiProvider,
-  ccipContractCache,
-  contractVerifier,
-}: UpdateHookParams): Promise<{
-  deployedHook: Address;
-  updateTransactions: AnnotatedEV5Transaction[];
-}> {
   const hookModule = new EvmHookModule(
     multiProvider,
     {
       chain: evmChainName,
-      config: actualConfig,
+      config: actualHookConfig,
       addresses: {
         ...hookAndIsmFactories,
         mailbox,
         proxyAdmin: proxyAdminAddress,
         deployedHook:
-          typeof actualConfig === 'string'
-            ? actualConfig
-            : actualConfig.address,
+          typeof actualHookConfig === 'string'
+            ? actualHookConfig
+            : actualHookConfig.address,
       },
     },
     ccipContractCache,
     contractVerifier,
   );
 
-  logger.info(`Comparing target Hook config with ${evmChainName} chain`);
-  const updateTransactions = await hookModule.update(deepCopy(expectedConfig));
-  const { deployedHook } = hookModule.serialize();
+  // Get the current hook address before applying the txs to identify if
+  // a new hook was deployed during the update process
+  const { deployedHook: expectedHookAddress } = hookModule.serialize();
 
-  return { deployedHook, updateTransactions };
+  logger.info(
+    `Comparing target Hook config with current one for ${evmChainName} chain`,
+  );
+  const hookUpdateTransactions = await hookModule.update(
+    deepCopy(expectedConfig),
+  );
+  const { deployedHook: currentHookAddress } = hookModule.serialize();
+
+  // If a Hook is updated in-place, push the update txs
+  updateTransactions.push(...hookUpdateTransactions);
+
+  // If a new Hook is deployed, push the tx to set the hook on the client contract
+  if (!eqAddress(expectedHookAddress, currentHookAddress)) {
+    updateTransactions.push({
+      chainId: updateHookParams.multiProvider.getEvmChainId(
+        updateHookParams.evmChainName,
+      ),
+      annotation: `Setting Hook ${currentHookAddress} for contract at ${clientContractAddress} on chain ${evmChainName}`,
+      to: clientContractAddress,
+      data: updateHookParams.setHookFunctionCallEncoder(currentHookAddress),
+    });
+  }
+
+  return updateTransactions;
 }
