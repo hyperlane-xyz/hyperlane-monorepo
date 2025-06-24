@@ -1165,6 +1165,39 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
     }
 
+    it('should add a fee recipient for a fungible token', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as HypTokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const tokenFee = {
+        type: FeeCurve.LINEAR,
+        maxFee: '1',
+        halfAmount: '2',
+        owner: signer.address,
+      };
+
+      const txs = await evmERC20WarpModule.update({
+        ...config,
+        tokenFee,
+      });
+
+      expect(txs.length).to.equal(1);
+      await sendTxs(txs);
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.tokenFee).to.deep.equal(tokenFee);
+    });
+
     it('Should deploy and upgrade a new warp route', async () => {
       const domain = 3;
       const config: HypTokenRouterConfig = {
