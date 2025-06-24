@@ -57,13 +57,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
     }
 
     /**
@@ -90,6 +84,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 _recipient,
                 _amountOrId,
+                msg.value,
                 _hookMetadata,
                 _hook
             );
@@ -99,10 +94,28 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
+        uint256 _value
+    ) internal returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                _value,
+                _GasRouter_hookMetadata(_destination),
+                address(hook)
+            );
+    }
+
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual returns (bytes32 messageId) {
-        uint256 unspentValue = _chargeSender(
+        bytes memory _tokenMetadata = _chargeSender(
             _destination,
             _recipient,
             _amountOrId
@@ -111,12 +124,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 outboundAmount = _outboundAmount(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            outboundAmount
+            outboundAmount,
+            _tokenMetadata
         );
 
         messageId = _Router_dispatch(
             _destination,
-            unspentValue,
+            _value,
             _tokenMessage,
             _hookMetadata,
             _hook
@@ -130,9 +144,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 /*_destination*/,
         bytes32 /*_recipient*/,
         uint256 _amountOrId
-    ) internal virtual returns (uint256 unspentValue) {
-        _transferFromSender(_amountOrId);
-        return msg.value;
+    ) internal virtual returns (bytes memory metadata) {
+        return _transferFromSender(_amountOrId);
     }
 
     /**
@@ -252,11 +265,4 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
-
-    function _transferTo(
-        address _recipient,
-        uint256 _amountOrId
-    ) internal virtual {
-        _transferTo(_recipient, _amountOrId, msg.data[0:0]);
-    }
 }

@@ -31,16 +31,15 @@ abstract contract FungibleTokenRouter is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](3);
+        quotes = new Quote[](2);
         quotes[0] = Quote({
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
         quotes[1] = Quote({
             token: _token(),
-            amount: _feeAmount(_destination, _recipient, _amount)
+            amount: _feeAmount(_destination, _recipient, _amount) + _amount
         });
-        quotes[2] = Quote({token: _token(), amount: _amount});
         return quotes;
     }
 
@@ -71,16 +70,11 @@ abstract contract FungibleTokenRouter is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual override returns (uint256 unspentValue) {
-        unspentValue = msg.value;
+    ) internal virtual override returns (bytes memory metadata) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
-        _transferFromSender(_amount + fee);
-
+        metadata = _transferFromSender(_amount + fee);
         if (fee > 0) {
-            uint256 balanceBefore = address(this).balance;
-            _transferTo(address(feeRecipient), fee);
-            uint256 nativeFee = balanceBefore - address(this).balance;
-            unspentValue -= nativeFee;
+            _transferTo(address(feeRecipient), fee, msg.data[0:0]);
         }
     }
 

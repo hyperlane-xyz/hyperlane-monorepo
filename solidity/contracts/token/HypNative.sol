@@ -49,6 +49,21 @@ contract HypNative is MovableCollateralRouter {
         return _account.balance;
     }
 
+    // override for single unified quote
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view virtual override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount) +
+                _feeAmount(_destination, _recipient, _amount) +
+                _amount
+        });
+    }
+
     function _token() internal view virtual override returns (address) {
         return address(0);
     }

@@ -197,10 +197,11 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
+        uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32 messageId) {
-        uint256 unspentValue = _chargeSender(_destination, _recipient, _amount);
+        _chargeSender(_destination, _recipient, _amount);
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint64 nonce = tokenMessenger.depositForBurn(
@@ -220,7 +221,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
 
         messageId = _Router_dispatch(
             _destination,
-            unspentValue,
+            _value,
             _tokenMessage,
             _hookMetadata,
             _hook
