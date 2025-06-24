@@ -249,12 +249,12 @@ export async function buildInterchainAccountApp(
   }
 
   let remoteIcaAddresses: ChainMap<{ interchainAccountRouter: Address }>;
-  const defaultLocalIcaRouter = await registry.getChainAddresses(chain);
+  const localChainAddresses = await registry.getChainAddresses(chain);
   // if the user specified a custom router address we need to retrieve the remote ica addresses
   // configured on the user provided router, otherwise we use the ones defined in the registry
   if (
-    defaultLocalIcaRouter?.interchainAccountRouter &&
-    eqAddress(config.localRouter, defaultLocalIcaRouter.interchainAccountRouter)
+    localChainAddresses?.interchainAccountRouter &&
+    eqAddress(config.localRouter, localChainAddresses.interchainAccountRouter)
   ) {
     const addressByChain = await registry.getAddresses();
 
