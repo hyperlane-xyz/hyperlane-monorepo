@@ -54,6 +54,7 @@ pub struct EthereumAdapter {
     pub batch_cache: Arc<Mutex<BatchCache>>,
     pub batch_contract_address: H256,
     pub payload_db: Arc<dyn PayloadDb>,
+    pub signer: H160,
 }
 
 impl EthereumAdapter {
@@ -82,11 +83,11 @@ impl EthereumAdapter {
 
         let signer = provider
             .get_signer()
-            .map_or("none".to_string(), |s| s.to_string());
+            .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
         let metrics = EthereumAdapterMetrics::new(
-            dispatcher_metrics.get_finalized_nonce(domain, &signer),
-            dispatcher_metrics.get_upper_nonce(domain, &signer),
+            dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
@@ -105,6 +106,7 @@ impl EthereumAdapter {
             batch_cache: Default::default(),
             batch_contract_address: connection_conf.batch_contract_address(),
             payload_db,
+            signer,
         };
 
         Ok(adapter)
@@ -177,7 +179,7 @@ impl EthereumAdapter {
     fn create_precursors(&self, payloads: &[FullPayload]) -> Vec<EthereumTxPrecursor> {
         payloads
             .iter()
-            .map(|p| EthereumTxPrecursor::from_payload(p, self.provider.get_signer().unwrap()))
+            .map(|p| EthereumTxPrecursor::from_payload(p, self.signer))
             .collect::<Vec<_>>()
     }
 
@@ -221,7 +223,6 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-        signer: H160,
     ) -> Vec<TxBuildingResult> {
         use super::transaction::TransactionFactory;
 
@@ -231,7 +232,7 @@ impl EthereumAdapter {
                 self.batch_cache.clone(),
                 self.batch_contract_address,
                 precursors,
-                signer,
+                self.signer,
             )
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
@@ -273,10 +274,6 @@ impl AdaptsChain for EthereumAdapter {
         use super::transaction::TransactionFactory;
 
         info!(?payloads, "building transactions for payloads");
-        let Some(signer) = self.provider.get_signer() else {
-            error!("No signer found! Cannot build transactions");
-            return vec![];
-        };
 
         let (payload_details, precursors): (
             Vec<PayloadDetails>,
@@ -284,7 +281,7 @@ impl AdaptsChain for EthereumAdapter {
         ) = payloads
             .iter()
             .map(|payload| {
-                let precursor = EthereumTxPrecursor::from_payload(payload, signer);
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
                 (payload.details.clone(), (precursor.tx, precursor.function))
             })
             .unzip();
@@ -309,7 +306,7 @@ impl AdaptsChain for EthereumAdapter {
 
         // Batched transaction
         let results = self
-            .build_batched_transaction(precursors, payload_details, signer)
+            .build_batched_transaction(precursors, payload_details)
             .await;
 
         info!(?payloads, ?results, "built transaction for payloads");
@@ -495,8 +492,7 @@ impl AdaptsChain for EthereumAdapter {
             .payload_details
             .iter()
             .filter_map(|d| {
-                EthereumTxPrecursor::from_success_criteria(d, self.provider.get_signer().unwrap())
-                    .map(|p| (d, p))
+                EthereumTxPrecursor::from_success_criteria(d, self.signer).map(|p| (d, p))
             })
             .collect::<Vec<_>>();
 

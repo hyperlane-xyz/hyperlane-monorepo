@@ -499,6 +499,7 @@ fn mock_ethereum_adapter(
         batch_cache: Default::default(),
         batch_contract_address,
         payload_db,
+        signer,
     }
 }
 
