@@ -37,7 +37,7 @@ class CCTPService extends BaseService {
 
   static async create(config: ServiceConfig): Promise<CCTPService> {
     const env = EnvSchema.parse(process.env);
-    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
+    const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
 
     return new CCTPService({
       ...config,

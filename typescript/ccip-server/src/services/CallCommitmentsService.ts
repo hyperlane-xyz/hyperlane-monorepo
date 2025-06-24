@@ -60,7 +60,7 @@ export class CallCommitmentsService extends BaseService {
 
   static async create(config: ServiceConfig): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
-    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
+    const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
     const namespace = config.namespace || 'callCommitments';
     const baseUrl = env.SERVER_BASE_URL + '/' + namespace;
 
