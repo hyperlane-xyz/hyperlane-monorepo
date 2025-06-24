@@ -40,6 +40,7 @@ export class StarknetHypSyntheticAdapter
   implements IHypTokenAdapter<Call>
 {
   public readonly contract: Contract;
+  public readonly starknetToken: Contract;
 
   constructor(
     public readonly chainName: ChainName,
@@ -49,6 +50,13 @@ export class StarknetHypSyntheticAdapter
     super(chainName, multiProvider, addresses);
     this.contract = getStarknetHypERC20Contract(
       addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
+    );
+    const starknetTokenAddress =
+      multiProvider.getChainMetadata(chainName).nativeToken?.denom;
+    assert(starknetTokenAddress, `nativeToken.denom must be defined`);
+    this.starknetToken = getStarknetEtherContract(
+      starknetTokenAddress,
       multiProvider.getStarknetProvider(chainName),
     );
   }
@@ -71,7 +79,7 @@ export class StarknetHypSyntheticAdapter
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(owner, spender);
+    const allowance = await this.starknetToken.allowance(owner, spender);
     return BigNumber.from(allowance.toString()).lt(
       BigNumber.from(weiAmountOrId),
     );
@@ -88,7 +96,10 @@ export class StarknetHypSyntheticAdapter
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<Call> {
-    return this.contract.populateTransaction.approve(recipient, weiAmountOrId);
+    return this.starknetToken.populateTransaction.approve(
+      recipient,
+      weiAmountOrId,
+    );
   }
 
   async populateTransferTx({

@@ -339,9 +339,17 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
+    if (!interchainFee) {
+      interchainFee = await this.getInterchainTransferFee({
+        originToken: token,
+        destination,
+        sender,
+      });
+    }
+
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
-        originTokenAmount,
+        originTokenAmount: new TokenAmount(interchainFee.amount, token),
         owner: sender,
       }),
       hypAdapter.isRevokeApprovalRequired(
@@ -360,7 +368,10 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      preTransferRemoteTxs.push([amount.toString(), WarpTxCategory.Approval]);
+      preTransferRemoteTxs.push([
+        interchainFee.amount.toString(),
+        WarpTxCategory.Approval,
+      ]);
     }
 
     for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
@@ -379,14 +390,6 @@ export class WarpCore {
         transaction: approveTxReq,
       } as WarpTypedTransaction;
       transactions.push(approveTx);
-    }
-
-    if (!interchainFee) {
-      interchainFee = await this.getInterchainTransferFee({
-        originToken: token,
-        destination,
-        sender,
-      });
     }
 
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
