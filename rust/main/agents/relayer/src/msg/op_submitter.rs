@@ -815,7 +815,8 @@ async fn confirm_classic_task(
 }
 
 // TODO this function should be revisited in depth when we decide to re-enable Lander for
-// TODO confirmation stage of MessageProcessor (aka SerialSubmitter).
+// TODO confirmation stage of MessageProcessor (aka SerialSubmitter), since the logic here
+// TODO does not take into account the payloads which were reverted as part of a batch.
 #[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
     entrypoint: Arc<DispatcherEntrypoint>,
