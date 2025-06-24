@@ -26,6 +26,7 @@ ripemd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+sha3 = { workspace = true }
 sha256 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
 tendermint-rpc = { workspace = true }
@@ -45,7 +46,8 @@ tracing-futures = { workspace = true }
 url = { workspace = true }
 reqwest = { workspace = true }
 axum = { workspace = true }
-hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub
+# hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub DYMENSION: REPLACED
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs" }
 dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}

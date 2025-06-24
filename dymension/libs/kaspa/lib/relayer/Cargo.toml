@@ -18,6 +18,9 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
+reqwest = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }
 anyhow = "1.0"
 hex = "0.4.3"
 api-rs = { path = "../api", package = "openapi" }
@@ -25,6 +28,3 @@ hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1" }
-reqwest = { workspace = true }
-eyre = { workspace = true }
-bytes = { workspace = true }

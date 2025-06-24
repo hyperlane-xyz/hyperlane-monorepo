@@ -83,6 +83,7 @@ impl Mailbox for KaspaFakeMailbox {
 
     // check if a message already delivered TO kaspa
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        // TODO: impl!!, best way is to check hub, roughly speaking..
         return Ok(false);
     }
 
@@ -104,6 +105,7 @@ impl Mailbox for KaspaFakeMailbox {
         metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
+       // TODO:!! deserialize fully signed pskt from metadata and submit 
         Ok(TxOutcome {
             transaction_id: H512::zero(),
             executed: false,

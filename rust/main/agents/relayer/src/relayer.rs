@@ -30,7 +30,7 @@ use hyperlane_base::{
     cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::build_kaspa_provider,
+    settings::{build_cosmos_native_provider, build_kaspa_provider},
     settings::{
         ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics,
     },
@@ -51,7 +51,8 @@ use lander::{
 
 use super::dymension_metadata::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo};
+use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
+use hyperlane_cosmos_native::CosmosNativeMailbox;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -453,7 +454,8 @@ impl BaseAgent for Relayer {
             &core,
             &core_metrics,
             &mailboxes,
-        )?;
+        )
+        .await?;
 
         Ok(Self {
             dbs,
@@ -1451,12 +1453,12 @@ impl Relayer {
 
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 
-        let kas_provider = args.kas_provider.clone().unwrap(); // TODO: check
-        let hub_mailbox = args.dym_mailbox.clone().unwrap();
+        let kas_provider = args.kas_provider.clone();
+        let hub_mailbox = args.dym_mailbox.clone();
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let foo = Foo::new(
+        let b = KaspaBridgeFoo::new(
             origin.clone(),
             kas_db.clone().to_owned(),
             kas_provider,
@@ -1464,9 +1466,9 @@ impl Relayer {
             metadata_getter,
         );
 
-        tasks.push(foo.run_deposit_loop(task_monitor.clone()));
+        tasks.push(b.run_deposit_loop(task_monitor.clone()));
 
-        // TODO: confirmation loop 
+        // TODO: confirmation loop
 
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
@@ -1474,12 +1476,12 @@ impl Relayer {
 }
 
 struct DymensionKaspaArgs {
-    kas_provider: Option<KaspaProvider>,
-    dym_mailbox: Option<Arc<dyn Mailbox>>,
+    kas_provider: KaspaProvider,
+    dym_mailbox: CosmosNativeMailbox,
 }
 
 impl Relayer {
-    fn get_dymension_kaspa_args(
+    async fn get_dymension_kaspa_args(
         origin_chains: &HashSet<HyperlaneDomain>,
         core: &HyperlaneAgentCore,
         core_metrics: &CoreMetrics,
@@ -1492,19 +1494,51 @@ impl Relayer {
         let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
         let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
         let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
-
-        let kas_chain_provider = match chain_conf.connection.clone() {
+        match chain_conf.connection.clone() {
             ChainConnectionConf::Kaspa(conf) => Some(
                 build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
                     .expect("Failed to build Kaspa provider"),
             ),
             _ => None,
         };
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+
+        let kas_chain_provider = match chain_conf.connection.clone() {
+            ChainConnectionConf::Kaspa(conf) => {
+                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
+                    .expect("Failed to build Kaspa provider")
+            }
+            _ => panic!("Dymension Kaspa Args: Kaspa provider not found"),
+        };
+
+        // TODO: technically should use destination chains here
+        let conf = origin_chains.get(&dym_domain).cloned().unwrap();
+        let chain_conf = core.settings.chain_setup(&conf).unwrap().to_owned();
+
+        let dym_mailbox = match chain_conf.connection.clone() {
+            ChainConnectionConf::CosmosNative(conf) => {
+                // https://github.com/dymensionxyz/hyperlane-monorepo/blob/512ff25f6c6eaa66e611c5b5aee0c54bf36ec06c/rust/main/hyperlane-base/src/settings/chains.rs#L330
+                let locator = chain_conf.locator(chain_conf.addresses.mailbox);
+                let signer = chain_conf.cosmos_native_signer().await?;
+
+                // TODO: it's ok to have two of these?
+                let dym_provider = build_cosmos_native_provider(
+                    &chain_conf,
+                    &conf,
+                    &core_metrics,
+                    &locator,
+                    signer,
+                )
+                .expect("Failed to build Cosmos Native provider");
+
+                CosmosNativeMailbox::new(dym_provider, locator.clone())?
+            }
+            _ => panic!("Dymension Kaspa Args: Cosmos Native mailbox not found"),
+        };
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider: kas_chain_provider,
-            dym_mailbox: mailboxes.get(&dym_domain).cloned(),
+            dym_mailbox,
         }))
     }
 }

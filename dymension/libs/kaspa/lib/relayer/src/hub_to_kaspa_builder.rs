@@ -45,6 +45,7 @@ pub async fn build_kaspa_withdrawal_pskts(
     kaspa_rpc: &impl RpcApi,
     escrow_public: &EscrowPublic,
     relayer_kaspa_account: &Arc<dyn Account>,
+    network_id: NetworkId,
 ) -> Result<Option<Vec<PSKT<Signer>>>> {
     // Fetch current Hub x/kas state
     let (outpoint, pending_messages) =
@@ -56,6 +57,7 @@ pub async fn build_kaspa_withdrawal_pskts(
         escrow_public,
         relayer_kaspa_account,
         &outpoint,
+        network_id,
     )
     .await
 }
@@ -67,6 +69,7 @@ async fn build_kaspa_withdrawal_pskts_pending(
     escrow_public: &EscrowPublic,
     relayer_kaspa_account: &Arc<dyn Account>,
     current_hub_state: &TransactionOutpoint,
+    network_id: NetworkId,
 ) -> Result<Option<Vec<PSKT<Signer>>>> {
     let mut prepared_pskts: Vec<PSKT<Signer>> = Vec::new();
 
@@ -110,6 +113,7 @@ async fn build_kaspa_withdrawal_pskts_pending(
             escrow_public,
             relayer_kaspa_account,
             current_hub_state,
+            network_id,
         )
         .await
         {
@@ -211,8 +215,17 @@ fn maturity_progress(
     }
 }
 
+/// IN PROCESS
+/// 
 /// Helper function to build a single withdrawal PSKT
 /// Adapts logic from withdraw.rs::build_withdrawal_tx
+/// 
+/// Process:
+/// 1. Get all UTXOs from the multisig. Ensure that one of them is a current anchor
+/// 1.1 Calculate the transaction fee - ?
+/// 2. Get all USTOs from the relayer account. It pays the fees. Optionally, get only UTXOs to cover the fee
+/// 3. Combine all the UTXOs in transaction inputs
+/// 4. Create outputs: one - for user, relayer change, multisig change (next anchor)
 async fn build_single_withdrawal_pskt(
     withdrawal_details: &WithdrawalDetails,
     kaspa_rpc: &impl RpcApi,
@@ -232,7 +245,7 @@ async fn build_single_withdrawal_pskt(
     // TODO: include anchor UTXO
 
     let utxos = get_utxo_to_spend(
-        relayer_kaspa_account.sw,
+        relayer_kaspa_account.receive_address().unwrap(),
         withdrawal_details.amount_satoshi,
         kaspa_rpc,
         network_id,
@@ -240,7 +253,7 @@ async fn build_single_withdrawal_pskt(
         .await?;
 
     // Find the specific anchor UTXO we want to spend
-    let utxo_e_first = valset_utxo
+    let utxo_e_first = utxos
         .into_iter()
         .find(|utxo| {
             utxo.outpoint.transaction_id == current_anchor_outpoint.transaction_id

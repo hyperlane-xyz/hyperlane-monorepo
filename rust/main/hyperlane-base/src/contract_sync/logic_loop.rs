@@ -2,29 +2,27 @@ use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
-    Signature, SignedCheckpointWithMessageId, TxOutcome, H256,
+    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, TxOutcome,
 };
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{info, info_span, warn, Instrument};
 
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
-use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
+use dym_kas_relayer::deposit::on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use std::sync::Arc;
 
-use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_dymension_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
     provider: KaspaProvider,
-    hub_mailbox: CosmosNativeMailbox,
+    hub_mailbox: Arc<dyn Mailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
 }
@@ -37,7 +35,7 @@ where
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
         provider: KaspaProvider,
-        hub_mailbox: CosmosNativeMailbox,
+        hub_mailbox: Arc<dyn Mailbox>,
         metadata_constructor: C,
     ) -> Self {
         Self {
@@ -75,12 +73,12 @@ where
 
             for d in &deposits_new {
                 self.deposit_cache.mark_as_seen(d.clone());
-                info!("DYMENSION DEBUG: new deposit seen: {:?}", d);
+                info!("FOOX: New deposit: {:?}", d);
             }
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                if let Some(fxg) = relayer_on_new_deposit(d) {
+                if let Some(fxg) = on_new_deposit(d) {
                     let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                     // TODO: check result
                 }
@@ -94,16 +92,24 @@ where
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
         let msg = HyperlaneMessage::default(); // TODO: from depositsfx
-
-        // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
 
-        let formatted_sigs = self.format_checkpoint_signatures(
-            &mut sigs,
-            self.provider.validators().multisig_threshold_hub_ism() as usize,
-        )?;
+        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: format!(
+                    "insufficient validator signatures: got {}, need {}",
+                    sigs.len(),
+                    self.provider.validators().hub_ism_threshold()
+                ),
+            });
+        }
 
-        self.hub_mailbox.process(&msg, &formatted_sigs, None).await
+        let checkpoint = MultisigSignedCheckpoint::try_from(&mut sigs).unwrap();
+        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
+
+        let slice = metadata.as_slice();
+
+        self.hub_mailbox.process(&msg, slice, None).await
     }
 
     /// TODO: unused for now because we skirt the usual DB management
@@ -136,7 +142,7 @@ where
         logs
     }
 
-    // TODO: not used yet, and why would it be a loop?
+    // TODO: why is it a loop?
     pub fn run_confirmation_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
         let name = "dymension_kaspa_confirmation_loop";
         tokio::task::Builder::new()
@@ -153,104 +159,51 @@ where
 
     async fn confirmation_loop(&mut self) {
         loop {
+            /*
+            - [ ] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
+            - [ ] Relayer will need to reach out to validators to gather the signatures over the progress indication
+            - [ ] Validator will need endpoint
+            - [ ] Validator will need to call VERIFY
+            - [ ] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
+            - [ ] Validator will need to sign appropriately
+            - [ ] Validator return
+            - [ ] Relayer post to hub
+                     */
+
             time::sleep(Duration::from_secs(10)).await;
         }
     }
 
-    // TODO: this is a workaround for now because Michael works on the calling of it
-    /*
-    - [x] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
-    - [x] Relayer will need to reach out to validators to gather the signatures over the progress indication
-    - [x] Validator will need endpoint
-    - [x] Validator will need to call VERIFY
-    - [x] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
-    - [x] Validator will need to sign appropriately TODO: check/fix/test this part
-    - [x] Validator return
-    - [x] Relayer post to hub
-        */
-    // needs to satisfy
-    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
-    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    pub async fn on_new_progress_indication(
+    async fn get_confirmation_validator_sigs_and_send_to_hub(
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<TxOutcome> {
-        let u: ProgressIndication = ProgressIndication::default(); // TODO: get from fxg
+        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
         let mut sigs = self
             .provider
             .validators()
             .get_confirmation_sigs(fxg)
             .await?;
 
-        let formatted_sigs = self.format_ad_hoc_signatures(
-            &mut sigs,
-            self.provider.validators().multisig_threshold_hub_ism() as usize,
-        )?;
-
-        self.hub_mailbox
-            .indicate_progress(&formatted_sigs, &u)
-            .await
-    }
-
-    // TODO: can probably just use the ad hoc method
-    fn format_checkpoint_signatures(
-        &self,
-        sigs: &mut Vec<SignedCheckpointWithMessageId>,
-        require: usize,
-    ) -> ChainResult<Vec<u8>> {
-        if sigs.len() < require {
+        if sigs.len() < self.provider.validators().hub_ism_threshold() as usize {
             return Err(ChainCommunicationError::InvalidRequest {
                 msg: format!(
                     "insufficient validator signatures: got {}, need {}",
                     sigs.len(),
-                    require
+                    self.provider.validators().hub_ism_threshold()
                 ),
             });
         }
 
-        let checkpoint = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
-            ChainCommunicationError::InvalidRequest {
-                msg: "failed to convert sigs to checkpoint".to_string(),
-            }
-        })?;
-        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        Ok(metadata.to_vec())
+        // TODO: construct appropriate metadata and send up to hub
+        unimplemented!()
     }
 
-    fn format_ad_hoc_signatures(
+    pub async fn on_new_progress_indication(
         &self,
-        sigs: &mut Vec<Signature>,
-        require: usize,
-    ) -> ChainResult<Vec<u8>> {
-        if sigs.len() < require {
-            return Err(ChainCommunicationError::InvalidRequest {
-                msg: format!(
-                    "insufficient validator signatures: got {}, need {}",
-                    sigs.len(),
-                    require
-                ),
-            });
-        }
-
-        // Technically there is no need for checkpoint since it's not used in the metadata formatting,
-        // so we can just create this directly
-        let checkpoint = MultisigSignedCheckpoint {
-            // this part not important (not used)!
-            checkpoint: CheckpointWithMessageId {
-                checkpoint: Checkpoint {
-                    merkle_tree_hook_address: H256::default(),
-                    mailbox_domain: 0,
-                    root: H256::default(),
-                    index: 0,
-                },
-                message_id: H256::default(),
-            },
-            // signatures are important
-            signatures: sigs.clone(),
-        };
-
-        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        Ok(metadata.to_vec())
+        progress_indication: ProgressIndication,
+    ) -> ChainResult<TxOutcome> {
+        unimplemented!()
     }
 }
 

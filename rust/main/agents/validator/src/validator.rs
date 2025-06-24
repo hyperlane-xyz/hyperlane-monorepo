@@ -220,7 +220,7 @@ impl BaseAgent for Validator {
             );
         if is_kas(&self.origin_chain) {
             router = router.merge(
-                // TODO: config based, and only if validator is actually for kaspa chain
+                // TODO: config based
                 dymension_kaspa::router(Arc::new(self.raw_signer.clone())),
             )
         }

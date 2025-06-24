@@ -25,9 +25,9 @@ pub use dym_kas_core;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
 
-mod router;
+mod validator_server;
 
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::router::*, self::validator_announce::*,
+    self::providers::*, self::validator_announce::*, self::validator_server::*,
 };

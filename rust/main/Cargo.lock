@@ -3709,8 +3709,8 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (git+https://github.com/dymensionxyz/hyperlane-cosmos-rs)",
  "hyperlane-cosmos-native",
- "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -3726,6 +3726,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sha256",
+ "sha3 0.10.8",
  "tendermint",
  "tendermint-rpc",
  "thiserror 1.0.63",
@@ -5988,7 +5989,7 @@ dependencies = [
  "futures-util",
  "hyperlane-core",
  "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (git+https://github.com/dymensionxyz/hyperlane-cosmos-rs)",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-fuel",
@@ -6134,6 +6135,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-cosmos-dymension-rs"
+version = "0.1.4-dymension-v3.2.1"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs#2c9cdd73943021b5bb02299fa95b93da4e2b40a5"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
+]
+
+[[package]]
 name = "hyperlane-cosmos-native"
 version = "0.1.0"
 dependencies = [
@@ -6149,7 +6162,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "itertools 0.13.0",
@@ -6171,19 +6184,6 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "url",
-]
-
-[[package]]
-name = "hyperlane-cosmos-rs"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc98aea32657307552b9e58d53d2af8de83cda7f99ce8ea1daa8884221feba46"
-dependencies = [
- "cosmrs",
- "prost 0.13.4",
- "serde",
- "tendermint-proto",
- "tonic 0.12.3",
 ]
 
 [[package]]
@@ -10270,6 +10270,7 @@ dependencies = [
  "http-body-util",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -10313,7 +10314,7 @@ dependencies = [
  "eyre",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
