@@ -51,7 +51,8 @@ async function main() {
       {
         alias: string;
         default: string;
-      } & ReorgEvent
+        time: string;
+      } & Omit<ReorgEvent, 'unixTimestamp'>
     >
   > = {};
 
@@ -123,10 +124,12 @@ async function main() {
               validators[chain] = {};
             }
             const alias = findDefaultValidatorAlias(validator);
+            const { unixTimestamp, ...rest } = reorgStatus;
             validators[chain][validator] = {
               alias,
               default: alias ? '✅' : '',
-              ...reorgStatus,
+              time: new Date(unixTimestamp).toDateString(),
+              ...rest,
             };
           }
         } catch (error) {
@@ -166,8 +169,16 @@ async function main() {
         return b.checkpointIndex - a.checkpointIndex;
       }),
     );
+
     // eslint-disable-next-line no-console
-    console.table(sortedValidators, ['alias', 'default', 'latest', 'bucket']);
+    console.table(sortedValidators, [
+      'alias',
+      'default',
+      'time',
+      'localMerkleRoot',
+      'canonicalMerkleRoot',
+      'checkpointIndex',
+    ]);
   });
 
   process.exit(0);
