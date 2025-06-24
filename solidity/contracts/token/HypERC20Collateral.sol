@@ -83,6 +83,24 @@ contract HypERC20Collateral is MovableCollateralRouter {
         return bytes(""); // no metadata
     }
 
+    function _chargeRebalancer(
+        Quote[] memory quotes,
+        uint256 collateralAmount
+    ) internal override returns (uint256 nativeValue) {
+        uint256 collateralFee = 0;
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == address(wrappedToken)) {
+                collateralFee += quotes[i].amount;
+            }
+        }
+
+        if (collateralFee > collateralAmount) {
+            _transferFromSender(collateralFee - collateralAmount);
+        }
+
+        return msg.value;
+    }
+
     /**
      * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`.
      * @inheritdoc TokenRouter

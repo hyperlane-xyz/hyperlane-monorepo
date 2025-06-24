@@ -100,6 +100,13 @@ contract HypNative is MovableCollateralRouter {
         return bytes(""); // no metadata
     }
 
+    function _chargeRebalancer(
+        Quote[] memory /*quotes*/,
+        uint256 collateralAmount
+    ) internal override returns (uint256 nativeValue) {
+        return msg.value + collateralAmount;
+    }
+
     /**
      * @dev Sends `_amount` of native token to `_recipient` balance.
      * @inheritdoc TokenRouter
