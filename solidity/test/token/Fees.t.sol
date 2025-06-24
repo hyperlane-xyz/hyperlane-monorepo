@@ -101,6 +101,26 @@ contract LinearFeeTest is BaseFeeTest {
         vm.expectRevert();
         fee.quoteTransferRemote(destination, recipient, amount);
     }
+
+    function test_RevertIf_ZeroMaxFee() public {
+        vm.expectRevert(bytes("BaseFee: maxFee must be greater than zero"));
+        new LinearFee(address(token), 0, DEFAULT_HALF_AMOUNT, OWNER);
+    }
+
+    function test_RevertIf_ZeroHalfAmount() public {
+        vm.expectRevert(bytes("BaseFee: halfAmount must be greater than zero"));
+        new LinearFee(address(token), DEFAULT_MAX_FEE, 0, OWNER);
+    }
+
+    function test_RevertIf_ZeroOwner() public {
+        vm.expectRevert(bytes("BaseFee: owner cannot be zero address"));
+        new LinearFee(
+            address(token),
+            DEFAULT_MAX_FEE,
+            DEFAULT_HALF_AMOUNT,
+            address(0)
+        );
+    }
 }
 
 // --- ProgressiveFee Tests ---

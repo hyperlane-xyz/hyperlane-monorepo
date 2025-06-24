@@ -4,6 +4,8 @@ pragma solidity >=0.8.0;
 import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 enum FeeType {
     ZERO,
@@ -13,6 +15,9 @@ enum FeeType {
 }
 
 abstract contract BaseFee is Ownable, ITokenFee {
+    using Address for address payable;
+    using SafeERC20 for IERC20;
+
     address public immutable token;
     uint256 public immutable maxFee;
     uint256 public immutable halfAmount;
@@ -23,6 +28,10 @@ abstract contract BaseFee is Ownable, ITokenFee {
         uint256 _halfAmount,
         address _owner
     ) Ownable() {
+        require(_maxFee > 0, "maxFee must be greater than zero");
+        require(_halfAmount > 0, "halfAmount must be greater than zero");
+        require(_owner != address(0), "owner cannot be zero address");
+
         token = _token;
         maxFee = _maxFee;
         halfAmount = _halfAmount;
@@ -31,10 +40,10 @@ abstract contract BaseFee is Ownable, ITokenFee {
 
     function claim(address beneficiary) external onlyOwner {
         if (token == address(0)) {
-            payable(beneficiary).transfer(address(this).balance);
+            payable(beneficiary).sendValue(address(this).balance);
         } else {
             uint256 balance = IERC20(token).balanceOf(address(this));
-            IERC20(token).transfer(beneficiary, balance);
+            IERC20(token).safeTransfer(beneficiary, balance);
         }
     }
 
