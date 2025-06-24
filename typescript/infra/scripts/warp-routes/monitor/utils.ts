@@ -1,9 +1,11 @@
-import { createServiceLogger } from '@hyperlane-xyz/utils';
+import { createServiceLogger, setRootLogger } from '@hyperlane-xyz/utils';
 
 const logger = await createServiceLogger({
   service: 'warp-balance-monitor',
   version: '1.0.0',
 });
+
+setRootLogger(logger);
 
 export function setLoggerBindings(bindings: Record<string, string>) {
   logger.setBindings(bindings);
