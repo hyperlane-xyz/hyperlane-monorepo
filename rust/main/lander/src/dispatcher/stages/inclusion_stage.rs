@@ -209,71 +209,14 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
-        if tx.submission_attempts == 0 {
-            // simulate transaction before we submit it for the first time
-
-            let (transaction, failed_payloads) = call_until_success_or_nonretryable_error(
-                || {
-                    let tx_clone = tx.clone();
-                    async move {
-                        let mut tx_clone_inner = tx_clone.clone();
-                        let failed_payloads =
-                            state.adapter.simulate_tx(&mut tx_clone_inner).await?;
-                        Ok((tx_clone_inner, failed_payloads))
-                    }
-                },
-                "Simulating transaction",
-                state,
-            )
-            .await?;
-
-            // passing the simulated transaction to the next step
-            tx = transaction;
-
-            // drop failed payloads
-            state
-                .update_status_for_payloads(
-                    &failed_payloads,
-                    PayloadStatus::Dropped(PayloadDropReason::FailedSimulation),
-                )
-                .await;
-        }
+        // Simulating transaction if it has never been submitted before
+        tx = Self::simulate_tx(tx, state).await?;
 
         // Estimating transaction just before we submit it
-        tx = call_until_success_or_nonretryable_error(
-            || {
-                let tx_clone = tx.clone();
-                async move {
-                    let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
-                    Ok(tx_clone_inner)
-                }
-            },
-            "Estimating transaction",
-            state,
-        )
-        .await?;
+        tx = Self::estimate_tx(&tx, state).await?;
 
-        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
-        // set by previous retries when calling `adapter.submit`
-        let tx_shared = Arc::new(Mutex::new(tx.clone()));
-        // successively calling `submit` will result in escalating gas price until the tx is accepted
-        // by the node.
-        // at this point, not all VMs return information about whether the tx was reverted.
-        // so dropping reverted payloads has to happen in the finality step
-        tx = call_until_success_or_nonretryable_error(
-            || {
-                let tx_shared_clone = tx_shared.clone();
-                async move {
-                    let mut tx_guard = tx_shared_clone.lock().await;
-                    state.adapter.submit(&mut tx_guard).await?;
-                    Ok(tx_guard.clone())
-                }
-            },
-            "Submitting transaction",
-            state,
-        )
-        .await?;
+        // Submitting transaction to the node
+        tx = Self::submit_tx(&tx, state).await?;
         info!(?tx, "Transaction submitted to node");
 
         // update tx submission attempts
@@ -290,6 +233,86 @@ impl InclusionStage {
         // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
         pool.lock().await.insert(tx.uuid.clone(), tx.clone());
         Ok(())
+    }
+
+    async fn submit_tx(
+        tx: &Transaction,
+        state: &DispatcherState,
+    ) -> Result<Transaction, LanderError> {
+        // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
+        // set by previous retries when calling `adapter.submit`
+        let tx_shared = Arc::new(Mutex::new(tx.clone()));
+        // successively calling `submit` will result in escalating gas price until the tx is accepted
+        // by the node.
+        // at this point, not all VMs return information about whether the tx was reverted.
+        // so dropping reverted payloads has to happen in the finality step
+        call_until_success_or_nonretryable_error(
+            || {
+                let tx_shared_clone = tx_shared.clone();
+                async move {
+                    let mut tx_guard = tx_shared_clone.lock().await;
+                    state.adapter.submit(&mut tx_guard).await?;
+                    Ok(tx_guard.clone())
+                }
+            },
+            "Submitting transaction",
+            state,
+        )
+        .await
+    }
+
+    async fn estimate_tx(
+        tx: &Transaction,
+        state: &DispatcherState,
+    ) -> Result<Transaction, LanderError> {
+        call_until_success_or_nonretryable_error(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
+                }
+            },
+            "Estimating transaction",
+            state,
+        )
+        .await
+    }
+
+    async fn simulate_tx(tx: Transaction, state: &DispatcherState) -> Result<Transaction> {
+        if tx.submission_attempts > 0 {
+            info!(
+                ?tx,
+                "Skipping simulation for transaction with submission attempts > 0"
+            );
+            return Ok(tx);
+        }
+
+        // simulate transaction if the transaction has not been submitted yet
+        let (transaction, failed_payloads) = call_until_success_or_nonretryable_error(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    let failed_payloads = state.adapter.simulate_tx(&mut tx_clone_inner).await?;
+                    Ok((tx_clone_inner, failed_payloads))
+                }
+            },
+            "Simulating transaction",
+            state,
+        )
+        .await?;
+
+        // drop failed payloads
+        state
+            .update_status_for_payloads(
+                &failed_payloads,
+                PayloadStatus::Dropped(PayloadDropReason::FailedSimulation),
+            )
+            .await;
+
+        Ok(transaction)
     }
 
     async fn drop_tx(
