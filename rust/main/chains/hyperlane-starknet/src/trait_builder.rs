@@ -5,7 +5,7 @@ use url::Url;
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    pub url: Url,
+    pub urls: Vec<Url>,
 
     /// Native token address that is used to pay for transaction fees.
     pub native_token_address: H256,

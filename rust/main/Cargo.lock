@@ -5823,6 +5823,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "serde",
+ "serde_json",
  "starknet 0.15.1",
  "thiserror 1.0.63",
  "tokio",
