@@ -543,6 +543,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   async deployFeeRecipient(
     chain: ChainName,
     config: TokenFeeConfig,
+    token: Address,
   ): Promise<Address> {
     assert(config.type !== FeeCurve.ZERO, 'Zero fee curve is 0 address');
 
@@ -552,7 +553,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       chain,
       feeFactory,
       `${config.type}Fee`,
-      [config.maxFee, config.halfAmount, config.owner],
+      [token, config.maxFee, config.halfAmount, config.owner],
     );
 
     return feeContract.address;
@@ -561,14 +562,17 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   async deployContracts(chain: ChainName, config: HypTokenRouterConfig) {
     const contracts = await super.deployContracts(chain, config);
     if (config.tokenFee && config.tokenFee.type !== FeeCurve.ZERO) {
+      const router = this.router(contracts);
+      const token = await router.token();
       const feeRecipient = await this.deployFeeRecipient(
         chain,
         config.tokenFee,
+        token,
       );
       // requires signer is owner
       await this.multiProvider.handleTx(
         chain,
-        this.router(contracts).setFeeRecipient(feeRecipient),
+        router.setFeeRecipient(feeRecipient),
       );
     }
     return contracts;

@@ -1033,9 +1033,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     let feeRecipient: Address;
     if (expected.tokenFee && expected.tokenFee.type !== FeeCurve.ZERO) {
       const deployer = new HypERC20Deployer(this.multiProvider);
+      const router = FungibleTokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.chainId),
+      );
+      const token = await router.token();
       feeRecipient = await deployer.deployFeeRecipient(
         this.chainName,
         expected.tokenFee,
+        token,
       );
     } else {
       feeRecipient = ethers.constants.AddressZero;
