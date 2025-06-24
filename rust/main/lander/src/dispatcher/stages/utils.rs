@@ -45,14 +45,15 @@ pub async fn update_tx_status(
     tx: &mut Transaction,
     new_status: TransactionStatus,
 ) -> Result<(), LanderError> {
-    // return early to avoid double counting metrics
-    if new_status == tx.status {
-        return Ok(());
-    }
     info!(?tx, ?new_status, "Updating tx status");
-    tx.status = new_status;
+    let old_tx_status = tx.status.clone();
+    tx.status = new_status.clone();
     state.store_tx(tx).await;
 
+    // return early to avoid double counting metrics
+    if new_status == old_tx_status {
+        return Ok(());
+    }
     // these metric updates assume a transaction can only be finalized once and dropped once.
     // note that a transaction may be counted as `finalized` initially, and then later
     // also counted as `dropped` if it was reorged out.

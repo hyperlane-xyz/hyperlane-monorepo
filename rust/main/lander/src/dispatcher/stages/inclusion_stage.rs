@@ -211,6 +211,9 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
+        // update tx submission attempts
+        tx.submission_attempts += 1;
+
         // Estimating transaction just before we submit it
         tx = call_until_success_or_nonretryable_error(
             || {
@@ -248,8 +251,6 @@ impl InclusionStage {
         .await?;
         info!(?tx, "Transaction submitted to node");
 
-        // update tx submission attempts
-        tx.submission_attempts += 1;
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);

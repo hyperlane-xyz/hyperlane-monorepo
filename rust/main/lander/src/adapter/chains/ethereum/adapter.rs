@@ -36,7 +36,7 @@ use super::{
     EthereumTxPrecursor,
 };
 
-mod gas_limit_estimator;
+pub mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 

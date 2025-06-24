@@ -2,7 +2,7 @@ pub use adapter::EthereumAdapter;
 pub use metrics::EthereumAdapterMetrics;
 pub use precursor::EthereumTxPrecursor;
 
-mod adapter;
+pub mod adapter;
 mod metrics;
 pub mod nonce;
 mod payload;
