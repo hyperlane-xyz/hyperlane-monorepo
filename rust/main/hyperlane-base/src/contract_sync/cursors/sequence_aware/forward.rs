@@ -229,11 +229,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
 
             self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
         }
-        debug!(
-            last_indexed_snapshot=?prev_indexed_snapshot,
-            current_indexing_snapshot=?self.current_indexing_snapshot,
-            "Fast forwarded current sequence to"
-        );
+        if prev_indexed_snapshot != self.last_indexed_snapshot {
+            debug!(
+                last_indexed_snapshot=?prev_indexed_snapshot,
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                "Fast forwarded current sequence to"
+            );
+        }
 
         Ok(())
     }
