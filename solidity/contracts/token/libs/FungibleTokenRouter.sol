@@ -18,6 +18,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
     }
 
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
+        // allows for address(0) to be set, which disables fees
         feeRecipient = ITokenFee(_feeRecipient);
     }
 
