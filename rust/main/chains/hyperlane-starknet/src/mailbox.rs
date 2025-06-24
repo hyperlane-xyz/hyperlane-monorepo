@@ -207,7 +207,7 @@ impl Mailbox for StarknetMailbox {
             .collect();
 
         let tx = self.contract.account.execute_v3(calls);
-        let outcome = send_and_confirm(&self.provider.rpc_client(), tx).await?;
+        let outcome = send_and_confirm(self.provider.rpc_client(), tx).await?;
 
         // Either all operations are executed successfully, or none of them are
         Ok(BatchResult {
