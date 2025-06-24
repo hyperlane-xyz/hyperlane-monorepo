@@ -17,7 +17,7 @@ use tracing::{error, info, info_span, instrument, warn, Instrument};
 use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
-    payload::{DropReason, FullPayload, PayloadStatus},
+    payload::{DropReason as PayloadDropReason, FullPayload, PayloadStatus},
     transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
@@ -199,6 +199,9 @@ impl FinalityStage {
         tx: &mut Transaction,
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
+        use PayloadDropReason::Reverted;
+        use PayloadStatus::Dropped;
+
         let reverted_payloads = call_until_success_or_nonretryable_error(
             || state.adapter.reverted_payloads(tx),
             "Checking reverted payloads",
@@ -206,10 +209,7 @@ impl FinalityStage {
         )
         .await?;
         state
-            .update_status_for_payloads(
-                &reverted_payloads,
-                PayloadStatus::Dropped(DropReason::Reverted),
-            )
+            .update_status_for_payloads(&reverted_payloads, Dropped(Reverted))
             .await;
         Ok(())
     }
@@ -373,7 +373,7 @@ mod tests {
         assert_payloads_status(
             payloads_in_first_tx.clone(),
             &payload_db,
-            PayloadStatus::Dropped(DropReason::Reverted),
+            PayloadStatus::Dropped(PayloadDropReason::Reverted),
         )
         .await;
     }
