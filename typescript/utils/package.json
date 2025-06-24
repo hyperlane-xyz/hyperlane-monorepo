@@ -4,6 +4,7 @@
   "version": "13.3.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
     "@solana/web3.js": "^1.95.4",
     "bignumber.js": "^9.1.1",
     "ethers": "^5.8.0",
@@ -62,8 +63,5 @@
   "sideEffects": false,
   "engines": {
     "node": ">=16"
-  },
-  "optionalDependencies": {
-    "@google-cloud/pino-logging-gcp-config": "^1.0.0"
   }
 }

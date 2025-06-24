@@ -7981,15 +7981,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google-cloud/pino-logging-gcp-config@npm:^1.0.0":
-  version: 1.0.4
-  resolution: "@google-cloud/pino-logging-gcp-config@npm:1.0.4"
+"@google-cloud/pino-logging-gcp-config@npm:^1.0.6":
+  version: 1.0.6
+  resolution: "@google-cloud/pino-logging-gcp-config@npm:1.0.6"
   dependencies:
     "@google-cloud/logging": "npm:^11.2.0"
     eventid: "npm:^2.0.1"
     google-gax: "npm:^4.6.1"
-    pino: "npm:^9.6.0"
-  checksum: 10/d49e90f3b94babd7a09cbe365433b5d366780d818e84a1aa9f8ba360ce3663c542889fbfb6cab1bb0ad6deefca4dab281c698b9c68afe2445de41e5af30028ca
+    pino: "npm:^9.7.0"
+  checksum: 10/dcded6270086e977dc92f126b0310b2d8aad596ae19ec6946b5985daf32ea6dccbce70aa4cdcdde4f12446813d40a0cc7028a5b31b22e1e6e566855f9cc54d1f
   languageName: node
   linkType: hard
 
@@ -8543,7 +8543,7 @@ __metadata:
   dependencies:
     "@cosmjs/encoding": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@google-cloud/pino-logging-gcp-config": "npm:^1.0.0"
+    "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@solana/web3.js": "npm:^1.95.4"
     "@types/lodash-es": "npm:^4.17.12"
@@ -8567,9 +8567,6 @@ __metadata:
     starknet: "npm:^7.4.0"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
-  dependenciesMeta:
-    "@google-cloud/pino-logging-gcp-config":
-      optional: true
   languageName: unknown
   linkType: soft
 
@@ -33025,7 +33022,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pino@npm:^9.0.0, pino@npm:^9.6.0":
+"pino@npm:^9.0.0, pino@npm:^9.7.0":
   version: 9.7.0
   resolution: "pino@npm:9.7.0"
   dependencies:
