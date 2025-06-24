@@ -821,22 +821,33 @@ async function submitWarpApplyTransactions(
             const canRelay = canSelfRelay(
               params.selfRelay ?? false,
               config,
-              transactionReceipts as any,
+              transactionReceipts,
             );
-            if (canRelay.relay) {
-              await runSelfRelay({
-                txReceipt: canRelay.txReceipt,
-                multiProvider: params.context.multiProvider,
-                registry: params.context.registry,
-                successMessage: WarpSendLogs.SUCCESS,
-              });
+
+            if (!canRelay.relay) {
+              return;
+            }
+
+            // if self relaying does not work (possibly because metadata cannot be built yet)
+            // we don't want to rerun the complete code block as this will result in
+            // the update transactions being sent multiple times
+            try {
+              await retryAsync(() =>
+                runSelfRelay({
+                  txReceipt: canRelay.txReceipt,
+                  multiProvider: params.context.multiProvider,
+                  registry: params.context.registry,
+                  successMessage: WarpSendLogs.SUCCESS,
+                }),
+              );
+            } catch (error) {
+              warnYellow(`Error when self-relaying Warp transaction`, error);
             }
           },
           5, // attempts
           100, // baseRetryMs
         );
       } catch (e) {
-        console.log(e);
         logBlue(`Error in submitWarpApplyTransactions`, e);
         console.dir(transactions);
       }

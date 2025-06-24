@@ -8,7 +8,7 @@ import {
   HyperlaneRelayer,
   MultiProvider,
   SubmissionStrategy,
-  TxSubmitterInterface,
+  TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -42,7 +42,7 @@ export function canSelfRelay(
   selfRelay: boolean,
   config: SubmissionStrategy,
   transactionReceipts: Awaited<
-    ReturnType<TxSubmitterInterface<ProtocolType.Ethereum>['submit']>
+    ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>
   >,
 ): { relay: true; txReceipt: TransactionReceipt } | { relay: false } {
   if (!transactionReceipts) {
@@ -54,6 +54,13 @@ export function canSelfRelay(
     : transactionReceipts;
 
   if (!txReceipt) {
+    return {
+      relay: false,
+    };
+  }
+
+  // Extremely naive way to narrow the type
+  if (!('cumulativeGasUsed' in txReceipt)) {
     return {
       relay: false,
     };

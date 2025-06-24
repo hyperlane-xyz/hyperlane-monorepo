@@ -15,6 +15,7 @@ import {
   bytes32ToAddress,
   eqAddress,
   isZeroishAddress,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -257,9 +258,17 @@ export async function buildInterchainAccountApp(
   ) {
     const addressByChain = await registry.getAddresses();
 
-    remoteIcaAddresses = objMap(addressByChain, (_chainId, chainAddresses) => ({
-      interchainAccountRouter: chainAddresses.interchainAccountRouter,
-    }));
+    // for each known chain get the ica router address and remove the undefined values
+    remoteIcaAddresses = objFilter(
+      objMap(addressByChain, (_chainId, chainAddresses) => ({
+        interchainAccountRouter: chainAddresses.interchainAccountRouter,
+      })),
+      (
+        _chainId,
+        chainAddresses,
+      ): chainAddresses is { interchainAccountRouter: Address } =>
+        !!chainAddresses.interchainAccountRouter,
+    );
   } else {
     const currentIca = InterchainAccountRouter__factory.connect(
       config.localRouter,

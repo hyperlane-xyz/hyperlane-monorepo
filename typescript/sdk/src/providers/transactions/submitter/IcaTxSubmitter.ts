@@ -24,9 +24,7 @@ type EvmIcaTxSubmitterConfig = EvmIcaTxSubmitterProps & {
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterConfig,
   'internalSubmitter' | 'type'
-> & {
-  owner: Address;
-};
+>;
 
 export class EvmIcaTxSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>

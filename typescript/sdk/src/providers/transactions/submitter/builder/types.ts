@@ -77,9 +77,7 @@ export const ChainSubmissionStrategySchema = z.preprocess(
       if (
         (internalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
           internalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
-        // Safe to assume it is defined because in the preprocess call the owner is set if undefined
-        // and the internal submitter is a multisig
-        !eqAddress(owner!, internalSubmitter.safeAddress)
+        !eqAddress(owner, internalSubmitter.safeAddress)
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

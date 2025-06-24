@@ -330,7 +330,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     expect(destinationGas_3[chain2Id]).to.equal('7777');
   });
 
-  it.only('should relay the ICA transaction to update the warp on the destination chain', async () => {
+  it('should relay the ICA transaction to update the warp on the destination chain', async () => {
     // Add the remote ica on chain anvil3
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
       await Promise.all([
