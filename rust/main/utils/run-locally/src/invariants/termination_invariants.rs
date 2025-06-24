@@ -404,9 +404,9 @@ pub fn submitter_metrics_invariants_met(
     // a transaction is included in a block with hash ending in 0.
     if dropped_payloads <= params.total_messages_expected {
         log!(
-            "hyperlane_lander_dropped_payloads {} count, expected {}",
+            "hyperlane_lander_dropped_payloads {} count, expected less or equal to {}",
             dropped_payloads,
-            0
+            params.total_messages_expected
         );
         return Ok(false);
     }
