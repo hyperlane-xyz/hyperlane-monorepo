@@ -75,6 +75,7 @@ contract LinearFeeTest is BaseFeeTest {
         uint96 halfAmount,
         uint96 amount
     ) public {
+        vm.assume(maxFee > 0);
         vm.assume(halfAmount > 0);
 
         LinearFee localLinearFee = new LinearFee(
@@ -95,25 +96,23 @@ contract LinearFeeTest is BaseFeeTest {
         );
     }
 
-    function test_RevertIf_ZeroHalfAmount(uint96 maxFee, uint96 amount) public {
-        vm.assume(amount > 0);
-        LinearFee fee = new LinearFee(address(token), maxFee, 0, BENEFICIARY);
-        vm.expectRevert();
-        fee.quoteTransferRemote(destination, recipient, amount);
+    function test_RevertIf_ZeroHalfAmount() public {
+        vm.expectRevert(bytes("halfAmount must be greater than zero"));
+        LinearFee fee = new LinearFee(
+            address(token),
+            DEFAULT_MAX_FEE,
+            0,
+            BENEFICIARY
+        );
     }
 
     function test_RevertIf_ZeroMaxFee() public {
-        vm.expectRevert(bytes("BaseFee: maxFee must be greater than zero"));
+        vm.expectRevert(bytes("maxFee must be greater than zero"));
         new LinearFee(address(token), 0, DEFAULT_HALF_AMOUNT, OWNER);
     }
 
-    function test_RevertIf_ZeroHalfAmount() public {
-        vm.expectRevert(bytes("BaseFee: halfAmount must be greater than zero"));
-        new LinearFee(address(token), DEFAULT_MAX_FEE, 0, OWNER);
-    }
-
     function test_RevertIf_ZeroOwner() public {
-        vm.expectRevert(bytes("BaseFee: owner cannot be zero address"));
+        vm.expectRevert(bytes("owner cannot be zero address"));
         new LinearFee(
             address(token),
             DEFAULT_MAX_FEE,
@@ -148,10 +147,12 @@ contract ProgressiveFeeTest is BaseFeeTest {
         uint96 halfAmount,
         uint96 amount
     ) public {
-        vm.assume(halfAmount != 0 || amount != 0);
+        vm.assume(maxFee > 0);
+        vm.assume(halfAmount > 0);
+        vm.assume(amount != 0);
 
         uint256 amountSq = uint256(amount) * amount;
-        vm.assume(maxFee == 0 || type(uint256).max / maxFee >= amountSq);
+        vm.assume(type(uint256).max / maxFee >= amountSq);
 
         uint256 halfSq = uint256(halfAmount) * halfAmount;
         vm.assume(type(uint256).max - halfSq >= amountSq);
@@ -200,7 +201,8 @@ contract RegressiveFeeTest is BaseFeeTest {
         uint96 halfAmount,
         uint96 amount
     ) public {
-        vm.assume(halfAmount != 0 || amount != 0);
+        vm.assume(maxFee > 0);
+        vm.assume(halfAmount > 0);
         vm.assume(type(uint256).max - halfAmount >= amount);
 
         RegressiveFee localRegressiveFee = new RegressiveFee(
