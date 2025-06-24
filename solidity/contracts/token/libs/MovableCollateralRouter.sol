@@ -112,16 +112,29 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
             amount
         );
 
-        uint256 nativeAmount = _chargeRebalancer(quotes, amount);
+        uint256 collateralFee = 0;
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == token()) {
+                collateralFee += quotes[i].amount;
+            }
+        }
 
-        bridge.transferRemote{value: nativeAmount}(domain, recipient, amount);
+        // charge the rebalancer any bridging fees denominated in the collateral
+        // token to avoid undercollateralization
+        if (collateralFee > amount) {
+            _transferFromSender(collateralFee - amount);
+        }
+
+        uint256 nativeValue = _nativeRebalanceValue(amount);
+        bridge.transferRemote{value: nativeValue}(domain, recipient, amount);
         emit CollateralMoved(domain, recipient, amount, msg.sender);
     }
 
-    function _chargeRebalancer(
-        Quote[] memory quotes,
+    function _nativeRebalanceValue(
         uint256 amount
-    ) internal virtual returns (uint256 nativeValue);
+    ) internal virtual returns (uint256 nativeValue) {
+        return msg.value;
+    }
 
     function _recipient(
         uint32 domain

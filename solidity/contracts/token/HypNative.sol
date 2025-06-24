@@ -100,11 +100,14 @@ contract HypNative is MovableCollateralRouter {
         return bytes(""); // no metadata
     }
 
-    function _chargeRebalancer(
-        Quote[] memory /*quotes*/,
+    function _nativeRebalanceValue(
         uint256 collateralAmount
     ) internal override returns (uint256 nativeValue) {
-        return msg.value + collateralAmount;
+        nativeValue = msg.value + collateralAmount;
+        require(
+            address(this).balance >= nativeValue,
+            "Native: rebalance amount exceeds balance"
+        );
     }
 
     /**

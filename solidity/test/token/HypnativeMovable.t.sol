@@ -84,7 +84,7 @@ contract HypNativeMovableTest is Test {
             bytes32(uint256(uint160(alice)))
         );
         router.addBridge(destinationDomain, vtb);
-        vm.expectRevert();
+        vm.expectRevert("Native: rebalance amount exceeds balance");
         router.rebalance(destinationDomain, 1 ether, vtb);
     }
 }
