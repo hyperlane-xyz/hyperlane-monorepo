@@ -3,6 +3,7 @@ import { constants } from 'ethers';
 import {
   ERC20__factory,
   ERC721Enumerable__factory,
+  FungibleTokenRouter,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
@@ -13,6 +14,7 @@ import {
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 import {
+  Address,
   ProtocolType,
   assert,
   objFilter,
@@ -40,6 +42,7 @@ import {
   HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
+  feeFactories,
   hypERC20contracts,
   hypERC20factories,
   hypERC721contracts,
@@ -47,8 +50,10 @@ import {
 } from './contracts.js';
 import {
   CctpTokenConfig,
+  FeeCurve,
   HypTokenConfig,
   HypTokenRouterConfig,
+  TokenFeeConfig,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -515,10 +520,12 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): GasRouter {
+  router(
+    contracts: HyperlaneContracts<HypERC20Factories>,
+  ): FungibleTokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as unknown as FungibleTokenRouter;
       }
     }
     throw new Error('No matching contract found');
@@ -531,6 +538,44 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
 
   routerContractName(config: HypTokenRouterConfig): string {
     return hypERC20contracts[this.routerContractKey(config)];
+  }
+
+  async deployFeeRecipient(
+    chain: ChainName,
+    config: TokenFeeConfig,
+    token: Address,
+  ): Promise<Address> {
+    assert(config.type !== FeeCurve.ZERO, 'Zero fee curve is 0 address');
+
+    const feeFactory = feeFactories[config.type];
+
+    const feeContract = await this.deployContractFromFactory(
+      chain,
+      feeFactory,
+      `${config.type}Fee`,
+      [token, config.maxFee, config.halfAmount, config.owner],
+    );
+
+    return feeContract.address;
+  }
+
+  async deployContracts(chain: ChainName, config: HypTokenRouterConfig) {
+    const contracts = await super.deployContracts(chain, config);
+    if (config.tokenFee && config.tokenFee.type !== FeeCurve.ZERO) {
+      const router = this.router(contracts);
+      const token = await router.token();
+      const feeRecipient = await this.deployFeeRecipient(
+        chain,
+        config.tokenFee,
+        token,
+      );
+      // requires signer is owner
+      await this.multiProvider.handleTx(
+        chain,
+        router.setFeeRecipient(feeRecipient),
+      );
+    }
+    return contracts;
   }
 }
 

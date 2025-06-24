@@ -63,6 +63,7 @@ import {
 } from './config.js';
 import {
   CONTRACTS_VERSION,
+  FeeCurve,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
@@ -141,6 +142,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     ismAddress = await mailbox.defaultIsm();
   });
+
+  const FUNGIBLE_TOKEN_TYPES = [
+    TokenType.collateral,
+    TokenType.synthetic,
+    TokenType.native,
+  ];
 
   const movableCollateralTypes = Object.values(TokenType).filter(
     isMovableCollateralTokenType,
@@ -355,6 +362,42 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
       await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
     });
+  }
+
+  for (const tokenType of FUNGIBLE_TOKEN_TYPES) {
+    for (const feeCurve of Object.values(FeeCurve)) {
+      it(`should configure "${feeCurve}" fungible token fees for "${tokenType}"`, async () => {
+        const config = {
+          ...baseConfig,
+          type: tokenType,
+          token: token.address,
+          decimals: TOKEN_DECIMALS,
+          initialSupply: TOKEN_SUPPLY,
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          tokenFee: {
+            type: feeCurve,
+            maxFee: '1',
+            halfAmount: '2',
+            owner: signer.address,
+          },
+        } as HypTokenRouterConfig;
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const actualConfig = await evmERC20WarpModule.read();
+        if (feeCurve === FeeCurve.ZERO) {
+          expect(actualConfig.tokenFee).to.be.undefined;
+        } else {
+          expect(actualConfig.tokenFee).to.deep.equal(config.tokenFee);
+        }
+      });
+    }
   }
 
   describe(EvmERC20WarpModule.prototype.update.name, async () => {
@@ -1121,6 +1164,39 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         }
       });
     }
+
+    it('should add a fee recipient for a fungible token', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as HypTokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const tokenFee = {
+        type: FeeCurve.LINEAR,
+        maxFee: '1',
+        halfAmount: '2',
+        owner: signer.address,
+      };
+
+      const txs = await evmERC20WarpModule.update({
+        ...config,
+        tokenFee,
+      });
+
+      expect(txs.length).to.equal(1);
+      await sendTxs(txs);
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.tokenFee).to.deep.equal(tokenFee);
+    });
 
     it('Should deploy and upgrade a new warp route', async () => {
       const domain = 3;

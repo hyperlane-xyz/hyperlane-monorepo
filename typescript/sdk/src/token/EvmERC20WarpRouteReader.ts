@@ -1,6 +1,8 @@
-import { BigNumber, Contract } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 
 import {
+  BaseFee__factory,
+  FungibleTokenRouter__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -23,6 +25,7 @@ import {
   Address,
   arrayToObject,
   assert,
+  eqAddress,
   getLogLevel,
   isZeroishAddress,
   objFilter,
@@ -50,17 +53,21 @@ import {
   CctpTokenConfig,
   CollateralTokenConfig,
   DerivedTokenRouterConfig,
+  FeeCurve,
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
   MovableTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
+  TokenFeeConfig,
   TokenMetadata,
   XERC20TokenMetadata,
   isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
+
+const TOKEN_FEE_VERSION = '9.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -407,6 +414,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const config = await deriveFunction(warpRouteAddress);
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
+    // if (compareVersions(config.contractVersion, TOKEN_FEE_VERSION) >= 0) {
+    config.tokenFee = await this.fetchTokenFee(warpRouteAddress);
+    // }
+
     return HypTokenConfigSchema.parse(config);
   }
 
@@ -639,6 +650,38 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     ]);
 
     return { name, symbol, decimals, isNft: false };
+  }
+
+  async fetchTokenFee(
+    routerAddress: Address,
+  ): Promise<TokenFeeConfig | undefined> {
+    const address = await FungibleTokenRouter__factory.connect(
+      routerAddress,
+      this.provider,
+    ).feeRecipient();
+
+    if (eqAddress(address, ethers.constants.AddressZero)) {
+      return undefined;
+    }
+
+    const feeRecipient = BaseFee__factory.connect(address, this.provider);
+
+    const [feeType, maxFee, halfAmount, owner] = await Promise.all([
+      feeRecipient.feeType(),
+      feeRecipient.maxFee(),
+      feeRecipient.halfAmount(),
+      feeRecipient.owner(),
+    ]);
+
+    const curves = Object.values(FeeCurve);
+    assert(feeType < curves.length, `Unknown fee type: ${feeType}`);
+
+    return {
+      type: curves[feeType],
+      maxFee: maxFee.toString(),
+      halfAmount: halfAmount.toString(),
+      owner,
+    };
   }
 
   async fetchPackageVersion(address: Address) {
