@@ -28,14 +28,15 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
  */
 contract RegressiveFee is BaseFee {
     constructor(
+        address _token,
         uint256 _maxFee,
         uint256 _halfAmount,
         address beneficiary
-    ) BaseFee(_maxFee, _halfAmount, beneficiary) {}
+    ) BaseFee(_token, _maxFee, _halfAmount, beneficiary) {}
 
-    function quoteTransfer(
+    function _quoteTransfer(
         uint256 amount
-    ) external view override returns (uint256 fee) {
+    ) internal view override returns (uint256 fee) {
         // Regressive fee using rational function: fee = (maxFee * amount) / (halfAmount + amount)
         // This makes the fee percentage decrease as the amount increases
         if (halfAmount + amount == 0) return 0;

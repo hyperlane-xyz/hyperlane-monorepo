@@ -15,6 +15,10 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract MockMovableCollateralRouter is MovableCollateralRouter {
     constructor(address _mailbox) FungibleTokenRouter(1, _mailbox) {}
 
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
     function balanceOf(
         address _account
     ) external view override returns (uint256) {
