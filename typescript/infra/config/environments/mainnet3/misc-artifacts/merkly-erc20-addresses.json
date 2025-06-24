@@ -152,9 +152,6 @@
   "proofofplay": {
     "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
   },
-  "real": {
-    "router": "0x6f6aE8851a460406bBB3c929a415d2Df9305AcD5"
-  },
   "sanko": {
     "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
   },

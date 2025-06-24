@@ -1945,18 +1945,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  real: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   redstone: {
     threshold: 3,
     validators: [
@@ -2527,41 +2515,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  treasure: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0x6ad994819185553e8baa01533f0cd2c7cadfe6cc',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x278460fa51ff448eb53ffa62951b4b8e3e8f74e3',
-        alias: 'P2P',
-      },
-      {
-        address: '0xe92ff70bb463e2aa93426fd2ba51afc39567d426',
-        alias: 'Treasure',
-      },
-      DEFAULT_MITOSIS_VALIDATOR,
-      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
-    ],
-  },
-
-  trumpchain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      {
-        address: '0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C',
-        alias: 'Caldera',
-      },
     ],
   },
 

@@ -25,7 +25,6 @@ export const awIcas: ChainMap<Address> = {
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   proofofplay: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  real: '0xc761e68BF3A94326FD0D305e3ccb4cdaab2edA19',
   sanko: '0x5DAcd2f1AafC749F2935A160865Ab1568eC23752',
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
@@ -139,7 +138,6 @@ export const awIcas: ChainMap<Address> = {
   // glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
   matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
-  trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
 
   // Q5, 2024 batch
   // ----------------------------------------------------------
