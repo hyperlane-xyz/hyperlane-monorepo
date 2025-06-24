@@ -115,7 +115,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint256 nativeAmount = 0;
         uint256 tokenAmount = 0;
         for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == _token()) {
+            if (quotes[i].token == token()) {
                 tokenAmount += quotes[i].amount;
             }
 
