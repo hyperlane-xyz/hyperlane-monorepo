@@ -83,6 +83,19 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         _allowedBridges[domain].remove(address(bridge));
     }
 
+    /**
+     * @notice Approves the token for the bridge.
+     * @param token The token to approve.
+     * @param bridge The bridge to approve the token for.
+     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     */
+    function approveTokenForBridge(
+        IERC20 token,
+        ITokenBridge bridge
+    ) external onlyOwner {
+        token.safeApprove(address(bridge), type(uint256).max);
+    }
+
     function addRebalancer(address rebalancer) external onlyOwner {
         _allowedRebalancers.add(rebalancer);
     }
