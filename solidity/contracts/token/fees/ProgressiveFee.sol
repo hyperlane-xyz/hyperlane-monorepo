@@ -28,14 +28,15 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
  */
 contract ProgressiveFee is BaseFee {
     constructor(
+        address _token,
         uint256 _maxFee,
         uint256 _halfAmount,
         address beneficiary
-    ) BaseFee(_maxFee, _halfAmount, beneficiary) {}
+    ) BaseFee(_token, _maxFee, _halfAmount, beneficiary) {}
 
-    function quoteTransfer(
+    function _quoteTransfer(
         uint256 amount
-    ) external view override returns (uint256 fee) {
+    ) internal view override returns (uint256 fee) {
         // Progressive fee using rational function: fee = (maxFee * amount^2) / (halfAmount^2 + amount^2)
         // This makes the fee percentage higher for larger amounts, creating a progressive fee structure
         if (halfAmount * halfAmount + amount * amount == 0) return 0;
@@ -44,7 +45,7 @@ contract ProgressiveFee is BaseFee {
             (halfAmount * halfAmount + amount * amount);
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.PROGRESSIVE;
     }
 }

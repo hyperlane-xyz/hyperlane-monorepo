@@ -22,19 +22,20 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
  */
 contract LinearFee is BaseFee {
     constructor(
+        address _token,
         uint256 _maxFee,
         uint256 _halfAmount,
         address beneficiary
-    ) BaseFee(_maxFee, _halfAmount, beneficiary) {}
+    ) BaseFee(_token, _maxFee, _halfAmount, beneficiary) {}
 
-    function quoteTransfer(
+    function _quoteTransfer(
         uint256 amount
-    ) external view override returns (uint256 fee) {
+    ) internal view override returns (uint256 fee) {
         uint256 uncapped = (amount * maxFee) / halfAmount;
         return uncapped > maxFee ? maxFee : uncapped;
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.LINEAR;
     }
 }
