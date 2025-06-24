@@ -91,7 +91,7 @@ pub fn termination_invariants_met(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::invariants::submitter_metrics_invariants_met;
+    use crate::invariants::lander_metrics_invariants_met;
     use maplit::hashmap;
 
     #[test]
@@ -116,7 +116,7 @@ mod tests {
             submitter_type: SubmitterType::Lander,
         };
         assert_eq!(
-            submitter_metrics_invariants_met(
+            lander_metrics_invariants_met(
                 params,
                 &relayer_metrics_port.to_string(),
                 &filter_hashmap

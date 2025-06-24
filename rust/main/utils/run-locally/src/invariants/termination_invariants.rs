@@ -212,9 +212,9 @@ pub fn relayer_termination_invariants_met(
     }
 
     if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
+        && !lander_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
     {
-        log!("Submitter metrics invariants not met");
+        log!("Lander metrics invariants not met");
         return Ok(false);
     }
 
@@ -306,7 +306,7 @@ pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool
     Ok(true)
 }
 
-pub fn submitter_metrics_invariants_met(
+pub fn lander_metrics_invariants_met(
     params: RelayerTerminationInvariantParams,
     relayer_port: &str,
     filter_hashmap: &HashMap<&str, &str>,
