@@ -778,7 +778,10 @@ contract HypNativeTest is HypTokenTest {
         uint256 balanceBefore = ALICE.balance;
         uint256 gasOverhead = GAS_LIMIT * igp.gasPrice();
         _performRemoteTransfer(TRANSFER_AMT + gasOverhead, TRANSFER_AMT);
-        assertEq(ALICE.balance, balanceBefore - REQUIRED_VALUE - gasOverhead);
+        assertEq(
+            ALICE.balance,
+            balanceBefore - TRANSFER_AMT - REQUIRED_VALUE - gasOverhead
+        );
     }
 
     function test_transferRemote_reverts_whenAmountExceedsValue(
