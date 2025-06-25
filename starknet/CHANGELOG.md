@@ -1,5 +1,11 @@
 # @hyperlane-xyz/starknet-core
 
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+
 ## 13.3.0
 
 ## 13.2.1

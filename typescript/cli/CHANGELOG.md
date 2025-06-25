@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cli
 
+## 13.4.0
+
+### Minor Changes
+
+- 5f60deed3: add cosmos warp read logic in sdk
+- 83c628e2e: Update registry dependency.
+- e48e5346f: add warp fork and fork commands
+- 545324a57: updates the warp core output file logic to use the input file name as seed for the filename when a warp id is not provided
+
+### Patch Changes
+
+- f6256b351: fix: use consistent warp route selector for all warp commands
+
 ## 13.3.0
 
 ### Minor Changes

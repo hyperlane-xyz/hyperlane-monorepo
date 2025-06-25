@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 13.4.0
+
 ## 13.3.0
 
 ## 13.2.1
