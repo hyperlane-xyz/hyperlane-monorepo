@@ -8,13 +8,13 @@ import {
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
+  MultiProvider,
   PostCallsSchema,
   PostCallsType,
+  commitmentFromIcaCalls,
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk';
-import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   addressToBytes32,
   bytes32ToAddress,
