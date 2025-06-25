@@ -134,5 +134,24 @@ export function useSolanaTransactionFns(
     [onSwitchNetwork, sendSolTransaction, multiProvider],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('MultiSend not supported for Solana');
+    },
+    [onSwitchNetwork, sendSolTransaction, multiProvider],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork: onSwitchNetwork,
+  };
 }

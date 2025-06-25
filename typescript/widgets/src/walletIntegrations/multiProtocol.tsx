@@ -300,37 +300,52 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
 export function useTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): Record<ProtocolType, ChainTransactionFns> {
-  const { switchNetwork: onSwitchEvmNetwork, sendTransaction: onSendEvmTx } =
-    useEthereumTransactionFns(multiProvider);
-  const { switchNetwork: onSwitchSolNetwork, sendTransaction: onSendSolTx } =
-    useSolanaTransactionFns(multiProvider);
-  const { switchNetwork: onSwitchCosmNetwork, sendTransaction: onSendCosmTx } =
-    useCosmosTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchEvmNetwork,
+    sendTransaction: onSendEvmTx,
+    sendMultiTransaction: onMultiSendEvmTx,
+  } = useEthereumTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchSolNetwork,
+    sendTransaction: onSendSolTx,
+    sendMultiTransaction: onMultiSendSolTx,
+  } = useSolanaTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchCosmNetwork,
+    sendTransaction: onSendCosmTx,
+    sendMultiTransaction: onMultiSendCosmTx,
+  } = useCosmosTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchStarknetNetwork,
     sendTransaction: onSendStarknetTx,
+    sendMultiTransaction: onMultiSendStarknetTx,
   } = useStarknetTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: {
         sendTransaction: onSendEvmTx,
+        sendMultiTransaction: onMultiSendEvmTx,
         switchNetwork: onSwitchEvmNetwork,
       },
       [ProtocolType.Sealevel]: {
         sendTransaction: onSendSolTx,
+        sendMultiTransaction: onMultiSendSolTx,
         switchNetwork: onSwitchSolNetwork,
       },
       [ProtocolType.Cosmos]: {
         sendTransaction: onSendCosmTx,
+        sendMultiTransaction: onMultiSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.CosmosNative]: {
         sendTransaction: onSendCosmTx,
+        sendMultiTransaction: onMultiSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.Starknet]: {
         sendTransaction: onSendStarknetTx,
+        sendMultiTransaction: onMultiSendStarknetTx,
         switchNetwork: onSwitchStarknetNetwork,
       },
     }),
