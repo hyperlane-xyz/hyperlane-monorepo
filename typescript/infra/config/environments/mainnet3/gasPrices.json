@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "5.0",
+    "amount": "4.0",
     "decimals": 9
   },
   "everclear": {
@@ -407,10 +407,6 @@
     "amount": "1.001",
     "decimals": 9
   },
-  "real": {
-    "amount": "0.022",
-    "decimals": 9
-  },
   "redstone": {
     "amount": "0.00010005",
     "decimals": 9
@@ -448,6 +444,10 @@
     "decimals": 9
   },
   "solanamainnet": {
+    "amount": "0.5",
+    "decimals": 1
+  },
+  "solaxy": {
     "amount": "0.5",
     "decimals": 1
   },
@@ -503,6 +503,10 @@
     "amount": "0.001000251",
     "decimals": 9
   },
+  "tac": {
+    "amount": "28.125",
+    "decimals": 9
+  },
   "taiko": {
     "amount": "0.011",
     "decimals": 9
@@ -517,14 +521,6 @@
   },
   "torus": {
     "amount": "31.25",
-    "decimals": 9
-  },
-  "treasure": {
-    "amount": "1048.556132041",
-    "decimals": 9
-  },
-  "trumpchain": {
-    "amount": "0.1",
     "decimals": 9
   },
   "unichain": {
