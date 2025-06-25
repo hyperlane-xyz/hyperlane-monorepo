@@ -115,9 +115,9 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
 export async function tryInitializeGcpLogger(options?: {
   service?: string;
   version?: string;
-}): Promise<boolean> {
+}): Promise<Logger | null> {
   const isKubernetes = process.env.KUBERNETES_SERVICE_HOST !== undefined;
-  if (!isKubernetes) return false;
+  if (!isKubernetes) return null;
 
   try {
     const { createGcpLoggingPinoConfig } = await import(
@@ -137,15 +137,13 @@ export async function tryInitializeGcpLogger(options?: {
       },
     ) as LoggerOptions<never>;
     const gcpLogger = pino(gcpConfig);
-    setRootLogger(gcpLogger);
-    rootLogger.info('Initialized GCP structured logging');
-    return true;
+    return gcpLogger;
   } catch (err) {
     rootLogger.warn(
       err,
       'Could not initialize GCP structured logging, ensure @google-cloud/pino-logging-gcp-config is installed',
     );
-    return false;
+    return null;
   }
 }
 
@@ -156,8 +154,9 @@ export async function createServiceLogger(options: {
 }): Promise<Logger> {
   const { service, version, module } = options;
 
-  if (await tryInitializeGcpLogger({ service, version })) {
-    return rootLogger;
+  const gcpLogger = await tryInitializeGcpLogger({ service, version });
+  if (gcpLogger) {
+    return gcpLogger;
   }
 
   // For local development, create a child logger with module info
