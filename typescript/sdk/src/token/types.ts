@@ -203,6 +203,12 @@ export enum ContractVerificationStatus {
   Error = 'error',
   Skipped = 'skipped',
 }
+export enum OwnerStatus {
+  Active = 'active',
+  Inactive = 'inactive',
+  Safe = 'safe',
+  Error = 'error',
+}
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
     z.enum([
@@ -210,6 +216,14 @@ export const HypTokenRouterVirtualConfigSchema = z.object({
       ContractVerificationStatus.Unverified,
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
+    ]),
+  ),
+  ownerStatus: z.record(
+    z.enum([
+      OwnerStatus.Active,
+      OwnerStatus.Inactive,
+      OwnerStatus.Safe,
+      OwnerStatus.Error,
     ]),
   ),
 });

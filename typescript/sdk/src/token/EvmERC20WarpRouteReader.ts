@@ -13,6 +13,7 @@ import {
   MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
   TokenBridgeCctp__factory,
@@ -32,6 +33,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { isAddressActive } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import {
   ExplorerLicenseType,
@@ -43,12 +45,15 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+// @ts-ignore
+import { getSafeService } from '../utils/gnosisSafe.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
+  ContractVerificationStatus,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
@@ -56,6 +61,7 @@ import {
   MovableTokenConfig,
   OpL1TokenConfig,
   OpL2TokenConfig,
+  OwnerStatus,
   TokenMetadata,
   XERC20TokenMetadata,
   isMovableCollateralTokenConfig,
@@ -203,36 +209,67 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       destinationGas,
     };
   }
-
-  async deriveWarpRouteVirtualConfig(
-    chain: ChainName,
-    address: Address,
-  ): Promise<HypTokenRouterVirtualConfig> {
-    const virtualConfig: HypTokenRouterVirtualConfig = {
-      contractVerificationStatus: {},
-    };
+  async getContractVerificationStatus(chain: ChainName, address: Address) {
+    const contractVerificationStatus: Record<
+      string,
+      ContractVerificationStatus
+    > = {};
 
     const contractType = (await isProxy(this.provider, address))
       ? VerifyContractTypes.Proxy
       : VerifyContractTypes.Implementation;
 
-    virtualConfig.contractVerificationStatus[contractType] =
+    contractVerificationStatus[contractType] =
       await this.contractVerifier.getContractVerificationStatus(chain, address);
 
     if (contractType === VerifyContractTypes.Proxy) {
-      virtualConfig.contractVerificationStatus.Implementation =
+      contractVerificationStatus.Implementation =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyImplementation(this.provider, address),
         );
 
       // Derive ProxyAdmin status
-      virtualConfig.contractVerificationStatus.ProxyAdmin =
+      contractVerificationStatus.ProxyAdmin =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
         );
     }
+    return contractVerificationStatus;
+  }
+
+  async getOwnerStatus(chain: ChainName, address: Address) {
+    let owner: Address;
+    try {
+      const provider = this.multiProvider.getProvider(chain);
+      owner = await Ownable__factory.connect(address, provider).owner();
+      const isActive = await isAddressActive(provider, owner);
+
+      return {
+        [owner]: isActive ? OwnerStatus.Active : OwnerStatus.Inactive,
+      };
+    } catch (e) {
+      this.logger.debug(`Could not get owner status. Failed with error ${e}`);
+      return {
+        [address]: OwnerStatus.Error,
+      };
+    }
+  }
+
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: await this.getContractVerificationStatus(
+        chain,
+        address,
+      ),
+
+      // Used to check if the top address owner's nonce or code === 0
+      ownerStatus: await this.getOwnerStatus(chain, address),
+    };
 
     return virtualConfig;
   }

@@ -501,4 +501,33 @@ describe('ERC20WarpRouterReader', async () => {
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
     ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
   });
+
+  it('should return the ownerStatus virtual config', async () => {
+    const otherChain = TestChainName.test3;
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Derive config and check if remote router matches
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRoute[chain].collateral.address,
+      );
+    console.log('derivedConfig', derivedConfig);
+    // TODO
+  });
 });
