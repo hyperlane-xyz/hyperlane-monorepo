@@ -7,40 +7,6 @@ import {
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
-import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
-
-export const getTrumpchainTRUMPWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const name = 'OFFICIAL TRUMP';
-  const symbol = 'TRUMP';
-  const tokenConfig: ChainMap<HypTokenRouterConfig> = {
-    solanamainnet: {
-      ...routerConfig.solanamainnet,
-      type: TokenType.collateral,
-      name,
-      symbol,
-      token: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
-      owner: DEPLOYER,
-      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-      foreignDeployment: 'AyJk3V2SjswRv1ppDazVofXnFgjCTeydNEDSyA2UyVNX',
-    },
-    trumpchain: {
-      ...routerConfig.trumpchain,
-      type: TokenType.native,
-      name,
-      symbol,
-      decimals: 18,
-      owner: DEPLOYER,
-      proxyAdmin: {
-        owner: DEPLOYER,
-        address: '0xC5f2c60073DCAA9D157C45d5B017D639dF9C5CeB',
-      },
-    },
-  };
-  return tokenConfig;
-};
 
 export const getTRUMPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

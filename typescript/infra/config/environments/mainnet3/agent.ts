@@ -170,7 +170,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: false,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -200,8 +199,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -322,7 +319,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: false,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -352,8 +348,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -474,7 +468,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: false,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -504,8 +497,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -635,8 +626,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('paradex') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
-      // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
   },
   {
@@ -834,7 +823,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '6d1f7ee-20250624-105828',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -865,7 +854,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2fc626d-20250623-121531',
+      tag: '6d1f7ee-20250624-105828',
     },
     resources: scraperResources,
   },
@@ -880,7 +869,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2fc626d-20250623-121531',
+      tag: '6d1f7ee-20250624-105828',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
