@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../MultiProvider.js';
 
@@ -39,15 +39,6 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   submitterMetadata: SubmitterMetadata,
   registry: IRegistry,
 ): Promise<TxSubmitterInterface<TProtocol>> {
-  let interchainAccountRouterAddress: Address | undefined;
-  if (submitterMetadata.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
-    const metadata = await registry.getChainAddresses(submitterMetadata.chain);
-
-    interchainAccountRouterAddress =
-      submitterMetadata.originInterchainAccountRouter ??
-      metadata?.interchainAccountRouter;
-  }
-
   switch (submitterMetadata.type) {
     case TxSubmitterType.JSON_RPC:
       return new EV5JsonRpcTxSubmitter(multiProvider, {
@@ -66,17 +57,8 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
         ...submitterMetadata,
       });
     case TxSubmitterType.INTERCHAIN_ACCOUNT:
-      if (!interchainAccountRouterAddress) {
-        throw new Error(
-          `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${submitterMetadata.chain}`,
-        );
-      }
-
       return EvmIcaTxSubmitter.fromConfig(
-        {
-          ...submitterMetadata,
-          originInterchainAccountRouter: interchainAccountRouterAddress,
-        },
+        submitterMetadata,
         multiProvider,
         registry,
       );

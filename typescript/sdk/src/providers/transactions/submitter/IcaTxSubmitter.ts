@@ -17,14 +17,12 @@ import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { getSubmitter } from './submitterBuilderGetter.js';
 import { EvmIcaTxSubmitterProps } from './types.js';
 
-type EvmIcaTxSubmitterConfig = EvmIcaTxSubmitterProps & {
+type EvmIcaTxSubmitterConstructorConfig = Omit<
+  EvmIcaTxSubmitterProps,
+  'internalSubmitter' | 'type'
+> & {
   originInterchainAccountRouter: Address;
 };
-
-type EvmIcaTxSubmitterConstructorConfig = Omit<
-  EvmIcaTxSubmitterConfig,
-  'internalSubmitter' | 'type'
->;
 
 export class EvmIcaTxSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
@@ -40,10 +38,20 @@ export class EvmIcaTxSubmitter
   ) {}
 
   static async fromConfig(
-    config: EvmIcaTxSubmitterConfig,
+    config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
     registry: Readonly<IRegistry>,
   ): Promise<EvmIcaTxSubmitter> {
+    const chainAddresses = await registry.getChainAddresses(config.chain);
+
+    const interchainAccountRouterAddress: Address | undefined =
+      config.originInterchainAccountRouter ??
+      chainAddresses?.interchainAccountRouter;
+    assert(
+      interchainAccountRouterAddress,
+      `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
+    );
+
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
@@ -57,7 +65,7 @@ export class EvmIcaTxSubmitter
         {
           owner: config.owner,
           origin: config.chain,
-          localRouter: config.originInterchainAccountRouter,
+          localRouter: interchainAccountRouterAddress,
           ismOverride: config.interchainSecurityModule,
         },
         registry,
@@ -68,7 +76,7 @@ export class EvmIcaTxSubmitter
         owner: config.owner,
         chain: config.chain,
         destinationChain: config.destinationChain,
-        originInterchainAccountRouter: config.originInterchainAccountRouter,
+        originInterchainAccountRouter: interchainAccountRouterAddress,
       },
       internalSubmitter,
       multiProvider,

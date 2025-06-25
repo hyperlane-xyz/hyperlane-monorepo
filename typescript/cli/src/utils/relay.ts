@@ -72,7 +72,7 @@ export function canSelfRelay(
     config.submitter.internalSubmitter.type === TxSubmitterType.JSON_RPC;
 
   if (!canRelay) {
-    return { relay: canRelay };
+    return { relay: false };
   }
 
   return {
