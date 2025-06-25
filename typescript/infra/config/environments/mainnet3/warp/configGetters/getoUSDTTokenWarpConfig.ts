@@ -18,7 +18,7 @@ import { awTimelocks } from '../../governance/timelock/aw.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
-const deploymentChains = [
+export const deploymentChains = [
   'ethereum',
   'celo',
   'optimism',
