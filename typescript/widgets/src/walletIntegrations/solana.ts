@@ -144,7 +144,7 @@ export function useSolanaTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      throw new Error('MultiSend not supported for Solana');
+      throw new Error('Multi Transactions not supported on Solana');
     },
     [onSwitchNetwork, sendSolTransaction, multiProvider],
   );

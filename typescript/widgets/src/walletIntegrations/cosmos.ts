@@ -1,11 +1,9 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
 import type {
   DeliverTxResponse,
-  ExecuteInstruction,
   ExecuteResult,
   IndexedTx,
 } from '@cosmjs/cosmwasm-stargate';
-import type { EncodeObject } from '@cosmjs/proto-signing';
 import { GasPrice } from '@cosmjs/stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
@@ -202,97 +200,17 @@ export function useCosmosTransactionFns(
 
   const onMultiSendTx = useCallback(
     async ({
-      txs,
-      chainName,
-      activeChainName,
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
     }: {
       txs: WarpTypedTransaction[];
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      const isCosmJsWasm = txs.every(
-        (tx) => tx.type === ProviderType.CosmJsWasm,
-      );
-      const isCosmJs = txs.every((tx) => tx.type === ProviderType.CosmJsWasm);
-      const isCosmJsNative = txs.every(
-        (tx) => tx.type === ProviderType.CosmJsWasm,
-      );
-
-      const chainContext = chainToContext[chainName];
-      if (!chainContext?.address)
-        throw new Error(`Cosmos wallet not connected for ${chainName}`);
-
-      if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
-
-      logger.debug(`Sending tx on chain ${chainName}`);
-      const {
-        getSigningCosmWasmClient,
-        getSigningStargateClient,
-        getOfflineSigner,
-        chain,
-      } = chainContext;
-      let result: ExecuteResult | DeliverTxResponse;
-      let txDetails: IndexedTx | null;
-      let txType: ProviderType;
-
-      if (isCosmJsWasm) {
-        const client = await getSigningCosmWasmClient();
-        result = await client.executeMultiple(
-          chainContext.address,
-          txs.map((tx) => tx.transaction as unknown as ExecuteInstruction),
-          'auto',
-        );
-        txDetails = await client.getTx(result.transactionHash);
-        txType = ProviderType.CosmJsWasm;
-      } else if (isCosmJs) {
-        const client = await getSigningStargateClient();
-        // The fee param of 'auto' here stopped working for Neutron-based IBC transfers
-        // It seems the signAndBroadcast method uses a default fee multiplier of 1.4
-        // https://github.com/cosmos/cosmjs/blob/e819a1fc0e99a3e5320d8d6667a08d3b92e5e836/packages/stargate/src/signingstargateclient.ts#L115
-        // A multiplier of 1.6 was insufficient for Celestia -> Neutron|Cosmos -> XXX transfers, but 2 worked.
-        result = await client.signAndBroadcast(
-          chainContext.address,
-          txs.map((tx) => tx.transaction as unknown as EncodeObject),
-          2,
-        );
-        txDetails = await client.getTx(result.transactionHash);
-        txType = ProviderType.CosmJs;
-      } else if (isCosmJsNative) {
-        const signer = getOfflineSigner();
-        const client = await SigningHyperlaneModuleClient.connectWithSigner(
-          chain.apis!.rpc![0].address,
-          signer,
-          {
-            // set zero gas price here so it does not error. actual gas price
-            // will be injected from the wallet registry like Keplr or Leap
-            gasPrice: GasPrice.fromString('0token'),
-          },
-        );
-
-        result = await client.signAndBroadcast(
-          chainContext.address,
-          txs.map((tx) => tx.transaction as unknown as EncodeObject),
-          2,
-        );
-        txDetails = await client.getTx(result.transactionHash);
-        txType = ProviderType.CosmJsNative;
-      } else {
-        throw new Error(
-          `Invalid cosmos provider types ${txs.map((tx) => tx.type).join(',')}`,
-        );
-      }
-
-      const confirm = async (): Promise<TypedTransactionReceipt> => {
-        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(result)}`);
-        return {
-          type: txType as any, // TODO: remove any
-          receipt: { ...txDetails, transactionHash: result.transactionHash },
-        };
-      };
-      return { hash: result.transactionHash, confirm };
+      throw new Error('Multi Transactions not supported on Cosmos');
     },
-    [onSwitchNetwork, chainToContext],
+    [onSwitchNetwork, multiProvider],
   );
 
   return {

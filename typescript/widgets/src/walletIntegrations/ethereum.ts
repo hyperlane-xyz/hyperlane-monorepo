@@ -166,7 +166,7 @@ export function useEthereumTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      throw new Error('MultiSend not supported for EVM');
+      throw new Error('Multi Transactions not supported on EVM');
     },
     [config, onSwitchNetwork, multiProvider],
   );
