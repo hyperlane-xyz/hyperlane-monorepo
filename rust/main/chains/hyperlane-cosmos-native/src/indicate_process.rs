@@ -65,4 +65,4 @@ impl HyperlaneChain for CosmosNativeIndicateProcess {
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.provider.clone())
     }
-} 
+}

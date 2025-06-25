@@ -2,6 +2,7 @@ mod aggregation;
 mod base;
 mod base_builder;
 mod ccip_read;
+pub mod dymension_kaspa;
 mod message_builder;
 pub mod multisig;
 mod null_metadata;

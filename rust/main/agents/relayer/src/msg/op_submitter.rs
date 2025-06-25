@@ -15,11 +15,13 @@ use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
+use dymension_kaspa::is_kas;
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason,
+    BatchResult, ChainCommunicationError, ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol,
+    PendingOperation, PendingOperationResult, PendingOperationStatus, QueueOperation,
+    ReprepareReason,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId, PayloadStatus,
@@ -579,8 +581,28 @@ async fn submit_classic_task(
     metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
+
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
+
+        if is_kas(&domain.clone()) {
+            /*
+            We do this here rather than in OperationBatch::submit because here we have better control over error handling. The regular batch flow
+            has some oddities like retrying all failed messages individually.
+              */
+            submit_kaspa_batch(
+                &domain,
+                &mut prepare_queue,
+                &mut submit_queue,
+                &mut confirm_queue,
+                max_batch_size,
+                &metrics,
+                batch.iter().collect(),
+            )
+            .await;
+
+            continue;
+        }
 
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
@@ -1037,4 +1059,28 @@ impl SerialSubmitterMetrics {
                 .with_label_values(&["dropped", destination]),
         }
     }
+}
+
+#[instrument(skip_all, fields(%domain))]
+async fn submit_kaspa_batch(
+    domain: &HyperlaneDomain,
+    prepare_queue: &mut OpQueue,
+    submit_queue: &mut OpQueue,
+    confirm_queue: &mut OpQueue,
+    max_batch_size: u32,
+    metrics: &SerialSubmitterMetrics,
+    batch: Vec<&Box<dyn PendingOperation>>,
+) {
+    // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
+    let Some(first_item) = batch.first() else {
+        todo!()
+    };
+    let Some(mailbox) = first_item.try_get_mailbox() else {
+        todo!()
+    };
+    if !mailbox.supports_batching() {
+        panic!("Kaspa must support batching")
+    }
+    let res = mailbox.process_batch(batch).await;
+    // TODO: handle errors
 }

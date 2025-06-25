@@ -10,10 +10,12 @@ use hyperlane_core::{
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    pub kaspa_rest_url: Url, // e.g. https://api.kaspa.org
-    pub kaspa_escrow_addr: String,
-    pub validator_hosts: Vec<String>,
+    pub wallet_secret: String,
+    pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:16210
+    pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
     pub validator_ids: Vec<H256>, // TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
+    pub validator_hosts: Vec<String>,
+    pub kaspa_escrow_addr: String,
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
 }
@@ -22,19 +24,24 @@ impl ConnectionConf {
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        wallet_secret: String,
+        kaspa_rpc_url: String,
         kaspa_rest_url: Url,
-        escrow_address: String,
-        validator_hosts: Vec<String>,
         validator_ids: Vec<H256>,
-        threshold: usize,
+        validator_hosts: Vec<String>,
+        escrow_address: String,
+        multisig_threshold_hub_ism: usize,
+        multisig_threshold_kaspa_schnorr: usize,
     ) -> Self {
         Self {
+            wallet_secret,
+            kaspa_rpc_url,
             kaspa_rest_url,
-            kaspa_escrow_addr: escrow_address,
-            validator_hosts,
             validator_ids,
-            multisig_threshold_hub_ism: threshold,
-            multisig_threshold_kaspa: 0, // TODO:
+            validator_hosts,
+            kaspa_escrow_addr: escrow_address,
+            multisig_threshold_hub_ism,
+            multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
         }
     }
 }

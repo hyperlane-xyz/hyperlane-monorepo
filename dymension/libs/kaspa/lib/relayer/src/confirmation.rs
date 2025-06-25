@@ -4,12 +4,12 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     ProgressIndication, QueryOutpointRequest, WithdrawalId,
 };
 
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, UtxoEntry, TransactionOutpoint};
+use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::RpcTransaction;
 
-use kaspa_wallet_core::error::Error;
 use kaspa_addresses::Address;
+use kaspa_wallet_core::error::Error;
 
 use api_rs::apis::{
     configuration::Configuration,
@@ -24,12 +24,12 @@ use core::confirmation::ConfirmationFXG;
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
 /// all withdrawal payloads that were processed in between.
-/// 
+///
 /// # Arguments
 /// * `config` - The Kaspa API client configuration for querying transactions
 /// * `anchor_utxo` - The anchor UTXO to trace to
 /// * `new_utxo` - The new UTXO to trace from
-/// 
+///
 /// # Returns
 /// * `Result<ConfirmationFXG, Error>` - The confirmation FXG containing the progress indication with old and new outpoints
 ///   and a list of processed withdrawal IDs
@@ -40,29 +40,28 @@ pub async fn prepare_progress_indication(
 ) -> Result<ConfirmationFXG, Error> {
     println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
 
-
-
-    
-
     // Trace transactions from the new UTXO back to the old one.
     println!("Tracing transactions to extract withdrawal IDs...");
-    let processed_withdrawals: Vec<WithdrawalId> = trace_transactions(
-        config,
-        new_utxo,
-        anchor_utxo
-    ).await?;
-    println!("Extracted {} withdrawal IDs from payloads", processed_withdrawals.len());
-
+    let processed_withdrawals: Vec<WithdrawalId> =
+        trace_transactions(config, new_utxo, anchor_utxo).await?;
+    println!(
+        "Extracted {} withdrawal IDs from payloads",
+        processed_withdrawals.len()
+    );
 
     // Create new outpoint for the progress indication
-    let new_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-        transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
-        index: new_utxo.index,
-    });
-    let anchor_outpoint_indication = Some(hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-        transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
-        index: anchor_utxo.index,
-    });
+    let new_outpoint_indication = Some(
+        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+            transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
+            index: new_utxo.index,
+        },
+    );
+    let anchor_outpoint_indication = Some(
+        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+            transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
+            index: anchor_utxo.index,
+        },
+    );
 
     let progress_indication = ProgressIndication {
         old_outpoint: anchor_outpoint_indication,
@@ -78,12 +77,12 @@ pub async fn prepare_progress_indication(
 
 /// Trace transactions from a starting transaction ID to a target transaction ID,
 /// collecting payloads along the way.
-/// 
+///
 /// # Arguments
 /// * `config` - The Kaspa API client configuration for querying transactions
 /// * `new_utxo` - The transaction ID to start tracing from
 /// * `current_anchor_utxo` - The transaction ID to trace to
-/// 
+///
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
 async fn trace_transactions(
@@ -91,13 +90,11 @@ async fn trace_transactions(
     new_utxo: TransactionOutpoint,
     current_anchor_utxo: TransactionOutpoint,
 ) -> Result<Vec<WithdrawalId>, Error> {
-    
-    println!("Starting transaction trace from {:?} to {:?}", 
-    new_utxo, current_anchor_utxo);
-    
-    
+    println!(
+        "Starting transaction trace from {:?} to {:?}",
+        new_utxo, current_anchor_utxo
+    );
 
-    
     let mut processed_withdrawals: Vec<WithdrawalId> = Vec::new();
     let mut current_utxo = new_utxo;
     let mut step = 0;
@@ -106,7 +103,9 @@ async fn trace_transactions(
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
-            return Err(Error::Custom("Exceeded maximum number of steps in transaction trace".to_string()));
+            return Err(Error::Custom(
+                "Exceeded maximum number of steps in transaction trace".to_string(),
+            ));
         }
 
         println!("Processing step {}: UTXO {:?}", step, current_utxo);
@@ -120,8 +119,13 @@ async fn trace_transactions(
                 outputs: Some(true),
                 resolve_previous_outpoints: Some("full".to_string()),
             },
-        ).await.map_err(|e| {
-            Error::Custom(format!("Failed to get transaction {}: {}", current_utxo.transaction_id, e))
+        )
+        .await
+        .map_err(|e| {
+            Error::Custom(format!(
+                "Failed to get transaction {}: {}",
+                current_utxo.transaction_id, e
+            ))
         })?;
 
         // Extract payload from transaction
@@ -149,17 +153,19 @@ async fn trace_transactions(
 
                 // If this input's previous_outpoint_hash matches the anchor transaction_id, break
                 if input.previous_outpoint_hash == current_anchor_utxo.transaction_id.to_string() {
-                    println!("Reached anchor transaction_id in input: {}", input.previous_outpoint_hash);
+                    println!(
+                        "Reached anchor transaction_id in input: {}",
+                        input.previous_outpoint_hash
+                    );
                     found_anchor = true;
                     break;
                 }
             }
         }
-                
+
         if found_anchor {
             break;
         }
-
 
         // FIXME: this logic needs rework. currently we assume single hop, which supposed to be handled above
         let mut found_next_utxo = false;
@@ -171,7 +177,7 @@ async fn trace_transactions(
                     // Use the previous outpoint of this canonical input as the next UTXO
                     current_utxo = TransactionOutpoint {
                         transaction_id: kaspa_hashes::Hash::from_bytes(
-                            input.previous_outpoint_hash.as_bytes().try_into().unwrap()
+                            input.previous_outpoint_hash.as_bytes().try_into().unwrap(),
                         ),
                         index: input.previous_outpoint_index.parse().unwrap(),
                     };
@@ -189,11 +195,13 @@ async fn trace_transactions(
         }
     }
 
-    println!("Trace completed. Found {} transactions with payloads in {} steps", 
-             processed_withdrawals.len(), step);
+    println!(
+        "Trace completed. Found {} transactions with payloads in {} steps",
+        processed_withdrawals.len(),
+        step
+    );
     Ok(processed_withdrawals)
 }
-
 
 // This is a placeholder for the canonical input check logic.
 // It should be implemented to find the TxInput that is canonical (part of the escrow account lineage)
@@ -202,7 +210,6 @@ fn check_if_input_is_canonical(_input: &api_rs::models::TxInput) -> bool {
     println!("Called check_if_input_is_canonical");
     true
 }
-
 
 // FIXME: AI generated tests. review and rewrite
 #[cfg(test)]
@@ -218,7 +225,7 @@ mod tests {
         let withdrawal_id = WithdrawalId {
             message_id: message_id.clone(),
         };
-        
+
         assert_eq!(withdrawal_id.message_id, message_id);
     }
 

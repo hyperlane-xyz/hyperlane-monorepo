@@ -70,7 +70,7 @@ impl InterchainSecurityModule for KaspaIsm {
         _metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         // NOTE: is only relevant for aggeration isms -> kaspa native does not support them yet
-        Ok(Some(1.into()))
+        Ok(Some(0.into()))
     }
 }
 

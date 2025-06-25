@@ -1,10 +1,10 @@
 use anyhow::Result;
-use hyperlane_core::{Decode, H256, HyperlaneMessage};
+use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::hashing::sighash_type::{
-    SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY, SigHashType,
+    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
 };
 use kaspa_consensus_core::mass::transaction_output_estimated_serialized_size;
 use kaspa_consensus_core::network::NetworkId;
@@ -18,7 +18,7 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::utxo::{NetworkParams, UtxoIterator};
 use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::{PSKT, Signer};
+use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
@@ -157,7 +157,7 @@ async fn get_utxo_to_spend(
         .get_utxos_by_addresses(vec![addr.clone()])
         .await
         .map_err(|e| anyhow::anyhow!("Failed to get escrow UTXOs: {}", e))?;
-    
+
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
 
@@ -184,7 +184,7 @@ async fn get_utxo_to_spend(
             break;
         }
     }
-    
+
     Ok(selected)
 }
 
@@ -216,10 +216,10 @@ fn maturity_progress(
 }
 
 /// IN PROCESS
-/// 
+///
 /// Helper function to build a single withdrawal PSKT
 /// Adapts logic from withdraw.rs::build_withdrawal_tx
-/// 
+///
 /// Process:
 /// 1. Get all UTXOs from the multisig. Ensure that one of them is a current anchor
 /// 1.1 Calculate the transaction fee - ?
@@ -241,7 +241,7 @@ async fn build_single_withdrawal_pskt(
         network_id,
     )
     .await?;
-    
+
     // TODO: include anchor UTXO
 
     let utxos = get_utxo_to_spend(
@@ -250,7 +250,7 @@ async fn build_single_withdrawal_pskt(
         kaspa_rpc,
         network_id,
     )
-        .await?;
+    .await?;
 
     // Find the specific anchor UTXO we want to spend
     let utxo_e_first = utxos

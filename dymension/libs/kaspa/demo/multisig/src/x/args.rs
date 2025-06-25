@@ -38,7 +38,7 @@ pub fn cli() -> Command {
 }
 
 pub struct Args {
-    pub private_key: Option<String>,
+    pub private_key: Option<String>, // TODO: not used
     pub wallet_secret: Option<String>,
     pub rpc_server: String, // TODO: use
 }

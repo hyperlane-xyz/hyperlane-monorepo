@@ -7,25 +7,29 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    BatchResult, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
+    H512, U256,
 };
+use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
+use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
-pub struct KaspaFakeMailbox {
+pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
 }
 
-impl KaspaFakeMailbox {
+impl KaspaMailbox {
     /// new kaspa native mailbox instance
-    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaFakeMailbox> {
-        Ok(KaspaFakeMailbox {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaMailbox> {
+        Ok(KaspaMailbox {
             provider,
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
@@ -55,7 +59,7 @@ impl KaspaFakeMailbox {
     }
 }
 
-impl HyperlaneChain for KaspaFakeMailbox {
+impl HyperlaneChain for KaspaMailbox {
     /// Hardcoded // TODO: security implications?
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -66,7 +70,7 @@ impl HyperlaneChain for KaspaFakeMailbox {
     }
 }
 
-impl HyperlaneContract for KaspaFakeMailbox {
+impl HyperlaneContract for KaspaMailbox {
     /// Hardcoded // TODO: security implications?
     fn address(&self) -> H256 {
         self.address
@@ -74,7 +78,7 @@ impl HyperlaneContract for KaspaFakeMailbox {
 }
 
 #[async_trait]
-impl Mailbox for KaspaFakeMailbox {
+impl Mailbox for KaspaMailbox {
     // TODO: not sure where used
     // it should return the number of dispatched messages so far
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
@@ -98,19 +102,45 @@ impl Mailbox for KaspaFakeMailbox {
         Ok(KASPA_ISM_ADDRESS)
     }
 
-    // Actually sends up a MsgProcessMessage to the kaspa chain
     async fn process(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-       // TODO:!! deserialize fully signed pskt from metadata and submit 
-        Ok(TxOutcome {
-            transaction_id: H512::zero(),
-            executed: false,
-            gas_used: U256::zero(),
-            gas_price: FixedPointNumber::from(0),
+        /*
+        There is a flow where the relayer will try to submit a batch and any failures will get retried via this method
+        We should
+         */
+        unimplemented!("kas does not support single message processing")
+    }
+
+    /// True if the destination chain supports batching
+    /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
+    fn supports_batching(&self) -> bool {
+        true
+    }
+
+    // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
+    async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        let messages: Vec<HyperlaneMessage> = ops
+            .iter()
+            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
+            .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
+
+        let fxg_res = self.provider.construct_withdrawal(messages).await?;
+        let fxg = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
+
+        let res = self.provider.process_withdrawal(&fxg).await?;
+
+        Ok(BatchResult {
+            outcome: Some(TxOutcome {
+                transaction_id: H512::zero(),
+                executed: false,
+                gas_used: U256::zero(),
+                gas_price: FixedPointNumber::from(0),
+            }),
+            failed_indexes: vec![],
         })
     }
 

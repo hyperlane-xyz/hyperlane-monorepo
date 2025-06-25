@@ -914,6 +914,7 @@ dependencies = [
  "clap",
  "eyre",
  "governor",
+ "hyperlane-cosmos-dymension-rs",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",

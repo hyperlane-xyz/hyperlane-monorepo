@@ -313,11 +313,17 @@ pub fn build_kaspa_connection_conf(
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
-    let escrow_address = chain
+    let wallet_secret = chain
         .chain(err)
-        .get_opt_key("escrowAddress")
+        .get_opt_key("walletSecret")
         .parse_string()
-        .end();
+        .end()?;
+
+    let rpc_url_s = chain
+        .chain(err)
+        .get_opt_key("kaspaRpcUrl")
+        .parse_string()
+        .end()?;
 
     let rest_url_s = chain
         .chain(err)
@@ -326,15 +332,6 @@ pub fn build_kaspa_connection_conf(
         .end()?;
 
     let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
-
-    let validator_hosts: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorHosts")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
 
     let validator_ids: Vec<H256> = chain
         .chain(err)
@@ -345,19 +342,43 @@ pub fn build_kaspa_connection_conf(
         .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
         .collect();
 
-    let threshold = chain
+    let validator_hosts: Vec<String> = chain
         .chain(err)
-        .get_key("kaspaMultisigThreshold")
+        .get_key("validatorHosts")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    let escrow_address = chain
+        .chain(err)
+        .get_opt_key("escrowAddress")
+        .parse_string()
+        .end();
+
+    let threshold_ism = chain
+        .chain(err)
+        .get_key("kaspaMultisigThresholdHubIsm")
+        .parse_u32()
+        .end()?;
+
+    let threshold_escrow = chain
+        .chain(err)
+        .get_key("kaspaMultisigThresholdEscrow")
         .parse_u32()
         .end()?;
 
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
+            wallet_secret.to_owned(),
+            rpc_url_s.to_owned(),
             rest_url,
-            escrow_address.unwrap().to_string(),
-            validator_hosts,
             validator_ids,
-            threshold as usize,
+            validator_hosts,
+            escrow_address.unwrap().to_string(),
+            threshold_ism as usize,
+            threshold_escrow as usize,
         ),
     ))
 }

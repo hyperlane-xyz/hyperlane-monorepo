@@ -12,7 +12,8 @@ use reqwest::StatusCode;
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
-use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
+use kaspa_wallet_pskt::prelude::Bundle;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -108,6 +109,39 @@ impl ValidatorsClient {
         Ok(results)
     }
 
+    /// this runs on relayer
+    pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
+        // map validator addr to sig(s)
+        // TODO: in parallel
+        let mut results = Vec::new();
+        for (host, validator_id) in self
+            .conf
+            .validator_hosts
+            .clone()
+            .into_iter()
+            .zip(self.conf.validator_ids.clone().into_iter())
+        {
+            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let res = request_sign_withdrawal_bundle(host, fxg).await;
+
+            // TODO: should also check that each validator signed either all or none of the bundle
+            match res {
+                Ok(r) => match r {
+                    Some(sig) => {
+                        results.push(sig);
+                    }
+                    None => {
+                        // TODO: log
+                    }
+                },
+                Err(_e) => {
+                    // TODO: log error
+                }
+            }
+        }
+        Ok(results)
+    }
+
     pub fn multisig_threshold_hub_ism(&self) -> usize {
         // TODO: clearly distinguish with kaspa multisig
         self.conf.multisig_threshold_hub_ism
@@ -155,6 +189,28 @@ pub async fn request_validate_new_confirmation(
         let body = res.json::<Signature>().await?;
         Ok(Some(body))
     } else {
-        Err(eyre::eyre!("Failed to validate deposits: {}", status))
+        Err(eyre::eyre!("Failed to validate confirmation: {}", status))
+    }
+}
+
+pub async fn request_sign_withdrawal_bundle(
+    host: String,
+    bundle: &WithdrawFXG,
+) -> Result<Option<Bundle>> {
+    let bz = Bytes::try_from(bundle)?;
+    let c = reqwest::Client::new();
+    let res = c
+        .post(format!("{}{}", host, ROUTE_SIGN_PSKTS))
+        .body(bz)
+        .send()
+        .await?;
+
+    let status = res.status();
+    if status == StatusCode::OK {
+        let body = res.json::<String>().await?;
+        let bundle = Bundle::deserialize(&body)?;
+        Ok(Some(bundle))
+    } else {
+        Err(eyre::eyre!("Failed to sign withdrawal bundle: {}", status))
     }
 }

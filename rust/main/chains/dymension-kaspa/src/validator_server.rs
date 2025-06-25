@@ -8,14 +8,16 @@ use axum::{
     Router,
 };
 use cosmrs::tx::MessageExt;
-use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::deposit::DepositFXG;
+use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 
-use dym_kas_validator::deposit::{validate_confirmed_withdrawals, validate_deposits};
+use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
+use dym_kas_validator::deposit::validate_deposits;
+use dym_kas_validator::withdrawal::validate_withdrawals;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
@@ -30,6 +32,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> 
             ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
             post(respond_validate_confirmed_withdrawals::<S>),
         )
+        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
         // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request
         .with_state(state)
 }
@@ -41,7 +44,10 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_deposits(&deposits) {
+    if !validate_deposits(&deposits)
+        .await
+        .map_err(|e| AppError(e))?
+    {
         return Err(AppError(eyre::eyre!("Invalid deposit")));
     }
 
@@ -75,10 +81,14 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     State(state): State<Arc<HandlerState<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
-    let confirmation_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let confirmation_fxg: ConfirmationFXG =
+        body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_confirmed_withdrawals(&confirmation_fxg) {
+    if !validate_confirmed_withdrawals(&confirmation_fxg)
+        .await
+        .map_err(|e| AppError(e))?
+    {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
@@ -108,10 +118,36 @@ impl Signable for SignableProgressIndication {
         // see checkpoint example https://github.com/dymensionxyz/hyperlane-monorepo/blob/b372a9062d8cc6de604c32cc0ba200337707c350/rust/main/hyperlane-core/src/types/checkpoint.rs#L35
 
         let mut bz = vec![];
-        bz.extend(self.progress_indication.old_outpoint.clone().unwrap().transaction_id);
-        bz.extend(self.progress_indication.old_outpoint.clone().unwrap().index.to_be_bytes());
-        bz.extend(self.progress_indication.new_outpoint.clone().unwrap().transaction_id);
-        bz.extend(self.progress_indication.new_outpoint.clone().unwrap().index.to_be_bytes());
+        bz.extend(
+            self.progress_indication
+                .old_outpoint
+                .clone()
+                .unwrap()
+                .transaction_id,
+        );
+        bz.extend(
+            self.progress_indication
+                .old_outpoint
+                .clone()
+                .unwrap()
+                .index
+                .to_be_bytes(),
+        );
+        bz.extend(
+            self.progress_indication
+                .new_outpoint
+                .clone()
+                .unwrap()
+                .transaction_id,
+        );
+        bz.extend(
+            self.progress_indication
+                .new_outpoint
+                .clone()
+                .unwrap()
+                .index
+                .to_be_bytes(),
+        );
         for w in self.progress_indication.processed_withdrawals.clone() {
             bz.extend(w.message_id.as_bytes());
         }
@@ -140,4 +176,32 @@ type HandlerResult<T> = Result<T, AppError>;
 struct HandlerState<S: HyperlaneSignerExt + Send + Sync + 'static> {
     // TODO: needs to be shared across routers?
     signer: Arc<S>,
+}
+
+async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(state): State<Arc<HandlerState<S>>>,
+    body: Bytes,
+) -> HandlerResult<Json<String>> {
+    let confirmation_fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+
+    // Call to validator.G()
+    if !validate_withdrawals(&confirmation_fxg)
+        .await
+        .map_err(|e| AppError(e))?
+    {
+        return Err(AppError(eyre::eyre!("Invalid confirmation")));
+    }
+
+    let bundle = confirmation_fxg.bundle;
+
+    // TODO: sign!
+
+    let stringy = bundle
+        .serialize()
+        .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
+
+    let j = serde_json::to_string_pretty(&stringy)
+        .map_err(|e: serde_json::Error| AppError(e.into()))?;
+
+    Ok(Json(j))
 }

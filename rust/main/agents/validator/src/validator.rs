@@ -34,7 +34,7 @@ use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
-use hyperlane_base::kas_hack::is_kas;
+use dymension_kaspa::is_kas;
 
 /// A validator agent
 #[derive(Debug, AsRef)]

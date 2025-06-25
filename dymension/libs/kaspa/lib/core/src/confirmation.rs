@@ -9,7 +9,9 @@ pub struct ConfirmationFXG {
 
 impl ConfirmationFXG {
     pub fn new(progress_indication: ProgressIndication) -> Self {
-        Self { progress_indication }
+        Self {
+            progress_indication,
+        }
     }
 }
 
@@ -18,7 +20,9 @@ impl TryFrom<Bytes> for ConfirmationFXG {
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         let progress_indication = ProgressIndication::decode(bytes.as_ref())?;
-        Ok(ConfirmationFXG { progress_indication })
+        Ok(ConfirmationFXG {
+            progress_indication,
+        })
     }
 }
 

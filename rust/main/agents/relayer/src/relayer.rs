@@ -49,9 +49,9 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
-use super::dymension_metadata::PendingMessageMetadataGetter;
-use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
+use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
+use dymension_kaspa::{is_kas, KaspaProvider};
+use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
 use crate::{
@@ -1494,19 +1494,12 @@ impl Relayer {
         let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
         let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
         let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
-        match chain_conf.connection.clone() {
-            ChainConnectionConf::Kaspa(conf) => Some(
-                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
-                    .expect("Failed to build Kaspa provider"),
-            ),
-            _ => None,
-        };
+
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
 
         let kas_chain_provider = match chain_conf.connection.clone() {
             ChainConnectionConf::Kaspa(conf) => {
-                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None)
-                    .expect("Failed to build Kaspa provider")
+                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None).await?
             }
             _ => panic!("Dymension Kaspa Args: Kaspa provider not found"),
         };

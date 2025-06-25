@@ -3,6 +3,10 @@ use std::time::Duration;
 use derive_new::new;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    query_client::QueryClient as KasQueryClient, QueryOutpointRequest, QueryOutpointResponse,
+    QueryWithdrawalStatusRequest, QueryWithdrawalStatusResponse, WithdrawalId,
+};
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
     query_client::QueryClient as IsmQueryClient, QueryAnnouncedStorageLocationsRequest,
     QueryAnnouncedStorageLocationsResponse, QueryIsmRequest, QueryIsmResponse,
@@ -15,12 +19,6 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::query_client::QueryClient;
 use hyperlane_cosmos_rs::hyperlane::core::v1::{
     QueryDeliveredRequest, QueryDeliveredResponse, QueryMailboxRequest, QueryMailboxResponse,
     QueryRecipientIsmRequest, QueryRecipientIsmResponse,
-};
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
-    query_client::QueryClient as KasQueryClient,
-    QueryOutpointRequest, QueryOutpointResponse,
-    QueryWithdrawalStatusRequest, QueryWithdrawalStatusResponse,
-    WithdrawalId,
 };
 use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};

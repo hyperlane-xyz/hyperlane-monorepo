@@ -317,7 +317,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -383,8 +383,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let signer = self.kaspa_signer().await.context(ctx)?;
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, signer)?;
-                dym_kaspa::KaspaFakeMailbox::new(provider, locator.clone())
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, signer).await?;
+                dym_kaspa::KaspaMailbox::new(provider, locator.clone())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -522,7 +522,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let indexer = Box::new(dym_kaspa::KaspaDispatch::new(provider, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -598,7 +598,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let indexer = Box::new(dym_kaspa::KaspaDelivery::new(provider, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
@@ -658,7 +658,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let paymaster = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -733,7 +733,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let indexer = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -818,7 +818,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let indexer = Box::new(dym_kaspa::KaspaMerkle::new(provider, &locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
@@ -877,7 +877,7 @@ impl ChainConf {
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let va = Box::new(dym_kaspa::KaspaValidatorAnnounce::new(provider, locator)?);
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -940,7 +940,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let ism = Box::new(dym_kaspa::KaspaIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -995,7 +995,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let ism: Box<dym_kaspa::KaspaIsm> =
                     Box::new(dym_kaspa::KaspaIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
@@ -1045,7 +1045,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, None)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let ism: Box<dym_kaspa::KaspaIsm> =
                     Box::new(dym_kaspa::KaspaIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
@@ -1396,20 +1396,21 @@ pub fn build_cosmos_native_provider(
 
 // TODO: pubb??
 /// docsdkfjlskdf
-pub fn build_kaspa_provider(
+pub async fn build_kaspa_provider<'a>(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
-    locator: &ContractLocator,
+    locator: &ContractLocator<'a>,
     signer: Option<hyperlane_cosmos_native::Signer>,
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let metrics = metrics.client_metrics();
     KaspaProvider::new(
         connection_conf,
-        locator,
+        locator.domain.clone(),
         signer,
         metrics,
         middleware_metrics.chain.clone(),
     )
+    .await
 }

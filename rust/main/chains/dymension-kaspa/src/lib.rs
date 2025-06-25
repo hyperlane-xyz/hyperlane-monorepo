@@ -19,11 +19,14 @@ mod validator_announce;
 mod endpoints;
 
 mod libs;
+mod util;
 
 // Direct reexports of lib stuff:
 pub use dym_kas_core;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
+
+pub use util::*;
 
 mod validator_server;
 
