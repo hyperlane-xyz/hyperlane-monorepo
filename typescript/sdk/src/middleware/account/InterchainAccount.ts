@@ -258,17 +258,9 @@ export async function buildInterchainAccountApp(
   ) {
     const addressByChain = await registry.getAddresses();
 
-    // for each known chain get the ica router address and remove the undefined values
-    remoteIcaAddresses = objFilter(
-      objMap(addressByChain, (_, chainAddresses) => ({
-        interchainAccountRouter: chainAddresses.interchainAccountRouter,
-      })),
-      (
-        _chainId,
-        chainAddresses,
-      ): chainAddresses is { interchainAccountRouter: Address } =>
-        !!chainAddresses.interchainAccountRouter,
-    );
+    remoteIcaAddresses = objMap(addressByChain, (_, chainAddresses) => ({
+      interchainAccountRouter: chainAddresses.interchainAccountRouter,
+    }));
   } else {
     const currentIca = InterchainAccountRouter__factory.connect(
       config.localRouter,
@@ -276,7 +268,6 @@ export async function buildInterchainAccountApp(
     );
 
     const knownDomains = await currentIca.domains();
-
     remoteIcaAddresses = await promiseObjAll(
       objMap(arrayToObject(knownDomains.map(String)), async (domainId) => {
         const routerAddress = await currentIca.routers(domainId);
@@ -285,6 +276,17 @@ export async function buildInterchainAccountApp(
       }),
     );
   }
+
+  // remove the undefined or 0 addresses values
+  remoteIcaAddresses = objFilter(
+    remoteIcaAddresses,
+    (
+      _chainId,
+      chainAddresses,
+    ): chainAddresses is { interchainAccountRouter: Address } =>
+      !!chainAddresses.interchainAccountRouter &&
+      !isZeroishAddress(chainAddresses.interchainAccountRouter),
+  );
 
   const addressesMap: HyperlaneAddressesMap<any> = {
     [chain]: {
