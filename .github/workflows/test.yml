@@ -74,25 +74,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1-cache-
-
-      - name: yarn-install
-        run: |
-          yarn install
-          CHANGES=$(git status -s --ignore-submodules)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: lint
         run: yarn lint
