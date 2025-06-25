@@ -12,7 +12,6 @@ export const REGISTRY_URI_SCHEMA = z
   .optional();
 
 export interface ServiceConfig {
-  logger: Logger;
   namespace?: string;
 }
 
@@ -31,12 +30,10 @@ export interface ServiceFactory {
 
 export abstract class BaseService {
   public readonly router: Router;
-  protected logger: Logger;
   protected config: ServiceConfig;
 
   protected constructor(config: ServiceConfig) {
     this.router = Router();
-    this.logger = config.logger;
     this.config = config;
   }
 
@@ -51,8 +48,8 @@ export abstract class BaseService {
    * Helper method to get a logger with service context.
    * Uses the passed logger (with request context) or falls back to instance logger.
    */
-  protected getServiceLogger(logger?: Logger): Logger {
-    return (logger || this.logger).child({
+  protected getServiceLogger(logger: Logger): Logger {
+    return logger.child({
       service: this.constructor.name,
     });
   }

@@ -50,13 +50,9 @@ class CCTPService extends BaseService {
     this.multiProvider = config.multiProvider;
 
     const env = EnvSchema.parse(process.env);
-    this.hyperlaneService = new HyperlaneService(
-      env.HYPERLANE_EXPLORER_URL,
-      config.logger,
-    );
+    this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
     this.cctpAttestationService = new CCTPAttestationService(
       env.CCTP_ATTESTATION_URL,
-      config.logger,
     );
 
     this.router = Router();
@@ -84,7 +80,7 @@ class CCTPService extends BaseService {
 
   async getCCTPMessageFromReceipt(
     receipt: ethers.providers.TransactionReceipt,
-    logger?: Logger,
+    logger: Logger,
   ) {
     const log = this.getServiceLogger(logger);
 
@@ -123,7 +119,7 @@ class CCTPService extends BaseService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation(message: string, logger?: Logger) {
+  async getCCTPAttestation(message: string, logger: Logger) {
     const log = this.getServiceLogger(logger);
 
     log.info({ cctpMessage: message }, 'Processing CCTP attestation request');

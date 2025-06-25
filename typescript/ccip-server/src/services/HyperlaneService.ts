@@ -16,25 +16,18 @@ enum API_ACTION {
 }
 
 class HyperlaneService {
-  logger: Logger;
-
-  constructor(
-    readonly baseUrl: string,
-    logger: Logger,
-  ) {
-    this.logger = logger;
-  }
+  constructor(readonly baseUrl: string) {}
 
   /**
    * Makes a request to the Explorer API to get the block info by message Id. Throws if request fails, or no results
    * @param id: Message id to look up
-   * @param logger: Optional logger for request context
+   * @param logger: Logger for request context
    */
   async getOriginBlockByMessageId(
     id: string,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<MessageTx> {
-    const log = (logger || this.logger).child({
+    const log = logger.child({
       component: 'HyperlaneService',
     });
 
@@ -60,13 +53,13 @@ class HyperlaneService {
   /**
    * Makes a request to the Explorer API to get the origin transaction hash. Throws if request fails, or no results
    * @param id: Message id to look up
-   * @param logger: Optional logger for request context
+   * @param logger: Logger for request context
    */
   async getOriginTransactionHashByMessageId(
     id: string,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<string> {
-    const log = (logger || this.logger).child({
+    const log = logger.child({
       component: 'HyperlaneService',
     });
 

@@ -2,6 +2,7 @@ import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
 import { Router } from 'express';
+import { Logger } from 'pino';
 import { z } from 'zod';
 
 import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
@@ -76,10 +77,7 @@ export class OPStackService extends BaseService {
       contracts: opContracts,
     });
 
-    this.hyperlaneService = new HyperlaneService(
-      hyperlaneConfig.url,
-      config.logger,
-    );
+    this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
     this.l2RpcService = new RPCService(l2RpcConfig.url);
     this.router = Router();
     // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
@@ -134,20 +132,23 @@ export class OPStackService extends BaseService {
 
   async getWithdrawalAndProofFromMessage(
     message: BytesLike,
+    logger: Logger,
   ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
+    const log = this.getServiceLogger(logger);
     const messageId: string = ethers.utils.keccak256(message);
-    console.log(`Getting withdrawal and proof for ${messageId}`);
+    log.info({ messageId }, 'Getting withdrawal and proof for message');
 
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
         messageId,
+        logger,
       );
 
     if (!txHash) {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    console.info('Found tx @', txHash);
+    log.info({ txHash }, 'Found tx');
 
     const receipt =
       await this.l2RpcService.provider.getTransactionReceipt(txHash);
@@ -167,10 +168,13 @@ export class OPStackService extends BaseService {
    * @param transactionHash Transaction containing the MessagePassed event
    * @returns The encoded
    */
-  async getWithdrawalProof([message]: ethers.utils.Result) {
-    console.log('getWithdrawalProof');
-    const [withdrawal, proof] =
-      await this.getWithdrawalAndProofFromMessage(message);
+  async getWithdrawalProof([message]: ethers.utils.Result, logger: Logger) {
+    const log = this.getServiceLogger(logger);
+    log.info('getWithdrawalProof');
+    const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
+      message,
+      logger,
+    );
 
     const args = [
       [
@@ -199,9 +203,16 @@ export class OPStackService extends BaseService {
    * @param transactionHash Transaction containing the MessagePassed event
    * @returns The encoded
    */
-  async getFinalizeWithdrawalTx([message]: ethers.utils.Result) {
-    console.log('getFinalizeWithdrawalTx');
-    const [withdrawal] = await this.getWithdrawalAndProofFromMessage(message);
+  async getFinalizeWithdrawalTx(
+    [message]: ethers.utils.Result,
+    logger: Logger,
+  ) {
+    const log = this.getServiceLogger(logger);
+    log.info('getFinalizeWithdrawalTx');
+    const [withdrawal] = await this.getWithdrawalAndProofFromMessage(
+      message,
+      logger,
+    );
 
     const args = [
       [

@@ -156,7 +156,7 @@ export class CallCommitmentsService extends BaseService {
   public async handleFetchCommitment(
     message: string,
     relayer: string,
-    logger?: Logger,
+    logger: Logger,
   ) {
     const log = this.getServiceLogger(logger);
 
@@ -219,7 +219,7 @@ export class CallCommitmentsService extends BaseService {
   private extractRevealMessageIdAndValidateDispatchedCommitment(
     receipt: TransactionReceipt,
     commitment: string,
-    logger?: Logger,
+    logger: Logger,
   ): string {
     const log = this.getServiceLogger(logger);
 
@@ -264,7 +264,7 @@ export class CallCommitmentsService extends BaseService {
    * Validate and parse the request body against the Zod schema.
    * Returns parsed data or sends a 400 response and returns null.
    */
-  private parseCommitmentBody(body: any, res: Response, logger?: Logger) {
+  private parseCommitmentBody(body: any, res: Response, logger: Logger) {
     const log = this.getServiceLogger(logger);
 
     const result = PostCallsSchema.safeParse(body);
@@ -286,7 +286,7 @@ export class CallCommitmentsService extends BaseService {
       ica: string;
       revealMessageId: string;
     },
-    logger?: Logger,
+    logger: Logger,
   ) {
     const log = this.getServiceLogger(logger);
 
@@ -329,10 +329,7 @@ export class CallCommitmentsService extends BaseService {
    * Fetch a commitment record from the database by revealMessageId.
    * Throws if not found.
    */
-  private async fetchCommitmentRecord(
-    revealMessageId: string,
-    logger?: Logger,
-  ) {
+  private async fetchCommitmentRecord(revealMessageId: string, logger: Logger) {
     const log = this.getServiceLogger(logger);
 
     log.debug(
@@ -371,7 +368,7 @@ export class CallCommitmentsService extends BaseService {
   private async validateCommitmentEvents(
     data: PostCallsType,
     commitment: string,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<{ ica: string; revealMessageId: string }> {
     const log = this.getServiceLogger(logger);
 
@@ -435,7 +432,7 @@ export class CallCommitmentsService extends BaseService {
   private async deriveIcaFromRemoteCallDispatched(
     receipt: TransactionReceipt,
     originDomain: number,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<string> {
     const log = this.getServiceLogger(logger);
 

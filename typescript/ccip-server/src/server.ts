@@ -55,7 +55,6 @@ async function startServer() {
         continue;
       }
       const service = await ServiceClass.create({
-        logger,
         namespace: name,
       });
 
@@ -88,7 +87,7 @@ async function startServer() {
   }
 
   // Register Health Service
-  const healthService = await HealthService.create({ logger });
+  const healthService = await HealthService.create({});
   app.use(`/health`, healthService.router);
 
   // Log and handle undefined endpoints

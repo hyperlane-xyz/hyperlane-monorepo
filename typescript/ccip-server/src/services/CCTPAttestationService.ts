@@ -14,14 +14,12 @@ interface CCTPData {
 
 class CCTPAttestationService {
   url: string;
-  logger: Logger;
 
   CCTP_VERSION_1: bigint = 0n;
   CCTP_VERSION_2: bigint = 1n;
 
-  constructor(url: string, logger: Logger) {
+  constructor(url: string) {
     this.url = url;
-    this.logger = logger;
   }
 
   _getFieldFromMessage(
@@ -68,15 +66,15 @@ class CCTPAttestationService {
    * Get the CCTP v2 attestation
    * @param CCTP message retrieved from the MessageSend log event
    * @param transaction hash containing the MessageSent event
-   * @param logger optional logger for request context
+   * @param logger logger for request context
    * @returns the attestation byte array
    */
   async getAttestation(
     cctpMessage: string,
     transactionHash: string,
-    logger?: Logger,
+    logger: Logger,
   ) {
-    const log = (logger || this.logger).child({
+    const log = logger.child({
       component: 'CCTPAttestationService',
     });
     const version = this._getCCTPVersionFromMessage(cctpMessage);
