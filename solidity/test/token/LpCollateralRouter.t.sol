@@ -12,14 +12,14 @@ contract LpCollateralRouterTest is Test {
     TestLpCollateralRouter internal router;
     address internal alice = address(0x1);
     address internal bob = address(0x2);
-    uint256 internal constant SCALE = 1;
-    uint256 internal constant INITIAL_SUPPLY = 1_000_000e18;
     uint256 internal constant DEPOSIT_AMOUNT = 100e18;
     uint256 internal constant DONATE_AMOUNT = 50e18;
 
     function setUp() public {
         MockMailbox mailbox = new MockMailbox(1);
-        router = new TestLpCollateralRouter(SCALE, address(mailbox));
+        router = new TestLpCollateralRouter(1, address(mailbox));
+        vm.label(alice, "Alice");
+        vm.label(bob, "Bob");
     }
 
     function testDepositIncreasesBalances() public {
@@ -85,5 +85,40 @@ contract LpCollateralRouterTest is Test {
         vm.prank(alice);
         vm.expectRevert();
         router.withdraw(DEPOSIT_AMOUNT + 1, bob, alice);
+    }
+
+    function testDonateDistributesToAllHolders(
+        uint8 aliceFactor,
+        uint8 bobFactor
+    ) public {
+        aliceFactor = uint8(bound(aliceFactor, 1, 100));
+        bobFactor = uint8(bound(bobFactor, 1, 100));
+
+        uint256 aliceDeposit = aliceFactor * DEPOSIT_AMOUNT;
+        uint256 bobDeposit = bobFactor * DEPOSIT_AMOUNT;
+        uint256 donation = DONATE_AMOUNT;
+
+        // Alice deposits
+        vm.prank(alice);
+        uint256 aliceShares = router.deposit(aliceDeposit, alice);
+
+        // Bob deposits
+        vm.prank(bob);
+        uint256 bobShares = router.deposit(bobDeposit, bob);
+
+        // Donate to the vault
+        router.donate(donation);
+
+        uint256 totalShares = aliceShares + bobShares;
+        uint256 aliceDonation = (donation * aliceShares) / totalShares;
+        uint256 bobDonation = (donation * bobShares) / totalShares;
+
+        // account for rounding errors
+        assertApproxEqAbs(
+            router.maxWithdraw(alice),
+            aliceShares + aliceDonation,
+            1
+        );
+        assertApproxEqAbs(router.maxWithdraw(bob), bobShares + bobDonation, 1);
     }
 }
