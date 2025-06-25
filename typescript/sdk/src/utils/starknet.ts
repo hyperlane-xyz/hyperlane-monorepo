@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/starknet-core';
 
 import { DispatchedMessage } from '../core/types.js';
+import { ChainName } from '../types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
@@ -126,4 +127,66 @@ export function parseStarknetDispatchIdEvents(
     .map((dispatchEvent: ParsedEvent) =>
       utils.hexlify(dispatchEvent[DISPATCH_ID_EVENT].id as bigint),
     );
+}
+
+export function isStarknetFeeToken(chainName: ChainName, address: string) {
+  switch (chainName) {
+    case 'starknet':
+      return (
+        address ===
+        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
+      );
+    case 'starknetsepolia':
+      return (
+        address ===
+        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
+      );
+    case 'paradex':
+      return (
+        address ===
+        '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2'
+      );
+    case 'paradexsepolia':
+      return (
+        address ===
+        '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e'
+      );
+    default:
+      return false;
+  }
+}
+
+export function getStarknetFeeTokenContract(
+  chainName: ChainName,
+  providerOrAccount?: ProviderInterface | AccountInterface,
+): Contract {
+  let address: string;
+
+  switch (chainName) {
+    case 'starknet':
+      address =
+        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+      break;
+    case 'starknetsepolia':
+      address =
+        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+      break;
+    case 'paradex':
+      address =
+        '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2';
+      break;
+    case 'paradexsepolia':
+      address =
+        '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e';
+      break;
+    default:
+      throw new Error(`chain name ${chainName} not of protocol type starknet`);
+  }
+
+  return getStarknetContract(
+    StarknetContractName.ETHER,
+    address,
+    providerOrAccount,
+    ContractType.TOKEN,
+  );
 }

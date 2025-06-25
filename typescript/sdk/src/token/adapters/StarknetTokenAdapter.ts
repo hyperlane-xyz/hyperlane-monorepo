@@ -313,3 +313,71 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     );
   }
 }
+
+export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
+  public readonly collateralContract: Contract;
+  public readonly feeTokenContract: Contract;
+
+  constructor(
+    chainName: ChainName,
+    multiProvider: MultiProtocolProvider,
+    addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.collateralContract = getStarknetHypERC20CollateralContract(
+      addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
+    );
+
+    this.feeTokenContract = getStarknetEtherContract(
+      addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
+    );
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    return this.feeTokenContract.balanceOf(address);
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.feeTokenContract.allowance(owner, spender);
+    return BigNumber.from(allowance.toString()).lt(
+      BigNumber.from(weiAmountOrId),
+    );
+  }
+
+  async populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    return this.feeTokenContract.populateTransaction.approve(
+      recipient,
+      weiAmountOrId,
+    );
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<Call> {
+    const nonOption = new CairoOption(CairoOptionVariant.None);
+    const amount = BigInt(weiAmountOrId.toString());
+    const gasAmount = BigInt(interchainGas?.amount.toString() ?? '0');
+    const totalAmount = amount + gasAmount;
+    return this.collateralContract.populateTransaction.transfer_remote(
+      destination,
+      cairo.uint256(addressToBytes32(recipient)),
+      cairo.uint256(amount),
+      cairo.uint256(totalAmount),
+      nonOption,
+      nonOption,
+    );
+  }
+}
