@@ -30,17 +30,17 @@ import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
+  ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-export class StarknetHypSyntheticAdapter
+export class StarknetTokenAdapter
   extends BaseStarknetAdapter
-  implements IHypTokenAdapter<Call>
+  implements ITokenAdapter<Call>
 {
   public readonly contract: Contract;
-  public readonly starknetToken: Contract;
 
   constructor(
     public readonly chainName: ChainName,
@@ -50,13 +50,6 @@ export class StarknetHypSyntheticAdapter
     super(chainName, multiProvider, addresses);
     this.contract = getStarknetHypERC20Contract(
       addresses.warpRouter,
-      multiProvider.getStarknetProvider(chainName),
-    );
-    const starknetTokenAddress =
-      multiProvider.getChainMetadata(chainName).nativeToken?.denom;
-    assert(starknetTokenAddress, `nativeToken.denom must be defined`);
-    this.starknetToken = getStarknetEtherContract(
-      starknetTokenAddress,
       multiProvider.getStarknetProvider(chainName),
     );
   }
@@ -74,12 +67,16 @@ export class StarknetHypSyntheticAdapter
     return { decimals, symbol, name };
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(
     owner: Address,
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    const allowance = await this.starknetToken.allowance(owner, spender);
+    const allowance = await this.contract.allowance(owner, spender);
     return BigNumber.from(allowance.toString()).lt(
       BigNumber.from(weiAmountOrId),
     );
@@ -96,10 +93,7 @@ export class StarknetHypSyntheticAdapter
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<Call> {
-    return this.starknetToken.populateTransaction.approve(
-      recipient,
-      weiAmountOrId,
-    );
+    return this.contract.populateTransaction.approve(recipient, weiAmountOrId);
   }
 
   async populateTransferTx({
@@ -110,6 +104,54 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
+}
+
+export class StarknetHypSyntheticAdapter
+  extends StarknetTokenAdapter
+  implements IHypTokenAdapter<Call>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+  async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    return this.contract.domains();
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const routerAddresses = await this.contract.routers(domain);
+    return Buffer.from(routerAddresses);
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    const domains = await this.getDomains();
+    const routers: Buffer[] = await Promise.all(
+      domains.map((d) => this.getRouterAddress(d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
+  }
+
+  async getBridgedSupply(): Promise<bigint | undefined> {
     return undefined;
   }
 
@@ -137,31 +179,6 @@ export class StarknetHypSyntheticAdapter
       nonOption,
       nonOption,
     );
-  }
-
-  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
-    return 0n;
-  }
-
-  async getDomains(): Promise<Domain[]> {
-    return this.contract.domains();
-  }
-
-  async getRouterAddress(domain: Domain): Promise<Buffer> {
-    const routerAddresses = await this.contract.routers(domain);
-    return Buffer.from(routerAddresses);
-  }
-
-  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    const domains = await this.getDomains();
-    const routers: Buffer[] = await Promise.all(
-      domains.map((d) => this.getRouterAddress(d)),
-    );
-    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
-  }
-
-  async getBridgedSupply(): Promise<bigint | undefined> {
-    return undefined;
   }
 }
 
@@ -194,11 +211,6 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
     return new StarknetHypSyntheticAdapter(this.chainName, this.multiProvider, {
       warpRouter: await this.getWrappedTokenAddress(),
     });
-  }
-
-  async getBalance(address: Address): Promise<bigint> {
-    const adapter = await this.getWrappedTokenAdapter();
-    return adapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {

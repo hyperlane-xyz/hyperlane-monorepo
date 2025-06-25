@@ -339,17 +339,9 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
-    if (!interchainFee) {
-      interchainFee = await this.getInterchainTransferFee({
-        originToken: token,
-        destination,
-        sender,
-      });
-    }
-
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
-        originTokenAmount: new TokenAmount(interchainFee.amount, token),
+        originTokenAmount,
         owner: sender,
       }),
       hypAdapter.isRevokeApprovalRequired(
@@ -368,10 +360,7 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      preTransferRemoteTxs.push([
-        interchainFee.amount.toString(),
-        WarpTxCategory.Approval,
-      ]);
+      preTransferRemoteTxs.push([amount.toString(), WarpTxCategory.Approval]);
     }
 
     for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
@@ -390,6 +379,53 @@ export class WarpCore {
         transaction: approveTxReq,
       } as WarpTypedTransaction;
       transactions.push(approveTx);
+    }
+
+    if (!interchainFee) {
+      interchainFee = await this.getInterchainTransferFee({
+        originToken: token,
+        destination,
+        sender,
+      });
+    }
+
+    // if the interchain fee is of protocol starknet we also have
+    // to approve the transfer of this fee token
+    if (interchainFee.token.protocol === ProtocolType.Starknet) {
+      const interchainFeeAdapter = interchainFee.token.getAdapter(
+        this.multiProvider,
+      );
+      const isRequired = await interchainFeeAdapter.isApproveRequired(
+        sender,
+        token.addressOrDenom,
+        interchainFee.amount,
+      );
+      this.logger.debug(
+        `Approval is${isRequired ? '' : ' not'} required for interchain fee of ${
+          interchainFee.token.symbol
+        }`,
+      );
+
+      if (isRequired) {
+        const txCategory = WarpTxCategory.Approval;
+
+        this.logger.info(
+          `${txCategory} required for transfer of ${interchainFee.token.symbol}`,
+        );
+        const approveTxReq = await interchainFeeAdapter.populateApproveTx({
+          weiAmountOrId: interchainFee.amount,
+          recipient: token.addressOrDenom,
+        });
+        this.logger.debug(
+          `${txCategory} tx for ${interchainFee.token.symbol} populated`,
+        );
+        const approveTx = {
+          category: txCategory,
+          type: providerType,
+          transaction: approveTxReq,
+        } as WarpTypedTransaction;
+        transactions.push(approveTx);
+      }
     }
 
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
