@@ -70,7 +70,7 @@ async function startServer() {
 
       logger.info(
         {
-          name,
+          moduleName: name,
         },
         '✅  Mounted module',
       );
