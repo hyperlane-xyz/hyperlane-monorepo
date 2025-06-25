@@ -84,7 +84,7 @@ jobs:
       - name: lint
         run: yarn lint
         env:
-          NODE_OPTIONS: --max-old-space-size=1536
+          NODE_OPTIONS: --max_old_space_size=1536
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -676,7 +676,7 @@ jobs:
       - name: Run tests with coverage
         run: yarn coverage
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v4
