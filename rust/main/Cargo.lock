@@ -2531,6 +2531,7 @@ dependencies = [
  "clap 4.5.40",
  "eyre",
  "governor",
+ "hyperlane-cosmos-dymension-rs",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",

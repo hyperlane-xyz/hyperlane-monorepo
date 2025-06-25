@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
-use prost::Message;
+use hyperlane_cosmos_rs::prost::Message;
 
 pub struct ConfirmationFXG {
     pub progress_indication: ProgressIndication,

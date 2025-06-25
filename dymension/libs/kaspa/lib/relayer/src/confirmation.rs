@@ -40,31 +40,8 @@ pub async fn prepare_progress_indication(
 ) -> Result<ConfirmationFXG, Error> {
     println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
 
-    /*
-    // DISABLED, assumed to be supplied by the caller
-
-    // Step 1: Query the old_outpoint using the cosmos_provider
-    println!("Step 1: Querying old outpoint from Hub x/kas module...");
-    let old_outpoint_response = cosmos_provider
-        .grpc()
-        .outpoint(None)
-        .await
-        .map_err(|e| {
-            let error_msg = format!("Failed to query outpoint from x/kas module: {}", e);
-            println!("Error: {}", error_msg);
-            Error::Custom(error_msg)
-        })?;
-        // TODO: add validation that the old outpoint is valid?
-        println!("Old outpoint retrieved: {:?}", old_outpoint);
-    */
 
 
-
-    // FIXME: validate new_utxo and current_utxo transaction
-    // - validate both addresses are the escrow address
-    // - validate both txs are fine and confirmed/matured(?) 
-    
-    
     
 
     // Trace transactions from the new UTXO back to the old one.
