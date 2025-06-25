@@ -145,10 +145,6 @@ class CCTPService extends BaseService {
 
     const parsedMessage = parseMessage(message);
 
-    if (this.multiProvider == undefined) {
-      throw new Error('MultiProvider not initialized yet');
-    }
-
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
       .getTransactionReceipt(txHash);
