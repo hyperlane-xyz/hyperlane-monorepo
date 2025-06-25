@@ -158,6 +158,9 @@ impl EthereumAdapter {
     async fn load_payloads(&self, tx: &Transaction) -> Result<Vec<FullPayload>, LanderError> {
         use itertools::{Either, Itertools};
 
+        // while we are using RocksDB as the payload database, querying payloads by UUID will be
+        // a blocking operation which becomes more and more expensive as the number of payloads
+        // increases.
         let payload_futures = tx
             .payload_details
             .iter()
