@@ -1,28 +1,28 @@
 [workspace]
 members = [
-    "agents/relayer",
-    "agents/scraper",
-    "agents/validator",
-    "applications/hyperlane-application",
-    "applications/hyperlane-operation-verifier",
-    "applications/hyperlane-warp-route",
-    "chains/hyperlane-cosmos",
-    "chains/hyperlane-cosmos-native",
-    "chains/hyperlane-ethereum",
-    "chains/hyperlane-fuel",
-    "chains/hyperlane-sealevel",
-    "chains/hyperlane-starknet",
-    "ethers-prometheus",
-    "hyperlane-base",
-    "hyperlane-core",
-    "hyperlane-metric",
-    "hyperlane-test",
-    "lander",
-    "utils/abigen",
-    "utils/backtrace-oneline",
-    "utils/crypto",
-    "utils/hex",
-    "utils/run-locally",
+  "agents/relayer",
+  "agents/scraper",
+  "agents/validator",
+  "applications/hyperlane-application",
+  "applications/hyperlane-operation-verifier",
+  "applications/hyperlane-warp-route",
+  "chains/hyperlane-cosmos",
+  "chains/hyperlane-cosmos-native",
+  "chains/hyperlane-ethereum",
+  "chains/hyperlane-fuel",
+  "chains/hyperlane-sealevel",
+  "chains/hyperlane-starknet",
+  "ethers-prometheus",
+  "hyperlane-base",
+  "hyperlane-core",
+  "hyperlane-metric",
+  "hyperlane-test",
+  "lander",
+  "utils/abigen",
+  "utils/backtrace-oneline",
+  "utils/crypto",
+  "utils/hex",
+  "utils/run-locally",
 ]
 resolver = "2"
 
@@ -64,10 +64,10 @@ config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
 cosmrs = { version = "0.21.0", default-features = false, features = [
-    "cosmwasm",
-    "rpc",
-    "tokio",
-    "grpc",
+  "cosmwasm",
+  "rpc",
+  "tokio",
+  "grpc",
 ] }
 cosmwasm-std = "*"
 crunchy = "0.2"
@@ -131,15 +131,15 @@ rlp = "=0.5.2"
 rocksdb = "0.21.0"
 rstest = "0.25.0"
 sea-orm = { version = "1.1.10", features = [
-    "sqlx-postgres",
-    "runtime-tokio-native-tls",
-    "with-bigdecimal",
-    "with-time",
-    "macros",
+  "sqlx-postgres",
+  "runtime-tokio-native-tls",
+  "with-bigdecimal",
+  "with-time",
+  "macros",
 ] }
 sea-orm-migration = { version = "1.1.10", features = [
-    "sqlx-postgres",
-    "runtime-tokio-native-tls",
+  "sqlx-postgres",
+  "runtime-tokio-native-tls",
 ] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
