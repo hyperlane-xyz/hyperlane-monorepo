@@ -93,7 +93,6 @@ export default [
       '@typescript-eslint/no-require-imports': ['warn'],
       '@typescript-eslint/no-unused-expressions': ['off'],
       '@typescript-eslint/no-empty-object-type': ['off'],
-      '@typescript-eslint/no-duplicate-enum-values': ['off'],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

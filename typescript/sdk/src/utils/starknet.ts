@@ -12,9 +12,10 @@ import {
   ContractType,
   getCompiledContract,
 } from '@hyperlane-xyz/starknet-core';
+import { Address, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../core/types.js';
-import { ChainName } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
@@ -33,12 +34,15 @@ export enum StarknetContractName {
   STATIC_AGGREGATION_HOOK = 'static_aggregation_hook',
 }
 
-export enum StarknetFeeTokenAddresses {
-  starknet = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
-  starknetsepolia = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
-  paradex = '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
-  paradexsepolia = '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e',
-}
+export const STARKNET_FEE_TOKEN_ADDRESSES: ChainMap<Address> = {
+  starknet:
+    '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  starknetsepolia:
+    '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  paradex: '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
+  paradexsepolia:
+    '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e',
+};
 
 /**
  * Creates a Starknet contract instance with the given parameters
@@ -137,48 +141,26 @@ export function parseStarknetDispatchIdEvents(
 }
 
 export function isStarknetFeeToken(chainName: ChainName, address: string) {
-  if (!Object.keys(StarknetFeeTokenAddresses).includes(chainName)) {
+  const feeTokenAddress = STARKNET_FEE_TOKEN_ADDRESSES[chainName];
+  if (!feeTokenAddress) {
     return false;
   }
 
-  return (
-    address ===
-    StarknetFeeTokenAddresses[
-      chainName as keyof typeof StarknetFeeTokenAddresses
-    ]
-  );
+  return eqAddressStarknet(address, feeTokenAddress);
 }
 
 export function getStarknetFeeTokenContract(
   chainName: ChainName,
   providerOrAccount?: ProviderInterface | AccountInterface,
 ): Contract {
-  let address: string;
-
-  switch (chainName) {
-    case 'starknet':
-      address =
-        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
-      break;
-    case 'starknetsepolia':
-      address =
-        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
-      break;
-    case 'paradex':
-      address =
-        '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2';
-      break;
-    case 'paradexsepolia':
-      address =
-        '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e';
-      break;
-    default:
-      throw new Error(`chain name ${chainName} not of protocol type starknet`);
+  const feeTokenAddress = STARKNET_FEE_TOKEN_ADDRESSES[chainName];
+  if (!feeTokenAddress) {
+    throw new Error(`No fee token address for chain ${chainName}`);
   }
 
   return getStarknetContract(
     StarknetContractName.ETHER,
-    address,
+    feeTokenAddress,
     providerOrAccount,
     ContractType.TOKEN,
   );
