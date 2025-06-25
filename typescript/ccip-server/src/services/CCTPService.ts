@@ -104,7 +104,7 @@ class CCTPService extends BaseService {
         const parsedLog = iface.parseLog(receiptLog);
         if (parsedLog.name === event.name) {
           log.debug(
-            { message: parsedLog.args.message },
+            { cctpMessage: parsedLog.args.message },
             'Found CCTP MessageSent event',
           );
           return parsedLog.args.message;
@@ -126,7 +126,7 @@ class CCTPService extends BaseService {
   async getCCTPAttestation(message: string, logger?: Logger) {
     const log = this.getServiceLogger(logger);
 
-    log.info({ message }, 'Processing CCTP attestation request');
+    log.info({ cctpMessage: message }, 'Processing CCTP attestation request');
 
     const messageId: string = ethers.utils.keccak256(message);
     log.debug({ messageId }, 'Generated message ID');
