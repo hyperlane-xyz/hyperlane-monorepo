@@ -347,7 +347,7 @@ impl AdaptsChain for EthereumAdapter {
 
         let (successful, failed) = self
             .provider
-            .simulate((precursor.tx, precursor.function))
+            .simulate_batch((precursor.tx, precursor.function))
             .await?;
 
         let payloads_successful = Self::filter(&payloads, successful);

@@ -52,7 +52,7 @@ mockall::mock! {
             signer: H160,
         ) -> ChainResult<(TypedTransaction, Function)>;
 
-        async fn simulate(
+        async fn simulate_batch(
             &self,
             multi_precursor: (TypedTransaction, Function),
         ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;

@@ -104,7 +104,7 @@ pub trait EvmProviderForLander: Send + Sync {
     ) -> ChainResult<(TypedTransaction, Function)>;
 
     /// Simulate the batch transaction without sending it to the blockchain
-    async fn simulate(
+    async fn simulate_batch(
         &self,
         multi_precursor: (TypedTransaction, Function),
     ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
@@ -209,7 +209,7 @@ where
         Ok((tx, function))
     }
 
-    async fn simulate(
+    async fn simulate_batch(
         &self,
         multi_precursor: (TypedTransaction, Function),
     ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)> {
