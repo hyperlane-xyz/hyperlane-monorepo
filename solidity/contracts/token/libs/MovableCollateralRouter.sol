@@ -25,9 +25,6 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     /// @notice Set of addresses that are allowed to rebalance.
     EnumerableSet.AddressSet internal _allowedRebalancers;
 
-    // gap for future extensions
-    uint256[50] private __gap;
-
     event CollateralMoved(
         uint32 indexed domain,
         bytes32 recipient,
@@ -128,41 +125,21 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
             amount
         );
 
-        uint256 nativeFee = 0;
-        uint256 tokenFee = 0;
-        address collateral = token();
-
-        // Parse quotes for fees
+        uint256 collateralFee = 0;
         for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == address(0)) {
-                nativeFee += quotes[i].amount;
-            } else if (quotes[i].token == collateral) {
-                tokenFee += quotes[i].amount;
+            if (quotes[i].token == token()) {
+                collateralFee += quotes[i].amount;
             }
         }
 
-        // The collateral amount should be funded by the contract's balance (for native) or contract's token balance
-        // Any fee on top of the collateral amount must be paid by the rebalancer
-        if (collateral == address(0)) {
-            // Native collateral: require msg.value covers fee (if any)
-            require(
-                msg.value >= nativeFee,
-                "MCR: Insufficient native value for fee"
-            );
-            // The contract should already have enough balance for the transfer amount
-        } else {
-            // ERC20 collateral: charge the rebalancer for any token fee above the collateral amount
-            if (tokenFee > amount) {
-                _transferFromSender(tokenFee - amount);
-            }
-            // Native fee (if any) must be provided in msg.value
-            require(
-                msg.value >= nativeFee,
-                "MCR: Insufficient native value for fee"
-            );
+        // charge the rebalancer any bridging fees denominated in the collateral
+        // token to avoid undercollateralization
+        if (collateralFee > amount) {
+            _transferFromSender(collateralFee - amount);
         }
 
-        bridge.transferRemote{value: nativeFee}(domain, recipient, amount);
+        uint256 nativeValue = _nativeRebalanceValue(amount);
+        bridge.transferRemote{value: nativeValue}(domain, recipient, amount);
         emit CollateralMoved(domain, recipient, amount, msg.sender);
     }
 
