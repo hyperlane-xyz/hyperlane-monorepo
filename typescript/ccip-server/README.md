@@ -1,3 +1,5 @@
+## OffchainLookup server
+
 # CCIP-Server (OffchainLookup)
 
 A lightweight Express server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
@@ -18,7 +20,7 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
    yarn install    # or `npm install`
    ```
 
-2. **Configure environment variables**
+2. **Configure environment variables**  
    Copy the example and edit as needed:
 
    ```bash
@@ -45,11 +47,9 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
    ```
 
 4. **(Optional) Launch Prisma Studio**
-
    ```bash
    npm run prisma:studio
    ```
-
    Browse and inspect the SQLite file at `http://localhost:5555`.
 
 ## Running the Server
@@ -74,10 +74,10 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 
 ## API Routes
 
-- `POST /calls`
+- `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.
 
-- `POST /getCallsFromCommitment`
+- `POST /getCallsFromCommitment`  
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a given commitment ID.
 
 ## Notes
