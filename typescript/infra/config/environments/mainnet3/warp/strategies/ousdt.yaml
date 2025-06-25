@@ -10,7 +10,17 @@ bitlayer:
     type: gnosisSafe
 bob:
   submitter:
-    chain: bob
+    chain: ethereum
+    destinationChain: bob
+    internalSubmitter:
+      safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: gnosisSafeTxBuilder
+      version: '1.0'
+    owner: '0xc99e58b9A4E330e2E4d09e2c94CD3c553904F588'
+    type: interchainAccount
+botanix:
+  submitter:
+    chain: botanix
     type: jsonRpc
 celo:
   submitter:
@@ -21,7 +31,8 @@ ethereum:
   submitter:
     chain: ethereum
     safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 fraxtal:
   submitter:
     chain: fraxtal
@@ -29,8 +40,14 @@ fraxtal:
     type: gnosisSafe
 hashkey:
   submitter:
-    chain: hashkey
-    type: jsonRpc
+    chain: ethereum
+    destinationChain: hashkey
+    internalSubmitter:
+      safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: gnosisSafeTxBuilder
+      version: '1.0'
+    owner: '0xEE01c007f89c9255f43b91B591b93cD1459048D1'
+    type: interchainAccount
 ink:
   submitter:
     chain: ink
@@ -94,6 +111,10 @@ superseed:
     safeAddress: '0x0731a8e0DC88Df79d9643BD6C1f26cfe6fa53382'
     type: gnosisSafeTxBuilder
     version: '1.0'
+swell:
+  submitter:
+    chain: swell
+    type: jsonRpc
 unichain:
   submitter:
     chain: unichain
