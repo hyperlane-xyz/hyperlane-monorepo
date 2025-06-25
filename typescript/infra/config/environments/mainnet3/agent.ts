@@ -170,7 +170,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -181,7 +180,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -195,12 +194,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -321,7 +319,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -332,7 +329,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -346,12 +343,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -472,7 +468,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -483,7 +478,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
-    solaxy: false,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -497,12 +492,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -595,6 +589,10 @@ const contextBase = {
   },
 } as const;
 
+const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
+  '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -626,8 +624,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
       { destinationDomain: getDomainId('starknet') },
       { destinationDomain: getDomainId('paradex') },
-      // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
+      // Being more generous with some Velo message module messages, which occasionally underpay
+      ...veloMessageModuleMatchingList,
     ],
   },
   {
@@ -725,9 +723,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // The only exception is Metal, which had an initial misconfiguration that the Velo
       // team resolved with a different contract deploy. We can still only match on this address
       // as Metal is the only exception, so it's always receiving from or sending messages to this address.
-      matchingList: consistentSenderRecipientMatchingList(
-        '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
-      ),
+      matchingList: veloMessageModuleMatchingList,
     },
     {
       name: 'velo_token_bridge',
@@ -827,12 +823,18 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe8f2cd-20250620-104910',
+      tag: '6d1f7ee-20250624-105828',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -841,7 +843,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'fe8f2cd-20250620-104910',
+      tag: '2fc626d-20250623-121531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -852,7 +854,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: '6d1f7ee-20250624-105828',
     },
     resources: scraperResources,
   },
@@ -867,7 +869,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8185c87-20250618-151232',
+      tag: '6d1f7ee-20250624-105828',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -876,6 +878,12 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -905,12 +913,18 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8185c87-20250618-151232',
+      tag: '5f60dee-20250623-071346',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },

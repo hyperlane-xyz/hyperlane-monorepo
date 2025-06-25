@@ -8118,10 +8118,10 @@ __metadata:
   resolution: "@hyperlane-xyz/ccip-server@workspace:typescript/ccip-server"
   dependencies:
     "@eth-optimism/sdk": "npm:^3.3.3"
-    "@hyperlane-xyz/core": "npm:8.0.0"
-    "@hyperlane-xyz/sdk": "npm:13.3.0"
+    "@hyperlane-xyz/core": "npm:8.0.1"
+    "@hyperlane-xyz/sdk": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@jest/globals": "npm:^29.7.0"
     "@prisma/client": "npm:^6.8.2"
     "@types/cors": "npm:^2"
@@ -8159,11 +8159,11 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.3.0"
+    "@hyperlane-xyz/cosmos-sdk": "npm:13.4.0"
     "@hyperlane-xyz/registry": "npm:17.8.2"
-    "@hyperlane-xyz/sdk": "npm:13.3.0"
+    "@hyperlane-xyz/sdk": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -8205,7 +8205,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:8.0.0, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:8.0.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -8213,7 +8213,7 @@ __metadata:
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
@@ -8253,13 +8253,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:13.3.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+"@hyperlane-xyz/cosmos-sdk@npm:13.4.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/cosmos-types": "npm:13.3.0"
+    "@hyperlane-xyz/cosmos-types": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
@@ -8276,7 +8276,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-types@npm:13.3.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
+"@hyperlane-xyz/cosmos-types@npm:13.4.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types"
   dependencies:
@@ -8312,14 +8312,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:13.3.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:13.4.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:8.0.0"
+    "@hyperlane-xyz/core": "npm:8.0.1"
     "@hyperlane-xyz/registry": "npm:17.8.2"
-    "@hyperlane-xyz/sdk": "npm:13.3.0"
+    "@hyperlane-xyz/sdk": "npm:13.4.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -8368,11 +8368,11 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:13.3.0"
+    "@hyperlane-xyz/helloworld": "npm:13.4.0"
     "@hyperlane-xyz/registry": "npm:17.8.2"
-    "@hyperlane-xyz/sdk": "npm:13.3.0"
+    "@hyperlane-xyz/sdk": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -8394,6 +8394,7 @@ __metadata:
     chai: "npm:^4.5.0"
     deep-object-diff: "npm:^1.1.9"
     dotenv: "npm:^10.0.0"
+    eslint-plugin-yml: "npm:^1.18.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.8.0"
     hardhat: "npm:^2.22.2"
@@ -8448,7 +8449,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:13.3.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:13.4.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -8458,11 +8459,11 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:8.0.0"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.3.0"
-    "@hyperlane-xyz/starknet-core": "npm:13.3.0"
+    "@hyperlane-xyz/core": "npm:8.0.1"
+    "@hyperlane-xyz/cosmos-sdk": "npm:13.4.0"
+    "@hyperlane-xyz/starknet-core": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -8511,7 +8512,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:13.3.0, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:13.4.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
@@ -8537,7 +8538,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:13.3.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:13.4.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -8582,11 +8583,11 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/cosmos-sdk": "npm:13.3.0"
+    "@hyperlane-xyz/cosmos-sdk": "npm:13.4.0"
     "@hyperlane-xyz/registry": "npm:17.8.2"
-    "@hyperlane-xyz/sdk": "npm:13.3.0"
+    "@hyperlane-xyz/sdk": "npm:13.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:13.3.0"
+    "@hyperlane-xyz/utils": "npm:13.4.0"
     "@interchain-ui/react": "npm:^1.23.28"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
     "@solana/wallet-adapter-react": "npm:^0.15.32"
@@ -24069,6 +24070,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eslint-compat-utils@npm:^0.6.0":
+  version: 0.6.5
+  resolution: "eslint-compat-utils@npm:0.6.5"
+  dependencies:
+    semver: "npm:^7.5.4"
+  peerDependencies:
+    eslint: ">=6.0.0"
+  checksum: 10/bb95e89ed11e9a29b2e9184967292b4b52be1e10fb36c84e89de95b4a5b23764a456b3818a867e232aec685186bd954e19f165cbe50b39659f729d97f1125820
+  languageName: node
+  linkType: hard
+
 "eslint-config-prettier@npm:^9.1.0":
   version: 9.1.0
   resolution: "eslint-config-prettier@npm:9.1.0"
@@ -24225,6 +24237,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eslint-plugin-yml@npm:^1.18.0":
+  version: 1.18.0
+  resolution: "eslint-plugin-yml@npm:1.18.0"
+  dependencies:
+    debug: "npm:^4.3.2"
+    escape-string-regexp: "npm:4.0.0"
+    eslint-compat-utils: "npm:^0.6.0"
+    natural-compare: "npm:^1.4.0"
+    yaml-eslint-parser: "npm:^1.2.1"
+  peerDependencies:
+    eslint: ">=6.0.0"
+  checksum: 10/4e56b0b86b51b3041f5e4a05a1dc8cd657a775f53e7ebc698efd0a77b33605c8c6ec4933bd43a66dc8fe7e45ba16ed12aafea1b3b7d9c555c6c747154be0db94
+  languageName: node
+  linkType: hard
+
 "eslint-scope@npm:^8.2.0":
   version: 8.2.0
   resolution: "eslint-scope@npm:8.2.0"
@@ -24232,6 +24259,13 @@ __metadata:
     esrecurse: "npm:^4.3.0"
     estraverse: "npm:^5.2.0"
   checksum: 10/cd9ab60d5a68f3a0fcac04d1cff5a7383d0f331964d5f1c446259123caec5b3ccc542284d07846e4f4d1389da77750821cc9a6e1ce18558c674977351666f9a6
+  languageName: node
+  linkType: hard
+
+"eslint-visitor-keys@npm:^3.0.0":
+  version: 3.4.3
+  resolution: "eslint-visitor-keys@npm:3.4.3"
+  checksum: 10/3f357c554a9ea794b094a09bd4187e5eacd1bc0d0653c3adeb87962c548e6a1ab8f982b86963ae1337f5d976004146536dcee5d0e2806665b193fbfbf1a9231b
   languageName: node
   linkType: hard
 
@@ -40745,6 +40779,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"yaml-eslint-parser@npm:^1.2.1":
+  version: 1.3.0
+  resolution: "yaml-eslint-parser@npm:1.3.0"
+  dependencies:
+    eslint-visitor-keys: "npm:^3.0.0"
+    yaml: "npm:^2.0.0"
+  checksum: 10/ef2cecd5b97e14e8022fccddbd56f624033e1a101723f0acf2bfd78be7bc6f68b654be2acbed803b13692ec8ab650261c067051a7411978778f8af1d44cd8b4f
+  languageName: node
+  linkType: hard
+
 "yaml@npm:2.4.5":
   version: 2.4.5
   resolution: "yaml@npm:2.4.5"
@@ -40758,6 +40802,15 @@ __metadata:
   version: 1.10.2
   resolution: "yaml@npm:1.10.2"
   checksum: 10/e088b37b4d4885b70b50c9fa1b7e54bd2e27f5c87205f9deaffd1fb293ab263d9c964feadb9817a7b129a5bf30a06582cb08750f810568ecc14f3cdbabb79cb3
+  languageName: node
+  linkType: hard
+
+"yaml@npm:^2.0.0":
+  version: 2.8.0
+  resolution: "yaml@npm:2.8.0"
+  bin:
+    yaml: bin.mjs
+  checksum: 10/7d4bd9c10d0e467601f496193f2ac254140f8e36f96f5ff7f852b9ce37974168eb7354f4c36dc8837dde527a2043d004b6aff48818ec24a69ab2dd3c6b6c381c
   languageName: node
   linkType: hard
 

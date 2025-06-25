@@ -29,7 +29,6 @@ export const chainsToSkip: ChainName[] = [
   'zksync',
   'zeronetwork',
   'zklink',
-  'treasure',
   'abstract',
   'sophon',
 
@@ -38,9 +37,6 @@ export const chainsToSkip: ChainName[] = [
 
   // Oct 16 batch
   'lumia',
-
-  // Removal TBD
-  'arthera',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {

@@ -25,7 +25,6 @@ export const awIcas: ChainMap<Address> = {
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   proofofplay: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  real: '0xc761e68BF3A94326FD0D305e3ccb4cdaab2edA19',
   sanko: '0x5DAcd2f1AafC749F2935A160865Ab1568eC23752',
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
@@ -107,7 +106,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Dec 4, 2024 batch
   // ----------------------------------------------------------
-  // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
   lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 
@@ -139,7 +137,6 @@ export const awIcas: ChainMap<Address> = {
   // glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
   matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
-  trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
 
   // Q5, 2024 batch
   // ----------------------------------------------------------
@@ -165,7 +162,12 @@ export const awIcas: ChainMap<Address> = {
   opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
 
-  // Jun 5, 2025 - oUSDT
+  // Jun 5, 2025 - oUSDT v2
   // ----------------------------------------------------------
   hashkey: '0xEE01c007f89c9255f43b91B591b93cD1459048D1',
+
+  // Jun 21, 2025 - oUSDT v3
+  // ----------------------------------------------------------
+  swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687',
+  botanix: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9',
 } as const;

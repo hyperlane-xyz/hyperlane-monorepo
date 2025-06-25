@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "13.3.0",
+  "version": "13.4.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@google-cloud/pino-logging-gcp-config": "^1.0.6",
