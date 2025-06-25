@@ -5475,6 +5475,7 @@ dependencies = [
  "tiny-keccak 2.0.2",
  "tokio",
  "tracing",
+ "tracing-test",
  "typetag",
  "uint 0.9.5",
  "uuid 1.11.0",
