@@ -162,9 +162,15 @@ export class StarknetDeployer {
           routes.push(route);
           this.logger.info(`ISM ${route} deployed for domain ${domainId}`);
         }
+        const calls = [];
         // setting the routes in a single transaction
-        const tx = await routingContract.invoke('set', [domainIds, routes]);
-        await this.account.waitForTransaction(tx.transaction_hash);
+        for (let i = 0; i < domainIds.length; i++) {
+          calls.push(
+            routingContract.populate('set', [domainIds[i], routes[i]]),
+          );
+        }
+        const result = await this.account.execute(calls);
+        await this.account.waitForTransaction(result.transaction_hash);
         this.logger.info(`ISM ${routes} set for domains ${domainIds}`);
 
         return ismAddress;
