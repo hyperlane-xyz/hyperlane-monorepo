@@ -156,23 +156,35 @@ impl EthereumAdapter {
     }
 
     async fn load_payloads(&self, tx: &Transaction) -> Result<Vec<FullPayload>, LanderError> {
+        use itertools::{Either, Itertools};
+
         let payload_futures = tx
             .payload_details
             .iter()
-            .map(|p| self.payload_db.retrieve_payload_by_uuid(&p.uuid))
+            .map(|p| async {
+                self.payload_db
+                    .retrieve_payload_by_uuid(&p.uuid)
+                    .await
+                    .map(|payload| (*p.uuid, payload))
+            })
             .collect::<Vec<_>>();
         let payloads = future::try_join_all(payload_futures).await?;
-        let payloads = payloads.into_iter().flatten().collect::<Vec<_>>();
+        let (payloads, missing_uuids): (Vec<FullPayload>, Vec<Uuid>) = payloads
+            .into_iter()
+            .partition_map(|(uuid, payload)| match payload {
+                Some(payload) => Either::Left(payload),
+                None => Either::Right(uuid),
+            });
 
-        if payloads.len() != tx.payload_details.len() {
-            // If we couldn't find all payloads, we can't proceed with batching
+        if !missing_uuids.is_empty() {
             error!(
                 ?tx,
-                ?payloads,
-                "Failed to find all the payloads in the database for transaction simulation"
+                ?missing_uuids,
+                "Failed to find payloads in the database for transaction simulation"
             );
             return Err(LanderError::PayloadNotFound);
         }
+
         Ok(payloads)
     }
 

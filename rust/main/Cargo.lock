@@ -6344,6 +6344,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-sealevel",
+ "itertools 0.10.5",
  "mockall",
  "prometheus",
  "serde",
