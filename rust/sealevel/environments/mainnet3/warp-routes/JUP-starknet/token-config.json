@@ -4,5 +4,12 @@
     "decimals": 6,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "token": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+  },
+  "starknet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "symbol": "JUP",
+    "name": "Jupiter",
+    "foreignDeployment": "0x03a292bd498266ac4b05d93cc2df5cd7883c0684faabff182ab568d566a3c151"
   }
 }

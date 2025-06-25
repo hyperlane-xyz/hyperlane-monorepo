@@ -234,7 +234,7 @@ export async function completeDeploy(
           'ETH'
         }`,
       );
-    } else {
+    } else if (metadata?.protocol === ProtocolType.Ethereum) {
       // Original Ethereum chain handling
       const provider = isDryRun
         ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)

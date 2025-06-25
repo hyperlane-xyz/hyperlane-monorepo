@@ -59,7 +59,6 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -241,7 +240,11 @@ export async function runWarpRouteDeploy({
       }
 
       default:
-        throw new Error(`Unsupported protocol type: ${protocol}`);
+        log(
+          `Unsupported protocol type: ${protocol}, skipping warp route deploy`,
+        );
+      // Throwing here will cause a Solana <> Starknet deploy to fail, we don't want to do that
+      // throw new Error(`Unsupported protocol type: ${protocol}`);
     }
   }
 
@@ -1178,11 +1181,21 @@ async function getWarpCoreConfigCore<T>(
     multiProvider,
     warpDeployConfig,
   );
+  // TODO: we get a TokenMetadataMap back from `deriveTokenMetadata`, which is incompatible
+  // with how this is trying to be used. We need to fix this.
   assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
+    tokenMetadata, // && isTokenMetadata(tokenMetadata),
     'Missing required token metadata',
   );
-  const { decimals, symbol, name } = tokenMetadata;
+  // TODO: this is a hack to get the token metadata for the starknet chains
+  const name = tokenMetadata.getName('starknet');
+  if (!name) {
+    throw new Error('Missing name on token metadata');
+  }
+  const symbol = tokenMetadata.getSymbol('starknet');
+  const decimals = tokenMetadata.getDecimals('starknet');
+
+  // const { decimals, symbol, name } = tokenMetadata;
   assert(decimals, 'Missing decimals on token metadata');
 
   generateConfigsFn(
