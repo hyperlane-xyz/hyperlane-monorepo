@@ -23,8 +23,8 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
-    provider: KaspaProvider,
-    hub_mailbox: CosmosNativeMailbox,
+    provider: Box<KaspaProvider>,
+    hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
 }
@@ -36,8 +36,8 @@ where
     pub fn new(
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
-        provider: KaspaProvider,
-        hub_mailbox: CosmosNativeMailbox,
+        provider: Box<KaspaProvider>,
+        hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
         Self {

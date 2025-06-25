@@ -2,9 +2,12 @@ use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
+use std::any::Any;
 use tonic::async_trait;
 
+use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -20,6 +23,7 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 /// dococo
@@ -30,6 +34,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
+    cosmos_rpc: Option<CosmosGrpcClient>, // WARNING: NOT SET ON INIT
 }
 
 impl KaspaProvider {
@@ -57,7 +62,13 @@ impl KaspaProvider {
             easy_wallet,
             rest,
             validators,
+            cosmos_rpc: None,
         })
+    }
+
+    /// dococo
+    pub fn set_cosmos_rpc(&mut self, cosmos_rpc: CosmosGrpcClient) {
+        self.cosmos_rpc = Some(cosmos_rpc);
     }
 
     /// dococo
@@ -70,12 +81,12 @@ impl KaspaProvider {
         &self.validators
     }
 
+    /// dococo
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        todo!()
-        // call on new withdrawals
+        on_new_withdrawals(msgs, self.easy_wallet.clone(), self.cosmos_rpc.clone().unwrap(), self.escrow()).await
     }
 
     /// dococo
@@ -95,6 +106,14 @@ impl KaspaProvider {
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
         todo!()
     }
+
+    fn escrow(&self) -> EscrowPublic {
+        EscrowPublic::from_strs(
+            self.conf.validator_pks.clone(),
+            self.easy_wallet.address_prefix(),
+            self.conf.multisig_threshold_kaspa as u8,
+        )
+    }
 }
 
 impl HyperlaneChain for KaspaProvider {
@@ -111,6 +130,7 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
+
     // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())

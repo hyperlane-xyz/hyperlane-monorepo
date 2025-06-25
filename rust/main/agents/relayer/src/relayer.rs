@@ -50,7 +50,7 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::{is_kas, KaspaProvider};
+use dymension_kaspa::{is_kas, KaspaMailbox, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
@@ -197,7 +197,19 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+        let mut mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+
+        // ~~~~~DYMENSION~~~~~~
+        let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; 
+        match dymension_args.clone() {
+            Some(dymension_args) => {
+                mailboxes.insert(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10), // TODO: fix
+                    Arc::new(dymension_args.kas_mailbox),
+                );
+            }
+            None => {}
+        }
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
@@ -449,14 +461,6 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
-        let d_k_args = Self::get_dymension_kaspa_args(
-            &settings.origin_chains,
-            &core,
-            &core_metrics,
-            &mailboxes,
-        )
-        .await?;
-
         Ok(Self {
             dbs,
             _cache: cache,
@@ -483,7 +487,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
-            dymension_kaspa_args: d_k_args,
+            dymension_kaspa_args: dymension_args,
         })
     }
 
@@ -584,6 +588,7 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) && self.dymension_kaspa_args.is_some() {
+                // TODO: panic if no args
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
@@ -1475,62 +1480,47 @@ impl Relayer {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DymensionKaspaArgs {
-    kas_provider: KaspaProvider,
-    dym_mailbox: CosmosNativeMailbox,
+    kas_provider: Box<KaspaProvider>,
+    kas_mailbox: KaspaMailbox,
+    dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
 impl Relayer {
     async fn get_dymension_kaspa_args(
-        origin_chains: &HashSet<HyperlaneDomain>,
-        core: &HyperlaneAgentCore,
-        core_metrics: &CoreMetrics,
         mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        if !origin_chains.iter().any(|chain| is_kas(chain)) {
-            return Ok(None);
-        }
+        /*
+         TODO: this probably doesnt work, need to find a better way...............................
+         The goal is to inject cosmos rpc into the kas provider
+         Alternatively kas provider can have it's own cosmos rpc client
+        */
 
-        let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
-        let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
-        let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
+        let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
+        let kas_mailbox_trait = mailboxes.get(&kas_domain).unwrap();
+        let kas_mailbox = kas_mailbox_trait
+            .clone()
+            .downcast_arc::<KaspaMailbox>()
+            .unwrap();
+
+        let kas_provider_trait = kas_mailbox_trait.provider();
+        let mut kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+        let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
+        let dym_mailbox = dym_mailbox_i.downcast_arc::<CosmosNativeMailbox>().unwrap();
 
-        let kas_chain_provider = match chain_conf.connection.clone() {
-            ChainConnectionConf::Kaspa(conf) => {
-                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None).await?
-            }
-            _ => panic!("Dymension Kaspa Args: Kaspa provider not found"),
-        };
+        /*
+        The goal here is to finish creation of the kas provider
+        */
+        kas_provider.set_cosmos_rpc(dym_mailbox.provider.grpc().clone());
 
-        // TODO: technically should use destination chains here
-        let conf = origin_chains.get(&dym_domain).cloned().unwrap();
-        let chain_conf = core.settings.chain_setup(&conf).unwrap().to_owned();
-
-        let dym_mailbox = match chain_conf.connection.clone() {
-            ChainConnectionConf::CosmosNative(conf) => {
-                // https://github.com/dymensionxyz/hyperlane-monorepo/blob/512ff25f6c6eaa66e611c5b5aee0c54bf36ec06c/rust/main/hyperlane-base/src/settings/chains.rs#L330
-                let locator = chain_conf.locator(chain_conf.addresses.mailbox);
-                let signer = chain_conf.cosmos_native_signer().await?;
-
-                // TODO: it's ok to have two of these?
-                let dym_provider = build_cosmos_native_provider(
-                    &chain_conf,
-                    &conf,
-                    &core_metrics,
-                    &locator,
-                    signer,
-                )
-                .expect("Failed to build Cosmos Native provider");
-
-                CosmosNativeMailbox::new(dym_provider, locator.clone())?
-            }
-            _ => panic!("Dymension Kaspa Args: Cosmos Native mailbox not found"),
-        };
+        let kas_mailbox = kas_mailbox.with_provider(*kas_provider.clone());
 
         Ok(Some(DymensionKaspaArgs {
-            kas_provider: kas_chain_provider,
+            kas_provider,
+            kas_mailbox,
             dym_mailbox,
         }))
     }

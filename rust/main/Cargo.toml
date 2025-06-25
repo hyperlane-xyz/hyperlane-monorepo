@@ -186,7 +186,7 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
-
+downcast-rs = { version = "2.0.1", features = ["sync"] }
 
 
 ## TODO: remove this

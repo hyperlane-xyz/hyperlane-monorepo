@@ -48,6 +48,7 @@ solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
+downcast-rs = { workspace = true }
 
 hyperlane-application = { path = "../applications/hyperlane-application" }
 

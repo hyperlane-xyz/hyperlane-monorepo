@@ -335,7 +335,7 @@ pub fn build_kaspa_connection_conf(
 
     let validator_ids: Vec<H256> = chain
         .chain(err)
-        .get_key("validatorIDS")
+        .get_key("validatorHLIDs")
         .parse_string()
         .end()?
         .split(',')
@@ -345,6 +345,15 @@ pub fn build_kaspa_connection_conf(
     let validator_hosts: Vec<String> = chain
         .chain(err)
         .get_key("validatorHosts")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    let validator_pubks: Vec<String> = chain
+        .chain(err)
+        .get_key("validatorPubsKaspa")
         .parse_string()
         .end()?
         .split(',')
@@ -376,6 +385,7 @@ pub fn build_kaspa_connection_conf(
             rest_url,
             validator_ids,
             validator_hosts,
+            validator_pubks,
             escrow_address.unwrap().to_string(),
             threshold_ism as usize,
             threshold_escrow as usize,

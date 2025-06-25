@@ -1653,6 +1653,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
+name = "downcast-rs"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
+
+[[package]]
 name = "duct"
 version = "0.13.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2554,6 +2560,7 @@ dependencies = [
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
+ "downcast-rs 2.0.1",
  "eyre",
  "fixed-hash",
  "futures",
@@ -7447,7 +7454,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "borsh 1.5.7",
- "downcast-rs",
+ "downcast-rs 1.2.1",
  "futures",
  "futures-util",
  "getrandom 0.2.16",
@@ -7593,7 +7600,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "cfg-if 1.0.1",
- "downcast-rs",
+ "downcast-rs 1.2.1",
  "futures",
  "futures-util",
  "js-sys",
