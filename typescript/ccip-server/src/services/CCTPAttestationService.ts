@@ -74,10 +74,12 @@ class CCTPAttestationService {
     transactionHash: string,
     logger: Logger,
   ) {
-    const log = logger.child({
-      component: 'CCTPAttestationService',
-    });
     const version = this._getCCTPVersionFromMessage(cctpMessage);
+
+    const context = {
+      cctpMessage,
+      transactionHash,
+    };
 
     let url;
     if (version == this.CCTP_VERSION_1) {
@@ -85,10 +87,9 @@ class CCTPAttestationService {
     } else if (version == this.CCTP_VERSION_2) {
       url = this._getAttestationUrlV2(cctpMessage, transactionHash);
     } else {
-      log.error(
+      logger.error(
         {
-          cctpMessage,
-          transactionHash,
+          ...context,
           version,
         },
         'Unsupported CCTP version',
@@ -106,10 +107,9 @@ class CCTPAttestationService {
 
     if (!resp.ok) {
       if (resp.status === 500) {
-        log.error(
+        logger.error(
           {
-            cctpMessage,
-            transactionHash,
+            ...context,
             status: resp.status,
             statusText: resp.statusText,
           },
@@ -120,10 +120,9 @@ class CCTPAttestationService {
       }
 
       if (resp.status === 404) {
-        log.info(
+        logger.info(
           {
-            cctpMessage,
-            transactionHash,
+            ...context,
           },
           'CCTP attestation not found',
         );
@@ -131,10 +130,9 @@ class CCTPAttestationService {
       }
 
       // This should not happen according to the CCTP API spec, but we'll log it just in case
-      log.error(
+      logger.error(
         {
-          cctpMessage,
-          transactionHash,
+          ...context,
           status: resp.status,
           statusText: resp.statusText,
         },

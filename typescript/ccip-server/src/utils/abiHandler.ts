@@ -36,11 +36,8 @@ export function createAbiHandler<
 ) {
   const iface = contractFactory.createInterface();
   return async (req: Request, res: Response) => {
-    // Create ABI handler logger for this handler's logging
-    const handlerLogger = req.log.child({
-      handler: 'abiHandler',
-      function: functionName as string,
-    });
+    const handlerLogger = req.log;
+    handlerLogger.setBindings({ function: functionName as string });
 
     try {
       const { skipResultEncoding = false, verifyRelayerSignatureUrl } = options;

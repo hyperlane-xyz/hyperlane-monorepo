@@ -72,9 +72,9 @@ export class CallCommitmentsService extends BaseService {
   }
 
   public async handleCommitment(req: Request, res: Response) {
-    const log = this.getServiceLogger(req.log);
+    const logger = this.getServiceLogger(req.log);
 
-    const data = this.parseCommitmentBody(req.body, res, log);
+    const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
 
     const commitment = commitmentFromIcaCalls(
@@ -82,7 +82,7 @@ export class CallCommitmentsService extends BaseService {
       data.salt,
     );
 
-    log.info(
+    logger.info(
       {
         commitment,
         callsCount: data.calls.length,
@@ -96,11 +96,11 @@ export class CallCommitmentsService extends BaseService {
       ({ ica, revealMessageId } = await this.validateCommitmentEvents(
         data,
         commitment,
-        log,
+        logger,
       ));
     } catch (error: any) {
       // TODO: distinguish between infrastructure vs client errors
-      log.warn(
+      logger.warn(
         {
           commitment,
           error: error.message,
@@ -119,7 +119,7 @@ export class CallCommitmentsService extends BaseService {
       });
 
       if (existingRecord) {
-        log.info(
+        logger.info(
           {
             commitment,
             revealMessageId,
@@ -133,10 +133,10 @@ export class CallCommitmentsService extends BaseService {
       await this.insertCommitmentToDB(
         commitment,
         { ...data, ica, revealMessageId },
-        log,
+        logger,
       );
     } catch (error: any) {
-      log.error(
+      logger.error(
         {
           commitment,
           error: error.message,
@@ -149,7 +149,7 @@ export class CallCommitmentsService extends BaseService {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    log.info({ commitment }, 'Commitment processing completed successfully');
+    logger.info({ commitment }, 'Commitment processing completed successfully');
     return res.sendStatus(200);
   }
 
@@ -221,8 +221,6 @@ export class CallCommitmentsService extends BaseService {
     commitment: string,
     logger: Logger,
   ): string {
-    const log = this.getServiceLogger(logger);
-
     const iface = InterchainAccountRouter__factory.createInterface();
     const dispatchIdTopic =
       Mailbox__factory.createInterface().getEventTopic('DispatchId');
@@ -235,7 +233,7 @@ export class CallCommitmentsService extends BaseService {
         iface.parseLog(log).args.commitment === commitment,
     );
     if (revealIndex === -1) {
-      log.warn(
+      logger.warn(
         { receipt, commitment },
         'CommitRevealDispatched event not found in logs',
       );
@@ -248,7 +246,7 @@ export class CallCommitmentsService extends BaseService {
       .filter((log) => log.topics[0] === dispatchIdTopic);
 
     if (dispatchLogsAfterReveal.length < 2) {
-      log.warn(
+      logger.warn(
         { receipt, commitment },
         'Not enough DispatchId events after CommitRevealDispatched',
       );
@@ -265,12 +263,10 @@ export class CallCommitmentsService extends BaseService {
    * Returns parsed data or sends a 400 response and returns null.
    */
   private parseCommitmentBody(body: any, res: Response, logger: Logger) {
-    const log = this.getServiceLogger(logger);
-
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       const errors = result.error.flatten().fieldErrors;
-      log.warn({ errors, body }, 'Invalid request body received');
+      logger.warn({ errors, body }, 'Invalid request body received');
       res.status(400).json({ errors });
       return null;
     }
@@ -288,8 +284,6 @@ export class CallCommitmentsService extends BaseService {
     },
     logger: Logger,
   ) {
-    const log = this.getServiceLogger(logger);
-
     const {
       calls,
       relayers,
@@ -313,7 +307,7 @@ export class CallCommitmentsService extends BaseService {
       },
     });
 
-    log.info(
+    logger.info(
       {
         commitment,
         revealMessageId,
@@ -330,9 +324,7 @@ export class CallCommitmentsService extends BaseService {
    * Throws if not found.
    */
   private async fetchCommitmentRecord(revealMessageId: string, logger: Logger) {
-    const log = this.getServiceLogger(logger);
-
-    log.debug(
+    logger.debug(
       { revealMessageId },
       'Fetching commitment from DB with revealMessageId',
     );
@@ -342,7 +334,7 @@ export class CallCommitmentsService extends BaseService {
     });
 
     if (!record) {
-      log.warn(
+      logger.warn(
         { revealMessageId },
         'Commitment not found in DB with revealMessageId',
       );
@@ -352,7 +344,7 @@ export class CallCommitmentsService extends BaseService {
     }
 
     const parsed = CommitmentRecordSchema.parse(record);
-    log.debug(
+    logger.debug(
       { commitment: parsed.commitment },
       'Successfully fetched commitment record',
     );
@@ -370,15 +362,13 @@ export class CallCommitmentsService extends BaseService {
     commitment: string,
     logger: Logger,
   ): Promise<{ ica: string; revealMessageId: string }> {
-    const log = this.getServiceLogger(logger);
-
     const provider = this.multiProvider.getProvider(data.originDomain);
     const receipt = await provider.getTransactionReceipt(
       data.commitmentDispatchTx,
     );
 
     if (!receipt) {
-      log.error(
+      logger.error(
         {
           transactionHash: data.commitmentDispatchTx,
           originDomain: data.originDomain,
@@ -390,7 +380,7 @@ export class CallCommitmentsService extends BaseService {
       );
     }
 
-    log.info(
+    logger.info(
       {
         transactionHash: receipt.transactionHash,
         commitment,
@@ -404,17 +394,17 @@ export class CallCommitmentsService extends BaseService {
       this.extractRevealMessageIdAndValidateDispatchedCommitment(
         receipt,
         commitment,
-        log,
+        logger,
       );
 
     // 3) Derive ICA from RemoteCallDispatched
     const ica = await this.deriveIcaFromRemoteCallDispatched(
       receipt,
       data.originDomain,
-      log,
+      logger,
     );
 
-    log.info(
+    logger.info(
       {
         commitment,
         ica,
@@ -434,13 +424,11 @@ export class CallCommitmentsService extends BaseService {
     originDomain: number,
     logger: Logger,
   ): Promise<string> {
-    const log = this.getServiceLogger(logger);
-
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
     const callLog = receipt.logs.find((l) => l.topics[0] === callTopic);
     if (!callLog) {
-      log.warn({ receipt }, 'RemoteCallDispatched event not found');
+      logger.warn({ receipt }, 'RemoteCallDispatched event not found');
       throw new Error('RemoteCallDispatched event not found');
     }
     const parsedCall = iface.parseLog(callLog);

@@ -27,11 +27,8 @@ class HyperlaneService {
     id: string,
     logger: Logger,
   ): Promise<MessageTx> {
-    const log = logger.child({
-      component: 'HyperlaneService',
-    });
+    logger.info({ messageId: id }, 'Fetching block for message ID');
 
-    log.info({ messageId: id }, 'Fetching block for message ID');
     const response = await fetch(
       `${this.baseUrl}?module=message&action=${API_ACTION.GetMessages}&id=${id}`,
     );
@@ -39,7 +36,7 @@ class HyperlaneService {
     if (responseAsJson.status === '1') {
       return responseAsJson.result[0]?.origin;
     } else {
-      log.warn(
+      logger.warn(
         {
           messageId: id,
           responseAsJson,
@@ -59,11 +56,7 @@ class HyperlaneService {
     id: string,
     logger: Logger,
   ): Promise<string> {
-    const log = logger.child({
-      component: 'HyperlaneService',
-    });
-
-    log.info({ messageId: id }, 'Fetching transaction hash for message ID');
+    logger.info({ messageId: id }, 'Fetching transaction hash for message ID');
 
     const body = JSON.stringify({
       query: `query ($search: bytea) {
@@ -96,7 +89,7 @@ class HyperlaneService {
     });
 
     if (response.status === 500) {
-      log.error(
+      logger.error(
         {
           messageId: id,
         },
@@ -112,13 +105,13 @@ class HyperlaneService {
 
     if (responseAsJson.length > 0) {
       const txHash = responseAsJson[0]?.origin_tx_hash.replace('\\x', '0x');
-      log.info(
+      logger.info(
         { messageId: id, txHash },
         'Successfully retrieved transaction hash',
       );
       return txHash;
     } else {
-      log.warn(
+      logger.warn(
         {
           messageId: id,
           responseAsJson,

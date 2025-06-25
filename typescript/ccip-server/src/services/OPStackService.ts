@@ -134,9 +134,8 @@ export class OPStackService extends BaseService {
     message: BytesLike,
     logger: Logger,
   ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
-    const log = this.getServiceLogger(logger);
     const messageId: string = ethers.utils.keccak256(message);
-    log.info({ messageId }, 'Getting withdrawal and proof for message');
+    logger.info({ messageId }, 'Getting withdrawal and proof for message');
 
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
@@ -148,7 +147,7 @@ export class OPStackService extends BaseService {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    log.info({ txHash }, 'Found tx');
+    logger.info({ txHash }, 'Found tx');
 
     const receipt =
       await this.l2RpcService.provider.getTransactionReceipt(txHash);
@@ -166,6 +165,7 @@ export class OPStackService extends BaseService {
   /**
    * Gets the account and single storage proof from eth_getProof
    * @param transactionHash Transaction containing the MessagePassed event
+   * @param logger Logger for request context
    * @returns The encoded
    */
   async getWithdrawalProof([message]: ethers.utils.Result, logger: Logger) {
@@ -201,6 +201,7 @@ export class OPStackService extends BaseService {
   /**
    * Gets the account and single storage proof from eth_getProof
    * @param transactionHash Transaction containing the MessagePassed event
+   * @param logger Logger for request context
    * @returns The encoded
    */
   async getFinalizeWithdrawalTx(

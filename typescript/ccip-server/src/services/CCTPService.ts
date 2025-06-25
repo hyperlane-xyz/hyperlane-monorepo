@@ -82,9 +82,7 @@ class CCTPService extends BaseService {
     receipt: ethers.providers.TransactionReceipt,
     logger: Logger,
   ) {
-    const log = this.getServiceLogger(logger);
-
-    log.debug(
+    logger.debug(
       {
         transactionHash: receipt.transactionHash,
         logsCount: receipt.logs.length,
@@ -99,7 +97,7 @@ class CCTPService extends BaseService {
       try {
         const parsedLog = iface.parseLog(receiptLog);
         if (parsedLog.name === event.name) {
-          log.debug(
+          logger.debug(
             { cctpMessage: parsedLog.args.message },
             'Found CCTP MessageSent event',
           );
@@ -111,7 +109,7 @@ class CCTPService extends BaseService {
       }
     }
 
-    log.error(
+    logger.error(
       { transactionHash: receipt.transactionHash },
       'Unable to find MessageSent event in logs',
     );
