@@ -340,6 +340,9 @@ impl AdaptsChain for EthereumAdapter {
 
         info!(?tx, "simulating transaction with batching");
 
+        // Load payloads from the database first so that remote call of simulation is not wasted
+        let payloads = self.load_payloads(tx).await?;
+
         let precursor = tx.precursor().clone();
 
         let (successful, failed) = self
@@ -347,7 +350,6 @@ impl AdaptsChain for EthereumAdapter {
             .simulate((precursor.tx, precursor.function))
             .await?;
 
-        let payloads = self.load_payloads(tx).await?;
         let payloads_successful = Self::filter(&payloads, successful);
         let payloads_details_failed = Self::filter(
             &tx.payload_details,
