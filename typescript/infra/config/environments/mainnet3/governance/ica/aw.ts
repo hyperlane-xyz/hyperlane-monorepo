@@ -106,7 +106,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Dec 4, 2024 batch
   // ----------------------------------------------------------
-  // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
   lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 
@@ -163,7 +162,12 @@ export const awIcas: ChainMap<Address> = {
   opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
 
-  // Jun 5, 2025 - oUSDT
+  // Jun 5, 2025 - oUSDT v2
   // ----------------------------------------------------------
   hashkey: '0xEE01c007f89c9255f43b91B591b93cD1459048D1',
+
+  // Jun 21, 2025 - oUSDT v3
+  // ----------------------------------------------------------
+  swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687',
+  botanix: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9',
 } as const;

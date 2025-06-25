@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
