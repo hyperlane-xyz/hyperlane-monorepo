@@ -34,8 +34,6 @@ export async function getEvmHookUpdateTransactions(
   clientContractAddress: string,
   updateHookParams: Readonly<UpdateHookParams>,
 ): Promise<AnnotatedEV5Transaction[]> {
-  const updateTransactions: AnnotatedEV5Transaction[] = [];
-
   const {
     actualConfig: actualHookConfig,
     evmChainName,
@@ -75,13 +73,8 @@ export async function getEvmHookUpdateTransactions(
   logger.info(
     `Comparing target Hook config with current one for ${evmChainName} chain`,
   );
-  const hookUpdateTransactions = await hookModule.update(
-    deepCopy(expectedConfig),
-  );
+  const updateTransactions = await hookModule.update(deepCopy(expectedConfig));
   const { deployedHook: currentHookAddress } = hookModule.serialize();
-
-  // If a Hook is updated in-place, push the update txs
-  updateTransactions.push(...hookUpdateTransactions);
 
   // If a new Hook is deployed, push the tx to set the hook on the client contract
   if (!eqAddress(expectedHookAddress, currentHookAddress)) {

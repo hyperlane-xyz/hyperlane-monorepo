@@ -157,11 +157,10 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    const normalizedTargetConfig = normalizeConfig(
+    // We need to normalize the current and target configs to compare.
+    const normalizedTargetConfig: DerivedHookConfig = normalizeConfig(
       await this.reader.deriveHookConfig(targetConfig),
     );
-
-    // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig: DerivedHookConfig | string = normalizeConfig(
       await this.read(),
     );
@@ -171,7 +170,7 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    // Update the module config to the targe tone as we are sure now that an update will be needed
+    // Update the module config to the target one as we are sure now that an update will be needed
     this.args.config = normalizedTargetConfig;
 
     // if the new config is an address just point the module to the new address
