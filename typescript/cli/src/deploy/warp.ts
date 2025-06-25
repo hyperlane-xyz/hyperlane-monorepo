@@ -31,6 +31,7 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
+  SubmissionStrategySchema,
   TokenFactories,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
@@ -46,6 +47,7 @@ import {
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
+  getSubmitterBuilder,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -71,12 +73,13 @@ import {
   logTable,
   warnYellow,
 } from '../logger.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
+import { WarpSendLogs } from '../send/transfer.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {
   completeDeploy,
@@ -95,6 +98,7 @@ interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  selfRelay?: boolean;
   warpRouteId?: string;
 }
 
@@ -797,13 +801,12 @@ async function submitWarpApplyTransactions(
           async () => {
             const chain = chainIdToName[chainId];
             const isExtendedChain = extendedChains.includes(chain);
-            const submitter: TxSubmitterBuilder<ProtocolType> =
-              await getWarpApplySubmitter({
-                chain,
-                context: params.context,
-                strategyUrl: params.strategyUrl,
-                isExtendedChain,
-              });
+            const { submitter, config } = await getWarpApplySubmitter({
+              chain,
+              context: params.context,
+              strategyUrl: params.strategyUrl,
+              isExtendedChain,
+            });
             const transactionReceipts = await submitter.submit(...transactions);
             if (transactionReceipts) {
               const receiptPath = `${params.receiptsDir}/${chain}-${
@@ -813,6 +816,32 @@ async function submitWarpApplyTransactions(
               logGreen(
                 `Transactions receipts successfully written to ${receiptPath}`,
               );
+            }
+
+            const canRelay = canSelfRelay(
+              params.selfRelay ?? false,
+              config,
+              transactionReceipts,
+            );
+
+            if (!canRelay.relay) {
+              return;
+            }
+
+            // if self relaying does not work (possibly because metadata cannot be built yet)
+            // we don't want to rerun the complete code block as this will result in
+            // the update transactions being sent multiple times
+            try {
+              await retryAsync(() =>
+                runSelfRelay({
+                  txReceipt: canRelay.txReceipt,
+                  multiProvider: params.context.multiProvider,
+                  registry: params.context.registry,
+                  successMessage: WarpSendLogs.SUCCESS,
+                }),
+              );
+            } catch (error) {
+              warnYellow(`Error when self-relaying Warp transaction`, error);
             }
           },
           5, // attempts
@@ -831,7 +860,7 @@ async function submitWarpApplyTransactions(
  *
  * @returns the warp apply submitter
  */
-async function getWarpApplySubmitter({
+async function getWarpApplySubmitter<T extends ProtocolType>({
   chain,
   context,
   strategyUrl,
@@ -841,8 +870,11 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   strategyUrl?: string;
   isExtendedChain?: boolean;
-}): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { multiProvider } = context;
+}): Promise<{
+  submitter: TxSubmitterBuilder<T>;
+  config: SubmissionStrategy;
+}> {
+  const { multiProvider, registry } = context;
 
   const submissionStrategy: SubmissionStrategy =
     strategyUrl && !isExtendedChain
@@ -854,8 +886,12 @@ async function getWarpApplySubmitter({
           },
         };
 
-  return getSubmitterBuilder<ProtocolType>({
-    submissionStrategy,
-    multiProvider,
-  });
+  return {
+    submitter: await getSubmitterBuilder<T>({
+      submissionStrategy: SubmissionStrategySchema.parse(submissionStrategy),
+      multiProvider,
+      registry,
+    }),
+    config: submissionStrategy,
+  };
 }
