@@ -260,7 +260,7 @@ export async function buildInterchainAccountApp(
 
     // for each known chain get the ica router address and remove the undefined values
     remoteIcaAddresses = objFilter(
-      objMap(addressByChain, (_chainId, chainAddresses) => ({
+      objMap(addressByChain, (_, chainAddresses) => ({
         interchainAccountRouter: chainAddresses.interchainAccountRouter,
       })),
       (
