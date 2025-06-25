@@ -64,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-24.04
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
