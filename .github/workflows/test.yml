@@ -64,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-24.04-small
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,7 +84,7 @@ jobs:
       - name: lint
         run: yarn lint
         env:
-          NODE_OPTIONS: --max_old_space_size=1536
+          NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
