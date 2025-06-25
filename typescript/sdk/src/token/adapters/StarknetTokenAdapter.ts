@@ -305,8 +305,8 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
-      recipient,
-      amount,
+      cairo.uint256(addressToBytes32(recipient)),
+      cairo.uint256(amount),
       cairo.uint256(totalAmount),
       nonOption,
       nonOption,
