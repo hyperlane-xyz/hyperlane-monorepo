@@ -53,6 +53,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
@@ -812,10 +813,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.chainName,
       expectedConfig,
     );
-    const implementation = await deployer.deployContract(
+    const implementation = await deployer.deployContractWithName(
       this.chainName,
       expectedConfig.type,
+      hypERC20contracts[expectedConfig.type],
       constructorArgs,
+      undefined,
+      false,
     );
 
     const provider = this.multiProvider.getProvider(this.domainId);
