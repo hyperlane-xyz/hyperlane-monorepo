@@ -72,11 +72,11 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
+        _addBridge(domain, bridge);
+    }
+
+    function _addBridge(uint32 domain, ITokenBridge bridge) internal virtual {
         _allowedBridges[domain].add(address(bridge));
-        address token = _token();
-        if (token != address(0)) {
-            IERC20(token).safeApprove(address(bridge), type(uint256).max);
-        }
     }
 
     function removeBridge(
@@ -84,6 +84,19 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         ITokenBridge bridge
     ) external onlyOwner {
         _allowedBridges[domain].remove(address(bridge));
+    }
+
+    /**
+     * @notice Approves the token for the bridge.
+     * @param token The token to approve.
+     * @param bridge The bridge to approve the token for.
+     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     */
+    function approveTokenForBridge(
+        IERC20 token,
+        ITokenBridge bridge
+    ) external onlyOwner {
+        token.safeApprove(address(bridge), type(uint256).max);
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
@@ -115,24 +128,28 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
             amount
         );
 
-        uint256 nativeAmount = 0;
-        uint256 tokenAmount = 0;
+        uint256 collateralFee = 0;
         for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == _token()) {
-                tokenAmount += quotes[i].amount;
-            }
-
-            if (quotes[i].token == address(0)) {
-                nativeAmount += quotes[i].amount;
+            if (quotes[i].token == token()) {
+                collateralFee += quotes[i].amount;
             }
         }
 
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
-        _transferFromSender(tokenAmount - amount);
+        if (collateralFee > amount) {
+            _transferFromSender(collateralFee - amount);
+        }
 
-        bridge.transferRemote{value: nativeAmount}(domain, recipient, amount);
+        uint256 nativeValue = _nativeRebalanceValue(amount);
+        bridge.transferRemote{value: nativeValue}(domain, recipient, amount);
         emit CollateralMoved(domain, recipient, amount, msg.sender);
+    }
+
+    function _nativeRebalanceValue(
+        uint256 amount
+    ) internal virtual returns (uint256 nativeValue) {
+        return msg.value;
     }
 
     function _recipient(

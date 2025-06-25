@@ -14,8 +14,7 @@ abstract contract LpCollateralRouter is
     event Donation(address sender, uint256 amount);
 
     function _LpCollateralRouter_initialize() internal onlyInitializing {
-        _FungibleTokenRouter_initialize();
-        __ERC4626_init(IERC20Upgradeable(_token()));
+        __ERC4626_init(IERC20Upgradeable(token()));
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -23,7 +22,7 @@ abstract contract LpCollateralRouter is
     }
 
     function asset() public view override returns (address) {
-        return _token();
+        return token();
     }
 
     // modeled after ERC4626Upgradeable._deposit

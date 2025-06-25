@@ -56,12 +56,16 @@ contract HypERC20Collateral is LpCollateralRouter {
         address _owner
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        _FungibleTokenRouter_initialize();
         _LpCollateralRouter_initialize();
     }
 
-    function _token() internal view override returns (address) {
+    function token() public view virtual override returns (address) {
         return address(wrappedToken);
+    }
+
+    function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
+        MovableCollateralRouter._addBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
     }
 
     /**

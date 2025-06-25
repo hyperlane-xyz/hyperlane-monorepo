@@ -2,9 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./TokenRouter.sol";
-import {Quote} from "../../interfaces/ITokenBridge.sol";
-import {ITokenFee} from "../interfaces/ITokenFee.sol";
-import {ZeroFee} from "../fees/ZeroFee.sol";
+import {Quote, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 
 /**
  * @title Hyperlane Fungible Token Router that extends TokenRouter with scaling logic for fungible tokens with different decimals.
@@ -13,18 +11,21 @@ import {ZeroFee} from "../fees/ZeroFee.sol";
 abstract contract FungibleTokenRouter is TokenRouter {
     uint256 public immutable scale;
 
-    ZeroFee public immutable zeroFeeRecipient = new ZeroFee();
     ITokenFee public feeRecipient;
 
     constructor(uint256 _scale, address _mailbox) TokenRouter(_mailbox) {
         scale = _scale;
-        feeRecipient = zeroFeeRecipient;
     }
 
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
+        // allows for address(0) to be set, which disables fees
         feeRecipient = ITokenFee(_feeRecipient);
     }
 
+    /**
+     * @inheritdoc ITokenFee
+     * @dev Returns fungible fee and bridge amounts separately for client to easily distinguish.
+     */
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -36,32 +37,41 @@ abstract contract FungibleTokenRouter is TokenRouter {
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
         quotes[1] = Quote({
-            token: _token(),
-            amount: _quoteTransferFee(_amount) + _amount
+            token: token(),
+            amount: _feeAmount(_destination, _recipient, _amount) + _amount
         });
+        return quotes;
     }
 
-    function _FungibleTokenRouter_initialize()
-        internal
-        virtual
-        onlyInitializing
-    {
-        // default to 0% fee for now
-        feeRecipient = zeroFeeRecipient;
-    }
+    function token() public view virtual returns (address);
 
-    function _token() internal view virtual returns (address);
-
-    function _quoteTransferFee(
+    function _feeAmount(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256) {
-        return feeRecipient.quoteTransfer(_amount);
+    ) internal view virtual returns (uint256 feeAmount) {
+        if (address(feeRecipient) == address(0)) {
+            return 0;
+        }
+
+        Quote[] memory quotes = feeRecipient.quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+        require(
+            quotes.length == 1 && quotes[0].token == token(),
+            "FungibleTokenRouter: fee must match token"
+        );
+        return quotes[0].amount;
     }
 
     function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
     ) internal virtual override returns (bytes memory metadata) {
-        uint256 fee = _quoteTransferFee(_amount);
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
         metadata = _transferFromSender(_amount + fee);
         if (fee > 0) {
             _transferTo(address(feeRecipient), fee);

@@ -37,6 +37,25 @@ contract HypNative is LpCollateralRouter {
         _LpCollateralRouter_initialize();
     }
 
+    // override for single unified quote
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view virtual override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount) +
+                _feeAmount(_destination, _recipient, _amount) +
+                _amount
+        });
+    }
+
+    function token() public view virtual override returns (address) {
+        return address(0);
+    }
+
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -53,14 +72,10 @@ contract HypNative is LpCollateralRouter {
                 _destination,
                 _recipient,
                 _amount,
-                _value - _amount,
+                msg.value - _amount,
                 _hookMetadata,
                 _hook
             );
-    }
-
-    function _token() internal view override returns (address) {
-        return address(0);
     }
 
     /**
@@ -71,6 +86,16 @@ contract HypNative is LpCollateralRouter {
     ) internal virtual override returns (bytes memory) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         return bytes(""); // no metadata
+    }
+
+    function _nativeRebalanceValue(
+        uint256 collateralAmount
+    ) internal override returns (uint256 nativeValue) {
+        nativeValue = msg.value + collateralAmount;
+        require(
+            address(this).balance >= nativeValue,
+            "Native: rebalance amount exceeds balance"
+        );
     }
 
     /**

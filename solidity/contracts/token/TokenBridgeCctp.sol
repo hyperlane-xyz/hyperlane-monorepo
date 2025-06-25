@@ -87,7 +87,6 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         setUrls(__urls);
         // ISM should not be set
         _MailboxClient_initialize(_hook, address(0), _owner);
-        _FungibleTokenRouter_initialize();
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
@@ -202,7 +201,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32 messageId) {
-        HypERC20Collateral._transferFromSender(_amount);
+        _chargeSender(_destination, _recipient, _amount);
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint64 nonce = tokenMessenger.depositForBurn(

@@ -31,21 +31,27 @@ contract MockITokenBridgeEth is ITokenBridge {
 
 contract HypNativeMovableTest is Test {
     HypNative internal router;
-    MockITokenBridgeEth internal vtb;
+    HypNative internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
 
     function setUp() public {
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
-        router = new HypNative(1e18, address(new MockMailbox(uint32(1))));
+        address mailbox = address(new MockMailbox(uint32(1)));
+        MockMailbox(mailbox).addRemoteMailbox(
+            destinationDomain,
+            MockMailbox(mailbox)
+        );
+        router = new HypNative(1, mailbox);
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
         router.enrollRemoteRouter(
             destinationDomain,
             bytes32(uint256(uint160(0)))
         );
-        vtb = new MockITokenBridgeEth();
+        vtb = new HypNative(1, mailbox);
+        vtb.enrollRemoteRouter(destinationDomain, bytes32(uint256(uint160(0))));
     }
 
     function testMovingCollateral() public {
