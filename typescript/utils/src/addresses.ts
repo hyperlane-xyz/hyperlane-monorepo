@@ -334,7 +334,7 @@ export function addressToBytesCosmosNative(address: Address): Uint8Array {
 }
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
-  const normalizedAddress = normalizeAddressStarknet(address);
+  const normalizedAddress = validateAndParseAddress(address);
   return num.hexToBytes(normalizedAddress);
 }
 
