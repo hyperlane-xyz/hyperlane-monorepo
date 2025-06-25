@@ -61,6 +61,7 @@ async function startServer() {
 
       app.use(`/${name}`, (req, res, next) => {
         res.on('finish', () => {
+          // TODO: add a success label to the metric, once we properly distinguish unhandled errors from handled errors
           PrometheusMetrics.logLookupRequest(name, res.statusCode);
         });
         next();

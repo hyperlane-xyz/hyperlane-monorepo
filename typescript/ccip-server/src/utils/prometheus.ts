@@ -11,6 +11,7 @@ const requestCounter = new Counter({
   registers: [register],
 });
 
+// TODO: eventually deprecate this metric, once we properly distinguish unhandled errors from handled errors
 const unhandledErrorCounter = new Counter({
   name: 'hyperlane_offchain_lookup_server_unhandled_errors',
   help: 'Total number of unhandled errors',
