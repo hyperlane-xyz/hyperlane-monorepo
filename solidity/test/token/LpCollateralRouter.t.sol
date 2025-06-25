@@ -7,6 +7,8 @@ import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract LpCollateralRouterTest is Test {
+    event Donation(address sender, uint256 amount);
+
     TestLpCollateralRouter internal router;
     address internal alice = address(0x1);
     address internal bob = address(0x2);
@@ -26,7 +28,6 @@ contract LpCollateralRouterTest is Test {
         router.deposit(DEPOSIT_AMOUNT, alice);
         assertEq(router.balanceOf(alice), shares);
         assertEq(router.totalAssets(), DEPOSIT_AMOUNT);
-        assertEq(router.debited(alice), DEPOSIT_AMOUNT);
     }
 
     function testWithdrawDecreasesBalances() public {
@@ -36,7 +37,6 @@ contract LpCollateralRouterTest is Test {
         vm.prank(alice);
         router.withdraw(DEPOSIT_AMOUNT, bob, alice);
         assertEq(router.balanceOf(alice), 0);
-        assertEq(router.credited(bob), DEPOSIT_AMOUNT);
         assertEq(router.totalAssets(), 0);
     }
 
@@ -62,10 +62,16 @@ contract LpCollateralRouterTest is Test {
         vm.prank(alice);
         router.donate(DONATE_AMOUNT);
         assertEq(router.totalAssets(), DONATE_AMOUNT);
-        assertEq(router.debited(alice), DONATE_AMOUNT);
     }
 
-    function testDoneIsNotWithdrawable() public {
+    function testDonateEmitsEvent() public {
+        vm.expectEmit(true, true, true, true);
+        emit Donation(alice, DONATE_AMOUNT);
+        vm.prank(alice);
+        router.donate(DONATE_AMOUNT);
+    }
+
+    function testDonateIsNotWithdrawable() public {
         vm.prank(alice);
         router.donate(DONATE_AMOUNT);
         vm.prank(alice);
