@@ -42,6 +42,8 @@ const deploymentChains = [
   'metal',
   'bob',
   'hashkey',
+  'swell',
+  'botanix',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
@@ -63,7 +65,7 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   optimism: upperBufferCap,
   base: upperBufferCap,
   unichain: upperBufferCap,
-  ink: '0',
+  ink: middleBufferCap,
   soneium: lowerBufferCap,
   mode: lowerBufferCap,
   fraxtal: lowerBufferCap,
@@ -79,6 +81,8 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metal: lowerBufferCap,
   bob: lowerBufferCap,
   hashkey: lowerBufferCap,
+  swell: middleBufferCap,
+  botanix: middleBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -89,7 +93,7 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   optimism: productionDefaultRateLimitPerSecond,
   base: productionDefaultRateLimitPerSecond,
   unichain: productionDefaultRateLimitPerSecond,
-  ink: '0',
+  ink: middleRateLimitPerSecond,
   soneium: lowerRateLimitPerSecond,
   mode: lowerRateLimitPerSecond,
   fraxtal: lowerRateLimitPerSecond,
@@ -105,12 +109,22 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metal: lowerRateLimitPerSecond,
   bob: lowerRateLimitPerSecond,
   hashkey: lowerRateLimitPerSecond,
+  swell: middleRateLimitPerSecond,
+  botanix: middleRateLimitPerSecond,
 };
 
-const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = ['bob', 'hashkey'];
+const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = [
+  'bob',
+  'hashkey',
+  'swell',
+  'botanix',
+];
+const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
-    if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
+    if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
+      acc[chain] = DEPLOYER;
+    } else if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       assert(awIcas[chain], `ICA for ${chain} not found`);
       acc[chain] = awIcas[chain];
     } else {
@@ -206,6 +220,14 @@ const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
     collateralToken: productionOwnerByChain.hashkey,
     collateralProxyAdmin: productionOwnerByChain.hashkey,
   },
+  swell: {
+    collateralToken: productionOwnerByChain.swell,
+    collateralProxyAdmin: productionOwnerByChain.swell,
+  },
+  botanix: {
+    collateralToken: productionOwnerByChain.botanix,
+    collateralProxyAdmin: productionOwnerByChain.botanix,
+  },
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
@@ -222,13 +244,14 @@ const zeroLimits: XERC20LimitConfig = {
 };
 
 const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
-  ethereum: '0xCe19f75BCE7Fb74c9e2328766Ebe50465df24CA3',
+  ethereum: '0xa3532633401AbFfbd15e6be825a45FB7F141469B',
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
   sonic: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
   bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   hashkey: '0x55aeb80Aa6Ab34aA83E1F387903F8Bb2Aa9e2F2d',
+  botanix: '0x0EEFa8b75587bcD4A909a0F3c36180D4441481a0',
 };
 
 const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
@@ -306,6 +329,12 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
+  botanix: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.botanix,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
 };
 
 const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
@@ -330,6 +359,8 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metal: productionXERC20TokenAddress,
   bob: productionXERC20TokenAddress,
   hashkey: productionXERC20TokenAddress,
+  swell: productionXERC20TokenAddress,
+  botanix: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -356,6 +387,8 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   metal: stagingDefaultBufferCap,
   bob: stagingDefaultBufferCap,
   hashkey: stagingDefaultBufferCap,
+  swell: stagingDefaultBufferCap,
+  botanix: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
 const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
@@ -380,6 +413,8 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   metal: stagingDefaultRateLimitPerSecond,
   bob: stagingDefaultRateLimitPerSecond,
   hashkey: stagingDefaultRateLimitPerSecond,
+  swell: stagingDefaultRateLimitPerSecond,
+  botanix: stagingDefaultRateLimitPerSecond,
 };
 
 const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> =
@@ -416,6 +451,8 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   metal: stagingXERC20TokenAddress,
   bob: stagingXERC20TokenAddress,
   hashkey: stagingXERC20TokenAddress,
+  swell: stagingXERC20TokenAddress,
+  botanix: stagingXERC20TokenAddress,
 };
 
 const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
