@@ -143,6 +143,10 @@ abstract contract HypTokenTest is Test {
         );
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view virtual returns (uint256);
+
     function _connectRouters(
         uint32[] memory _domains,
         bytes32[] memory _addresses
@@ -352,8 +356,8 @@ abstract contract HypTokenTest is Test {
             uint256 recipientBalance
         )
     {
-        senderBalance = localToken.balanceOf(sender);
-        beneficiaryBalance = localToken.balanceOf(address(feeContract));
+        senderBalance = _localTokenBalanceOf(sender);
+        beneficiaryBalance = _localTokenBalanceOf(address(feeContract));
         recipientBalance = remoteToken.balanceOf(recipient);
     }
 }
@@ -395,6 +399,12 @@ contract HypERC20Test is HypTokenTest {
         erc20Token.transfer(ALICE, 1000e18);
 
         _enrollRemoteTokenRouter();
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return HypERC20(address(localToken)).balanceOf(_account);
     }
 
     function testInitialize_revert_ifAlreadyInitialized() public {
@@ -487,6 +497,12 @@ contract HypERC20CollateralTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(primaryToken).balanceOf(_account);
+    }
+
     function test_constructor_revert_ifInvalidToken() public {
         vm.expectRevert("HypERC20Collateral: invalid token");
         new HypERC20Collateral(address(0), SCALE, address(localMailbox));
@@ -495,12 +511,12 @@ contract HypERC20CollateralTest is HypTokenTest {
     function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testRemoteTransfer_invalidAllowance() public {
@@ -511,13 +527,13 @@ contract HypERC20CollateralTest is HypTokenTest {
             BOB.addressToBytes32(),
             TRANSFER_AMT
         );
-        assertEq(localToken.balanceOf(ALICE), 1000e18);
+        assertEq(_localTokenBalanceOf(ALICE), 1000e18);
     }
 
     function testRemoteTransfer_withCustomGasConfig() public {
         _setCustomGasConfig();
 
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
@@ -526,7 +542,7 @@ contract HypERC20CollateralTest is HypTokenTest {
             TRANSFER_AMT,
             GAS_LIMIT * igp.gasPrice()
         );
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 }
 
@@ -558,8 +574,14 @@ contract HypXERC20Test is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(primaryToken).balanceOf(_account);
+    }
+
     function testRemoteTransfer() public {
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
@@ -568,7 +590,7 @@ contract HypXERC20Test is HypTokenTest {
             abi.encodeCall(IXERC20.burn, (ALICE, TRANSFER_AMT))
         );
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testHandle() public {
@@ -613,6 +635,12 @@ contract HypXERC20LockboxTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(primaryToken).balanceOf(_account);
+    }
+
     uint256 constant MAX_INT = 2 ** 256 - 1;
 
     function testApproval() public {
@@ -633,7 +661,7 @@ contract HypXERC20LockboxTest is HypTokenTest {
     }
 
     function testRemoteTransfer() public {
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
@@ -642,17 +670,17 @@ contract HypXERC20LockboxTest is HypTokenTest {
             abi.encodeCall(IXERC20.burn, (address(localToken), TRANSFER_AMT))
         );
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testHandle() public {
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
         vm.expectCall(
             address(xerc20Lockbox.xERC20()),
             abi.encodeCall(IXERC20.mint, (address(localToken), TRANSFER_AMT))
         );
         _handleLocalTransfer(TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore + TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore + TRANSFER_AMT);
     }
 }
 
@@ -684,8 +712,14 @@ contract HypFiatTokenTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(primaryToken).balanceOf(_account);
+    }
+
     function testRemoteTransfer() public {
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        uint256 balanceBefore = _localTokenBalanceOf(ALICE);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
@@ -694,7 +728,7 @@ contract HypFiatTokenTest is HypTokenTest {
             abi.encodeCall(IFiatToken.burn, (TRANSFER_AMT))
         );
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 
     function testHandle() public {
@@ -735,6 +769,12 @@ contract HypNativeTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return _account.balance;
+    }
+
     function testTransfer_withHookSpecified(
         uint256 fee,
         bytes calldata metadata
@@ -769,7 +809,7 @@ contract HypNativeTest is HypTokenTest {
             BOB.addressToBytes32(),
             REQUIRED_VALUE + TRANSFER_AMT + 1
         );
-        assertEq(localToken.balanceOf(ALICE), 1000e18);
+        assertEq(_localTokenBalanceOf(ALICE), 1000e18);
     }
 
     function testRemoteTransfer_withCustomGasConfig() public {
@@ -845,6 +885,12 @@ contract HypERC20ScaledTest is HypTokenTest {
 
         _enrollLocalTokenRouter();
         _enrollRemoteTokenRouter();
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return ERC20Test(address(localToken)).balanceOf(_account);
     }
 
     function testRemoteTransfer() public {

@@ -141,7 +141,7 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
         );
 
         _processTransfers(BOB, _tokenId);
-        assertEq(remoteToken.balanceOf(BOB), 1);
+        assertEq(remotePrimaryToken.balanceOf(BOB), 1);
     }
 
     function testBenchmark_overheadGasUsage() public {
@@ -340,7 +340,7 @@ contract HypERC721CollateralTest is HypTokenTest {
         _deployRemoteToken(isCollateral);
         _performRemoteTransfer(25000, 0);
         assertEq(
-            hyp721Collateral.balanceOf(address(this)),
+            localPrimaryToken.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
         );
     }
@@ -352,7 +352,7 @@ contract HypERC721CollateralTest is HypTokenTest {
         vm.expectRevert("ERC721: caller is not token owner or approved");
         _performRemoteTransfer(25000, 1);
         assertEq(
-            hyp721Collateral.balanceOf(address(this)),
+            localPrimaryToken.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
         );
     }
@@ -362,7 +362,7 @@ contract HypERC721CollateralTest is HypTokenTest {
         vm.expectRevert("ERC721: invalid token ID");
         _performRemoteTransfer(25000, INITIAL_SUPPLY * 2);
         assertEq(
-            hyp721Collateral.balanceOf(address(this)),
+            localPrimaryToken.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 1
         );
     }
@@ -417,9 +417,9 @@ contract HypERC721CollateralURIStorageTest is HypTokenTest {
         );
 
         _processTransfers(BOB, 0);
-        assertEq(remoteToken.balanceOf(BOB), 1);
+        assertEq(remotePrimaryToken.balanceOf(BOB), 1);
         assertEq(
-            hyp721URICollateral.balanceOf(address(this)),
+            localPrimaryToken.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
         );
     }

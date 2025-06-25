@@ -74,7 +74,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         metadata = _transferFromSender(_amount + fee);
         if (fee > 0) {
-            _transferTo(address(feeRecipient), fee, msg.data[0:0]);
+            _transferTo(address(feeRecipient), fee);
         }
     }
 
