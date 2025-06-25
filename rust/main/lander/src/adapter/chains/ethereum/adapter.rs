@@ -275,6 +275,11 @@ impl AdaptsChain for EthereumAdapter {
 
         info!(?payloads, "building transactions for payloads");
 
+        if payloads.is_empty() {
+            error!("No payloads found! Cannot build transactions");
+            return vec![];
+        }
+
         let (payload_details, precursors): (
             Vec<PayloadDetails>,
             Vec<(TypedTransaction, Function)>,
@@ -285,11 +290,6 @@ impl AdaptsChain for EthereumAdapter {
                 (payload.details.clone(), (precursor.tx, precursor.function))
             })
             .unzip();
-
-        if precursors.is_empty() {
-            error!("No payloads found! Cannot build transactions");
-            return vec![];
-        }
 
         if precursors.len() == 1 {
             // If there's only one payload, we can build a single transaction directly
