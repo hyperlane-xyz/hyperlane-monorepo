@@ -33,6 +33,13 @@ export enum StarknetContractName {
   STATIC_AGGREGATION_HOOK = 'static_aggregation_hook',
 }
 
+export enum StarknetFeeTokenAddresses {
+  starknet = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  starknetsepolia = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  paradex = '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
+  paradexsepolia = '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e',
+}
+
 /**
  * Creates a Starknet contract instance with the given parameters
  */
@@ -130,30 +137,16 @@ export function parseStarknetDispatchIdEvents(
 }
 
 export function isStarknetFeeToken(chainName: ChainName, address: string) {
-  switch (chainName) {
-    case 'starknet':
-      return (
-        address ===
-        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
-      );
-    case 'starknetsepolia':
-      return (
-        address ===
-        '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d'
-      );
-    case 'paradex':
-      return (
-        address ===
-        '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2'
-      );
-    case 'paradexsepolia':
-      return (
-        address ===
-        '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e'
-      );
-    default:
-      return false;
+  if (!Object.keys(StarknetFeeTokenAddresses).includes(chainName)) {
+    return false;
   }
+
+  return (
+    address ===
+    StarknetFeeTokenAddresses[
+      chainName as keyof typeof StarknetFeeTokenAddresses
+    ]
+  );
 }
 
 export function getStarknetFeeTokenContract(

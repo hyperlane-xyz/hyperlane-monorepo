@@ -187,6 +187,13 @@ export class Token implements IToken {
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
     const mailbox = chainMetadata?.mailbox;
 
+    console.log(
+      'isStarknetFeeToken',
+      chainName,
+      addressOrDenom,
+      isStarknetFeeToken(chainName, addressOrDenom),
+    );
+
     assert(
       this.isMultiChainToken(),
       `Token standard ${standard} not applicable to hyp adapter`,
