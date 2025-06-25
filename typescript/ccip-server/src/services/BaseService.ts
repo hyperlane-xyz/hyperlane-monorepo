@@ -45,13 +45,11 @@ export abstract class BaseService {
   }
 
   /**
-   * Helper method to get a logger with service context.
-   * Uses the passed logger (with request context) or falls back to instance logger.
+   * Helper method to add service context to a logger.
    */
-  protected getServiceLogger(logger: Logger): Logger {
-    return logger.child({
-      service: this.constructor.name,
-    });
+  protected addLoggerServiceContext(logger: Logger): Logger {
+    logger.setBindings({ service: this.constructor.name });
+    return logger;
   }
 
   protected static async getMultiProvider(

@@ -72,7 +72,7 @@ export class CallCommitmentsService extends BaseService {
   }
 
   public async handleCommitment(req: Request, res: Response) {
-    const logger = this.getServiceLogger(req.log);
+    const logger = this.addLoggerServiceContext(req.log);
 
     const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
@@ -81,10 +81,10 @@ export class CallCommitmentsService extends BaseService {
       normalizeCalls(data.calls),
       data.salt,
     );
+    logger.setBindings({ commitment });
 
     logger.info(
       {
-        commitment,
         callsCount: data.calls.length,
         originDomain: data.originDomain,
       },
@@ -102,7 +102,6 @@ export class CallCommitmentsService extends BaseService {
       // TODO: distinguish between infrastructure vs client errors
       logger.warn(
         {
-          commitment,
           error: error.message,
           stack: error.stack,
         },
@@ -121,7 +120,6 @@ export class CallCommitmentsService extends BaseService {
       if (existingRecord) {
         logger.info(
           {
-            commitment,
             revealMessageId,
           },
           'Commitment already exists - returning success',
@@ -138,7 +136,6 @@ export class CallCommitmentsService extends BaseService {
     } catch (error: any) {
       logger.error(
         {
-          commitment,
           error: error.message,
           stack: error.stack,
         },
@@ -149,7 +146,7 @@ export class CallCommitmentsService extends BaseService {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    logger.info({ commitment }, 'Commitment processing completed successfully');
+    logger.info('Commitment processing completed successfully');
     return res.sendStatus(200);
   }
 
@@ -158,7 +155,7 @@ export class CallCommitmentsService extends BaseService {
     relayer: string,
     logger: Logger,
   ) {
-    const log = this.getServiceLogger(logger);
+    const log = this.addLoggerServiceContext(logger);
 
     try {
       const revealMsgId = messageId(message);
@@ -234,7 +231,7 @@ export class CallCommitmentsService extends BaseService {
     );
     if (revealIndex === -1) {
       logger.warn(
-        { receipt, commitment },
+        { receipt },
         'CommitRevealDispatched event not found in logs',
       );
       throw new Error('CommitRevealDispatched event not found in logs');
@@ -247,7 +244,7 @@ export class CallCommitmentsService extends BaseService {
 
     if (dispatchLogsAfterReveal.length < 2) {
       logger.warn(
-        { receipt, commitment },
+        { receipt },
         'Not enough DispatchId events after CommitRevealDispatched',
       );
       throw new Error(
@@ -309,7 +306,6 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(
       {
-        commitment,
         revealMessageId,
         ica,
         callsCount: calls.length,
@@ -383,7 +379,6 @@ export class CallCommitmentsService extends BaseService {
     logger.info(
       {
         transactionHash: receipt.transactionHash,
-        commitment,
         originDomain: data.originDomain,
       },
       'Validating commitment events',
@@ -406,7 +401,6 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(
       {
-        commitment,
         ica,
         revealMessageId,
       },

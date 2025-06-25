@@ -118,7 +118,7 @@ class CCTPService extends BaseService {
   }
 
   async getCCTPAttestation(message: string, logger: Logger) {
-    const log = this.getServiceLogger(logger);
+    const log = this.addLoggerServiceContext(logger);
 
     log.info({ cctpMessage: message }, 'Processing CCTP attestation request');
 

@@ -169,7 +169,7 @@ export class OPStackService extends BaseService {
    * @returns The encoded
    */
   async getWithdrawalProof([message]: ethers.utils.Result, logger: Logger) {
-    const log = this.getServiceLogger(logger);
+    const log = this.addLoggerServiceContext(logger);
     log.info('getWithdrawalProof');
     const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
       message,
@@ -208,7 +208,7 @@ export class OPStackService extends BaseService {
     [message]: ethers.utils.Result,
     logger: Logger,
   ) {
-    const log = this.getServiceLogger(logger);
+    const log = this.addLoggerServiceContext(logger);
     log.info('getFinalizeWithdrawalTx');
     const [withdrawal] = await this.getWithdrawalAndProofFromMessage(
       message,
