@@ -1,6 +1,14 @@
 import MonorepoDefaults from '../../eslint.config.mjs';
 
 export default [
+  {
+    ignores: [
+      '**/__mocks__/*',
+      '**/tests/*',
+      'src/**/*.js',
+      'src/generated/**',
+    ],
+  },
   ...MonorepoDefaults,
   {
     files: ['./src/**/*.ts'],
@@ -10,13 +18,5 @@ export default [
       'no-console': ['off'],
       'no-restricted-imports': ['off'],
     },
-  },
-  {
-    ignores: [
-      '**/__mocks__/*',
-      '**/tests/*',
-      'src/**/*.js',
-      'src/generated/**',
-    ],
   },
 ];

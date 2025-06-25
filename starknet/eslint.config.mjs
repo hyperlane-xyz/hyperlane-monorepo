@@ -9,7 +9,4 @@ export default [
       'no-restricted-imports': 'off',
     },
   },
-  {
-    ignores: ['scripts/**/*'],
-  },
 ];
