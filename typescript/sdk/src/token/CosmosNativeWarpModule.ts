@@ -29,8 +29,12 @@ import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import { CosmosNativeWarpRouteReader } from './CosmosNativeWarpRouteReader.js';
-import { TokenType } from './config.js';
-import { HypTokenRouterConfig, HypTokenRouterConfigSchema } from './types.js';
+import { CosmosNativeDeployer } from './cosmosnativeDeploy.js';
+import {
+  DerivedTokenRouterConfig,
+  HypTokenRouterConfig,
+  HypTokenRouterConfigSchema,
+} from './types.js';
 
 type WarpRouteAddresses = {
   deployedTokenRoute: Address;
@@ -71,7 +75,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  async read(): Promise<HypTokenRouterConfig> {
+  async read(): Promise<DerivedTokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
@@ -122,7 +126,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @returns An array with Cosmos Native transactions that need to be executed to enroll the routers
    */
   createEnrollRemoteRoutersUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedCosmJsNativeTransaction[] {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
@@ -176,7 +180,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
   }
 
   createUnenrollRemoteRoutersUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedCosmJsNativeTransaction[] {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
@@ -224,7 +228,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @returns A array with Cosmos transactions that need to be executed to update the destination gas
    */
   async createSetDestinationGasUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedCosmJsNativeTransaction[]> {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
@@ -308,7 +312,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @returns Cosmos transaction that need to be executed to update the ISM configuration.
    */
   async createIsmUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedCosmJsNativeTransaction[]> {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
@@ -356,7 +360,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @returns Cosmos transaction that need to be executed to update the owner.
    */
   createOwnershipUpdateTxs(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedCosmJsNativeTransaction[] {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
@@ -382,7 +386,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @returns Object with deployedIsm address, and update Transactions
    */
   async deployOrUpdateIsm(
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
@@ -433,24 +437,13 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
   }): Promise<CosmosNativeWarpModule> {
     const { chain, config, multiProvider, signer } = params;
 
-    let deployedTokenRoute: string = '';
+    const deployer = new CosmosNativeDeployer(multiProvider, {
+      [chain]: signer,
+    });
 
-    if (config.type === TokenType.collateral) {
-      const { response } = await signer.createCollateralToken({
-        origin_mailbox: config.mailbox,
-        origin_denom: config.token,
-      });
-      deployedTokenRoute = response.id;
-    } else if (config.type === TokenType.synthetic) {
-      const { response } = await signer.createSyntheticToken({
-        origin_mailbox: config.mailbox,
-      });
-      deployedTokenRoute = response.id;
-    }
-
-    if (!deployedTokenRoute) {
-      throw new Error(`failed to deploy token route`);
-    }
+    const { [chain]: deployedTokenRoute } = await deployer.deploy({
+      [chain]: config,
+    });
 
     const warpModule = new CosmosNativeWarpModule(
       multiProvider,

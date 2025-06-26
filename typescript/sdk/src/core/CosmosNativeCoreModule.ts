@@ -2,8 +2,6 @@ import {
   COSMOS_MODULE_MESSAGE_REGISTRY as R,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { DeployedCoreAddresses, HookConfig } from '@hyperlane-xyz/sdk';
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ChainId,
@@ -14,9 +12,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
-import { DerivedHookConfig, HookType } from '../hook/types.js';
+import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -26,7 +25,12 @@ import {
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 import { CosmosNativeCoreReader } from './CosmosNativeCoreReader.js';
-import { CoreConfig, CoreConfigSchema, DerivedCoreConfig } from './types.js';
+import {
+  CoreConfig,
+  CoreConfigSchema,
+  DeployedCoreAddresses,
+  DerivedCoreConfig,
+} from './types.js';
 
 export class CosmosNativeCoreModule extends HyperlaneModule<
   ProtocolType.CosmosNative,
