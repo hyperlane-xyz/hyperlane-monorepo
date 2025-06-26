@@ -28,6 +28,7 @@ verbosity = 4
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc-mainnet.matic.quiknode.pro"
+arbitrum = "https://arb1.arbitrum.io/rpc"
 
 [fuzz]
 runs = 50
