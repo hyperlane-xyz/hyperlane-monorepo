@@ -5,16 +5,16 @@ use std::{
     cmp::max,
     fmt::{Debug, Formatter},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
-use derive_new::new;
-use hyperlane_base::db::HyperlaneDb;
-
 use async_trait::async_trait;
-use hyperlane_base::db::DbResult;
+use derive_new::new;
 use tokio::time::sleep;
 use tracing::{debug, info, instrument};
+
+use hyperlane_base::db::DbResult;
+use hyperlane_base::db::HyperlaneDb;
 
 use crate::{dispatcher::metrics::DispatcherMetrics, error::LanderError};
 
@@ -120,6 +120,8 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     }
 
     pub async fn load_from_db(&mut self, metrics: DispatcherMetrics) -> Result<(), LanderError> {
+        let mut last_time_no_items_reported = Instant::now();
+        let mut iteration_count = 0;
         loop {
             metrics.update_liveness_metric(
                 format!("{}DbLoader", self.iterated_item_name,).as_str(),
@@ -131,11 +133,22 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                     // If we are only loading backward, we have processed all items
                     return Ok(());
                 }
-                debug!(?self, "No items to process, sleeping for a bit");
+
+                if iteration_count == 0
+                    || last_time_no_items_reported.elapsed() > Duration::from_secs(60)
+                {
+                    debug!(?self, iterations=?iteration_count, "No items to process");
+                    last_time_no_items_reported = Instant::now();
+                    iteration_count = 0;
+                }
+
                 // sleep to wait for new items to be added
                 sleep(Duration::from_millis(100)).await;
+                iteration_count += 1;
             } else {
                 debug!(?self, "Loaded item");
+                last_time_no_items_reported = Instant::now();
+                iteration_count = 0;
             }
         }
     }

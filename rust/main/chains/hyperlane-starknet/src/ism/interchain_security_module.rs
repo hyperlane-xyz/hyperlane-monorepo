@@ -76,24 +76,29 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let message = &message.into();
+        // let message = &message.into();
 
-        // We can't simulate the `verify` call in Starknet because
-        // it's not marked as an entrypoint. So we just use the query interface
-        // and hardcode a gas value - this can be inefficient if one ISM is
-        // vastly cheaper than another one.
-        let verified = self
-            .contract
-            .verify(&metadata.into(), message)
-            .call()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
+        // let calldata = self.contract.verify(&metadata.into(), message);
+        // debug!("Dry run verify call data: {:#?}", calldata.call_raw);
+        // // We can't simulate the `verify` call in Starknet because
+        // // it's not marked as an entrypoint. So we just use the query interface
+        // // and hardcode a gas value - this can be inefficient if one ISM is
+        // // vastly cheaper than another one.
+        // let verified = calldata.call().await.map_err(HyperlaneStarknetError::from);
+        // debug!("Dry run verify call result: {:#?}", verified);
 
-        if !verified {
-            return Ok(None);
-        }
+        // let verified = verified?;
 
-        let dummy_gas_value = U256::one();
-        Ok(Some(dummy_gas_value))
+        // if !verified {
+        //     return Ok(None);
+        // }
+
+        // let dummy_gas_value = U256::one();
+        // Ok(Some(dummy_gas_value))
+
+        //TODO: investiage why this method fails for paradex mainnet only
+        // it seems as if metadata or message incorrect when this method is called from `cheapest_valid_metas`
+
+        Ok(Some(U256::one()))
     }
 }

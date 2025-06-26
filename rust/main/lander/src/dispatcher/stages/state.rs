@@ -7,7 +7,7 @@ use chrono::format;
 use derive_new::new;
 use eyre::Result;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{error, info, instrument::Instrumented, warn};
+use tracing::{error, info, instrument, instrument::Instrumented, warn};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -115,6 +115,11 @@ impl DispatcherState {
         }
     }
 
+    #[instrument(
+        skip_all,
+        name = "DispatcherState::store_tx",
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
     pub(crate) async fn store_tx(&self, tx: &Transaction) {
         if let Err(err) = self.tx_db.store_transaction_by_uuid(tx).await {
             error!(
