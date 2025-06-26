@@ -203,27 +203,30 @@ export enum ContractVerificationStatus {
   Error = 'error',
   Skipped = 'skipped',
 }
+
 export enum OwnerStatus {
-  Active = 'active',
+  Active = 'active', // Active address with nonce > 0 and/or contract code
   Inactive = 'inactive',
-  Safe = 'safe',
+  GnosisSafe = 'gnosis-safe',
   Error = 'error',
+  Skipped = 'skipped',
 }
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
     z.enum([
-      ContractVerificationStatus.Verified,
-      ContractVerificationStatus.Unverified,
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
     ]),
   ),
   ownerStatus: z.record(
     z.enum([
+      OwnerStatus.Error,
+      OwnerStatus.Skipped,
       OwnerStatus.Active,
       OwnerStatus.Inactive,
-      OwnerStatus.Safe,
-      OwnerStatus.Error,
+      OwnerStatus.GnosisSafe,
     ]),
   ),
 });
