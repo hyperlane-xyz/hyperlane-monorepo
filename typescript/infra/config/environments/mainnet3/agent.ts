@@ -141,7 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     matchain: true,
-    merlin: true,
+    merlin: false,
     metal: true,
     metis: true,
     milkyway: true,
