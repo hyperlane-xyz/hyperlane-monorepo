@@ -16,7 +16,10 @@ enum API_ACTION {
 }
 
 class HyperlaneService {
-  constructor(readonly baseUrl: string) {}
+  constructor(
+    readonly serviceName: string,
+    readonly baseUrl: string,
+  ) {}
 
   /**
    * Makes a request to the Explorer API to get the block info by message Id. Throws if request fails, or no results
@@ -95,7 +98,7 @@ class HyperlaneService {
         },
         'Hyperlane service: GraphQL search request returned 500 status code',
       );
-      PrometheusMetrics.logUnhandledError();
+      PrometheusMetrics.logUnhandledError(this.serviceName);
       throw new Error(
         'Hyperlane service: GraphQL search request returned 500 status code',
       );

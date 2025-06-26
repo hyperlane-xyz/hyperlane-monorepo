@@ -14,12 +14,14 @@ interface CCTPData {
 
 class CCTPAttestationService {
   url: string;
+  serviceName: string;
 
   CCTP_VERSION_1: bigint = 0n;
   CCTP_VERSION_2: bigint = 1n;
 
-  constructor(url: string) {
+  constructor(serviceName: string, url: string) {
     this.url = url;
+    this.serviceName = serviceName;
   }
 
   _getFieldFromMessage(
@@ -94,7 +96,7 @@ class CCTPAttestationService {
         },
         'Unsupported CCTP version',
       );
-      PrometheusMetrics.logUnhandledError();
+      PrometheusMetrics.logUnhandledError(this.serviceName);
       throw new Error(`Unsupported CCTP version: ${version}`);
     }
 
@@ -115,7 +117,7 @@ class CCTPAttestationService {
           },
           'CCTP attestation request failed',
         );
-        PrometheusMetrics.logUnhandledError();
+        PrometheusMetrics.logUnhandledError(this.serviceName);
         throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
       }
 
@@ -138,7 +140,7 @@ class CCTPAttestationService {
         },
         'CCTP attestation request failed: unknown error',
       );
-      PrometheusMetrics.logUnhandledError();
+      PrometheusMetrics.logUnhandledError(this.serviceName);
       throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
     }
 

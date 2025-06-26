@@ -37,8 +37,8 @@ export class OPStackService extends BaseService {
   private l2RpcService: RPCService;
   private hyperlaneService: HyperlaneService;
 
-  static async create(_name: string): Promise<OPStackService> {
-    return new OPStackService({});
+  static async create(serviceName: string): Promise<OPStackService> {
+    return new OPStackService({ serviceName });
   }
 
   constructor(config: ServiceConfig) {
@@ -77,7 +77,10 @@ export class OPStackService extends BaseService {
       contracts: opContracts,
     });
 
-    this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
+    this.hyperlaneService = new HyperlaneService(
+      this.config.serviceName,
+      hyperlaneConfig.url,
+    );
     this.l2RpcService = new RPCService(l2RpcConfig.url);
     this.router = Router();
     // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json

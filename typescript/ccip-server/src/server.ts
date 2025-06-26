@@ -79,7 +79,7 @@ async function startServer() {
         },
         'Error initializing module',
       );
-      PrometheusMetrics.logUnhandledError();
+      PrometheusMetrics.logUnhandledError(name);
       throw error;
     }
   }

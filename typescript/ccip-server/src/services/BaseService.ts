@@ -11,7 +11,9 @@ export const REGISTRY_URI_SCHEMA = z
   .transform((val) => val.split(',').map((s) => s.trim()))
   .optional();
 
-export interface ServiceConfig {}
+export interface ServiceConfig {
+  serviceName: string;
+}
 
 export interface ServiceConfigWithMultiProvider extends ServiceConfig {
   multiProvider: MultiProvider;
@@ -38,7 +40,7 @@ export abstract class BaseService {
   /**
    * Factory method that subclasses must implement
    */
-  static async create(_name: string): Promise<BaseService> {
+  static async create(_serviceName: string): Promise<BaseService> {
     throw new Error('Service must implement static create method');
   }
 

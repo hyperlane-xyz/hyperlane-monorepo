@@ -57,12 +57,13 @@ export class CallCommitmentsService extends BaseService {
     this.registerRoutes(this.router, this.baseUrl);
   }
 
-  static async create(namespace: string): Promise<CallCommitmentsService> {
+  static async create(serviceName: string): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
-    const baseUrl = env.SERVER_BASE_URL + '/' + namespace;
+    const baseUrl = env.SERVER_BASE_URL + '/' + serviceName;
 
     return new CallCommitmentsService({
+      serviceName,
       multiProvider,
       baseUrl,
     });
@@ -139,7 +140,7 @@ export class CallCommitmentsService extends BaseService {
         'Database error during commitment processing',
       );
 
-      PrometheusMetrics.logUnhandledError();
+      PrometheusMetrics.logUnhandledError(this.config.serviceName);
       return res.status(500).json({ error: 'Internal server error' });
     }
 

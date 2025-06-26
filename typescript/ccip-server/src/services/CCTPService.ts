@@ -34,11 +34,12 @@ class CCTPService extends BaseService {
   private cctpAttestationService: CCTPAttestationService;
   private multiProvider: MultiProvider;
 
-  static async create(_name: string): Promise<CCTPService> {
+  static async create(serviceName: string): Promise<CCTPService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
 
     return new CCTPService({
+      serviceName,
       multiProvider,
     });
   }
@@ -48,8 +49,12 @@ class CCTPService extends BaseService {
     this.multiProvider = config.multiProvider;
 
     const env = EnvSchema.parse(process.env);
-    this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
+    this.hyperlaneService = new HyperlaneService(
+      this.config.serviceName,
+      env.HYPERLANE_EXPLORER_URL,
+    );
     this.cctpAttestationService = new CCTPAttestationService(
+      this.config.serviceName,
       env.CCTP_ATTESTATION_URL,
     );
 
@@ -111,7 +116,7 @@ class CCTPService extends BaseService {
       { transactionHash: receipt.transactionHash },
       'Unable to find MessageSent event in logs',
     );
-    PrometheusMetrics.logUnhandledError();
+    PrometheusMetrics.logUnhandledError(this.config.serviceName);
     throw new Error('Unable to find MessageSent event in logs');
   }
 
