@@ -29,6 +29,9 @@ kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71d
 kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 kaspa-notify = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
+kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
+
+
 api-rs = { path = "../api", package = "openapi" }
 
 secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "serde"] }
@@ -47,8 +50,10 @@ tracing-test = "0.2.2"
 # reqwest = "0.11"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart"] } # had to use 0.12 to be compatible with open ai generation
 bytes = "1"
+reqwest-middleware = "0.4"
 
 # HYPERLANE
 axum = "0.8.4"
 url = "2.3"
 eyre = "=0.6.8"
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/srene/hyperlane-cosmos-rs", rev = "0a64221" }

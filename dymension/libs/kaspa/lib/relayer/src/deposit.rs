@@ -1,7 +1,11 @@
+use crate::handle_new_deposit;
 use core::api::deposits::Deposit;
 use core::deposit::DepositFXG;
+use eyre::Result;
+use std::error::Error;
+use tokio::runtime::Runtime;
 
-pub fn on_new_deposit(deposit: &Deposit) -> Option<DepositFXG> {
-    // TODO: merge with sergis code
-    None
+pub async fn on_new_deposit(deposit: &Deposit) -> Result<Option<DepositFXG>> {
+    let deposit_tx_result = handle_new_deposit(deposit.id.to_string()).await?;
+    Ok(Some(deposit_tx_result))
 }

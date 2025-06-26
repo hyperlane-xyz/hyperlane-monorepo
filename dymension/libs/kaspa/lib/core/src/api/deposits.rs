@@ -21,7 +21,7 @@ pub struct Deposit {
     // ATM its a part of Transaction struct, only id, payload, accepted are populated
     pub payload: Vec<u8>,
     // #[serde(with = "serde_bytes_fixed_ref")] // TODO: need?
-    id: TransactionId,
+    pub id: TransactionId,
     accepted: bool,
 }
 

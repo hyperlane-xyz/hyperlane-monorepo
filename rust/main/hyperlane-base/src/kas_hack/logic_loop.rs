@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
@@ -15,10 +15,8 @@ use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
-use std::sync::Arc;
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
@@ -80,9 +78,15 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                if let Some(fxg) = relayer_on_new_deposit(d) {
-                    let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                    // TODO: check result
+                let new_deposit_res = relayer_on_new_deposit(d).await;
+                match new_deposit_res {
+                    Ok(Some(fxg)) => {
+                        let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
+                        // TODO: check result
+                    }
+                    _ => {
+                        // TODO: do somethign with error
+                    }
                 }
             }
             time::sleep(Duration::from_secs(10)).await;

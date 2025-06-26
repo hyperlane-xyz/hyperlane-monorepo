@@ -9,11 +9,12 @@ kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-core = { workspace = true }
 kaspa-grpc-client = { workspace = true }
-kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
+kaspa-hashes = { workspace = true }
 kaspa-wallet-core = { workspace = true }
 kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
 kaspa-rpc-core = { workspace = true }
+
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
@@ -27,4 +28,10 @@ api-rs = { path = "../api", package = "openapi" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1" , git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs"}
+#hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1" , git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs"}
+serde = { version = "^1.0", features = ["derive"] }
+prost = { version = "0.13", default-features = false }
+hyperlane-cosmos-rs = { workspace = true }
+reqwest-middleware = "0.4"
+
+bincode = "1.3"
