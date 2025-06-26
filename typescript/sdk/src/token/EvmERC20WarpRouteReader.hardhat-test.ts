@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 import { zeroAddress } from 'viem';
@@ -11,8 +12,10 @@ import {
   ERC4626Test__factory,
   FiatTokenTest,
   FiatTokenTest__factory,
+  HypERC20__factory,
   Mailbox,
   Mailbox__factory,
+  ProxyAdmin__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
@@ -24,6 +27,8 @@ import {
   RouterConfig,
   TestChainName,
   WarpRouteDeployConfigMailboxRequired,
+  proxyAdmin,
+  proxyImplementation,
   test3,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
@@ -570,7 +575,7 @@ describe('ERC20WarpRouterReader', async () => {
     isLocalRpcStub.restore();
   });
 
-  it.only('should return the ownerStatus virtual config', async () => {
+  it('should return the ownerStatus virtual config', async () => {
     const otherChain = TestChainName.test3;
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
@@ -602,6 +607,63 @@ describe('ERC20WarpRouterReader', async () => {
       );
     expect(derivedConfig.ownerStatus).to.deep.equal({
       [signer.address]: OwnerStatus.Active,
+    });
+
+    // Restore stub
+    isLocalRpcStub.restore();
+  });
+
+  it('should return the ownerStatus virtual config for the proxy, implementation, and proxy admin, if they are different', async () => {
+    const provider = multiProvider.getProvider(chain);
+    const otherChain = TestChainName.test3;
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    // Derive config and transfer the proxy, implementation, and proxyAdmin over
+    const warpRouteAddress = warpRoute[chain].collateral.address;
+    const proxyAdminAddress = await proxyAdmin(provider, warpRouteAddress);
+    await new ProxyAdmin__factory()
+      .connect(signer)
+      .attach(proxyAdminAddress)
+      .transferOwnership(warpRouteAddress);
+    const implementation = await proxyImplementation(
+      provider,
+      warpRouteAddress,
+    );
+    await new HypERC20__factory()
+      .connect(signer)
+      .attach(implementation)
+      .transferOwnership(mailbox.address);
+
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRouteAddress,
+      );
+
+    expect(derivedConfig.ownerStatus).to.deep.equal({
+      [signer.address]: OwnerStatus.Active,
+      [warpRouteAddress]: OwnerStatus.Active,
+      [mailbox.address]: OwnerStatus.Active,
     });
 
     // Restore stub
