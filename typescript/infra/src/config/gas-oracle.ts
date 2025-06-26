@@ -245,17 +245,21 @@ function getUsdQuote(
 const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 
 // Overhead for interchain messaging
-export function getOverhead(
-  local: ChainName,
-  remote: ChainName,
-  ethereumChainNames: ChainName[],
-): number {
-  return ethereumChainNames.includes(remote as any)
-    ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[local].threshold,
-        defaultMultisigConfigs[local].validators.length,
-      )
-    : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
+export function getOverhead(local: ChainName, remote: ChainName): number {
+  const remoteProtocol = getChain(remote).protocol;
+
+  if (remoteProtocol === ProtocolType.Ethereum) {
+    return multisigIsmVerificationCost(
+      defaultMultisigConfigs[local].threshold,
+      defaultMultisigConfigs[local].validators.length,
+    );
+  }
+
+  if (remoteProtocol === ProtocolType.Starknet) {
+    return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+  }
+
+  return FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 }
 
 // Gets the map of remote gas oracle configs for each local chain
