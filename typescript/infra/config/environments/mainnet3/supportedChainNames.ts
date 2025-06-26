@@ -51,6 +51,7 @@ export const mainnet3SupportedChainNames = [
   // 'fractal',
   'fraxtal',
   'fusemainnet',
+  'galactica',
   'game7',
   'gnosis',
   'gravity',

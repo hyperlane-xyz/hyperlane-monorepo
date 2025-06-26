@@ -191,6 +191,10 @@
     "amount": "20.0",
     "decimals": 9
   },
+  "galactica": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "game7": {
     "amount": "0.01",
     "decimals": 9

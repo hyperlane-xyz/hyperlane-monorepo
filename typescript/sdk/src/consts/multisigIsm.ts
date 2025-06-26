@@ -989,6 +989,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  galactica: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xfc48af3372d621f476c53d79d42a9e96ce11fd7d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   game7: {
     threshold: 2,
     validators: [

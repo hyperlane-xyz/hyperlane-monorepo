@@ -1800,5 +1800,16 @@ export const validatorChainConfig = (
         'tac',
       ),
     },
+
+    galactica: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('galactica'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xfc48af3372d621f476c53d79d42a9e96ce11fd7d'],
+        },
+        'galactica',
+      ),
+    },
   };
 };
