@@ -10,6 +10,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
+use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
@@ -19,6 +20,7 @@ use kaspa_txscript::{
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_rpc_core::model::RpcTransaction;
 
 use std::iter;
 
@@ -110,12 +112,25 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
 ) -> Result<TransactionId, Error> {
     info!("-> Relayer   is signing their copy...");
 
-    let pskt_signed_relayer = sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
-    let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
+    let pskt_signed_relayer: PSKT<Signer> =
+        sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let combiner = pskt_signed_relayer.combiner();
+    let pskt_signed = (combiner + pskt_signed_vals).unwrap();
 
     info!("-> Relayer is finalizing");
 
-    let finalized_pskt = pskt_signed
+    let rpc_tx = finalize_pskt(pskt_signed, e.pubs.clone())?;
+
+    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
+
+    Ok(tx_id)
+}
+
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<RpcTransaction, Error> {
+    let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
             Ok(inner
@@ -130,8 +145,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
                         // ORIGINAL COMMENT: considering xpubs sorted order
 
                         // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                        let sigs: Vec<_> = e
-                            .pubs
+                        let sigs: Vec<_> = escrow_pubs
                             .iter()
                             .flat_map(|kp| {
                                 let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
@@ -156,7 +170,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
                         let sig = input
                             .partial_sigs
                             .iter()
-                            .filter(|(pk, _sig)| !e.pubs.contains(pk))
+                            .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
                             .next()
                             .unwrap()
                             .1
@@ -176,16 +190,14 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
 
     let rpc_tx = (&tx).into();
-    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
-
-    Ok(tx_id)
+    Ok(rpc_tx)
 }
 
 pub async fn sign_pay_fee(
     pskt_unsigned: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,
-) -> Result<PSKT<Combiner>, Error> {
+) -> Result<PSKT<Signer>, Error> {
     // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
 
     let bundle = Bundle::from(pskt_unsigned);
@@ -197,6 +209,7 @@ pub async fn sign_pay_fee(
         .await?;
 
     let pskt_done = bundle_signed.iter().next().unwrap();
+
     let combiner = PSKT::from(pskt_done.clone());
     Ok(combiner)
 }

@@ -10,10 +10,13 @@ use axum::{
 use cosmrs::tx::MessageExt;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use dym_kas_validator::withdraw::sign_pskt;
+use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_deposits;
@@ -178,23 +181,32 @@ struct HandlerState<S: HyperlaneSignerExt + Send + Sync + 'static> {
     signer: Arc<S>,
 }
 
+struct KaspaSigningArgs {
+    kp: KaspaSecpKeypair,
+}
+
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(state): State<Arc<HandlerState<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
-    let confirmation_fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+
+    let args = KaspaSigningArgs {
+        kp: KaspaSecpKeypair::from_str("").unwrap(), // TODO:
+    };
 
     // Call to validator.G()
-    if !validate_withdrawals(&confirmation_fxg)
-        .await
-        .map_err(|e| AppError(e))?
-    {
+    if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
-    let bundle = confirmation_fxg.bundle;
-
-    // TODO: sign!
+    let mut signed = Vec::new();
+    for pskt in fxg.bundle.iter() {
+        let pskt = PSKT::<Signer>::from(pskt.clone());
+        let signed_pskt = sign_pskt(&args.kp, pskt).map_err(|e| AppError(e.into()))?;
+        signed.push(signed_pskt);
+    }
+    let bundle = Bundle::from(signed);
 
     let stringy = bundle
         .serialize()

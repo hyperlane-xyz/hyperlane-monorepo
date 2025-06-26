@@ -3,6 +3,8 @@ pub mod deposit;
 pub mod withdraw;
 pub mod withdrawal;
 
+pub use secp256k1::Keypair as KaspaSecpKeypair;
+
 use std::error::Error;
 use std::io::Cursor;
 use std::str::FromStr;

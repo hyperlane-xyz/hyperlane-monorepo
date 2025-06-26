@@ -37,7 +37,7 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
     Ok(combined)
 }
 
-fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
+pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
     pskt.pass_signature_sync(|tx, sighashes| {

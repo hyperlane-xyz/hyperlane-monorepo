@@ -1,8 +1,10 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dym_kas_relayer::PublicKey;
 
 use core::default;
 use eyre::Result as EyreResult;
 use futures::stream::{self, StreamExt, TryStreamExt};
+use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use tonic::async_trait;
@@ -10,7 +12,7 @@ use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw::sign_pay_fee;
+use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
@@ -85,6 +87,11 @@ impl KaspaProvider {
     }
 
     /// dococo
+    pub fn hub_rpc(&self) -> &CosmosGrpcClient {
+        &self.cosmos_rpc
+    }
+
+    /// dococo
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
@@ -106,27 +113,36 @@ impl KaspaProvider {
             bundles_validators.push(bundle_relayer);
             bundles_validators
         };
-        let txs_sigs = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_sigs)?;
+        let txs_signed = combine_all_bundles(all_bundles)?;
+        let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
         let res = self.submit_txs(finalized).await?;
         Ok(())
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        let wallet = self.easy_wallet.wallet.clone();
-        let secret = self.easy_wallet.secret.clone();
+        // returns bundle of Signer
         let mut signed = Vec::new();
         for pskt in fxg.bundle.iter() {
             let pskt = PSKT::<Signer>::from(pskt.clone());
-            let wallet = wallet.clone();
-            let secret = secret.clone();
+            let wallet = self.easy_wallet.wallet.clone();
+            let secret = self.easy_wallet.secret.clone();
             signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
         }
         Ok(Bundle::from(signed))
     }
 
-    async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
-        todo!()
+    async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
+        let mut ret = Vec::new();
+        for tx in txs {
+            let allow_orphan = false; // TODO: what is this?
+            let tx_id = self
+                .easy_wallet
+                .api()
+                .submit_transaction(tx, allow_orphan)
+                .await?;
+            ret.push(tx_id);
+        }
+        Ok(ret)
     }
 
     fn escrow(&self) -> EscrowPublic {
@@ -177,6 +193,7 @@ impl HyperlaneProvider for KaspaProvider {
     }
 }
 
+/// accepts bundle of signer
 fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
     // each bundle is from a different actor (validator or releayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
@@ -216,8 +233,22 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
     Ok(ret)
 }
 
-fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
-    todo!()
+fn finalize_txs(
+    txs_sigs: Vec<PSKT<Combiner>>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<Vec<RpcTransaction>> {
+    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
+        .iter()
+        /*
+        TODO: finalize_pskt has some hacky assumptions on the order of inputs, which needs to be reconciled which was only for demo
+        but we need to generalise to make it work for the real construction https://github.com/dymensionxyz/hyperlane-monorepo/blob/1bc3abb42e9cb0b67146b89afa9fe97eea267126/dymension/libs/kaspa/lib/relayer/src/withdraw.rs#L136
+        */
+        .map(|tx| finalize_pskt(tx.clone(), escrow_pubs.clone())) // TODO: avoid clones
+        .collect();
+
+    let transactions: Vec<RpcTransaction> = transactions_result.map_err(|e| eyre::eyre!(e))?;
+
+    Ok(transactions)
 }
 
 async fn get_easy_wallet(

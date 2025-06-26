@@ -25,6 +25,7 @@ use hyperlane_core::U256;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash;
+pub use secp256k1::PublicKey;
 use std::error::Error;
 use std::io::Cursor;
 use std::str::FromStr;

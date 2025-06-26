@@ -1,5 +1,6 @@
 use cosmrs::Any;
 use hex::ToHex;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
@@ -91,9 +92,25 @@ impl Mailbox for KaspaMailbox {
     }
 
     // check if a message already delivered TO kaspa
+    // not a precise answer since actually depends on subsequent confirmation step
+    // so may often return false negative
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        // TODO: impl!!, best way is to check hub, roughly speaking..
-        return Ok(false);
+        let wid = WithdrawalId {
+            message_id: id.to_string(),
+        };
+        let res = self
+            .provider
+            .hub_rpc()
+            .withdrawal_status(vec![wid], None)
+            .await?;
+        match res
+            .status
+            .first()
+            .map(|s| WithdrawalStatus::try_from(*s).ok())
+        {
+            Some(Some(WithdrawalStatus::Processed)) => Ok(true),
+            _ => Ok(false),
+        }
     }
 
     // there is no ism so return hardcode
