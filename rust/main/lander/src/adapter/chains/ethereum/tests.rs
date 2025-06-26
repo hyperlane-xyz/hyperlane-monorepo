@@ -8,13 +8,13 @@ use ethers::{
     prelude::{Block, BlockNumber, FeeHistory, TransactionReceipt},
     types::{transaction::eip2718::TypedTransaction, Address, H160, H256 as EthersH256},
 };
+
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
-    MerkleTreeHook, ReorgPeriod, H256, U256,
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneProvider,
+    MerkleTreeHook, H256, U256,
 };
 use hyperlane_ethereum::{
-    BatchCache, EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse,
+    multicall::BatchCache, EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse,
 };
 
 mockall::mock! {

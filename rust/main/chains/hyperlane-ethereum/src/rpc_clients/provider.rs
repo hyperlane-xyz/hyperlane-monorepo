@@ -22,8 +22,9 @@ use hyperlane_core::{
     HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
+use crate::contracts::multicall::BatchCache;
 use crate::{
-    get_finalized_block_number, multicall, BatchCache, BuildableWithProvider, ConnectionConf,
+    get_finalized_block_number, multicall, BuildableWithProvider, ConnectionConf,
     EthereumReorgPeriod,
 };
 

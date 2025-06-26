@@ -38,7 +38,7 @@ use crate::{
     TransactionOverrides,
 };
 
-use super::multicall::{self, build_multicall};
+use super::multicall::{self, build_multicall, BatchCache};
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -282,11 +282,6 @@ where
 pub struct EthereumMailboxCache {
     pub latest_block: Option<Block<TxHash>>,
     pub eip1559_fee: Option<Eip1559Fee>,
-}
-
-#[derive(Debug, Default)]
-pub struct BatchCache {
-    pub is_contract: HashMap<H256, bool>,
 }
 
 impl<M> EthereumMailbox<M>

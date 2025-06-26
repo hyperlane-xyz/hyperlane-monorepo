@@ -13,6 +13,13 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
+use crate::{
+    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
+    payload::{FullPayload, PayloadDetails},
+    transaction::{Transaction, TransactionStatus, VmSpecificTxData},
+    DispatcherMetrics, LanderError,
+};
 use hyperlane_base::{
     db::HyperlaneRocksDB,
     settings::{
@@ -22,16 +29,9 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256};
+use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{
-    multicall, BatchCache, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
-};
-
-use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
-    dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
-    payload::{FullPayload, PayloadDetails},
-    transaction::{Transaction, TransactionStatus, VmSpecificTxData},
-    DispatcherMetrics, LanderError,
+    multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
 use super::{
@@ -546,14 +546,12 @@ impl AdaptsChain for EthereumAdapter {
 mod tests {
     use ethers::types::{
         transaction::{eip2718::TypedTransaction, eip2930::AccessList},
-        Eip1559TransactionRequest, Eip2930TransactionRequest, TransactionRequest, H160, H256,
+        Eip1559TransactionRequest, Eip2930TransactionRequest, TransactionRequest, H160,
     };
 
     use crate::{
-        adapter::EthereumTxPrecursor,
         dispatcher::PostInclusionMetricsSource,
-        tests::ethereum::tests_inclusion_stage::{dummy_evm_tx, dummy_tx_precursor},
-        transaction::VmSpecificTxData,
+        tests::ethereum::tests_inclusion_stage::dummy_evm_tx, transaction::VmSpecificTxData,
     };
 
     #[test]
