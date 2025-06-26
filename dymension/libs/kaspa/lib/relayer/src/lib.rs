@@ -6,7 +6,7 @@ pub mod withdraw_construction;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa_builder::build_kaspa_withdrawal_pskts;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::HlMetadata;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
 use api_rs::apis::{
@@ -134,4 +134,14 @@ pub async fn handle_new_deposits(
     }
 
     Ok(txs)
+}
+
+#[cfg(test)] // This module is only compiled when running tests
+mod tests {
+
+    #[tokio::test] // This macro sets up a Tokio runtime for your async test
+    async fn test_handle_new_deposit_success() {
+
+    }
+
 }

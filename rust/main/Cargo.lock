@@ -3719,7 +3719,6 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
@@ -6147,7 +6146,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/srene/hyperlane-cosmos-rs?rev=0a64221#0a64221f15c8e10fec0268f0b9ab3ae57b23ec9a"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main#fd1c0d3f4ece3fe1a805f0449ec20838a0dc3bf1"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
@@ -6172,7 +6171,6 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "itertools 0.13.0",
