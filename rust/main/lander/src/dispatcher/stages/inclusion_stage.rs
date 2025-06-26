@@ -110,31 +110,41 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
-            state
-                .metrics
-                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), &domain);
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
+            Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
+        }
+    }
 
-            let pool_snapshot = {
-                let pool_snapshot = pool.lock().await.clone();
-                state.metrics.update_queue_length_metric(
-                    STAGE_NAME,
-                    pool_snapshot.len() as u64,
-                    &domain,
-                );
-                pool_snapshot
-            };
-            info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
-            for (_, mut tx) in pool_snapshot {
-                if let Err(err) =
-                    Self::try_process_tx(tx.clone(), &finality_stage_sender, &state, &pool).await
-                {
-                    error!(?err, ?tx, "Error processing transaction. Dropping it");
-                    Self::drop_tx(&state, &mut tx, TxDropReason::FailedSimulation, &pool).await?;
-                }
+    pub async fn process_txs_step(
+        pool: &InclusionStagePool,
+        finality_stage_sender: &mpsc::Sender<Transaction>,
+        state: &DispatcherState,
+        domain: &str,
+    ) -> Result<(), LanderError> {
+        state
+            .metrics
+            .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+
+        let pool_snapshot = {
+            let pool_snapshot = pool.lock().await.clone();
+            state.metrics.update_queue_length_metric(
+                STAGE_NAME,
+                pool_snapshot.len() as u64,
+                domain,
+            );
+            pool_snapshot
+        };
+        info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
+        for (_, mut tx) in pool_snapshot {
+            if let Err(err) =
+                Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
+            {
+                error!(?err, ?tx, "Error processing transaction. Dropping it");
+                Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
             }
         }
+        Ok(())
     }
 
     #[instrument(
@@ -209,6 +219,9 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
+        // update tx submission attempts
+        tx.submission_attempts += 1;
+
         // Simulating transaction if it has never been submitted before
         tx = Self::simulate_tx(tx, state).await?;
 
@@ -219,8 +232,6 @@ impl InclusionStage {
         tx = Self::submit_tx(&tx, state).await?;
         info!(?tx, "Transaction submitted to node");
 
-        // update tx submission attempts
-        tx.submission_attempts += 1;
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
@@ -281,10 +292,10 @@ impl InclusionStage {
     }
 
     async fn simulate_tx(tx: Transaction, state: &DispatcherState) -> Result<Transaction> {
-        if tx.submission_attempts > 0 {
+        if tx.submission_attempts > 1 {
             info!(
                 ?tx,
-                "Skipping simulation for transaction with submission attempts > 0"
+                "Skipping simulation for transaction with submission attempts > 1"
             );
             return Ok(tx);
         }
