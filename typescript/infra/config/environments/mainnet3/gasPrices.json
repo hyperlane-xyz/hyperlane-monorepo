@@ -407,10 +407,6 @@
     "amount": "1.001",
     "decimals": 9
   },
-  "real": {
-    "amount": "0.022",
-    "decimals": 9
-  },
   "redstone": {
     "amount": "0.00010005",
     "decimals": 9
@@ -525,14 +521,6 @@
   },
   "torus": {
     "amount": "31.25",
-    "decimals": 9
-  },
-  "treasure": {
-    "amount": "1048.556132041",
-    "decimals": 9
-  },
-  "trumpchain": {
-    "amount": "0.1",
     "decimals": 9
   },
   "unichain": {
