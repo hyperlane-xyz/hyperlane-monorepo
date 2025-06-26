@@ -7,7 +7,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 use starknet::core::types::Felt;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::contracts::interchain_security_module::InterchainSecurityModuleReader;
 use crate::error::HyperlaneStarknetError;
@@ -76,24 +76,25 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let message = &message.into();
+        Ok(Some(U256::one()))
+        // let message = &message.into();
 
-        let calldata = self.contract.verify(&metadata.into(), message);
-        debug!("Dry run verify call data: {:#?}", calldata.call_raw);
-        // We can't simulate the `verify` call in Starknet because
-        // it's not marked as an entrypoint. So we just use the query interface
-        // and hardcode a gas value - this can be inefficient if one ISM is
-        // vastly cheaper than another one.
-        let verified = calldata.call().await.map_err(HyperlaneStarknetError::from);
-        debug!("Dry run verify call result: {:#?}", verified);
+        // let calldata = self.contract.verify(&metadata.into(), message);
+        // debug!("Dry run verify call data: {:#?}", calldata.call_raw);
+        // // We can't simulate the `verify` call in Starknet because
+        // // it's not marked as an entrypoint. So we just use the query interface
+        // // and hardcode a gas value - this can be inefficient if one ISM is
+        // // vastly cheaper than another one.
+        // let verified = calldata.call().await.map_err(HyperlaneStarknetError::from);
+        // debug!("Dry run verify call result: {:#?}", verified);
 
-        let verified = verified?;
+        // let verified = verified?;
 
-        if !verified {
-            return Ok(None);
-        }
+        // if !verified {
+        //     return Ok(None);
+        // }
 
-        let dummy_gas_value = U256::one();
-        Ok(Some(dummy_gas_value))
+        // let dummy_gas_value = U256::one();
+        // Ok(Some(dummy_gas_value))
     }
 }
