@@ -67,7 +67,6 @@ export const mainnet3SupportedChainNames = [
   'injective',
   'kaia',
   'katana',
-  'kroma',
   'kyve',
   'linea',
   'lisk',

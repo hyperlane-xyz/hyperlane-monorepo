@@ -223,9 +223,6 @@
   "katana": {
     "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
   },
-  "kroma": {
-    "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
-  },
   "kyve": {
     "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
   },

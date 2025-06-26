@@ -1082,45 +1082,6 @@
       "name": "FallbackRoutingHook"
     }
   ],
-  "kroma": [
-    {
-      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000ff",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0000000000000000000000004ed7d626f1e96cd1c0401607bf70d95243e3ded10000000000000000000000000761b0827849abbf7b0cc09ce14e1c93d87f500400000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x662771d29DFf0d7C36bB9BB6d4241a02e77585d9",
-      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "PausableIsm"
-    },
-    {
-      "address": "0x9c44E6b8F0dB517C2c3a0478caaC5349b614F912",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    }
-  ],
   "linea": [
     {
       "address": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",

@@ -18,7 +18,6 @@ export const awIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   cyber: '0x984Fe5a45Ac4aaeC4E4655b50f776aB79c9Be19F',
   degenchain: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
-  kroma: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   lisk: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   lukso: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   merlin: '0xCf867cEaeeE8CBe65C680c734D29d26440931D5b',

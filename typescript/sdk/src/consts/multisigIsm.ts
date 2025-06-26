@@ -1248,18 +1248,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  kroma: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x71b83c21342787d758199e4b8634d3a15f02dc6e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   kyve: {
     threshold: 2,
     validators: [

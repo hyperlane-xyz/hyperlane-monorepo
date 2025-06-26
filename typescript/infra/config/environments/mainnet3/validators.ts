@@ -653,18 +653,6 @@ export const validatorChainConfig = (
         'degenchain',
       ),
     },
-    kroma: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('kroma'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x71b83c21342787d758199e4b8634d3a15f02dc6e'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'kroma',
-      ),
-    },
 
     lisk: {
       interval: 5,
