@@ -20,10 +20,9 @@ use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDom
 use hyperlane_ethereum::EthereumReorgPeriod;
 
 use crate::adapter::chains::ethereum::{
-    apply_estimate_buffer_to_ethers,
-    nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
-    tests::MockEvmProvider,
-    EthereumAdapter, EthereumAdapterMetrics, EthereumTxPrecursor, Precursor,
+    apply_estimate_buffer_to_ethers, tests::MockEvmProvider, EthereumAdapter,
+    EthereumAdapterMetrics, EthereumTxPrecursor, NonceDb, NonceManager, NonceManagerState,
+    NonceUpdater, Precursor,
 };
 use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
