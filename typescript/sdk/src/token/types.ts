@@ -3,7 +3,8 @@ import { z } from 'zod';
 
 import { objMap } from '@hyperlane-xyz/utils';
 
-import packageJson from '../../package.json' with { type: 'json' };
+// @ts-ignore
+import packageJson from '../../package.json';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   IsmConfig,
