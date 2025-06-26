@@ -5075,6 +5075,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hex-literal"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
+
+[[package]]
 name = "histogram"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5616,6 +5622,7 @@ dependencies = [
  "eyre",
  "futures-util",
  "hex 0.4.3",
+ "hex-literal",
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -6337,6 +6344,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-sealevel",
+ "itertools 0.10.5",
  "mockall",
  "prometheus",
  "serde",
@@ -8536,7 +8544,7 @@ dependencies = [
  "tokio",
  "tokio-metrics",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
@@ -12540,7 +12548,7 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-test",
