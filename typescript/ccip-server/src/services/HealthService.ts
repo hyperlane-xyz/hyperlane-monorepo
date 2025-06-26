@@ -1,8 +1,8 @@
 import { BaseService, ServiceConfig } from './BaseService.js';
 
 class HealthService extends BaseService {
-  static async create(config: ServiceConfig): Promise<HealthService> {
-    return new HealthService(config);
+  static async create(_name: string): Promise<HealthService> {
+    return new HealthService({});
   }
 
   constructor(config: ServiceConfig) {

@@ -30,7 +30,6 @@ import { PrometheusMetrics } from '../utils/prometheus.js';
 import {
   BaseService,
   REGISTRY_URI_SCHEMA,
-  ServiceConfig,
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
 
@@ -58,14 +57,13 @@ export class CallCommitmentsService extends BaseService {
     this.registerRoutes(this.router, this.baseUrl);
   }
 
-  static async create(config: ServiceConfig): Promise<CallCommitmentsService> {
+  static async create(namespace: string): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
-    const namespace = config.namespace || 'callCommitments';
     const baseUrl = env.SERVER_BASE_URL + '/' + namespace;
 
     return new CallCommitmentsService({
-      ...config,
+      namespace,
       multiProvider,
       baseUrl,
     });

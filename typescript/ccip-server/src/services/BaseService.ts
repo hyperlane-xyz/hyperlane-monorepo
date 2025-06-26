@@ -25,7 +25,7 @@ export interface ServiceConfigWithBaseUrl
 }
 
 export interface ServiceFactory {
-  create(config: ServiceConfig): Promise<BaseService>;
+  create(name: string): Promise<BaseService>;
 }
 
 export abstract class BaseService {
@@ -40,7 +40,7 @@ export abstract class BaseService {
   /**
    * Factory method that subclasses must implement
    */
-  static async create(_config: ServiceConfig): Promise<BaseService> {
+  static async create(_name: string): Promise<BaseService> {
     throw new Error('Service must implement static create method');
   }
 

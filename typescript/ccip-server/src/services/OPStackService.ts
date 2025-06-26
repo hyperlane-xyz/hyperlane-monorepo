@@ -37,8 +37,8 @@ export class OPStackService extends BaseService {
   private l2RpcService: RPCService;
   private hyperlaneService: HyperlaneService;
 
-  static async create(config: ServiceConfig): Promise<OPStackService> {
-    return new OPStackService(config);
+  static async create(_name: string): Promise<OPStackService> {
+    return new OPStackService({});
   }
 
   constructor(config: ServiceConfig) {

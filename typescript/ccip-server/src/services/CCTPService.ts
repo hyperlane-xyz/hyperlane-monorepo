@@ -16,7 +16,6 @@ import { PrometheusMetrics } from '../utils/prometheus.js';
 import {
   BaseService,
   REGISTRY_URI_SCHEMA,
-  ServiceConfig,
   ServiceConfigWithMultiProvider,
 } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
@@ -35,12 +34,11 @@ class CCTPService extends BaseService {
   private cctpAttestationService: CCTPAttestationService;
   private multiProvider: MultiProvider;
 
-  static async create(config: ServiceConfig): Promise<CCTPService> {
+  static async create(_name: string): Promise<CCTPService> {
     const env = EnvSchema.parse(process.env);
     const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
 
     return new CCTPService({
-      ...config,
       multiProvider,
     });
   }

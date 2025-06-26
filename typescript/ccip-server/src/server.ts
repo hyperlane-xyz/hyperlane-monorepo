@@ -54,9 +54,7 @@ async function startServer() {
         );
         continue;
       }
-      const service = await ServiceClass.create({
-        namespace: name,
-      });
+      const service = await ServiceClass.create(name);
 
       app.use(`/${name}`, (req, res, next) => {
         res.on('finish', () => {
@@ -87,7 +85,7 @@ async function startServer() {
   }
 
   // Register Health Service
-  const healthService = await HealthService.create({});
+  const healthService = await HealthService.create('health');
   app.use(`/health`, healthService.router);
 
   // Log and handle undefined endpoints
