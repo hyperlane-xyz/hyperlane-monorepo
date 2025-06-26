@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
     "@hyperlane-xyz/core": "8.0.1",
     "@hyperlane-xyz/sdk": "13.4.0",
     "@hyperlane-xyz/utils": "13.4.0",

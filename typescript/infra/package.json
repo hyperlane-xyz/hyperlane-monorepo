@@ -12,6 +12,7 @@
     "@ethersproject/experimental": "^5.7.0",
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "*",
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
     "@google-cloud/secret-manager": "^5.5.0",
     "@hyperlane-xyz/helloworld": "13.4.0",
     "@hyperlane-xyz/registry": "17.8.2",
