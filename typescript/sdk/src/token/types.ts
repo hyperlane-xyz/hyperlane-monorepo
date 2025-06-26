@@ -207,7 +207,7 @@ export enum ContractVerificationStatus {
 export enum OwnerStatus {
   Active = 'active', // Active address with nonce > 0 and/or contract code
   Inactive = 'inactive',
-  GnosisSafe = 'gnosis-safe',
+  GnosisSafe = 'gnosisSafe',
   Error = 'error',
   Skipped = 'skipped',
 }

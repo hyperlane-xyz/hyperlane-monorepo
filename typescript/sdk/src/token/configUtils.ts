@@ -34,6 +34,7 @@ import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isMovableCollateralTokenConfig,
@@ -193,7 +194,9 @@ export async function expandWarpDeployConfig(params: {
       const isEVMChain =
         multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
 
-      // Expand EVM warpDeployConfig virtual to the control states
+      // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
+      // For contractVerificationStatus, all values should be 'verified'
+      // For ownerStatus, all values should be 'active or 'gnosisSafe'
       if (
         expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
         multiProvider.getProtocol(chain) === ProtocolType.Ethereum
@@ -207,6 +210,29 @@ export async function expandWarpDeployConfig(params: {
               return ContractVerificationStatus.Skipped;
 
             return ContractVerificationStatus.Verified;
+          },
+        );
+      }
+
+      if (
+        expandedOnChainWarpConfig?.[chain]?.ownerStatus &&
+        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+      ) {
+        // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
+        // For other cases, we expect 'active'
+        chainConfig.ownerStatus = objMap(
+          expandedOnChainWarpConfig[chain].ownerStatus ?? {},
+          (_, status) => {
+            // Skipped for local e2e testing
+            if (status === OwnerStatus.Skipped) return OwnerStatus.Skipped;
+
+            if (
+              status === OwnerStatus.Active ||
+              status === OwnerStatus.GnosisSafe
+            )
+              return status;
+
+            return OwnerStatus.Active;
           },
         );
       }
