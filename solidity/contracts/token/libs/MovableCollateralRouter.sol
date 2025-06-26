@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {ValueTransferBridge} from "../interfaces/ValueTransferBridge.sol";
+import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -40,7 +40,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         _;
     }
 
-    modifier onlyAllowedBridge(uint32 domain, ValueTransferBridge bridge) {
+    modifier onlyAllowedBridge(uint32 domain, ITokenBridge bridge) {
         EnumerableSet.AddressSet storage bridges = _allowedBridges[domain];
         require(bridges.contains(address(bridge)), "MCR: Not allowed bridge");
         _;
@@ -66,10 +66,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         delete allowedRecipient[domain];
     }
 
-    function addBridge(
-        uint32 domain,
-        ValueTransferBridge bridge
-    ) external onlyOwner {
+    function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
         _allowedBridges[domain].add(address(bridge));
@@ -77,7 +74,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
 
     function removeBridge(
         uint32 domain,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) external onlyOwner {
         _allowedBridges[domain].remove(address(bridge));
     }
@@ -90,7 +87,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
      */
     function approveTokenForBridge(
         IERC20 token,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) external onlyOwner {
         token.safeApprove(address(bridge), type(uint256).max);
     }
@@ -114,7 +111,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     function rebalance(
         uint32 domain,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
         address rebalancer = _msgSender();
 
@@ -159,12 +156,12 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) internal virtual {
         bridge.transferRemote{value: msg.value}({
-            destinationDomain: domain,
-            recipient: recipient,
-            amountOut: amount
+            _destination: domain,
+            _recipient: recipient,
+            _amount: amount
         });
     }
 }

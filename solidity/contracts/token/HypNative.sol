@@ -4,8 +4,8 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
+import {Quote} from "contracts/interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -120,7 +120,7 @@ contract HypNative is MovableCollateralRouter {
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) internal override {
         uint fee = msg.value + amount;
         require(
@@ -128,9 +128,9 @@ contract HypNative is MovableCollateralRouter {
             "Native: rebalance amount exceeds balance"
         );
         bridge.transferRemote{value: fee}({
-            destinationDomain: domain,
-            recipient: recipient,
-            amountOut: amount
+            _destination: domain,
+            _recipient: recipient,
+            _amount: amount
         });
     }
 }

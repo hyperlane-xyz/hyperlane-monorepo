@@ -18,7 +18,7 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
+import {ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -104,7 +104,7 @@ contract HypERC20Collateral is MovableCollateralRouter {
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
-        ValueTransferBridge bridge
+        ITokenBridge bridge
     ) internal override {
         wrappedToken.safeApprove({spender: address(bridge), value: amount});
         MovableCollateralRouter._rebalance({
