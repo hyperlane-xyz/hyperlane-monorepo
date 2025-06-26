@@ -14,7 +14,7 @@ import {
   usdcTokenAddresses,
 } from './cctp.js';
 
-const SERVICE_URL = 'https://testnet-offchain-lookup.services.hyperlane.xyz/';
+const SERVICE_URL = 'https://testnet-offchain-lookup.services.hyperlane.xyz';
 
 export const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
