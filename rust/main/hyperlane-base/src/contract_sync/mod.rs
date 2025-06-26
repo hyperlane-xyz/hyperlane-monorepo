@@ -240,6 +240,7 @@ where
         indexed_height_metric: GenericGauge<AtomicI64>,
         liveness_metric: GenericGauge<AtomicI64>,
     ) {
+        tracing::info_span!("cursor_indexer_task", domain = domain.name());
         loop {
             Self::update_liveness_metric(&liveness_metric);
             indexed_height_metric.set(cursor.latest_queried_block() as i64);
