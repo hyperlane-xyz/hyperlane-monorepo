@@ -110,6 +110,7 @@ export const apply: CommandModuleWithWarpApplyContext<
   SelectWarpRouteBuilder & {
     strategy?: string;
     receiptsDir: string;
+    relay?: boolean;
   }
 > = {
   command: 'apply',
@@ -123,11 +124,18 @@ export const apply: CommandModuleWithWarpApplyContext<
       default: './generated/transactions',
       coerce: (dir) => removeEndingSlash(dir),
     },
+    relay: {
+      type: 'boolean',
+      description:
+        'Handle self-relay of ICA transactions when using a JSON RPC submitter',
+      default: false,
+    },
   },
   handler: async ({
     context,
     strategy: strategyUrl,
     receiptsDir,
+    relay,
     warpRouteId,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
@@ -142,6 +150,7 @@ export const apply: CommandModuleWithWarpApplyContext<
       warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
+      selfRelay: relay,
       warpRouteId,
     });
     process.exit(0);
