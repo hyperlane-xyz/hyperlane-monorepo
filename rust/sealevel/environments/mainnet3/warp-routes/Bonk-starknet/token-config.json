@@ -1,0 +1,15 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 5,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+  },
+  "starknet": {
+    "type": "synthetic",
+    "decimals": 5,
+    "symbol": "Bonk",
+    "name": "Bonk",
+    "foreignDeployment": "0x074238dfa02063792077820584c925b679a013cbab38e5ca61af5627d1eda736"
+  }
+}
