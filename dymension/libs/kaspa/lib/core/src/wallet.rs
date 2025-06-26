@@ -53,8 +53,9 @@ pub async fn get_wallet(
 
 #[derive(Clone)]
 pub struct EasyKaspaWallet {
-    wallet: Arc<Wallet>,
-    network_info: NetworkInfo,
+    pub wallet: Arc<Wallet>,
+    pub secret: Secret,
+    pub network_info: NetworkInfo,
 }
 
 // Implement Debug for your wrapper
@@ -77,6 +78,7 @@ impl EasyKaspaWallet {
         let w = get_wallet(&s, info.clone().network_id, info.clone().rpc_url).await?;
         Ok(Self {
             wallet: w,
+            secret: s,
             network_info: info,
         })
     }
@@ -107,7 +109,7 @@ impl EasyKaspaWallet {
 }
 
 #[derive(Clone, Debug)]
-struct NetworkInfo {
+pub struct NetworkInfo {
     pub network_id: NetworkId,
     pub network_type: NetworkType,
     pub address_prefix: Prefix,

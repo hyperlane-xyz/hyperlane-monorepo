@@ -181,7 +181,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-async fn sign_pay_fee(
+pub async fn sign_pay_fee(
     pskt_unsigned: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,

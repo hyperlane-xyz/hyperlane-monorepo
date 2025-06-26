@@ -378,6 +378,10 @@ pub fn build_kaspa_connection_conf(
         .parse_u32()
         .end()?;
 
+    let mut local_err = ConfigParsingError::default();
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -389,6 +393,7 @@ pub fn build_kaspa_connection_conf(
             escrow_address.unwrap().to_string(),
             threshold_ism as usize,
             threshold_escrow as usize,
+            grpcs,
         ),
     ))
 }

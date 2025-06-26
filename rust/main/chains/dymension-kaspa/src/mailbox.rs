@@ -7,10 +7,10 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
-    BatchResult, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
-    H512, U256,
+    BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
+    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate,
+    TxOutcome, H256, H512, U256,
 };
 
 use crate::KaspaProvider;
@@ -33,8 +33,8 @@ impl KaspaMailbox {
         })
     }
 
-    pub fn with_provider(&self, provider: KaspaProvider) -> Self { 
-        Self{
+    pub fn with_provider(&self, provider: KaspaProvider) -> Self {
+        Self {
             provider,
             domain: self.domain.clone(),
             address: self.address,
