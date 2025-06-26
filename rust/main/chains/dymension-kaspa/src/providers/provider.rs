@@ -101,6 +101,7 @@ impl KaspaProvider {
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
+            None,
         )
         .await
     }

@@ -78,6 +78,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .script_public_key(e.p2sh.clone())
         .build()
         .map_err(|e| Error::Custom(format!("pskt output e_change: {}", e)))?;
+
     _ = output_e_change; // TODO: fix
 
     let output_r_change = OutputBuilder::default()
