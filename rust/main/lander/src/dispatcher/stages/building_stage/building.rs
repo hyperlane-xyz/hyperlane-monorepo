@@ -39,7 +39,7 @@ impl BuildingStage {
                 .await;
             if payloads.is_empty() {
                 // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
                 continue;
             }
 
