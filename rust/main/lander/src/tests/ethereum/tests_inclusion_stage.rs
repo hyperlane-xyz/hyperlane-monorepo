@@ -425,7 +425,7 @@ async fn run_and_expect_successful_inclusion(
             assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
             success = true;
         },
-        _ = tokio::time::sleep(Duration::from_millis(5000000)) => {}
+        _ = tokio::time::sleep(Duration::from_millis(5000)) => {}
     }
     assert!(
         success,
@@ -482,7 +482,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
-    mock_fee_history(0, 0);
 
     mock_evm_provider.expect_send().returning(|_, _| {
         Ok(H256::random()) // Mocked transaction hash
