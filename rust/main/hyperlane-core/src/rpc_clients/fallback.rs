@@ -170,8 +170,12 @@ where
             .await
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
+            let new_priority = PrioritizedProviderInner {
+                last_failed_count: 0,
+                ..*priority
+            };
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
-            self.deprioritize_provider(*priority).await;
+            self.deprioritize_provider(new_priority).await;
             info!(
                 provider_index=%priority.index,
                 provider=?self.inner.providers[priority.index],
@@ -230,7 +234,7 @@ where
                 let resp = f(provider.clone()).await;
                 self.handle_stalled_provider(priority, provider).await;
                 if resp.is_err() {
-                    self.handle_failed_provider(idx).await;
+                    self.handle_failed_provider(priority.index).await;
                 }
                 let _span =
                     warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
@@ -312,13 +316,14 @@ impl<T, B> FallbackProviderBuilder<T, B> {
 
 /// Utilities to import when testing chain-specific fallback providers
 pub mod test {
-    use crate::ChainCommunicationError;
-
-    use super::*;
     use std::{
         ops::Deref,
         sync::{Arc, Mutex},
     };
+
+    use crate::ChainCommunicationError;
+
+    use super::*;
 
     /// Provider that stores requests and optionally sleeps before returning a dummy value
     #[derive(Debug, Clone)]
