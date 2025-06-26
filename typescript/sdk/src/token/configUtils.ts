@@ -205,11 +205,14 @@ export async function expandWarpDeployConfig(params: {
         chainConfig.contractVerificationStatus = objMap(
           expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
           (_, status) => {
-            // Skipped for local e2e testing
-            if (status === ContractVerificationStatus.Skipped)
-              return ContractVerificationStatus.Skipped;
-
-            return ContractVerificationStatus.Verified;
+            switch (status) {
+              case ContractVerificationStatus.Skipped:
+              case ContractVerificationStatus.Verified:
+                return status; // Pass through the status so diffs will be shown
+              case ContractVerificationStatus.Unverified:
+              case ContractVerificationStatus.Error:
+                return ContractVerificationStatus.Verified;
+            }
           },
         );
       }
@@ -223,16 +226,16 @@ export async function expandWarpDeployConfig(params: {
         chainConfig.ownerStatus = objMap(
           expandedOnChainWarpConfig[chain].ownerStatus ?? {},
           (_, status) => {
-            // Skipped for local e2e testing
-            if (status === OwnerStatus.Skipped) return OwnerStatus.Skipped;
-
-            if (
-              status === OwnerStatus.Active ||
-              status === OwnerStatus.GnosisSafe
-            )
-              return status;
-
-            return OwnerStatus.Active;
+            switch (status) {
+              // Skipped for local e2e testing
+              case OwnerStatus.Skipped:
+              case OwnerStatus.Active:
+              case OwnerStatus.GnosisSafe:
+                return status; // Pass through the status so diffs will be shown
+              case OwnerStatus.Error:
+              case OwnerStatus.Inactive:
+                return OwnerStatus.Active;
+            }
           },
         );
       }
