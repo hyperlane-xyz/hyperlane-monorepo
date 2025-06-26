@@ -4,11 +4,11 @@ import {
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { DEPLOYER } from '../../owners.js';
 import {
   messageTransmitterAddresses,
   tokenMessengerAddresses,
@@ -34,8 +34,10 @@ export const getCCTPWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
     CCTP_CHAINS.map((chain) => {
+      const owner = awIcas[chain] ?? awSafes[chain];
+      assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
-        owner: awIcas[chain] ?? awSafes[chain] ?? DEPLOYER,
+        owner,
         mailbox: routerConfig[chain].mailbox,
         type: TokenType.collateralCctp,
         token: usdcTokenAddresses[chain],

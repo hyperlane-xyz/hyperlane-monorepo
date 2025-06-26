@@ -64,7 +64,6 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
-import { getRebalancingUSDCConfig } from './environments/mainnet3/warp/configGetters/getRebalancingUSDCConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
@@ -156,7 +155,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
-  [WarpRouteIds.MainnetRebalancingUSDC]: getRebalancingUSDCConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
 };
 
