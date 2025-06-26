@@ -7,6 +7,7 @@ use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
+use std::str::FromStr;
 use tonic::async_trait;
 use url::Url;
 
@@ -14,6 +15,7 @@ use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
+pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -45,6 +47,11 @@ pub struct KaspaProvider {
     rest: RestProvider,
     validators: ValidatorsClient,
     cosmos_rpc: CosmosGrpcClient,
+
+    /*
+      TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
+    */
+    kas_key: Option<KaspaSecpKeypair>,
 }
 
 impl KaspaProvider {
@@ -66,6 +73,11 @@ impl KaspaProvider {
         )
         .await?;
 
+        let kas_key = conf
+            .kaspa_escrow_private_key
+            .as_ref()
+            .map(|k| KaspaSecpKeypair::from_str(k).unwrap());
+
         Ok(KaspaProvider {
             domain: domain.clone(),
             conf: conf.clone(),
@@ -73,7 +85,12 @@ impl KaspaProvider {
             rest,
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
+            kas_key,
         })
+    }
+
+    pub fn must_kas_key(&self) -> KaspaSecpKeypair {
+        self.kas_key.unwrap()
     }
 
     /// dococo

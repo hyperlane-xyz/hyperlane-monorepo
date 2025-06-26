@@ -7,25 +7,51 @@ use axum::{
     routing::post,
     Router,
 };
-use cosmrs::tx::MessageExt;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
-use dym_kas_validator::KaspaSecpKeypair;
+pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::{str::FromStr, sync::Arc};
 
+use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_deposits;
 use dym_kas_validator::withdrawal::validate_withdrawals;
 
-/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
-pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
-    let state = Arc::new(HandlerState { signer });
+#[derive(Clone)]
+pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
+    signer: Option<Arc<S>>,
+    kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
+}
+impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
+    pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
+        Self {
+            signer: Some(signer),
+            kas_provider: Some(kas_provider),
+        }
+    }
+    fn must_signer(&self) -> Arc<S> {
+        self.signer.as_ref().unwrap().clone()
+    }
+    fn must_kas_key(&self) -> KaspaSecpKeypair {
+        self.kas_provider.as_ref().unwrap().must_kas_key()
+    }
+    pub fn default() -> Self {
+        Self {
+            signer: None,
+            kas_provider: None,
+        }
+    }
+}
 
+/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
+pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    resources: ValidatorServerResources<S>,
+) -> Router {
     Router::new()
         .route(
             ROUTE_VALIDATE_NEW_DEPOSITS,
@@ -36,12 +62,11 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> 
             post(respond_validate_confirmed_withdrawals::<S>),
         )
         .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
-        // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request
-        .with_state(state)
+        .with_state(Arc::new(resources))
 }
 
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(state): State<Arc<HandlerState<S>>>,
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
@@ -68,8 +93,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         message_id,
     };
 
-    let sig = state
-        .signer
+    let sig = resources
+        .must_signer()
         .sign(to_sign) // TODO: need to lock first?
         .await
         .map_err(|e| AppError(e.into()))?;
@@ -81,7 +106,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 }
 
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(state): State<Arc<HandlerState<S>>>,
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
     let confirmation_fxg: ConfirmationFXG =
@@ -97,8 +122,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
 
     let progress_indication = &confirmation_fxg.progress_indication;
 
-    let sig = state
-        .signer // TODO: need to lock?
+    let sig = resources
+        .must_signer() // TODO: need to lock?
         .sign(SignableProgressIndication {
             progress_indication: progress_indication.clone(),
         })
@@ -175,25 +200,11 @@ impl IntoResponse for AppError {
 /// Allows handler to have some state
 type HandlerResult<T> = Result<T, AppError>;
 
-#[derive(Clone)]
-struct HandlerState<S: HyperlaneSignerExt + Send + Sync + 'static> {
-    // TODO: needs to be shared across routers?
-    signer: Arc<S>,
-}
-
-struct KaspaSigningArgs {
-    kp: KaspaSecpKeypair,
-}
-
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(state): State<Arc<HandlerState<S>>>,
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-
-    let args = KaspaSigningArgs {
-        kp: KaspaSecpKeypair::from_str("").unwrap(), // TODO:
-    };
 
     // Call to validator.G()
     if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
@@ -203,7 +214,8 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let mut signed = Vec::new();
     for pskt in fxg.bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt = sign_pskt(&args.kp, pskt).map_err(|e| AppError(e.into()))?;
+        let signed_pskt =
+            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
     let bundle = Bundle::from(signed);
