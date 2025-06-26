@@ -222,7 +222,7 @@ async fn test_inclusion_gas_underpriced() {
             &tx,
             // First submission, price is 200000 - the default fee used by the ethers estimation logic
             // Second submission, price is 10% higher, to due to the underpriced error
-            vec![200000],
+            vec![200000, 220000],
         );
         if send_call_counter < 2 {
             Err(ChainCommunicationError::CustomError(
