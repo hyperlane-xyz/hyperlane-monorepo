@@ -120,8 +120,8 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     }
 
     pub async fn load_from_db(&mut self, metrics: DispatcherMetrics) -> Result<(), LanderError> {
-        let mut now = Instant::now();
-        let mut count = 0;
+        let mut last_time_no_items_reported = Instant::now();
+        let mut iteration_count = 0;
         loop {
             metrics.update_liveness_metric(
                 format!("{}DbLoader", self.iterated_item_name,).as_str(),
@@ -134,19 +134,21 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                     return Ok(());
                 }
 
-                if count == 0 || now.elapsed() > Duration::from_secs(60) {
-                    debug!(?self, iterations=?count, "No items to process");
-                    now = Instant::now();
-                    count = 0;
+                if iteration_count == 0
+                    || last_time_no_items_reported.elapsed() > Duration::from_secs(60)
+                {
+                    debug!(?self, iterations=?iteration_count, "No items to process");
+                    last_time_no_items_reported = Instant::now();
+                    iteration_count = 0;
                 }
 
                 // sleep to wait for new items to be added
                 sleep(Duration::from_millis(100)).await;
-                count += 1;
+                iteration_count += 1;
             } else {
                 debug!(?self, "Loaded item");
-                now = Instant::now();
-                count = 0;
+                last_time_no_items_reported = Instant::now();
+                iteration_count = 0;
             }
         }
     }
