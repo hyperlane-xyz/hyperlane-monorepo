@@ -103,7 +103,7 @@ export enum WarpRouteIds {
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
-  LumiaUSDC = 'USDC/arbitrum-base-ethereum-lumiaprism-optimism',
+  LumiaUSDC = 'USDC/lumia',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
