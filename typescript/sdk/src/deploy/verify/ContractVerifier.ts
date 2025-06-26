@@ -296,12 +296,6 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger: Logger = this.logger,
   ): Promise<ContractVerificationStatus> {
     try {
-      const metadata = this.multiProvider.tryGetChainMetadata(chain);
-      const rpcUrl = metadata?.rpcUrls[0].http ?? '';
-      if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-        verificationLogger.debug('Skipping verification for local endpoints');
-        return ContractVerificationStatus.Skipped;
-      }
       verificationLogger.trace(
         `Fetching contract ABI for ${chain} address ${address}`,
       );
