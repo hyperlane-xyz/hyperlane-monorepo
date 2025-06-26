@@ -201,7 +201,7 @@ where
                 let resp = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
                 if resp.is_err() {
-                    self.handle_failed_provider(priority.index).await;
+                    self.handle_failed_provider(priority).await;
                 }
                 let _span =
                     warn_span!("fallback_request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();

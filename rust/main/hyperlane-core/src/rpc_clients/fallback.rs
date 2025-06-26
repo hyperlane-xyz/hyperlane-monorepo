@@ -188,22 +188,18 @@ where
     }
 
     /// De-prioritize a provider that has returned a bad response
-    pub async fn handle_failed_provider(&self, index: usize) {
-        self.increment_failed_count(index).await;
-        let mut priority = {
-            let priorities = self.inner.priorities.read().await;
-            match priorities.get(index) {
-                Some(p) => p.clone(),
-                None => return,
-            }
-        };
+    pub async fn handle_failed_provider(&self, priority: &PrioritizedProviderInner) {
+        self.increment_failed_count(priority.index).await;
 
-        if priority.last_failed_count >= FAILED_REQUEST_THRESHOLD {
-            priority.last_failed_count = 0;
-            self.deprioritize_provider(priority).await;
+        if priority.last_failed_count + 1 >= FAILED_REQUEST_THRESHOLD {
+            let new_priority = PrioritizedProviderInner {
+                last_failed_count: 0,
+                ..*priority
+            };
+            self.deprioritize_provider(new_priority).await;
             info!(
-                provider_index=%index,
-                provider=?self.inner.providers[index],
+                provider_index=%new_priority.index,
+                provider=?self.inner.providers[new_priority.index],
                 "Deprioritizing an inner provider in FallbackProvider",
             );
         }
@@ -234,7 +230,7 @@ where
                 let resp = f(provider.clone()).await;
                 self.handle_stalled_provider(priority, provider).await;
                 if resp.is_err() {
-                    self.handle_failed_provider(priority.index).await;
+                    self.handle_failed_provider(priority).await;
                 }
                 let _span =
                     warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
@@ -320,8 +316,6 @@ pub mod test {
         ops::Deref,
         sync::{Arc, Mutex},
     };
-
-    use crate::ChainCommunicationError;
 
     use super::*;
 
@@ -414,9 +408,7 @@ pub mod test {
                     // we set it up so that provider1 always fails and get deprioritized
                     let future = async move {
                         if provider.requests.lock().unwrap().is_empty() {
-                            Err::<u64, ChainCommunicationError>(
-                                ChainCommunicationError::BatchingFailed,
-                            )
+                            Err(crate::ChainCommunicationError::BatchingFailed)
                         } else {
                             Ok(100)
                         }
