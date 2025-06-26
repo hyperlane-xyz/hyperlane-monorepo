@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use ethers::{abi::Detokenize, providers::Middleware};
@@ -6,13 +7,9 @@ use itertools::{Either, Itertools};
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use hyperlane_core::{
-    utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider, U256,
-};
+use hyperlane_core::{ChainResult, HyperlaneDomain, HyperlaneProvider, H256, U256};
 
-use crate::{ConnectionConf, EthereumProvider};
-
-use super::EthereumMailboxCache;
+use crate::{decode_revert_reason, EthereumProvider};
 
 const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 100;
 const MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR: u64 = 100;
@@ -24,26 +21,36 @@ const ALLOW_BATCH_FAILURES: bool = true;
 /// - https://dashboard.tenderly.co/tx/arbitrum/0xad644e431dc53c3fc0a074a749d118ff5517346c3f28d8e2513610cc9ab5c91a/gas-usage
 const MULTICALL_OVERHEAD_PER_CALL: u64 = 3500;
 
+/// Caches the confirmations that a given address is a contract or not.
+#[derive(Debug, Default)]
+pub struct BatchCache {
+    /// A map of contract addresses to a boolean indicating whether the address is a contract
+    pub is_contract: HashMap<H256, bool>,
+}
+
+/// Builds a Multicall contract instance for a given Ethereum provider and domain
 pub async fn build_multicall<M: Middleware + 'static>(
     provider: Arc<M>,
-    conn: &ConnectionConf,
     domain: HyperlaneDomain,
-    cache: Arc<Mutex<EthereumMailboxCache>>,
+    cache: Arc<Mutex<BatchCache>>,
+    multicall_contract_address: H256,
 ) -> eyre::Result<Multicall<M>> {
-    let address = conn
-        .op_submission_config
-        .batch_contract_address
-        .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
     let is_contract_cache = {
         let cache = cache.lock().await;
-        cache.is_contract.get(&address).cloned()
+        cache.is_contract.get(&multicall_contract_address).cloned()
     };
     let is_contract = match is_contract_cache {
         Some(is_contract) => is_contract,
         None => {
             let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
-            let is_contract = ethereum_provider.is_contract(&address).await?;
-            cache.lock().await.is_contract.insert(address, is_contract);
+            let is_contract = ethereum_provider
+                .is_contract(&multicall_contract_address)
+                .await?;
+            cache
+                .lock()
+                .await
+                .is_contract
+                .insert(multicall_contract_address, is_contract);
             is_contract
         }
     };
@@ -51,19 +58,21 @@ pub async fn build_multicall<M: Middleware + 'static>(
     if !is_contract {
         return Err(eyre::eyre!("Multicall contract not found at address"));
     }
-    let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {
-        Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
-        Err(err) => {
-            return Err(eyre::eyre!(
-                "Unable to build multicall contract: {}",
-                err.to_string()
-            ))
-        }
-    };
+    let multicall =
+        match Multicall::new(provider.clone(), Some(multicall_contract_address.into())).await {
+            Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
+            Err(err) => {
+                return Err(eyre::eyre!(
+                    "Unable to build multicall contract: {}",
+                    err.to_string()
+                ))
+            }
+        };
 
     Ok(multicall)
 }
 
+/// Batch multiple contract calls into a single multicall transaction
 pub fn batch<M, D>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
@@ -82,6 +91,7 @@ where
     multicall.as_aggregate_3_value()
 }
 
+/// Filter out successful calls and return the failed calls with their indices
 pub fn filter_failed<M, D>(
     calls: Vec<ContractCall<M, D>>,
     results: Vec<MulticallResult>,
@@ -99,10 +109,24 @@ pub fn filter_failed<M, D>(
         })
 }
 
+/// Partition the results of a multicall into successful and failed indices
+pub fn filter(results: &[MulticallResult]) -> (Vec<usize>, Vec<(usize, String)>) {
+    results.iter().enumerate().partition_map(|(index, result)| {
+        if result.success {
+            Either::Left(index)
+        } else {
+            let reason = decode_revert_reason(&result.return_data)
+                .map_or("No revert reason provided".to_string(), |r| r.to_string());
+            Either::Right((index, reason))
+        }
+    })
+}
+
+/// Estimate the gas limit for a batch of contract calls
 pub async fn estimate<M, D>(
-    batch: ContractCall<M, D>,
+    batch: &ContractCall<M, D>,
     calls: Vec<ContractCall<M, ()>>,
-) -> ChainResult<ContractCall<M, D>>
+) -> ChainResult<U256>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -135,5 +159,5 @@ where
     let scaled_down_gas_limit = gas_limit * MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR
         / MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR;
 
-    Ok(batch.gas(scaled_down_gas_limit))
+    Ok(scaled_down_gas_limit)
 }

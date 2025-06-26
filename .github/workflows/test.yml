@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -65,6 +65,7 @@ jobs:
 
   lint-prettier:
     runs-on: depot-ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,6 +84,8 @@ jobs:
 
       - name: lint
         run: yarn lint
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'

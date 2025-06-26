@@ -1,14 +1,23 @@
 import { BigNumber, PopulatedTransaction, utils } from 'ethers';
 import { z } from 'zod';
 
-import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   Address,
   CallData,
   addBufferToGasLimit,
   addressToBytes32,
+  arrayToObject,
   bytes32ToAddress,
+  eqAddress,
   isZeroishAddress,
+  objFilter,
+  objMap,
+  promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -19,7 +28,7 @@ import {
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { RouterApp } from '../../router/RouterApps.js';
-import { ChainName } from '../../types.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
@@ -229,16 +238,61 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 }
 
-export function buildInterchainAccountApp(
+export async function buildInterchainAccountApp(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-): InterchainAccount {
+  registry: Readonly<IRegistry>,
+): Promise<InterchainAccount> {
   if (!config.localRouter) {
     throw new Error('localRouter is required for account deployment');
   }
+
+  let remoteIcaAddresses: ChainMap<{ interchainAccountRouter: Address }>;
+  const localChainAddresses = await registry.getChainAddresses(chain);
+  // if the user specified a custom router address we need to retrieve the remote ica addresses
+  // configured on the user provided router, otherwise we use the ones defined in the registry
+  if (
+    localChainAddresses?.interchainAccountRouter &&
+    eqAddress(config.localRouter, localChainAddresses.interchainAccountRouter)
+  ) {
+    const addressByChain = await registry.getAddresses();
+
+    remoteIcaAddresses = objMap(addressByChain, (_, chainAddresses) => ({
+      interchainAccountRouter: chainAddresses.interchainAccountRouter,
+    }));
+  } else {
+    const currentIca = InterchainAccountRouter__factory.connect(
+      config.localRouter,
+      multiProvider.getSigner(chain),
+    );
+
+    const knownDomains = await currentIca.domains();
+    remoteIcaAddresses = await promiseObjAll(
+      objMap(arrayToObject(knownDomains.map(String)), async (domainId) => {
+        const routerAddress = await currentIca.routers(domainId);
+
+        return { interchainAccountRouter: bytes32ToAddress(routerAddress) };
+      }),
+    );
+  }
+
+  // remove the undefined or 0 addresses values
+  remoteIcaAddresses = objFilter(
+    remoteIcaAddresses,
+    (
+      _chainId,
+      chainAddresses,
+    ): chainAddresses is { interchainAccountRouter: Address } =>
+      !!chainAddresses.interchainAccountRouter &&
+      !isZeroishAddress(chainAddresses.interchainAccountRouter),
+  );
+
   const addressesMap: HyperlaneAddressesMap<any> = {
-    [chain]: { interchainAccountRouter: config.localRouter },
+    [chain]: {
+      interchainAccountRouter: config.localRouter,
+    },
+    ...remoteIcaAddresses,
   };
   return InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 }
@@ -247,12 +301,10 @@ export async function deployInterchainAccount(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
+  registry: IRegistry,
 ): Promise<Address> {
-  const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
-    multiProvider,
-    chain,
-    config,
-  );
+  const interchainAccountApp: InterchainAccount =
+    await buildInterchainAccountApp(multiProvider, chain, config, registry);
   return interchainAccountApp.deployAccount(chain, config);
 }
 
