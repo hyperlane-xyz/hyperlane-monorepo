@@ -655,3 +655,6 @@ mod tests {
         assert_eq!(metrics_source, expected_post_inclusion_metrics_source);
     }
 }
+
+#[cfg(test)]
+pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;

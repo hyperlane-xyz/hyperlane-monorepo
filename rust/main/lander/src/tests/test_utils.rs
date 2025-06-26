@@ -8,7 +8,7 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::identifiers::UniqueIdentifier;
 use hyperlane_core::KnownHyperlaneDomain;
 
-use crate::adapter::chains::ethereum::nonce::db::NonceDb;
+use crate::adapter::chains::ethereum::NonceDb;
 use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
 use crate::dispatcher::{DispatcherMetrics, PayloadDb, TransactionDb};
 use crate::error::LanderError;
