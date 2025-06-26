@@ -63,7 +63,6 @@ export class CallCommitmentsService extends BaseService {
     const baseUrl = env.SERVER_BASE_URL + '/' + namespace;
 
     return new CallCommitmentsService({
-      namespace,
       multiProvider,
       baseUrl,
     });

@@ -11,9 +11,7 @@ export const REGISTRY_URI_SCHEMA = z
   .transform((val) => val.split(',').map((s) => s.trim()))
   .optional();
 
-export interface ServiceConfig {
-  namespace?: string;
-}
+export interface ServiceConfig {}
 
 export interface ServiceConfigWithMultiProvider extends ServiceConfig {
   multiProvider: MultiProvider;
