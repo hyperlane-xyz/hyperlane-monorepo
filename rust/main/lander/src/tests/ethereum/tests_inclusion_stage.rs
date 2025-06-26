@@ -521,11 +521,11 @@ async fn assert_tx_db_state(
         .unwrap()
         .unwrap();
     let evm_tx = &retrieved_tx.precursor().tx;
+
     assert_eq!(
         retrieved_tx.status, expected.status,
         "Transaction status mismatch"
     );
-
     assert_eq!(
         retrieved_tx.payload_details, created_tx.payload_details,
         "Payload details mismatch"
@@ -535,6 +535,10 @@ async fn assert_tx_db_state(
         "Submission attempts mismatch"
     );
 
+    assert!(
+        matches!(evm_tx, TypedTransaction::Eip1559(_)),
+        "Expected EIP-1559 transaction type"
+    );
     assert_eq!(evm_tx.nonce(), Some(&expected.nonce), "Nonce mismatch");
     assert_eq!(
         evm_tx.gas(),
