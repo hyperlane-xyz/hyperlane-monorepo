@@ -89,4 +89,7 @@ export const blacklistedMessageIds = [
   // Messages to a recipient that Neutron doesn't seem to allow
   '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
   '0xc376df3e8d82de669b48b58e0521db5cf6c23a21fb2230487c30536f7b6503f7',
+
+  // messages using the ICA call commitments sent with the wrong relayer address
+  '0xc250d1ebe720472245a32d9687b1a2f034b4b7cfedeecc50e9590a89e0371b16',
 ];
