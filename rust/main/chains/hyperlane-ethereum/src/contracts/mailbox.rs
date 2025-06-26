@@ -38,7 +38,7 @@ use crate::{
     TransactionOverrides,
 };
 
-use super::multicall::{self, build_multicall};
+use super::multicall::{self, build_multicall, BatchCache};
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -275,11 +275,11 @@ where
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
     cache: Arc<Mutex<EthereumMailboxCache>>,
+    batch_cache: Arc<Mutex<BatchCache>>,
 }
 
 #[derive(Debug, Default)]
 pub struct EthereumMailboxCache {
-    pub is_contract: HashMap<H256, bool>,
     pub latest_block: Option<Block<TxHash>>,
     pub eip1559_fee: Option<Eip1559Fee>,
 }
@@ -312,6 +312,7 @@ where
             arbitrum_node_interface,
             conn: conn.clone(),
             cache: Default::default(),
+            batch_cache: Default::default(),
         }
     }
 
@@ -453,8 +454,8 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         if let Some(mut submittable_batch) = self.call {
-            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
-            submittable_batch.call = estimated;
+            let gas_limit = multicall::estimate(&submittable_batch.call, self.successful).await?;
+            submittable_batch.call.tx.set_gas(gas_limit);
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
@@ -572,11 +573,12 @@ where
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+
         let mut multicall = build_multicall(
             self.provider.clone(),
-            &self.conn,
             self.domain.clone(),
-            self.cache.clone(),
+            self.batch_cache.clone(),
+            self.conn.batch_contract_address(),
         )
         .await
         .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;

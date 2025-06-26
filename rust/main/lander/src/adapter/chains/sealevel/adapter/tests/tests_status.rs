@@ -1,10 +1,7 @@
-use crate::{
-    adapter::{
-        chains::sealevel::adapter::tests::common::{adapter, transaction},
-        AdaptsChain,
-    },
-    transaction::TransactionStatus,
-};
+use crate::adapter::AdaptsChain;
+use crate::transaction::TransactionStatus;
+
+use super::tests_common::{adapter, transaction};
 
 #[tokio::test]
 async fn test_tx_status() {
