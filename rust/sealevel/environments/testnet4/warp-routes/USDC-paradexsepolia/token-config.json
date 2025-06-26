@@ -1,0 +1,27 @@
+{
+  "solanatestnet": {
+    "type": "collateral",
+    "token": "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+    "decimals": 6,
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB",
+    "owner": "6DjHX6Ezjpq3zZMZ8KsqyoFYo1zPSDoiZmLLkxD4xKXS"
+  },
+  "paradexsepolia": {
+    "type": "collateral",
+    "token": "0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e",
+    "decimals": 6,
+    "foreignDeployment": "0x05f971c4faecde2c2b8f2462ea9e5c72aa28ee64404c95e4b7b281e7b49142fb"
+  },
+  "starknetsepolia": {
+    "type": "collateral",
+    "token": "0x053b40A647CEDfca6cA84f542A0fe36736031905A9639a7f19A3C1e66bFd5080",
+    "decimals": 6,
+    "foreignDeployment": "0x02abbcd42d5d38dc0a0ae1bc186bef271527ceeba3ff5e2bd3003800b80ebb1a"
+  },
+  "sepolia": {
+    "type": "collateral",
+    "token": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+    "decimals": 6,
+    "foreignDeployment": "0xFE5505d75890122A6624EEE2ce6C075c421e1849"
+  }
+}
