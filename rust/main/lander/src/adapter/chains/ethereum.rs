@@ -2,12 +2,16 @@ pub use adapter::EthereumAdapter;
 pub use metrics::EthereumAdapterMetrics;
 pub use precursor::EthereumTxPrecursor;
 
-pub mod adapter;
+mod adapter;
 mod metrics;
 pub mod nonce;
 mod payload;
 mod precursor;
-pub mod transaction;
+mod transaction;
 
+#[cfg(test)]
+pub use adapter::apply_estimate_buffer_to_ethers;
+#[cfg(test)]
+pub use transaction::Precursor;
 #[cfg(test)]
 pub mod tests;

@@ -79,7 +79,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 }
 
 // Used for testing
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn apply_estimate_buffer_to_ethers(
     gas: EthersU256,
     domain: &HyperlaneDomain,

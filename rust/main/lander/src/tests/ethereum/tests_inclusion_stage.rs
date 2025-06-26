@@ -20,11 +20,10 @@ use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDom
 use hyperlane_ethereum::EthereumReorgPeriod;
 
 use crate::adapter::chains::ethereum::{
-    adapter::gas_limit_estimator::apply_estimate_buffer_to_ethers,
+    apply_estimate_buffer_to_ethers,
     nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
     tests::MockEvmProvider,
-    transaction::Precursor,
-    EthereumAdapter, EthereumAdapterMetrics, EthereumTxPrecursor,
+    EthereumAdapter, EthereumAdapterMetrics, EthereumTxPrecursor, Precursor,
 };
 use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
@@ -396,7 +395,7 @@ async fn run_and_expect_successful_inclusion(
     )
     .await;
     let created_tx = created_txs[0].clone();
-    let mock_domain = "test";
+    let mock_domain = TEST_DOMAIN.into();
     inclusion_stage_pool
         .lock()
         .await
@@ -443,7 +442,7 @@ async fn assert_tx_db_state(
         .await
         .unwrap()
         .unwrap();
-    let evm_tx = retrieved_tx.precursor().clone().tx;
+    let evm_tx = &retrieved_tx.precursor().tx;
     assert_eq!(
         retrieved_tx.status, expected.status,
         "Transaction status mismatch"
