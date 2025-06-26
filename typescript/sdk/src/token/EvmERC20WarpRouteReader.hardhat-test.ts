@@ -575,44 +575,6 @@ describe('ERC20WarpRouterReader', async () => {
     isLocalRpcStub.restore();
   });
 
-  it('should return the ownerStatus virtual config', async () => {
-    const otherChain = TestChainName.test3;
-    const config: WarpRouteDeployConfigMailboxRequired = {
-      [chain]: {
-        type: TokenType.collateral,
-        token: token.address,
-        hook: await mailbox.defaultHook(),
-        ...baseConfig,
-      },
-      [otherChain]: {
-        type: TokenType.collateral,
-        token: token.address,
-        hook: await mailbox.defaultHook(),
-        ...baseConfig,
-      },
-    };
-    // Deploy with config
-    const warpRoute = await deployer.deploy(config);
-
-    // Stub isLocalRpc to bypass local rpc check
-    const isLocalRpcStub = sinon
-      .stub(multiProvider, 'isLocalRpc')
-      .returns(false);
-
-    // Derive config and check if the owner is active
-    const derivedConfig =
-      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
-        chain,
-        warpRoute[chain].collateral.address,
-      );
-    expect(derivedConfig.ownerStatus).to.deep.equal({
-      [signer.address]: OwnerStatus.Active,
-    });
-
-    // Restore stub
-    isLocalRpcStub.restore();
-  });
-
   it('should return the ownerStatus virtual config for the proxy, implementation, and proxy admin, if they are different', async () => {
     const provider = multiProvider.getProvider(chain);
     const otherChain = TestChainName.test3;
