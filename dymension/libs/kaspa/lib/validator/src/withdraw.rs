@@ -1,6 +1,6 @@
 // We call the signers 'validators'
 
-use core::escrow::*;
+use corelib::escrow::*;
 
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;

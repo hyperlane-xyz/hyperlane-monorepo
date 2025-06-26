@@ -8,7 +8,7 @@ use std::io::Cursor;
 use std::str::FromStr;
 use std::time::Duration;
 
-use core::deposit::DepositFXG;
+use corelib::deposit::DepositFXG;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::Hash;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock, RpcScriptPublicKey};

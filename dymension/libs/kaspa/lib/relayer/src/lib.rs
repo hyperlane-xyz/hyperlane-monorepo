@@ -16,7 +16,7 @@ use api_rs::apis::{
         GetTransactionTransactionsTransactionIdGetParams,
     },
 };
-use core::deposit::DepositFXG;
+use corelib::deposit::DepositFXG;
 use eyre::Result;
 use hyperlane_core::Decode;
 use hyperlane_core::HyperlaneMessage;
@@ -89,9 +89,9 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         .map_err(|e| eyre::eyre!(e))?
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= token_message.amount()
+            U256::from(utxo.amount) >= U256::one()
         })
-        .ok_or("no utx found")
+        .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
 
     // builds the TransactionOutpoint to inject to hl message
@@ -106,10 +106,19 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
     };
     let output_bytes = bincode::serialize(&output)?;
 
-    // replace kaspa value and reencode message
-    let mut metadata: HlMetadata = HlMetadata::decode(token_message.metadata())?;
-    metadata.kaspa = output_bytes;
-    let body = metadata.encode_to_vec();
+    let mut metadata: HlMetadata;
+    if token_message.metadata().is_empty() {
+        metadata = HlMetadata{
+            hook_forward_to_ibc: Vec::new(),
+            kaspa: output_bytes,
+        };
+    } else {
+        metadata = HlMetadata::decode(token_message.metadata())?;
+        // replace kaspa value and reencode message
+        metadata.kaspa = output_bytes;
+
+    }
+    let body: Vec<u8> = metadata.encode_to_vec();
     message.body = body;
 
     // build response for validator
@@ -134,4 +143,24 @@ pub async fn handle_new_deposits(
     }
 
     Ok(txs)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*; 
+    use bytes::Bytes;
+    use std::result::Result as StdResult;
+    use eyre::Result as EyreResult;
+
+    #[tokio::test]
+    async fn handle_new_deposit_test() {
+        
+        let tx = "0f5d30f68cc86a6d94550c7704b7e8f02ab9e8476a2b0615ba899bad7003908b";
+
+        let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
+
+        assert!(result.is_ok(), "Test failed unexpectedly, error: {:?}", result.unwrap_err());
+    }
+
 }

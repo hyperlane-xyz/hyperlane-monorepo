@@ -24,7 +24,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 // Assuming EscrowPublic is correctly defined in the `core` crate
 // and `core` is a dependency in this crate's Cargo.toml (e.g., `core = { path = "../core" }`)
-use core::escrow::EscrowPublic;
+use corelib::escrow::EscrowPublic;
 
 // ---------------------------------------------------------------------------
 // Types & helpers - Updated to match specification
