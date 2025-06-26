@@ -1,50 +1,35 @@
 #![allow(deprecated)]
 
 use core::panic;
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 
-use ethers::{
-    abi::{Function, Param, ParamType, StateMutability},
-    types::{
-        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt,
-        H160, H256 as EthersH256, U256 as EthersU256,
-    },
-    utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
+use ethers::abi::{Function, Param, ParamType, StateMutability};
+use ethers::types::{
+    transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
+    H256 as EthersH256, U256 as EthersU256,
 };
-use tokio::{
-    select,
-    sync::{mpsc, Mutex},
-};
+use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
+use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
-    HyperlaneDomain, KnownHyperlaneDomain, H256, U256,
-};
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDomain, H256, U256};
 use hyperlane_ethereum::EthereumReorgPeriod;
 
 use crate::adapter::chains::ethereum::{
-    adapter::gas_limit_estimator::apply_estimate_buffer_to_ethers, transaction::Precursor,
-    EthereumAdapterMetrics,
+    adapter::gas_limit_estimator::apply_estimate_buffer_to_ethers,
+    nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
+    tests::MockEvmProvider,
+    transaction::Precursor,
+    EthereumAdapter, EthereumAdapterMetrics, EthereumTxPrecursor,
 };
+use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
-use crate::{
-    adapter::{
-        chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
-            tests::MockEvmProvider,
-            EthereumAdapter,
-        },
-        EthereumTxPrecursor,
-    },
-    dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
-    transaction::{Transaction, VmSpecificTxData},
-    DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
-};
+use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
 static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
@@ -52,6 +37,7 @@ static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
 });
 
 #[tokio::test]
+#[traced_test]
 async fn test_inclusion_happy_path() {
     let block_time = Duration::from_millis(20);
     let mock_evm_provider = mocked_evm_provider();
@@ -145,6 +131,7 @@ async fn test_inclusion_gas_spike() {
             // First submission, price is 200000 - the default fee used by the ethers estimation logic
             // Second submission, price is 10% higher, even though the spike was smaller
             // Third submission, price is 10% higher again, even though the spike was smaller
+            // Fourth submission, price matches the spike, because it was greater than 10%
             vec![200000, 220000, 242000],
         );
         Ok(H256::random()) // Mocked transaction hash
@@ -234,6 +221,7 @@ async fn test_inclusion_gas_underpriced() {
             block_time_clone,
             &tx,
             // First submission, price is 200000 - the default fee used by the ethers estimation logic
+            // Second submission, price is 10% higher, to due to the underpriced error
             vec![200000],
         );
         if send_call_counter < 2 {
@@ -281,7 +269,20 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
-
+    let mut simulate_call_counter = 0;
+    mock_evm_provider
+        .expect_simulate_batch()
+        .returning(move |_| {
+            simulate_call_counter += 1;
+            // simulation passes on the first call, but fails on the second
+            if simulate_call_counter < 2 {
+                Ok((vec![], vec![]))
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction simulation failed".to_string(),
+                ))
+            }
+        });
     let mut estimate_gas_call_counter = 0;
     mock_evm_provider
         .expect_estimate_gas_limit()
@@ -289,10 +290,11 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             estimate_gas_call_counter += 1;
             // simulation passes on the first call, but fails on the second
             if estimate_gas_call_counter < 2 {
+                // estimation passes on the first call, but fails on the second
                 Ok(21000.into())
             } else {
                 Err(ChainCommunicationError::CustomError(
-                    "transaction simulation failed".to_string(),
+                    "transaction estimation failed".to_string(),
                 ))
             }
         });
@@ -383,7 +385,7 @@ async fn run_and_expect_successful_inclusion(
     let dispatcher_state =
         mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
-    let inclusion_stage_pool = Arc::new(Mutex::new(HashMap::new()));
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     let created_txs = mock_evm_txs(
         1,
@@ -423,9 +425,7 @@ async fn run_and_expect_successful_inclusion(
             assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
             success = true;
         },
-        _ = tokio::time::sleep(Duration::from_millis(5000000)) => {
-            panic!("Inclusion stage did not process the txs in time");
-        }
+        _ = tokio::time::sleep(Duration::from_millis(5000000)) => {}
     }
     assert!(
         success,
@@ -588,7 +588,14 @@ pub fn mock_dispatcher_state_with_provider(
     block_time: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer, block_time);
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db,
+        signer,
+        block_time,
+    );
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -600,8 +607,9 @@ pub fn mock_dispatcher_state_with_provider(
 
 fn mock_ethereum_adapter(
     provider: MockEvmProvider,
-    nonce_db: Arc<dyn NonceDb>,
+    payload_db: Arc<dyn PayloadDb>,
     tx_db: Arc<dyn TransactionDb>,
+    nonce_db: Arc<dyn NonceDb>,
     signer: H160,
     block_time: Duration,
 ) -> EthereumAdapter {
@@ -625,14 +633,23 @@ fn mock_ethereum_adapter(
         nonce_updater,
     };
 
+    let op_submission_config = OpSubmissionConfig::default();
+    let batch_contract_address = op_submission_config
+        .batch_contract_address
+        .unwrap_or_default();
+
     EthereumAdapter {
         estimated_block_time: block_time,
         domain,
         transaction_overrides: Default::default(),
-        submission_config: OpSubmissionConfig::default(),
+        submission_config: op_submission_config,
         provider,
         reorg_period,
         nonce_manager,
+        batch_cache: Default::default(),
+        batch_contract_address,
+        payload_db,
+        signer,
     }
 }
 

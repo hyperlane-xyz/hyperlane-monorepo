@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cosmos-types
 
+## 13.4.0
+
+### Minor Changes
+
+- 19384e74b: sdk support for cosmos hyperlane module v1.0.1
+
 ## 13.3.0
 
 ## 13.2.1

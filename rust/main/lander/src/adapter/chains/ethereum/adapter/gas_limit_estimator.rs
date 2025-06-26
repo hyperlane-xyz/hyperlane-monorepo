@@ -23,7 +23,7 @@ pub async fn estimate_gas_limit(
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
     with_gas_limit_overrides: bool,
-) -> std::result::Result<(), LanderError> {
+) -> Result<(), LanderError> {
     let mut estimated_gas_limit: U256 = provider
         .estimate_gas_limit(&tx_precursor.tx, &tx_precursor.function)
         .await?;
