@@ -1,4 +1,4 @@
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -46,8 +46,6 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
-// @ts-ignore
-import { getSafe } from '../utils/gnosisSafe.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
