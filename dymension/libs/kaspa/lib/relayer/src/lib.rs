@@ -135,13 +135,3 @@ pub async fn handle_new_deposits(
 
     Ok(txs)
 }
-
-#[cfg(test)] // This module is only compiled when running tests
-mod tests {
-
-    #[tokio::test] // This macro sets up a Tokio runtime for your async test
-    async fn test_handle_new_deposit_success() {
-
-    }
-
-}

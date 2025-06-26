@@ -78,3 +78,101 @@ pub async fn deposit(
         Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
     })
 }
+
+
+// --- Test Module ---
+#[cfg(test)]
+mod tests {
+    use super::*; // Import `DepositFXG`, `H256`, `HyperlaneMessage` etc.
+    use bytes::Bytes;
+    // Use `StdResult` and `EyreResult` as defined in your main file
+    use std::result::Result as StdResult;
+    use eyre::Result as EyreResult;
+
+
+    // --- Test Cases for DepositFXG Conversions ---
+
+    #[tokio::test] // Using tokio::test as it's already in your dev-dependencies
+    async fn test_deposit_fxg_serialization_deserialization_roundtrip() {
+        // Arrange: Create a sample DepositFXG instance
+        let original_deposit = DepositFXG {
+            msg_id: H256::random(),
+            tx_id: "test_transaction_id_123".to_string(),
+            utxo_index: 5,
+            block_id: "test_block_id_abc".to_string(),
+            payload: HyperlaneMessage::default(),
+        };
+
+        // Act: Serialize to Bytes, then deserialize back
+        let encoded_bytes: Bytes = (&original_deposit).into(); // Using the `From<&DepositFXG> for Bytes` impl
+        let decoded_deposit: EyreResult<DepositFXG> = DepositFXG::try_from(encoded_bytes.clone()); // Using the `TryFrom<Bytes> for DepositFXG` impl
+
+        // Assert:
+        // 1. Deserialization should be successful (Ok)
+        assert!(decoded_deposit.is_ok(), "Deserialization failed: {:?}", decoded_deposit.unwrap_err());
+
+        // 2. The deserialized object should be identical to the original
+        let unwrapped_decoded_deposit = decoded_deposit.unwrap();
+        assert_eq!(unwrapped_decoded_deposit, original_deposit, "Deserialized object does not match original");
+    }
+
+    #[tokio::test]
+    async fn test_deposit_fxg_deserialization_from_invalid_bytes_fails() {
+        // Arrange: Create some invalid bytes (e.g., truncated data, random garbage)
+        let invalid_bytes = Bytes::from(vec![0x01, 0x02, 0x03, 0x04]); // Too short or malformed for bincode
+
+        // Act: Attempt to deserialize from invalid bytes
+        let decoded_deposit: EyreResult<DepositFXG> = DepositFXG::try_from(invalid_bytes.clone());
+
+        // Assert: Deserialization should fail (Err)
+        assert!(decoded_deposit.is_err(), "Expected deserialization to fail, but it succeeded");
+
+        // Optionally, check if the error message contains expected text
+        let error = decoded_deposit.unwrap_err();
+        println!("Received error for invalid bytes: {:?}", error);
+        assert!(error.to_string().contains("Failed to deserialize DepositFXG from bytes"), "Error message unexpected");
+    }
+
+    #[tokio::test]
+    async fn test_deposit_fxg_serialization_determinism() {
+        // Arrange: Create two identical DepositFXG instances
+        let deposit1 = DepositFXG {
+            msg_id: H256([1; 32]),
+            tx_id: "deterministic_tx".to_string(),
+            utxo_index: 10,
+            block_id: "deterministic_block".to_string(),
+            payload: HyperlaneMessage {
+                version: 1, 
+                nonce: 100, 
+                origin: 1, 
+                destination: 2,
+                sender: H256([2; 32]), recipient: H256([3; 32]),
+                body: b"fixed_body".to_vec(),
+            },
+        };
+
+        let deposit2 = DepositFXG {
+            msg_id: H256([1; 32]),
+            tx_id: "deterministic_tx".to_string(),
+            utxo_index: 10,
+            block_id: "deterministic_block".to_string(),
+            payload: HyperlaneMessage {
+                version: 1, 
+                nonce: 100, 
+                origin: 1, 
+                destination: 2,
+                sender: H256([2; 32]), recipient: H256([3; 32]),
+                body: b"fixed_body".to_vec(),
+            },
+        };
+
+        // Act: Serialize both
+        let encoded_bytes1: Bytes = (&deposit1).into();
+        let encoded_bytes2: Bytes = (&deposit2).into();
+
+        // Assert: Encoded bytes should be identical
+        assert_eq!(encoded_bytes1, encoded_bytes2, "Serialization should be deterministic for identical objects");
+    }
+
+
+}
