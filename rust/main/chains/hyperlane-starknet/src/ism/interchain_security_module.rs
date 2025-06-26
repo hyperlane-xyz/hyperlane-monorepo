@@ -76,7 +76,6 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        Ok(Some(U256::one()))
         // let message = &message.into();
 
         // let calldata = self.contract.verify(&metadata.into(), message);
@@ -96,5 +95,10 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
 
         // let dummy_gas_value = U256::one();
         // Ok(Some(dummy_gas_value))
+
+        //TODO: investiage why this method fails for paradex mainnet only
+        // it seems as if metadata or message incorrect when this method is called from `cheapest_valid_metas`
+
+        Ok(Some(U256::one()))
     }
 }
