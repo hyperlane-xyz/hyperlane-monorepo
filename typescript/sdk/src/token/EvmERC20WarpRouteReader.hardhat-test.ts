@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import {
@@ -15,7 +16,10 @@ import {
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  ContractVerifier,
+  ExplorerLicenseType,
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
@@ -28,6 +32,7 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -35,7 +40,11 @@ import { ChainMap } from '../types.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { derivedIsmAddress } from './types.js';
+import {
+  ContractVerificationStatus,
+  OwnerStatus,
+  derivedIsmAddress,
+} from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -49,6 +58,7 @@ describe('ERC20WarpRouterReader', async () => {
   let token: ERC20Test;
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
+  let contractVerifier: ContractVerifier;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
@@ -59,6 +69,7 @@ describe('ERC20WarpRouterReader', async () => {
   let collateralFiatToken: FiatTokenTest;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
+
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
@@ -78,7 +89,6 @@ describe('ERC20WarpRouterReader', async () => {
 
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
-    evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
     deployer = new HypERC20Deployer(multiProvider);
 
     const vaultFactory = new ERC4626Test__factory(signer);
@@ -96,6 +106,18 @@ describe('ERC20WarpRouterReader', async () => {
   beforeEach(async () => {
     // Reset the MultiProvider and create a new deployer for each test
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    contractVerifier = new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
+    evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
+      multiProvider,
+      chain,
+      1,
+      contractVerifier,
+    );
     deployer = new HypERC20Deployer(multiProvider);
   });
 
@@ -502,7 +524,7 @@ describe('ERC20WarpRouterReader', async () => {
     ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
   });
 
-  it('should return the ownerStatus virtual config', async () => {
+  it('should return the contractVerificationStatus virtual config', async () => {
     const otherChain = TestChainName.test3;
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
@@ -521,13 +543,68 @@ describe('ERC20WarpRouterReader', async () => {
     // Deploy with config
     const warpRoute = await deployer.deploy(config);
 
-    // Derive config and check if remote router matches
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    // Stub getContractVerificationStatus
+    const getContractVerificationStatus = sinon
+      .stub(contractVerifier, 'getContractVerificationStatus')
+      .resolves(ContractVerificationStatus.Verified);
+
+    // Derive config and check if the owner is active
     const derivedConfig =
       await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
         chain,
         warpRoute[chain].collateral.address,
       );
-    console.log('derivedConfig', derivedConfig);
-    // TODO
+    expect(derivedConfig.contractVerificationStatus).to.deep.equal({
+      [VerifyContractTypes.Proxy]: ContractVerificationStatus.Verified,
+      [VerifyContractTypes.Implementation]: ContractVerificationStatus.Verified,
+      [VerifyContractTypes.ProxyAdmin]: ContractVerificationStatus.Verified,
+    });
+
+    // Restore stub
+    getContractVerificationStatus.restore();
+    isLocalRpcStub.restore();
+  });
+
+  it.only('should return the ownerStatus virtual config', async () => {
+    const otherChain = TestChainName.test3;
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    // Derive config and check if the owner is active
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRoute[chain].collateral.address,
+      );
+    expect(derivedConfig.ownerStatus).to.deep.equal({
+      [signer.address]: OwnerStatus.Active,
+    });
+
+    // Restore stub
+    isLocalRpcStub.restore();
   });
 });
