@@ -1,11 +1,11 @@
 {
-  "eclipsemainnet": {
-    "hex": "0x1372fe2c04ba72a16359fbba8a72ca18d9b5ea90f5841fcccb0edaf42b0aca7a",
-    "base58": "2JvSu7PzquY2b8NDZbnupFZ1jezqMBtNUhi7TuU3GQJD"
-  },
   "solanamainnet": {
     "hex": "0x79e9d8b75da441c15cb5e2ae5398f774390f5265cc0f47604005c939ebc09aaa",
     "base58": "9Cu9VqDPPzntFZMar4gCdw6EGL3RbofLEqyh6WKSZKGm"
+  },
+  "eclipsemainnet": {
+    "hex": "0x1372fe2c04ba72a16359fbba8a72ca18d9b5ea90f5841fcccb0edaf42b0aca7a",
+    "base58": "2JvSu7PzquY2b8NDZbnupFZ1jezqMBtNUhi7TuU3GQJD"
   },
   "ethereum": {
     "hex": "0x0000000000000000000000003ee1bea3a10f7508b76219f109ebe19419b3dd85",
