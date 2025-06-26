@@ -67,11 +67,14 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 _recipient,
         uint256 _amount
     ) external payable override returns (bytes32) {
-        // Create everclear intent
-        uint256 amount = _createIntent(_destination, _recipient, _amount);
+        // Charge sender for the fee
+        _transferFromSender(_amount + feeParams.fee);
 
-        // Do regular transferRemote stuff, e.g. take funds from user and send message to mailbox
-        return _transferRemote(_destination, _recipient, amount, msg.value);
+        // Create everclear intent
+        _createIntent(_destination, _recipient, _amount);
+
+        // A hyperlane message will be sent by everclear internally.
+        return bytes32(0);
     }
 
     /// @dev Mainly exists to avoid stack too deep error.
@@ -79,7 +82,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal returns (uint256 amountToTransfer) {
+    ) internal {
         bytes32 outputAsset = outputAssets[_destination];
         require(outputAsset != bytes32(0), "ETB: Output asset not set");
 
@@ -105,7 +108,5 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _data: "",
             _feeParams: feeParams
         });
-
-        return _amount + feeParams.fee;
     }
 }
