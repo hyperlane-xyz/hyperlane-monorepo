@@ -44,7 +44,7 @@ async fn test_inclusion_happy_path() {
         ExpectedTxState {
             nonce: EthersU256::from(1),
             gas_limit: TEST_GAS_LIMIT.clone(),
-            gas_price: EthersU256::from(200000), // Default fee used by the ethers estimation logic
+            gas_price: EthersU256::from(200000), // Default fee used by the `ethers` lib estimation logic
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
             )),
@@ -69,11 +69,26 @@ async fn test_inclusion_happy_path() {
 #[traced_test]
 async fn test_inclusion_gas_spike() {
     let block_time = Duration::from_millis(20);
+    let hash = H256::random(); // Mocked transaction hash
+
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    // return the mock receipt that has no block for the first 3 submissions, then full receipt for the last one
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None, hash))) // No block number for the first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(50), hash))) // Block number for the last submission
+            }
+        });
 
     let mut fee_history_call_counter = 0;
     mock_evm_provider
@@ -97,19 +112,6 @@ async fn test_inclusion_gas_spike() {
             Ok(mock_fee_history(base_fee, prio_fee))
         });
 
-    // return mock receipt that has no block for first 3 submissions, then full receipt for the last one
-    let mut tx_receipt_call_counter = 0;
-    mock_evm_provider
-        .expect_get_transaction_receipt()
-        .returning(move |_| {
-            tx_receipt_call_counter += 1;
-            if tx_receipt_call_counter < 4 {
-                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
-            } else {
-                Ok(Some(mock_tx_receipt(Some(50)))) // Block number for the last submission
-            }
-        });
-
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
     let elapsed = Instant::now();
@@ -126,13 +128,13 @@ async fn test_inclusion_gas_spike() {
             inclusion_stage_processing_delay,
             block_time_clone,
             &tx,
-            // First submission, price is 200000 - the default fee used by the ethers estimation logic
+            // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, even though the spike was smaller
             // Third submission, price is 10% higher again, even though the spike was smaller
             // Fourth submission, price matches the spike, because it was greater than 10%
             vec![200000, 220000, 242000],
         );
-        Ok(H256::random()) // Mocked transaction hash
+        Ok(hash)
     });
 
     let expected_tx_states = vec![
@@ -184,6 +186,8 @@ async fn test_inclusion_gas_spike() {
 #[traced_test]
 async fn test_inclusion_gas_underpriced() {
     let block_time = Duration::from_millis(20);
+    let hash = H256::random();
+
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
@@ -195,11 +199,7 @@ async fn test_inclusion_gas_underpriced() {
     // to check that we correctly skip past the `Included` status, straight to `Finalized`
     mock_evm_provider
         .expect_get_transaction_receipt()
-        .returning(move |_| Ok(Some(mock_tx_receipt(Some(42)))));
-
-    mock_evm_provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::one()));
+        .returning(move |_| Ok(Some(mock_tx_receipt(Some(42), hash))));
 
     // assert each expected price by mocking the `send` method of the provider
     let mut send_call_counter = 0;
@@ -218,7 +218,7 @@ async fn test_inclusion_gas_underpriced() {
             inclusion_stage_processing_delay,
             block_time_clone,
             &tx,
-            // First submission, price is 200000 - the default fee used by the ethers estimation logic
+            // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, to due to the underpriced error
             vec![200000, 220000],
         );
@@ -228,7 +228,7 @@ async fn test_inclusion_gas_underpriced() {
             ))
         } else {
             // For the second one, we assume it goes through successfully
-            Ok(H256::random())
+            Ok(hash)
         }
     });
 
@@ -262,11 +262,28 @@ async fn test_inclusion_gas_underpriced() {
 #[traced_test]
 async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     let block_time = Duration::from_millis(20);
+    let hash = H256::random();
+
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
+    // we keep resubmitting it until it finally gets included
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None, hash))) // No block number for the first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(45), hash))) // Block number for the last submission
+            }
+        });
+
     let mut simulate_call_counter = 0;
     mock_evm_provider
         .expect_simulate_batch()
@@ -281,14 +298,15 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
                 ))
             }
         });
+
     let mut estimate_gas_call_counter = 0;
     mock_evm_provider
         .expect_estimate_gas_limit()
         .returning(move |_, _| {
             estimate_gas_call_counter += 1;
-            // simulation passes on the first call, but fails on the second
+            // simulation passes on the first call but fails on the second
             if estimate_gas_call_counter < 2 {
-                // estimation passes on the first call, but fails on the second
+                // estimation passes on the first call but fails on the second
                 Ok(21000.into())
             } else {
                 Err(ChainCommunicationError::CustomError(
@@ -297,24 +315,10 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             }
         });
 
-    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
-    // we keep resubmitting it until it finally gets included
-    let mut tx_receipt_call_counter = 0;
-    mock_evm_provider
-        .expect_get_transaction_receipt()
-        .returning(move |_| {
-            tx_receipt_call_counter += 1;
-            if tx_receipt_call_counter < 4 {
-                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
-            } else {
-                Ok(Some(mock_tx_receipt(Some(45)))) // Block number for the last submission
-            }
-        });
-
     // assert sending the tx always works
     mock_evm_provider
         .expect_send()
-        .returning(move |_tx, _| Ok(H256::random()));
+        .returning(move |_tx, _| Ok(hash));
 
     let expected_tx_states = vec![
         ExpectedTxState {
@@ -354,7 +358,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
             )),
-            status: TransactionStatus::Included, // Finally included after 3 failed simulations
+            status: TransactionStatus::Included, // Finally, included after 3 failed simulations
             retries: 3, // still 3 retries, because we don't increment it after successful inclusion
         },
     ];
@@ -480,13 +484,6 @@ fn mocked_evm_provider() -> MockEvmProvider {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_estimate_gas_limit(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
-
-    mock_evm_provider.expect_send().returning(|_, _| {
-        Ok(H256::random()) // Mocked transaction hash
-    });
-    mock_evm_provider
-        .expect_fee_history()
-        .returning(|_, _, _| Ok(mock_fee_history(0, 0)));
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
     mock_evm_provider
@@ -498,6 +495,12 @@ fn mocked_evm_provider() -> MockEvmProvider {
                 ..Default::default()
             }))
         });
+    mock_evm_provider.expect_send().returning(|_, _| {
+        Ok(H256::random()) // Mocked transaction hash
+    });
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(|_, _, _| Ok(mock_fee_history(0, 0)));
 
     mock_evm_provider
 }
@@ -659,9 +662,9 @@ fn mock_fee_history(base_fee: u32, prio_fee: u32) -> ethers::types::FeeHistory {
     }
 }
 
-fn mock_tx_receipt(block_number: Option<u64>) -> TransactionReceipt {
+fn mock_tx_receipt(block_number: Option<u64>, hash: H256) -> TransactionReceipt {
     TransactionReceipt {
-        transaction_hash: H256::random().into(),
+        transaction_hash: hash.into(),
         block_number: block_number.map(|n| n.into()),
         ..Default::default()
     }
@@ -703,7 +706,7 @@ fn mock_get_block(mock_evm_provider: &mut MockEvmProvider) {
 fn mock_get_next_nonce_on_finalized_block(mock_evm_provider: &mut MockEvmProvider) {
     mock_evm_provider
         .expect_get_next_nonce_on_finalized_block()
-        .returning(move |_, _| Ok(1.into()));
+        .returning(move |_, _| Ok(U256::one()));
 }
 
 fn assert_gas_prices_and_timings(
