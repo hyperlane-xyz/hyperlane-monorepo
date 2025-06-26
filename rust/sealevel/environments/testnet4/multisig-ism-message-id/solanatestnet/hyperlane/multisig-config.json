@@ -36,6 +36,20 @@
       "0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"
     ]
   },
+  "auroratestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937"
+    ]
+  },
+  "basecamptestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x84441e39ed5251410aa2baa72e7747c46d1e5e9d"
+    ]
+  },
   "basesepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
@@ -43,11 +57,11 @@
       "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
     ]
   },
-  "berabartio": {
+  "bepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
-      "0x541dd3cb282cf869d72883557badae245b63e1fd"
+      "0xdb0128bb3d3f204eb18de7e8268e94fde0382daf"
     ]
   },
   "bsctestnet": {
@@ -57,6 +71,20 @@
       "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
       "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
+    ]
+  },
+  "carrchaintestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xa96dfc4d8c6cabb510701732ee01e52a75776205"
+    ]
+  },
+  "chronicleyellowstone": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"
     ]
   },
   "citreatestnet": {
@@ -73,6 +101,13 @@
       "0xffbbec8c499585d80ef69eb613db624d27e089ab"
     ]
   },
+  "cotitestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x5c535dff16237a2cae97c97f9556404cd230c9c0"
+    ]
+  },
   "eclipsetestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
@@ -85,6 +120,13 @@
     "threshold": 1,
     "validators": [
       "0xb3191420d463c2af8bd9b4a395e100ec5c05915a"
+    ]
+  },
+  "flametestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x0272625243bf2377f87538031fed54e21853cc2d"
     ]
   },
   "formtestnet": {
@@ -110,11 +152,74 @@
       "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
     ]
   },
+  "hyperliquidevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xea673a92a23ca319b9d85cc16b248645cd5158da"
+    ]
+  },
+  "infinityvmmonza": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"
+    ]
+  },
   "inksepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0xe61c846aee275070207fcbf43674eb254f06097a"
+    ]
+  },
+  "kyvetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"
+    ]
+  },
+  "megaethtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef"
+    ]
+  },
+  "milkywaytestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x65c7581e14efdf4d9c5320882170f022835bd742"
+    ]
+  },
+  "modetestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"
+    ]
+  },
+  "monadtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"
+    ]
+  },
+  "neuratestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d"
+    ]
+  },
+  "nobletestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a"
     ]
   },
   "odysseytestnet": {
@@ -131,11 +236,32 @@
       "0x03efe4d0632ee15685d7e8f46dea0a874304aa29"
     ]
   },
+  "paradexsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8"
+    ]
+  },
+  "plumetestnet2": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x16637c78e1ea169132efcf4df8ebd03de349e740"
+    ]
+  },
   "polygonamoy": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
+    ]
+  },
+  "rometestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x259eec09dd54c34043bc991f1aae014294235b8e"
     ]
   },
   "scrollsepolia": {
@@ -156,11 +282,25 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "somniatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"
+    ]
+  },
   "soneiumtestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"
+    ]
+  },
+  "sonicblaze": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xe5b98110d0688691ea280edea9a4faa1e3617ba1"
     ]
   },
   "sonicsvmtestnet": {
@@ -170,11 +310,18 @@
       "0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"
     ]
   },
-  "suavetoliman": {
+  "starknetsepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
-      "0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"
+      "0xd07272cc3665d6e383a319691dcce5731ecf54a5"
+    ]
+  },
+  "subtensortestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"
     ]
   },
   "superpositiontestnet": {
@@ -189,6 +336,13 @@
     "threshold": 1,
     "validators": [
       "0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"
+    ]
+  },
+  "weavevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"
     ]
   }
 }

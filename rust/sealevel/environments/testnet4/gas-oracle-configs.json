@@ -27,7 +27,31 @@
     "basesepolia": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "1000378",
+        "gasPrice": "1272294",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "paradexsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "10000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
+    "starknetsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "10000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
+    "sepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "8437050817",
         "tokenDecimals": 18
       },
       "overhead": 151966
