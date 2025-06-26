@@ -1,42 +1,30 @@
 #![allow(deprecated)]
 
 use core::panic;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use ethers::{
-    abi::{Function, Param, ParamType, StateMutability},
-    types::{
-        transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt,
-        H160, H256 as EthersH256,
-    },
-};
+use ethers::abi::{Function, Param, ParamType, StateMutability};
+use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::types::{Eip1559TransactionRequest, TransactionReceipt, H160, H256 as EthersH256};
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::{
-    config::OpSubmissionConfig, identifiers::UniqueIdentifier, ChainCommunicationError,
-    HyperlaneDomain, KnownHyperlaneDomain, H256, U256,
-};
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDomain, H256, U256};
 use hyperlane_ethereum::EthereumReorgPeriod;
 
-use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
-use crate::tests::test_utils::tmp_dbs;
-use crate::{
-    adapter::{
-        chains::ethereum::{
-            nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
-            tests::MockEvmProvider,
-            EthereumAdapter,
-        },
-        EthereumTxPrecursor,
-    },
-    dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
-    transaction::{Transaction, VmSpecificTxData},
-    DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
+use crate::adapter::chains::ethereum::{
+    nonce::{db::NonceDb, NonceManager, NonceManagerState, NonceUpdater},
+    tests::MockEvmProvider,
+    EthereumAdapter, EthereumAdapterMetrics,
 };
+use crate::adapter::EthereumTxPrecursor;
+use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
+use crate::tests::test_utils::tmp_dbs;
+use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 
 #[tokio::test]
 #[traced_test]
@@ -180,22 +168,81 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     mock_finalized_block_number(&mut mock_evm_provider);
     mock_get_block(&mut mock_evm_provider);
     mock_default_fee_history(&mut mock_evm_provider);
-    let mut estimate_gas_call_counter = 0;
+    let mut simulate_call_counter = 0;
     mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(move |_, _| {
-            estimate_gas_call_counter += 1;
+        .expect_simulate_batch()
+        .returning(move |_| {
+            simulate_call_counter += 1;
             // simulation passes on the first call, but fails on the second
-            if estimate_gas_call_counter < 2 {
-                Ok(21000.into())
+            if simulate_call_counter < 2 {
+                Ok((vec![], vec![]))
             } else {
                 Err(ChainCommunicationError::CustomError(
                     "transaction simulation failed".to_string(),
                 ))
             }
         });
+    let mut estimate_gas_call_counter = 0;
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(move |_, _| {
+            estimate_gas_call_counter += 1;
+            // estimation passes on the first call, but fails on the second
+            if estimate_gas_call_counter < 2 {
+                Ok(21000.into())
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction estimation failed".to_string(),
+                ))
+            }
+        });
 
     // assume the tx stays stuck for the first 3 submissions, and in spite of it failing simulation,
+    // we keep resubmitting it until it finally gets included
+    let mut tx_receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            tx_receipt_call_counter += 1;
+            if tx_receipt_call_counter < 4 {
+                Ok(Some(mock_tx_receipt(None))) // No block number for first 3 submissions
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42)))) // Block number for the last submission
+            }
+        });
+
+    // assert sending the tx always works
+    mock_evm_provider
+        .expect_send()
+        .returning(move |_tx, _| Ok(H256::random()));
+
+    run_and_expect_successful_inclusion(mock_evm_provider, block_time).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_which_fails_estimation_after_submission_is_delivered() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    let mut estimate_gas_call_counter = 0;
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(move |_, _| {
+            estimate_gas_call_counter += 1;
+            // estimation passes on the first call, but fails on the second
+            if estimate_gas_call_counter < 2 {
+                Ok(21000.into())
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "transaction estimation failed".to_string(),
+                ))
+            }
+        });
+
+    // assume the tx stays stuck for the first 3 submissions, and in spite of it failing estimation,
     // we keep resubmitting it until it finally gets included
     let mut tx_receipt_call_counter = 0;
     mock_evm_provider
@@ -393,7 +440,14 @@ pub fn mock_dispatcher_state_with_provider(
     block_time: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(provider, nonce_db, tx_db.clone(), signer, block_time);
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db,
+        signer,
+        block_time,
+    );
     DispatcherState::new(
         payload_db,
         tx_db,
@@ -405,8 +459,9 @@ pub fn mock_dispatcher_state_with_provider(
 
 fn mock_ethereum_adapter(
     provider: MockEvmProvider,
-    nonce_db: Arc<dyn NonceDb>,
+    payload_db: Arc<dyn PayloadDb>,
     tx_db: Arc<dyn TransactionDb>,
+    nonce_db: Arc<dyn NonceDb>,
     signer: H160,
     block_time: Duration,
 ) -> EthereumAdapter {
@@ -430,14 +485,23 @@ fn mock_ethereum_adapter(
         nonce_updater,
     };
 
+    let op_submission_config = OpSubmissionConfig::default();
+    let batch_contract_address = op_submission_config
+        .batch_contract_address
+        .unwrap_or_default();
+
     EthereumAdapter {
         estimated_block_time: block_time,
         domain,
         transaction_overrides: Default::default(),
-        submission_config: OpSubmissionConfig::default(),
+        submission_config: op_submission_config,
         provider,
         reorg_period,
         nonce_manager,
+        batch_cache: Default::default(),
+        batch_contract_address,
+        payload_db,
+        signer,
     }
 }
 

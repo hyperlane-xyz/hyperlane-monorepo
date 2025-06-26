@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use tokio::time::sleep;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 use crate::{
     dispatcher::metrics::DispatcherMetrics,
@@ -40,6 +40,11 @@ where
     }
 }
 
+#[instrument(
+    skip_all,
+    name = "UpdateTxStatus::update_tx_status",
+    fields(tx_uuid = ?tx.uuid, previous_tx_status = ?tx.status, next_tx_status = ?new_status, payloads = ?tx.payload_details)
+)]
 pub async fn update_tx_status(
     state: &DispatcherState,
     tx: &mut Transaction,

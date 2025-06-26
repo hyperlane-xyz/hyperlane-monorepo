@@ -1,6 +1,6 @@
-use std::cell::LazyCell;
 use std::convert::Into;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::{
@@ -10,11 +10,12 @@ use ethers::{
 };
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, KnownHyperlaneDomain,
-    MerkleTreeHook, ReorgPeriod, H256, U256,
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneProvider,
+    MerkleTreeHook, H256, U256,
 };
-use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
+use hyperlane_ethereum::{
+    multicall::BatchCache, EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse,
+};
 
 mockall::mock! {
     pub EvmProvider {}
@@ -41,7 +42,26 @@ mockall::mock! {
             &self,
             tx: &TypedTransaction,
             function: &Function,
-        ) -> Result<U256, ChainCommunicationError>;
+        ) -> ChainResult<U256>;
+
+        async fn batch(
+            &self,
+            cache: Arc<tokio::sync::Mutex<BatchCache>>,
+            batch_contract_address: H256,
+            precursors: Vec<(TypedTransaction, Function)>,
+            signer: H160,
+        ) -> ChainResult<(TypedTransaction, Function)>;
+
+        async fn simulate_batch(
+            &self,
+            multi_precursor: (TypedTransaction, Function),
+        ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
+
+        async fn estimate_batch(
+            &self,
+            multi_precursor: (TypedTransaction, Function),
+            precursors: Vec<(TypedTransaction, Function)>,
+        ) -> ChainResult<U256>;
 
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;

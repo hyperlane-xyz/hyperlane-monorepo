@@ -30,7 +30,7 @@ pub fn termination_invariants_met(
     let sol_messages_expected = SOL_MESSAGES_EXPECTED;
     let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
 
-    // this is total messages expected to be delivered
+    // this is the total messages expected to be delivered
     let total_messages_expected = sol_messages_expected;
     let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
@@ -91,7 +91,7 @@ pub fn termination_invariants_met(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::invariants::submitter_metrics_invariants_met;
+    use crate::invariants::lander_metrics_invariants_met;
     use maplit::hashmap;
 
     #[test]
@@ -116,7 +116,7 @@ mod tests {
             submitter_type: SubmitterType::Lander,
         };
         assert_eq!(
-            submitter_metrics_invariants_met(
+            lander_metrics_invariants_met(
                 params,
                 &relayer_metrics_port.to_string(),
                 &filter_hashmap

@@ -24,17 +24,10 @@ use hyperlane_sealevel::{
     SealevelTxCostEstimate, TransactionSubmitter,
 };
 
-use crate::{
-    adapter::{
-        chains::sealevel::{
-            transaction::{TransactionFactory, Update},
-            SealevelAdapter,
-        },
-        SealevelTxPrecursor,
-    },
-    payload::FullPayload,
-    transaction::{Transaction, VmSpecificTxData},
-};
+use crate::payload::FullPayload;
+use crate::transaction::Transaction;
+
+use super::super::{SealevelAdapter, SealevelTxPrecursor, TransactionFactory, Update};
 
 pub const GAS_LIMIT: u32 = 42;
 
