@@ -6,39 +6,34 @@ import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {IEverclearAdapter} from "contracts/interfaces/IEverclearAdapter.sol";
 
 contract EverclearTokenBridge is HypERC20Collateral {
-    /// @notice Fee parameters for transfers to a given destination.
-    /// @param assetAddress The address of the destination asset. Note that the fees are charged in `wrappedToken` on the origin chain.
-    /// @param fee The fee amount
-    /// @param deadline The deadline for the fee
-    /// @param sig The signature of the fee
-    struct EverclearFeeParams {
-        bytes32 assetAddress;
-        uint256 fee;
-        uint256 deadline;
-        bytes sig;
-    }
+    /// @notice The output asset for a given destination.
+    /// @dev Everclear needs to know the output asset address to create intents.
+    mapping(uint32 destination => bytes32 outputAsset) public outputAssets;
 
     /// @notice Fee parameters for the bridge.
-    /// @dev The signatures are produced by everclear and stored here for re-use. We use the same fee for all transfers to a given destination.
-    mapping(uint32 destination => EverclearFeeParams feeParams)
-        public feeParams;
+    /// @dev The signatures are produced by everclear and stored here for re-use. We use the same fee for all transfers to all destinations.
+    IEverclearAdapter.FeeParams public feeParams;
 
     /// @notice The everclear `FeeAdapter` contract
     IEverclearAdapter public immutable everclearAdapter;
 
     function setFeeParams(
-        uint32 _destination,
-        bytes32 _assetAddress,
         uint256 _fee,
         uint256 _deadline,
         bytes calldata _sig
     ) external onlyOwner {
-        feeParams[_destination] = EverclearFeeParams({
-            assetAddress: _assetAddress,
+        feeParams = IEverclearAdapter.FeeParams({
             fee: _fee,
             deadline: _deadline,
             sig: _sig
         });
+    }
+
+    function setOutputAsset(
+        uint32 _destination,
+        bytes32 _outputAsset
+    ) external onlyOwner {
+        outputAssets[_destination] = _outputAsset;
     }
 
     constructor(
@@ -63,7 +58,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
 
         quotes[1] = Quote({
             token: address(wrappedToken),
-            amount: _amount + feeParams[_destination].fee // if feeParams is not set, this still works
+            amount: _amount + feeParams.fee
         });
     }
 
@@ -79,11 +74,22 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return _transferRemote(_destination, _recipient, amount, msg.value);
     }
 
+    /// @dev Mainly exists to avoid stack too deep error.
     function _createIntent(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) internal returns (uint256 amountToTransfer) {
+        bytes32 outputAsset = outputAssets[_destination];
+        require(outputAsset != bytes32(0), "ETB: Output asset not set");
+
+        // Check that the fee params are still valid
+        // This will also revert if the feeParams are not set
+        require(
+            feeParams.deadline > block.timestamp,
+            "ETB: Fee params deadline expired"
+        );
+
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
@@ -92,25 +98,14 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _destinations: destinations,
             _receiver: _recipient,
             _inputAsset: address(wrappedToken),
-            _outputAsset: feeParams[_destination].assetAddress,
+            _outputAsset: outputAsset,
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
             _data: "",
-            _feeParams: getFeeParams(_destination)
+            _feeParams: feeParams
         });
 
-        return _amount + feeParams[_destination].fee;
-    }
-
-    function getFeeParams(
-        uint32 _destination
-    ) public view returns (IEverclearAdapter.FeeParams memory) {
-        return
-            IEverclearAdapter.FeeParams({
-                fee: feeParams[_destination].fee,
-                deadline: feeParams[_destination].deadline,
-                sig: feeParams[_destination].sig
-            });
+        return _amount + feeParams.fee;
     }
 }
