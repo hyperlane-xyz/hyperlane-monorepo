@@ -365,6 +365,81 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     run_and_expect_successful_inclusion(expected_tx_states, mock_evm_provider, block_time).await;
 }
 
+#[tokio::test]
+#[traced_test]
+async fn test_inclusion_escalate_but_old_hash_finalized() {
+    let block_time = Duration::from_millis(20);
+    let hash1 = H256::random();
+    let hash2 = H256::random();
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+
+    // Simulate receipt: first check returns None, then the old hash (hash1) is included/finalized
+    let mut receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |tx_hash| {
+            receipt_call_counter += 1;
+            if receipt_call_counter < 2 {
+                Ok(None)
+            } else if tx_hash == hash1 {
+                Ok(Some(mock_tx_receipt(Some(42), hash1)))
+            } else {
+                Ok(None)
+            }
+        });
+
+    // Simulate escalation: first send returns hash1, second send returns hash2 (higher gas)
+    let mut send_call_counter = 0;
+    mock_evm_provider.expect_send().returning(move |_tx, _| {
+        send_call_counter += 1;
+        if send_call_counter == 1 {
+            Ok(hash1)
+        } else {
+            Ok(hash2)
+        }
+    });
+
+    let expected_tx_states = vec![
+        ExpectedTxState {
+            nonce: EthersU256::from(1),
+            gas_limit: TEST_GAS_LIMIT.clone(),
+            gas_price: EthersU256::from(200000),
+            priority_fee: Some(EthersU256::from(
+                EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
+            )),
+            status: TransactionStatus::Mempool,
+            retries: 1,
+        },
+        ExpectedTxState {
+            nonce: EthersU256::from(1),
+            gas_limit: TEST_GAS_LIMIT.clone(),
+            gas_price: EthersU256::from(220000),
+            priority_fee: Some(EthersU256::from(
+                EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
+            )),
+            status: TransactionStatus::Mempool,
+            retries: 2,
+        },
+        ExpectedTxState {
+            nonce: EthersU256::from(1),
+            gas_limit: TEST_GAS_LIMIT.clone(),
+            gas_price: EthersU256::from(220000),
+            priority_fee: Some(EthersU256::from(
+                EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
+            )),
+            status: TransactionStatus::Finalized,
+            retries: 2,
+        },
+    ];
+    run_and_expect_successful_inclusion(expected_tx_states, mock_evm_provider, block_time).await;
+}
+
 struct ExpectedTxState {
     nonce: EthersU256,
     gas_limit: EthersU256,
