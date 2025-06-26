@@ -130,42 +130,11 @@ export function useStarknetTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      if (tx.type !== ProviderType.Starknet) {
-        throw new Error(`Invalid transaction type for Starknet: ${tx.type}`);
-      }
-
-      if (activeChainName && activeChainName !== chainName) {
-        await onSwitchNetwork(chainName);
-      }
-
-      if (!account) {
-        throw new Error('No StarkNet account connected');
-      }
-
-      const chainId = multiProvider.getChainMetadata(chainName).chainId;
-      const chainIdFromWallet = await account.getChainId();
-
-      try {
-        assert(
-          chainIdFromWallet === chainId,
-          `Wallet not on chain ${chainName} (ChainMismatchError)`,
-        );
-
-        const result = await sendAsync([tx.transaction as Call]);
-        const hash = result.transaction_hash;
-        const confirm = async (): Promise<TypedTransactionReceipt> => {
-          const receipt = await account.waitForTransaction(hash);
-          return {
-            type: ProviderType.Starknet,
-            receipt,
-          };
-        };
-
-        return { hash, confirm };
-      } catch (error) {
-        logger.error('Failed to send StarkNet transaction:', error);
-        throw error;
-      }
+      return onMultiSendTx({
+        txs: [tx],
+        chainName,
+        activeChainName,
+      });
     },
     [account, multiProvider, onSwitchNetwork, sendAsync],
   );

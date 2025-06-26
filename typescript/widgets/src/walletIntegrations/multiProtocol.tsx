@@ -303,49 +303,49 @@ export function useTransactionFns(
   const {
     switchNetwork: onSwitchEvmNetwork,
     sendTransaction: onSendEvmTx,
-    sendMultiTransaction: onMultiSendEvmTx,
+    sendMultiTransaction: onSendMultiEvmTx,
   } = useEthereumTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchSolNetwork,
     sendTransaction: onSendSolTx,
-    sendMultiTransaction: onMultiSendSolTx,
+    sendMultiTransaction: onSendMultiSolTx,
   } = useSolanaTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchCosmNetwork,
     sendTransaction: onSendCosmTx,
-    sendMultiTransaction: onMultiSendCosmTx,
+    sendMultiTransaction: onSendMultiCosmTx,
   } = useCosmosTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchStarknetNetwork,
     sendTransaction: onSendStarknetTx,
-    sendMultiTransaction: onMultiSendStarknetTx,
+    sendMultiTransaction: onSendMultiStarknetTx,
   } = useStarknetTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: {
         sendTransaction: onSendEvmTx,
-        sendMultiTransaction: onMultiSendEvmTx,
+        sendMultiTransaction: onSendMultiEvmTx,
         switchNetwork: onSwitchEvmNetwork,
       },
       [ProtocolType.Sealevel]: {
         sendTransaction: onSendSolTx,
-        sendMultiTransaction: onMultiSendSolTx,
+        sendMultiTransaction: onSendMultiSolTx,
         switchNetwork: onSwitchSolNetwork,
       },
       [ProtocolType.Cosmos]: {
         sendTransaction: onSendCosmTx,
-        sendMultiTransaction: onMultiSendCosmTx,
+        sendMultiTransaction: onSendMultiCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.CosmosNative]: {
         sendTransaction: onSendCosmTx,
-        sendMultiTransaction: onMultiSendCosmTx,
+        sendMultiTransaction: onSendMultiCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.Starknet]: {
         sendTransaction: onSendStarknetTx,
-        sendMultiTransaction: onMultiSendStarknetTx,
+        sendMultiTransaction: onSendMultiStarknetTx,
         switchNetwork: onSwitchStarknetNetwork,
       },
     }),
