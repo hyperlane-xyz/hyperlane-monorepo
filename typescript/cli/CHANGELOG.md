@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
 ## 13.4.0
 
 ### Minor Changes

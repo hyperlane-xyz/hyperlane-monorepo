@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+
 ## 8.0.1
 
 ### Patch Changes
