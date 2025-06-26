@@ -1,4 +1,4 @@
-import { BigNumber, Contract } from 'ethers';
+import { BigNumber, Contract, constants } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -245,6 +245,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   }
 
   async getOwnerStatus(chain: ChainName, address: Address) {
+    let ownerStatus: Record<string, OwnerStatus> = {};
     if (this.multiProvider.isLocalRpc(chain)) {
       this.logger.debug('Skipping owner verification for local endpoints');
       return {
@@ -255,21 +256,44 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const provider = this.multiProvider.getProvider(chain);
     const owner = await Ownable__factory.connect(address, provider).owner();
 
+    ownerStatus[owner] = (await isAddressActive(provider, owner))
+      ? OwnerStatus.Active
+      : OwnerStatus.Inactive;
+
     // Heuristically check if the owner could be a safe by calling an expected function
+    // This status will overwrite 'active' status
     try {
       await IOwnerManager__factory.connect(owner, provider).getThreshold();
-      return {
-        [address]: OwnerStatus.GnosisSafe,
-      };
+      ownerStatus[owner] = OwnerStatus.GnosisSafe;
     } catch {
       this.logger.debug(`${owner} is not a safe`);
     }
 
-    const isActive = await isAddressActive(provider, owner);
+    // Check Proxy admin and implementation recursively
+    const contractType = (await isProxy(this.provider, address))
+      ? VerifyContractTypes.Proxy
+      : VerifyContractTypes.Implementation;
+    if (contractType === VerifyContractTypes.Proxy) {
+      // Implementation
+      ownerStatus = {
+        ...ownerStatus,
+        ...(await this.getOwnerStatus(
+          chain,
+          await proxyImplementation(this.provider, address),
+        )),
+      };
 
-    return {
-      [owner]: isActive ? OwnerStatus.Active : OwnerStatus.Inactive,
-    };
+      // ProxyAdmin
+      ownerStatus = {
+        ...ownerStatus,
+        ...(await this.getOwnerStatus(
+          chain,
+          await proxyAdmin(provider, address),
+        )),
+      };
+    }
+
+    return ownerStatus;
   }
 
   async deriveWarpRouteVirtualConfig(
