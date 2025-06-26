@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -64,7 +64,8 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -304,12 +305,14 @@ jobs:
           - warp-bridge-1
           - warp-bridge-2
           - warp-check
+          - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
           - warp-init
           - warp-read
           - warp-send
+          - warp-rebalancer
     steps:
       - uses: actions/checkout@v4
         with:

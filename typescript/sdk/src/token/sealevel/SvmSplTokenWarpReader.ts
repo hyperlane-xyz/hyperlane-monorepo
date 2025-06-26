@@ -69,6 +69,9 @@ export class SvmSplTokenWarpRouteReader {
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
+      [TokenType.collateralCctp]: null,
+      [TokenType.nativeOpL1]: null,
+      [TokenType.nativeOpL2]: null,
     };
 
     this.pdaSeedsByTokenType = {
@@ -84,6 +87,9 @@ export class SvmSplTokenWarpRouteReader {
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
+      [TokenType.collateralCctp]: null,
+      [TokenType.nativeOpL1]: null,
+      [TokenType.nativeOpL2]: null,
     };
   }
 

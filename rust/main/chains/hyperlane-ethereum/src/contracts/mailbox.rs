@@ -38,7 +38,7 @@ use crate::{
     TransactionOverrides,
 };
 
-use super::multicall::{self, build_multicall};
+use super::multicall::{self, build_multicall, BatchCache};
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -128,7 +128,6 @@ where
         }
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
@@ -144,7 +143,6 @@ where
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -200,8 +198,6 @@ impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self), ret)]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
@@ -219,7 +215,6 @@ where
     }
 
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -280,11 +275,11 @@ where
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
     cache: Arc<Mutex<EthereumMailboxCache>>,
+    batch_cache: Arc<Mutex<BatchCache>>,
 }
 
 #[derive(Debug, Default)]
 pub struct EthereumMailboxCache {
-    pub is_contract: HashMap<H256, bool>,
     pub latest_block: Option<Block<TxHash>>,
     pub eip1559_fee: Option<Eip1559Fee>,
 }
@@ -317,6 +312,7 @@ where
             arbitrum_node_interface,
             conn: conn.clone(),
             cache: Default::default(),
+            batch_cache: Default::default(),
         }
     }
 
@@ -458,8 +454,8 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         if let Some(mut submittable_batch) = self.call {
-            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
-            submittable_batch.call = estimated;
+            let gas_limit = multicall::estimate(&submittable_batch.call, self.successful).await?;
+            submittable_batch.call.tx.set_gas(gas_limit);
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
@@ -577,11 +573,12 @@ where
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+
         let mut multicall = build_multicall(
             self.provider.clone(),
-            &self.conn,
             self.domain.clone(),
-            self.cache.clone(),
+            self.batch_cache.clone(),
+            self.conn.batch_contract_address(),
         )
         .await
         .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;

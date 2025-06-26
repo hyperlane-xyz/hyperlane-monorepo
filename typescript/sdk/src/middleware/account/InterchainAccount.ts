@@ -1,12 +1,23 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { z } from 'zod';
 
-import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   Address,
+  CallData,
   addBufferToGasLimit,
   addressToBytes32,
+  arrayToObject,
   bytes32ToAddress,
+  eqAddress,
   isZeroishAddress,
+  objFilter,
+  objMap,
+  promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -17,7 +28,7 @@ import {
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { RouterApp } from '../../router/RouterApps.js';
-import { ChainName } from '../../types.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
@@ -26,11 +37,14 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
+  knownAccounts: Record<Address, AccountConfig | undefined>;
+
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+    this.knownAccounts = {};
   }
 
   override async remoteChains(chainName: string): Promise<ChainName[]> {
@@ -161,6 +175,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Interchain account recovered at ${destinationAccount}`,
       );
     }
+
+    this.knownAccounts[destinationAccount] = config;
+
     return destinationAccount;
   }
 
@@ -199,21 +216,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return callEncoded;
   }
 
-  async getAccountConfig(
-    chain: ChainName,
-    account: Address,
-  ): Promise<AccountConfig> {
-    const accountOwner = await this.router(
-      this.contractsMap[chain],
-    ).accountOwners(account);
-    const originChain = this.multiProvider.getChainName(accountOwner.origin);
-    return {
-      origin: originChain,
-      owner: accountOwner.owner,
-      localRouter: this.router(this.contractsMap[chain]).address,
-    };
-  }
-
   // general helper for different overloaded callRemote functions
   // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
   async callRemote({
@@ -236,16 +238,61 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 }
 
-export function buildInterchainAccountApp(
+export async function buildInterchainAccountApp(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-): InterchainAccount {
+  registry: Readonly<IRegistry>,
+): Promise<InterchainAccount> {
   if (!config.localRouter) {
     throw new Error('localRouter is required for account deployment');
   }
+
+  let remoteIcaAddresses: ChainMap<{ interchainAccountRouter: Address }>;
+  const localChainAddresses = await registry.getChainAddresses(chain);
+  // if the user specified a custom router address we need to retrieve the remote ica addresses
+  // configured on the user provided router, otherwise we use the ones defined in the registry
+  if (
+    localChainAddresses?.interchainAccountRouter &&
+    eqAddress(config.localRouter, localChainAddresses.interchainAccountRouter)
+  ) {
+    const addressByChain = await registry.getAddresses();
+
+    remoteIcaAddresses = objMap(addressByChain, (_, chainAddresses) => ({
+      interchainAccountRouter: chainAddresses.interchainAccountRouter,
+    }));
+  } else {
+    const currentIca = InterchainAccountRouter__factory.connect(
+      config.localRouter,
+      multiProvider.getSigner(chain),
+    );
+
+    const knownDomains = await currentIca.domains();
+    remoteIcaAddresses = await promiseObjAll(
+      objMap(arrayToObject(knownDomains.map(String)), async (domainId) => {
+        const routerAddress = await currentIca.routers(domainId);
+
+        return { interchainAccountRouter: bytes32ToAddress(routerAddress) };
+      }),
+    );
+  }
+
+  // remove the undefined or 0 addresses values
+  remoteIcaAddresses = objFilter(
+    remoteIcaAddresses,
+    (
+      _chainId,
+      chainAddresses,
+    ): chainAddresses is { interchainAccountRouter: Address } =>
+      !!chainAddresses.interchainAccountRouter &&
+      !isZeroishAddress(chainAddresses.interchainAccountRouter),
+  );
+
   const addressesMap: HyperlaneAddressesMap<any> = {
-    [chain]: { interchainAccountRouter: config.localRouter },
+    [chain]: {
+      interchainAccountRouter: config.localRouter,
+    },
+    ...remoteIcaAddresses,
   };
   return InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 }
@@ -254,11 +301,88 @@ export async function deployInterchainAccount(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
+  registry: IRegistry,
 ): Promise<Address> {
-  const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
-    multiProvider,
-    chain,
-    config,
-  );
+  const interchainAccountApp: InterchainAccount =
+    await buildInterchainAccountApp(multiProvider, chain, config, registry);
   return interchainAccountApp.deployAccount(chain, config);
+}
+
+export function encodeIcaCalls(calls: CallData[], salt: string) {
+  return (
+    salt +
+    utils.defaultAbiCoder
+      .encode(
+        ['tuple(bytes32 to,uint256 value,bytes data)[]'],
+        [
+          calls.map((c) => ({
+            to: addressToBytes32(c.to),
+            value: c.value || 0,
+            data: c.data,
+          })),
+        ],
+      )
+      .slice(2)
+  );
+}
+
+// Convenience function to transform value strings to bignumber
+export type RawCallData = {
+  to: string;
+  value?: string | number;
+  data: string;
+};
+
+export function normalizeCalls(calls: RawCallData[]): CallData[] {
+  return calls.map((call) => ({
+    to: addressToBytes32(call.to),
+    value: BigNumber.from(call.value || 0),
+    data: call.data,
+  }));
+}
+
+export function commitmentFromIcaCalls(
+  calls: CallData[],
+  salt: string,
+): string {
+  return utils.keccak256(encodeIcaCalls(calls, salt));
+}
+
+export const PostCallsSchema = z.object({
+  calls: z
+    .array(
+      z.object({
+        to: z.string(),
+        data: z.string(),
+        value: z.string().optional(),
+      }),
+    )
+    .min(1),
+  relayers: z.array(z.string()),
+  salt: z.string(),
+  commitmentDispatchTx: z.string(),
+  originDomain: z.number(),
+});
+
+export type PostCallsType = z.infer<typeof PostCallsSchema>;
+
+export async function shareCallsWithPrivateRelayer(
+  serverUrl: string,
+  payload: PostCallsType,
+): Promise<Response> {
+  const resp = await fetch(serverUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    // Read body
+    const body = await resp.text();
+    throw new Error(
+      `Failed to share calls with relayer: ${resp.status} ${body}`,
+    );
+  }
+
+  return resp;
 }

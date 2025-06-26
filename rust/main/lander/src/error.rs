@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use hyperlane_base::db::DbError;
 
 use crate::transaction::Transaction;
@@ -24,8 +22,10 @@ pub enum LanderError {
     EyreError(#[from] eyre::Report),
     #[error("Payload not found")]
     PayloadNotFound,
-    #[error("Transaction simulation failed")]
-    SimulationFailed,
+    #[error("Transaction simulation failed, reason: {0:?}")]
+    SimulationFailed(Vec<String>),
+    #[error("Transaction estimation failed")]
+    EstimationFailed,
     #[error("Non-retryable error: {0}")]
     NonRetryableError(String),
 
@@ -47,7 +47,8 @@ impl LanderError {
             LanderError::ChannelClosed => "ChannelClosed".to_string(),
             LanderError::EyreError(_) => "EyreError".to_string(),
             LanderError::PayloadNotFound => "PayloadNotFound".to_string(),
-            LanderError::SimulationFailed => "SimulationFailed".to_string(),
+            LanderError::SimulationFailed(_) => "SimulationFailed".to_string(),
+            LanderError::EstimationFailed => "EstimationFailed".to_string(),
             LanderError::NonRetryableError(_) => "NonRetryableError".to_string(),
             LanderError::DbError(_) => "DbError".to_string(),
             LanderError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
@@ -56,9 +57,21 @@ impl LanderError {
     }
 }
 
+const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
+    "replacement transaction underpriced",
+    "already known",
+    "Fair pubdata price too high",
+    // seen on Sei
+    "insufficient fee",
+];
+
 pub trait IsRetryable {
     fn is_retryable(&self) -> bool;
 }
+
+// this error is returned randomly by the `TestTokenRecipient`,
+// to simulate delivery errors
+const SIMULATED_DELIVERY_FAILURE_ERROR: &str = "block hash ends in 0";
 
 impl IsRetryable for LanderError {
     fn is_retryable(&self) -> bool {
@@ -69,9 +82,13 @@ impl IsRetryable for LanderError {
                 false
             }
             LanderError::ChainCommunicationError(err) => {
-                // this error is returned randomly by the `TestTokenRecipient`,
-                // to simulate delivery errors
-                if err.to_string().contains("block hash ends in 0") {
+                if err.to_string().contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
+                    return true;
+                }
+                if GAS_UNDERPRICED_ERRORS
+                    .iter()
+                    .any(|&e| err.to_string().contains(e))
+                {
                     return true;
                 }
                 // TODO: add logic to classify based on the error message
@@ -84,7 +101,10 @@ impl IsRetryable for LanderError {
             LanderError::ChannelSendFailure(_) => false,
             LanderError::NonRetryableError(_) => false,
             LanderError::TxReverted => false,
-            LanderError::SimulationFailed => false,
+            LanderError::SimulationFailed(reasons) => reasons
+                .iter()
+                .all(|r| r.contains(SIMULATED_DELIVERY_FAILURE_ERROR)),
+            LanderError::EstimationFailed => false,
             LanderError::ChannelClosed => false,
             LanderError::PayloadNotFound => false,
             LanderError::TxAlreadyExists => false,

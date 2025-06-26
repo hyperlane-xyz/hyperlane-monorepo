@@ -40,7 +40,7 @@ impl LoadableFromDb for PayloadDbLoader {
     type Item = FullPayload;
 
     async fn highest_index(&self) -> Result<u32, LanderError> {
-        Ok(self.db.retrieve_highest_index().await?)
+        Ok(self.db.retrieve_highest_payload_index().await?)
     }
 
     async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, LanderError> {
@@ -50,7 +50,7 @@ impl LoadableFromDb for PayloadDbLoader {
     async fn load(&self, item: FullPayload) -> Result<LoadingOutcome, LanderError> {
         match item.status {
             PayloadStatus::ReadyToSubmit | PayloadStatus::Retry(_) => {
-                self.building_stage_queue.lock().await.push_back(item);
+                self.building_stage_queue.push_back(item).await;
                 Ok(LoadingOutcome::Loaded)
             }
             PayloadStatus::Dropped(_) | PayloadStatus::InTransaction(_) => {

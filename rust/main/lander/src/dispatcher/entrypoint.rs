@@ -8,7 +8,7 @@ use tracing::info;
 use crate::{
     adapter::GasLimit,
     error::LanderError,
-    payload::{FullPayload, PayloadId, PayloadStatus},
+    payload::{FullPayload, PayloadStatus, PayloadUuid},
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
@@ -16,7 +16,8 @@ use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
 #[async_trait]
 pub trait Entrypoint {
     async fn send_payload(&self, payloads: &FullPayload) -> Result<(), LanderError>;
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, LanderError>;
+    async fn payload_status(&self, payload_uuid: PayloadUuid)
+        -> Result<PayloadStatus, LanderError>;
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
@@ -45,16 +46,19 @@ impl DispatcherEntrypoint {
 #[async_trait]
 impl Entrypoint for DispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), LanderError> {
-        self.inner.payload_db.store_payload_by_id(payload).await?;
+        self.inner.payload_db.store_payload_by_uuid(payload).await?;
         info!(payload=?payload.details, "Sent payload to dispatcher");
         Ok(())
     }
 
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, LanderError> {
+    async fn payload_status(
+        &self,
+        payload_uuid: PayloadUuid,
+    ) -> Result<PayloadStatus, LanderError> {
         let payload = self
             .inner
             .payload_db
-            .retrieve_payload_by_id(&payload_id)
+            .retrieve_payload_by_uuid(&payload_uuid)
             .await?;
         payload
             .map(|payload| payload.status)
@@ -70,154 +74,104 @@ impl Entrypoint for DispatcherEntrypoint {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
     };
 
+    use super::*;
+    use crate::tests::test_utils::MockAdapter;
+    use crate::{
+        adapter::*,
+        dispatcher::{metrics::DispatcherMetrics, PayloadDb, TransactionDb},
+        payload::*,
+        transaction::*,
+    };
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
     use hyperlane_core::KnownHyperlaneDomain;
 
-    use super::*;
-    use crate::{
-        adapter::*,
-        dispatcher::{
-            metrics::DispatcherMetrics, test_utils::MockAdapter, PayloadDb, TransactionDb,
-        },
-        payload::*,
-        transaction::*,
-    };
+    type PayloadMap = Arc<Mutex<HashMap<PayloadUuid, FullPayload>>>;
 
-    struct MockDb {
+    pub struct DbState {
         // need arcmutex for interior mutability
-        payloads: Arc<Mutex<HashMap<PayloadId, FullPayload>>>,
+        payloads: Arc<Mutex<HashMap<PayloadUuid, FullPayload>>>,
+        transactions: Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
     }
 
-    impl MockDb {
-        fn new() -> Self {
+    impl DbState {
+        pub fn new() -> Self {
             Self {
                 payloads: Arc::new(Mutex::new(HashMap::new())),
+                transactions: Arc::new(Mutex::new(HashMap::new())),
             }
         }
     }
 
-    #[async_trait]
-    impl PayloadDb for MockDb {
-        async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>> {
-            Ok(self.payloads.lock().unwrap().get(id).cloned())
+    mockall::mock! {
+        pub Db {}
+
+        #[async_trait]
+        impl PayloadDb for Db {
+            async fn retrieve_payload_by_uuid(&self, id: &PayloadUuid) -> DbResult<Option<FullPayload>>;
+            async fn store_payload_by_uuid(&self, payload: &FullPayload) -> DbResult<()>;
+            async fn store_tx_uuid_by_payload_uuid(
+                &self,
+                payload_uuid: &PayloadUuid,
+                tx_uuid: &TransactionUuid,
+            ) -> DbResult<()>;
+            async fn retrieve_tx_uuid_by_payload_uuid(
+                &self,
+                payload_uuid: &PayloadUuid,
+            ) -> DbResult<Option<TransactionUuid>>;
+            async fn retrieve_payload_index_by_uuid(
+                &self,
+                payload_uuid: &PayloadUuid,
+            ) -> DbResult<Option<u32>>;
+            async fn store_payload_uuid_by_index(
+                &self,
+                index: u32,
+                payload_uuid: &PayloadUuid,
+            ) -> DbResult<()>;
+            async fn retrieve_payload_uuid_by_index(&self, index: u32) -> DbResult<Option<PayloadUuid>>;
+            async fn store_highest_payload_index(&self, index: u32) -> DbResult<()>;
+            async fn retrieve_highest_payload_index(&self) -> DbResult<u32>;
+            async fn store_payload_index_by_uuid(
+                &self,
+                index: u32,
+                payload_uuid: &PayloadUuid,
+            ) -> DbResult<()>;
         }
 
-        async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
-            self.payloads
-                .lock()
-                .unwrap()
-                .insert(payload.id().clone(), payload.clone());
-            Ok(())
-        }
-
-        async fn store_tx_id_by_payload_id(
-            &self,
-            _payload_id: &PayloadId,
-            _tx_id: &TransactionId,
-        ) -> DbResult<()> {
-            todo!()
-        }
-
-        async fn retrieve_tx_id_by_payload_id(
-            &self,
-            _payload_id: &PayloadId,
-        ) -> DbResult<Option<TransactionId>> {
-            todo!()
-        }
-
-        async fn retrieve_payload_index_by_id(
-            &self,
-            _payload_id: &PayloadId,
-        ) -> DbResult<Option<u32>> {
-            todo!()
-        }
-
-        async fn store_payload_id_by_index(
-            &self,
-            _index: u32,
-            _payload_id: &PayloadId,
-        ) -> DbResult<()> {
-            todo!()
-        }
-
-        async fn retrieve_payload_id_by_index(&self, _index: u32) -> DbResult<Option<PayloadId>> {
-            todo!()
-        }
-
-        async fn store_highest_index(&self, _index: u32) -> DbResult<()> {
-            todo!()
-        }
-
-        async fn retrieve_highest_index(&self) -> DbResult<u32> {
-            todo!()
-        }
-
-        async fn store_payload_index_by_id(
-            &self,
-            _index: u32,
-            _payload_id: &PayloadId,
-        ) -> DbResult<()> {
-            todo!()
-        }
-    }
-
-    #[async_trait]
-    impl TransactionDb for MockDb {
-        async fn retrieve_transaction_by_id(
-            &self,
-            _id: &TransactionId,
-        ) -> DbResult<Option<Transaction>> {
-            unimplemented!()
-        }
-
-        async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
-            unimplemented!()
-        }
-
-        async fn retrieve_transaction_id_by_index(
-            &self,
-            _index: u32,
-        ) -> DbResult<Option<TransactionId>> {
-            todo!()
-        }
-
-        async fn store_highest_index(&self, _index: u32) -> DbResult<()> {
-            todo!()
-        }
-
-        async fn retrieve_highest_index(&self) -> DbResult<u32> {
-            todo!()
-        }
-
-        async fn store_transaction_id_by_index(
-            &self,
-            _index: u32,
-            _tx_id: &TransactionId,
-        ) -> DbResult<()> {
-            todo!()
-        }
-
-        async fn retrieve_transaction_index_by_id(
-            &self,
-            _id: &TransactionId,
-        ) -> DbResult<Option<u32>> {
-            todo!()
-        }
-
-        async fn store_transaction_index_by_id(
-            &self,
-            _index: u32,
-            _tx_id: &TransactionId,
-        ) -> DbResult<()> {
-            todo!()
+        #[async_trait]
+        impl TransactionDb for Db {
+            async fn retrieve_transaction_by_uuid(
+                &self,
+                id: &TransactionUuid,
+            ) -> DbResult<Option<Transaction>>;
+            async fn store_transaction_by_uuid(&self, tx: &Transaction) -> DbResult<()>;
+            async fn retrieve_transaction_uuid_by_index(
+                &self,
+                index: u32,
+            ) -> DbResult<Option<TransactionUuid>>;
+            async fn store_highest_transaction_index(&self, index: u32) -> DbResult<()>;
+            async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
+            async fn store_transaction_uuid_by_index(
+                &self,
+                index: u32,
+                tx_uuid: &TransactionUuid,
+            ) -> DbResult<()>;
+            async fn retrieve_transaction_index_by_uuid(
+                &self,
+                id: &TransactionUuid,
+            ) -> DbResult<Option<u32>>;
+            async fn store_transaction_index_by_uuid(
+                &self,
+                index: u32,
+                tx_uuid: &TransactionUuid,
+            ) -> DbResult<()>;
         }
     }
 
@@ -241,28 +195,58 @@ mod tests {
         db: Arc<dyn PayloadDb>,
     ) -> Result<()> {
         let mut payload = FullPayload::default();
-        let payload_id = payload.id().clone();
+        let payload_uuid = payload.uuid().clone();
 
         entrypoint.send_payload(&payload).await?;
 
-        let status = entrypoint.payload_status(payload_id.clone()).await?;
+        let status = entrypoint.payload_status(payload_uuid.clone()).await?;
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
 
         // update the payload's status
         let new_status = PayloadStatus::InTransaction(TransactionStatus::Finalized);
         payload.status = new_status.clone();
-        db.store_payload_by_id(&payload).await.unwrap();
+        db.store_payload_by_uuid(&payload).await.unwrap();
 
         // ensure the db entry was updated
-        let status = entrypoint.payload_status(payload_id.clone()).await?;
+        let status = entrypoint.payload_status(payload_uuid.clone()).await?;
         assert_eq!(status, new_status);
 
         Ok(())
     }
 
+    fn mock_db() -> MockDb {
+        let mut db = MockDb::new();
+        let db_state = Arc::new(Mutex::new(DbState::new()));
+        let state_for_write = Arc::clone(&db_state);
+        db.expect_store_payload_by_uuid()
+            .withf(move |payload| {
+                state_for_write
+                    .lock()
+                    .unwrap()
+                    .payloads
+                    .lock()
+                    .unwrap()
+                    .insert(payload.uuid().clone(), payload.clone());
+                true
+            })
+            .returning(|_| Ok(()));
+        let state_for_read = Arc::clone(&db_state);
+        db.expect_retrieve_payload_by_uuid().returning(move |id| {
+            Ok(state_for_read
+                .lock()
+                .unwrap()
+                .payloads
+                .lock()
+                .unwrap()
+                .get(id)
+                .cloned())
+        });
+        db
+    }
+
     #[tokio::test]
     async fn test_write_and_read_payload_mock_db() {
-        let db = Arc::new(MockDb::new());
+        let db = Arc::new(mock_db());
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
         let tx_db = db as Arc<dyn TransactionDb>;
         let entrypoint = set_up(payload_db.clone(), tx_db);

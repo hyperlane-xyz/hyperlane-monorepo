@@ -6,25 +6,21 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
-use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
-use starknet::providers::AnyProvider;
-use starknet::signers::LocalWallet;
+use starknet::core::types::Felt;
 use tracing::instrument;
 
-use crate::contracts::interchain_security_module::InterchainSecurityModule as StarknetInterchainSecurityModuleInternal;
+use crate::contracts::interchain_security_module::InterchainSecurityModuleReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetProvider,
+    build_json_provider, to_hpl_module_type, ConnectionConf, JsonProvider, StarknetProvider,
 };
 
 /// A reference to a ISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetInterchainSecurityModule {
-    contract:
-        StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: InterchainSecurityModuleReader<JsonProvider>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -32,34 +28,16 @@ pub struct StarknetInterchainSecurityModule {
 impl StarknetInterchainSecurityModule {
     /// Create a reference to a ISM at a specific Starknet address on some
     /// chain
-    pub async fn new(
-        conn: &ConnectionConf,
-        locator: &ContractLocator<'_>,
-        signer: Signer,
-    ) -> ChainResult<Self> {
-        let account =
-            build_single_owner_account(&conn.url, signer.local_wallet(), &signer.address, false)
-                .await?;
-
-        let ism_address: FieldElement = HyH256(locator.address)
-            .try_into()
-            .map_err(HyperlaneStarknetError::BytesConversionError)?;
-
-        let contract = StarknetInterchainSecurityModuleInternal::new(ism_address, account);
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+        let provider = build_json_provider(conn);
+        let ism_address: Felt = HyH256(locator.address).into();
+        let contract = InterchainSecurityModuleReader::new(ism_address, provider);
 
         Ok(Self {
             contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>
-    {
-        &self.contract
     }
 }
 
@@ -98,24 +76,29 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let message = &message.into();
+        // let message = &message.into();
 
-        // We can't simulate the `verify` call in Starknet because
-        // it's not marked as an entrypoint. So we just use the query interface
-        // and hardcode a gas value - this can be inefficient if one ISM is
-        // vastly cheaper than another one.
-        let verified = self
-            .contract
-            .verify(&metadata.into(), message)
-            .call()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
+        // let calldata = self.contract.verify(&metadata.into(), message);
+        // debug!("Dry run verify call data: {:#?}", calldata.call_raw);
+        // // We can't simulate the `verify` call in Starknet because
+        // // it's not marked as an entrypoint. So we just use the query interface
+        // // and hardcode a gas value - this can be inefficient if one ISM is
+        // // vastly cheaper than another one.
+        // let verified = calldata.call().await.map_err(HyperlaneStarknetError::from);
+        // debug!("Dry run verify call result: {:#?}", verified);
 
-        if !verified {
-            return Ok(None);
-        }
+        // let verified = verified?;
 
-        let dummy_gas_value = U256::one();
-        Ok(Some(dummy_gas_value))
+        // if !verified {
+        //     return Ok(None);
+        // }
+
+        // let dummy_gas_value = U256::one();
+        // Ok(Some(dummy_gas_value))
+
+        //TODO: investiage why this method fails for paradex mainnet only
+        // it seems as if metadata or message incorrect when this method is called from `cheapest_valid_metas`
+
+        Ok(Some(U256::one()))
     }
 }

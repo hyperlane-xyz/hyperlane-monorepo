@@ -1,5 +1,58 @@
 # @hyperlane-xyz/core
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ec92f775]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+
+## 8.0.0
+
+### Major Changes
+
+- e61bd2f: Refactor MailboxClient and AbstractCCIPReadIsm
+- 4544120: Update ICA router event emission with salt and commitment
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+### Minor Changes
+
+- db19435: Add Rebalancing Multi-Collateral Warp Routes
+- b977a28: Add call commitments (shielded calls) to ICA Router
+
+  - Add `callRemoteCommitReveal`
+  - Add `MessageType` to `InterchainAccountMessage`
+  - Make ICA Router its own ISM, and route to ica included in message
+
+- 7a3165f: Allow users to pass salts in ICA derivation
+- b977a28: Add multiple TokenBridge contracts
+
+  - Add OP Stack TokenBridge
+  - Add CCTP TokenBridge
+
+- 88fe35f: Add Rebalancing Warp Route for Native Tokens
+- 3327a6e: Add MovableCollateralRouter, a router whose collateral can be removed to a remote chain
+
+### Patch Changes
+
+- fd3bb39: Use SafeERC20.safeApprove instead of IERC20.approve in HypXERC20Lockbox.approveLockbox()
+  - @hyperlane-xyz/utils@13.3.0
+
 ## 7.1.10
 
 ### Patch Changes

@@ -6,7 +6,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
 import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import { DerivedCoreConfig } from './types.js';
 
@@ -18,14 +18,17 @@ export class CosmosNativeCoreReader {
   protected hookReader: CosmosNativeHookReader;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signer:
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
   ) {
-    this.ismReader = new CosmosNativeIsmReader(this.multiProvider, this.signer);
+    this.ismReader = new CosmosNativeIsmReader(
+      this.metadataManager,
+      this.signer,
+    );
     this.hookReader = new CosmosNativeHookReader(
-      this.multiProvider,
+      this.metadataManager,
       this.signer,
     );
   }

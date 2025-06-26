@@ -3,11 +3,9 @@ pragma solidity >=0.8.0;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import {TypeCasts} from "./libs/TypeCasts.sol";
 import {Checkpoint, CheckpointLib} from "./libs/CheckpointLib.sol";
 import {MerkleLib, TREE_DEPTH} from "./libs/Merkle.sol";
 import {MerkleTreeHook} from "./hooks/MerkleTreeHook.sol";
-import {IMailbox} from "./interfaces/IMailbox.sol";
 
 import {PackageVersioned} from "./PackageVersioned.sol";
 

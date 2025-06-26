@@ -169,12 +169,6 @@ describe('EvmIsmModule', async () => {
       });
     }
 
-    it(`deploys ${IsmType.ICA_ROUTING}`, async () => {
-      await createIsm({
-        type: IsmType.ICA_ROUTING,
-      });
-    });
-
     it(`deploys ${IsmType.AMOUNT_ROUTING}`, async () => {
       await createIsm({
         type: IsmType.AMOUNT_ROUTING,

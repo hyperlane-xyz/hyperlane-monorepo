@@ -1,5 +1,80 @@
 # @hyperlane-xyz/sdk
 
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+### Patch Changes
+
+- 929708c1f: Respect the expectedRemoteChains arg when checking enrolled routers in HyperlaneRouterChecker.
+- 88134de1f: Enable backwards-compatible ISM derivation with legacy ICAs.
+- 7ad8e394c: fix starknet token adapter
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/core@8.0.2
+  - @hyperlane-xyz/starknet-core@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
+## 13.4.0
+
+### Minor Changes
+
+- 5f60deed3: add cosmos warp read logic in sdk
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- e48e5346f: add warp fork and fork commands
+- fe1d8ab2d: Remove SG-1 from manta, neutron validators. Add botanix, katana, paradex, starknet validators. Remove arthera, corn, glue, trumpchain.
+- 19384e74b: sdk support for cosmos hyperlane module v1.0.1
+- 1efce4979: Add rebalancer config schemas
+
+### Patch Changes
+
+- 779df446d: Fix typo DomaingRoutingIsm -> DomainRoutingIsm.
+- 64092311c: Update SmartProvider to throw with `cause` and update Warp Reader to use the thrown `cause`
+- Updated dependencies [0ec92f775]
+- Updated dependencies [19384e74b]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/starknet-core@13.4.0
+  - @hyperlane-xyz/cosmos-sdk@13.4.0
+  - @hyperlane-xyz/core@8.0.1
+
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- f8fd7b4: Support using MultiSend when proposing txs via the EV5GnosisSafeTxSubmitter.
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
+### Patch Changes
+
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+- 1e137df: Improved logging around fetching prices from CoinGecko
+- Updated dependencies [e61bd2f]
+- Updated dependencies [db19435]
+- Updated dependencies [b977a28]
+- Updated dependencies [fd3bb39]
+- Updated dependencies [4544120]
+- Updated dependencies [7a3165f]
+- Updated dependencies [119a1a8]
+- Updated dependencies [b977a28]
+- Updated dependencies [88fe35f]
+- Updated dependencies [3327a6e]
+  - @hyperlane-xyz/core@8.0.0
+  - @hyperlane-xyz/starknet-core@13.3.0
+  - @hyperlane-xyz/cosmos-sdk@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
 ## 13.2.1
 
 ### Patch Changes

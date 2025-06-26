@@ -1,5 +1,51 @@
 # @hyperlane-xyz/ccip-server
 
+## 14.0.0
+
+### Patch Changes
+
+- Updated dependencies [929708c1f]
+- Updated dependencies [88134de1f]
+- Updated dependencies [66c13b539]
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/sdk@14.0.0
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/core@8.0.2
+
+## 13.4.0
+
+### Patch Changes
+
+- Updated dependencies [5f60deed3]
+- Updated dependencies [0ec92f775]
+- Updated dependencies [e48e5346f]
+- Updated dependencies [779df446d]
+- Updated dependencies [fe1d8ab2d]
+- Updated dependencies [19384e74b]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+- Updated dependencies [1efce4979]
+- Updated dependencies [64092311c]
+  - @hyperlane-xyz/sdk@13.4.0
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/core@8.0.1
+
+## 13.3.0
+
+### Patch Changes
+
+- Updated dependencies [e61bd2f]
+- Updated dependencies [db19435]
+- Updated dependencies [b977a28]
+- Updated dependencies [fd3bb39]
+- Updated dependencies [4544120]
+- Updated dependencies [7a3165f]
+- Updated dependencies [119a1a8]
+- Updated dependencies [b977a28]
+- Updated dependencies [88fe35f]
+- Updated dependencies [3327a6e]
+  - @hyperlane-xyz/core@8.0.0
+
 ## 13.2.1
 
 ### Patch Changes

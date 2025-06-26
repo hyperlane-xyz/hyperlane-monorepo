@@ -14,16 +14,15 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20} from "../HypERC20.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {Router} from "contracts/client/Router.sol";
 import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**

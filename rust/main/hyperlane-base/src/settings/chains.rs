@@ -31,7 +31,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
-use hyperlane_starknet as h_starknet;
+use hyperlane_starknet::{self as h_starknet};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -196,6 +196,7 @@ impl ChainConnectionConf {
             Self::Ethereum(conf) => Some(&conf.op_submission_config),
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
+            Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }
@@ -407,8 +408,7 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer).await?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -875,11 +875,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(
-                    h_starknet::StarknetInterchainSecurityModule::new(conf, &locator, signer)
-                        .await?,
-                );
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    conf, &locator,
+                )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -926,9 +924,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism =
-                    Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator, signer).await?);
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -970,9 +966,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism =
-                    Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator, signer).await?);
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1017,10 +1011,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(
-                    h_starknet::StarknetAggregationIsm::new(conf, &locator, signer).await?,
-                );
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator)?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
@@ -1116,10 +1107,8 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn starknet_signer(&self) -> Result<h_starknet::Signer> {
-        self.signer()
-            .await?
-            .ok_or_else(|| eyre!("Starknet requires a signer to construct contract instances"))
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
     }
 
     async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {

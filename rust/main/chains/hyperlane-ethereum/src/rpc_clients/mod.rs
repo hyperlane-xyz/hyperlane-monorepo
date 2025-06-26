@@ -2,7 +2,9 @@ use ethers::providers::HttpClientError;
 use tracing::{error, info, trace, warn};
 
 pub use self::{fallback::*, provider::*, retrying::*, trait_builder::*};
+pub use error::decode_revert_reason;
 
+mod error;
 mod fallback;
 mod provider;
 mod retrying;
