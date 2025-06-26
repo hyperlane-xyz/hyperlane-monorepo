@@ -9,6 +9,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
+  IOwnerManager__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
@@ -46,7 +47,7 @@ import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 // @ts-ignore
-import { getSafeService } from '../utils/gnosisSafe.js';
+import { getSafe } from '../utils/gnosisSafe.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -219,18 +220,22 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ? VerifyContractTypes.Proxy
       : VerifyContractTypes.Implementation;
 
+    if (this.multiProvider.isLocalRpc(chain)) {
+      this.logger.debug('Skipping verification for local endpoints');
+      return { [contractType]: ContractVerificationStatus.Skipped };
+    }
     contractVerificationStatus[contractType] =
       await this.contractVerifier.getContractVerificationStatus(chain, address);
 
     if (contractType === VerifyContractTypes.Proxy) {
-      contractVerificationStatus.Implementation =
+      contractVerificationStatus[VerifyContractTypes.Implementation] =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyImplementation(this.provider, address),
         );
 
       // Derive ProxyAdmin status
-      contractVerificationStatus.ProxyAdmin =
+      contractVerificationStatus[VerifyContractTypes.ProxyAdmin] =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
@@ -240,21 +245,31 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   }
 
   async getOwnerStatus(chain: ChainName, address: Address) {
-    let owner: Address;
-    try {
-      const provider = this.multiProvider.getProvider(chain);
-      owner = await Ownable__factory.connect(address, provider).owner();
-      const isActive = await isAddressActive(provider, owner);
-
+    if (this.multiProvider.isLocalRpc(chain)) {
+      this.logger.debug('Skipping owner verification for local endpoints');
       return {
-        [owner]: isActive ? OwnerStatus.Active : OwnerStatus.Inactive,
-      };
-    } catch (e) {
-      this.logger.debug(`Could not get owner status. Failed with error ${e}`);
-      return {
-        [address]: OwnerStatus.Error,
+        [address]: OwnerStatus.Skipped,
       };
     }
+
+    const provider = this.multiProvider.getProvider(chain);
+    const owner = await Ownable__factory.connect(address, provider).owner();
+
+    // Heuristically check if the owner could be a safe by calling an expected function
+    try {
+      await IOwnerManager__factory.connect(owner, provider).getThreshold();
+      return {
+        [address]: OwnerStatus.GnosisSafe,
+      };
+    } catch {
+      this.logger.debug(`${owner} is not a safe`);
+    }
+
+    const isActive = await isAddressActive(provider, owner);
+
+    return {
+      [owner]: isActive ? OwnerStatus.Active : OwnerStatus.Inactive,
+    };
   }
 
   async deriveWarpRouteVirtualConfig(
