@@ -1,5 +1,17 @@
 # @hyperlane-xyz/core
 
+## 8.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Export CONTRACTS_PACKAGE_VERSION from core package.
+- 04fc563f4: Fix TokenBridgeCCTP.verify burn message sender enforcement
+  - @hyperlane-xyz/utils@14.1.0
+
 ## 8.0.2
 
 ### Patch Changes

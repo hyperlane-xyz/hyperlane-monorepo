@@ -18,7 +18,7 @@ import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTrans
 import {ITokenMessenger} from "../../contracts/interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
@@ -176,7 +176,7 @@ contract TokenBridgeCctpTest is Test {
                 sourceDomain,
                 cctpDestination,
                 nonce,
-                sender.addressToBytes32(),
+                address(tokenMessengerOrigin).addressToBytes32(),
                 address(tbDestination).addressToBytes32(),
                 bytes32(0),
                 burnMessage
@@ -289,6 +289,41 @@ contract TokenBridgeCctpTest is Test {
             )
         );
         assertEq(tbDestination.verify(metadata, message), true);
+    }
+
+    function testFork_verify() public {
+        TokenBridgeCctp recipient = TokenBridgeCctp(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        vm.createSelectFork(vm.rpcUrl("base"), 32_126_535);
+
+        bytes
+            memory metadata = hex"0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000000f80000000000000000000000060000000000044df3000000000000000000000000bd3fa81b58ba92a82136038b25adec7066af31550000000000000000000000001682ae6375c4e4a97e4b583bc394c861a46d8962000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000001547b13bd71126d92e93092cad07807eedb6fc260000000000000000000000000000000000000000000000000000000000000001000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8000000000000000000000000000000000000000000000000000000000000000000000000000000822828b6af83fc19fc0e46a6dc4470c93e02855175de1fc77e01858eefb8bc5c9140df500f482cbfa384bd1bf6a020cdb078788ff3eff1c7ead090ae93c2088c8b1c2e143054b1656ba072ebf83c30e1ea9929043be7a8fe28c087a32a285bd6a5310e48b26b46595143ed8ee71bbc49e9deceabd69d0802331188fa69309477d80e1c000000000000000000000000000000000000000000000000000000000000";
+        bytes
+            memory message = hex"0300016f5200000001000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8000021050000000000000000000000005c4afb7e23b1dc1b409dc1702f89c64527b259750000000000000000000000001547b13bd71126d92e93092cad07807eedb6fc2600000000000000000000000000000000000000000000000000000000000000010000000000044df3";
+
+        vm.expectRevert();
+        recipient.verify(metadata, message);
+
+        TokenBridgeCctp newImplementation = new TokenBridgeCctp(
+            address(recipient.wrappedToken()),
+            recipient.scale(),
+            address(recipient.mailbox()),
+            recipient.messageTransmitter(),
+            recipient.tokenMessenger()
+        );
+
+        bytes32 adminBytes = vm.load(
+            address(recipient),
+            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
+        );
+        address admin = address(uint160(uint256(adminBytes)));
+        vm.prank(admin);
+        ITransparentUpgradeableProxy(address(recipient)).upgradeTo(
+            address(newImplementation)
+        );
+
+        assertEq(recipient.verify(metadata, message), true);
     }
 
     function test_verify_revertsWhen_invalidNonce() public {

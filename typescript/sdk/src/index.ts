@@ -1,5 +1,5 @@
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
-
+export { isAddressActive } from './contracts/contracts.js';
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -141,6 +141,8 @@ export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
   StorageGasOracleConfig,
   StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
