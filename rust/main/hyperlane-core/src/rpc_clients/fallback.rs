@@ -390,7 +390,6 @@ pub mod test {
         }
     }
 
-    #[tracing_test::traced_test]
     #[tokio::test]
     pub async fn test_deprioritization_by_failed_count() {
         let provider1 = ProviderMock::new(None);

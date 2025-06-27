@@ -46,7 +46,6 @@ typetag.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
-tracing-test = { workspace = true }
 uint.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 
