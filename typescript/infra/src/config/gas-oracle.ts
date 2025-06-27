@@ -91,10 +91,21 @@ function getLocalStorageGasOracleConfigOverride(
       typicalRemoteGasAmount,
     );
 
+    console.log(
+      local,
+      '->',
+      remote,
+      'typicalIgpQuoteUsd',
+      typicalIgpQuoteUsd,
+      'typicalRemoteGasAmount',
+      typicalRemoteGasAmount,
+    );
+
     const minUsdCost = getMinUsdCost(local, remote);
 
     // If the quote is already above the minimum cost, don't adjust the gas price!
     if (typicalIgpQuoteUsd >= minUsdCost) {
+      console.log(local, '->', remote, 'no adjustment needed');
       return gasOracleConfig.gasPrice;
     }
 
