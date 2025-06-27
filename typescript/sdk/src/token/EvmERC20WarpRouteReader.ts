@@ -278,8 +278,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       : VerifyContractTypes.Implementation;
     if (contractType === VerifyContractTypes.Proxy) {
       const [proxyStatus, implementationStatus] = await Promise.all([
-        await this.getOwnerStatus(chain, await proxyAdmin(provider, address)),
-        await this.getOwnerStatus(
+        this.getOwnerStatus(chain, await proxyAdmin(provider, address)),
+        this.getOwnerStatus(
           chain,
           await proxyImplementation(this.provider, address),
         ),
