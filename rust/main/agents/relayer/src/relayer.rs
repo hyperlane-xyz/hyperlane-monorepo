@@ -1023,7 +1023,7 @@ impl Relayer {
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
-        processor.spawn(span)
+        Ok(processor.spawn(span))
     }
 
     fn run_merkle_tree_processor(
@@ -1046,7 +1046,7 @@ impl Relayer {
         let merkle_tree_processor = MerkleTreeProcessor::new(db, metrics, prover_sync);
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
         let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
-        processor.spawn(span)
+        Ok(processor.spawn(span))
     }
 
     #[allow(clippy::too_many_arguments)]

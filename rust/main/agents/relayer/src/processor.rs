@@ -29,14 +29,17 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn spawn(self, span: Span) -> std::io::Result<JoinHandle<()>> {
+    pub fn spawn(self, span: Span) -> JoinHandle<()> {
         let task_monitor = self.task_monitor.clone();
         let name = self.ticker.name();
         let instrumented = TaskMonitor::instrument(
             &task_monitor,
             async move { self.main_loop().await }.instrument(span),
         );
-        tokio::task::Builder::new().name(&name).spawn(instrumented)
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(instrumented)
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
