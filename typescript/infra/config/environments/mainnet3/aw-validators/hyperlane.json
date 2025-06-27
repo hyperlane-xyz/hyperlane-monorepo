@@ -170,6 +170,9 @@
   "fusemainnet": {
     "validators": ["0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"]
   },
+  "galactica": {
+    "validators": ["0xfc48af3372d621f476c53d79d42a9e96ce11fd7d"]
+  },
   "game7": {
     "validators": ["0x691dc4e763514df883155df0952f847b539454c0"]
   },
@@ -222,9 +225,6 @@
   },
   "katana": {
     "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
-  },
-  "kroma": {
-    "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
   },
   "kyve": {
     "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
