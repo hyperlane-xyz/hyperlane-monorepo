@@ -6,4 +6,19 @@ edition = "2021"
 [dependencies]
 core = { path = "../../lib/core" }
 relayer = { path = "../../lib/relayer" }
-
+validator = { path = "../../lib/validator" }
+kaspa-addresses = { workspace = true }
+kaspa-consensus-core = { workspace = true }
+kaspa-core = { workspace = true }
+kaspa-grpc-client = { workspace = true }
+kaspa-wallet-core = { workspace = true }
+kaspa-wallet-pskt = { workspace = true }
+kaspa-txscript = { workspace = true }
+kaspa-rpc-core = { workspace = true }
+secp256k1 = { workspace = true }
+workflow-core = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+log = { workspace = true }
+clap = { workspace = true }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
+hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }

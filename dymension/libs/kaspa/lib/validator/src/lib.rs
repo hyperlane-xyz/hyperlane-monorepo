@@ -25,7 +25,7 @@ use hyperlane_core::Decode;
 use hyperlane_core::U256;
 use hyperlane_warp_route::TokenMessage;
 
-const ESCROW_ADDRESS: &'static str =
+pub const ESCROW_ADDRESS: &'static str =
     "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
 
 async fn validate_transaction(deposits: Vec<DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {

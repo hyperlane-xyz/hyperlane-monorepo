@@ -17,7 +17,7 @@ pub async fn check_balance<T: RpcApi + ?Sized>(
     let balance = rpc
         .get_balance_by_address(addr.clone())
         .await
-        .map_err(|e| Error::Custom(format!("Getting balance for escrow address: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("Getting balance for address: {}", e)))?;
 
     info!("{} balance: {}", source, balance);
     Ok(balance)

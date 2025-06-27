@@ -170,10 +170,9 @@ mod tests {
         amount: U256,
         metadata: Vec<u8>,
     ) -> HyperlaneMessage {
+
+        let mut hl_message: HyperlaneMessage = HyperlaneMessage::default();
         let token_msg = TokenMessage::new(recipient, amount, metadata);
-
-        let mut hl_message = HyperlaneMessage::default();
-
         let encoded_bytes = token_msg.to_vec();
 
         hl_message.body = encoded_bytes;
