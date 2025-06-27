@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use ethers::{providers::ProviderError, types::BlockNumber};
+use ethers::{
+    providers::ProviderError,
+    types::{BlockNumber, U256 as EthersU256},
+};
 use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
 use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides};
 use tracing::{debug, warn};
@@ -20,7 +23,7 @@ pub async fn estimate_gas_limit(
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
     with_gas_limit_overrides: bool,
-) -> std::result::Result<(), LanderError> {
+) -> Result<(), LanderError> {
     let mut estimated_gas_limit: U256 = provider
         .estimate_gas_limit(&tx_precursor.tx, &tx_precursor.function)
         .await?;
@@ -73,4 +76,13 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 
     // Always add a flat buffer
     Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
+}
+
+// Used for testing
+#[cfg(test)]
+pub fn apply_estimate_buffer_to_ethers(
+    gas: EthersU256,
+    domain: &HyperlaneDomain,
+) -> ChainResult<EthersU256> {
+    apply_gas_estimate_buffer(gas.into(), domain).map(Into::into)
 }

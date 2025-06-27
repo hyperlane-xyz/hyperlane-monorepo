@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+### Patch Changes
+
+- 929708c1f: Respect the expectedRemoteChains arg when checking enrolled routers in HyperlaneRouterChecker.
+- 88134de1f: Enable backwards-compatible ISM derivation with legacy ICAs.
+- 7ad8e394c: fix starknet token adapter
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/core@8.0.2
+  - @hyperlane-xyz/starknet-core@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
 ## 13.4.0
 
 ### Minor Changes

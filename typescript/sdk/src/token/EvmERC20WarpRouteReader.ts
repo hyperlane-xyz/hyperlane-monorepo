@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract } from 'ethers';
 
 import {
@@ -66,6 +67,8 @@ import {
   isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
+
+const REBALANCING_CONTRACT_VERSION = '8.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -147,9 +150,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
+    const hasRebalancingInterface =
+      compareVersions(
+        tokenConfig.contractVersion!,
+        REBALANCING_CONTRACT_VERSION,
+      ) >= 0;
+
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
-    if (isMovableCollateralTokenConfig(tokenConfig)) {
+    if (
+      hasRebalancingInterface &&
+      isMovableCollateralTokenConfig(tokenConfig)
+    ) {
       const movableToken = MovableCollateralRouter__factory.connect(
         warpRouteAddress,
         this.provider,

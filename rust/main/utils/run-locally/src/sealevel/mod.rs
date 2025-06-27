@@ -1,5 +1,5 @@
+pub mod sealevel_termination_invariants;
 pub mod solana;
-pub mod termination_invariants;
 
 use std::{
     fs,
@@ -20,7 +20,7 @@ use crate::{
     long_running_processes_exited_check,
     metrics::agent_balance_sum,
     program::Program,
-    sealevel::{solana::*, termination_invariants::*},
+    sealevel::{sealevel_termination_invariants::*, solana::*},
     utils::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
         TaskHandle,
