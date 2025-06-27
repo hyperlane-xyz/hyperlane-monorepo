@@ -355,10 +355,18 @@ export async function runWarpRouteApply(
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => ({
-      ...config,
-      owner: await multiProvider.getSignerAddress(chain),
-    })),
+    objMap(params.warpDeployConfig, async (chain, config) => {
+      const protocolType = multiProvider.getProtocol(chain);
+
+      if (protocolType !== ProtocolType.Ethereum) {
+        return config;
+      }
+
+      return {
+        ...config,
+        owner: await multiProvider.getSignerAddress(chain),
+      };
+    }),
   );
 
   // Extend the warp route and get the updated configs
@@ -482,11 +490,20 @@ export async function extendWarpRoute(
     warpCoreConfigByChain,
   } = getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
+  const filteredExtendedConfigs = Object.fromEntries(
+    Object.entries(initialExtendedConfigs).filter(
+      ([chainName]) =>
+        context.multiProtocolProvider.getProtocol(chainName) ===
+        ProtocolType.Ethereum,
+    ),
+  );
+
+  const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
   if (extendedChains.length === 0) {
     return warpCoreConfig;
   }
 
-  logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
+  logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
   // Deploy new contracts with derived metadata and merge with existing config
   const { updatedWarpCoreConfig, addWarpRouteOptions } =
@@ -494,7 +511,7 @@ export async function extendWarpRoute(
       params,
       apiKeys,
       existingConfigs,
-      initialExtendedConfigs,
+      filteredExtendedConfigs,
       warpCoreConfigByChain,
     );
 
