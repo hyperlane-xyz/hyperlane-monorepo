@@ -1,6 +1,6 @@
 # File extension owners
 
-*.sol @yorhodes @ltyu @larryob
+*.sol @yorhodes @larryob
 *.ts @yorhodes @ltyu @xeno097
 *.rs @tkporter @daniel-savu @ameten
 
@@ -11,12 +11,12 @@ solidity/ @yorhodes @tkporter @ltyu @larryob
 starknet/ @yorhodes @tkporter @troykessler
 
 ## Agents
-rust/ @tkporter @daniel-savu @ameten
+rust/ @tkporter @daniel-savu @ameten @kamiyaa
 
 ## SDK
-typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097
-typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097
-typescript/widgets @xaroz @cmcewen
+typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
+typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
+typescript/widgets @xaroz @cmcewen @antigremlin
 
 ## CLI
 typescript/cli @yorhodes @ltyu @xeno097 @antigremlin
