@@ -1,5 +1,5 @@
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
-
+export { isAddressActive } from './contracts/contracts.js';
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';

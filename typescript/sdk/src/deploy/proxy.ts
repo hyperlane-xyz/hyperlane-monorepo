@@ -8,7 +8,7 @@ import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
-type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 
 export type UpgradeConfig = {
   timelock: {
