@@ -430,6 +430,7 @@ async function sendMessage(
       );
       txReceipt = {
         type: ProviderType.EthersV5,
+        hash: receipt.transactionHash,
         receipt,
       };
     } else if (tx.type === ProviderType.SolanaWeb3) {
@@ -454,6 +455,7 @@ async function sendMessage(
         throw new Error(`Sealevel tx not found with signature ${txSignature}`);
       txReceipt = {
         type: ProviderType.SolanaWeb3,
+        hash: '',
         receipt,
       };
     } else {

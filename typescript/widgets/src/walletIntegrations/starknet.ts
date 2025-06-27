@@ -120,26 +120,7 @@ export function useStarknetTransactionFns(
     [multiProvider, switchChainAsync],
   );
 
-  const onSendTx = useCallback(
-    async ({
-      tx,
-      chainName,
-      activeChainName,
-    }: {
-      tx: WarpTypedTransaction;
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      return onMultiSendTx({
-        txs: [tx],
-        chainName,
-        activeChainName,
-      });
-    },
-    [account, multiProvider, onSwitchNetwork, sendAsync],
-  );
-
-  const onMultiSendTx = useCallback(
+  const onSendTxs = useCallback(
     async ({
       txs,
       chainName,
@@ -151,7 +132,7 @@ export function useStarknetTransactionFns(
     }) => {
       if (txs.some((tx) => tx.type !== ProviderType.Starknet)) {
         throw new Error(
-          `Invalid transaction type for Starknet: ${txs.map((tx) => tx.type).join(',')}`,
+          `Invalid transaction type in Starknet transactions: ${txs.map((tx) => tx.type).join(',')}`,
         );
       }
 
@@ -174,15 +155,18 @@ export function useStarknetTransactionFns(
 
         const result = await sendAsync(txs.map((tx) => tx.transaction as Call));
         const hash = result.transaction_hash;
-        const confirm = async (): Promise<TypedTransactionReceipt> => {
+        const confirm = async (): Promise<TypedTransactionReceipt[]> => {
           const receipt = await account.waitForTransaction(hash);
-          return {
-            type: ProviderType.Starknet,
-            receipt,
-          };
+          return [
+            {
+              type: ProviderType.Starknet,
+              hash,
+              receipt,
+            },
+          ];
         };
 
-        return { hash, confirm };
+        return { confirm };
       } catch (error) {
         logger.error('Failed to send StarkNet transactions:', error);
         throw error;
@@ -192,8 +176,7 @@ export function useStarknetTransactionFns(
   );
 
   return {
-    sendTransaction: onSendTx,
-    sendMultiTransaction: onMultiSendTx,
+    sendTransactions: onSendTxs,
     switchNetwork: onSwitchNetwork,
   };
 }

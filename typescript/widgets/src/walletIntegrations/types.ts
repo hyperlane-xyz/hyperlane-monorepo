@@ -31,28 +31,18 @@ export interface ActiveChainInfo {
   chainName?: ChainName;
 }
 
-export type SendTransactionFn<
-  TxReq extends WarpTypedTransaction = WarpTypedTransaction,
-  TxResp extends TypedTransactionReceipt = TypedTransactionReceipt,
-> = (params: {
-  tx: TxReq;
-  chainName: ChainName;
-  activeChainName?: ChainName;
-}) => Promise<{ hash: string; confirm: () => Promise<TxResp> }>;
-
-export type SendMultiTransactionFn<
+export type SendTransactionsFn<
   TxReq extends WarpTypedTransaction = WarpTypedTransaction,
   TxResp extends TypedTransactionReceipt = TypedTransactionReceipt,
 > = (params: {
   txs: TxReq[];
   chainName: ChainName;
   activeChainName?: ChainName;
-}) => Promise<{ hash: string; confirm: () => Promise<TxResp> }>;
+}) => Promise<{ confirm: () => Promise<TxResp[]> }>;
 
 export type SwitchNetworkFn = (chainName: ChainName) => Promise<void>;
 
 export interface ChainTransactionFns {
-  sendTransaction: SendTransactionFn;
-  sendMultiTransaction: SendMultiTransactionFn;
+  sendTransactions: SendTransactionsFn;
   switchNetwork?: SwitchNetworkFn;
 }

@@ -316,6 +316,7 @@ export type TypedTransaction =
 interface TypedTransactionReceiptBase<T> {
   type: ProviderType;
   receipt: T;
+  hash: string;
 }
 
 export interface EthersV5TransactionReceipt

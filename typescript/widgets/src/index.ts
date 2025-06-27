@@ -147,7 +147,7 @@ export type {
   ActiveChainInfo,
   ChainAddress,
   ChainTransactionFns,
-  SendTransactionFn,
+  SendTransactionsFn,
   SwitchNetworkFn,
   WalletDetails,
 } from './walletIntegrations/types.js';

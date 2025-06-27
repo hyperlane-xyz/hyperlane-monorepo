@@ -1,12 +1,13 @@
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   getAccount,
-  sendTransaction,
+  sendCalls,
   switchChain,
-  waitForTransactionReceipt,
+  waitForCallsStatus,
 } from '@wagmi/core';
+import { PopulatedTransaction } from 'ethers';
 import { useCallback, useMemo } from 'react';
-import { Chain as ViemChain } from 'viem';
+import { TransactionReceipt, Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
@@ -101,23 +102,27 @@ export function useEthereumTransactionFns(
     },
     [config, multiProvider],
   );
+
   // Note, this doesn't use wagmi's prepare + send pattern because we're potentially sending two transactions
   // The prepare hooks are recommended to use pre-click downtime to run async calls, but since the flow
   // may require two serial txs, the prepare hooks aren't useful and complicate hook architecture considerably.
   // See https://github.com/hyperlane-xyz/hyperlane-warp-ui-template/issues/19
   // See https://github.com/wagmi-dev/wagmi/discussions/1564
-  const onSendTx = useCallback(
+  const onSendTxs = useCallback(
     async ({
-      tx,
+      txs,
       chainName,
       activeChainName,
     }: {
-      tx: WarpTypedTransaction;
+      txs: WarpTypedTransaction[];
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      if (tx.type !== ProviderType.EthersV5)
-        throw new Error(`Unsupported tx type: ${tx.type}`);
+      if (txs.some((tx) => tx.type !== ProviderType.EthersV5)) {
+        throw new Error(
+          `Invalid transaction type in EVM transactions: ${txs.map((tx) => tx.type).join(',')}`,
+        );
+      }
 
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
@@ -134,46 +139,33 @@ export function useEthereumTransactionFns(
       );
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const wagmiTx = ethers5TxToWagmiTx(tx.transaction);
-      const hash = await sendTransaction(config, {
+      const { id } = await sendCalls(config, {
         chainId,
-        ...wagmiTx,
+        calls: txs.map((tx) =>
+          ethers5TxToWagmiTx(tx.transaction as PopulatedTransaction),
+        ) as any[],
       });
-      const confirm = (): Promise<TypedTransactionReceipt> => {
-        const foo = waitForTransactionReceipt(config, {
-          chainId,
-          hash,
-          confirmations: 1,
+
+      const confirm = (): Promise<TypedTransactionReceipt[]> => {
+        const foo = waitForCallsStatus(config, {
+          id,
         });
-        return foo.then((r) => ({
-          type: ProviderType.Viem,
-          receipt: { ...r, contractAddress: r.contractAddress || null },
-        }));
+        return foo.then((r) =>
+          (r.receipts || []).map((r) => ({
+            type: ProviderType.Viem,
+            hash: r.transactionHash,
+            receipt: { ...r, contractAddress: null } as TransactionReceipt,
+          })),
+        );
       };
 
-      return { hash, confirm };
-    },
-    [config, onSwitchNetwork, multiProvider],
-  );
-
-  const onMultiSendTx = useCallback(
-    async ({
-      txs: _,
-      chainName: __,
-      activeChainName: ___,
-    }: {
-      txs: WarpTypedTransaction[];
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      throw new Error('Multi Transactions not supported on EVM');
+      return { confirm };
     },
     [config, onSwitchNetwork, multiProvider],
   );
 
   return {
-    sendTransaction: onSendTx,
-    sendMultiTransaction: onMultiSendTx,
+    sendTransactions: onSendTxs,
     switchNetwork: onSwitchNetwork,
   };
 }

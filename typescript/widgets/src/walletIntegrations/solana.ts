@@ -1,6 +1,6 @@
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Connection } from '@solana/web3.js';
+import { Connection, Transaction } from '@solana/web3.js';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -88,70 +88,68 @@ export function useSolanaActiveChain(
 export function useSolanaTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const { sendTransaction: sendSolTransaction } = useWallet();
+  const { sendTransaction: sendSolTransaction, signAllTransactions } =
+    useWallet();
 
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
     logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
   }, []);
 
-  const onSendTx = useCallback(
+  const onSendTxs = useCallback(
     async ({
-      tx,
+      txs,
       chainName,
       activeChainName,
-    }: {
-      tx: WarpTypedTransaction;
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      if (tx.type !== ProviderType.SolanaWeb3)
-        throw new Error(`Unsupported tx type: ${tx.type}`);
-      if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
-      const rpcUrl = multiProvider.getRpcUrl(chainName);
-      const connection = new Connection(rpcUrl, 'confirmed');
-      const {
-        context: { slot: minContextSlot },
-        value: { blockhash, lastValidBlockHeight },
-      } = await connection.getLatestBlockhashAndContext();
-
-      logger.debug(`Sending tx on chain ${chainName}`);
-      const signature = await sendSolTransaction(tx.transaction, connection, {
-        minContextSlot,
-      });
-
-      const confirm = (): Promise<TypedTransactionReceipt> =>
-        connection
-          .confirmTransaction({ blockhash, lastValidBlockHeight, signature })
-          .then(() => connection.getTransaction(signature))
-          .then((r) => ({
-            type: ProviderType.SolanaWeb3,
-            receipt: r!,
-          }));
-
-      return { hash: signature, confirm };
-    },
-    [onSwitchNetwork, sendSolTransaction, multiProvider],
-  );
-
-  const onMultiSendTx = useCallback(
-    async ({
-      txs: _,
-      chainName: __,
-      activeChainName: ___,
     }: {
       txs: WarpTypedTransaction[];
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      throw new Error('Multi Transactions not supported on Solana');
+      if (txs.some((tx) => tx.type !== ProviderType.SolanaWeb3)) {
+        throw new Error(
+          `Invalid transaction type in Solana transactions: ${txs.map((tx) => tx.type).join(',')}`,
+        );
+      }
+
+      if (activeChainName && activeChainName !== chainName)
+        await onSwitchNetwork(chainName);
+
+      const rpcUrl = multiProvider.getRpcUrl(chainName);
+      const connection = new Connection(rpcUrl, 'confirmed');
+
+      logger.debug(`Sending tx on chain ${chainName}`);
+      const signedTxs = await signAllTransactions!(
+        txs.map((tx) => tx.transaction as Transaction),
+      );
+
+      const signatures = await Promise.all(
+        signedTxs.map((tx) =>
+          connection.sendEncodedTransaction(
+            Buffer.from(tx.serialize().buffer).toString('base64'),
+          ),
+        ),
+      );
+
+      const confirm = (): Promise<TypedTransactionReceipt[]> =>
+        Promise.all(
+          signatures.map(async (signature) => {
+            await connection.confirmTransaction(signature);
+            const receipt = await connection.getTransaction(signature);
+            return {
+              type: ProviderType.SolanaWeb3,
+              hash: signature,
+              receipt: receipt!,
+            };
+          }),
+        );
+
+      return { confirm };
     },
     [onSwitchNetwork, sendSolTransaction, multiProvider],
   );
 
   return {
-    sendTransaction: onSendTx,
-    sendMultiTransaction: onMultiSendTx,
+    sendTransactions: onSendTxs,
     switchNetwork: onSwitchNetwork,
   };
 }

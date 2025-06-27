@@ -300,63 +300,50 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
 export function useTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): Record<ProtocolType, ChainTransactionFns> {
-  const {
-    switchNetwork: onSwitchEvmNetwork,
-    sendTransaction: onSendEvmTx,
-    sendMultiTransaction: onSendMultiEvmTx,
-  } = useEthereumTransactionFns(multiProvider);
-  const {
-    switchNetwork: onSwitchSolNetwork,
-    sendTransaction: onSendSolTx,
-    sendMultiTransaction: onSendMultiSolTx,
-  } = useSolanaTransactionFns(multiProvider);
+  const { switchNetwork: onSwitchEvmNetwork, sendTransactions: onSendEvmTxs } =
+    useEthereumTransactionFns(multiProvider);
+  const { switchNetwork: onSwitchSolNetwork, sendTransactions: onSendSolTxs } =
+    useSolanaTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchCosmNetwork,
-    sendTransaction: onSendCosmTx,
-    sendMultiTransaction: onSendMultiCosmTx,
+    sendTransactions: onSendCosmTxs,
   } = useCosmosTransactionFns(multiProvider);
   const {
     switchNetwork: onSwitchStarknetNetwork,
-    sendTransaction: onSendStarknetTx,
-    sendMultiTransaction: onSendMultiStarknetTx,
+    sendTransactions: onSendStarknetTxs,
   } = useStarknetTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: {
-        sendTransaction: onSendEvmTx,
-        sendMultiTransaction: onSendMultiEvmTx,
+        sendTransactions: onSendEvmTxs,
         switchNetwork: onSwitchEvmNetwork,
       },
       [ProtocolType.Sealevel]: {
-        sendTransaction: onSendSolTx,
-        sendMultiTransaction: onSendMultiSolTx,
+        sendTransactions: onSendSolTxs,
         switchNetwork: onSwitchSolNetwork,
       },
       [ProtocolType.Cosmos]: {
-        sendTransaction: onSendCosmTx,
-        sendMultiTransaction: onSendMultiCosmTx,
+        sendTransactions: onSendCosmTxs,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.CosmosNative]: {
-        sendTransaction: onSendCosmTx,
-        sendMultiTransaction: onSendMultiCosmTx,
+        sendTransactions: onSendCosmTxs,
         switchNetwork: onSwitchCosmNetwork,
       },
       [ProtocolType.Starknet]: {
-        sendTransaction: onSendStarknetTx,
-        sendMultiTransaction: onSendMultiStarknetTx,
+        sendTransactions: onSendStarknetTxs,
         switchNetwork: onSwitchStarknetNetwork,
       },
     }),
     [
-      onSendEvmTx,
-      onSendSolTx,
+      onSendEvmTxs,
+      onSendSolTxs,
       onSwitchEvmNetwork,
       onSwitchSolNetwork,
-      onSendCosmTx,
+      onSendCosmTxs,
       onSwitchCosmNetwork,
-      onSendStarknetTx,
+      onSendStarknetTxs,
       onSwitchStarknetNetwork,
     ],
   );

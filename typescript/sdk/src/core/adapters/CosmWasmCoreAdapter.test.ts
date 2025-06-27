@@ -37,6 +37,7 @@ describe('CosmWasmCoreAdapter', () => {
   it('extracts message IDs', () => {
     const messages = adapter.extractMessageIds({
       type: ProviderType.CosmJsWasm,
+      hash: TX_RECEIPT.transactionHash,
       receipt: TX_RECEIPT,
     });
     expect(messages).to.have.length(1);
