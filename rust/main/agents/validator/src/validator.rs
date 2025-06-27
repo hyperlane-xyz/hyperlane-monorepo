@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -239,7 +239,7 @@ impl BaseAgent for Validator {
             ));
         }
 
-        let metrics_updater = ChainSpecificMetricsUpdater::new(
+        let metrics_updater = match ChainSpecificMetricsUpdater::new(
             &self.origin_chain_conf,
             self.core_metrics.clone(),
             self.agent_metrics.clone(),
@@ -247,13 +247,20 @@ impl BaseAgent for Validator {
             Self::AGENT_NAME.to_string(),
         )
         .await
-        .unwrap();
-        tasks.push(tokio::spawn(
-            async move {
-                metrics_updater.spawn().await.unwrap();
+        {
+            Ok(task) => task,
+            Err(err) => {
+                tracing::error!(?err, "Failed to start metrics updater");
+                return;
             }
-            .instrument(info_span!("MetricsUpdater")),
-        ));
+        };
+        match metrics_updater.spawn() {
+            Ok(task) => tasks.push(task),
+            Err(err) => {
+                tracing::error!(?err, "Failed to start metrics updater");
+                return;
+            }
+        }
 
         // report agent metadata
         self.metadata()

@@ -561,7 +561,9 @@ pub mod test {
             dummy_message_processor(origin_domain, destination_domain, db, cache);
 
         let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
-        let process_fut = processor.spawn(info_span!("MessageProcessor"));
+        let process_fut = processor
+            .spawn(info_span!("MessageProcessor"))
+            .expect("Failed to run MessageProcessor");
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {

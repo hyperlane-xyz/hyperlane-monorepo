@@ -2,13 +2,14 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     hash::Hash,
+    io,
     sync::Arc,
     time::Instant,
 };
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::{eyre, Result};
+use eyre::Result;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use tokio::{
@@ -555,17 +556,29 @@ impl BaseAgent for Relayer {
             );
             prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 
-            tasks.push(self.run_destination_submitter(
+            let destination_submitter = match self.run_destination_submitter(
                 dest_domain,
                 serial_submitter,
                 task_monitor.clone(),
-            ));
+            ) {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        dest_domain,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run destination submitter",
+                    );
+                    continue;
+                }
+            };
+            tasks.push(destination_submitter);
 
             if let Some(dispatcher) = self.payload_dispatchers.remove(dest_domain) {
                 tasks.push(dispatcher.spawn().await);
             }
 
-            let metrics_updater = ChainSpecificMetricsUpdater::new(
+            let metrics_updater = match ChainSpecificMetricsUpdater::new(
                 dest_conf,
                 self.core_metrics.clone(),
                 self.agent_metrics.clone(),
@@ -573,10 +586,31 @@ impl BaseAgent for Relayer {
                 Self::AGENT_NAME.to_string(),
             )
             .await
-            .unwrap_or_else(|_| {
-                panic!("Error creating metrics updater for destination {dest_domain}")
-            });
-            tasks.push(metrics_updater.spawn());
+            {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        dest_domain,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to build metrics updater",
+                    );
+                    continue;
+                }
+            };
+
+            match metrics_updater.spawn() {
+                Ok(task) => tasks.push(task),
+                Err(err) => {
+                    Self::record_critical_error(
+                        dest_domain,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to spawn metrics updater",
+                    );
+                    return;
+                }
+            }
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
 
@@ -602,30 +636,82 @@ impl BaseAgent for Relayer {
             tasks.push(message_sync);
 
             if let Some(interchain_gas_payment_syncs) = &self.interchain_gas_payment_syncs {
-                tasks.push(
-                    self.run_interchain_gas_payment_sync(
+                let interchain_gas_payment_sync = match self
+                    .run_interchain_gas_payment_sync(
                         origin,
                         interchain_gas_payment_syncs,
                         BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                         task_monitor.clone(),
                     )
-                    .await,
-                );
+                    .await
+                {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            origin,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run interchain gas payment sync",
+                        );
+                        continue;
+                    }
+                };
+                tasks.push(interchain_gas_payment_sync);
             }
-            tasks.push(
-                self.run_merkle_tree_hook_sync(
+
+            let merkle_tree_hook_sync = match self
+                .run_merkle_tree_hook_sync(
                     origin,
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
-                .await,
-            );
-            tasks.push(self.run_message_processor(
+                .await
+            {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        origin,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run merkle tree hook sync",
+                    );
+                    continue;
+                }
+            };
+            tasks.push(merkle_tree_hook_sync);
+
+            let message_processor = match self.run_message_processor(
                 origin,
                 send_channels.clone(),
                 task_monitor.clone(),
-            ));
-            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
+            ) {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        origin,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run message processor",
+                    );
+                    continue;
+                }
+            };
+            tasks.push(message_processor);
+
+            let merkle_tree_processor =
+                match self.run_merkle_tree_processor(origin, task_monitor.clone()) {
+                    Ok(task) => task,
+                    Err(err) => {
+                        Self::record_critical_error(
+                            origin,
+                            &self.chain_metrics,
+                            &err,
+                            "Failed to run merkle tree processor",
+                        );
+                        continue;
+                    }
+                };
+            tasks.push(merkle_tree_processor);
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
 
@@ -702,18 +788,18 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> Result<JoinHandle<()>> {
+    ) -> io::Result<JoinHandle<()>> {
         let origin = origin.clone();
         let contract_sync = self
             .message_syncs
             .get(&origin)
             .cloned()
-            .ok_or_else(|| eyre!("Missing message sync"))?;
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No message sync found"))?;
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin.name());
-        let task = tokio::task::Builder::new()
+        tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
@@ -722,8 +808,7 @@ impl Relayer {
                         .await;
                 }
                 .instrument(info_span!("MessageSync")),
-            ))?;
-        Ok(task)
+            ))
     }
 
     async fn message_sync_task(
@@ -755,10 +840,29 @@ impl Relayer {
         >,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> io::Result<JoinHandle<()>> {
         let origin = origin.clone();
-        let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
-        let contract_sync = interchain_gas_payment_syncs.get(&origin).unwrap().clone();
+        let index_settings = self
+            .as_ref()
+            .settings
+            .chains
+            .get(origin.name())
+            .map(|settings| settings.index_settings())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Error finding chain index settings",
+                )
+            })?;
+        let contract_sync = interchain_gas_payment_syncs
+            .get(&origin)
+            .cloned()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "No interchain gas payment sync found",
+                )
+            })?;
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("gas_payment::", origin.name());
@@ -778,7 +882,6 @@ impl Relayer {
                 }
                 .instrument(info_span!("IgpSync")),
             ))
-            .expect("spawning tokio task from Builder is infallible")
     }
 
     async fn interchain_gas_payments_sync_task(
@@ -811,11 +914,29 @@ impl Relayer {
         origin: &HyperlaneDomain,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> io::Result<JoinHandle<()>> {
         let origin = origin.clone();
-        let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
-        let contract_sync = self.merkle_tree_hook_syncs.get(&origin).unwrap().clone();
         let chain_metrics = self.chain_metrics.clone();
+
+        let index_settings = self
+            .as_ref()
+            .settings
+            .chains
+            .get(origin.name())
+            .map(|settings| settings.index_settings())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Error finding chain index settings",
+                )
+            })?;
+        let contract_sync = self
+            .merkle_tree_hook_syncs
+            .get(&origin)
+            .cloned()
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::NotFound, "No merkle tree hook sync found")
+            })?;
 
         let origin_name = origin.name().to_string();
         let name = Self::contract_sync_task_name("merkle_tree::", &origin_name);
@@ -835,7 +956,6 @@ impl Relayer {
                 }
                 .instrument(info_span!("MerkleTreeHookSync")),
             ))
-            .expect("spawning tokio task from Builder is infallible")
     }
 
     async fn merkle_tree_hook_sync_task(
@@ -872,7 +992,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> io::Result<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
@@ -909,8 +1029,14 @@ impl Relayer {
             })
             .collect();
 
+        let db = self
+            .dbs
+            .get(origin)
+            .cloned()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Db not found"))?;
+
         let message_processor = MessageProcessor::new(
-            self.dbs.get(origin).unwrap().clone(),
+            db,
             self.message_whitelist.clone(),
             self.message_blacklist.clone(),
             self.address_blacklist.clone(),
@@ -923,7 +1049,6 @@ impl Relayer {
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
-
         processor.spawn(span)
     }
 
@@ -931,14 +1056,20 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> io::Result<JoinHandle<()>> {
         let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
-        let merkle_tree_processor = MerkleTreeProcessor::new(
-            self.dbs.get(origin).unwrap().clone(),
-            metrics,
-            self.prover_syncs[origin].clone(),
-        );
+        let db = self
+            .dbs
+            .get(origin)
+            .cloned()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Db not found"))?;
+        let prover_sync = self
+            .prover_syncs
+            .get(origin)
+            .cloned()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No prover sync found"))?;
 
+        let merkle_tree_processor = MerkleTreeProcessor::new(db, metrics, prover_sync);
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
         let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
         processor.spawn(span)
@@ -951,7 +1082,7 @@ impl Relayer {
         destination: &HyperlaneDomain,
         serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
-    ) -> JoinHandle<()> {
+    ) -> io::Result<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         let name = format!("submitter::destination::{}", destination.name());
@@ -970,7 +1101,6 @@ impl Relayer {
                 }
                 .instrument(span),
             ))
-            .expect("spawning tokio task from Builder is infallible")
     }
 
     /// Helper function to build and return a hashmap of mailboxes.
