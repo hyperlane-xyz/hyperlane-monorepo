@@ -556,9 +556,11 @@ impl BaseAgent for Relayer {
             );
             prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 
-            let destination_submitter =
-                self.run_destination_submitter(dest_domain, serial_submitter, task_monitor.clone());
-            tasks.push(destination_submitter);
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                serial_submitter,
+                task_monitor.clone(),
+            ));
 
             if let Some(dispatcher) = self.payload_dispatchers.remove(dest_domain) {
                 tasks.push(dispatcher.spawn().await);
