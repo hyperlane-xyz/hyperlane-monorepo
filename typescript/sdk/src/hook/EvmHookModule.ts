@@ -294,39 +294,41 @@ export class EvmHookModule extends HyperlaneModule<
       'Expected update config to be of mutable hook type',
     );
     // Checking both objects type fields to help typescript narrow the type down correctly
-    switch (true) {
-      case current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
-        target.type === HookType.INTERCHAIN_GAS_PAYMASTER:
-        updateTxs = await this.updateIgpHook({
-          currentConfig: current,
-          targetConfig: target,
-        });
-        break;
-      case current.type === HookType.PROTOCOL_FEE &&
-        target.type === HookType.PROTOCOL_FEE:
-        updateTxs = await this.updateProtocolFeeHook({
-          currentConfig: current,
-          targetConfig: target,
-        });
-        break;
-      case current.type === HookType.PAUSABLE &&
-        target.type === HookType.PAUSABLE:
-        updateTxs = await this.updatePausableHook({
-          currentConfig: current,
-          targetConfig: target,
-        });
-        break;
-      case current.type === HookType.ROUTING &&
-        target.type === HookType.ROUTING:
-      case current.type === HookType.FALLBACK_ROUTING &&
-        target.type === HookType.FALLBACK_ROUTING:
-        updateTxs = await this.updateRoutingHook({
-          currentConfig: current,
-          targetConfig: target,
-        });
-        break;
-      default:
-        throw new Error(`Unsupported hook type: ${target.type}`);
+    if (
+      current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      target.type === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      updateTxs = await this.updateIgpHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      current.type === HookType.PROTOCOL_FEE &&
+      target.type === HookType.PROTOCOL_FEE
+    ) {
+      updateTxs = await this.updateProtocolFeeHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      current.type === HookType.PAUSABLE &&
+      target.type === HookType.PAUSABLE
+    ) {
+      updateTxs = await this.updatePausableHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      (current.type === HookType.ROUTING && target.type === HookType.ROUTING) ||
+      (current.type === HookType.FALLBACK_ROUTING &&
+        target.type === HookType.FALLBACK_ROUTING)
+    ) {
+      updateTxs = await this.updateRoutingHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else {
+      throw new Error(`Unsupported hook type: ${target.type}`);
     }
 
     // Lastly, check if the resolved owner is different from the current owner

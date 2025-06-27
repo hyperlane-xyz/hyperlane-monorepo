@@ -68,23 +68,23 @@ export async function getEvmHookUpdateTransactions(
 
   // Get the current hook address before applying the txs to identify if
   // a new hook was deployed during the update process
-  const { deployedHook: expectedHookAddress } = hookModule.serialize();
+  const { deployedHook: currentHookAddress } = hookModule.serialize();
 
   logger.info(
     `Comparing target Hook config with current one for ${evmChainName} chain`,
   );
   const updateTransactions = await hookModule.update(deepCopy(expectedConfig));
-  const { deployedHook: currentHookAddress } = hookModule.serialize();
+  const { deployedHook: newHookAddress } = hookModule.serialize();
 
   // If a new Hook is deployed, push the tx to set the hook on the client contract
-  if (!eqAddress(expectedHookAddress, currentHookAddress)) {
+  if (!eqAddress(currentHookAddress, newHookAddress)) {
     updateTransactions.push({
       chainId: updateHookParams.multiProvider.getEvmChainId(
         updateHookParams.evmChainName,
       ),
-      annotation: `Setting Hook ${currentHookAddress} for contract at ${clientContractAddress} on chain ${evmChainName}`,
+      annotation: `Setting Hook ${newHookAddress} for contract at ${clientContractAddress} on chain ${evmChainName}`,
       to: clientContractAddress,
-      data: updateHookParams.setHookFunctionCallEncoder(currentHookAddress),
+      data: updateHookParams.setHookFunctionCallEncoder(newHookAddress),
     });
   }
 
