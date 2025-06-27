@@ -632,7 +632,7 @@ describe('ERC20WarpRouterReader', async () => {
     isLocalRpcStub.restore();
   });
 
-  it('should identify a Gnosis Safe as owner', async () => {
+  it('should return a Gnosis Safe ownerStatus', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
