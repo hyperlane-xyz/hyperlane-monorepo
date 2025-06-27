@@ -264,14 +264,17 @@ impl ChainSpecificMetricsUpdater {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> std::io::Result<JoinHandle<()>> {
+    pub fn spawn(self) -> JoinHandle<()> {
         let name = format!("metrics::agent::{}", self.conf.domain.name());
-        tokio::task::Builder::new().name(&name).spawn(
-            async move {
-                self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                    .await;
-            }
-            .instrument(info_span!("MetricsUpdater")),
-        )
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("MetricsUpdater")),
+            )
+            .expect("spawning tokio task from Builder is infallible")
     }
 }

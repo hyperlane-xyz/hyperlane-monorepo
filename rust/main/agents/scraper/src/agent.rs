@@ -136,15 +136,9 @@ impl BaseAgent for Scraper {
                     continue;
                 }
             }
-            match metrics_updater.spawn() {
-                Ok(task) => tasks.push(task),
-                Err(err) => {
-                    tracing::error!(?err, ?scraper.domain, "Failed to spawn metrics updater");
-                    self.chain_metrics
-                        .set_critical_error(scraper.domain.name(), true);
-                    return;
-                }
-            }
+
+            let task = metrics_updater.spawn();
+            tasks.push(task);
         }
         tasks.push(self.runtime_metrics.spawn());
         if let Err(err) = try_join_all(tasks).await {

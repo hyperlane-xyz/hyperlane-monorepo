@@ -556,22 +556,8 @@ impl BaseAgent for Relayer {
             );
             prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 
-            let destination_submitter = match self.run_destination_submitter(
-                dest_domain,
-                serial_submitter,
-                task_monitor.clone(),
-            ) {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        dest_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run destination submitter",
-                    );
-                    continue;
-                }
-            };
+            let destination_submitter =
+                self.run_destination_submitter(dest_domain, serial_submitter, task_monitor.clone());
             tasks.push(destination_submitter);
 
             if let Some(dispatcher) = self.payload_dispatchers.remove(dest_domain) {
@@ -599,18 +585,8 @@ impl BaseAgent for Relayer {
                 }
             };
 
-            match metrics_updater.spawn() {
-                Ok(task) => tasks.push(task),
-                Err(err) => {
-                    Self::record_critical_error(
-                        dest_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to spawn metrics updater",
-                    );
-                    return;
-                }
-            }
+            let task = metrics_updater.spawn();
+            tasks.push(task);
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
 
@@ -1082,7 +1058,7 @@ impl Relayer {
         destination: &HyperlaneDomain,
         serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         let name = format!("submitter::destination::{}", destination.name());
@@ -1101,6 +1077,7 @@ impl Relayer {
                 }
                 .instrument(span),
             ))
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     /// Helper function to build and return a hashmap of mailboxes.

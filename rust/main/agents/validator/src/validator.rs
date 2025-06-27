@@ -254,13 +254,9 @@ impl BaseAgent for Validator {
                 return;
             }
         };
-        match metrics_updater.spawn() {
-            Ok(task) => tasks.push(task),
-            Err(err) => {
-                tracing::error!(?err, "Failed to start metrics updater");
-                return;
-            }
-        }
+
+        let task = metrics_updater.spawn();
+        tasks.push(task);
 
         // report agent metadata
         self.metadata()
