@@ -7,10 +7,11 @@ use std::time::{Duration, Instant};
 
 use ethers::abi::{Function, Param, ParamType, StateMutability};
 use ethers::types::{
-    transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt, H160,
-    H256 as EthersH256, U256 as EthersU256,
+    transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, TransactionReceipt,
+    TransactionRequest, H160, H256 as EthersH256, U256 as EthersU256,
 };
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
+use serde_json;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
@@ -22,7 +23,7 @@ use hyperlane_ethereum::EthereumReorgPeriod;
 use crate::adapter::chains::ethereum::{
     apply_estimate_buffer_to_ethers, tests::MockEvmProvider, EthereumAdapter,
     EthereumAdapterMetrics, EthereumTxPrecursor, NonceDb, NonceManager, NonceManagerState,
-    NonceUpdater, Precursor,
+    NonceUpdater, Precursor, TransactionFactory,
 };
 use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
@@ -543,6 +544,173 @@ async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
         maybe_tx.is_none(),
         "No transaction should be sent to finality stage"
     );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
+    let block_time = Duration::from_millis(20);
+    let hash = H256::random();
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    // Simulate estimate_gas_limit returning Ok
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(21000.into()));
+
+    // Simulate `send` always returning the same hash
+    mock_evm_provider
+        .expect_send()
+        .returning(move |_, _| Ok(hash));
+
+    // Simulate receipt: first check returns None, then included
+    let mut receipt_call_counter = 0;
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            receipt_call_counter += 1;
+            if receipt_call_counter < 2 {
+                Ok(None)
+            } else {
+                Ok(Some(mock_tx_receipt(Some(42), hash)))
+            }
+        });
+
+    let signer = H160::random();
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    // Create a FullPayload with a Legacy transaction
+    let payload = make_full_payload_with_legacy_tx_and_function();
+    dispatcher_state
+        .payload_db
+        .store_payload_by_uuid(&payload)
+        .await
+        .unwrap();
+
+    let precursor = EthereumTxPrecursor::from_payload(&payload, signer);
+    let tx = TransactionFactory::build(precursor, vec![payload.details.clone()]);
+
+    dispatcher_state
+        .tx_db
+        .store_transaction_by_uuid(&tx)
+        .await
+        .unwrap();
+
+    // Check that the transaction in the DB is still Legacy
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    if let VmSpecificTxData::Evm(precursor) = &retrieved_tx.vm_specific_data {
+        assert!(
+            matches!(precursor.tx, TypedTransaction::Legacy(_)),
+            "Expected Legacy transaction after first submission"
+        );
+    } else {
+        panic!("Expected Evm transaction data");
+    }
+
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(tx.uuid.clone(), tx.clone());
+
+    let mock_domain = TEST_DOMAIN.into();
+
+    // First inclusion stage step: should process the legacy tx and store it as Legacy in DB
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    // Check that the transaction in the DB is EIP-1559 after the first submission
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    if let VmSpecificTxData::Evm(precursor) = &retrieved_tx.vm_specific_data {
+        assert!(
+            matches!(precursor.tx, TypedTransaction::Eip1559(_)),
+            "Expected Legacy transaction after first submission"
+        );
+    } else {
+        panic!("Expected Evm transaction data");
+    }
+
+    // Second inclusion stage step: should escalate gas and upgrade to EIP-1559
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    // Check that the transaction in the DB is now EIP-1559
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    if let VmSpecificTxData::Evm(precursor) = &retrieved_tx.vm_specific_data {
+        assert!(
+            matches!(precursor.tx, TypedTransaction::Eip1559(_)),
+            "Expected EIP-1559 transaction after escalation"
+        );
+    } else {
+        panic!("Expected Evm transaction data");
+    }
+}
+
+/// Creates a FullPayload with serialized data for a Legacy TypedTransaction and Function.
+pub fn make_full_payload_with_legacy_tx_and_function() -> FullPayload {
+    // Create a legacy transaction
+    let legacy_tx = TypedTransaction::Legacy(TransactionRequest {
+        from: Some(H160::random()),
+        to: Some(ethers::types::NameOrAddress::Address(H160::random())),
+        gas: None,
+        gas_price: None,
+        value: Some(0u64.into()),
+        data: None,
+        nonce: None,
+        ..Default::default()
+    });
+
+    // Create a dummy function
+    let function = Function {
+        name: "foo".to_owned(),
+        inputs: vec![],
+        outputs: vec![],
+        constant: None,
+        state_mutability: StateMutability::NonPayable,
+    };
+
+    // Serialize both
+    let data = (legacy_tx, function);
+    let calldata = serde_json::to_vec(&data).unwrap();
+
+    // Populate FullPayload with the serialized data in the data field
+    let mut payload = FullPayload::random();
+    payload.data = calldata;
+    payload
 }
 
 struct ExpectedTxState {
