@@ -584,9 +584,7 @@ impl BaseAgent for Relayer {
                     continue;
                 }
             };
-
-            let task = metrics_updater.spawn();
-            tasks.push(task);
+            tasks.push(metrics_updater.spawn());
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
 

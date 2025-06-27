@@ -136,9 +136,7 @@ impl BaseAgent for Scraper {
                     continue;
                 }
             }
-
-            let task = metrics_updater.spawn();
-            tasks.push(task);
+            tasks.push(metrics_updater.spawn());
         }
         tasks.push(self.runtime_metrics.spawn());
         if let Err(err) = try_join_all(tasks).await {
