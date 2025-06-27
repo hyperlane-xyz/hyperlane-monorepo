@@ -5,7 +5,7 @@ publish = false
 # TODO: docs, edition, homepage, license
 
 members = [
-    "lib/corelib",
+    "lib/core",
     "lib/relayer",
     "lib/validator",
     "lib/api",

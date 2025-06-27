@@ -19,7 +19,7 @@ use api_rs::apis::{
     },
 };
 
-use corelib::confirmation::ConfirmationFXG;
+use core::confirmation::ConfirmationFXG;
 
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects

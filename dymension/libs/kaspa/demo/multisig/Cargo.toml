@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-corelib = { path = "../../lib/corelib" }
+core = { path = "../../lib/core" }
 relayer = { path = "../../lib/relayer" }
 validator = { path = "../../lib/validator" }
 kaspa-addresses = { workspace = true }

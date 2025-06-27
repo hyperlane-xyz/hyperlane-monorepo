@@ -1,4 +1,4 @@
-use corelib::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
+use core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 
 use eyre::Result;
 

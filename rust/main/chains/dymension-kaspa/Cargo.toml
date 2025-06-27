@@ -48,7 +48,7 @@ reqwest = { workspace = true }
 axum = { workspace = true }
 dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
-dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/corelib" , package="corelib"}
+dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
 eyre = { workspace = true }
 bytes = { workspace = true }
 

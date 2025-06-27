@@ -2,10 +2,10 @@
 
 mod x;
 
-use corelib::deposit::*;
-use corelib::escrow::*;
-use corelib::util::*;
-use corelib::wallet::*;
+use core::deposit::*;
+use core::escrow::*;
+use core::util::*;
+use core::wallet::*;
 use relayer::withdraw::*;
 use validator::withdraw::*;
 use x::args::Args;
