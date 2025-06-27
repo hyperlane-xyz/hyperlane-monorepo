@@ -46,8 +46,6 @@ tracing-futures = { workspace = true }
 url = { workspace = true }
 reqwest = { workspace = true }
 axum = { workspace = true }
-# hyperlane-cosmos-rs = "0.1.4" # for interacting with the cosmos sdk module on the hub DYMENSION: REPLACED
-#hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs" }
 dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
@@ -60,7 +58,7 @@ hyperlane-cosmwasm-interface = { workspace = true }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 hyperlane-cosmos-native = { path = "../hyperlane-cosmos-native" }
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/srene/hyperlane-cosmos-rs", rev = "0a64221" }
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", branch = "main" }
 
 
 # Kaspa

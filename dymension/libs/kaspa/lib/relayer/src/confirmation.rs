@@ -19,7 +19,7 @@ use api_rs::apis::{
     },
 };
 
-use core::confirmation::ConfirmationFXG;
+use corelib::confirmation::ConfirmationFXG;
 
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
@@ -234,7 +234,7 @@ mod tests {
         // Test that TransactionId can be converted to bytes and back
         let original_tx_id = TransactionId::from_bytes([1u8; 32]);
         let bytes = original_tx_id.as_bytes();
-        let converted_tx_id = TransactionId::from_bytes(*bytes);
+        let converted_tx_id = TransactionId::from_bytes(bytes);
         assert_eq!(original_tx_id, converted_tx_id);
     }
 }

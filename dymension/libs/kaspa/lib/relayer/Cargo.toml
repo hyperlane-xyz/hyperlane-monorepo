@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-core = { path = "../core" }
+corelib = { path = "../core", package="core" }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-core = { workspace = true }
@@ -15,9 +15,10 @@ kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
 kaspa-rpc-core = { workspace = true }
 
+rand = "0.8"   # Use the latest stable version
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true }
 log = { workspace = true }
 reqwest = { workspace = true }
 eyre = { workspace = true }

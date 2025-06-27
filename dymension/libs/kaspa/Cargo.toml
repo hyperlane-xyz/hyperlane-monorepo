@@ -56,4 +56,4 @@ reqwest-middleware = "0.4"
 axum = "0.8.4"
 url = "2.3"
 eyre = "=0.6.8"
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/srene/hyperlane-cosmos-rs", rev = "0a64221" }
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", branch = "main" }

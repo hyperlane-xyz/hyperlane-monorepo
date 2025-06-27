@@ -1,6 +1,6 @@
 use crate::handle_new_deposit;
-use core::api::deposits::Deposit;
-use core::deposit::DepositFXG;
+use corelib::api::deposits::Deposit;
+use corelib::deposit::DepositFXG;
 use eyre::Result;
 use std::error::Error;
 use tokio::runtime::Runtime;

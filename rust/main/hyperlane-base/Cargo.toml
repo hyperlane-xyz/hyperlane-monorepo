@@ -69,8 +69,7 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
-#hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs" }
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/srene/hyperlane-cosmos-rs", rev = "0a64221" }
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", branch = "main" }
 
 
 # dependency version is determined by etheres
