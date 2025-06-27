@@ -1065,33 +1065,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "core-foundation"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "core-foundation"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "core-foundation-sys"
-version = "0.8.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
-
-[[package]]
-name = "corelib"
+name = "core"
 version = "0.2.0"
 dependencies = [
  "bincode",
@@ -1123,6 +1097,32 @@ dependencies = [
  "url",
  "workflow-core",
 ]
+
+[[package]]
+name = "core-foundation"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation-sys"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cosmos-sdk-proto"
@@ -1599,7 +1599,7 @@ name = "demo-multisig"
 version = "0.1.0"
 dependencies = [
  "clap",
- "corelib",
+ "core",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -1620,7 +1620,7 @@ dependencies = [
 name = "demo-relayer"
 version = "0.1.0"
 dependencies = [
- "corelib",
+ "core",
  "relayer",
 ]
 
@@ -1628,7 +1628,7 @@ dependencies = [
 name = "demo-validator"
 version = "0.1.0"
 dependencies = [
- "corelib",
+ "core",
  "validator",
 ]
 
@@ -5725,7 +5725,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "bytes",
- "corelib",
+ "core",
  "eyre",
  "hex",
  "hyperlane-core",
@@ -7709,7 +7709,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
- "corelib",
+ "core",
  "eyre",
  "hyperlane-core",
  "hyperlane-warp-route",

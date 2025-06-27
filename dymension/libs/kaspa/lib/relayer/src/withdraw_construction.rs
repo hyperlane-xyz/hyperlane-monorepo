@@ -1,6 +1,6 @@
-use core::escrow::EscrowPublic;
-use core::wallet::EasyKaspaWallet;
-use core::withdraw::WithdrawFXG;
+use corelib::escrow::EscrowPublic;
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;

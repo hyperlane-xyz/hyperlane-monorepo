@@ -16,7 +16,7 @@ use api_rs::apis::{
         GetTransactionTransactionsTransactionIdGetParams,
     },
 };
-use core::deposit::DepositFXG;
+use corelib::deposit::DepositFXG;
 use eyre::Result;
 use hyperlane_core::Decode;
 use hyperlane_core::HyperlaneMessage;
@@ -211,10 +211,10 @@ mod tests {
         assert_eq!(expected_bytes, token_message_nonempty.metadata());
     }
 
-    /*#[tokio::test]
-    async fn handle_new_deposit_test() {
+    #[tokio::test]
+    async fn handle_not_enough_deposit_test() {
         let tx = "55527daf602fd41607aaf11ad56a326f63732c3691396c29ed0f4733bdda9c29";
         let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
-        assert!(result.is_ok(), "Test failed unexpectedly, error: {:?}", result.unwrap_err());
-    }*/
+        assert!(result.is_err(), "result should fail");
+    }
 }
