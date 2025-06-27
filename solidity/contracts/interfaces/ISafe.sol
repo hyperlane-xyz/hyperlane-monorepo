@@ -9,3 +9,11 @@ interface IOwnerManager {
      */
     function getThreshold() external view returns (uint256);
 }
+
+interface ISafe is IOwnerManager {
+    /**
+     * @notice Returns the nonce of the Safe contract.
+     * @return Nonce.
+     */
+    function nonce() external view returns (uint256);
+}
