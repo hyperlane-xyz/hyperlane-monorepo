@@ -36,8 +36,8 @@ use crate::{
     cmd_utils::account_exists,
     core::CoreProgramIds,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
-        RouterDeployer,
+        deploy_routers, ChainMetadata, ConnectionClient, GasRouterConfigSchema, Ownable,
+        RouterConfig, RouterConfigGetter, RouterDeployer,
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
@@ -143,6 +143,8 @@ struct TokenConfig {
     decimal_metadata: DecimalMetadata,
     #[serde(flatten)]
     router_config: RouterConfig,
+    #[serde(flatten)]
+    gas_router_config: GasRouterConfigSchema,
 }
 
 pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
@@ -517,7 +519,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         domain,
                         GasRouterConfig {
                             domain,
-                            gas: Some(app_config.token_type.gas_overhead_default()),
+                            gas: app_config
+                                .gas_router_config
+                                .gas
+                                .or(Some(app_config.token_type.gas_overhead_default())),
                         },
                     )
                 })

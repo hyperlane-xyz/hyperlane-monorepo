@@ -94,6 +94,13 @@ impl OptionalOwnableConfig {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GasRouterConfigSchema {
+    /// The amount of gas this handler is expected to use.
+    pub gas: Option<u64>,
+}
+
 /// Router configuration.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
