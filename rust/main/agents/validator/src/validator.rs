@@ -250,7 +250,7 @@ impl BaseAgent for Validator {
         {
             Ok(task) => task,
             Err(err) => {
-                tracing::error!(?err, "Failed to start metrics updater");
+                tracing::error!(?err, "Failed to build metrics updater");
                 return;
             }
         };
