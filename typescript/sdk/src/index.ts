@@ -413,6 +413,7 @@ export {
   randomHookConfig,
   randomIsmConfig,
 } from './test/testUtils.js';
+export { CORE_PROTOCOL_ANVIL_STATE } from './test/coreProtocolAnvilState.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';

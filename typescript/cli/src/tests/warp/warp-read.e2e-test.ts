@@ -2,7 +2,11 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import {
+  CORE_PROTOCOL_ANVIL_STATE,
+  TokenType,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
@@ -10,7 +14,6 @@ import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   TEMP_PATH,
@@ -20,7 +23,6 @@ import {
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_OUTPUT_PATH,
-  deployOrUseExistingCore,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
@@ -40,21 +42,17 @@ describe('hyperlane warp read e2e tests', async function () {
   let ownerAddress: Address;
 
   before(async function () {
-    [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
-
-    ownerAddress = new Wallet(ANVIL_KEY).address;
-  });
-
-  before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+    [chain2Addresses, chain3Addresses] = [
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+      CORE_PROTOCOL_ANVIL_STATE.addresses,
+    ];
 
     // Create a new warp config using the example
     const exampleWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
+
+    ownerAddress = new Wallet(ANVIL_KEY).address;
     anvil2Config = { [CHAIN_NAME_2]: { ...exampleWarpConfig.anvil1 } };
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
   });

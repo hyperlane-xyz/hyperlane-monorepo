@@ -1,8 +1,13 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 import { Wallet, ethers } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
+import {
+  CORE_PROTOCOL_ANVIL_STATE,
   ChainMetadata,
   HookType,
   HypTokenRouterConfig,
@@ -23,10 +28,10 @@ import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   TEMP_PATH,
@@ -34,10 +39,11 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-  deployOrUseExistingCore,
+  WARP_DEPLOY_OUTPUT_PATH,
   exportWarpConfigsToFilePaths,
+  getCombinedWarpRoutePath,
   getDeployedWarpAddress,
-  updateOwner,
+  resetAnvilFork,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
@@ -46,45 +52,96 @@ import {
   readWarpConfig,
 } from '../commands/warp.js';
 
-describe('hyperlane warp apply owner update tests', async function () {
+/**
+ * Test Flow Overview:
+ * - These tests run against local Anvil forks that are reset to a clean snapshot
+ *   with only a warp route and the core protocol functionality deployed.
+ * - The reset logic is in the beforeEach each hook which will:
+ *    - reset the global warpConfig variable to the initial state
+ *    - reset the config files in the test registry
+ *    - reset the anvil fork to the initial state after the before hook runs
+ *
+ * Adding Your Own Tests:
+ * - The warpConfig can be modified as needed as it will be reset to the expected initial state
+ *   after the test runs
+ * - Before calling warp apply use `writeYamlOrJson(...)` to persist any deploy config
+ *   changes and be sure to supply the correct path to the command to read the deploy config.
+ * - If a test that was working starts to fail, probably an incorrect deploy config is being
+ *   used either because the path is wrong or the original config is not being reset in memory
+ *   or on disk when read from the registry. Be sure to add any new path that might be used in
+ *   new test to the reset logic to avoid test failing because of a previous test run
+ */
+describe('hyperlane warp apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+
   let chain3Addresses: ChainAddresses = {};
   let chain2Metadata: ChainMetadata;
+  let chain3Metadata: ChainMetadata;
+  let warpDeployConfig: WarpRouteDeployConfig;
+  let chain2Provider: JsonRpcProvider;
+  let deployAnvilStateId: string;
+  // it will be replaced at the first deployment
+  let warpCoreConfig: WarpCoreConfig = { tokens: [] };
+  let combinedWarpCoreConfigPath: string;
 
-  before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
-    chain2Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+  const warpDeployConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
-    chain3Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
-
-    // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+  function resetWarpConfig() {
+    const rawWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+    warpDeployConfig = {
+      [CHAIN_NAME_2]: { ...rawWarpConfig.anvil1 },
+    };
+
+    writeYamlOrJson(WARP_CONFIG_PATH_2, warpDeployConfig);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+    writeYamlOrJson(combinedWarpCoreConfigPath, warpCoreConfig);
+    writeYamlOrJson(
+      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+      warpDeployConfig,
+    );
+  }
+
+  before(async function () {
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    chain3Addresses = CORE_PROTOCOL_ANVIL_STATE.addresses;
+
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+    ]);
+
+    const currentWarpId = createWarpRouteConfigId('ETH', CHAIN_NAME_2);
+
+    resetWarpConfig();
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, currentWarpId);
+    warpCoreConfig = readYamlOrJson(combinedWarpCoreConfigPath);
+
+    chain2Provider = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    deployAnvilStateId = await chain2Provider.send('evm_snapshot', []);
   });
 
+  // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
+    resetWarpConfig();
+
+    deployAnvilStateId = await resetAnvilFork(
+      chain2Provider,
+      deployAnvilStateId,
+    );
   });
 
   it('should burn owner address', async function () {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await updateOwner(
-      E2E_TEST_BURN_ADDRESS,
-      CHAIN_NAME_2,
-      warpConfigPath,
-      WARP_CORE_CONFIG_PATH_2,
-    );
+    warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
+    writeYamlOrJson(warpDeployConfigPath, warpDeployConfig);
+
+    await hyperlaneWarpApply(warpDeployConfigPath, WARP_CORE_CONFIG_PATH_2);
+
     const updatedWarpDeployConfig = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      warpDeployConfigPath,
     );
     expect(updatedWarpDeployConfig.anvil2.owner).to.equal(
       E2E_TEST_BURN_ADDRESS,
@@ -92,17 +149,13 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should not update the same owner', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await updateOwner(
-      E2E_TEST_BURN_ADDRESS,
-      CHAIN_NAME_2,
-      warpConfigPath,
-      WARP_CORE_CONFIG_PATH_2,
-    );
-    const { stdout } = await updateOwner(
-      E2E_TEST_BURN_ADDRESS,
-      CHAIN_NAME_2,
-      warpConfigPath,
+    warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
+    writeYamlOrJson(warpDeployConfigPath, warpDeployConfig);
+
+    await hyperlaneWarpApply(warpDeployConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const { stdout } = await hyperlaneWarpApply(
+      warpDeployConfigPath,
       WARP_CORE_CONFIG_PATH_2,
     );
     expect(stdout).to.include(
@@ -111,20 +164,13 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should update the owner of both the warp token and the proxy admin', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
-
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
-
     // Set to undefined if it was defined in the config
-    warpConfig.anvil1.proxyAdmin = undefined;
-    warpConfig.anvil1.owner = E2E_TEST_BURN_ADDRESS;
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(warpConfigPath, anvil2Config);
+    warpDeployConfig[CHAIN_NAME_2].proxyAdmin = undefined;
+    warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
+    writeYamlOrJson(warpDeployConfigPath, warpDeployConfig);
 
     await hyperlaneWarpApply(
-      warpConfigPath,
+      warpDeployConfigPath,
       WARP_CORE_CONFIG_PATH_2,
       undefined,
       WARP_DEPLOY_2_ID,
@@ -133,7 +179,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      warpDeployConfigPath,
     );
 
     expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
@@ -143,24 +189,19 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should update only the owner of the warp token if the proxy admin config is specified', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
-
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
-
     // Explicitly set it to the deployer address if it was not defined
-    warpConfig.anvil1.proxyAdmin = { owner: ANVIL_DEPLOYER_ADDRESS };
-    warpConfig.anvil1.owner = E2E_TEST_BURN_ADDRESS;
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(warpConfigPath, anvil2Config);
+    warpDeployConfig[CHAIN_NAME_2].proxyAdmin = {
+      owner: ANVIL_DEPLOYER_ADDRESS,
+    };
+    warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
+    writeYamlOrJson(warpDeployConfigPath, warpDeployConfig);
 
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(warpDeployConfigPath, WARP_CORE_CONFIG_PATH_2);
 
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      warpDeployConfigPath,
     );
 
     expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
@@ -170,22 +211,20 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should update only the owner of the proxy admin if the proxy admin config is specified', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
-
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
 
     warpConfig.anvil1.proxyAdmin = { owner: E2E_TEST_BURN_ADDRESS };
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(warpConfigPath, anvil2Config);
+    writeYamlOrJson(warpDeployConfigPath, anvil2Config);
 
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(warpDeployConfigPath, WARP_CORE_CONFIG_PATH_2);
 
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      warpDeployConfigPath,
     );
 
     expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(ANVIL_DEPLOYER_ADDRESS);
@@ -196,13 +235,6 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   it('should update hook configuration', async () => {
     const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
-    // First read the existing config
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
 
     // Update with a new hook config
     const owner = randomAddress();
@@ -234,14 +266,6 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should extend a warp route with a custom warp route id', async () => {
-    // Read existing config
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    const warpConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
-    );
-
     // Extend with new config
     const config: HypTokenRouterConfig = {
       decimals: 18,
@@ -252,7 +276,7 @@ describe('hyperlane warp apply owner update tests', async function () {
       type: TokenType.native,
     };
 
-    warpConfig.anvil3 = config;
+    warpDeployConfig.anvil3 = config;
 
     // Copy over the warp deploy AND core to custom warp route id filepath
     // This simulates the user updating the warp route id in the registry
@@ -262,7 +286,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     );
     const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
       warpRouteId,
-      warpConfig,
+      warpConfig: warpDeployConfig,
       warpCoreConfig,
     });
 
@@ -281,16 +305,8 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   it('should apply changes to a warp route with a custom warp route id', async () => {
-    // Read existing config
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    const warpConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
-    );
-
     // Update the existing warp route config
-    warpConfig.anvil2.owner = E2E_TEST_BURN_ADDRESS;
+    warpDeployConfig.anvil2.owner = E2E_TEST_BURN_ADDRESS;
 
     // Copy over the warp deploy AND core to custom warp route id filepath
     // This simulates the user updating the warp route id in the registry
@@ -304,7 +320,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     } = exportWarpConfigsToFilePaths({
       warpRouteId,
       warpCoreConfig,
-      warpConfig,
+      warpConfig: warpDeployConfig,
     });
 
     // Apply
@@ -377,10 +393,6 @@ describe('hyperlane warp apply owner update tests', async function () {
     it(`should add a new allowed bridge and remove an existing one for domain ${domainIdOrChainName}`, async () => {
       const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
 
-      const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-        WARP_CONFIG_PATH_EXAMPLE,
-      );
-
       // Add the first address as rebalancer and then remove it and add the second one
       const allowedRebalancerBridges = [randomAddress(), randomAddress()].map(
         normalizeAddressEvm,
@@ -389,7 +401,7 @@ describe('hyperlane warp apply owner update tests', async function () {
       for (const rebalancer of allowedRebalancerBridges) {
         const anvil2Config: WarpRouteDeployConfig = {
           anvil2: HypTokenRouterConfigMailboxOptionalSchema.parse({
-            ...warpConfig.anvil1,
+            ...warpDeployConfig.anvil2,
             owner: ANVIL_DEPLOYER_ADDRESS,
             remoteRouters: {
               [chain3DomainId]: { address: randomAddress() },
@@ -429,15 +441,6 @@ describe('hyperlane warp apply owner update tests', async function () {
   }
 
   it('should update the remote gas and routers configuration when specified using the domain name', async () => {
-    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
-    // First read the existing config
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
-
     const expectedRemoteGasSetting = '30000';
     warpDeployConfig[CHAIN_NAME_2].destinationGas = {
       [CHAIN_NAME_3]: expectedRemoteGasSetting,
@@ -451,24 +454,24 @@ describe('hyperlane warp apply owner update tests', async function () {
     };
 
     // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    await writeYamlOrJson(warpDeployConfigPath, warpDeployConfig);
 
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    await hyperlaneWarpApply(warpDeployConfigPath, WARP_CORE_CONFIG_PATH_2);
     const updatedConfig = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
+      warpDeployConfigPath,
     );
 
     expect(
       (updatedConfig[CHAIN_NAME_2].destinationGas ?? {})[
-        chain2Metadata.domainId
+        chain3Metadata.domainId
       ],
     ).to.deep.equal(expectedRemoteGasSetting);
     expect(
       normalizeAddressEvm(
         (updatedConfig[CHAIN_NAME_2].remoteRouters ?? {})[
-          chain2Metadata.domainId
+          chain3Metadata.domainId
         ].address,
       ),
     ).to.deep.equal(addressToBytes32(expectedRemoteRouter));
