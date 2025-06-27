@@ -4,9 +4,7 @@ use corelib::withdraw::WithdrawFXG;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_pskt::prelude::Bundle;
-use kaspa_wallet_pskt::prelude::*;
 
 use crate::build_withdrawal_pskts;
 
@@ -24,7 +22,7 @@ pub async fn on_new_withdrawals(
         &relayer.api(),
         &escrow_public,
         &relayer.account(),
-        relayer.network_id(),
+        relayer.network_info,
     )
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;

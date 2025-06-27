@@ -131,6 +131,9 @@ pub fn finalize_pskt(
     c: PSKT<Combiner>,
     escrow_pubs: Vec<PublicKey>,
 ) -> Result<RpcTransaction, Error> {
+    let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&c)
+        .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+    
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -139,57 +142,69 @@ pub fn finalize_pskt(
                 .iter()
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
-                    if i < 1 {
-                        // Return the full script
+                    match input.sig_op_count { 
+                        Some(n) => {
+                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
+                                // relayer UTXO
 
-                        // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
-                        // ORIGINAL COMMENT: considering xpubs sorted order
+                                let sig = input
+                                    .partial_sigs
+                                    .iter()
+                                    .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
+                                    .next()
+                                    .unwrap()
+                                    .1
+                                    .into_bytes();
 
-                        // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                        let sigs: Vec<_> = escrow_pubs
-                            .iter()
-                            .flat_map(|kp| {
-                                let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                                iter::once(OpData65)
+                                iter::once(65u8)
                                     .chain(sig)
                                     .chain([input.sighash_type.to_u8()])
-                            })
-                            .collect();
+                                    .collect()
+                            } else {
+                                // escrow UTXO
 
-                        // Then add the multisig redeem script to the end
-                        sigs.into_iter()
-                            .chain(
-                                ScriptBuilder::new()
-                                    .add_data(input.redeem_script.as_ref().unwrap().as_slice())
-                                    .unwrap()
-                                    .drain()
+                                // Return the full script
+
+                                // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                                // ORIGINAL COMMENT: considering xpubs sorted order
+
+                                // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                                let sigs: Vec<_> = escrow_pubs
                                     .iter()
-                                    .cloned(),
-                            )
-                            .collect()
-                    } else {
-                        let sig = input
-                            .partial_sigs
-                            .iter()
-                            .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
-                            .next()
-                            .unwrap()
-                            .1
-                            .into_bytes();
+                                    .flat_map(|kp| {
+                                        let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                        iter::once(OpData65)
+                                            .chain(sig)
+                                            .chain([input.sighash_type.to_u8()])
+                                    })
+                                    .collect();
 
-                        return std::iter::once(65u8)
-                            .chain(sig)
-                            .chain([input.sighash_type.to_u8()])
-                            .collect();
+                                // Then add the multisig redeem script to the end
+                                sigs.into_iter()
+                                    .chain(
+                                        ScriptBuilder::new()
+                                            .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                            .unwrap()
+                                            .drain()
+                                            .iter()
+                                            .cloned(),
+                                    )
+                                    .collect()
+                            }
+                        }
+                        None => vec![] // Should not happen
                     }
                 })
                 .collect())
         })
         .unwrap();
 
-    let mass = 10_000; // TODO: why?
-    let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
-
+    let mass = 10_000; // TODO: why? is it okay to keep this value?
+    let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
+    
+    // Inject the expected payload
+    tx.payload = msg_ids_bytes;
+    
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
 }

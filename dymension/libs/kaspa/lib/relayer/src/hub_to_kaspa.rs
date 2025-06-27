@@ -23,10 +23,13 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wallet_pskt::global;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
+use corelib::wallet::NetworkInfo;
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -77,7 +80,7 @@ pub async fn build_withdrawal_pskts(
     kaspa_rpc: &Arc<DynRpcApi>,
     escrow: &EscrowPublic,
     relayer: &Arc<dyn Account>,
-    network_id: NetworkId,
+    network_info: NetworkInfo,
 ) -> Result<Option<PSKT<Signer>>> {
     let (outpoint, pending_messages) =
         get_pending_withdrawals(messages, cosmos, hub_height).await?;
@@ -87,14 +90,15 @@ pub async fn build_withdrawal_pskts(
         .filter_map(|m| {
             match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
                 Ok(msg) => {
-                    let kr = match kaspa_addresses::Address::try_from(m.recipient.to_string()) {
-                        Ok(addr) => Some(addr),
-                        Err(_e) => None, // TODO: log error?
-                    }?;
+                    let kaspa_recipient = kaspa_addresses::Address::new(
+                        network_info.address_prefix,
+                        kaspa_addresses::Version::PubKey, // should always be PubKey
+                        m.recipient.as_bytes(),
+                    );
 
                     Some(WithdrawalDetails {
                         message_id: m.id(),
-                        recipient: kr,
+                        recipient: kaspa_recipient,
                         amount_sompi: msg.amount().as_u64(),
                     })
                 }
@@ -120,10 +124,10 @@ pub async fn build_withdrawal_pskts(
         escrow,
         relayer,
         &outpoint,
-        network_id,
+        network_info.network_id,
     )
-    .await
-    .map(Some)
+        .await
+        .map(Some)
 }
 
 async fn internal_build_withdrawal_pskt(
@@ -158,7 +162,7 @@ async fn internal_build_withdrawal_pskt(
         kaspa_rpc,
         network_id,
     )
-    .await?;
+        .await?;
 
     //////////////////
     //   Balances   //
@@ -220,13 +224,15 @@ async fn internal_build_withdrawal_pskt(
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
                     vec![],
-                    0, // sequence does not matter
-                    1, // only one signature from relayer is needed
+                    0,                                     // sequence does not matter
+                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
             )
         })
         .collect();
+
+    let msg_ids: Vec<_> = withdrawal_details.iter().map(|w| w.message_id).collect();
 
     let outputs: Vec<TransactionOutput> = withdrawal_details
         .into_iter()
@@ -264,7 +270,24 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let mut pskt = PSKT::<Creator>::default().constructor();
+    let msg_ids_raw = corelib::payload::MessageIDs::new(msg_ids)
+        .into_value()
+        .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
+
+    // Save msg_ids_raw in the proprietaries for later retrieval by validators
+    let global = GlobalBuilder::default()
+        .proprietaries(BTreeMap::from([(
+            corelib::consts::KEY_MESSAGE_IDS.to_string(),
+            msg_ids_raw,
+        )]))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Build message IDs payload: {}", e))?;
+
+    // Create default Inner and inject global that contains message IDs
+    let mut inner: Inner = Default::default();
+    inner.global = global;
+
+    let mut pskt = PSKT::<Creator>::from(inner).constructor();
 
     // Add escrow inputs
     for (input, entry) in populated_inputs_escrow {
@@ -487,4 +510,36 @@ async fn get_pending_withdrawals(
         },
         pending_withdrawals,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kaspa_address_conversion() {
+        // Input is an address which is going to receive funds
+        let input = "kaspatest:qzgq29y4cwrchsre26tvyezk2lsyhm3k23ch9tv4nrpvyq7lyhs3sux404nt8";
+        // First, we need to get its bytes representation
+        let input_kaspa = kaspa_addresses::Address::constructor(input);
+        // Input hex is what will be used in MsgRemoteTransfer
+        let input_hex = hex::encode(input_kaspa.payload);
+        // In x/warp, the input hex is converted to a byte vector
+        let output_bytes = hex::decode(input_hex).unwrap();
+        // Put these bytes to a 32-byte array
+        let output_bytes_32: [u8; 32] = output_bytes.try_into().unwrap();
+        // In the agent, the 32-byte array is converted to H256
+        let output_h256 = H256::from_slice(&output_bytes_32);
+        // Construct Kaspa address
+        let output_kaspa = kaspa_addresses::Address::new(
+            kaspa_addresses::Prefix::Testnet,
+            kaspa_addresses::Version::PubKey,
+            output_h256.as_bytes(),
+        );
+
+        let output = output_kaspa.address_to_string();
+
+        assert_eq!(true, kaspa_addresses::Address::validate(output.as_str()));
+        assert_eq!(input, output.as_str());
+    }
 }

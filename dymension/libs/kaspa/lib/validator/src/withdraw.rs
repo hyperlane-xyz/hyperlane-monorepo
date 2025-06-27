@@ -40,15 +40,21 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
 pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
+    let msg_ids_bytes = core::payload::message_ids_payload_from_pskt(&pskt)
+        .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+
     pskt.pass_signature_sync(|tx, sighashes| {
-        // let tx = dbg!(tx);
-        tx.tx
+        // Sign tx as if it had a payload
+        let mut tx_payload = tx.clone();
+        tx_payload.tx.payload = msg_ids_bytes;
+
+        tx_payload.tx
             .inputs
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
                 let hash = calc_schnorr_signature_hash(
-                    &tx.as_verifiable(),
+                    &tx_payload.as_verifiable(),
                     idx,
                     sighashes[idx], // TODO: don't forget need to verify it's what's expected
                     &reused_values,

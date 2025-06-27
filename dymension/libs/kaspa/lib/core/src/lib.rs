@@ -5,4 +5,6 @@ pub mod escrow;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
+pub mod consts;
+pub mod payload;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
