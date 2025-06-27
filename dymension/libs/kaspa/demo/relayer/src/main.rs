@@ -9,6 +9,7 @@ use core::wallet::*;
 use validator::ESCROW_ADDRESS;
 use relayer::withdraw::*;
 use validator::withdraw::*;
+use relayer::handle_new_deposit;
 use x::args::Args;
 use x::consts::*;
 use std::sync::Arc;
@@ -109,6 +110,10 @@ async fn demo() -> Result<(), Error> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
+    let deposit_fxg = handle_new_deposit(tx_id.to_string()).await.unwrap();
+
+    println!("Deposit pulled {}", deposit_fxg.tx_id);
+    
     w.stop().await?;
     Ok(())
 }
