@@ -26,6 +26,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -548,6 +549,278 @@ describe('EvmIsmModule', async () => {
       // expect the ISM address to be the same
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .true;
+    });
+
+    it(`updates mutable routing ism in-place within aggregation ISM`, async () => {
+      // create aggregation with a mutable routing ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Update the routing ISM by adding a domain (should update in-place)
+      const routingModule = config.modules[1] as DomainRoutingIsmConfig;
+      routingModule.domains.test2 = {
+        type: IsmType.MERKLE_ROOT_MULTISIG,
+        validators: [
+          '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+          '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+        ],
+        threshold: 2,
+      };
+
+      // expect 1 tx to update the routing ISM in-place
+      await expectTxsAndUpdate(ism, config, 1);
+
+      // expect the aggregation ISM address to be the same
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it(`updates mutable pausable ism in-place within aggregation ISM`, async () => {
+      // create aggregation with a pausable ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.PAUSABLE,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            paused: false,
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Update the pausable ISM state (should update in-place)
+      const pausableModule = config.modules[1] as PausableIsmConfig;
+      pausableModule.paused = true; // change paused state
+
+      // expect 1 tx to update the pausable ISM in-place
+      await expectTxsAndUpdate(ism, config, 1);
+
+      // expect the aggregation ISM address to be the same
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
+
+    it(`redeploys aggregation when module types change`, async () => {
+      // create aggregation ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Change the type of the second module (structural change)
+      const routingModule = config.modules[1] as DomainRoutingIsmConfig;
+      routingModule.type = IsmType.FALLBACK_ROUTING;
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(ism, config, 0);
+
+      // expect the aggregation ISM address to be different
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+    });
+
+    it(`redeploys aggregation when threshold changes`, async () => {
+      // create aggregation ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Change the threshold (structural change)
+      config.threshold = 1;
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(ism, config, 0);
+
+      // expect the aggregation ISM address to be different
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+    });
+
+    it(`redeploys aggregation when module count changes`, async () => {
+      // create aggregation ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Add another module (structural change)
+      config.modules.push({
+        type: IsmType.PAUSABLE,
+        owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+        paused: false,
+      });
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(ism, config, 0);
+
+      // expect the aggregation ISM address to be different
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
+    });
+
+    it(`redeploys aggregation when non-mutable module changes`, async () => {
+      // create aggregation ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(config);
+
+      // Change the non-mutable multisig module (structural change)
+      const multisigModule = config.modules[0] as MultisigIsmConfig;
+      multisigModule.validators.push(
+        '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+      );
+
+      // expect 0 tx because it redeploys the entire aggregation
+      await expectTxsAndUpdate(ism, config, 0);
+
+      // expect the aggregation ISM address to be different
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .false;
     });
   });
 });
