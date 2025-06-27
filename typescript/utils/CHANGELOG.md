@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
 ## 13.4.0
 
 ### Minor Changes

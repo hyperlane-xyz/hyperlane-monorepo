@@ -1645,7 +1645,7 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
       "gasCurrencyCoinGeckoId": "mantle",
-      "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.mantle.xyz",
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-mantle.safe.global",
       "index": {
         "from": 65590958
       },
@@ -9430,7 +9430,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://botanixrpc.com"
+          "http": "https://rpc.botanixlabs.com"
         }
       ],
       "technicalStack": "other",

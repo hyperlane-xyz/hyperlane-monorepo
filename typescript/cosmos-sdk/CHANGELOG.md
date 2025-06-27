@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 14.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.0.0
+
 ## 13.4.0
 
 ### Minor Changes
