@@ -1,13 +1,13 @@
 # File extension owners
 
-*.sol @yorhodes @aroralanuk @ltyu
+*.sol @yorhodes @ltyu
 *.ts @yorhodes @ltyu
 *.rs @tkporter @daniel-savu @ameten
 
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @tkporter @aroralanuk @ltyu
+solidity/ @yorhodes @tkporter @ltyu
 
 ## Agents
 rust/ @tkporter @daniel-savu
