@@ -34,7 +34,6 @@ async function main() {
   const environmentConfig = getEnvironmentConfig(environment);
 
   // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
-  // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
   const gasOracles = Object.entries(environmentConfig.igp).reduce(
     (acc, [origin, igpConfig]) => {
       // Skip if origin filter is set and doesn't match
