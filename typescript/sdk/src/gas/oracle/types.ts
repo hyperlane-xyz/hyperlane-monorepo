@@ -27,6 +27,23 @@ export type ProtocolAgnositicGasOracleConfig = z.output<
   typeof ProtocolAgnositicGasOracleConfigSchema
 >;
 
+export const IgpCostDataSchema = z.object({
+  handleGasAmount: z.number(),
+  totalGasAmount: z.number(),
+  totalUsdCost: z.number(),
+});
+
+export type IgpCostData = z.output<typeof IgpCostDataSchema>;
+
+export const ProtocolAgnositicGasOracleConfigWithTypicalCostSchema =
+  ProtocolAgnositicGasOracleConfigSchema.extend({
+    typicalCost: IgpCostDataSchema.optional(),
+  });
+
+export type ProtocolAgnositicGasOracleConfigWithTypicalCost = z.output<
+  typeof ProtocolAgnositicGasOracleConfigWithTypicalCostSchema
+>;
+
 export type OracleData = {
   tokenExchangeRate: ethers.BigNumber;
   gasPrice: ethers.BigNumber;
