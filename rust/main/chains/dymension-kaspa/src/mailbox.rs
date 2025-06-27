@@ -155,6 +155,10 @@ impl Mailbox for KaspaMailbox {
 
         let res = self.provider.process_withdrawal(&fxg).await?;
 
+        // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
+        // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
+        // failed indexes should say which hyperlane messages were accepted
+
         Ok(BatchResult {
             outcome: Some(TxOutcome {
                 transaction_id: H512::zero(),
