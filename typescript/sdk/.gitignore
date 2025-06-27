@@ -1,3 +1,4 @@
 .env
 dist
 cache
+src/versions.ts

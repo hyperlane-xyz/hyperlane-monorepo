@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { objMap } from '@hyperlane-xyz/utils';
 
-import packageJson from '../../package.json' with { type: 'json' };
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   IsmConfig,
@@ -18,11 +17,9 @@ import {
 } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
+import { CONTRACTS_VERSION } from '../versions.js';
 
 import { TokenType } from './config.js';
-
-export const CONTRACTS_VERSION =
-  packageJson.dependencies['@hyperlane-xyz/core'];
 
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,

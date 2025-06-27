@@ -54,6 +54,7 @@ import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
+import { CONTRACTS_VERSION } from '../versions.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import {
@@ -62,7 +63,6 @@ import {
   isMovableCollateralTokenType,
 } from './config.js';
 import {
-  CONTRACTS_VERSION,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
