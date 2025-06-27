@@ -17,7 +17,13 @@ interface GasOracleConfigWithOverhead {
 
 async function main() {
   const allChainChoices = getChains();
-  const args = await withOutputFile(getArgs())
+
+  const {
+    environment,
+    outFile,
+    origin: originFilter,
+    destination: destinationFilter,
+  } = await withOutputFile(getArgs())
     .describe('origin', 'Origin chain')
     .string('origin')
     .choices('origin', allChainChoices)
@@ -25,60 +31,65 @@ async function main() {
     .string('destination')
     .choices('destination', allChainChoices).argv;
 
-  const {
-    environment,
-    outFile,
-    origin: originFilter,
-    destination: destinationFilter,
-  } = args;
-
   const environmentConfig = getEnvironmentConfig(environment);
 
   // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
-  let gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
-    if (!!originFilter && originFilter !== origin) {
-      return undefined;
-    }
-
-    // If there's no oracle config, don't do anything for this origin
-    if (!igpConfig.oracleConfig) {
-      return undefined;
-    }
-
-    return environmentConfig.supportedChainNames.reduce((agg, destination) => {
-      if (!!destinationFilter && destinationFilter !== destination) {
-        return agg;
+  // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
+  const gasOracles = Object.entries(environmentConfig.igp).reduce(
+    (acc, [origin, igpConfig]) => {
+      // Skip if origin filter is set and doesn't match
+      if (originFilter && originFilter !== origin) {
+        return acc;
       }
 
-      if (destination === origin) {
-        return agg;
+      // Skip if there's no oracle config for this origin
+      if (!igpConfig.oracleConfig) {
+        return acc;
       }
 
-      const oracleConfig = igpConfig.oracleConfig[destination];
-      if (!oracleConfig) {
-        throw new Error(
-          `No oracle config found for ${origin} -> ${destination}`,
-        );
+      // Process destinations for this origin
+      const destinationConfigs = environmentConfig.supportedChainNames.reduce(
+        (destAcc, destination) => {
+          // Skip if destination filter is set and doesn't match
+          if (destinationFilter && destinationFilter !== destination) {
+            return destAcc;
+          }
+
+          // Skip self-referential routes
+          if (destination === origin) {
+            return destAcc;
+          }
+
+          const oracleConfig = igpConfig.oracleConfig[destination];
+          if (!oracleConfig) {
+            throw new Error(
+              `No oracle config found for ${origin} -> ${destination}`,
+            );
+          }
+
+          if (oracleConfig.tokenDecimals === undefined) {
+            throw new Error(
+              `Token decimals not defined for ${origin} -> ${destination}`,
+            );
+          }
+
+          destAcc[destination] = {
+            oracleConfig,
+            overhead: igpConfig?.overhead?.[destination],
+          };
+          return destAcc;
+        },
+        {} as ChainMap<GasOracleConfigWithOverhead>,
+      );
+
+      // Only add to accumulator if we have valid destination configs
+      if (Object.keys(destinationConfigs).length > 0) {
+        acc[origin] = destinationConfigs;
       }
 
-      if (oracleConfig.tokenDecimals === undefined) {
-        throw new Error(
-          `Token decimals not defined for ${origin} -> ${destination}`,
-        );
-      }
-      agg[destination] = {
-        oracleConfig,
-        overhead: igpConfig?.overhead?.[destination],
-      };
-      return agg;
-    }, {} as ChainMap<GasOracleConfigWithOverhead>);
-  });
-
-  // Filter out undefined values
-  gasOracles = objFilter(
-    gasOracles,
-    (_, value): value is ChainMap<GasOracleConfigWithOverhead> | undefined =>
-      value !== undefined,
+      return acc;
+    },
+    {} as Record<string, ChainMap<GasOracleConfigWithOverhead>>,
   );
 
   console.log(stringifyObject(gasOracles, 'json', 2));
@@ -87,12 +98,6 @@ async function main() {
     console.log(`Writing config to ${outFile}`);
     writeJsonAtPath(outFile, gasOracles);
   }
-}
-
-// Gets the chains in the provided warp route
-function getWarpChains(warpRouteId: string): ChainName[] {
-  const warpRouteAddresses = getWarpAddresses(warpRouteId);
-  return Object.keys(warpRouteAddresses);
 }
 
 main().catch((err) => {
