@@ -141,6 +141,8 @@ export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
   StorageGasOracleConfig,
   StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
