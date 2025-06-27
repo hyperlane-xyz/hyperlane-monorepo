@@ -2,7 +2,6 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     hash::Hash,
-    io,
     sync::Arc,
     time::Instant,
 };
@@ -764,18 +763,18 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let origin = origin.clone();
         let contract_sync = self
             .message_syncs
             .get(&origin)
             .cloned()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No message sync found"))?;
+            .ok_or_else(|| eyre::eyre!("No message sync found"))?;
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin.name());
-        tokio::task::Builder::new()
+        Ok(tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
@@ -785,6 +784,7 @@ impl Relayer {
                 }
                 .instrument(info_span!("MessageSync")),
             ))
+            .expect("spawning tokio task from Builder is infallible"))
     }
 
     async fn message_sync_task(
@@ -816,7 +816,7 @@ impl Relayer {
         >,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let origin = origin.clone();
         let index_settings = self
             .as_ref()
@@ -824,25 +824,15 @@ impl Relayer {
             .chains
             .get(origin.name())
             .map(|settings| settings.index_settings())
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Error finding chain index settings",
-                )
-            })?;
+            .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = interchain_gas_payment_syncs
             .get(&origin)
             .cloned()
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "No interchain gas payment sync found",
-                )
-            })?;
+            .ok_or_else(|| eyre::eyre!("No interchain gas payment sync found"))?;
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("gas_payment::", origin.name());
-        tokio::task::Builder::new()
+        Ok(tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
@@ -858,6 +848,7 @@ impl Relayer {
                 }
                 .instrument(info_span!("IgpSync")),
             ))
+            .expect("spawning tokio task from Builder is infallible"))
     }
 
     async fn interchain_gas_payments_sync_task(
@@ -890,7 +881,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let origin = origin.clone();
         let chain_metrics = self.chain_metrics.clone();
 
@@ -900,23 +891,16 @@ impl Relayer {
             .chains
             .get(origin.name())
             .map(|settings| settings.index_settings())
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Error finding chain index settings",
-                )
-            })?;
+            .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = self
             .merkle_tree_hook_syncs
             .get(&origin)
             .cloned()
-            .ok_or_else(|| {
-                io::Error::new(io::ErrorKind::NotFound, "No merkle tree hook sync found")
-            })?;
+            .ok_or_else(|| eyre::eyre!("No merkle tree hook sync found"))?;
 
         let origin_name = origin.name().to_string();
         let name = Self::contract_sync_task_name("merkle_tree::", &origin_name);
-        tokio::task::Builder::new()
+        Ok(tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
@@ -932,6 +916,7 @@ impl Relayer {
                 }
                 .instrument(info_span!("MerkleTreeHookSync")),
             ))
+            .expect("spawning tokio task from Builder is infallible"))
     }
 
     async fn merkle_tree_hook_sync_task(
@@ -968,7 +953,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
@@ -1009,7 +994,7 @@ impl Relayer {
             .dbs
             .get(origin)
             .cloned()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Db not found"))?;
+            .ok_or_else(|| eyre::eyre!("Db not found"))?;
 
         let message_processor = MessageProcessor::new(
             db,
@@ -1032,18 +1017,18 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> io::Result<JoinHandle<()>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
         let db = self
             .dbs
             .get(origin)
             .cloned()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Db not found"))?;
+            .ok_or_else(|| eyre::eyre!("Db not found"))?;
         let prover_sync = self
             .prover_syncs
             .get(origin)
             .cloned()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No prover sync found"))?;
+            .ok_or_else(|| eyre::eyre!("No prover sync found"))?;
 
         let merkle_tree_processor = MerkleTreeProcessor::new(db, metrics, prover_sync);
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
