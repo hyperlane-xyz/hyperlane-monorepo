@@ -6,7 +6,7 @@ pub mod withdraw_construction;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa::build_withdrawal_pskts;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::HlMetadata;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
 use api_rs::apis::{

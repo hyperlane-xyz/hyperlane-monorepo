@@ -1,5 +1,5 @@
 use anyhow::Result;
-use coreutil::escrow::EscrowPublic;
+use corelib::escrow::EscrowPublic;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
