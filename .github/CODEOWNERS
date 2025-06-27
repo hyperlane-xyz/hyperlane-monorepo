@@ -1,7 +1,7 @@
 # File extension owners
 
 *.sol @yorhodes @ltyu @larryob
-*.ts @yorhodes @ltyu
+*.ts @yorhodes @ltyu @xeno097
 *.rs @tkporter @daniel-savu @ameten
 
 # Package owners
@@ -14,8 +14,8 @@ starknet/ @yorhodes @tkporter @troykessler
 rust/ @tkporter @daniel-savu @ameten
 
 ## SDK
-typescript/utils @yorhodes @ltyu @paulbalaji
-typescript/sdk @yorhodes @ltyu @paulbalaji
+typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097
+typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097
 typescript/widgets @xaroz @cmcewen
 
 ## CLI
