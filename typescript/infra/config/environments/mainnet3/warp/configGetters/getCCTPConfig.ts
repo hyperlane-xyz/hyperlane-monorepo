@@ -44,6 +44,7 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
+        contractVersion: '8.1.0',
       };
       return [chain, config];
     }),
