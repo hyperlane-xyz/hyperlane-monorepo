@@ -176,7 +176,7 @@ contract TokenBridgeCctpTest is Test {
                 sourceDomain,
                 cctpDestination,
                 nonce,
-                sender.addressToBytes32(),
+                address(tokenMessengerOrigin).addressToBytes32(),
                 address(tbDestination).addressToBytes32(),
                 bytes32(0),
                 burnMessage
