@@ -1,12 +1,12 @@
 pub mod confirmation;
 pub mod deposit;
-pub mod hub_to_kaspa_builder;
+pub mod hub_to_kaspa;
 pub mod withdraw;
 pub mod withdraw_construction;
 
 // Re-export the main function for easier access
-pub use hub_to_kaspa_builder::build_kaspa_withdrawal_pskts;
-use hyperlane_cosmos_rs::{dymensionxyz::dymension::forward::HlMetadata, tendermint::v0_37::version};
+pub use hub_to_kaspa::build_withdrawal_pskts;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::HlMetadata;
 use prost::Message;
 
 use api_rs::apis::{
@@ -25,6 +25,7 @@ use hyperlane_core::U256;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash;
+pub use secp256k1::PublicKey;
 use std::error::Error;
 use std::io::Cursor;
 use std::str::FromStr;

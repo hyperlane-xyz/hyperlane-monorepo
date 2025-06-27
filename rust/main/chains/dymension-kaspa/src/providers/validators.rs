@@ -111,6 +111,7 @@ impl ValidatorsClient {
 
     /// this runs on relayer
     pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
+        // returns bundle of signer
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();

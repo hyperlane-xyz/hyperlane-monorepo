@@ -366,6 +366,17 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end();
 
+    let kaspa_escrow_private_key_s = chain
+        .chain(err)
+        .get_opt_key("kaspaEscrowPrivateKey")
+        .parse_string()
+        .end();
+
+    let kaspa_escrow_private_key = match kaspa_escrow_private_key_s {
+        Some(s) => Some(s.to_string()),
+        None => None,
+    };
+
     let threshold_ism = chain
         .chain(err)
         .get_key("kaspaMultisigThresholdHubIsm")
@@ -391,6 +402,7 @@ pub fn build_kaspa_connection_conf(
             validator_hosts,
             validator_pubks,
             escrow_address.unwrap().to_string(),
+            kaspa_escrow_private_key,
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,

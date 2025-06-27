@@ -17,6 +17,8 @@ pub struct ConnectionConf {
     pub validator_hosts: Vec<String>,
     pub validator_pks: Vec<String>,
     pub kaspa_escrow_addr: String,
+    pub kaspa_escrow_private_key: Option<String>, // only populated if kaspa escrow validator
+
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
 
@@ -35,6 +37,7 @@ impl ConnectionConf {
         validator_hosts: Vec<String>,
         validator_pks: Vec<String>,
         escrow_address: String,
+        kaspa_escrow_private_key: Option<String>,
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
@@ -47,6 +50,7 @@ impl ConnectionConf {
             validator_hosts,
             validator_pks,
             kaspa_escrow_addr: escrow_address,
+            kaspa_escrow_private_key,
             multisig_threshold_hub_ism,
             multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
             hub_grpc_urls,
