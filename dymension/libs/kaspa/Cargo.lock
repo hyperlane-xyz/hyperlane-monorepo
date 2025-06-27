@@ -5744,6 +5744,7 @@ dependencies = [
  "log",
  "openapi",
  "prost",
+ "rand 0.8.5",
  "reqwest 0.12.20",
  "reqwest-middleware",
  "secp256k1",

@@ -15,6 +15,7 @@ kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
 kaspa-rpc-core = { workspace = true }
 
+rand = "0.8"   # Use the latest stable version
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true }

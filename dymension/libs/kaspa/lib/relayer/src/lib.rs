@@ -6,7 +6,7 @@ pub mod withdraw_construction;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa_builder::build_kaspa_withdrawal_pskts;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
+use hyperlane_cosmos_rs::{dymensionxyz::dymension::forward::HlMetadata, tendermint::v0_37::version};
 use prost::Message;
 
 use api_rs::apis::{
@@ -38,6 +38,14 @@ fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage, 
     let message = HyperlaneMessage::from(m);
 
     Ok(message)
+}
+
+fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage,anyhow::Error> {
+    // decode token message inside  Hyperlane message
+    let mut reader = Cursor::new(m.body.as_slice());
+    let token_message = TokenMessage::read_from(&mut reader)?;
+
+    Ok(token_message)
 }
 
 fn get_tn10_config() -> configuration::Configuration {
@@ -76,11 +84,10 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
 
     // decode payload into Hyperlane message
     let rawmessage: RawHyperlaneMessage = hex::decode(payload).map_err(|e| eyre::eyre!(e))?;
-    let mut message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
+    let message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
-    // decode token message inside  Hyperlane message
-    let mut reader = Cursor::new(message.body.as_slice());
-    let token_message = TokenMessage::read_from(&mut reader)?;
+    // decode token message from Hyperlane message body
+    let token_message: TokenMessage = parse_hyperlane_metadata(&message).map_err(|e| eyre::eyre!(e))?;
 
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = res
@@ -89,7 +96,7 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         .map_err(|e| eyre::eyre!(e))?
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= U256::one()
+            U256::from(utxo.amount) >= U256::one()//token_message.amount()
         })
         .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
@@ -118,8 +125,17 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         metadata.kaspa = output_bytes;
 
     }
-    let body: Vec<u8> = metadata.encode_to_vec();
-    message.body = body;
+    let message_body: Vec<u8> = metadata.encode_to_vec();
+
+    let new_message =  HyperlaneMessage {
+        version: message.version,
+        nonce: message.nonce,
+        origin:message.origin,
+        sender: message.sender,
+        destination: message.destination,
+        recipient: message.recipient,
+        body: message_body,
+    };
 
     // build response for validator
     let tx = DepositFXG {
@@ -127,7 +143,7 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         tx_id: tx,
         utxo_index: utxo_index,
         block_id: block_id,
-        payload: message,
+        payload: new_message,
     };
     Ok(tx)
 }
@@ -148,15 +164,53 @@ pub async fn handle_new_deposits(
 
 #[cfg(test)]
 mod tests {
+    use rand::Rng;     
+    use hyperlane_core::{Encode, H256};
+
     use super::*; 
-    use bytes::Bytes;
     use std::result::Result as StdResult;
-    use eyre::Result as EyreResult;
+
+    /// Helper to create a HyperlaneMessage with a serialized TokenMessage in its body.
+    fn create_hyperlane_message_with_token(recipient: H256,amount: U256, metadata: Vec<u8>) -> HyperlaneMessage {
+        let token_msg = TokenMessage::new(recipient,amount,metadata);
+
+        let mut hl_message = HyperlaneMessage::default();
+
+        let encoded_bytes = token_msg.to_vec();
+
+        hl_message.body = encoded_bytes;
+
+        return hl_message
+
+    }
+
+    #[test]
+    fn hl_message_test() {
+
+        let message = create_hyperlane_message_with_token(H256::random(),U256::one(),vec![]);
+        let result = parse_hyperlane_metadata(&message);
+
+        assert!(result.is_ok(), "Test failed unexpectedly, error: {:?}", result.unwrap_err());
+
+        let token_message = result.unwrap();
+        assert!(token_message.metadata().is_empty(),"should be empty");
+
+        let mut rng = rand::thread_rng(); // Initialize the thread-local random number generator
+        let mut random_bytes = vec![0u8; 10]; // Create a vector of zeros with the desired length
+        rng.fill(&mut random_bytes[..]);
+        let expected_bytes = random_bytes.clone();
+        let message_nonempty = create_hyperlane_message_with_token(H256::random(),U256::one(),random_bytes);
+        let result_nonempty = parse_hyperlane_metadata(&message_nonempty);
+
+        let token_message_nonempty = result_nonempty.unwrap();
+        assert!(!token_message_nonempty.metadata().is_empty(),"shouldn't be empty");
+        assert_eq!(expected_bytes,token_message_nonempty.metadata());
+    }
 
     #[tokio::test]
     async fn handle_new_deposit_test() {
         
-        let tx = "0f5d30f68cc86a6d94550c7704b7e8f02ab9e8476a2b0615ba899bad7003908b";
+        let tx = "55527daf602fd41607aaf11ad56a326f63732c3691396c29ed0f4733bdda9c29";
 
         let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
 
