@@ -12,6 +12,7 @@ import {
   FiatTokenTest,
   FiatTokenTest__factory,
   HypERC20__factory,
+  ISafe__factory,
   Mailbox,
   Mailbox__factory,
   ProxyAdmin__factory,
@@ -30,7 +31,7 @@ import {
   proxyImplementation,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -628,6 +629,48 @@ describe('ERC20WarpRouterReader', async () => {
     });
 
     // Restore stub
+    isLocalRpcStub.restore();
+  });
+
+  it('should identify a Gnosis Safe as owner', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    const warpRouteAddress = warpRoute[chain].collateral.address;
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    const mockOwnerManager = {
+      getThreshold: sinon.stub().resolves(randomInt(1e4)),
+      nonce: sinon.stub().resolves(randomInt(1e4)),
+    };
+    const connectStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .returns(mockOwnerManager as any);
+
+    // Derive config and check if the owner is active
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRouteAddress,
+      );
+
+    expect(derivedConfig.ownerStatus).to.deep.equal({
+      [signer.address]: OwnerStatus.GnosisSafe,
+    });
+
+    // Restore stub
+    connectStub.restore();
     isLocalRpcStub.restore();
   });
 });

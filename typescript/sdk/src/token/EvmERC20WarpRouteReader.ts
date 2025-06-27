@@ -9,7 +9,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
-  IOwnerManager__factory,
+  ISafe__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
@@ -258,13 +258,18 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ? OwnerStatus.Active
       : OwnerStatus.Inactive;
 
-    // Heuristically check if the owner could be a safe by calling an expected function
+    // Heuristically check if the owner could be a safe by calling expected functions
     // This status will overwrite 'active' status
     try {
-      await IOwnerManager__factory.connect(owner, provider).getThreshold();
+      const potentialGnosisSafe = ISafe__factory.connect(owner, provider);
+
+      await Promise.all([
+        potentialGnosisSafe.getThreshold(),
+        potentialGnosisSafe.nonce(),
+      ]);
       ownerStatus[owner] = OwnerStatus.GnosisSafe;
     } catch {
-      this.logger.debug(`${owner} is not a safe`);
+      this.logger.debug(`${owner} may not be a safe`);
     }
 
     // Check Proxy admin and implementation recursively
