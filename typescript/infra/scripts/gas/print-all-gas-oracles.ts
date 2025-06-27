@@ -3,35 +3,16 @@ import {
   ChainName,
   ProtocolAgnositicGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objFilter,
-  objMap,
-  stringifyObject,
-} from '@hyperlane-xyz/utils';
+import { objFilter, objMap, stringifyObject } from '@hyperlane-xyz/utils';
 
-import {
-  getChain,
-  getChains,
-  getWarpAddresses,
-} from '../../config/registry.js';
+import { getChains, getWarpAddresses } from '../../config/registry.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// This script exists to print the gas oracle configs for a given environment
-// so they can easily be copied into the Sealevel tooling. :'(
-
-interface CostData {
-  typicalHandleGasAmount: number;
-  typicalTotalGasAmount: number;
-  typicalTotalUsdCost: number;
-}
-
 interface GasOracleConfigWithOverhead {
   oracleConfig: ProtocolAgnositicGasOracleConfig;
   overhead?: number;
-  typicalCost?: CostData;
 }
 
 async function main() {

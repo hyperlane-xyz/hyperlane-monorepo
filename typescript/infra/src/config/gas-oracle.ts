@@ -301,7 +301,8 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
     return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
   }
 
-  return FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
+  // Default non-EVM overhead
+  return FOREIGN_DEFAULT_OVERHEAD;
 }
 
 // Gets the map of remote gas oracle configs for each local chain
