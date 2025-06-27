@@ -90,6 +90,8 @@ export const blacklistedMessageIds = [
   '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
   '0xc376df3e8d82de669b48b58e0521db5cf6c23a21fb2230487c30536f7b6503f7',
 
-  // messages using the ICA call commitments sent with the wrong relayer address
-  '0xc250d1ebe720472245a32d9687b1a2f034b4b7cfedeecc50e9590a89e0371b16',
+  // messages using the ICA call commitments with the wrong server address
+  '0x69d5cfae80e3708a5cf57f2ee1590aa8806aef85fa5fb662de8cec51b7409167',
+  '0x1d06f66e196610c1f6011e5fe4fa1f4aa2396d80e03f16502edaae59d459dd48',
+  '0xa409d54f6208b9cdfcc64f1e0722ade42fb12a9350f90dafa0652d2154d9dd74',
 ];
