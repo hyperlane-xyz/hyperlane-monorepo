@@ -11,6 +11,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import { regularSafes } from '../../governance/safe/regular.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
@@ -21,6 +22,7 @@ export const getEclipseEthereumSolanaUSDTWarpConfig = async (
   const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...abacusWorksEnvOwnerConfig.eclipsemainnet,
+    owner: awSafes.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: '5g5ujyYUNvdydwyDVCpZwPpgYRqH5RYJRi156cxyE3me',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
