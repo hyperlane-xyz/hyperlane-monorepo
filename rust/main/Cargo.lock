@@ -2527,7 +2527,6 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "bincode",
  "bytes",
  "clap 4.5.40",
@@ -2535,7 +2534,6 @@ dependencies = [
  "governor",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -2553,7 +2551,6 @@ dependencies = [
  "reqwest-ratelimit",
  "secp256k1 0.29.1",
  "serde",
- "serde-value",
  "tokio",
  "tracing",
  "url",
@@ -14548,6 +14545,7 @@ dependencies = [
 name = "validator"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "axum 0.8.4",
  "core",
  "eyre",
@@ -14566,6 +14564,7 @@ dependencies = [
  "log",
  "relayer 0.2.0",
  "secp256k1 0.29.1",
+ "serde",
  "tokio",
  "workflow-core",
 ]
