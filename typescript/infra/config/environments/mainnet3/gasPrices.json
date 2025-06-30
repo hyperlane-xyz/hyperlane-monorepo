@@ -207,10 +207,6 @@
     "amount": "1800.0",
     "decimals": 9
   },
-  "guru": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "harmony": {
     "amount": "100.0",
     "decimals": 9

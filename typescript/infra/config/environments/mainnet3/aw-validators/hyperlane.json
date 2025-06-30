@@ -186,9 +186,6 @@
   "gravity": {
     "validators": ["0x23d549bf757a02a6f6068e9363196ecd958c974e"]
   },
-  "guru": {
-    "validators": ["0x0d756d9051f12c4de6aee2ee972193a2adfe00ef"]
-  },
   "harmony": {
     "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
   },
