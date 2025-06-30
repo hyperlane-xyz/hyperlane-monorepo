@@ -4,10 +4,10 @@ import {
 } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import {
-  HookConfig,
+  DerivedHookConfig,
   HookType,
   IgpHookConfig,
   MailboxDefaultHookConfig,
@@ -20,13 +20,13 @@ export class CosmosNativeHookReader {
   });
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly cosmosProviderOrSigner:
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
   ) {}
 
-  async deriveHookConfig(address: Address): Promise<HookConfig> {
+  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
     try {
       if (await this.isIgpHook(address)) {
         return this.deriveIgpConfig(address);
@@ -63,7 +63,7 @@ export class CosmosNativeHookReader {
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     destination_gas_configs.forEach((gasConfig) => {
-      const { name, nativeToken } = this.multiProvider.getChainMetadata(
+      const { name, nativeToken } = this.metadataManager.getChainMetadata(
         gasConfig.remote_domain,
       );
       overhead[name] = parseInt(gasConfig.gas_overhead);

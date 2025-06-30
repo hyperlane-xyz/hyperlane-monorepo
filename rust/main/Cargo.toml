@@ -91,6 +91,7 @@ bech32 = "0.11.0"
 elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
+hex-literal = "0.4.1"
 http = "1.2.0"
 http-body-util = "0.1"
 hyper = "0.14"

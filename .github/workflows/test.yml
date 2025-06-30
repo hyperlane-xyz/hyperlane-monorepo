@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -64,7 +64,8 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -311,6 +312,7 @@ jobs:
           - warp-init
           - warp-read
           - warp-send
+          - warp-rebalancer
     steps:
       - uses: actions/checkout@v4
         with:

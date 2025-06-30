@@ -358,15 +358,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
         const router = this.router(deployedContractsMap[chain]).address;
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
-
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
         for (const rebalancer of rebalancers) {
@@ -385,15 +385,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
-        const router = this.router(deployedContractsMap[chain]).address;
-        const movableToken = MovableCollateralRouter__factory.connect(
-          router,
-          this.multiProvider.getSigner(chain),
-        );
-
         if (!isMovableCollateralTokenConfig(config)) {
           return;
         }
+
+        const router = this.router(deployedContractsMap[chain]);
+        const movableToken = MovableCollateralRouter__factory.connect(
+          router.address,
+          this.multiProvider.getSigner(chain),
+        );
 
         const bridgesToAllow = Object.entries(
           resolveRouterMapConfig(
@@ -403,13 +403,18 @@ abstract class TokenDeployer<
         ).flatMap(([domain, allowedBridgesToAdd]) => {
           return allowedBridgesToAdd.map((bridgeToAdd) => {
             return {
-              domain,
+              domain: Number(domain),
               bridge: bridgeToAdd.bridge,
             };
           });
         });
 
-        for (const bridgeConfig of bridgesToAllow) {
+        // Filter out domains that are not enrolled to avoid errors
+        const routerDomains = await router.domains();
+        const bridgesToAllowOnRouter = bridgesToAllow.filter(({ domain }) =>
+          routerDomains.includes(domain),
+        );
+        for (const bridgeConfig of bridgesToAllowOnRouter) {
           await this.multiProvider.handleTx(
             chain,
             movableToken.addBridge(bridgeConfig.domain, bridgeConfig.bridge),
@@ -425,15 +430,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
         const router = this.router(deployedContractsMap[chain]).address;
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
-
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
 
         const tokenApprovalTxs = Object.values(
           config.allowedRebalancingBridges ?? {},

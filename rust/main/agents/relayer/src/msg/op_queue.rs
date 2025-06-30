@@ -54,6 +54,7 @@ impl OpQueue {
                 break;
             }
         }
+
         // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {

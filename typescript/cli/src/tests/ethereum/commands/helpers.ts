@@ -22,7 +22,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
+import { Address, assert, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
@@ -47,16 +47,20 @@ export const ANVIL_DEPLOYER_ADDRESS =
   '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
+export const COINGECKO_API_KEY = 'CG-Gmk12Pz3A4L9qR5XtV7Kd8N3';
 
 export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
+export const CHAIN_NAME_4 = 'anvil4';
 
 export const EXAMPLES_PATH = './examples';
 export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml`;
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+export const CORE_READ_CONFIG_PATH_3 = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
+export const CHAIN_4_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_4}/metadata.yaml`;
 
 export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
@@ -76,6 +80,12 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
   return getCombinedWarpRoutePath(symbol, [fileName]);
 };
 
+export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
+
+export const WARP_DEPLOY_CONFIG_CHAIN_2 = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+export const WARP_DEPLOY_CONFIG_CHAIN_3 = `${TEMP_PATH}/warp-route-deployment-3.yaml`;
+
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],
@@ -226,6 +236,23 @@ export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
     currentOutput.includes('Please enter the private key for chain'),
   input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
 };
+
+/**
+ * Retrieves the token address for a given chain from a warp config object.
+ * @param config The warp core config object.
+ * @param chainName The name of the chain.
+ * @returns The address of the token contract.
+ */
+export function getTokenAddressFromWarpConfig(
+  config: WarpCoreConfig,
+  chainName: string,
+): Address {
+  const tokenConfig = config.tokens.find((t) => t.chainName === chainName);
+  if (!tokenConfig || !tokenConfig.addressOrDenom) {
+    throw new Error(`Could not find token config for ${chainName}`);
+  }
+  return tokenConfig.addressOrDenom;
+}
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
@@ -581,4 +608,39 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
+}
+
+export function createSnapshot(rpcUrl: string) {
+  return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+}
+
+export async function restoreSnapshot(
+  rpcUrl: string,
+  snapshotId: string,
+): Promise<void> {
+  const result = await snapshotBaseCall<boolean>(rpcUrl, 'evm_revert', [
+    snapshotId,
+  ]);
+  assert(result, 'Failed to restore snapshot');
+}
+
+async function snapshotBaseCall<T>(
+  rpcUrl: string,
+  method: string,
+  params: any[],
+): Promise<T> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: 1337,
+      jsonrpc: '2.0',
+      method,
+      params,
+    }),
+  });
+  const { result } = await response.json();
+  return result;
 }

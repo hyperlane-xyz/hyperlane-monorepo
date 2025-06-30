@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use tokio::time::sleep;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 use crate::{
     dispatcher::metrics::DispatcherMetrics,
@@ -40,19 +40,25 @@ where
     }
 }
 
+#[instrument(
+    skip_all,
+    name = "UpdateTxStatus::update_tx_status",
+    fields(tx_uuid = ?tx.uuid, previous_tx_status = ?tx.status, next_tx_status = ?new_status, payloads = ?tx.payload_details)
+)]
 pub async fn update_tx_status(
     state: &DispatcherState,
     tx: &mut Transaction,
     new_status: TransactionStatus,
 ) -> Result<(), LanderError> {
-    // return early to avoid double counting metrics
-    if new_status == tx.status {
-        return Ok(());
-    }
     info!(?tx, ?new_status, "Updating tx status");
-    tx.status = new_status;
+    let old_tx_status = tx.status.clone();
+    tx.status = new_status.clone();
     state.store_tx(tx).await;
 
+    // return early to avoid double counting metrics
+    if new_status == old_tx_status {
+        return Ok(());
+    }
     // these metric updates assume a transaction can only be finalized once and dropped once.
     // note that a transaction may be counted as `finalized` initially, and then later
     // also counted as `dropped` if it was reorged out.

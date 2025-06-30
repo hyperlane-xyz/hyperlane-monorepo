@@ -1,11 +1,10 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::rpc_clients::call_and_retry_n_times;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::ExecutionV3;
 use starknet::core::types::ReceiptBlock;
@@ -15,7 +14,7 @@ use starknet::{
         types::{EmittedEvent, Felt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
-    providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Provider},
     signers::LocalWallet,
 };
 use url::Url;
@@ -25,21 +24,25 @@ use crate::contracts::{
     validator_announce,
 };
 use crate::types::{tx_receipt_to_outcome, HyH256};
-use crate::Signer;
 use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
 };
+use crate::{FallbackHttpTransport, JsonProvider, Signer};
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
-    rpc: &Arc<AnyProvider>,
+    rpc: &JsonProvider,
     transaction_hash: Felt,
 ) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
+
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+    const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
@@ -56,8 +59,8 @@ pub async fn get_transaction_receipt(
                 Ok(tx.receipt)
             })
         },
-        8,
-        Some(Duration::from_millis(2000)),
+        N,
+        Some(Duration::from_secs(POLLING_INTERVAL)),
     )
     .await
 }
@@ -71,11 +74,10 @@ pub async fn get_transaction_receipt(
 /// * `account_address` - The address of the account.
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
-    rpc_url: &Url,
+    rpc_urls: Vec<Url>,
     signer: Option<Signer>,
-) -> ChainResult<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-    let rpc_client =
-        AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
+) -> ChainResult<SingleOwnerAccount<JsonProvider, LocalWallet>> {
+    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls));
 
     let chain_id = rpc_client.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
@@ -285,7 +287,7 @@ pub fn string_to_cairo_long_string(s: &str) -> Result<Vec<Felt>, CairoShortStrin
 /// If the `reorg_period` is None, a block height of None is given,
 /// indicating that the tip directly can be used.
 pub(crate) async fn get_block_height_for_reorg_period(
-    provider: &AnyProvider,
+    provider: &JsonProvider,
     reorg_period: &ReorgPeriod,
 ) -> ChainResult<u64> {
     let block_height = match reorg_period {
@@ -311,7 +313,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
 }
 
 pub(crate) async fn get_block_height_u32(
-    provider: &AnyProvider,
+    provider: &JsonProvider,
     reorg_period: &ReorgPeriod,
 ) -> ChainResult<u32> {
     let height = get_block_height_for_reorg_period(provider, reorg_period).await?;
@@ -323,8 +325,8 @@ pub(crate) async fn get_block_height_u32(
 /// Sends a transaction and gets the transaction receipt.
 /// Returns the transaction outcome if the receipt is available.
 pub async fn send_and_confirm(
-    rpc_client: &Arc<AnyProvider>,
-    contract_call: ExecutionV3<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    rpc_client: &JsonProvider,
+    contract_call: ExecutionV3<'_, SingleOwnerAccount<JsonProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
     let tx = contract_call
         .send()

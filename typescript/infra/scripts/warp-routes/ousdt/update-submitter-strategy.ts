@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { awSafes } from '../../../config/environments/mainnet3/governance/safe/aw.js';
 import { getWarpConfig } from '../../../config/warp.js';
 import { Owner, determineGovernanceType } from '../../../src/governance.js';
 import { writeYamlAtPath } from '../../../src/utils/utils.js';
@@ -24,6 +25,9 @@ const strategyFilePath = resolve(
   __dirname,
   `../../../config/environments/${environment}/warp/strategies/ousdt.yaml`,
 );
+
+const ICA_OWNER_CHAIN = 'ethereum';
+const ICA_OWNER_SAFE = awSafes[ICA_OWNER_CHAIN];
 
 async function main() {
   const envConfig = getEnvironmentConfig(environment);
@@ -51,6 +55,7 @@ async function main() {
         case 'metis':
         case 'soneium':
         case 'superseed':
+        case 'ethereum':
           chainSubmissionStrategy[chain] = {
             submitter: {
               chain,
@@ -70,6 +75,22 @@ async function main() {
           };
           break;
       }
+    }
+    // New ICA submitter config from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/4980
+    else if (ownerType === Owner.ICA) {
+      chainSubmissionStrategy[chain] = {
+        submitter: {
+          chain: ICA_OWNER_CHAIN,
+          type: 'interchainAccount',
+          destinationChain: chain,
+          internalSubmitter: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            version: '1.0',
+            safeAddress: ICA_OWNER_SAFE,
+          },
+          owner: config.owner,
+        } as any,
+      };
     } else {
       chainSubmissionStrategy[chain] = {
         submitter: {

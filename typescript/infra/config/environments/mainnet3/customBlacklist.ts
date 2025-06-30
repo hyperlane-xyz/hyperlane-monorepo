@@ -54,6 +54,7 @@ export const blacklistedMessageIds = [
 
   // oUSDT dest with zero'd out limits
   '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
+  '0xc049929e777bc5c4515694f57818bb8cf561b5daeea0d48496e9b07062e701e4',
 
   // oUSDT messages sent to the zero address [2025-05-25]
   '0x8149ccd407507fc2b066450ba125fc487461d9d8d99261b624496fdd8e30c129',
@@ -84,4 +85,13 @@ export const blacklistedMessageIds = [
   '0xd48b8599f52e75d43916a7d1ec9512c98c5025394bc4983bf7c6309744758b9e',
   '0x4f984fb0312da11f55b931a809563072bd8a46d44da0e42dfce40a9ccf1b97f2',
   '0x50b8a9b21a4a2c980db8232d819cab72fe04707e39fc1b78ef5e583a44c412cf',
+
+  // Messages to a recipient that Neutron doesn't seem to allow
+  '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
+  '0xc376df3e8d82de669b48b58e0521db5cf6c23a21fb2230487c30536f7b6503f7',
+
+  // messages using the ICA call commitments with the wrong server address
+  '0x69d5cfae80e3708a5cf57f2ee1590aa8806aef85fa5fb662de8cec51b7409167',
+  '0x1d06f66e196610c1f6011e5fe4fa1f4aa2396d80e03f16502edaae59d459dd48',
+  '0xa409d54f6208b9cdfcc64f1e0722ade42fb12a9350f90dafa0652d2154d9dd74',
 ];

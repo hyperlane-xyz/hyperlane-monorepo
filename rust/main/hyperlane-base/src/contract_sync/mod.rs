@@ -256,7 +256,7 @@ where
 
             let range = match action {
                 CursorAction::Sleep(duration) => {
-                    debug!(
+                    trace!(
                         cursor = ?cursor,
                         sleep_duration = ?duration,
                         "Cursor can't make progress, sleeping",
@@ -266,7 +266,7 @@ where
                 }
                 CursorAction::Query(range) => range,
             };
-            debug!(?range, "Looking for events in index range");
+            trace!(?range, "Looking for events in index range");
 
             let logs = match indexer.fetch_logs_in_range(range.clone()).await {
                 Ok(logs) => logs,

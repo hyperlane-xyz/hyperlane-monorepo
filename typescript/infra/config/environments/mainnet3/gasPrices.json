@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "5.0",
+    "amount": "4.0",
     "decimals": 9
   },
   "everclear": {
@@ -368,8 +368,8 @@
     "decimals": 1
   },
   "paradex": {
-    "amount": "0.000000100",
-    "decimals": 9
+    "amount": "5000",
+    "decimals": 1
   },
   "peaq": {
     "amount": "100.0",
@@ -405,10 +405,6 @@
   },
   "reactive": {
     "amount": "1.001",
-    "decimals": 9
-  },
-  "real": {
-    "amount": "0.022",
     "decimals": 9
   },
   "redstone": {
@@ -451,6 +447,10 @@
     "amount": "0.5",
     "decimals": 1
   },
+  "solaxy": {
+    "amount": "0.5",
+    "decimals": 1
+  },
   "soneium": {
     "amount": "0.001000921",
     "decimals": 9
@@ -472,8 +472,8 @@
     "decimals": 9
   },
   "starknet": {
-    "amount": "0.000000145",
-    "decimals": 9
+    "amount": "5000",
+    "decimals": 1
   },
   "story": {
     "amount": "0.001001186",
@@ -503,6 +503,10 @@
     "amount": "0.001000251",
     "decimals": 9
   },
+  "tac": {
+    "amount": "28.125",
+    "decimals": 9
+  },
   "taiko": {
     "amount": "0.011",
     "decimals": 9
@@ -517,14 +521,6 @@
   },
   "torus": {
     "amount": "31.25",
-    "decimals": 9
-  },
-  "treasure": {
-    "amount": "1048.556132041",
-    "decimals": 9
-  },
-  "trumpchain": {
-    "amount": "0.1",
     "decimals": 9
   },
   "unichain": {

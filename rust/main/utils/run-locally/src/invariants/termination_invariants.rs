@@ -79,7 +79,7 @@ pub fn relayer_termination_invariants_met(
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
-    const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
+    const FOUND_LOGS_IN_INDEX_RANGE: &str = "Found log(s) in index range";
     const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
 
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
@@ -87,13 +87,13 @@ pub fn relayer_termination_invariants_met(
     let relayer_logfile = File::open(log_file_path)?;
 
     let storing_new_msg_line_filter = vec![STORING_NEW_MESSAGE_LOG_MESSAGE];
-    let looking_for_events_line_filter = vec![LOOKING_FOR_EVENTS_LOG_MESSAGE];
+    let found_logs_index_range_filter = vec![FOUND_LOGS_IN_INDEX_RANGE];
     let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
     let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
     let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
     let invariant_logs = vec![
         storing_new_msg_line_filter.clone(),
-        looking_for_events_line_filter.clone(),
+        found_logs_index_range_filter.clone(),
         gas_expenditure_line_filter.clone(),
         hyper_incoming_body_line_filter.clone(),
         tx_id_indexing_line_filter.clone(),
@@ -126,11 +126,11 @@ pub fn relayer_termination_invariants_met(
         storing_new_msg_log_count > 0,
         "Didn't find any logs about storing messages in db"
     );
-    let looking_for_events_log_count = *log_counts
-        .get(&looking_for_events_line_filter)
-        .expect("Failed to get looking for events log count");
+    let found_logs_in_index_range_count = *log_counts
+        .get(&found_logs_index_range_filter)
+        .expect("Failed to get Found log(s) in index range count");
     assert!(
-        looking_for_events_log_count > 0,
+        found_logs_in_index_range_count > 0,
         "Didn't find any logs about looking for events in index range"
     );
     let total_tx_id_log_count = *log_counts
@@ -212,9 +212,9 @@ pub fn relayer_termination_invariants_met(
     }
 
     if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
+        && !lander_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
     {
-        log!("Submitter metrics invariants not met");
+        log!("Lander metrics invariants not met");
         return Ok(false);
     }
 
@@ -306,7 +306,7 @@ pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool
     Ok(true)
 }
 
-pub fn submitter_metrics_invariants_met(
+pub fn lander_metrics_invariants_met(
     params: RelayerTerminationInvariantParams,
     relayer_port: &str,
     filter_hashmap: &HashMap<&str, &str>,
@@ -364,12 +364,11 @@ pub fn submitter_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
-    if finalized_transactions < params.total_messages_expected {
-        log!(
-            "hyperlane_lander_finalized_transactions {} count, expected {}",
-            finalized_transactions,
-            params.total_messages_expected
-        );
+    // Checking that some transactions were finalized.
+    // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
+    // finalized transactions.
+    if finalized_transactions == 0 {
+        log!("hyperlane_lander_finalized_transactions is zero, expected at least one",);
         return Ok(false);
     }
     if building_stage_queue_length != 0 {
@@ -396,11 +395,18 @@ pub fn submitter_metrics_invariants_met(
         );
         return Ok(false);
     }
-    if dropped_payloads != 0 {
+
+    // We expect that the number of dropped payloads is less than or equal to the total messages
+    // expected. Otherwise, it means that the relayer is dropping too many payloads.
+    // We cannot ensure that zero payloads are dropped because we have a random delivery failures
+    // simulation in the `TestTokenRecipient` contract. Even though we have a retry mechanism
+    // in place to simulate transactions, we still expect some payloads maybe dropped when
+    // a transaction is included in a block with hash ending in 0.
+    if dropped_payloads >= params.total_messages_expected {
         log!(
-            "hyperlane_lander_dropped_payloads {} count, expected {}",
+            "hyperlane_lander_dropped_payloads {} count, expected less than {}",
             dropped_payloads,
-            0
+            params.total_messages_expected
         );
         return Ok(false);
     }
