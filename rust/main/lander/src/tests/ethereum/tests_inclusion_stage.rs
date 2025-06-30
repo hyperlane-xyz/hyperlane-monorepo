@@ -310,7 +310,10 @@ async fn test_inclusion_gas_underpriced() {
 #[traced_test]
 async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     let block_time = Duration::from_millis(20);
-    let hash = H256::random();
+    let hash1 = H256::random();
+    let hash2 = H256::random();
+    let hash3 = H256::random();
+    let hash4 = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
@@ -325,10 +328,11 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         .expect_get_transaction_receipt()
         .returning(move |_| {
             tx_receipt_call_counter += 1;
-            if tx_receipt_call_counter < 4 {
-                Ok(Some(mock_tx_receipt(None, hash))) // No block number for the first 3 submissions
-            } else {
-                Ok(Some(mock_tx_receipt(Some(45), hash))) // Block number for the last submission
+            match tx_receipt_call_counter {
+                1 => Ok(Some(mock_tx_receipt(None, hash1))), // No block number for the first submission
+                2 => Ok(Some(mock_tx_receipt(None, hash2))), // No block number for the first submission
+                3 => Ok(Some(mock_tx_receipt(None, hash3))), // No block number for the first submission
+                _ => Ok(Some(mock_tx_receipt(Some(45), hash4))), // Block number for the last submission
             }
         });
 
@@ -364,9 +368,16 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         });
 
     // assert sending the tx always works
-    mock_evm_provider
-        .expect_send()
-        .returning(move |_tx, _| Ok(hash));
+    let mut send_counter = 0;
+    mock_evm_provider.expect_send().returning(move |_, _| {
+        send_counter += 1;
+        match send_counter {
+            1 => Ok(hash1),
+            2 => Ok(hash2),
+            3 => Ok(hash3),
+            _ => Ok(hash4),
+        }
+    });
 
     let expected_tx_states = vec![
         ExpectedTxState {
