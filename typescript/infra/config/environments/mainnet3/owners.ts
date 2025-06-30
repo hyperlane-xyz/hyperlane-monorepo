@@ -92,4 +92,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   svmbnb: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
+  solaxy: {
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
 };

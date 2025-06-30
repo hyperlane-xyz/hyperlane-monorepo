@@ -44,14 +44,16 @@ pub struct DispatcherMetrics {
     pub in_flight_transaction_time: IntGaugeVec,
 
     // VM-specific metrics below. These aren't set when they don't apply
-    // on EIP-1559 chains, this is the max_base_fee
+    // on EIP-1559 chains, this is the max_fee_per_gas
     pub gas_price: IntGaugeVec,
-    // only applies to EIP-1559 chains, this is the max_priority_fee
+    // only applies to EIP-1559 chains, this is the max_priority_fee_per_gas
     pub priority_fee: IntGaugeVec,
     /// Currently finalized nonce for each destination
     finalized_nonce: IntGaugeVec,
     /// Upper nonce, namely the nonce which can be used next for each destination
     upper_nonce: IntGaugeVec,
+    /// Gas limit set for the transaction, if applicable
+    pub gas_limit: IntGaugeVec,
 }
 
 impl DispatcherMetrics {
@@ -152,6 +154,14 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+        let gas_limit = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced("gas_limit"),
+                "The gas limit set for the transaction, if applicable",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
         let finalized_nonce = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced("finalized_nonce"),
@@ -184,6 +194,7 @@ impl DispatcherMetrics {
             priority_fee,
             finalized_nonce,
             upper_nonce,
+            gas_limit,
         })
     }
 
@@ -256,6 +267,12 @@ impl DispatcherMetrics {
             .set(priority_fee as i64);
     }
 
+    pub fn update_gas_limit_metric(&self, gas_limit: u64, domain: &str) {
+        self.gas_limit
+            .with_label_values(&[domain])
+            .set(gas_limit as i64);
+    }
+
     pub fn get_finalized_nonce(&self, destination: &str, signer: &str) -> IntGauge {
         self.finalized_nonce
             .with_label_values(&[destination, signer])
@@ -266,6 +283,22 @@ impl DispatcherMetrics {
         self.upper_nonce
             .with_label_values(&[destination, signer])
             .clone()
+    }
+
+    pub fn set_post_inclusion_metrics(
+        &self,
+        vm_metrics: &PostInclusionMetricsSource,
+        domain: &str,
+    ) {
+        if let Some(gas_price) = vm_metrics.gas_price {
+            self.update_gas_price_metric(gas_price, domain);
+        }
+        if let Some(priority_fee) = vm_metrics.priority_fee {
+            self.update_priority_fee_metric(priority_fee, domain);
+        }
+        if let Some(gas_limit) = vm_metrics.gas_limit {
+            self.update_gas_limit_metric(gas_limit, domain);
+        }
     }
 
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
@@ -282,4 +315,14 @@ impl DispatcherMetrics {
         let instance = Self::new(registry.clone());
         instance.unwrap()
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PostInclusionMetricsSource {
+    // max fee per gas for EIP-1559 chains, or gas price for others
+    pub gas_price: Option<u64>,
+    // priority fee per gas for EIP-1559 chains, or None for others
+    pub priority_fee: Option<u64>,
+    // gas limit set for the transaction, if applicable
+    pub gas_limit: Option<u64>,
 }

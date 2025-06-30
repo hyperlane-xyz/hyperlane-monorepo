@@ -32,6 +32,7 @@ contract MockITokenBridgeEth is ITokenBridge {
 contract HypNativeMovableTest is Test {
     HypNative internal router;
     MockITokenBridgeEth internal vtb;
+    MockTokenBridgeEth internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);

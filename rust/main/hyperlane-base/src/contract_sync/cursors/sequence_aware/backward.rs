@@ -107,7 +107,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Gets the next range of logs to query.
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
-    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         tokio::select! {
@@ -190,6 +189,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
     async fn skip_indexed(&mut self) -> Result<()> {
+        let prev_indexed_snapshot = self.last_indexed_snapshot.clone();
+
         // While we're not fully synced, check if the next log we're looking for has been
         // inserted into the db, and update the cursor accordingly.
         while let Some(current_indexing_sequence) =
@@ -210,12 +211,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 // Update metrics during fast-forward (actually backward in this case) so that
                 // the metrics do not stuck on the last indexed sequence.
                 self.update_metrics();
-
-                debug!(
-                    last_indexed_snapshot=?self.last_indexed_snapshot,
-                    current_indexing_snapshot=?self.current_indexing_snapshot,
-                    "Fast forwarded current sequence"
-                );
             } else {
                 // If the sequence hasn't been indexed, break out of the loop.
                 break;
@@ -226,7 +221,11 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // on each iteration
             tokio::task::yield_now().await;
         }
-
+        debug!(
+            last_indexed_snapshot=?prev_indexed_snapshot,
+            current_indexing_snapshot=?self.current_indexing_snapshot,
+            "Fast forwarded current sequence to"
+        );
         Ok(())
     }
 
