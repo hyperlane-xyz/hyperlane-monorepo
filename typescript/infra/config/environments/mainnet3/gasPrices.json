@@ -339,6 +339,10 @@
     "amount": "1000.0",
     "decimals": 9
   },
+  "noble": {
+    "amount": "0.1",
+    "decimals": 1
+  },
   "oortmainnet": {
     "amount": "100.0",
     "decimals": 9

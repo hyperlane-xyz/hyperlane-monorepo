@@ -1800,5 +1800,15 @@ export const validatorChainConfig = (
         'xrplevm',
       ),
     },
+    noble: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('noble'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x28495e5c72a7dafd1658e5d99dfeffaada175c46'],
+        },
+        'noble',
+      ),
+    },
   };
 };

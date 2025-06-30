@@ -88,6 +88,7 @@ export const mainnet3SupportedChainNames = [
   'nero',
   'neutron',
   'nibiru',
+  'noble',
   'oortmainnet',
   'ontology',
   'opbnb',

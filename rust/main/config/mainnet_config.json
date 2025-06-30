@@ -9873,6 +9873,84 @@
       "index": {
         "from": 1005847
       }
+    },
+    "noble": {
+      "bech32Prefix": "noble",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://www.mintscan.io/noble",
+          "family": "other",
+          "name": "Mintscan",
+          "url": "https://www.mintscan.io/noble"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1.5,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "uusdn",
+      "chainId": "noble-1",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Noble",
+        "url": "https://noble.xyz"
+      },
+      "displayName": "Noble",
+      "domainId": 1313817164,
+      "gasCurrencyCoinGeckoId": "noble-dollar-usdn",
+      "gasPrice": {
+        "denom": "uusdn",
+        "amount": "0.1"
+      },
+      "grpcUrls": [
+        {
+          "http": "http://noble-grpc.polkachu.com:21590"
+        },
+        {
+          "http": "https://grpc.noble.xyz:443"
+        }
+      ],
+      "index": {
+        "chunk": 10,
+        "from": 28613000
+      },
+      "name": "noble",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "uusdn",
+        "name": "Noble Dollar",
+        "symbol": "USDN"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "https://noble-api.polkachu.com:443"
+        },
+        {
+          "http": "https://api.noble.xyz:443"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://noble-rpc.polkachu.com:443"
+        },
+        {
+          "http": "https://rpc.noble.xyz:443"
+        }
+      ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "noble",
+        "type": "cosmosKey"
+      },
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
     }
   }
 }
