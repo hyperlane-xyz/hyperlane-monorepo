@@ -37,12 +37,9 @@ contract ProgressiveFee is BaseFee {
     function _quoteTransfer(
         uint256 amount
     ) internal view override returns (uint256 fee) {
-        // Progressive fee using rational function: fee = (maxFee * amount^2) / (halfAmount^2 + amount^2)
-        // This makes the fee percentage higher for larger amounts, creating a progressive fee structure
-        if (halfAmount * halfAmount + amount * amount == 0) return 0;
-        return
-            (maxFee * amount * amount) /
-            (halfAmount * halfAmount + amount * amount);
+        uint256 amountSquared = amount ** 2;
+        uint256 denominator = halfAmount ** 2 + amountSquared;
+        return denominator == 0 ? 0 : (maxFee * amountSquared) / denominator;
     }
 
     function feeType() external pure override returns (FeeType) {
