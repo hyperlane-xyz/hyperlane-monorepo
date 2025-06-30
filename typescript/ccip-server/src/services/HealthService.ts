@@ -1,18 +1,12 @@
-import { Router } from 'express';
-
-import { BaseService } from './BaseService.js';
+import { BaseService, ServiceConfig } from './BaseService.js';
 
 class HealthService extends BaseService {
-  // External Services
-  public readonly router: Router;
-
-  static initialize(): Promise<BaseService> {
-    return Promise.resolve(new HealthService());
+  static async create(serviceName: string): Promise<HealthService> {
+    return new HealthService({ serviceName });
   }
 
-  constructor() {
-    super();
-    this.router = Router();
+  constructor(config: ServiceConfig) {
+    super(config);
 
     this.router.get('', (_, res) => {
       res.status(200).send('OK');
