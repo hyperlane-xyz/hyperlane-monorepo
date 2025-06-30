@@ -8,7 +8,7 @@
   "starknet": {
     "type": "synthetic",
     "decimals": 6,
-    "gas": 6000000,
+    "gas": 5000000,
     "symbol": "Daydreams",
     "name": "dreams",
     "foreignDeployment": "0x04fcaf2a7b4a072fe57c59beee807322d34ed65000d78611c909a46fead07fb1"
