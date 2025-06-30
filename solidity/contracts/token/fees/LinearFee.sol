@@ -5,17 +5,19 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
 
 /**
  * @title Linear Fee Structure
- * @dev Implements a linear fee model where the fee is calculated as a fixed percentage of the transfer amount.
+ * @dev Implements a linear fee model where the fee increases linearly with the transfer amount, up to a maximum cap.
  *
  * The fee calculation follows the formula:
- *   fee = min(maxFee, (amount * maxFee) / halfAmount)
+ *   fee = min(maxFee, (amount * maxFee) / (2 * halfAmount))
  *
  * For example:
- * - If maxFee = 5 and halfAmount = 1000, the fee is 0.5% of the amount
- * - If maxFee = 10 and halfAmount = 100, the fee is 10% of the amount
- * - For amounts above halfAmount, the fee increases linearly until it reaches maxFee, after which it is capped.
+ * - If maxFee = 10 and halfAmount = 1000, then:
+ *     - For amount = 1000, fee = 5 (half of maxFee)
+ *     - For amount = 2000, fee = 10 (maxFee)
+ *     - For amount = 500, fee = 2 (rounded down)
+ * - For amounts above 2 * halfAmount, the fee is capped at maxFee.
  *
- * This creates a simple, predictable fee structure where the fee scales linearly with the transfer amount.
+ * This creates a simple, predictable fee structure where the fee scales linearly with the transfer amount until it reaches the cap.
  *
  * @dev The fee is always rounded down due to integer division
  * @dev halfAmount should be greater than 0 to avoid division by zero
@@ -31,7 +33,7 @@ contract LinearFee is BaseFee {
     function _quoteTransfer(
         uint256 amount
     ) internal view override returns (uint256 fee) {
-        uint256 uncapped = (amount * maxFee) / halfAmount;
+        uint256 uncapped = (amount * maxFee) / (2 * halfAmount);
         return uncapped > maxFee ? maxFee : uncapped;
     }
 
