@@ -7,7 +7,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
-import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 enum FeeType {
     ZERO,
@@ -38,17 +37,19 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
     uint256 public immutable halfAmount;
 
     constructor(
-        FungibleTokenRouter _fungibleRouter,
+        address _token,
         uint256 _maxFee,
-        uint256 _halfAmount
+        uint256 _halfAmount,
+        address _owner
     ) Ownable() {
         require(_maxFee > 0, "maxFee must be greater than zero");
         require(_halfAmount > 0, "halfAmount must be greater than zero");
+        require(_owner != address(0), "owner cannot be zero address");
 
-        token = _fungibleRouter.token();
+        token = IERC20(_token);
         maxFee = _maxFee;
         halfAmount = _halfAmount;
-        _transferOwnership(_fungibleRouter.owner());
+        _transferOwnership(_owner);
     }
 
     function claim(address beneficiary) external onlyOwner {
