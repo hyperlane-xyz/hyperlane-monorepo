@@ -620,6 +620,7 @@ export {
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   EVM_TOKEN_TYPE_TO_STANDARD,
+  tokenTypeToStandard,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -666,6 +667,7 @@ export {
   XERC20TokenMetadata,
 } from './token/types.js';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export { CosmosNativeDeployer } from './token/cosmosnativeDeploy.js';
 export {
   ChainMap,
   ProtocolMap,
