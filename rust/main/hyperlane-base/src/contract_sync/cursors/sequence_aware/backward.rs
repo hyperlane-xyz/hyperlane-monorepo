@@ -221,11 +221,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             // on each iteration
             tokio::task::yield_now().await;
         }
-        debug!(
-            last_indexed_snapshot=?prev_indexed_snapshot,
-            current_indexing_snapshot=?self.current_indexing_snapshot,
-            "Fast forwarded current sequence to"
-        );
+        if prev_indexed_snapshot != self.last_indexed_snapshot {
+            debug!(
+                last_indexed_snapshot=?prev_indexed_snapshot,
+                current_indexing_snapshot=?self.current_indexing_snapshot,
+                "Fast forwarded current sequence to"
+            );
+        }
         Ok(())
     }
 
