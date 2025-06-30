@@ -4,12 +4,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "154604207",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 383774,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 333774
     },
@@ -17,12 +12,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "63400650370038125",
         "gasPrice": "1087286206132",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -30,12 +20,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "683917002",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.49999988766000003
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -43,12 +28,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "132904238618524",
         "gasPrice": "518679113049071",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -56,12 +36,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "1892801076474545862",
         "gasPrice": "36419385780",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -69,12 +44,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -82,12 +52,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "69372056514913657770",
         "gasPrice": "993694812",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -95,12 +60,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "25198474994393361",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5002097727900001
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -108,12 +68,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "4000000000",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 2.92433072022
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -121,12 +76,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -134,12 +84,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "34437429917021753",
         "gasPrice": "2001736272807",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -147,12 +92,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -160,12 +100,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "3932496075353218210",
         "gasPrice": "17529490504",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -173,12 +108,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "112132765193989683",
         "gasPrice": "0",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -186,12 +116,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -199,12 +124,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -212,12 +132,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -225,12 +140,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "112132765193989683",
         "gasPrice": "987653967",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 5000000,
-          "totalGasAmount": 135000000,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 130000000
     },
@@ -238,12 +148,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -251,12 +156,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "11213276519398",
         "gasPrice": "5128204",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.49999988766000003
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -264,12 +164,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
         "gasPrice": "38336",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5000001552000001
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -277,12 +172,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "25198474994393361",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5002097727900001
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -290,12 +180,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "3969376541825521",
         "gasPrice": "9814614939295",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 383774,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 333774
     },
@@ -303,12 +188,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "439505",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 5000000,
-          "totalGasAmount": 135000000,
-          "totalUsdCost": 0.20000019585000003
-        }
+        "tokenDecimals": 18
       },
       "overhead": 130000000
     },
@@ -316,12 +196,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "34505494505494505494",
         "gasPrice": "10000000000",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 1.00110698961
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -329,12 +204,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     },
@@ -342,12 +212,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "6937205651491365",
         "gasPrice": "8290",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.50004737601
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -355,12 +220,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "251984749943933617403",
         "gasPrice": "273566764",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216887,
-          "totalUsdCost": 0.19999992831000002
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166887
     }
@@ -370,12 +230,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
         "gasPrice": "4000000000",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216460,
-          "totalUsdCost": 2.9185734719999994
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166460
     },
@@ -383,12 +238,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
         "gasPrice": "274104531",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 216460,
-          "totalUsdCost": 0.1999985528
-        }
+        "tokenDecimals": 18
       },
       "overhead": 166460
     },
@@ -396,12 +246,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "89291117835528",
         "gasPrice": "92007",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 1.2000070472
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -409,12 +254,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "89291117835528",
         "gasPrice": "38336",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.4999997528
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -422,12 +262,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5002087423999999
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -435,12 +270,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "189347632609",
         "gasPrice": "7232",
-        "tokenDecimals": 6,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.20000079999999998
-        }
+        "tokenDecimals": 6
       },
       "overhead": 600000
     }
@@ -450,12 +280,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "4129538981844072623",
         "gasPrice": "1027568011",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 209736,
-          "totalUsdCost": 0.1999985528
-        }
+        "tokenDecimals": 18
       },
       "overhead": 159736
     },
@@ -463,12 +288,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5002087423999999
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -476,12 +296,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "89291117835528",
         "gasPrice": "92007",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 1.2000070472
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -489,12 +304,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "412953898184407",
         "gasPrice": "8290",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5000469439999999
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     }
@@ -504,12 +314,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "25198474994393361",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.5002097727900001
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -517,12 +322,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
         "gasPrice": "92007",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 1.2000081311400002
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     }
@@ -532,12 +332,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
         "gasPrice": "1027574348",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 209736,
-          "totalUsdCost": 0.19999978614
-        }
+        "tokenDecimals": 18
       },
       "overhead": 159736
     },
@@ -545,12 +340,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "324338085539714",
         "gasPrice": "92007",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 1.20000799674
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     },
@@ -558,12 +348,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "5448550092134613",
         "gasPrice": "2283",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 0.50020950042
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     }
@@ -573,12 +358,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "33708000000000000000000",
         "gasPrice": "4000000000",
-        "tokenDecimals": 18,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 201966,
-          "totalUsdCost": 2.723147971
-        }
+        "tokenDecimals": 18
       },
       "overhead": 151966
     },
@@ -586,12 +366,7 @@
       "oracleConfig": {
         "tokenExchangeRate": "200655000000000000",
         "gasPrice": "92007",
-        "tokenDecimals": 9,
-        "typicalCost": {
-          "handleGasAmount": 50000,
-          "totalGasAmount": 650000,
-          "totalUsdCost": 1.200008198
-        }
+        "tokenDecimals": 9
       },
       "overhead": 600000
     }
