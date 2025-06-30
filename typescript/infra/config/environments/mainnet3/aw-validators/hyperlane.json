@@ -301,6 +301,9 @@
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
   },
+  "noble": {
+    "validators": ["0x28495e5c72a7dafd1658e5d99dfeffaada175c46"]
+  },
   "oortmainnet": {
     "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
   },
@@ -484,8 +487,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "noble": {
-    "validators": ["0x28495e5c72a7dafd1658e5d99dfeffaada175c46"]
   }
 }

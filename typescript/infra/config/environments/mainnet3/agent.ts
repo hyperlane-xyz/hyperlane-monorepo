@@ -605,6 +605,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('infinityvmmainnet'),
         destinationDomain: getDomainId('solanamainnet'),
       },
+      { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
     ],
@@ -843,7 +844,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'f3b9391-20250630-150711',
+      tag: '78fbcd8-20250630-155425',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -854,7 +855,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f3b9391-20250630-150711',
+      tag: '78fbcd8-20250630-155425',
     },
     resources: scraperResources,
   },
@@ -869,7 +870,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f3b9391-20250630-150711',
+      tag: '78fbcd8-20250630-155425',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
