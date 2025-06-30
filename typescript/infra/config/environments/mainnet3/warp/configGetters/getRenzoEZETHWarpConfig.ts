@@ -2,17 +2,27 @@ import { parseEther } from 'ethers/lib/utils.js';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
+  AggregationIsmConfig,
   ChainMap,
   ChainName,
+  EvmHookReader,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmType,
+  MultiProvider,
   MultisigConfig,
+  RoutingIsmConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  assert,
+  objOmit,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
@@ -38,69 +48,127 @@ export const ezEthChainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-// Used to stabilize the protocolFee of ProtocolHook such that we don't get diffs every time tokenPrices.json is updated
-export const renzoTokenPrices: ChainMap<string> = {
-  arbitrum: '3157.26',
-  optimism: '3157.26',
-  base: '3157.26',
-  blast: '3157.26',
-  bsc: '673.59',
-  mode: '3157.26',
-  linea: '3157.26',
-  ethereum: '3157.26',
-  fraxtal: '3168.75',
-  zircuit: '3157.26',
-  taiko: '3157.26',
-  sei: '0.354988',
-  swell: '3157.26',
-  unichain: '2602.66',
-  berachain: '10',
-  worldchain: '1599.53',
-};
-export function getProtocolFee(chain: ChainName) {
-  const price = renzoTokenPrices[chain];
-  assert(price, `No price for chain ${chain}`);
-  return (0.5 / Number(price)).toFixed(10).toString(); // ~$0.50 USD
-}
-
-// Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
-const chainProtocolFee: Record<ChainName, string> = {
-  arbitrum: '400000000000000',
-  base: '400000000000000',
-  blast: '129871800000000',
-  bsc: '1400000000000000',
-  ethereum: '400000000000000',
-  fraxtal: '400000000000000',
-  linea: '400000000000000',
-  mode: '400000000000000',
-  optimism: '400000000000000',
-  sei: '798889224400000000',
-  swell: '129871800000000',
-  taiko: '400000000000000',
-  unichain: '400000000000000',
-  worldchain: '400000000000000',
-  zircuit: '400000000000000',
-};
-
-export function getRenzoHook(
-  defaultHook: Address,
-  chain: ChainName,
-  owner: Address,
-): HookConfig {
+/**
+ * For REZ, PZETH, which still uses
+ *
+ * hook:
+ *   hooks:
+ *    - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+ *    - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+ *    - maxProtocolFee: "100000000000000000000"
+ *    - owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+ *    - protocolFee: "50000000000000000"
+ *    - type: protocolFee
+ *    - type: aggregationHook
+ */
+export async function getRenzoLegacyHook(params: {
+  multiProvider: MultiProvider;
+  chain: ChainName;
+  defaultHookAddress: Address;
+  existingProtocolFee: ChainMap<Address>;
+}): Promise<HookConfig> {
+  const { multiProvider, chain, defaultHookAddress, existingProtocolFee } =
+    params;
+  const hookReader = new EvmHookReader(multiProvider, chain);
+  const { address, ...hookConfig } =
+    await hookReader.deriveHookConfigFromAddress(existingProtocolFee[chain]);
+  assert(
+    hookConfig.type === HookType.PROTOCOL_FEE,
+    `Expect ${HookType.PROTOCOL_FEE}, got ${hookConfig.type}`,
+  );
   return {
     type: HookType.AGGREGATION,
-    hooks: [
-      defaultHook,
-      {
-        type: HookType.PROTOCOL_FEE,
-        owner: owner,
-        beneficiary: owner,
+    hooks: [defaultHookAddress, hookConfig],
+  };
+}
 
-        // Use hardcoded, actual onchain fees, or fallback to fee calculation
-        protocolFee:
-          chainProtocolFee[chain] ??
-          parseEther(getProtocolFee(chain)).toString(),
-        maxProtocolFee: MAX_PROTOCOL_FEE,
+/**
+ * For EZETH, which uses the DefaultHook config and protocolFee addresses (except for blast)
+ *
+ * hook:
+ *   hooks:
+ *    - type: HookType.MAILBOX_DEFAULT
+ *    - "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
+ */
+const OUTBOUND_ONLY_CHAIN = 'blast';
+export async function getRenzoHook(params: {
+  multiProvider: MultiProvider;
+  origin: ChainName;
+  destinationChains: ChainName[];
+  owner: Address;
+  existingProtocolFee: ChainMap<Address>;
+}): Promise<HookConfig> {
+  const {
+    multiProvider,
+    origin,
+    destinationChains,
+    owner,
+    existingProtocolFee,
+  } = params;
+
+  const defaultHook = {
+    type: HookType.MAILBOX_DEFAULT,
+  } as const;
+
+  const routingHook: HookConfig =
+    origin === OUTBOUND_ONLY_CHAIN
+      ? defaultHook
+      : {
+          type: HookType.ROUTING,
+          owner: owner,
+          domains: Object.fromEntries(
+            destinationChains
+              .filter((c) => c !== origin)
+              .filter((c) => c !== OUTBOUND_ONLY_CHAIN)
+              .map((dest) => [dest, defaultHook]),
+          ),
+        };
+
+  // By using the reader, we can validate the hook address
+  const hookReader = new EvmHookReader(multiProvider, origin);
+  const { address: protocolFeeHookAddress, type } =
+    await hookReader.deriveHookConfigFromAddress(existingProtocolFee[origin]);
+  assert(
+    type === HookType.PROTOCOL_FEE,
+    `Expect ${HookType.PROTOCOL_FEE}, got ${type}`,
+  );
+
+  return {
+    type: HookType.AGGREGATION,
+    hooks: [routingHook, protocolFeeHookAddress],
+  };
+}
+
+function getRenzoIsmConfig(params: {
+  origin: ChainName;
+  chainsToDeploy: ChainName[];
+  safes: ChainMap<Address>;
+  validators: ChainMap<MultisigConfig>;
+}): AggregationIsmConfig | RoutingIsmConfig {
+  const { origin, safes, chainsToDeploy, validators } = params;
+
+  if (origin === OUTBOUND_ONLY_CHAIN) {
+    // If origin is blast, use routing ism without domains (restricts inbound from all chains).
+    return {
+      type: IsmType.ROUTING,
+      owner: safes[origin],
+      domains: {},
+    };
+  }
+
+  return {
+    type: IsmType.AGGREGATION,
+    threshold: 2,
+    modules: [
+      {
+        type: IsmType.ROUTING,
+        owner: safes[origin],
+        domains: buildAggregationIsmConfigs(origin, chainsToDeploy, validators),
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        domains: {},
+        owner: safes[origin],
       },
     ],
   };
@@ -362,6 +430,24 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
     owner: ezEthSafes.taiko,
   },
 };
+export const ezEthProdExistingProtocolFeeAddresses = {
+  arbitrum: '0x592cd754B947396255E50Cac10c519c7ee313919',
+  base: '0xFA6A5Ab6a77dDdf2936b538Fdc39DAe314Cc5500',
+  berachain: '0x96003848cfc3C236d70661aF4722F404435a526d',
+  blast: '0x68a3963D2fE3427cfD044806B40AF41feCaae845',
+  bsc: '0x18431F422A9f32967054689673b7e1731Da233A7',
+  ethereum: '0x16198AD900a78360387CC2c5aCEaF21665508001',
+  fraxtal: '0xc2100BBF930f3A61c36d58c59453B422B929d2E8',
+  linea: '0xa2fd91b39926daBB5009C5e4ee237c1C0b677bCe',
+  mode: '0xD3378b419feae4e3A4Bb4f3349DBa43a1B511760',
+  optimism: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
+  sei: '0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49',
+  swell: '0x1604d2D3DaFba7D302F86BD7e79B3931414E4625',
+  taiko: '0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7',
+  unichain: '0x674f4698d063cE4C0d604c88dD7D542De72f327f',
+  worldchain: '0x4019404611325b06eC133bdf6907583E162D508c',
+  zircuit: '0x9dE36D2d60a81FaFDDC888595C822f9085B2cFB5',
+};
 
 export function getRenzoWarpConfigGenerator(params: {
   chainsToDeploy: string[];
@@ -369,8 +455,9 @@ export function getRenzoWarpConfigGenerator(params: {
   safes: Record<string, string>;
   xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
-  tokenPrices: ChainMap<string>;
+  existingProtocolFee: ChainMap<Address>;
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
+  useLegacyHooks?: boolean;
 }) {
   const {
     chainsToDeploy,
@@ -378,8 +465,9 @@ export function getRenzoWarpConfigGenerator(params: {
     safes,
     xERC20Addresses,
     xERC20Lockbox,
-    tokenPrices,
+    existingProtocolFee,
     existingProxyAdmins,
+    useLegacyHooks = true,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -398,10 +486,7 @@ export function getRenzoWarpConfigGenerator(params: {
       new Set(chainsToDeploy),
       new Set(Object.keys(xERC20Addresses)),
     );
-    const tokenPriceDiff = symmetricDifference(
-      new Set(chainsToDeploy),
-      new Set(Object.keys(tokenPrices)),
-    );
+
     if (validatorDiff.size > 0) {
       throw new Error(
         `chainsToDeploy !== validatorConfig, diff is ${Array.from(
@@ -424,14 +509,6 @@ export function getRenzoWarpConfigGenerator(params: {
       );
     }
 
-    if (tokenPriceDiff.size > 0) {
-      throw new Error(
-        `chainsToDeploy !== tokenPriceDiff, diff is ${Array.from(
-          tokenPriceDiff,
-        ).join(', ')}`,
-      );
-    }
-
     const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
       await Promise.all(
         chainsToDeploy.map(
@@ -444,7 +521,7 @@ export function getRenzoWarpConfigGenerator(params: {
               mailbox,
               multiProvider.getProvider(chain),
             );
-            const defaultHook = await mailboxContract.defaultHook();
+            const defaultHookAddress = await mailboxContract.defaultHook();
             const ret: [string, HypTokenRouterConfig] = [
               chain,
               {
@@ -460,27 +537,26 @@ export function getRenzoWarpConfigGenerator(params: {
                 owner: safes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox,
-                interchainSecurityModule: {
-                  type: IsmType.AGGREGATION,
-                  threshold: 2,
-                  modules: [
-                    {
-                      type: IsmType.ROUTING,
+                interchainSecurityModule: getRenzoIsmConfig({
+                  origin: chain,
+                  safes,
+                  chainsToDeploy,
+                  validators,
+                }),
+                hook: useLegacyHooks
+                  ? await getRenzoLegacyHook({
+                      multiProvider,
+                      chain,
+                      defaultHookAddress,
+                      existingProtocolFee,
+                    })
+                  : await getRenzoHook({
+                      multiProvider,
+                      origin: chain,
+                      destinationChains: chainsToDeploy,
                       owner: safes[chain],
-                      domains: buildAggregationIsmConfigs(
-                        chain,
-                        chainsToDeploy,
-                        validators,
-                      ),
-                    },
-                    {
-                      type: IsmType.FALLBACK_ROUTING,
-                      domains: {},
-                      owner: safes[chain],
-                    },
-                  ],
-                },
-                hook: getRenzoHook(defaultHook, chain, safes[chain]),
+                      existingProtocolFee,
+                    }),
                 ...(existingProxyAdmins?.[chain]
                   ? { proxyAdmin: existingProxyAdmins?.[chain] }
                   : {}),
@@ -503,8 +579,9 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   safes: ezEthSafes,
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
-  tokenPrices: renzoTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
+  existingProtocolFee: ezEthProdExistingProtocolFeeAddresses,
+  useLegacyHooks: false,
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =
