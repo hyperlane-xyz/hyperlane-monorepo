@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -155,7 +155,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigSchema),
+  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
