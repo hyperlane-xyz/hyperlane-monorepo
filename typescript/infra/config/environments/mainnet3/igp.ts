@@ -14,7 +14,6 @@ import {
 } from '../../../src/config/gas-oracle.js';
 import { getChain } from '../../registry.js';
 
-import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -23,7 +22,7 @@ import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
-  let overhead = getOverhead(local, remote, ethereumChainNames);
+  let overhead = getOverhead(local, remote);
 
   // DeepBrainChain gas metering is different to vanilla EVM
   // https://hyperlaneworkspace.slack.com/archives/C08GR6PBPGT/p1743074511084179?thread_ts=1743073273.793169&cid=C08GR6PBPGT

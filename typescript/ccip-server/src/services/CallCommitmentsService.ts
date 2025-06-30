@@ -1,5 +1,6 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
+import { Logger } from 'pino';
 import { z } from 'zod';
 
 import {
@@ -24,8 +25,13 @@ import {
 
 import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
+import { PrometheusMetrics } from '../utils/prometheus.js';
 
-import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
+import {
+  BaseService,
+  REGISTRY_URI_SCHEMA,
+  ServiceConfigWithBaseUrl,
+} from './BaseService.js';
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
@@ -41,60 +47,133 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
-  constructor(
-    private multiProvider: MultiProvider,
-    baseUrl: string,
-  ) {
-    super();
-    this.registerRoutes(this.router, baseUrl);
+  private multiProvider: MultiProvider;
+  private baseUrl: string;
+
+  constructor(config: ServiceConfigWithBaseUrl) {
+    super(config);
+    this.multiProvider = config.multiProvider;
+    this.baseUrl = config.baseUrl;
+    this.registerRoutes(this.router, this.baseUrl);
   }
 
-  static async initialize(namespace: string) {
+  static async create(serviceName: string): Promise<CallCommitmentsService> {
     const env = EnvSchema.parse(process.env);
-    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
-    return new CallCommitmentsService(
+    const multiProvider = await BaseService.getMultiProvider(env.REGISTRY_URI);
+    const baseUrl = env.SERVER_BASE_URL + '/' + serviceName;
+
+    return new CallCommitmentsService({
+      serviceName,
       multiProvider,
-      env.SERVER_BASE_URL + '/' + namespace,
-    );
+      baseUrl,
+    });
   }
 
   public async handleCommitment(req: Request, res: Response) {
-    const data = this.parseCommitmentBody(req.body, res);
+    const logger = this.addLoggerServiceContext(req.log);
+
+    const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
 
     const commitment = commitmentFromIcaCalls(
       normalizeCalls(data.calls),
       data.salt,
     );
+    logger.setBindings({ commitment });
+
+    logger.info(
+      {
+        callsCount: data.calls.length,
+        originDomain: data.originDomain,
+      },
+      'Processing commitment creation',
+    );
+
     let ica: string, revealMessageId: string;
     try {
       ({ ica, revealMessageId } = await this.validateCommitmentEvents(
         data,
         commitment,
+        logger,
       ));
     } catch (error: any) {
-      console.error('Commitment dispatch validation failed', commitment, error);
+      // TODO: distinguish between infrastructure vs client errors
+      logger.warn(
+        {
+          error: error.message,
+          stack: error.stack,
+        },
+        'Commitment dispatch validation failed',
+      );
       return res.status(400).json({ error: error.message });
     }
 
-    await this.insertCommitmentToDB(commitment, {
-      ...data,
-      ica,
-      revealMessageId,
-    });
-    res.sendStatus(200);
-    return;
+    // Check if commitment already exists before attempting insert
+    try {
+      const existingRecord = await prisma.commitment.findUnique({
+        where: { revealMessageId },
+        select: { commitment: true }, // Only need to check existence
+      });
+
+      if (existingRecord) {
+        logger.info(
+          {
+            revealMessageId,
+          },
+          'Commitment already exists - returning success',
+        );
+        return res.sendStatus(200); // Idempotent operation
+      }
+
+      // No existing record, proceed with insert
+      await this.insertCommitmentToDB(
+        commitment,
+        { ...data, ica, revealMessageId },
+        logger,
+      );
+    } catch (error: any) {
+      logger.error(
+        {
+          error: error.message,
+          stack: error.stack,
+        },
+        'Database error during commitment processing',
+      );
+
+      PrometheusMetrics.logUnhandledError(this.config.serviceName);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+
+    logger.info('Commitment processing completed successfully');
+    return res.sendStatus(200);
   }
 
-  public async handleFetchCommitment(message: string, relayer: string) {
+  public async handleFetchCommitment(
+    message: string,
+    relayer: string,
+    logger: Logger,
+  ) {
+    const log = this.addLoggerServiceContext(logger);
+
     try {
       const revealMsgId = messageId(message);
-      const record = await this.fetchCommitmentRecord(revealMsgId);
+      log.debug({ revealMsgId }, 'Generated reveal message ID');
+
+      const record = await this.fetchCommitmentRecord(revealMsgId, log);
 
       if (
         record.relayers.length > 0 &&
         !record.relayers.find((r) => eqAddress(r, relayer))
       ) {
+        log.warn(
+          {
+            revealMsgId,
+            message,
+            relayer,
+            commitment: record.commitment,
+          },
+          'Relayer not authorized for this commitment',
+        );
         throw new Error(
           `Relayer ${relayer} not authorized for this commitment`,
         );
@@ -103,10 +182,26 @@ export class CallCommitmentsService extends BaseService {
       const encoded =
         record.ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
-      console.log('Serving calls for commitment', record.commitment);
+
+      log.info(
+        {
+          commitment: record.commitment,
+          revealMsgId,
+          callsCount: record.calls.length,
+        },
+        'Serving calls for commitment',
+      );
+
       return encoded;
     } catch (error: any) {
-      console.error('Error fetching commitment from message', message, error);
+      log.error(
+        {
+          message,
+          error: error.message,
+          stack: error.stack,
+        },
+        'Error fetching commitment from message',
+      );
       // TODO we might not want to show the error
       return JSON.stringify({ error: error.message });
     }
@@ -119,6 +214,7 @@ export class CallCommitmentsService extends BaseService {
   private extractRevealMessageIdAndValidateDispatchedCommitment(
     receipt: TransactionReceipt,
     commitment: string,
+    logger: Logger,
   ): string {
     const iface = InterchainAccountRouter__factory.createInterface();
     const dispatchIdTopic =
@@ -132,6 +228,10 @@ export class CallCommitmentsService extends BaseService {
         iface.parseLog(log).args.commitment === commitment,
     );
     if (revealIndex === -1) {
+      logger.warn(
+        { receipt },
+        'CommitRevealDispatched event not found in logs',
+      );
       throw new Error('CommitRevealDispatched event not found in logs');
     }
 
@@ -141,6 +241,10 @@ export class CallCommitmentsService extends BaseService {
       .filter((log) => log.topics[0] === dispatchIdTopic);
 
     if (dispatchLogsAfterReveal.length < 2) {
+      logger.warn(
+        { receipt },
+        'Not enough DispatchId events after CommitRevealDispatched',
+      );
       throw new Error(
         'Not enough DispatchId events after CommitRevealDispatched',
       );
@@ -153,11 +257,12 @@ export class CallCommitmentsService extends BaseService {
    * Validate and parse the request body against the Zod schema.
    * Returns parsed data or sends a 400 response and returns null.
    */
-  private parseCommitmentBody(body: any, res: Response) {
+  private parseCommitmentBody(body: any, res: Response, logger: Logger) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
-      console.log('Invalid request', result.error.flatten().fieldErrors);
-      res.status(400).json({ errors: result.error.flatten().fieldErrors });
+      const errors = result.error.flatten().fieldErrors;
+      logger.warn({ errors, body }, 'Invalid request body received');
+      res.status(400).json({ errors });
       return null;
     }
     return result.data;
@@ -172,6 +277,7 @@ export class CallCommitmentsService extends BaseService {
       ica: string;
       revealMessageId: string;
     },
+    logger: Logger,
   ) {
     const {
       calls,
@@ -182,6 +288,7 @@ export class CallCommitmentsService extends BaseService {
       commitmentDispatchTx,
       originDomain,
     } = data;
+
     await prisma.commitment.create({
       data: {
         commitment,
@@ -194,31 +301,48 @@ export class CallCommitmentsService extends BaseService {
         originDomain,
       },
     });
-    console.log('Stored commitment', { commitment, ...data });
+
+    logger.info(
+      {
+        revealMessageId,
+        ica,
+        callsCount: calls.length,
+        originDomain,
+      },
+      'Stored commitment to database',
+    );
   }
 
   /**
    * Fetch a commitment record from the database by revealMessageId.
    * Throws if not found.
    */
-  private async fetchCommitmentRecord(revealMessageId: string) {
-    console.log(
+  private async fetchCommitmentRecord(revealMessageId: string, logger: Logger) {
+    logger.debug(
+      { revealMessageId },
       'Fetching commitment from DB with revealMessageId',
-      revealMessageId,
     );
+
     const record = await prisma.commitment.findUnique({
       where: { revealMessageId },
     });
+
     if (!record) {
-      console.log(
+      logger.warn(
+        { revealMessageId },
         'Commitment not found in DB with revealMessageId',
-        revealMessageId,
       );
       throw new Error(
         'Commitment not found for revealMessageId: ' + revealMessageId,
       );
     }
+
     const parsed = CommitmentRecordSchema.parse(record);
+    logger.debug(
+      { commitment: parsed.commitment },
+      'Successfully fetched commitment record',
+    );
+
     return parsed;
   }
 
@@ -230,28 +354,57 @@ export class CallCommitmentsService extends BaseService {
   private async validateCommitmentEvents(
     data: PostCallsType,
     commitment: string,
+    logger: Logger,
   ): Promise<{ ica: string; revealMessageId: string }> {
     const provider = this.multiProvider.getProvider(data.originDomain);
     const receipt = await provider.getTransactionReceipt(
       data.commitmentDispatchTx,
     );
-    if (!receipt)
+
+    if (!receipt) {
+      logger.error(
+        {
+          transactionHash: data.commitmentDispatchTx,
+          originDomain: data.originDomain,
+        },
+        'Transaction not found',
+      );
       throw new Error(
         `Transaction not found: ${data.commitmentDispatchTx} on domain ${data.originDomain}`,
       );
+    }
+
+    logger.info(
+      {
+        transactionHash: receipt.transactionHash,
+        originDomain: data.originDomain,
+      },
+      'Validating commitment events',
+    );
 
     // 2) Extract reveal message ID
     const revealMessageId =
       this.extractRevealMessageIdAndValidateDispatchedCommitment(
         receipt,
         commitment,
+        logger,
       );
 
     // 3) Derive ICA from RemoteCallDispatched
     const ica = await this.deriveIcaFromRemoteCallDispatched(
       receipt,
       data.originDomain,
+      logger,
     );
+
+    logger.info(
+      {
+        ica,
+        revealMessageId,
+      },
+      'Commitment validation successful',
+    );
+
     return { ica, revealMessageId };
   }
 
@@ -261,11 +414,15 @@ export class CallCommitmentsService extends BaseService {
   private async deriveIcaFromRemoteCallDispatched(
     receipt: TransactionReceipt,
     originDomain: number,
+    logger: Logger,
   ): Promise<string> {
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
     const callLog = receipt.logs.find((l) => l.topics[0] === callTopic);
-    if (!callLog) throw new Error('RemoteCallDispatched event not found');
+    if (!callLog) {
+      logger.warn({ receipt }, 'RemoteCallDispatched event not found');
+      throw new Error('RemoteCallDispatched event not found');
+    }
     const parsedCall = iface.parseLog(callLog);
     const owner = addressToBytes32(parsedCall.args.owner);
     const destinationRouterAddress = bytes32ToAddress(parsedCall.args.router);

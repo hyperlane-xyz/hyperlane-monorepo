@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "14.0.0",
+  "version": "14.1.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
@@ -11,6 +11,14 @@
     "pino": "^8.19.0",
     "starknet": "^7.4.0",
     "yaml": "2.4.5"
+  },
+  "peerDependencies": {
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/pino-logging-gcp-config": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

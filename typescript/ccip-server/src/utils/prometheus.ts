@@ -11,9 +11,20 @@ const requestCounter = new Counter({
   registers: [register],
 });
 
+// TODO: eventually deprecate this metric, once we properly distinguish unhandled errors from handled errors
+const unhandledErrorCounter = new Counter({
+  name: 'hyperlane_offchain_lookup_server_unhandled_errors',
+  help: 'Total number of unhandled errors',
+  labelNames: ['service'],
+  registers: [register],
+});
+
 export const PrometheusMetrics = {
   logLookupRequest(service: string, statusCode: number) {
     requestCounter.inc({ service, status_code: statusCode });
+  },
+  logUnhandledError(service: string) {
+    unhandledErrorCounter.inc({ service });
   },
 };
 
