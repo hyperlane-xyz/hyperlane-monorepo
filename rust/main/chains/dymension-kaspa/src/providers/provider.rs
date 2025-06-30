@@ -3,6 +3,7 @@ use dym_kas_relayer::PublicKey;
 
 use core::default;
 use eyre::Result as EyreResult;
+use kaspa_addresses::Address;
 use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
@@ -24,6 +25,9 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_rpc_core::api::rpc::RpcApi;
+use std::sync::Arc;
+
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -99,6 +103,11 @@ impl KaspaProvider {
     }
 
     /// dococo
+    pub fn rpc(&self) -> Arc<dyn RpcApi> {
+        self.easy_wallet.api()
+    }
+
+    /// dococo
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
@@ -169,6 +178,11 @@ impl KaspaProvider {
             self.easy_wallet.address_prefix(),
             self.conf.multisig_threshold_kaspa as u8,
         )
+    }
+
+      /// get escrow address
+      pub fn escrow_address(&self) -> Address {
+        self.escrow().addr
     }
 }
 

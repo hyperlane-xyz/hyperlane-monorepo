@@ -12,14 +12,13 @@ use hyperlane_metric::prometheus_metric::{
 };
 use url::Url;
 
-use dym_kas_core::api::deposits::*;
+use dym_kas_api::models::TxModel;
+use dym_kas_api::apis::configuration::Configuration;
+pub use dym_kas_core::api::client::get_config;
+pub use dym_kas_core::api::deposits::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
-
-use dym_kas_core::api::deposits::*;
-
-pub use dym_kas_core::api::deposits::*;
 
 #[derive(Debug)]
 struct KaspaHttpClient {
@@ -119,6 +118,11 @@ impl RestProvider {
         })
     }
 
+    /// get the config used for the rest client
+    pub fn get_config(&self) -> Configuration {
+        get_config(&self.conf.kaspa_rest_url)
+    }
+
     /// Gets a signer, or returns an error if one is not available.
     pub fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
@@ -128,7 +132,7 @@ impl RestProvider {
 
     /// Get the gas price
     pub fn gas_price(&self) -> FixedPointNumber {
-        return FixedPointNumber::zero();
+        FixedPointNumber::zero()
     }
 
     /// dococo

@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use corelib::wallet::NetworkInfo;
+use corelib::payload::{MessageID, MessageIDs};
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -270,9 +271,9 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let msg_ids_raw = corelib::payload::MessageIDs::new(msg_ids)
-        .into_value()
-        .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
+    let msg_ids_raw = MessageIDs::new(msg_ids.into_iter().map(MessageID).collect::<Vec<MessageID>>())
+    .into_value()
+    .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
 
     // Save msg_ids_raw in the proprietaries for later retrieval by validators
     let global = GlobalBuilder::default()

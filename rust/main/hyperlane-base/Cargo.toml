@@ -8,6 +8,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 async-trait.workspace = true
 axum.workspace = true
 aws-config.workspace = true
@@ -67,9 +68,13 @@ hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", branch = "main" }
+
+kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
+kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
 
 
 # dependency version is determined by etheres

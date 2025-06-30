@@ -584,7 +584,7 @@ impl BaseAgent for Relayer {
                     &mut tasks,
                     task_monitor.clone(),
                     send_channels.clone(),
-                );
+                ).await;
                 continue;
             }
             let maybe_broadcaster = self
@@ -1437,7 +1437,7 @@ mod test {
 }
 
 impl Relayer {
-    fn launch_dymension_kaspa_tasks(
+    async fn launch_dymension_kaspa_tasks(
         &self,
         origin: &HyperlaneDomain,
         tasks: &mut Vec<JoinHandle<()>>,
@@ -1456,18 +1456,19 @@ impl Relayer {
         let b = KaspaBridgeFoo::new(
             origin.clone(),
             kas_db.clone().to_owned(),
-            kas_provider,
-            hub_mailbox,
+            kas_provider.clone(),
+            hub_mailbox.clone(),
             metadata_getter,
         );
+        
+        // sync relayer before starting other tasks
+        b.sync_relayer_if_needed().await.unwrap();
 
         tasks.push(b.run_deposit_loop(task_monitor.clone()));
-
-        // TODO: confirmation loop
-
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
     }
+
 }
 
 #[derive(Debug, Clone)]

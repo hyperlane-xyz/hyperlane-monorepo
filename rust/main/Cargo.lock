@@ -2551,6 +2551,7 @@ dependencies = [
  "reqwest-ratelimit",
  "secp256k1 0.29.1",
  "serde",
+ "serde-value",
  "tokio",
  "tracing",
  "url",
@@ -3739,6 +3740,7 @@ dependencies = [
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
  "once_cell",
+ "openapi",
  "pin-project",
  "protobuf",
  "relayer 0.2.0",
@@ -6021,9 +6023,12 @@ dependencies = [
  "hyperlane-starknet",
  "hyperlane-test",
  "itertools 0.13.0",
+ "kaspa-consensus-core",
+ "kaspa-hashes",
  "maplit",
  "mockall",
  "moka",
+ "openapi",
  "paste",
  "prometheus",
  "relayer 0.2.0",
@@ -14545,7 +14550,6 @@ dependencies = [
 name = "validator"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "axum 0.8.4",
  "core",
  "eyre",
@@ -14564,7 +14568,6 @@ dependencies = [
  "log",
  "relayer 0.2.0",
  "secp256k1 0.29.1",
- "serde",
  "tokio",
  "workflow-core",
 ]

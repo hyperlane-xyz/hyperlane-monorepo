@@ -5,10 +5,13 @@ use serde::{Deserialize, Serialize};
 use crate::consts::KEY_MESSAGE_IDS;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MessageIDs(pub Vec<H256>);
+pub struct MessageID(pub H256);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageIDs(pub Vec<MessageID>);
 
 impl MessageIDs {
-    pub fn new(ids: Vec<H256>) -> Self {
+    pub fn new(ids: Vec<MessageID>) -> Self {
         Self(ids)
     }
 

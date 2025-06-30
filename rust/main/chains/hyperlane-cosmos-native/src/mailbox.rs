@@ -56,6 +56,11 @@ impl CosmosNativeMailbox {
             value: process.encode_to_vec(),
         })
     }
+
+    /// A provider for the chain
+    pub fn provider(&self) -> CosmosNativeProvider {
+        self.provider.clone()
+    }
 }
 
 impl HyperlaneChain for CosmosNativeMailbox {
