@@ -20,7 +20,7 @@ import { ousdtSafes } from '../../governance/safe/ousdt.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
-const deploymentChains = [
+export const deploymentChains = [
   'ethereum',
   'celo',
   'optimism',

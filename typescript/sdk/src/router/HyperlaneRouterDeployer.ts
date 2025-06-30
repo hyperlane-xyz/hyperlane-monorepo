@@ -3,6 +3,8 @@ import {
   Address,
   addBufferToGasLimit,
   addressToBytes32,
+  concurrentMap,
+  eqAddress,
   objFilter,
   objMap,
   objMerge,
@@ -17,6 +19,9 @@ import {
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap } from '../types.js';
+
+const BATCH_SIZE = 50;
+const CONCURRENCY = 50;
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -55,56 +60,85 @@ export abstract class HyperlaneRouterDeployer<
     const allRouters = objMerge(deployedRouters, foreignRouters);
 
     const allChains = Object.keys(allRouters);
-    await Promise.all(
-      Object.entries(deployedContractsMap).map(async ([chain, contracts]) => {
-        const allRemoteChains = this.multiProvider
-          .getRemoteChains(chain)
-          .filter((c) => allChains.includes(c));
+    const chainEntries = Object.entries(deployedContractsMap);
 
-        const enrollEntries = await Promise.all(
-          allRemoteChains.map(async (remote) => {
-            const remoteDomain = this.multiProvider.getDomainId(remote);
-            const current = await this.router(contracts).routers(remoteDomain);
-            const expected = addressToBytes32(allRouters[remote]);
-            return current !== expected ? [remoteDomain, expected] : undefined;
-          }),
-        );
-        const entries = enrollEntries.filter(
-          (entry): entry is [number, string] => entry !== undefined,
-        );
-        const domains = entries.map(([id]) => id);
-        const addresses = entries.map(([, address]) => address);
+    // Process chains in batches of 30
+    for (let i = 0; i < chainEntries.length; i += BATCH_SIZE) {
+      const batch = chainEntries.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(chainEntries.length / BATCH_SIZE);
 
-        // skip if no enrollments are needed
-        if (domains.length === 0) {
-          return;
-        }
+      this.logger.info(
+        `Processing batch ${batchNumber}/${totalBatches} (${batch.length} chains)`,
+      );
 
-        await super.runIfOwner(chain, this.router(contracts), async () => {
-          const chains = domains.map((id) =>
-            this.multiProvider.getChainName(id),
-          );
-          this.logger.debug(
-            `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
-          );
-          const router = this.router(contracts);
-          const estimatedGas = await router.estimateGas.enrollRemoteRouters(
-            domains,
-            addresses,
-          );
-          // deploy with 10% buffer on gas limit
-          const enrollTx = await router.enrollRemoteRouters(
-            domains,
-            addresses,
-            {
-              gasLimit: addBufferToGasLimit(estimatedGas),
-              ...this.multiProvider.getTransactionOverrides(chain),
+      await Promise.all(
+        batch.map(async ([chain, contracts]) => {
+          const allRemoteChains = this.multiProvider
+            .getRemoteChains(chain)
+            .filter((c) => allChains.includes(c));
+
+          const enrollEntries = await concurrentMap(
+            CONCURRENCY,
+            allRemoteChains,
+            async (remote) => {
+              const remoteDomain = this.multiProvider.getDomainId(remote);
+              const current =
+                await this.router(contracts).routers(remoteDomain);
+              const expected = addressToBytes32(allRouters[remote]);
+              return !eqAddress(current, expected)
+                ? [remoteDomain, expected]
+                : undefined;
             },
           );
-          await this.multiProvider.handleTx(chain, enrollTx);
-        });
-      }),
-    );
+          const entries = enrollEntries.filter(
+            (entry): entry is [number, string] => entry !== undefined,
+          );
+          const domains = entries.map(([id]) => id);
+          const addresses = entries.map(([, address]) => address);
+
+          // skip if no enrollments are needed
+          if (domains.length === 0) {
+            return;
+          }
+
+          await super.runIfOwner(chain, this.router(contracts), async () => {
+            const router = this.router(contracts);
+            const enrollBatchSize =
+              chain === 'unitzero' || chain === 'rootstockmainnet'
+                ? Math.ceil(BATCH_SIZE / 4)
+                : BATCH_SIZE;
+            for (let i = 0; i < domains.length; i += enrollBatchSize) {
+              const batchDomains = domains.slice(i, i + enrollBatchSize);
+              const batchAddresses = addresses.slice(i, i + enrollBatchSize);
+
+              const chains = batchDomains.map((id) =>
+                this.multiProvider.getChainName(id),
+              );
+              this.logger.info(
+                `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
+              );
+
+              const estimatedGas = await router.estimateGas.enrollRemoteRouters(
+                batchDomains,
+                batchAddresses,
+              );
+              const enrollTx = await router.enrollRemoteRouters(
+                batchDomains,
+                batchAddresses,
+                {
+                  gasLimit: addBufferToGasLimit(estimatedGas),
+                  ...this.multiProvider.getTransactionOverrides(chain),
+                },
+              );
+              await this.multiProvider.handleTx(chain, enrollTx);
+            }
+          });
+        }),
+      );
+
+      this.logger.info(`Completed batch ${batchNumber}/${totalBatches}`);
+    }
   }
 
   async transferOwnership(
