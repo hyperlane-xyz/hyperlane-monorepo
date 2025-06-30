@@ -4,34 +4,38 @@ import {
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { RouterConfigWithoutOwner } from '../../../../src/config/warp.js';
-import { ETHEREUM_DEPLOYER_ADDRESS } from '../../testnet4/owners.js';
-
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import {
   messageTransmitterAddresses,
   tokenMessengerAddresses,
   usdcTokenAddresses,
-} from './cctp.js';
+} from '../cctp.js';
 
-const SERVICE_URL = 'https://testnet-offchain-lookup.services.hyperlane.xyz';
+const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
+
+export const CCTP_CHAINS = [
+  'ethereum',
+  'avalanche',
+  'optimism',
+  'arbitrum',
+  'base',
+  'polygon',
+  'unichain',
+] as const;
 
 export const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const chains = [
-    'sepolia',
-    'optimismsepolia',
-    'arbitrumsepolia',
-    'basesepolia',
-  ] as const;
-
-  const owner = ETHEREUM_DEPLOYER_ADDRESS;
-
   return Object.fromEntries(
-    chains.map((chain) => {
+    CCTP_CHAINS.map((chain) => {
+      const owner = awIcas[chain] ?? awSafes[chain];
+      assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
         owner,
         mailbox: routerConfig[chain].mailbox,
@@ -40,6 +44,7 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
+        contractVersion: '8.1.0',
       };
       return [chain, config];
     }),
