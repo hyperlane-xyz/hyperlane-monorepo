@@ -97,6 +97,8 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  SubtensorUSDC = 'USDC/subtensor',
+
   // Not present in the registry
   // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
 
