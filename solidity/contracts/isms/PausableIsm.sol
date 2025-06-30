@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "@home/PackageVersioned.sol";
 
 contract PausableIsm is
     IInterchainSecurityModule,

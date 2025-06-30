@@ -18,7 +18,7 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "@home/PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";

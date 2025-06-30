@@ -19,7 +19,7 @@ import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ISlasher} from "../interfaces/avs/vendored/ISlasher.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "@home/PackageVersioned.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     // ============ Libraries ============

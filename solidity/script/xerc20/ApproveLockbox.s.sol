@@ -4,16 +4,16 @@ pragma solidity >=0.8.0;
 import "forge-std/Script.sol";
 
 import {AnvilRPC} from "test/AnvilRPC.sol";
-import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {TypeCasts} from "@home/libs/TypeCasts.sol";
 
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {ProxyAdmin} from "contracts/upgrade/ProxyAdmin.sol";
+import {ProxyAdmin} from "@home/upgrade/ProxyAdmin.sol";
 
-import {HypXERC20Lockbox} from "contracts/token/extensions/HypXERC20Lockbox.sol";
-import {IXERC20Lockbox} from "contracts/token/interfaces/IXERC20Lockbox.sol";
-import {IXERC20} from "contracts/token/interfaces/IXERC20.sol";
-import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
+import {HypXERC20Lockbox} from "@home/token/extensions/HypXERC20Lockbox.sol";
+import {IXERC20Lockbox} from "@home/token/interfaces/IXERC20Lockbox.sol";
+import {IXERC20} from "@home/token/interfaces/IXERC20.sol";
+import {IERC20} from "@home/token/interfaces/IXERC20.sol";
 
 // source .env.<CHAIN>
 // forge script ApproveLockbox.s.sol --broadcast --rpc-url localhost:XXXX

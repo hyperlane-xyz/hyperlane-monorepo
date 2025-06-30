@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {TypeCasts} from "@home/libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";

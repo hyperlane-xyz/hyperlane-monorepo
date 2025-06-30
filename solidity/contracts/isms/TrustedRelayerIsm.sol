@@ -6,7 +6,7 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Message} from "../libs/Message.sol";
 import {Mailbox} from "../Mailbox.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "@home/PackageVersioned.sol";
 
 contract TrustedRelayerIsm is IInterchainSecurityModule, PackageVersioned {
     using Message for bytes;

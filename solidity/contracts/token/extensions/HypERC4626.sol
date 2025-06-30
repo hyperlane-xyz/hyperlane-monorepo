@@ -18,7 +18,7 @@ import {HypERC20} from "../HypERC20.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
-import {Router} from "contracts/client/Router.sol";
+import {Router} from "@home/client/Router.sol";
 import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============

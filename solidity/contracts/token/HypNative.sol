@@ -4,8 +4,8 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
-import {Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {ITokenBridge} from "@home/interfaces/ITokenBridge.sol";
+import {Quote} from "@home/interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 

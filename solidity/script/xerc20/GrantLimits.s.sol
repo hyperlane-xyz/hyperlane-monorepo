@@ -5,9 +5,9 @@ import "forge-std/Script.sol";
 
 import {AnvilRPC} from "test/AnvilRPC.sol";
 
-import {IXERC20Lockbox} from "contracts/token/interfaces/IXERC20Lockbox.sol";
-import {IXERC20} from "contracts/token/interfaces/IXERC20.sol";
-import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
+import {IXERC20Lockbox} from "@home/token/interfaces/IXERC20Lockbox.sol";
+import {IXERC20} from "@home/token/interfaces/IXERC20.sol";
+import {IERC20} from "@home/token/interfaces/IXERC20.sol";
 
 // source .env.<CHAIN>
 // anvil --fork-url $RPC_URL --port XXXX

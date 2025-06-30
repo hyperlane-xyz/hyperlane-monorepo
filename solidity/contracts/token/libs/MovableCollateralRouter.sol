@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Router} from "contracts/client/Router.sol";
+import {Router} from "@home/client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
+import {ITokenBridge} from "@home/interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
