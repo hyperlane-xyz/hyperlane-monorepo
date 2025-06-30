@@ -65,6 +65,10 @@ impl AdaptsChain for CosmosAdapter {
         todo!()
     }
 
+    async fn new_block_finalized(&self) -> std::result::Result<bool, LanderError> {
+        todo!()
+    }
+
     fn estimated_block_time(&self) -> &std::time::Duration {
         todo!()
     }

@@ -93,6 +93,9 @@ pub trait AdaptsChain: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Returns if a new block was finalized since the last call.
+    async fn new_block_finalized(&self) -> Result<bool, LanderError>;
+
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
 

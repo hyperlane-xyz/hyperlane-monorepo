@@ -959,6 +959,7 @@ fn mock_ethereum_adapter(
         batch_contract_address,
         payload_db,
         signer,
+        current_block_number: Default::default(),
     }
 }
 

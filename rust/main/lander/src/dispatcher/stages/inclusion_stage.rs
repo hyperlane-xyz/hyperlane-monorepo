@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::ops::Mul;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -106,10 +107,50 @@ impl InclusionStage {
         domain: String,
     ) -> Result<(), LanderError> {
         let estimated_block_time = state.adapter.estimated_block_time();
+
+        // minimum sleep duration to avoid busy waiting
+        const MIN_SLEEP_DURATION: Duration = Duration::from_millis(100);
+
+        // number of attempts done before a new finalized block is observed
+        let mut attempt_count = 0;
+
+        // initial sleep duration is set to the estimated block time, otherwise
+        // it will be calculated dynamically based on the attempt count
+        let mut sleep_duration = *estimated_block_time;
+
+        // evaluate the pool every block
         loop {
-            // evaluate the pool every block
-            sleep(*estimated_block_time).await;
-            Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
+            // sleep for the estimated block time or with exponential backoff
+            sleep(sleep_duration).await;
+
+            let before_processing = tokio::time::Instant::now();
+            let new_block_finalized = state.adapter.new_block_finalized().await?;
+
+            sleep_duration = if new_block_finalized {
+                Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
+
+                // reset the attempt count since a new block was finalized
+                attempt_count = 0;
+
+                // we expect the next block to be finalized in the estimated block time minus
+                // the time we spent processing
+                *estimated_block_time - before_processing.elapsed()
+            } else {
+                // increment the attempt count since we waited for a now block to be finalized,
+                // but it didn't happen, so we will try again as soon as possible, but with
+                // an exponential backoff
+                attempt_count += 1;
+
+                // we calculate exponential backoff duration based on the attempt count
+                // backoff = MIN_SLEEP_DURATION * 2^attempt_count
+                let backoff_duration = MIN_SLEEP_DURATION
+                    .checked_mul(1 << attempt_count)
+                    .unwrap_or(*estimated_block_time);
+
+                // if backoff duration exceeds the estimated block time, we sleep only for
+                // the estimated block time to avoid long delays
+                std::cmp::min(backoff_duration, *estimated_block_time)
+            }
         }
     }
 

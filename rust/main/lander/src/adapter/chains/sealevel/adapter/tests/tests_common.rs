@@ -130,6 +130,10 @@ impl SealevelProviderForLander for MockProvider {
     ) -> ChainResult<bool> {
         Ok(true)
     }
+
+    async fn block_slot_finalized(&self) -> ChainResult<u32> {
+        Ok(43)
+    }
 }
 
 pub fn estimate() -> SealevelTxCostEstimate {

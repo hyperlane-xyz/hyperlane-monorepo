@@ -55,6 +55,7 @@ pub struct EthereumAdapter {
     pub batch_contract_address: H256,
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
+    pub current_block_number: Arc<Mutex<Option<u32>>>,
 }
 
 impl EthereumAdapter {
@@ -107,6 +108,7 @@ impl EthereumAdapter {
             batch_contract_address: connection_conf.batch_contract_address(),
             payload_db,
             signer,
+            current_block_number: Default::default(),
         };
 
         Ok(adapter)
@@ -526,6 +528,28 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    async fn new_block_finalized(&self) -> Result<bool, LanderError> {
+        let new_block_number = self
+            .provider
+            .get_finalized_block_number(&self.reorg_period)
+            .await
+            .map_err(LanderError::from)?;
+
+        let mut current_block_number = self.current_block_number.lock().await;
+
+        if let Some(current) = *current_block_number {
+            if current < new_block_number {
+                *current_block_number = Some(new_block_number);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        } else {
+            *current_block_number = Some(new_block_number);
+            Ok(true)
+        }
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {

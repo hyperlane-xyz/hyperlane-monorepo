@@ -71,6 +71,7 @@ pub struct SealevelAdapter {
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
     estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
+    current_slot: Arc<Mutex<Option<u32>>>,
 }
 
 impl SealevelAdapter {
@@ -139,6 +140,7 @@ impl SealevelAdapter {
             oracle,
             submitter,
             estimate_freshness_cache,
+            current_slot: Default::default(),
         })
     }
 
@@ -159,6 +161,7 @@ impl SealevelAdapter {
             oracle,
             submitter,
             estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
+            current_slot: Default::default(),
         }
     }
 
@@ -392,7 +395,27 @@ impl AdaptsChain for SealevelAdapter {
         true
     }
 
-    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
+    async fn new_block_finalized(&self) -> Result<bool, LanderError> {
+        let new_slot = self
+            .provider
+            .block_slot_finalized()
+            .await
+            .map_err(LanderError::from)?;
+
+        let mut current_slot = self.current_slot.lock().await;
+
+        if let Some(current) = *current_slot {
+            if current < new_slot {
+                *current_slot = Some(new_slot);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        } else {
+            *current_slot = Some(new_slot);
+            Ok(true)
+        }
+    }
 
     fn estimated_block_time(&self) -> &Duration {
         &self.estimated_block_time
@@ -401,6 +424,8 @@ impl AdaptsChain for SealevelAdapter {
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
     }
+
+    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
 }
 
 #[cfg(test)]

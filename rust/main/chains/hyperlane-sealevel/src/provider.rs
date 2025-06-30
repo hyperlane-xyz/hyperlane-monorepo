@@ -17,6 +17,7 @@ use solana_transaction_status::{
     UiTransactionStatusMeta,
 };
 use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding};
+
 use tracing::warn;
 
 use hyperlane_core::{
@@ -96,6 +97,9 @@ pub trait SealevelProviderForLander: Send + Sync {
         signature: Signature,
         commitment: CommitmentConfig,
     ) -> ChainResult<bool>;
+
+    /// Gets the finalized block height.
+    async fn block_slot_finalized(&self) -> ChainResult<u32>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -309,6 +313,10 @@ impl SealevelProviderForLander for SealevelProvider {
         self.rpc_client()
             .confirm_transaction_with_commitment(signature, commitment)
             .await
+    }
+
+    async fn block_slot_finalized(&self) -> ChainResult<u32> {
+        self.rpc_client.get_slot().await
     }
 }
 

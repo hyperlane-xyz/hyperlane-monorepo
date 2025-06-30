@@ -25,6 +25,10 @@ async fn test_processing_included_txs() {
         .return_const(Duration::from_millis(10));
 
     mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
+
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
 
@@ -50,6 +54,10 @@ async fn test_unincluded_txs_reach_mempool() {
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
+
+    mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
 
     mock_adapter
         .expect_tx_ready_for_resubmission()
@@ -93,6 +101,10 @@ async fn test_failed_simulation() {
         .return_const(Duration::from_millis(10));
 
     mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
+
+    mock_adapter
         .expect_tx_ready_for_resubmission()
         .returning(|_| true);
 
@@ -128,6 +140,10 @@ async fn test_failed_estimation() {
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
+
+    mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
 
     mock_adapter
         .expect_tx_status()
@@ -192,6 +208,9 @@ async fn test_transaction_status_dropped() {
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
     mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::FailedSimulation)));
 
@@ -243,6 +262,9 @@ async fn test_failed_submission_after_simulation_and_estimation() {
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
     mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
     mock_adapter
@@ -277,6 +299,9 @@ async fn test_transaction_included_immediately() {
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
     mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
+    mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
 
@@ -300,6 +325,9 @@ async fn test_transaction_pending_then_included() {
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(10));
+    mock_adapter
+        .expect_new_block_finalized()
+        .returning(|| Ok(true));
     let mut call_count = 0;
     mock_adapter.expect_tx_status().returning(move |_| {
         call_count += 1;

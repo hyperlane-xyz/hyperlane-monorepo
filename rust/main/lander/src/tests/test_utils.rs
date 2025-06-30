@@ -30,6 +30,7 @@ mockall::mock! {
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, LanderError>;
         async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
+        async fn new_block_finalized(&self) -> Result<bool, LanderError>;
         fn estimated_block_time(&self) -> &std::time::Duration;
         fn max_batch_size(&self) -> u32;
         fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);

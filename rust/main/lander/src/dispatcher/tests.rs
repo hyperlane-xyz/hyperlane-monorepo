@@ -376,6 +376,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));
 
+    adapter.expect_new_block_finalized().returning(|| Ok(true));
+
     let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
     let tx_building_result = TxBuildingResult::new(vec![payload.details.clone()], Some(tx));
     let txs = vec![tx_building_result];
