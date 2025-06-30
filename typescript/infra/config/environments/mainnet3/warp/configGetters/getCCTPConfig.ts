@@ -70,7 +70,7 @@ export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
 
     return {
       type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-      chain: chain,
+      chain: safeChain,
       owner: icaOwner,
       destinationChain: chain,
       internalSubmitter: safeSubmitter,
@@ -78,13 +78,6 @@ export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
   });
 
   return Object.fromEntries(
-    CCTP_CHAINS.map((chain, index) => {
-      return [
-        chain,
-        {
-          submitter: submitterMetadata[index],
-        },
-      ];
-    }),
+    submitterMetadata.map((submitter) => [submitter.chain, { submitter }]),
   );
 };
