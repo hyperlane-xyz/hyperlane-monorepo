@@ -3,14 +3,14 @@
     "type": "collateral",
     "decimals": 6,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "token": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+    "token": "GMzuntWYJLpNuCizrSR7ZXggiMdDzTNiEmSNHHunpump"
   },
   "starknet": {
     "type": "synthetic",
     "decimals": 6,
     "gas": 5000000,
-    "symbol": "JUP",
-    "name": "Jupiter",
-    "foreignDeployment": "0x03a292bd498266ac4b05d93cc2df5cd7883c0684faabff182ab568d566a3c151"
+    "symbol": "Daydreams",
+    "name": "dreams",
+    "foreignDeployment": "0x04fcaf2a7b4a072fe57c59beee807322d34ed65000d78611c909a46fead07fb1"
   }
 }
