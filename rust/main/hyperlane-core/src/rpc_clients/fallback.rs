@@ -50,6 +50,13 @@ impl PrioritizedProviderInner {
             last_block_height: (block_height, Instant::now()),
         }
     }
+
+    fn reset_failed_count(&self) -> Self {
+        Self {
+            last_failed_count: 0,
+            ..*self
+        }
+    }
 }
 /// Sub-providers and priority information
 pub struct PrioritizedProviders<T> {
@@ -170,10 +177,7 @@ where
             .await
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
-            let new_priority = PrioritizedProviderInner {
-                last_failed_count: 0,
-                ..*priority
-            };
+            let new_priority = priority.reset_failed_count();
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(new_priority).await;
             info!(
@@ -192,10 +196,7 @@ where
         self.increment_failed_count(priority.index).await;
 
         if priority.last_failed_count + 1 >= FAILED_REQUEST_THRESHOLD {
-            let new_priority = PrioritizedProviderInner {
-                last_failed_count: 0,
-                ..*priority
-            };
+            let new_priority = priority.reset_failed_count();
             self.deprioritize_provider(new_priority).await;
             info!(
                 provider_index=%new_priority.index,
@@ -207,8 +208,9 @@ where
 
     async fn increment_failed_count(&self, index: usize) {
         let mut priorities = self.inner.priorities.write().await;
-        if let Some(p) = priorities.get_mut(index) {
-            p.last_failed_count += 1;
+
+        if let Some(priority) = priorities.iter_mut().find(|p| p.index == index) {
+            priority.last_failed_count += 1;
         }
     }
 
