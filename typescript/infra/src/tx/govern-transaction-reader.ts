@@ -35,6 +35,7 @@ import {
   WarpCoreConfig,
   coreFactories,
   interchainAccountFactories,
+  isProxyAdminByBytecode,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -265,11 +266,6 @@ export class GovernTransactionReader {
       return this.readMailboxTransaction(chain, tx);
     }
 
-    // If it's to a Proxy Admin
-    if (this.isProxyAdminTransaction(chain, tx)) {
-      return this.readProxyAdminTransaction(chain, tx);
-    }
-
     // If it's to a TimelockController
     if (this.isTimelockControllerTransaction(chain, tx)) {
       return this.readTimelockControllerTransaction(chain, tx);
@@ -299,6 +295,11 @@ export class GovernTransactionReader {
     // If it's an ERC20 transaction
     if (this.isErc20Transaction(chain, tx)) {
       return this.readErc20Transaction(chain, tx);
+    }
+
+    // If it's to a Proxy Admin
+    if (await this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's an Ownable transaction
@@ -943,11 +944,58 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const ownableTx = await this.readOwnableTransaction(chain, tx);
+    let insight: string | undefined;
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    switch (decoded.functionFragment.name) {
+      case proxyAdminInterface.functions['upgrade(address,address)'].name: {
+        const [proxy, implementation] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation}`;
+        break;
+      }
+      case proxyAdminInterface.functions[
+        'upgradeAndCall(address,address,bytes)'
+      ].name: {
+        const [proxy, implementation, data] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
+        break;
+      }
+      case proxyAdminInterface.functions['changeProxyAdmin(address,address)']
+        .name: {
+        const [proxy, newAdmin] = decoded.args;
+        insight = `Change admin of proxy ${proxy} to ${newAdmin}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyImplementation(address)']
+        .name: {
+        const [proxy] = decoded.args;
+        insight = `Get implementation address for proxy ${proxy}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyAdmin(address)'].name: {
+        const [proxy] = decoded.args;
+        insight = `Get admin address for proxy ${proxy}`;
+        break;
+      }
+      default: {
+        // Fallback to ownable transaction handling for unknown functions
+        const ownableTx = await this.readOwnableTransaction(chain, tx);
+        return {
+          ...ownableTx,
+          to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+          signature: decoded.signature,
+        };
+      }
+    }
+
     return {
-      ...ownableTx,
+      chain,
       to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
       signature: decoded.signature,
+      ...(insight ? { insight } : { args }),
     };
   }
 
@@ -1136,17 +1184,26 @@ export class GovernTransactionReader {
 
     const multisends = await Promise.all(
       multisendDatas.map(async (multisend, index) => {
-        const decoded = await this.read(
-          chain,
-          metaTransactionDataToEV5Transaction(multisend),
-        );
-        return {
-          chain,
-          index,
-          value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
-          operation: formatOperationType(multisend.operation),
-          decoded,
-        };
+        try {
+          const decoded = await this.read(
+            chain,
+            metaTransactionDataToEV5Transaction(multisend),
+          );
+          return {
+            chain,
+            index,
+            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            operation: formatOperationType(multisend.operation),
+            decoded,
+          };
+        } catch (error) {
+          this.logger.error(
+            `Failed to decode multisend at index ${index}:`,
+            error,
+            multisend,
+          );
+          throw error;
+        }
       }),
     );
 
@@ -1213,13 +1270,22 @@ export class GovernTransactionReader {
     );
   }
 
-  isProxyAdminTransaction(
+  async isProxyAdminTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
+  ): Promise<boolean> {
+    if (tx.to === undefined) {
+      return false;
+    }
+
+    // Check against known proxy admin addresses first
+    if (tx.to === this.chainAddresses[chain].proxyAdmin) {
+      return true;
+    }
+
+    return await isProxyAdminByBytecode(
+      this.multiProvider.getProvider(chain),
+      tx.to,
     );
   }
 

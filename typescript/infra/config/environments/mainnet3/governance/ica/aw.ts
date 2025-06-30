@@ -168,4 +168,10 @@ export const awIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687',
   botanix: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9',
+
+  // Jun 30, 2025 - cctp upgrade
+  // ----------------------------------------------------------
+  // arbitrum: '0x0a44BFeE8F86e05EE91133838E64A781A4Cb3321',
+  // optimism: '0x874C8795d84DA7495416c25df2318899BeC7596a',
+  // base: '0x234B9c4718f38a90F065476c645C78c975bB0952',
 } as const;
