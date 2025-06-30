@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 14.2.0
+
+### Minor Changes
+
+- 3122bae93: Add support for updating the required and default hooks in core deployments
+- 147dd360a: add cosmosnative warp deploy sdk logic
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@14.2.0
+- @hyperlane-xyz/cosmos-sdk@14.2.0
+- @hyperlane-xyz/utils@14.2.0
+- @hyperlane-xyz/core@8.1.1
+
 ## 14.1.0
 
 ### Minor Changes
