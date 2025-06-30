@@ -141,6 +141,7 @@ export const mainnet3SupportedChainNames = [
   'xai',
   'xlayer',
   'xpla',
+  'xrplevm',
   'zeronetwork',
   'zetachain',
   'zircuit',

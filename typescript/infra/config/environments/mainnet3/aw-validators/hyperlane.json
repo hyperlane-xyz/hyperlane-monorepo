@@ -481,5 +481,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "xrplevm": {
+    "validators": ["0x14d3e2f28d60d54a1659a205cb71e6e440f06510"]
   }
 }

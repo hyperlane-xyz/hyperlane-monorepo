@@ -2646,6 +2646,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  xrplevm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x14d3e2f28d60d54a1659a205cb71e6e440f06510',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   zeronetwork: {
     threshold: 2,
     validators: [

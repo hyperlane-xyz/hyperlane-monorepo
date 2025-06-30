@@ -551,6 +551,10 @@
     "amount": "280.0",
     "decimals": 9
   },
+  "xrplevm": {
+    "amount": "275.0",
+    "decimals": 9
+  },
   "zeronetwork": {
     "amount": "0.06",
     "decimals": 9
