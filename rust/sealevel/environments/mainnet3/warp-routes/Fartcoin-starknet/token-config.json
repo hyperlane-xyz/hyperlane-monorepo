@@ -8,7 +8,7 @@
   "starknet": {
     "type": "synthetic",
     "decimals": 6,
-    "gas": 6000000,
+    "gas": 5000000,
     "symbol": "Fartcoin",
     "name": "Fartcoin",
     "foreignDeployment": "0x06e0e0117b742747452601f9f14576eb9d71b326379a1794bb51d9adbce3dbd3"

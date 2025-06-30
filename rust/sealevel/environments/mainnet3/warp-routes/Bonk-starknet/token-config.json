@@ -8,6 +8,7 @@
   "starknet": {
     "type": "synthetic",
     "decimals": 5,
+    "gas": 5000000,
     "symbol": "Bonk",
     "name": "Bonk",
     "foreignDeployment": "0x074238dfa02063792077820584c925b679a013cbab38e5ca61af5627d1eda736"
