@@ -139,7 +139,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         emit SentTransferRemote(_destination, _recipient, outboundAmount);
     }
 
-    // default behavior is no fee
+    /**
+     * @dev Should charge `_amountOrId` of tokens from `msg.sender`.
+     * @dev May charge fees specified by the corresponding `quoteTransferRemote` call.
+     * @dev Called by `transferRemote` before message dispatch.
+     * @dev Optionally returns `metadata` associated with the transfer to be passed in message.
+     */
     function _chargeSender(
         uint32 /*_destination*/,
         bytes32 /*_recipient*/,
@@ -265,4 +270,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId,
         bytes calldata metadata
     ) internal virtual;
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amountOrId
+    ) internal virtual {
+        _transferTo(_recipient, _amountOrId, msg.data[0:0]);
+    }
 }
