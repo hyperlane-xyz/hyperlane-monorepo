@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump"
+  },
+  "starknet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "gas": 6000000,
+    "symbol": "Fartcoin",
+    "name": "Fartcoin",
+    "foreignDeployment": "0x06e0e0117b742747452601f9f14576eb9d71b326379a1794bb51d9adbce3dbd3"
+  }
+}
