@@ -89,6 +89,7 @@ export const blacklistedMessageIds = [
   // Messages to a recipient that Neutron doesn't seem to allow
   '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
   '0xc376df3e8d82de669b48b58e0521db5cf6c23a21fb2230487c30536f7b6503f7',
+  '0xe33edaf574065ad280dd961a50c2df21089dd5b0650ab840e3f1d61f473b4c93',
 
   // messages using the ICA call commitments with the wrong server address
   '0x69d5cfae80e3708a5cf57f2ee1590aa8806aef85fa5fb662de8cec51b7409167',
