@@ -1,8 +1,11 @@
 import {
   ChainMap,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   OwnableConfig,
+  SubmitterMetadata,
   TokenType,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -47,6 +50,41 @@ export const getCCTPWarpConfig = async (
         contractVersion: '8.1.0',
       };
       return [chain, config];
+    }),
+  );
+};
+
+const safeChain = 'ethereum';
+const icaOwner = awSafes[safeChain];
+const safeSubmitter: SubmitterMetadata = {
+  type: TxSubmitterType.GNOSIS_SAFE,
+  chain: safeChain,
+  safeAddress: icaOwner,
+};
+
+export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
+  const submitterMetadata = CCTP_CHAINS.map((chain): SubmitterMetadata => {
+    if (chain === safeChain) {
+      return safeSubmitter;
+    }
+
+    return {
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      chain: chain,
+      owner: icaOwner,
+      destinationChain: chain,
+      internalSubmitter: safeSubmitter,
+    };
+  });
+
+  return Object.fromEntries(
+    CCTP_CHAINS.map((chain, index) => {
+      return [
+        chain,
+        {
+          submitter: submitterMetadata[index],
+        },
+      ];
     }),
   );
 };

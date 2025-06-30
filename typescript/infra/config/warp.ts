@@ -40,7 +40,10 @@ import {
   getBsquaredUBTCWarpConfig,
   getUbtcGnosisSafeBuilderStrategyConfigGenerator,
 } from './environments/mainnet3/warp/configGetters/getBsquaredUBTCWarpConfig.js';
-import { getCCTPWarpConfig as getMainnetCCTPWarpConfig } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
+import {
+  getCCTPStrategyConfig,
+  getCCTPWarpConfig as getMainnetCCTPWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -165,6 +168,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
+  [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
 };
 
 /**
