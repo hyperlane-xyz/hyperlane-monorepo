@@ -1,0 +1,30 @@
+{
+  "starknet": {
+    "hex": "0x065aa53156379692b54141146c342f90e9c7a1243896a0be0fea6c8960b9261c",
+    "base58": "RocaG5dR7KjGe31vmST2tpwAHq324pDb5FzdM7M1tNo"
+  },
+  "paradex": {
+    "hex": "0x0274d8800b7f4f60a13c8cf17fda9e949b099562195ab185ce667f2e483457c5",
+    "base58": "Ab9xAJgB4GXjmQzbQrrCS81cy5Voyo75b6GN9dHkpVS"
+  },
+  "base": {
+    "hex": "0x0000000000000000000000000ba30bdd7d3c510de16c47385102c0b7068f4f33",
+    "base58": "111111111111AQNs8q6x9g3AF8kzkdjuLvmE4vW"
+  },
+  "mode": {
+    "hex": "0x000000000000000000000000ca4b9b3b6dae4e5dc2d749b2bd400ef62e7ae642",
+    "base58": "1111111111113pTotpvRHa5NDUs9Qr6wT4pF9jTw"
+  },
+  "ethereum": {
+    "hex": "0x0000000000000000000000006912088890254e69970baedb03284fb3d8fbcda0",
+    "base58": "1111111111112TuFUsYiQdkqqY6u6ACge7A289D1"
+  },
+  "arbitrum": {
+    "hex": "0x000000000000000000000000f5f93d26229482adca3e42f84d08d549cf131658",
+    "base58": "1111111111114RkqnMi44v3Rr3NLdBAz4Xyoe3nw"
+  },
+  "solanamainnet": {
+    "hex": "0xab90748c8a2d9a9eb20c926c1cfce7851c1dfd86a0622c2308dc538190609a1e",
+    "base58": "CYiUT9WzmHebQQJ5bBQSsWY7hW2GSwRgQ8gYZLHN7V6D"
+  }
+}
