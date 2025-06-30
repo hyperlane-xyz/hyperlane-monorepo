@@ -19,9 +19,6 @@ use crate::{
 
 use super::{utils::call_until_success_or_nonretryable_error, DispatcherState};
 
-#[cfg(test)]
-pub mod tests;
-
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
 pub const STAGE_NAME: &str = "InclusionStage";
@@ -87,7 +84,7 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                // the lock is held until the metric is updated, to prevent race conditions
+                // the lock is held until the metric is updated to prevent race conditions
                 let mut pool_lock = pool.lock().await;
                 let pool_len = pool_lock.len();
                 pool_lock.insert(tx.uuid.clone(), tx.clone());
@@ -340,3 +337,6 @@ impl InclusionStage {
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub mod tests;
