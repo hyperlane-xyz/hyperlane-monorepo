@@ -78,6 +78,9 @@ export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
   });
 
   return Object.fromEntries(
-    submitterMetadata.map((submitter) => [submitter.chain, { submitter }]),
+    CCTP_CHAINS.map((chain, index) => [
+      chain,
+      { submitter: submitterMetadata[index] },
+    ]),
   );
 };
