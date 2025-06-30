@@ -16,38 +16,18 @@ use api_rs::apis::{
         GetTransactionTransactionsTransactionIdGetParams,
     },
 };
-use corelib::deposit::DepositFXG;
+use corelib::{deposit::DepositFXG, ESCROW_ADDRESS};
 use eyre::Result;
-use hyperlane_core::Decode;
-use hyperlane_core::HyperlaneMessage;
-use hyperlane_core::RawHyperlaneMessage;
-use hyperlane_core::U256;
+use hyperlane_core::{RawHyperlaneMessage,Encode,U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash;
 pub use secp256k1::PublicKey;
 use std::error::Error;
-use std::io::Cursor;
 use std::str::FromStr;
+use corelib::{parse_hyperlane_message,parse_hyperlane_metadata};
 
-fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage, anyhow::Error> {
-    const MIN_EXPECTED_LENGTH: usize = 77;
 
-    if m.len() < MIN_EXPECTED_LENGTH {
-        return Err(anyhow::Error::msg("Value cannot be zero."));
-    }
-    let message = HyperlaneMessage::from(m);
-
-    Ok(message)
-}
-
-fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage, anyhow::Error> {
-    // decode token message inside  Hyperlane message
-    let mut reader = Cursor::new(m.body.as_slice());
-    let token_message = TokenMessage::read_from(&mut reader)?;
-
-    Ok(token_message)
-}
 
 fn get_tn10_config() -> configuration::Configuration {
     configuration::Configuration {
@@ -78,18 +58,18 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         .payload
         .ok_or("Tx payload not found")
         .map_err(|e| eyre::eyre!(e))?;
-    let block_id = res
-        .accepting_block_hash
+    let block_ids = res
+        .block_hash
         .ok_or("Block id not found")
         .map_err(|e| eyre::eyre!(e))?;
 
     // decode payload into Hyperlane message
     let rawmessage: RawHyperlaneMessage = hex::decode(payload).map_err(|e| eyre::eyre!(e))?;
-    let message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
+    let hl_message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
     // decode token message from Hyperlane message body
     let token_message: TokenMessage =
-        parse_hyperlane_metadata(&message).map_err(|e| eyre::eyre!(e))?;
+        parse_hyperlane_metadata(&hl_message).map_err(|e| eyre::eyre!(e))?;
 
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = res
@@ -98,7 +78,7 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         .map_err(|e| eyre::eyre!(e))?
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= token_message.amount()
+            U256::from(utxo.amount) >= token_message.amount() && utxo.script_public_key_address.as_ref().unwrap() == ESCROW_ADDRESS
         })
         .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
@@ -126,34 +106,21 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         // replace kaspa value and reencode message
         metadata.kaspa = output_bytes;
     }
-    let message_body: Vec<u8> = metadata.encode_to_vec();
-
+    let token_message_new = TokenMessage::new(token_message.recipient(),token_message.amount(),metadata.encode_to_vec());
     // create message with new body
-    let mut new_message = message.clone();
-    new_message.body = message_body;
+    let mut hl_message_new = hl_message.clone();
+    hl_message_new.body = token_message_new.to_vec();
 
     // build response for validator
     let tx = DepositFXG {
-        msg_id: message.id(),
+        msg_id: hl_message_new.id(),
         tx_id: tx,
         utxo_index: utxo_index,
-        block_id: block_id,
-        payload: new_message,
+        amount: token_message.amount(),
+        block_id: block_ids[0].clone(),
+        payload: hl_message_new,
     };
     Ok(tx)
-}
-
-pub async fn handle_new_deposits(
-    transaction_ids: Vec<String>,
-) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
-    let mut txs = Vec::new();
-
-    for transaction in transaction_ids {
-        let tx = handle_new_deposit(transaction).await?;
-        txs.push(tx);
-    }
-
-    Ok(txs)
 }
 
 #[cfg(test)]
@@ -170,10 +137,9 @@ mod tests {
         amount: U256,
         metadata: Vec<u8>,
     ) -> HyperlaneMessage {
+
+        let mut hl_message: HyperlaneMessage = HyperlaneMessage::default();
         let token_msg = TokenMessage::new(recipient, amount, metadata);
-
-        let mut hl_message = HyperlaneMessage::default();
-
         let encoded_bytes = token_msg.to_vec();
 
         hl_message.body = encoded_bytes;
