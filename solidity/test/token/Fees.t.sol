@@ -77,6 +77,15 @@ contract LinearFeeTest is BaseFeeTest {
     ) public {
         vm.assume(maxFee > 0);
         vm.assume(halfAmount > 0);
+        // Prevent overflow in denominator
+        vm.assume(halfAmount <= type(uint256).max / 2);
+        // Prevent division by zero
+        vm.assume(2 * uint256(halfAmount) > 0);
+        // Prevent overflow in numerator
+        vm.assume(
+            uint256(amount) == 0 ||
+                maxFee <= type(uint256).max / uint256(amount)
+        );
 
         LinearFee localLinearFee = new LinearFee(
             address(token),
@@ -85,8 +94,7 @@ contract LinearFeeTest is BaseFeeTest {
             OWNER
         );
 
-        uint256 uncapped = (uint256(amount) * maxFee) /
-            (2 * uint256(halfAmount));
+        uint256 uncapped = (uint256(amount) * maxFee) / (2 * halfAmount);
         uint256 expectedFee = uncapped > maxFee ? maxFee : uncapped;
 
         assertEq(

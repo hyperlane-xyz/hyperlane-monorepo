@@ -20,7 +20,6 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
  * This creates a simple, predictable fee structure where the fee scales linearly with the transfer amount until it reaches the cap.
  *
  * @dev The fee is always rounded down due to integer division
- * @dev halfAmount should be greater than 0 to avoid division by zero
  */
 contract LinearFee is BaseFee {
     constructor(

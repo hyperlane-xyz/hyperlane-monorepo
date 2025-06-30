@@ -14,9 +14,7 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
  * - Lower fee percentage for smaller transfers
  * - Fee approaches but never reaches maxFee as amount increases
  * - Fee approaches 0 as amount approaches 0
- *
- * maxFee The maximum fee amount (in wei) that can be charged
- * halfAmount The amount at which the fee equals half of maxFee
+
  *
  * Example:
  * - If maxFee = 1000 and halfAmount = 1000:

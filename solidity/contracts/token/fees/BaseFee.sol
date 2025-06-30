@@ -19,8 +19,21 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
     using Address for address payable;
     using SafeERC20 for IERC20;
 
+    /**
+     * @notice The ERC20 token for which this fee contract applies.
+     */
     IERC20 public immutable token;
+
+    /**
+     * @notice The maximum fee (in token units) that can be charged for a transfer.
+     * @dev Used as the cap or asymptote in fee calculations for derived contracts.
+     */
     uint256 public immutable maxFee;
+
+    /**
+     * @notice The reference amount at which the fee equals half of maxFee.
+     * @dev Used as a scaling parameter in fee formulas; its interpretation depends on the fee model.
+     */
     uint256 public immutable halfAmount;
 
     constructor(
