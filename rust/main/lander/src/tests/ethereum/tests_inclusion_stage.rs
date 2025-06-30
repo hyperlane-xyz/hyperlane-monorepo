@@ -337,7 +337,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         .expect_simulate_batch()
         .returning(move |_| {
             simulate_call_counter += 1;
-            // simulation passes on the first call, but fails on the second
+            // simulation passes on the first call but fails on the second
             if simulate_call_counter < 2 {
                 Ok((vec![], vec![]))
             } else {
@@ -461,7 +461,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
             }
         });
 
-    // Simulate escalation: first send returns hash1, second send returns hash2 (higher gas)
+    // Simulate escalation: first `send` returns hash1, second send returns hash2 (higher gas)
     let mut send_call_counter = 0;
     mock_evm_provider.expect_send().returning(move |_tx, _| {
         send_call_counter += 1;
@@ -625,7 +625,6 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
 #[traced_test]
 async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
     let block_time = Duration::from_millis(20);
-    let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
@@ -641,14 +640,6 @@ async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
                 "gas estimation failed".to_string(),
             ))
         });
-
-    // Simulate send and receipt (should not be called, but mock anyway)
-    mock_evm_provider
-        .expect_send()
-        .returning(move |_, _| Ok(hash));
-    mock_evm_provider
-        .expect_get_transaction_receipt()
-        .returning(move |_| Ok(None));
 
     let signer = H160::random();
     let dispatcher_state =
