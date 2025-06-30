@@ -1036,18 +1036,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  guru: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x0d756d9051f12c4de6aee2ee972193a2adfe00ef',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   harmony: {
     threshold: 2,
     validators: [

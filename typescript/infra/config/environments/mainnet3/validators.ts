@@ -1386,16 +1386,6 @@ export const validatorChainConfig = (
         'artela',
       ),
     },
-    guru: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('guru'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x0d756d9051f12c4de6aee2ee972193a2adfe00ef'],
-        },
-        'guru',
-      ),
-    },
     hemi: {
       interval: 5,
       reorgPeriod: getReorgPeriod('hemi'),
