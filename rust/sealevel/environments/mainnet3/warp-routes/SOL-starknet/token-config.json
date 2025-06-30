@@ -1,0 +1,15 @@
+{
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  },
+  "starknet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "gas": 6000000,
+    "name": "Solana",
+    "symbol": "SOL",
+    "foreignDeployment": "0x074238dfa02063792077820584c925b679a013cbab38e5ca61af5627d1eda736"
+  }
+}
