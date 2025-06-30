@@ -36,6 +36,8 @@ import {
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ChainMap } from '../types.js';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
@@ -257,6 +259,11 @@ export interface EthersV5Transaction
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
+
+export type GroupedTransactions = {
+  [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
+  [ProtocolType.CosmosNative]: ChainMap<AnnotatedCosmJsNativeTransaction[]>;
+};
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
