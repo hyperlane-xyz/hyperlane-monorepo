@@ -62,7 +62,7 @@ export abstract class HyperlaneRouterDeployer<
     const allChains = Object.keys(allRouters);
     const chainEntries = Object.entries(deployedContractsMap);
 
-    // Process chains in batches of 30
+    // Process in batches of N chains at a time
     for (let i = 0; i < chainEntries.length; i += BATCH_SIZE) {
       const batch = chainEntries.slice(i, i + BATCH_SIZE);
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
@@ -108,6 +108,8 @@ export abstract class HyperlaneRouterDeployer<
               chain === 'unitzero' || chain === 'rootstockmainnet'
                 ? Math.ceil(BATCH_SIZE / 4)
                 : BATCH_SIZE;
+
+            // Process in batches of N domains per enrollment per chain
             for (let i = 0; i < domains.length; i += enrollBatchSize) {
               const batchDomains = domains.slice(i, i + enrollBatchSize);
               const batchAddresses = addresses.slice(i, i + enrollBatchSize);
