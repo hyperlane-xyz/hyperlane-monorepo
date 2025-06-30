@@ -116,8 +116,10 @@ contract HypERC4626CollateralTest is HypTokenTest {
         _connectRouters(domains, addresses);
     }
 
-    function testRemoteTransfer_withFee() public override {
-        // disable for now
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return IERC20(primaryToken).balanceOf(_account);
     }
 
     function testDisableInitializers() public {
@@ -705,5 +707,9 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
     function _discountedYield() internal view returns (uint256) {
         return YIELD - vault.getClaimableFees();
+    }
+
+    function testRemoteTransfer_withFee() public override {
+        // skip for now
     }
 }
