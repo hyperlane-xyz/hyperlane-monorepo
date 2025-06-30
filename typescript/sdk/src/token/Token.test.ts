@@ -30,6 +30,10 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'USDC',
   },
   [TokenStandard.ERC721]: null,
+  [TokenStandard.EvmHypLSP7Collateral]: null,
+  [TokenStandard.EvmHypLSP7Synthetic]: null,
+  [TokenStandard.EvmHypLSP8Collateral]: null,
+  [TokenStandard.EvmHypLSP8Synthetic]: null,
   [TokenStandard.EvmNative]: Token.FromChainMetadataNativeToken(test1),
   [TokenStandard.EvmHypNative]: {
     chainName: TestChainName.test2,

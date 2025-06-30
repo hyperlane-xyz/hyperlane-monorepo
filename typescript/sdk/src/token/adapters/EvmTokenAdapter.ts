@@ -1,8 +1,16 @@
+import { LSP4DataKeys } from '@lukso/lsp4-contracts';
+import {
+  HypLSP7,
+  HypLSP7Collateral,
+  HypLSP7Collateral__factory,
+  HypLSP7__factory,
+} from '@lukso/lsp-hyperlane-token-routers';
 import {
   BigNumber,
   PopulatedTransaction,
   constants as ethersConstants,
 } from 'ethers';
+import { toUtf8String } from 'ethers/lib/utils.js';
 
 import {
   ERC20,
@@ -196,6 +204,85 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   }
 }
 
+// Interacts with LSP7 contracts
+export class EvmLSP7TokenAdapter<T extends HypLSP7 = HypLSP7>
+  extends EvmNativeTokenAdapter
+  implements ITokenAdapter<PopulatedTransaction>
+{
+  public readonly contract: T;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+    public readonly contractFactory: any = HypLSP7__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.contract = contractFactory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getBalance(address: Address): Promise<bigint> {
+    const balance = await this.contract.balanceOf(address);
+    return BigInt(balance.toString());
+  }
+
+  override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
+    const [decimals, symbolHex, nameHex] = await Promise.all([
+      isNft ? 0 : this.contract.decimals(),
+      this.contract['getData'](LSP4DataKeys.LSP4TokenSymbol),
+      this.contract['getData'](LSP4DataKeys.LSP4TokenName),
+    ]);
+
+    const symbol = toUtf8String(symbolHex);
+    const name = toUtf8String(nameHex);
+
+    return { decimals, symbol, name };
+  }
+
+  override async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.contract.authorizedAmountFor(spender, owner);
+    return allowance.lt(weiAmountOrId);
+  }
+
+  override populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<PopulatedTransaction> {
+    return this.contract.populateTransaction['authorizeOperator'](
+      recipient,
+      weiAmountOrId.toString(),
+      '0x',
+    );
+  }
+
+  override populateTransferTx({
+    fromAccountOwner: from,
+    recipient,
+    weiAmountOrId,
+  }: TransferParams): Promise<PopulatedTransaction> {
+    if (!from) throw new Error('fromAccountOwner required for LSP7');
+    return this.contract.populateTransaction.transfer(
+      from,
+      recipient,
+      weiAmountOrId.toString(),
+      true,
+      '0x',
+    );
+  }
+
+  async getTotalSupply(): Promise<bigint> {
+    const totalSupply = await this.contract.totalSupply();
+    return totalSupply.toBigInt();
+  }
+}
+
 // Interacts with Hyp Synthetic token contracts (aka 'HypTokens')
 export class EvmHypSyntheticAdapter
   extends EvmTokenAdapter<HypERC20>
@@ -221,6 +308,84 @@ export class EvmHypSyntheticAdapter
   async isRevokeApprovalRequired(
     _owner: Address,
     _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  getDomains(): Promise<Domain[]> {
+    return this.contract.domains();
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const routerAddressesAsBytes32 = await this.contract.routers(domain);
+    // Evm addresses will be padded with 12 bytes
+    if (routerAddressesAsBytes32.startsWith('0x000000000000000000000000')) {
+      return Buffer.from(
+        strip0x(bytes32ToAddress(routerAddressesAsBytes32)),
+        'hex',
+      );
+      // Otherwise leave the address unchanged
+    } else {
+      return Buffer.from(strip0x(routerAddressesAsBytes32), 'hex');
+    }
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    const domains = await this.getDomains();
+    const routers: Buffer[] = await Promise.all(
+      domains.map((d) => this.getRouterAddress(d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
+  }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
+  async quoteTransferRemoteGas(
+    destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    const gasPayment = await this.contract.quoteGasPayment(destination);
+    // If EVM hyp contracts eventually support alternative IGP tokens,
+    // this would need to determine the correct token address
+    return { amount: BigInt(gasPayment.toString()) };
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    if (!interchainGas)
+      interchainGas = await this.quoteTransferRemoteGas(destination);
+
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, {
+      value: interchainGas.amount.toString(),
+    });
+  }
+}
+
+export class EvmHypLSP7SyntheticAdapter
+  extends EvmLSP7TokenAdapter<HypLSP7>
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+    public readonly contractFactory: any = HypLSP7__factory,
+  ) {
+    super(chainName, multiProvider, addresses, contractFactory);
+  }
+
+  override async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
   ): Promise<boolean> {
     return false;
   }
@@ -448,6 +613,73 @@ export class EvmHypCollateralAdapter
       {
         value,
       },
+    );
+  }
+}
+
+export class EvmHypLSP7CollateralAdapter
+  extends EvmHypLSP7SyntheticAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public readonly collateralContract: HypLSP7Collateral;
+  protected wrappedTokenAddress?: Address;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypLSP7Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  protected async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress!;
+  }
+
+  protected async getWrappedTokenAdapter(): Promise<EvmLSP7TokenAdapter> {
+    return new EvmLSP7TokenAdapter(this.chainName, this.multiProvider, {
+      token: await this.getWrappedTokenAddress(),
+    });
+  }
+
+  override getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getBalance(this.addresses.token);
+  }
+
+  override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
+    return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
+  }
+
+  override isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.isApproveRequired(owner, spender, weiAmountOrId),
+    );
+  }
+
+  override populateApproveTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.populateApproveTx(params),
+    );
+  }
+
+  override populateTransferTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    return this.getWrappedTokenAdapter().then((t) =>
+      t.populateTransferTx(params),
     );
   }
 }
