@@ -6,12 +6,11 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
+use tracing::instrument;
 use {
     hyperlane_base::cache::{FunctionCallCache, NoParams},
     tracing::warn,
 };
-
-use tracing::instrument;
 
 use crate::msg::{
     metadata::base_builder::BuildsBaseMetadata,

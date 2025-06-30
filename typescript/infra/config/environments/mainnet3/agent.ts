@@ -181,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -331,6 +332,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -481,6 +483,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: false,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -824,7 +827,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: 'fe8f2cd-20250620-104910',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -838,7 +841,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '420c950-20250612-172436',
+      tag: 'fe8f2cd-20250620-104910',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -864,7 +867,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28d04ae-20250616-150106',
+      tag: '8185c87-20250618-151232',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -902,7 +905,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b18655-20250606-081749',
+      tag: '8185c87-20250618-151232',
     },
     blacklist,
     gasPaymentEnforcement,

@@ -92,6 +92,18 @@ export const STATIC_ISM_TYPES = [
   IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
 ];
 
+export const DYNAMICALLY_ROUTED_ISM_TYPES = [
+  IsmType.AMOUNT_ROUTING,
+  IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+] as const;
+
+/** Type guard for dynamically routed ISM types */
+export function isDynamicallyRoutedIsmType(
+  type: IsmType,
+): type is (typeof DYNAMICALLY_ROUTED_ISM_TYPES)[number] {
+  return (DYNAMICALLY_ROUTED_ISM_TYPES as readonly IsmType[]).includes(type);
+}
+
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
@@ -360,4 +372,5 @@ export const IsmConfigSchema = z.union([
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
+  InterchainAccountRouterIsmSchema,
 ]);

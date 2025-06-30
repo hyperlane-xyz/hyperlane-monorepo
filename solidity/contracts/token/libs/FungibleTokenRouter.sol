@@ -17,8 +17,12 @@ abstract contract FungibleTokenRouter is TokenRouter {
         scale = _scale;
     }
 
+    /**
+     * @notice Sets the fee recipient for the router.
+     * @dev Allows for address(0) to be set, which disables fees.
+     * @param _feeRecipient The address of the fee recipient.
+     */
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
-        // allows for address(0) to be set, which disables fees
         feeRecipient = ITokenFee(_feeRecipient);
     }
 
@@ -74,7 +78,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         metadata = _transferFromSender(_amount + fee);
         if (fee > 0) {
-            _transferTo(address(feeRecipient), fee, msg.data[0:0]);
+            _transferTo(address(feeRecipient), fee);
         }
     }
 

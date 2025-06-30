@@ -1,3 +1,4 @@
+import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -23,8 +24,15 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -72,6 +80,7 @@ export const warpCommand: CommandModule = {
       .command(fork)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -437,6 +446,91 @@ export const check: CommandModuleWithContext<{
     });
 
     process.exit(0);
+  },
+};
+
+export const rebalancer: CommandModuleWithWriteContext<{
+  config: string;
+  checkFrequency: number;
+  withMetrics: boolean;
+  monitorOnly: boolean;
+  manual?: boolean;
+  origin?: string;
+  destination?: string;
+  amount?: string;
+}> = {
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
+  builder: {
+    config: {
+      type: 'string',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms (defaults: 30 seconds)',
+      demandOption: false,
+      default: 60000,
+    },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics (default: true)',
+      demandOption: false,
+      default: false,
+    },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode (default: false)',
+      demandOption: false,
+      default: false,
+    },
+    manual: {
+      type: 'boolean',
+      description:
+        'Trigger a rebalancer manual run (default: false, requires --origin, --destination, --amount)',
+      demandOption: false,
+      implies: ['origin', 'destination', 'amount'],
+    },
+    origin: {
+      type: 'string',
+      description: 'The origin chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    destination: {
+      type: 'string',
+      description: 'The destination chain for manual rebalance',
+      demandOption: false,
+      implies: 'manual',
+    },
+    amount: {
+      type: 'string',
+      description:
+        'The amount to transfer from origin to destination on manual rebalance. Defined in token units (E.g 100 instead of 100000000 wei for USDC)',
+      demandOption: false,
+      implies: 'manual',
+    },
+  },
+  handler: async (args) => {
+    let runner: RebalancerRunner;
+    try {
+      const { context, ...rest } = args;
+      runner = await RebalancerRunner.create(rest, context);
+    } catch (e: any) {
+      // exit on startup errors
+      errorRed('Rebalancer startup error:', util.format(e));
+      process.exit(1);
+    }
+
+    try {
+      await runner.run();
+    } catch (e: any) {
+      errorRed('Rebalancer error:', util.format(e));
+      process.exit(1);
+    }
   },
 };
 

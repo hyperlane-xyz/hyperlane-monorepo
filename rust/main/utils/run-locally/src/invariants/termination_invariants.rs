@@ -79,7 +79,7 @@ pub fn relayer_termination_invariants_met(
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
-    const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
+    const FOUND_LOGS_IN_INDEX_RANGE: &str = "Found log(s) in index range";
     const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
 
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
@@ -87,13 +87,13 @@ pub fn relayer_termination_invariants_met(
     let relayer_logfile = File::open(log_file_path)?;
 
     let storing_new_msg_line_filter = vec![STORING_NEW_MESSAGE_LOG_MESSAGE];
-    let looking_for_events_line_filter = vec![LOOKING_FOR_EVENTS_LOG_MESSAGE];
+    let found_logs_index_range_filter = vec![FOUND_LOGS_IN_INDEX_RANGE];
     let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
     let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
     let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
     let invariant_logs = vec![
         storing_new_msg_line_filter.clone(),
-        looking_for_events_line_filter.clone(),
+        found_logs_index_range_filter.clone(),
         gas_expenditure_line_filter.clone(),
         hyper_incoming_body_line_filter.clone(),
         tx_id_indexing_line_filter.clone(),
@@ -126,11 +126,11 @@ pub fn relayer_termination_invariants_met(
         storing_new_msg_log_count > 0,
         "Didn't find any logs about storing messages in db"
     );
-    let looking_for_events_log_count = *log_counts
-        .get(&looking_for_events_line_filter)
-        .expect("Failed to get looking for events log count");
+    let found_logs_in_index_range_count = *log_counts
+        .get(&found_logs_index_range_filter)
+        .expect("Failed to get Found log(s) in index range count");
     assert!(
-        looking_for_events_log_count > 0,
+        found_logs_in_index_range_count > 0,
         "Didn't find any logs about looking for events in index range"
     );
     let total_tx_id_log_count = *log_counts
