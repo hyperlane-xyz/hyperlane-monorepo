@@ -13,13 +13,13 @@ use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
 
-use hyperlane_core::{HyperlaneMessage,H256,U256};
+use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::H256;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct DepositFXG {
     pub msg_id: H256,
-    pub amount: U256,
     pub tx_id: String,
     pub utxo_index: usize,
     pub block_id: String,
@@ -85,6 +85,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use eyre::Result as EyreResult;
+    use std::result::Result as StdResult;
 
     // --- Test Cases for DepositFXG Conversions ---
 
@@ -95,7 +96,6 @@ mod tests {
             msg_id: H256::random(),
             tx_id: "test_transaction_id_123".to_string(),
             utxo_index: 5,
-            amount: U256::from(100_000_000),
             block_id: "test_block_id_abc".to_string(),
             payload: HyperlaneMessage::default(),
         };
@@ -153,7 +153,6 @@ mod tests {
             tx_id: "deterministic_tx".to_string(),
             utxo_index: 10,
             block_id: "deterministic_block".to_string(),
-            amount: U256::from(100_000_000),
             payload: HyperlaneMessage {
                 version: 1,
                 nonce: 100,
@@ -170,7 +169,6 @@ mod tests {
             tx_id: "deterministic_tx".to_string(),
             utxo_index: 10,
             block_id: "deterministic_block".to_string(),
-            amount: U256::from(100_000_000),
             payload: HyperlaneMessage {
                 version: 1,
                 nonce: 100,

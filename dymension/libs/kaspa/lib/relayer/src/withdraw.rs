@@ -10,7 +10,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
-use secp256k1::PublicKey;
+use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
