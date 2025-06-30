@@ -144,6 +144,8 @@ export function useEthereumTransactionFns(
         calls: txs.map((tx) =>
           ethers5TxToWagmiTx(tx.transaction as PopulatedTransaction),
         ) as any[],
+        experimental_fallback: true,
+        forceAtomic: true,
       });
 
       const confirm = (): Promise<TypedTransactionReceipt[]> => {
