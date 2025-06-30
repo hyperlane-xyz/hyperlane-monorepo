@@ -1,5 +1,5 @@
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
-
+export { isAddressActive } from './contracts/contracts.js';
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
@@ -141,6 +141,8 @@ export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+  ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
   StorageGasOracleConfig,
   StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
@@ -618,6 +620,7 @@ export {
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   EVM_TOKEN_TYPE_TO_STANDARD,
+  tokenTypeToStandard,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -664,6 +667,7 @@ export {
   XERC20TokenMetadata,
 } from './token/types.js';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export { CosmosNativeDeployer } from './token/cosmosnativeDeploy.js';
 export {
   ChainMap,
   ProtocolMap,

@@ -1,5 +1,31 @@
 # @hyperlane-xyz/widgets
 
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [ecaa4ef90]
+- Updated dependencies [bd91094c3]
+  - @hyperlane-xyz/sdk@14.1.0
+  - @hyperlane-xyz/cosmos-sdk@14.1.0
+  - @hyperlane-xyz/utils@14.1.0
+
+## 14.0.0
+
+### Minor Changes
+
+- fbca68f8a: add starknet multi tx signing support
+
+### Patch Changes
+
+- Updated dependencies [929708c1f]
+- Updated dependencies [88134de1f]
+- Updated dependencies [66c13b539]
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/sdk@14.0.0
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
 ## 13.4.0
 
 ### Minor Changes

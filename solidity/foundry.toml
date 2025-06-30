@@ -28,6 +28,7 @@ verbosity = 4
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc-mainnet.matic.quiknode.pro"
+base = "https://mainnet.base.org"
 
 [fuzz]
 runs = 50

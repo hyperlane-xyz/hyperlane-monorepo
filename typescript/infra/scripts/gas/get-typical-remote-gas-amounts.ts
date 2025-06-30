@@ -1,11 +1,11 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
-import { getOverheadWithOverrides } from '../config/environments/mainnet3/igp.js';
-import { getTypicalRemoteGasAmount } from '../src/config/gas-oracle.js';
-
-import { getArgs } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getOverheadWithOverrides } from '../../config/environments/mainnet3/igp.js';
+import { getChain } from '../../config/registry.js';
+import { getTypicalRemoteGasAmount } from '../../src/config/gas-oracle.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 // This script exists to print the typical local -> remote gas amounts for a given environment.
 // This is useful for Jake to use in his own models for assessing message costs.
@@ -35,6 +35,7 @@ async function main() {
       amounts[local][remote] = getTypicalRemoteGasAmount(
         local,
         remote,
+        getChain(remote).protocol,
         getOverheadWithOverrides,
       );
     }
