@@ -125,17 +125,18 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
             amount
         );
 
-        uint256 collateralFee = 0;
-        for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == token()) {
-                collateralFee += quotes[i].amount;
-            }
-        }
+        if (quotes.length > 0) {
+            require(
+                quotes[quotes.length - 1].token == token(),
+                "MCR: collateral token mismatch"
+            );
+            uint256 collateralFee = quotes[quotes.length - 1].amount;
 
-        // charge the rebalancer any bridging fees denominated in the collateral
-        // token to avoid undercollateralization
-        if (collateralFee > amount) {
-            _transferFromSender(collateralFee - amount);
+            // charge the rebalancer any bridging fees denominated in the collateral
+            // token to avoid undercollateralization
+            if (collateralFee > amount) {
+                _transferFromSender(collateralFee - amount);
+            }
         }
 
         uint256 nativeValue = _nativeRebalanceValue(amount);
