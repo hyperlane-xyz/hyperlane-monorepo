@@ -1,13 +1,11 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
-use core::default;
+use std::sync::Arc;
 use eyre::Result as EyreResult;
 use kaspa_addresses::Address;
-use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
-use std::any::Any;
 use std::str::FromStr;
 use tonic::async_trait;
 use url::Url;
@@ -18,15 +16,13 @@ use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
+    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
     H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_rpc_core::api::rpc::RpcApi;
-use std::sync::Arc;
 
 
 use super::validators::ValidatorsClient;
@@ -115,6 +111,10 @@ impl KaspaProvider {
     /// dococo
     pub fn hub_rpc(&self) -> &CosmosGrpcClient {
         &self.cosmos_rpc
+    }
+
+    pub fn wallet(&self) -> &EasyKaspaWallet {
+        &self.easy_wallet
     }
 
     /// dococo

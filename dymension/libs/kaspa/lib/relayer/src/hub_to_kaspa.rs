@@ -1,5 +1,7 @@
 use anyhow::Result;
 use corelib::escrow::EscrowPublic;
+use corelib::consts::KEY_MESSAGE_IDS;
+use corelib::payload::{MessageID, MessageIDs};
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -23,14 +25,12 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::global;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use corelib::wallet::NetworkInfo;
-use corelib::payload::{MessageID, MessageIDs};
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -278,7 +278,7 @@ async fn internal_build_withdrawal_pskt(
     // Save msg_ids_raw in the proprietaries for later retrieval by validators
     let global = GlobalBuilder::default()
         .proprietaries(BTreeMap::from([(
-            corelib::consts::KEY_MESSAGE_IDS.to_string(),
+            KEY_MESSAGE_IDS.to_string(),
             msg_ids_raw,
         )]))
         .build()

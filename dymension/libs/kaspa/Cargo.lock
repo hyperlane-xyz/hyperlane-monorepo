@@ -1068,6 +1068,7 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "bytes",
  "clap",
@@ -1075,6 +1076,7 @@ dependencies = [
  "governor",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
+ "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -1621,8 +1623,25 @@ dependencies = [
 name = "demo-relayer"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "clap",
  "core",
+ "hyperlane-core",
+ "hyperlane-warp-route",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-pskt",
+ "log",
  "relayer",
+ "secp256k1",
+ "tokio",
+ "validator",
+ "workflow-core",
 ]
 
 [[package]]

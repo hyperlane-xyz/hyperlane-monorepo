@@ -15,11 +15,11 @@ use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Si
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
-use dym_kas_validator::deposit::validate_deposits;
+use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdrawal::validate_withdrawals;
 
 #[derive(Clone)]
@@ -71,8 +71,9 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 ) -> HandlerResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
+    let client = resources.kas_provider.as_ref().expect("unable to get Kaspa provider").wallet().api();
     // Call to validator.G()
-    if !validate_deposits(&deposits)
+    if !validate_new_deposit(&client,&deposits)
         .await
         .map_err(|e| AppError(e))?
     {
