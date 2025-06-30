@@ -618,9 +618,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
-      // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
-      { destinationDomain: getDomainId('starknet') },
-      { destinationDomain: getDomainId('paradex') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
     ],
@@ -820,7 +817,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd8afb82-20250627-165046',
+      tag: '0e82fc3-20250630-122836',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -866,7 +863,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd8afb82-20250627-165046',
+      tag: '0e82fc3-20250630-122836',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -910,7 +907,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '0e82fc3-20250630-122836',
     },
     blacklist,
     gasPaymentEnforcement,
