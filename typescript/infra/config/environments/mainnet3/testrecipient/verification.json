@@ -15,14 +15,6 @@
       "name": "TestRecipient"
     }
   ],
-  "kroma": [
-    {
-      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "TestRecipient"
-    }
-  ],
   "lisk": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",

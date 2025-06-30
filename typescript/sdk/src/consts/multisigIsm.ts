@@ -989,6 +989,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  galactica: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xfc48af3372d621f476c53d79d42a9e96ce11fd7d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   game7: {
     threshold: 2,
     validators: [
@@ -1234,18 +1244,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  kroma: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x71b83c21342787d758199e4b8634d3a15f02dc6e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
