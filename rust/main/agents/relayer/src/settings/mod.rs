@@ -19,7 +19,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -87,7 +87,7 @@ pub struct GasPaymentEnforcementConf {
 }
 
 /// Config for a GasPaymentEnforcementPolicy
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     /// and regardless of whether a payment for the message was processed by the specified IGP.

@@ -11,6 +11,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
@@ -62,6 +63,7 @@ enum GasPaymentRequirementOutcome {
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
 pub struct MessageContext {
+    pub origin: HyperlaneDomain,
     /// Mailbox on the destination chain.
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
@@ -73,7 +75,7 @@ pub struct MessageContext {
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
-    pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub origin_gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
@@ -405,7 +407,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(outcome, state.gas_limit);
+                self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -464,7 +466,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -493,6 +495,8 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_gas_payment_enforcer
+            .read()
+            .await
             .record_tx_outcome(&self.message, operation_outcome.clone())
         {
             error!(error=?e, "Error when recording tx outcome");
@@ -793,12 +797,15 @@ impl PendingMessage {
         &mut self,
         tx_cost_estimate: &TxCostEstimate,
     ) -> GasPaymentRequirementOutcome {
-        let gas_limit = match self
+        let gas_limit = self
             .ctx
             .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .read()
             .await
-        {
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await;
+
+        let gas_limit = match gas_limit {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
                 return GasPaymentRequirementOutcome::RequirementNotMet(
