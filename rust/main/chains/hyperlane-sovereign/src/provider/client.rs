@@ -7,6 +7,7 @@ use reqwest::{header::HeaderMap, Client, Response};
 use serde::Deserialize;
 use serde_json::Value;
 use sov_universal_wallet::schema::Schema;
+use tokio_retry::{strategy::ExponentialBackoff, Retry};
 use tracing::instrument;
 use url::Url;
 
@@ -132,7 +133,24 @@ impl SovereignClient {
     }
 }
 
-#[instrument(skip(client), ret, err(level = "info"))]
+fn is_retryable(err: &RestClientError) -> bool {
+    match err {
+        // TODO: make this more robust, handle rate limiting, etc
+        RestClientError::Response(status_code, errs) => {
+            if status_code.is_server_error() {
+                true
+            } else {
+                // Handle bug on rollup side where queryable slot_number
+                // can lag behind `/ledger/slots/finalized`
+                errs.iter()
+                    .any(|err| err.title.contains("invalid rollup height"))
+            }
+        }
+        RestClientError::Other(_) => false,
+    }
+}
+
+#[instrument(skip(client), ret(level = "trace"), err(level = "info"))]
 pub(crate) async fn http_get<T>(client: &Client, url: Url) -> Result<T, RestClientError>
 where
     T: Debug + for<'a> Deserialize<'a>,
@@ -143,17 +161,31 @@ where
         "application/json".parse().expect("Well-formed &str"),
     );
 
-    let response = client
-        .get(url)
-        .headers(header_map)
-        .send()
-        .await
-        .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
+    let retry_strategy = ExponentialBackoff::from_millis(10)
+        .max_delay(std::time::Duration::from_millis(10000))
+        .take(10);
 
-    parse_response(response).await
+    Retry::spawn(retry_strategy, move || {
+        let url = url.clone();
+        let header_map = header_map.clone();
+        async move {
+            let response = client
+                .get(url)
+                .headers(header_map)
+                .send()
+                .await
+                .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
+
+            match parse_response(response).await {
+                Err(err) if is_retryable(&err) => Err(err),
+                result => Ok(result),
+            }
+        }
+    })
+    .await?
 }
 
-#[instrument(skip(client), ret, err(level = "info"))]
+#[instrument(skip(client), ret(level = "debug"), err(level = "info"))]
 pub(crate) async fn http_post<T>(
     client: &Client,
     url: Url,

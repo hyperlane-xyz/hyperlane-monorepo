@@ -31,6 +31,7 @@ num-traits.workspace = true
 ed25519-dalek = "2.1.1"
 sov-universal-wallet = { git = "ssh://git@github.com/Sovereign-Labs/sovereign-sdk-wip", branch = "nightly", features = ["serde"] }
 tokio-tungstenite = "0.23"
+tokio-retry = "0.3.0"
 
 [features]
 default = []

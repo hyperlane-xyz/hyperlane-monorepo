@@ -5715,6 +5715,7 @@ dependencies = [
  "sha3 0.10.8",
  "sov-universal-wallet",
  "tokio",
+ "tokio-retry",
  "tokio-tungstenite 0.23.1",
  "tracing",
  "url",
@@ -6965,7 +6966,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.2.1",
+ "proc-macro-crate 3.2.0",
  "proc-macro2 1.0.93",
  "quote 1.0.37",
  "syn 2.0.87",
@@ -11274,6 +11275,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-retry"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
+dependencies = [
+ "pin-project",
+ "rand 0.8.5",
  "tokio",
 ]
 
