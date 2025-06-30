@@ -45,11 +45,20 @@ contract EverclearTokenBridge is HypERC20Collateral {
         everclearAdapter = _everclearAdapter;
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public override initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        wrappedToken.approve(address(everclearAdapter), type(uint256).max);
+    }
+
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public view virtual override returns (Quote[] memory quotes) {
+    ) public view override returns (Quote[] memory quotes) {
         quotes = new Quote[](2);
         quotes[0] = Quote({
             token: address(0),
