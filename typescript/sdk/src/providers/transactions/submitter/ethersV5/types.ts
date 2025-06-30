@@ -13,7 +13,6 @@ export type EV5GnosisSafeTxSubmitterProps = z.infer<
 >;
 
 export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
-  version: z.string().default('1.0'),
   chain: ZChainName,
   safeAddress: ZHash,
 });
