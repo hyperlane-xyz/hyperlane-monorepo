@@ -119,6 +119,9 @@
       "0x4cfccfd66dbb702b643b56f6986a928ed1b50c7e"
     ]
   },
+  "merlin": {
+    "validators": ["0x93b08ce35b7676270b4aefda5e01c668cc61cb5c"]
+  },
   "metis": {
     "validators": ["0xa01a62b1a6663e888399788ff15e784b5d223661"]
   },
@@ -215,8 +218,5 @@
   },
   "zetachain": {
     "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]
-  },
-  "merlin": {
-    "validators": ["0x93b08ce35b7676270b4aefda5e01c668cc61cb5c"]
   }
 }
