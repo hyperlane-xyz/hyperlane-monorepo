@@ -37,7 +37,7 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.1',
     bepolia: '0.05',
     bsctestnet: '5',
-    carrchaintestnet: '0.1',
+    carrchaintestnet: '100',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',

@@ -55,7 +55,6 @@ export const mainnet3SupportedChainNames = [
   'game7',
   'gnosis',
   'gravity',
-  'guru',
   'harmony',
   'hashkey',
   'hemi',
