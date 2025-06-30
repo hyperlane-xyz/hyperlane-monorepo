@@ -158,15 +158,11 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
-  const { deployedContracts, deployments } = await executeDeploy(
-    deploymentParams,
-    apiKeys,
-  );
+  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
 
   await enrollCrossChainRouters(
     { context, warpDeployConfig },
     deployedContracts,
-    deployments,
   );
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
@@ -1229,10 +1225,9 @@ async function enrollCrossChainRouters(
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
   deployedContracts: ChainMap<Address>,
-  deployments: WarpCoreConfig,
 ) {
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
-    gas: 0,
+    gas: 0, // TODO: protocol specific gas?,
     ...config,
   }));
 
@@ -1250,7 +1245,7 @@ async function enrollCrossChainRouters(
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
 
-    let protocolTransactions = {} as GroupedTransactions;
+    const protocolTransactions = {} as GroupedTransactions;
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
