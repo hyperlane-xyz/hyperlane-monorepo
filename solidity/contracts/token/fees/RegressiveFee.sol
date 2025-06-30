@@ -34,10 +34,8 @@ contract RegressiveFee is BaseFee {
     function _quoteTransfer(
         uint256 amount
     ) internal view override returns (uint256 fee) {
-        // Regressive fee using rational function: fee = (maxFee * amount) / (halfAmount + amount)
-        // This makes the fee percentage decrease as the amount increases
-        if (halfAmount + amount == 0) return 0;
-        return (maxFee * amount) / (halfAmount + amount);
+        uint256 denominator = halfAmount + amount;
+        return denominator == 0 ? 0 : (maxFee * amount) / denominator;
     }
 
     function feeType() external pure override returns (FeeType) {
