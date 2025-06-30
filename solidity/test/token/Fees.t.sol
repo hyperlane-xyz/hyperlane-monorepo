@@ -85,7 +85,8 @@ contract LinearFeeTest is BaseFeeTest {
             OWNER
         );
 
-        uint256 uncapped = (uint256(amount) * maxFee) / halfAmount;
+        uint256 uncapped = (uint256(amount) * maxFee) /
+            (2 * uint256(halfAmount));
         uint256 expectedFee = uncapped > maxFee ? maxFee : uncapped;
 
         assertEq(

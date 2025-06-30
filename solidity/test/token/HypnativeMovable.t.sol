@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
+import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
@@ -32,7 +33,6 @@ contract MockITokenBridgeEth is ITokenBridge {
 contract HypNativeMovableTest is Test {
     HypNative internal router;
     MockITokenBridgeEth internal vtb;
-    MockTokenBridgeEth internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
