@@ -19,12 +19,13 @@ use crate::msg::{
 
 use super::{
     aggregation::AggregationIsmMetadataBuilder,
-    base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
+    base::{IsmWithMetadataAndBody, IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
+    fsr::FsrMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
-    Metadata, MetadataBuilder,
+    Metadata, MetadataBuilder, MetadataAndMessageBuilder,
 };
 
 /// Builds metadata for a message.
@@ -63,6 +64,19 @@ impl MetadataBuilder for MessageMetadataBuilder {
         build_message_metadata(self.clone(), ism_address, message, params, None)
             .await
             .map(|res| res.metadata)
+    }
+}
+
+#[async_trait]
+impl MetadataAndMessageBuilder for MessageMetadataBuilder {
+    #[instrument(err, skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> Result<IsmWithMetadataAndBody, MetadataBuildError> {
+        build_message_metadata_and_body(self.clone(), ism_address, message, params, None).await
     }
 }
 
@@ -148,6 +162,83 @@ pub async fn ism_and_module_type(
     Ok((ism, module_type))
 }
 
+/// Builds metadata and body for a message that may include message body replacement (FSR).
+pub async fn build_message_metadata_and_body(
+    message_builder: MessageMetadataBuilder,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+    mut params: MessageMetadataBuildParams,
+    maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
+) -> Result<IsmWithMetadataAndBody, MetadataBuildError> {
+    let (ism, module_type) = match maybe_ism_and_module_type {
+        Some((ism, module_type)) => (ism, module_type),
+        None => ism_and_module_type(message_builder.clone(), ism_address).await?,
+    };
+
+    // check if max depth is reached
+    if params.ism_depth >= message_builder.max_ism_depth {
+        tracing::error!(
+            ism_depth = message_builder.max_ism_depth,
+            ism_address = ?ism_address,
+            message_id = ?message.id(),
+            "Max ISM depth reached",
+        );
+        return Err(MetadataBuildError::MaxIsmDepthExceeded(
+            message_builder.max_ism_depth,
+        ));
+    }
+    params.ism_depth = params.ism_depth.saturating_add(1);
+    {
+        // check if max ism count is reached
+        let mut ism_count = params.ism_count.lock().await;
+        if *ism_count >= message_builder.max_ism_count {
+            tracing::error!(
+                ism_count = *ism_count,
+                max_ism_count = message_builder.max_ism_count,
+                ism_address = ?ism_address,
+                message_id = ?message.id(),
+                "Max ISM count reached",
+            );
+            return Err(MetadataBuildError::MaxIsmCountReached(
+                message_builder.max_ism_count,
+            ));
+        }
+        *ism_count = ism_count.saturating_add(1);
+    }
+
+    // Handle FSR specifically for message body replacement
+    if module_type == ModuleType::FsrRead {
+        let fsr_builder = FsrMetadataBuilder::new(
+            CcipReadIsmMetadataBuilder::new(message_builder.clone())
+        );
+        
+        let enhanced_result = fsr_builder.build_enhanced(ism_address, message, params).await?;
+        
+        tracing::info!(
+            message_id = ?message.id(),
+            has_replaced_body = enhanced_result.replaced_message_body.is_some(),
+            "FSR enhanced metadata built"
+        );
+        
+        return Ok(IsmWithMetadataAndBody {
+            ism,
+            metadata: enhanced_result.metadata,
+            replaced_message_body: enhanced_result.replaced_message_body,
+        });
+    }
+
+    // For all other ISM types, use standard building with no message body replacement
+    let standard_result = build_message_metadata(
+        message_builder, ism_address, message, params, Some((ism, module_type))
+    ).await?;
+
+    Ok(IsmWithMetadataAndBody {
+        ism: standard_result.ism,
+        metadata: standard_result.metadata,
+        replaced_message_body: None, // No replacement for non-FSR ISMs
+    })
+}
+
 /// Builds metadata for a message.
 pub async fn build_message_metadata(
     message_builder: MessageMetadataBuilder,
@@ -201,6 +292,13 @@ pub async fn build_message_metadata(
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
+        ModuleType::FsrRead => {
+            // For FSR in standard build, just build metadata without message body replacement
+            // Message body replacement is handled in the enhanced build flow
+            Box::new(FsrMetadataBuilder::new(
+                CcipReadIsmMetadataBuilder::new(message_builder)
+            ))
+        }
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;
