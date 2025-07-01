@@ -188,12 +188,14 @@ export async function completeDeploy(
   chains: ChainName[],
 ) {
   const { multiProvider, isDryRun, multiProtocolSigner } = context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
     const { nativeToken } = multiProvider.getChainMetadata(chain);
     const address = userAddress
       ? userAddress
-      : await multiProtocolSigner!.getAddress(chain);
+      : await multiProtocolSigner.getAddress(chain);
     const currentBalance = await multiProtocolSigner!.getBalance({
       isDryRun: isDryRun || false,
       address,

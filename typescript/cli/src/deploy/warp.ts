@@ -239,6 +239,8 @@ async function executeDeploy(
     context: { multiProvider, isDryRun, dryRunChain, multiProtocolSigner },
   } = params;
 
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
@@ -308,7 +310,7 @@ async function executeDeploy(
       case ProtocolType.CosmosNative: {
         const signersMap = objMap(
           protocolSpecificConfig,
-          (chain, _) => multiProtocolSigner!.getCosmosNativeSigner(chain)!,
+          (chain, _) => multiProtocolSigner.getCosmosNativeSigner(chain)!,
         );
 
         const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
