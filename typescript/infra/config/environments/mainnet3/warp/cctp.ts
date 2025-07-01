@@ -42,5 +42,5 @@ export const usdcTokenAddresses = {
   sui: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
   tron: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
   unichain: '0x078D782b760474a361dDA0AF3839290b0EF57AD6',
-  zksyncera: '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4',
+  zksync: '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4',
 } as const;
