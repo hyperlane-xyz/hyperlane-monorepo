@@ -104,7 +104,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     // load wallet (using kaspa wallet)
-    let s = Secret::from(args.wallet_secret.unwrap_or("L1cinda_14".to_string()));
+    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
 
