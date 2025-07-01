@@ -4,7 +4,6 @@ mod x;
 
 use api_rs::apis::configuration;
 use bytes::Bytes;
-use core::api::client::get_local_testnet_client;
 use core::api::deposits::Deposit;
 use core::deposit::*;
 use core::escrow::*;
@@ -55,6 +54,25 @@ pub async fn deposit(
     address: Address,
     amt: u64,
 ) -> Result<TransactionId, KaspaError> {
+    let mut hl_message = HyperlaneMessage::default();
+    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
+
+    let encoded_bytes = token_message.to_vec();
+
+    hl_message.body = encoded_bytes;
+
+    let payload = hl_message.to_vec();
+
+    deposit_impl(w, secret, address.clone(), amt, payload.clone()).await
+}
+
+pub async fn deposit_impl(
+    w: &Arc<Wallet>,
+    secret: &Secret,
+    address: Address,
+    amt: u64,
+    payload: Vec<u8>,
+) -> Result<TransactionId, KaspaError> {
     let a = w.account()?;
 
     let dst = PaymentDestination::from(PaymentOutput::new(address, amt));
@@ -62,13 +80,6 @@ pub async fn deposit(
     let payment_secret = None;
     let abortable = Abortable::new();
 
-    let mut hl_message = HyperlaneMessage::default();
-    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
-
-    let encoded_bytes = token_message.to_vec();
-    hl_message.body = encoded_bytes;
-
-    let payload = hl_message.to_vec();
     // use account.send, because wallet.accounts_send(AccountsSendRequest{..}) is buggy
     let (summary, _) = a
         .send(
@@ -113,10 +124,24 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     println!("balance {}", &w.account()?.get_list_string()?);
 
     // deposit to escrow address
-    let amt = DEPOSIT_AMOUNT;
-    let escrow_address = Address::try_from(ESCROW_ADDRESS)?;
-    let tx_id = deposit(&w, &s, escrow_address, amt).await?;
+    let amt = args.amount.unwrap_or(DEPOSIT_AMOUNT);
+    let escrow_address = if let Some(e) = args.escrow_address {
+        Address::try_from(e)?
+    } else {
+        Address::try_from(ESCROW_ADDRESS)?
+    };
+
+    let tx_id = if let Some(payload) = args.payload {
+        deposit_impl(&w, &s, escrow_address, amt, payload.as_bytes().to_vec()).await?
+    } else {
+        deposit(&w, &s, escrow_address, amt).await?
+    };
+
     info!("Sent deposit transaction: {}", tx_id);
+
+    if args.only_deposit {
+        return Ok(());
+    }
 
     // wait (it may take some time that the deposit is available to indexer-archive rpc service)
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;

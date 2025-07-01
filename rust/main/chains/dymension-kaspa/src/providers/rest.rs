@@ -44,7 +44,7 @@ impl BlockNumberGetter for KaspaHttpClient {
 impl KaspaHttpClient {
     /// Create new `KaspaHttpClient`
     pub fn new(
-        url: Url,
+        url: String,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> Self {
@@ -61,7 +61,7 @@ impl KaspaHttpClient {
 
     /// Creates a KaspaHttpClient from a url
     pub fn from_url(
-        url: Url,
+        url: String,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
@@ -107,7 +107,7 @@ impl RestProvider {
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
-                KaspaHttpClient::from_url(url.clone(), metrics.clone(), metrics_config)
+                KaspaHttpClient::from_url(url.to_string(), metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -120,7 +120,7 @@ impl RestProvider {
 
     /// get the config used for the rest client
     pub fn get_config(&self) -> Configuration {
-        get_config(&self.conf.kaspa_rest_url)
+        self.client.client.get_config()
     }
 
     /// Gets a signer, or returns an error if one is not available.
@@ -141,5 +141,18 @@ impl RestProvider {
         let address = self.conf.kaspa_escrow_addr.clone();
         let res = self.client.client.get_deposits(&address).await;
         return res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use url::Url;
+
+    #[test]
+    fn test_url_roundtrip() {
+        let start = "https://api-tn10.kaspa.org/";
+        let url = Url::parse(start).unwrap();
+        let end = url.as_str();
+        assert_eq!(start, end);
     }
 }

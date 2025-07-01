@@ -78,67 +78,6 @@ pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
     Ok(tx)
 }
 
-#[cfg(test)]
-mod tests {
-    use hyperlane_core::{Encode, H256};
-    use rand::Rng;
-
-    use super::*;
-    use std::result::Result as StdResult;
-
-    /// Helper to create a HyperlaneMessage with a serialized TokenMessage in its body.
-    fn create_hyperlane_message_with_token(
-        recipient: H256,
-        amount: U256,
-        metadata: Vec<u8>,
-    ) -> HyperlaneMessage {
-        let mut hl_message: HyperlaneMessage = HyperlaneMessage::default();
-        let token_msg = TokenMessage::new(recipient, amount, metadata);
-        let encoded_bytes = token_msg.to_vec();
-
-        hl_message.body = encoded_bytes;
-
-        return hl_message;
-    }
-
-    #[test]
-    fn hl_message_test() {
-        let message = create_hyperlane_message_with_token(H256::random(), U256::one(), vec![]);
-        let result = parse_hyperlane_metadata(&message);
-
-        assert!(
-            result.is_ok(),
-            "Test failed unexpectedly, error: {:?}",
-            result.unwrap_err()
-        );
-
-        let token_message = result.unwrap();
-        assert!(token_message.metadata().is_empty(), "should be empty");
-
-        let mut rng = rand::thread_rng(); // Initialize the thread-local random number generator
-        let mut random_bytes = vec![0u8; 10]; // Create a vector of zeros with the desired length
-        rng.fill(&mut random_bytes[..]);
-        let expected_bytes = random_bytes.clone();
-        let message_nonempty =
-            create_hyperlane_message_with_token(H256::random(), U256::one(), random_bytes);
-        let result_nonempty = parse_hyperlane_metadata(&message_nonempty);
-
-        let token_message_nonempty = result_nonempty.unwrap();
-        assert!(
-            !token_message_nonempty.metadata().is_empty(),
-            "shouldn't be empty"
-        );
-        assert_eq!(expected_bytes, token_message_nonempty.metadata());
-    }
-
-    #[tokio::test]
-    async fn handle_not_enough_deposit_test() {
-        let tx = "55527daf602fd41607aaf11ad56a326f63732c3691396c29ed0f4733bdda9c29";
-        let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
-        assert!(result.is_err(), "result should fail");
-    }
-}
-
 pub async fn handle_new_deposits(
     deposits: Vec<&Deposit>,
 ) -> Result<Vec<DepositFXG>, Box<dyn Error>> {

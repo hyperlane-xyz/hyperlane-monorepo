@@ -70,6 +70,7 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&mut self) {
         loop {
+            time::sleep(Duration::from_secs(15)).await;
             let deposits_res = self.provider.rest().get_deposits().await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
@@ -101,7 +102,6 @@ where
                     }
                 }
             }
-            time::sleep(Duration::from_secs(10)).await;
         }
     }
 
