@@ -71,11 +71,8 @@ contract HypERC20Collateral is MovableCollateralRouter {
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _amount) internal virtual override {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-        return bytes(""); // no metadata
     }
 
     /**
@@ -84,8 +81,7 @@ contract HypERC20Collateral is MovableCollateralRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
+        uint256 _amount
     ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }

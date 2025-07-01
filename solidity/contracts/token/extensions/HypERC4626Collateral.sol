@@ -54,24 +54,35 @@ contract HypERC4626Collateral is HypERC20Collateral {
         address _interchainSecurityModule,
         address _owner
     ) public override initializer {
+        wrappedToken.approve(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Override `_transferRemote` to send shares as amount and append {exchange rate, nonce} in the message.
-     *      This is preferred for readability and to avoid confusion with the amount of shares. The scaling factor
-     *      is applied to the shares returned by the deposit before sending the message.
-     */
-    function _transferRemote(
+    function _chargeSender(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        _chargeSender(_destination, _recipient, _amount);
+        uint256 _amount
+    ) internal virtual override returns (uint256 dispatchValue) {
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        HypERC20Collateral._transferFromSender(_amount + fee);
+        if (fee > 0) {
+            HypERC20Collateral._transferTo(address(feeRecipient), fee);
+        }
+        return msg.value;
+    }
+
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    )
+        internal
+        virtual
+        override
+        returns (uint256 dispatchValue, bytes memory message)
+    {
+        dispatchValue = _chargeSender(_destination, _recipient, _amount);
+
         uint256 _shares = _depositIntoVault(_amount);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
@@ -83,29 +94,20 @@ contract HypERC4626Collateral is HypERC20Collateral {
         );
 
         uint256 _outboundAmount = _outboundAmount(_shares);
-        bytes memory _tokenMessage = TokenMessage.format(
+        message = TokenMessage.format(
             _recipient,
             _outboundAmount,
             _tokenMetadata
         );
-
-        messageId = _Router_dispatch(
-            _destination,
-            _value,
-            _tokenMessage,
-            _hookMetadata,
-            _hook
-        );
-
-        emit SentTransferRemote(_destination, _recipient, _outboundAmount);
     }
 
     /**
      * @dev Deposits into the vault and increment assetDeposited
      * @param _amount amount to deposit into vault
      */
-    function _depositIntoVault(uint256 _amount) internal returns (uint256) {
-        wrappedToken.approve(address(vault), _amount);
+    function _depositIntoVault(
+        uint256 _amount
+    ) internal virtual returns (uint256) {
         return vault.deposit(_amount, address(this));
     }
 
@@ -115,8 +117,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
      */
     function _transferTo(
         address _recipient,
-        uint256 _shares,
-        bytes calldata
+        uint256 _shares
     ) internal virtual override {
         vault.redeem(_shares, _recipient, address(this));
     }
@@ -135,7 +136,6 @@ contract HypERC4626Collateral is HypERC20Collateral {
             _destinationDomain,
             NULL_RECIPIENT,
             0,
-            msg.value,
             _hookMetadata,
             _hook
         );

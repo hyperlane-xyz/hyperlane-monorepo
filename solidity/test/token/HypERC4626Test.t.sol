@@ -116,10 +116,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
         _connectRouters(domains, addresses);
     }
 
-    function testRemoteTransfer_withFee() public override {
-        // disable for now
-    }
-
     function testDisableInitializers() public {
         vm.expectRevert("Initializable: contract is already initialized");
         remoteToken.initialize(0, "", "", address(0), address(0), address(0));
@@ -643,13 +639,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
             0,
             "Supply should include yield"
         );
-    }
-
-    function testTransfer_withHookSpecified(
-        uint256,
-        bytes calldata
-    ) public override {
-        // skip
     }
 
     function testBenchmark_overheadGasUsage() public override {

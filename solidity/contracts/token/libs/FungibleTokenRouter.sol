@@ -3,12 +3,17 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./TokenRouter.sol";
 import {Quote, ITokenFee} from "../../interfaces/ITokenBridge.sol";
+import {TokenMessage} from "./TokenMessage.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @title Hyperlane Fungible Token Router that extends TokenRouter with scaling logic for fungible tokens with different decimals.
  * @author Abacus Works
  */
 abstract contract FungibleTokenRouter is TokenRouter {
+    using TokenMessage for bytes;
+    using TypeCasts for bytes32;
+
     uint256 public immutable scale;
 
     ITokenFee public feeRecipient;
@@ -70,35 +75,63 @@ abstract contract FungibleTokenRouter is TokenRouter {
         return quotes[0].amount;
     }
 
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (bytes memory metadata) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-        metadata = _transferFromSender(_amount + fee);
-        if (fee > 0) {
-            _transferTo(address(feeRecipient), fee);
-        }
-    }
-
     /**
      * @dev Scales local amount to message amount (up by scale factor).
-     * @inheritdoc TokenRouter
      */
     function _outboundAmount(
         uint256 _localAmount
-    ) internal view virtual override returns (uint256 _messageAmount) {
+    ) internal view virtual returns (uint256 _messageAmount) {
         _messageAmount = _localAmount * scale;
     }
 
     /**
      * @dev Scales message amount to local amount (down by scale factor).
-     * @inheritdoc TokenRouter
      */
     function _inboundAmount(
         uint256 _messageAmount
-    ) internal view virtual override returns (uint256 _localAmount) {
+    ) internal view virtual returns (uint256 _localAmount) {
         _localAmount = _messageAmount / scale;
+    }
+
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual returns (uint256 dispatchValue) {
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        _transferFromSender(_amount + fee);
+        if (fee > 0) {
+            _transferTo(address(feeRecipient), fee);
+        }
+        return msg.value;
+    }
+
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    )
+        internal
+        virtual
+        override
+        returns (uint256 dispatchValue, bytes memory message)
+    {
+        dispatchValue = _chargeSender(_destination, _recipient, _amount);
+        message = TokenMessage.format(_recipient, _outboundAmount(_amount));
+    }
+
+    function _handle(
+        uint32 _origin,
+        bytes32,
+        bytes calldata _message
+    ) internal virtual override {
+        bytes32 recipient = _message.recipient();
+        uint256 amount = _message.amount();
+
+        // effects
+        emit ReceivedTransferRemote(_origin, recipient, amount);
+
+        // interactions
+        _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
     }
 }
