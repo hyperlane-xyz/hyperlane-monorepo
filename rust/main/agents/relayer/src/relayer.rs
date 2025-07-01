@@ -427,7 +427,6 @@ impl BaseAgent for Relayer {
                         destination: destination.id(),
                     },
                     Arc::new(MessageContext {
-                        origin: origin.clone(),
                         destination_mailbox: dest_mailbox.clone(),
                         origin_db: Arc::new(db),
                         cache: cache.clone(),
@@ -639,8 +638,8 @@ impl BaseAgent for Relayer {
 
         let gas_enforcers: HashMap<_, _> = self
             .msg_ctxs
-            .values()
-            .map(|ctx| (ctx.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
+            .iter()
+            .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
         let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())

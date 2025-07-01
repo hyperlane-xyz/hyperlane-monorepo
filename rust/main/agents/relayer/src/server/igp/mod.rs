@@ -16,7 +16,7 @@ pub mod remove_igp_rule;
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
-    pub gas_enforcers: HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>,
+    pub gas_enforcers: HashMap<u32, Arc<RwLock<GasPaymentEnforcer>>>,
 }
 
 impl ServerState {

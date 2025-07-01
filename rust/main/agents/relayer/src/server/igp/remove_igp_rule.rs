@@ -54,7 +54,7 @@ mod tests {
     #[derive(Debug)]
     struct TestServerSetup {
         pub app: Router,
-        pub gas_enforcers: HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>,
+        pub gas_enforcers: HashMap<u32, Arc<RwLock<GasPaymentEnforcer>>>,
     }
 
     fn setup_test_server(domains: &[HyperlaneDomain]) -> TestServerSetup {
@@ -65,7 +65,7 @@ mod tests {
                 let db = DB::from_path(temp_dir.path()).unwrap();
                 let base_db = HyperlaneRocksDB::new(domain, db);
                 (
-                    domain.clone(),
+                    domain.id(),
                     Arc::new(RwLock::new(GasPaymentEnforcer::new([], base_db))),
                 )
             })

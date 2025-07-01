@@ -15,7 +15,7 @@ pub struct GasEnforcementResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ResponseBody {
-    pub policies: HashMap<String, Vec<GasEnforcementResponse>>,
+    pub policies: HashMap<u32, Vec<GasEnforcementResponse>>,
 }
 
 /// Get all interchain gas payment policies for every chain
@@ -39,7 +39,7 @@ pub async fn handler(
                 },
             })
             .collect();
-        map.insert(domain.name().to_string(), policies_resp);
+        map.insert(*domain, policies_resp);
     }
     let resp = ResponseBody { policies: map };
     Ok(ServerSuccessResponse::new(resp))
@@ -80,7 +80,7 @@ mod tests {
                 let db = DB::from_path(temp_dir.path()).unwrap();
                 let base_db = HyperlaneRocksDB::new(domain, db);
                 (
-                    domain.clone(),
+                    domain.id(),
                     Arc::new(RwLock::new(GasPaymentEnforcer::new([], base_db))),
                 )
             })
@@ -203,7 +203,7 @@ mod tests {
                     expected_policies.clone(),
                 ),
             ]
-            .map(|(domain, policies)| (domain.name().to_string(), policies))
+            .map(|(domain, policies)| (domain.id(), policies))
             .into_iter()
             .collect(),
         };

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use axum::Router;
 use derive_new::new;
-use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -32,7 +31,7 @@ pub struct Server {
     #[new(default)]
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
-    gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
+    gas_enforcers: Option<HashMap<u32, Arc<RwLock<GasPaymentEnforcer>>>>,
 }
 
 impl Server {
@@ -56,7 +55,7 @@ impl Server {
 
     pub fn with_gas_enforcers(
         mut self,
-        gas_enforcers: HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>,
+        gas_enforcers: HashMap<u32, Arc<RwLock<GasPaymentEnforcer>>>,
     ) -> Self {
         self.gas_enforcers = Some(gas_enforcers);
         self

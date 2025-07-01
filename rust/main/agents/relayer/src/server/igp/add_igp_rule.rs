@@ -46,7 +46,7 @@ pub async fn handler(
 
     tracing::debug!(?policy, ?matching_list, "Adding new IGP rule");
 
-    for (_, gas_enforcer) in state.gas_enforcers.iter_mut() {
+    for gas_enforcer in state.gas_enforcers.values_mut() {
         let policy_impl = GasPaymentEnforcer::create_policy(&policy);
         gas_enforcer
             .write()
@@ -81,7 +81,7 @@ mod tests {
     #[derive(Debug)]
     struct TestServerSetup {
         pub app: Router,
-        pub gas_enforcers: HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>,
+        pub gas_enforcers: HashMap<u32, Arc<RwLock<GasPaymentEnforcer>>>,
     }
 
     fn setup_test_server(domains: &[HyperlaneDomain]) -> TestServerSetup {
@@ -92,7 +92,7 @@ mod tests {
                 let db = DB::from_path(temp_dir.path()).unwrap();
                 let base_db = HyperlaneRocksDB::new(domain, db);
                 (
-                    domain.clone(),
+                    domain.id(),
                     Arc::new(RwLock::new(GasPaymentEnforcer::new([], base_db))),
                 )
             })
@@ -138,7 +138,7 @@ mod tests {
         let resp_status = response.status();
         assert_eq!(resp_status, StatusCode::OK);
 
-        // check db has correct merkle tree insertions
+        // check db has correct gas enforcement policies
         for gas_enforcer in gas_enforcers.values() {
             let gas_enforcer_read = gas_enforcer.read().await;
             let policies = gas_enforcer_read.get_policies();
@@ -197,7 +197,7 @@ mod tests {
         let resp_status = response.status();
         assert_eq!(resp_status, StatusCode::OK);
 
-        // check db has correct merkle tree insertions
+        // check db has correct gas enforcement policies
         for gas_enforcer in gas_enforcers.values() {
             let gas_enforcer_read = gas_enforcer.read().await;
             let policies = gas_enforcer_read.get_policies();
