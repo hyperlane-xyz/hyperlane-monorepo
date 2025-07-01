@@ -9,14 +9,10 @@ import {
   IgpConfig,
   randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import {
-  hyperlaneCoreApply,
-  hyperlaneCoreDeploy,
-  readCoreConfig,
-} from '../commands/core.js';
+import { HyperlaneCore } from '../../commands/core.js';
 import {
   CHAIN_1_METADATA_PATH,
   CHAIN_NAME_1,
@@ -25,10 +21,17 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY,
   REGISTRY_PATH,
-} from '../commands/helpers.js';
+} from '../consts.js';
 
 describe('hyperlane core apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+
+  const hyperlaneCore = new HyperlaneCore(
+    ProtocolType.CosmosNative,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_1,
+  );
 
   let signer: SigningHyperlaneModuleClient;
   let initialOwnerAddress: Address;
@@ -57,33 +60,16 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the mailbox owner', async () => {
-    await hyperlaneCoreDeploy(
-      REGISTRY_PATH,
-      HYP_KEY,
-      CHAIN_NAME_1,
-      CORE_CONFIG_PATH,
-    );
-    const coreConfig: CoreConfig = await readCoreConfig(
-      REGISTRY_PATH,
-      CHAIN_NAME_1,
-      CORE_READ_CONFIG_PATH_1,
-    );
+    await hyperlaneCore.deploy(CHAIN_NAME_1, HYP_KEY);
+    const coreConfig: CoreConfig = await hyperlaneCore.readConfig(CHAIN_NAME_1);
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
     const newOwner = await randomCosmosAddress('hyp');
     coreConfig.owner = newOwner;
     writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
-    await hyperlaneCoreApply(
-      REGISTRY_PATH,
-      HYP_KEY,
-      CHAIN_NAME_1,
-      CORE_READ_CONFIG_PATH_1,
-    );
+    await hyperlaneCore.apply(CHAIN_NAME_1, HYP_KEY);
     // Verify that the owner has been set correctly without modifying any other owner values
-    const updatedConfig: CoreConfig = await readCoreConfig(
-      REGISTRY_PATH,
-      CHAIN_NAME_1,
-      CORE_READ_CONFIG_PATH_1,
-    );
+    const updatedConfig: CoreConfig =
+      await hyperlaneCore.readConfig(CHAIN_NAME_1);
     expect(updatedConfig.owner).to.equal(newOwner);
     // Assuming that the IGP is used for deployment
     expect((updatedConfig.defaultHook as IgpConfig).owner).to.equal(
