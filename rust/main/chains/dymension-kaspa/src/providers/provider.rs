@@ -4,6 +4,7 @@ use dym_kas_relayer::PublicKey;
 use eyre::Result as EyreResult;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -100,7 +101,7 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub fn rpc(&self) -> Arc<dyn RpcApi> {
+    pub fn rpc(&self) -> Arc<DynRpcApi> {
         self.easy_wallet.api()
     }
 

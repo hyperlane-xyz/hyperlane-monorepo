@@ -13,10 +13,11 @@ use dym_kas_validator::withdraw::sign_pskt;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
@@ -41,6 +42,17 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_provider.as_ref().unwrap().must_kas_key()
     }
+    fn must_api(&self) -> Arc<DynRpcApi> {
+        self.kas_provider.as_ref().unwrap().wallet().api()
+    }
+    fn must_escrow_address(&self) -> String {
+        self.kas_provider
+            .as_ref()
+            .unwrap()
+            .escrow_address()
+            .to_string()
+    }
+
     pub fn default() -> Self {
         Self {
             ism_signer: None,
@@ -71,24 +83,25 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
+    info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let client = resources
-        .kas_provider
-        .as_ref()
-        .expect("unable to get Kaspa provider")
-        .wallet()
-        .api();
     // Call to validator.G()
-    if !validate_new_deposit(&client, &deposits)
-        .await
-        .map_err(|e| AppError(e))?
+    if !validate_new_deposit(
+        &resources.must_api(),
+        &deposits,
+        &resources.must_escrow_address(),
+    )
+    .await
+    .map_err(|e| AppError(e))?
     {
-        return Err(AppError(eyre::eyre!("Invalid deposit")));
+        // TODO: return reasons and use them
+        return Err(AppError(eyre::eyre!("Validator G() function rejected")));
     }
+    info!("Validator: deposit is valid: id = {:?}", deposits.msg_id);
 
-    let message_id = H256::random(); // TODO: extract from FXG
-    let domain = 1; // TODO: extract from FXG
+    let message_id = deposits.msg_id;
+    let domain = deposits.payload.origin;
 
     let zero_array = [0u8; 32];
     let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
@@ -106,6 +119,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         .sign(to_sign) // TODO: need to lock first?
         .await
         .map_err(|e| AppError(e.into()))?;
+    info!("Validator: signed deposit");
 
     let j =
         serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
@@ -117,6 +131,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
+    info!("Validator: checking confirmed kaspa withdrawal");
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
@@ -127,6 +142,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
+    info!("Validator: confirmed withdrawal is valid");
 
     let progress_indication = &confirmation_fxg.progress_indication;
 
@@ -138,6 +154,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .await
         .map_err(|e| AppError(e.into()))?;
 
+    info!("Validator: signed confirmed withdrawal");
     let j = serde_json::to_string_pretty(&sig.signature)
         .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
@@ -212,12 +229,14 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
 ) -> HandlerResult<Json<String>> {
+    info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
     if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
+    info!("Validator: pskts are valid");
 
     let mut signed = Vec::new();
     for pskt in fxg.bundle.iter() {
@@ -226,6 +245,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
             sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
+    info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
 
     let stringy = bundle

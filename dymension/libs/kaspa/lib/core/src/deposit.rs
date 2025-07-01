@@ -26,6 +26,19 @@ pub struct DepositFXG {
     pub payload: HyperlaneMessage,
 }
 
+impl Default for DepositFXG {
+    fn default() -> Self {
+        Self {
+            msg_id: H256::random(),
+            amount: U256::from(0),
+            tx_id: String::new(),
+            utxo_index: 0,
+            block_id: String::new(),
+            payload: HyperlaneMessage::default(),
+        }
+    }
+}
+
 impl TryFrom<Bytes> for DepositFXG {
     type Error = eyre::Report;
 

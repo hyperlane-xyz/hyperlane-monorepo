@@ -39,9 +39,9 @@ pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage, an
     Ok(token_message)
 }
 
-pub fn is_utxo_escrow_address(pk: &RpcScriptPublicKey) -> Result<bool> {
+pub fn is_utxo_escrow_address(pk: &RpcScriptPublicKey, escrow_address: &str) -> Result<bool> {
     let address = extract_script_pub_key_address(pk, Prefix::Testnet)?;
-    if address.to_string() == ESCROW_ADDRESS {
+    if address.to_string() == escrow_address {
         return Ok(true);
     }
     Ok(false)

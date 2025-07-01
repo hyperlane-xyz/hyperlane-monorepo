@@ -140,7 +140,13 @@ impl RestProvider {
         // TODO: need to do appropriate filtering down
         let address = self.conf.kaspa_escrow_addr.clone();
         let res = self.client.client.get_deposits(&address).await;
-        return res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()));
+        res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
+            .map(|deposits| {
+                deposits
+                    .into_iter()
+                    .filter(|d| d.payload.is_some())
+                    .collect()
+            })
     }
 }
 

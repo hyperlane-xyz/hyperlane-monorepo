@@ -23,7 +23,7 @@ use super::client::{get_client, get_config};
 #[derive(Debug, Clone)]
 pub struct Deposit {
     // ATM its a part of Transaction struct, only id, payload, accepted are populated
-    pub payload: String,
+    pub payload: Option<String>,
     // #[serde(with = "serde_bytes_fixed_ref")] // TODO: need?
     pub id: TransactionId,
     accepted: bool,
@@ -53,29 +53,21 @@ impl TryFrom<TxModel> for Deposit {
         let tx_id = tx
             .transaction_id
             .ok_or(eyre::eyre!("Transaction ID is missing"))?;
-        let payload = tx
-            .payload
-            .ok_or(eyre::eyre!("Transaction payload is missing"))?; // TODO: payload can definitely be missing!
         let accepted = tx
             .is_accepted
             .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
         let tx_hash = KaspaHash::from_str(&tx_id)?;
-        let outputs = tx.outputs.ok_or(eyre::eyre!("outputs are missing"))?; // TODO: outputs may be missing!
+        let outputs = tx.outputs.ok_or(eyre::eyre!("Outputs are missing"))?; // TODO: outputs may be missing!
         let block_hash = tx.block_hash.ok_or(eyre::eyre!("Block hash is missing"))?;
 
         Ok(Deposit {
             id: tx_hash,
-            payload: payload,
+            payload: tx.payload,
             accepted: accepted,
             outputs: outputs,
             block_hash: block_hash,
         })
     }
-}
-
-pub fn get_deposits() -> Vec<Deposit> {
-    info!("FOOBAR get_deposits");
-    unimplemented!()
 }
 
 #[derive(Debug, Clone)]
@@ -99,10 +91,10 @@ impl HttpClient {
         let acceptance = None;
 
         let c = self.get_config();
-        info!("FOO|GET_DEPOSITS_CONFIG c: {:?}", c.base_path);
+        info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
         let res = transactions_page(
-            &c, // TODO: need to share this instance across multiple requests
+            &c,
             args {
                 kaspa_address: address.to_string(),
                 limit: Some(limit),
@@ -122,6 +114,34 @@ impl HttpClient {
     }
 
     pub fn get_config(&self) -> Configuration {
-        get_config(&self.url, self.client.clone())
+        let u = self.url.clone();
+        let url = u.strip_suffix("/").unwrap();
+        get_config(&url, self.client.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_deposits() {
+        // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
+        let client = HttpClient::new("https://api-tn10.kaspa.org".to_string());
+        let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
+
+        let deposits = client.get_deposits(address).await;
+
+        match deposits {
+            Ok(deposits) => {
+                println!("Found deposits: n = {:?}", deposits.len());
+                for deposit in deposits {
+                    println!("Deposit: {:?}", deposit);
+                }
+            }
+            Err(e) => {
+                println!("Query deposits: {:?}", e);
+            }
+        }
     }
 }

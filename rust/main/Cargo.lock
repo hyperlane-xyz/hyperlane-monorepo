@@ -10838,6 +10838,7 @@ dependencies = [
  "secp256k1 0.29.1",
  "serde",
  "tokio",
+ "tracing",
  "workflow-core",
 ]
 
@@ -15193,6 +15194,9 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
+ "tracing-error",
+ "tracing-futures",
  "workflow-core",
 ]
 

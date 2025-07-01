@@ -8,7 +8,7 @@ use hyperlane_core::{
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
@@ -69,13 +69,14 @@ where
 
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&mut self) {
+        info!("Dymension, starting deposit loop");
         loop {
-            time::sleep(Duration::from_secs(15)).await;
+            time::sleep(Duration::from_secs(10)).await;
             let deposits_res = self.provider.rest().get_deposits().await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    warn!("Error getting deposits: {:?}", e);
+                    error!("Query new Kaspa deposits: {:?}", e);
                     continue;
                 }
             };
@@ -86,19 +87,32 @@ where
 
             for d in &deposits_new {
                 self.deposit_cache.mark_as_seen(d.clone());
-                info!("DYMENSION DEBUG: new deposit seen: {:?}", d);
+                info!("Dymension, got new kaspa deposit:: {:?}", d);
             }
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                let new_deposit_res = relayer_on_new_deposit(d).await;
+                let new_deposit_res =
+                    relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
+                info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                        // TODO: check result
+                        match res {
+                            Ok(_) => {
+                                info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
+                            }
+                            Err(e) => {
+                                error!("Dymension, gather sigs and send deposit to hub: {:?}", e);
+                                // TODO: should have a retry flow
+                            }
+                        }
                     }
-                    _ => {
-                        // TODO: do somethign with error
+                    Ok(None) => {
+                        error!("Dymension, F() new deposit returned none, dropping deposit.");
+                    }
+                    Err(e) => {
+                        error!("Dymension, F() new deposit: {:?}, dropping deposit.", e);
                     }
                 }
             }
@@ -113,6 +127,10 @@ where
 
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
+        info!(
+            "Dymension, got deposit sigs: number of sigs: {:?}",
+            sigs.len()
+        );
 
         let formatted_sigs = self.format_checkpoint_signatures(
             &mut sigs,
@@ -269,7 +287,7 @@ where
 
         let checkpoint = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
             ChainCommunicationError::InvalidRequest {
-                msg: "failed to convert sigs to checkpoint".to_string(),
+                msg: "to convert sigs to checkpoint".to_string(),
             }
         })?;
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;

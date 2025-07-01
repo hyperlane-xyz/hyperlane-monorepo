@@ -20,6 +20,7 @@ secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
+tracing = { workspace = true }
 reqwest = { workspace = true }
 eyre = { workspace = true }
 bytes = { workspace = true }

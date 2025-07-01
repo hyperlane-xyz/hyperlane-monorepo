@@ -341,7 +341,7 @@ pub fn build_kaspa_connection_conf(
     //     .split(',')
     //     .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
     //     .collect();
-    let validator_ids: Vec<H256> = vec![];
+    // let validator_ids: Vec<H256> = vec![];
 
     let validator_hosts: Vec<String> = chain
         .chain(err)
@@ -400,7 +400,6 @@ pub fn build_kaspa_connection_conf(
             wallet_secret.to_owned(),
             rpc_url_s.to_owned(),
             rest_url,
-            validator_ids,
             validator_hosts,
             validator_pubks,
             escrow_address.unwrap().to_string(),

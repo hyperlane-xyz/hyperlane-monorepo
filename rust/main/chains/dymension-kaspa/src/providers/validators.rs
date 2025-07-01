@@ -8,6 +8,7 @@ use hyperlane_core::{
 use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
+use tracing::{error, info};
 
 use crate::ConnectionConf;
 
@@ -46,29 +47,34 @@ impl ValidatorsClient {
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-        // map validator addr to sig(s)
         // TODO: in parallel
+        info!(
+            "Dymension, asking validators for deposit sigs, number of validators: {:?}",
+            self.conf.validator_hosts.len()
+        );
         let mut results = Vec::new();
-        for (host, validator_id) in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let h = host.to_string();
             let res = request_validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!("Dymension, got deposit sig response ok, validator: {:?}", h);
                     }
                     None => {
-                        // TODO: log
+                        error!(
+                            "Dymension, got deposit sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
-                Err(_e) => {
-                    // TODO: log error
+                Err(e) => {
+                    error!(
+                        "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
+                        h, e
+                    );
                 }
             }
         }
@@ -83,26 +89,31 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        for (host, validator_id) in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let h = host.to_string();
             let res = request_validate_new_confirmation(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!(
+                            "Dymension, got confirmation sig response ok, validator: {:?}",
+                            h
+                        );
                     }
                     None => {
-                        // TODO: log
+                        error!(
+                            "Dymension, got confirmation sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
                 Err(_e) => {
-                    // TODO: log error
+                    error!(
+                        "Dymension, got confirmation sig response Err, validator: {:?}",
+                        h
+                    );
                 }
             }
         }
@@ -115,14 +126,9 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        for (host, validator_id) in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let h = host.to_string();
             let res = request_sign_withdrawal_bundle(host, fxg).await;
 
             // TODO: should also check that each validator signed either all or none of the bundle
@@ -130,13 +136,23 @@ impl ValidatorsClient {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!(
+                            "Dymension, got withdrawal sig response ok, validator: {:?}",
+                            h
+                        );
                     }
                     None => {
-                        // TODO: log
+                        error!(
+                            "Dymension, got withdrawal sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
                 Err(_e) => {
-                    // TODO: log error
+                    error!(
+                        "Dymension, got withdrawal sig response Err, validator: {:?}",
+                        h
+                    );
                 }
             }
         }
@@ -154,6 +170,10 @@ pub async fn request_validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
 ) -> Result<Option<SignedCheckpointWithMessageId>> {
+    info!(
+        "Dymension, requesting deposit sigs from validator: {:?}",
+        host
+    );
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
@@ -213,5 +233,21 @@ pub async fn request_sign_withdrawal_bundle(
         Ok(Some(bundle))
     } else {
         Err(eyre::eyre!("Failed to sign withdrawal bundle: {}", status))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dym_kas_core::deposit::DepositFXG;
+
+    #[tokio::test]
+    // #[ignore = "Requires real validator server"]
+    async fn test_txs() {
+        let host = "http://localhost:9090"; // local validator
+        let deposits = DepositFXG::default();
+        let res = request_validate_new_deposits(host.to_string(), &deposits).await;
+        let _ = res;
+        println!("res: {:?}", res);
     }
 }

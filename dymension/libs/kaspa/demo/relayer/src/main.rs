@@ -10,6 +10,7 @@ use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::ESCROW_ADDRESS;
+use hex;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
@@ -31,7 +32,7 @@ use relayer::handle_new_deposit;
 use relayer::withdraw::*;
 use std::error::Error;
 use std::sync::Arc;
-use validator::validate_deposit;
+use validator::deposit::validate_deposit;
 use validator::withdraw::*;
 use x::args::Args;
 use x::consts::*;
@@ -132,9 +133,12 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     };
 
     let tx_id = if let Some(payload) = args.payload {
-        deposit_impl(&w, &s, escrow_address, amt, payload.as_bytes().to_vec()).await?
+        info!("Dymension, sending deposit with payload: {:?}", payload);
+        // deposit_impl(&w, &s, escrow_address.clone(), amt, payload.as_bytes().to_vec()).await?
+        let bz = hex::decode(payload).unwrap();
+        deposit_impl(&w, &s, escrow_address.clone(), amt, bz).await?
     } else {
-        deposit(&w, &s, escrow_address, amt).await?
+        deposit(&w, &s, escrow_address.clone(), amt).await?
     };
 
     info!("Sent deposit transaction: {}", tx_id);
@@ -165,7 +169,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let deposit = Deposit::try_from(res)?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&deposit).await?;
+    let deposit_fxg = handle_new_deposit(&escrow_address.to_string(), &deposit).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
@@ -179,7 +183,8 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv).await?;
+    let validation_result =
+        validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address.to_string()).await?;
 
     if validation_result {
         println!("Deposit validated");

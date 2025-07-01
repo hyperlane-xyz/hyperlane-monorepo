@@ -1,6 +1,6 @@
 // We call the signers 'validators'
 
-use core::escrow::*;
+use corelib::escrow::*;
 
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
@@ -41,7 +41,7 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
 pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
-    let msg_ids_bytes = core::payload::message_ids_payload_from_pskt(&pskt)
+    let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&pskt)
         .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
 
     pskt.pass_signature_sync(|tx, sighashes| {
