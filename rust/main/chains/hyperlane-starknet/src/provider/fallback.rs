@@ -132,7 +132,7 @@ impl JsonRpcTransport for FallbackHttpTransport {
 
                 // first handle the stalled providers to not span the result of `send_request` in this future
                 // we have to do this, because the result does not implement the `Send` trait
-                let _ = self.handle_stalled_provider(&priority, provider).await;
+                let _ = self.handle_stalled_provider(priority, provider).await;
 
                 let result = provider.send_request(method, params_json.clone()).await;
 
