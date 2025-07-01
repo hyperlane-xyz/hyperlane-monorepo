@@ -2,6 +2,7 @@
 
 mod x;
 
+use core::api::deposits::Deposit;
 use std::error::Error;
 use core::api::client::get_local_testnet_client;
 use core::deposit::*;
@@ -9,6 +10,7 @@ use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::ESCROW_ADDRESS;
+use api_rs::apis::configuration;
 use bytes::Bytes;
 use relayer::withdraw::*;
 use validator::withdraw::*;
@@ -42,6 +44,7 @@ use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
+use api_rs::apis::kaspa_transactions_api::{GetTransactionTransactionsTransactionIdGetParams,get_transaction_transactions_transaction_id_get};
 
 pub async fn deposit(
     w: &Arc<Wallet>,
@@ -81,6 +84,18 @@ pub async fn deposit(
     })
 }
 
+fn get_tn10_config() -> configuration::Configuration {
+    configuration::Configuration {
+        base_path: "https://api-tn10.kaspa.org".to_string(),
+        user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
+        client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build(),
+        basic_auth: None,
+        oauth_access_token: None,
+        bearer_access_token: None,
+        api_key: None,
+    }
+}
+
 
 async fn demo() -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
@@ -105,8 +120,26 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // wait (it may take some time that the deposit is available to indexer-archive rpc service)
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
 
+    // rpc config
+    let config = get_tn10_config();
+
+    // api request
+    let get_params = GetTransactionTransactionsTransactionIdGetParams {
+        transaction_id: tx_id.to_string(),
+        block_hash: None,
+        inputs: None,
+        outputs: None,
+        resolve_previous_outpoints: None,
+    };
+
+    // get transaction info using Kaspa API
+    let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
+
+    // build deposit from api response
+    let deposit = Deposit::try_from(res)?;
+
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(tx_id.to_string()).await?;
+    let deposit_fxg = handle_new_deposit(&deposit).await?;
 
     // deposit encode to bytes 
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into(); 

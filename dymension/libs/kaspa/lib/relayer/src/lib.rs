@@ -10,62 +10,21 @@ pub use hub_to_kaspa::build_withdrawal_pskts;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
-use api_rs::apis::{
-    configuration,
-    kaspa_transactions_api::{
-        get_transaction_transactions_transaction_id_get,
-        GetTransactionTransactionsTransactionIdGetParams,
-    },
-};
-use corelib::{deposit::DepositFXG, ESCROW_ADDRESS};
+
+use corelib::{api::deposits::Deposit, deposit::DepositFXG, ESCROW_ADDRESS};
 use eyre::Result;
 use hyperlane_core::{RawHyperlaneMessage,Encode,U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_hashes::Hash;
 pub use secp256k1::PublicKey;
 use std::error::Error;
-use std::str::FromStr;
 use corelib::{parse_hyperlane_message,parse_hyperlane_metadata};
 
 
-
-fn get_tn10_config() -> configuration::Configuration {
-    configuration::Configuration {
-        base_path: "https://api-tn10.kaspa.org".to_string(),
-        user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
-        client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build(),
-        basic_auth: None,
-        oauth_access_token: None,
-        bearer_access_token: None,
-        api_key: None,
-    }
-}
-
-pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
-    // rpc config
-    let config = get_tn10_config();
-
-    let get_params = GetTransactionTransactionsTransactionIdGetParams {
-        transaction_id: tx.clone(),
-        block_hash: None,
-        inputs: None,
-        outputs: None,
-        resolve_previous_outpoints: None,
-    };
-    // get transaction info using Kaspa API
-    let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
-    let payload = res
-        .payload
-        .ok_or("Tx payload not found")
-        .map_err(|e| eyre::eyre!(e))?;
-    let block_ids = res
-        .block_hash
-        .ok_or("Block id not found")
-        .map_err(|e| eyre::eyre!(e))?;
+pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
 
     // decode payload into Hyperlane message
-    let rawmessage: RawHyperlaneMessage = hex::decode(payload).map_err(|e| eyre::eyre!(e))?;
+    let rawmessage: RawHyperlaneMessage = hex::decode(deposit.payload.clone()).map_err(|e| eyre::eyre!(e))?;
     let hl_message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
     // decode token message from Hyperlane message body
@@ -73,10 +32,7 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         parse_hyperlane_metadata(&hl_message).map_err(|e| eyre::eyre!(e))?;
 
     // find the index of the utxo that satisfies the transfer amount in hl message
-    let utxo_index = res
-        .outputs
-        .ok_or("no utxo found in tx")
-        .map_err(|e| eyre::eyre!(e))?
+    let utxo_index = deposit.outputs
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
             U256::from(utxo.amount) >= token_message.amount() && utxo.script_public_key_address.as_ref().unwrap() == ESCROW_ADDRESS
@@ -84,14 +40,9 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
         .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
 
-    // builds the TransactionOutpoint to inject to hl message
-    let tx_id = res
-        .transaction_id
-        .ok_or("tx id not found")
-        .map_err(|e| eyre::eyre!(e))?;
-    let tx_hash = Hash::from_str(&tx_id)?;
+       
     let output = TransactionOutpoint {
-        transaction_id: tx_hash,
+        transaction_id: deposit.id,
         index: utxo_index as u32,
     };
     let output_bytes = bincode::serialize(&output)?;
@@ -115,10 +66,10 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
     // build response for validator
     let tx = DepositFXG {
         msg_id: hl_message_new.id(),
-        tx_id: tx,
+        tx_id: deposit.id.to_string(),
         utxo_index: utxo_index,
         amount: token_message.amount(),
-        block_id: block_ids[0].clone(),
+        block_id: deposit.block_hash[0].clone(), // used by validator to find tx by block 
         payload: hl_message_new,
     };
     Ok(tx)
@@ -187,12 +138,12 @@ mod tests {
 }
 
 pub async fn handle_new_deposits(
-    transaction_ids: Vec<String>,
+    deposits: Vec<&Deposit>,
 ) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
     let mut txs = Vec::new();
 
-    for transaction in transaction_ids {
-        let tx = handle_new_deposit(transaction).await?;
+    for deposit in deposits {
+        let tx = handle_new_deposit(deposit).await?;
         txs.push(tx);
     }
 
