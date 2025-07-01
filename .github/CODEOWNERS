@@ -1,24 +1,32 @@
 # File extension owners
 
-*.sol @yorhodes @aroralanuk @ltyu
-*.ts @yorhodes @ltyu
+*.sol @yorhodes @larryob
+*.ts @yorhodes @ltyu @xeno097
 *.rs @tkporter @daniel-savu @ameten
 
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @tkporter @aroralanuk @ltyu
+solidity/ @yorhodes @tkporter @ltyu @larryob
+starknet/ @yorhodes @tkporter @troykessler
 
 ## Agents
-rust/ @tkporter @daniel-savu
+rust/ @tkporter @daniel-savu @ameten @kamiyaa
 
 ## SDK
-typescript/utils @yorhodes @ltyu @paulbalaji
-typescript/sdk @yorhodes @ltyu @paulbalaji
-typescript/widgets @xaroz @cmcewen
+typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
+typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
+typescript/widgets @xaroz @cmcewen @antigremlin
 
 ## CLI
-typescript/cli @yorhodes @ltyu
+typescript/cli @yorhodes @ltyu @xeno097 @antigremlin
 
 ## Infra
 typescript/infra @tkporter @paulbalaji @Mo-Hussain
+
+## Cosmos
+typescript/cosmos-sdk @troykessler @yjamin
+typescript/cosmos-types @troykessler @yjamin
+
+## CCIP Server
+typescript/ccip-server @Mo-Hussain @nambrot

@@ -2,7 +2,6 @@ import {
   COSMOS_MODULE_MESSAGE_REGISTRY as R,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { DeployedCoreAddresses, HookConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ChainId,
@@ -13,9 +12,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
-import { DerivedHookConfig, HookType } from '../hook/types.js';
+import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -25,7 +25,12 @@ import {
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 import { CosmosNativeCoreReader } from './CosmosNativeCoreReader.js';
-import { CoreConfig, CoreConfigSchema, DerivedCoreConfig } from './types.js';
+import {
+  CoreConfig,
+  CoreConfigSchema,
+  DeployedCoreAddresses,
+  DerivedCoreConfig,
+} from './types.js';
 
 export class CosmosNativeCoreModule extends HyperlaneModule<
   ProtocolType.CosmosNative,
@@ -40,17 +45,17 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signer: SigningHyperlaneModuleClient,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
 
-    this.chainName = multiProvider.getChainName(args.chain);
-    this.chainId = multiProvider.getChainId(args.chain);
-    this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainName = metadataManager.getChainName(args.chain);
+    this.chainId = metadataManager.getChainId(args.chain);
+    this.domainId = metadataManager.getDomainId(args.chain);
 
-    this.coreReader = new CosmosNativeCoreReader(this.multiProvider, signer);
+    this.coreReader = new CosmosNativeCoreReader(this.metadataManager, signer);
   }
 
   /**
@@ -326,7 +331,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     const ismModule = new CosmosNativeIsmModule(
-      this.multiProvider,
+      this.metadataManager,
       {
         addresses: {
           mailbox: mailbox,
@@ -447,7 +452,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     const hookModule = new CosmosNativeHookModule(
-      this.multiProvider,
+      this.metadataManager,
       {
         addresses: {
           mailbox: mailbox,
