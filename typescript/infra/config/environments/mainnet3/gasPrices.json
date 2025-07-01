@@ -339,6 +339,10 @@
     "amount": "1000.0",
     "decimals": 9
   },
+  "noble": {
+    "amount": "0.1",
+    "decimals": 1
+  },
   "oortmainnet": {
     "amount": "100.0",
     "decimals": 9
@@ -549,6 +553,10 @@
   },
   "xpla": {
     "amount": "280.0",
+    "decimals": 9
+  },
+  "xrplevm": {
+    "amount": "275.0",
     "decimals": 9
   },
   "zeronetwork": {
