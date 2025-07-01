@@ -89,7 +89,8 @@ contract EverclearTokenBridge is HypERC20Collateral {
         // Create everclear intent
         _createIntent(_destination, _recipient, _amount, _feeParams);
 
-        // A hyperlane message will be sent by everclear internally.
+        // A hyperlane message will be sent by everclear internally
+        // in a separate transaction. See `EverclearSpokeV3.processIntentQueue`.
         return bytes32(0);
     }
 
