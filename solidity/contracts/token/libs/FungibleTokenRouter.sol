@@ -5,6 +5,7 @@ import {TokenRouter} from "./TokenRouter.sol";
 import {Quote, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
  * @title Hyperlane Fungible Token Router that extends TokenRouter with scaling logic for fungible tokens with different decimals.
@@ -13,10 +14,14 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 abstract contract FungibleTokenRouter is TokenRouter {
     using TokenMessage for bytes;
     using TypeCasts for bytes32;
+    using StorageSlot for bytes32;
 
     uint256 public immutable scale;
 
-    ITokenFee public feeRecipient;
+    bytes32 private constant FEE_RECIPIENT_SLOT =
+        keccak256("FungibleTokenRouter.feeRecipient");
+
+    event FeeRecipientSet(address feeRecipient);
 
     constructor(uint256 _scale, address _mailbox) TokenRouter(_mailbox) {
         scale = _scale;
@@ -28,7 +33,12 @@ abstract contract FungibleTokenRouter is TokenRouter {
      * @param _feeRecipient The address of the fee recipient.
      */
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
-        feeRecipient = ITokenFee(_feeRecipient);
+        FEE_RECIPIENT_SLOT.getAddressSlot().value = _feeRecipient;
+        emit FeeRecipientSet(_feeRecipient);
+    }
+
+    function _getFeeRecipient() internal view virtual returns (address) {
+        return FEE_RECIPIENT_SLOT.getAddressSlot().value;
     }
 
     /**
@@ -59,15 +69,12 @@ abstract contract FungibleTokenRouter is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) internal view virtual returns (uint256 feeAmount) {
-        if (address(feeRecipient) == address(0)) {
+        if (_getFeeRecipient() == address(0)) {
             return 0;
         }
 
-        Quote[] memory quotes = feeRecipient.quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
+        Quote[] memory quotes = ITokenFee(_getFeeRecipient())
+            .quoteTransferRemote(_destination, _recipient, _amount);
         require(
             quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
@@ -101,7 +108,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         _transferFromSender(_amount + fee);
         if (fee > 0) {
-            _transferTo(address(feeRecipient), fee);
+            _transferTo(_getFeeRecipient(), fee);
         }
         return msg.value;
     }
