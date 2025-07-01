@@ -39,6 +39,8 @@ export function createAbiHandler<
     const handlerLogger = req.log;
     handlerLogger.setBindings({ function: functionName as string });
 
+    handlerLogger.info({ body: req.body }, 'Processing ABI handler request');
+
     try {
       const { skipResultEncoding = false, verifyRelayerSignatureUrl } = options;
       // request body fields
@@ -51,7 +53,7 @@ export function createAbiHandler<
         (req.query?.callData as string) ||
         '';
       if (!data) {
-        handlerLogger.warn('Missing callData in request');
+        handlerLogger.warn({ body }, 'Missing callData in request');
         return res.status(400).json({ error: 'Missing callData' });
       }
 
@@ -67,6 +69,7 @@ export function createAbiHandler<
       if (verifyRelayerSignatureUrl) {
         const parseResult = bodySchema.safeParse({ sender, signature });
         if (!parseResult.success) {
+          handlerLogger.warn({ body }, 'Invalid sender or signature format');
           return res.status(400).json({
             error: 'Invalid sender or signature format',
             details: parseResult.error.errors,
@@ -76,6 +79,10 @@ export function createAbiHandler<
 
       let relayer: string | undefined;
       if (verifyRelayerSignatureUrl) {
+        handlerLogger.debug(
+          { sender, data, verifyRelayerSignatureUrl },
+          'Verifying relayer signature',
+        );
         relayer = ethers.utils.verifyMessage(
           ethers.utils.arrayify(
             offchainLookupRequestMessageHash(
@@ -87,7 +94,6 @@ export function createAbiHandler<
           signature,
         );
       }
-      handlerLogger.info({ callData: data }, 'Processing ABI handler request');
 
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
@@ -98,19 +104,25 @@ export function createAbiHandler<
       finalArgs.push(req.log); // Logger goes last
       const result = await serviceMethod(...finalArgs);
 
-      handlerLogger.info('ABI handler completed successfully');
+      handlerLogger.info(
+        { reqBody: body },
+        'ABI handler completed successfully',
+      );
 
       if (skipResultEncoding) {
+        handlerLogger.debug({ reqBody: body }, 'Skipping result encoding');
         return res.json({ data: result });
       }
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
+      handlerLogger.debug({ reqBody: body, encoded }, 'Result encoded');
       return res.json({ data: encoded });
     } catch (err: any) {
       handlerLogger.error(
         {
+          reqBody: req.body,
           error: err.message,
           stack: err.stack,
         },

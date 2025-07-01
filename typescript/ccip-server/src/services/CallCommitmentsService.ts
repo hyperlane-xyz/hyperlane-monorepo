@@ -72,6 +72,8 @@ export class CallCommitmentsService extends BaseService {
   public async handleCommitment(req: Request, res: Response) {
     const logger = this.addLoggerServiceContext(req.log);
 
+    logger.info({ body: req.body }, 'Received commitment creation request');
+
     const data = this.parseCommitmentBody(req.body, res, logger);
     if (!data) return;
 
@@ -83,6 +85,10 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(
       {
+        commitmentDispatchTx: data.commitmentDispatchTx,
+        calls: data.calls,
+        relayers: data.relayers,
+        salt: data.salt,
         callsCount: data.calls.length,
         originDomain: data.originDomain,
       },
@@ -100,6 +106,8 @@ export class CallCommitmentsService extends BaseService {
       // TODO: distinguish between infrastructure vs client errors
       logger.warn(
         {
+          commitmentDispatchTx: data.commitmentDispatchTx,
+          originDomain: data.originDomain,
           error: error.message,
           stack: error.stack,
         },
@@ -118,6 +126,8 @@ export class CallCommitmentsService extends BaseService {
       if (existingRecord) {
         logger.info(
           {
+            commitmentDispatchTx: data.commitmentDispatchTx,
+            originDomain: data.originDomain,
             revealMessageId,
           },
           'Commitment already exists - returning success',
@@ -134,6 +144,9 @@ export class CallCommitmentsService extends BaseService {
     } catch (error: any) {
       logger.error(
         {
+          commitmentDispatchTx: data.commitmentDispatchTx,
+          originDomain: data.originDomain,
+          revealMessageId,
           error: error.message,
           stack: error.stack,
         },
@@ -144,7 +157,10 @@ export class CallCommitmentsService extends BaseService {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    logger.info('Commitment processing completed successfully');
+    logger.info(
+      { revealMessageId, commitmentDispatchTx: data.commitmentDispatchTx },
+      'Commitment processing completed successfully',
+    );
     return res.sendStatus(200);
   }
 
@@ -154,10 +170,14 @@ export class CallCommitmentsService extends BaseService {
     logger: Logger,
   ) {
     const log = this.addLoggerServiceContext(logger);
+    log.info({ message, relayer }, 'Handling fetch commitment request');
 
     try {
       const revealMsgId = messageId(message);
-      log.debug({ revealMsgId }, 'Generated reveal message ID');
+      log.debug(
+        { revealMsgId, message, relayer },
+        'Generated reveal message ID',
+      );
 
       const record = await this.fetchCommitmentRecord(revealMsgId, log);
 
@@ -197,6 +217,7 @@ export class CallCommitmentsService extends BaseService {
       log.error(
         {
           message,
+          relayer,
           error: error.message,
           stack: error.stack,
         },
@@ -229,7 +250,7 @@ export class CallCommitmentsService extends BaseService {
     );
     if (revealIndex === -1) {
       logger.warn(
-        { receipt },
+        { receipt, commitmentDispatchTx: receipt.transactionHash },
         'CommitRevealDispatched event not found in logs',
       );
       throw new Error('CommitRevealDispatched event not found in logs');
@@ -242,7 +263,7 @@ export class CallCommitmentsService extends BaseService {
 
     if (dispatchLogsAfterReveal.length < 2) {
       logger.warn(
-        { receipt },
+        { receipt, commitmentDispatchTx: receipt.transactionHash },
         'Not enough DispatchId events after CommitRevealDispatched',
       );
       throw new Error(
@@ -339,7 +360,7 @@ export class CallCommitmentsService extends BaseService {
 
     const parsed = CommitmentRecordSchema.parse(record);
     logger.debug(
-      { commitment: parsed.commitment },
+      { commitment: parsed.commitment, revealMessageId },
       'Successfully fetched commitment record',
     );
 
@@ -364,7 +385,7 @@ export class CallCommitmentsService extends BaseService {
     if (!receipt) {
       logger.error(
         {
-          transactionHash: data.commitmentDispatchTx,
+          commitmentDispatchTx: data.commitmentDispatchTx,
           originDomain: data.originDomain,
         },
         'Transaction not found',
@@ -376,7 +397,7 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(
       {
-        transactionHash: receipt.transactionHash,
+        commitmentDispatchTx: data.commitmentDispatchTx,
         originDomain: data.originDomain,
       },
       'Validating commitment events',
@@ -401,6 +422,8 @@ export class CallCommitmentsService extends BaseService {
       {
         ica,
         revealMessageId,
+        commitmentDispatchTx: data.commitmentDispatchTx,
+        originDomain: data.originDomain,
       },
       'Commitment validation successful',
     );
@@ -420,7 +443,14 @@ export class CallCommitmentsService extends BaseService {
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
     const callLog = receipt.logs.find((l) => l.topics[0] === callTopic);
     if (!callLog) {
-      logger.warn({ receipt }, 'RemoteCallDispatched event not found');
+      logger.warn(
+        {
+          receipt,
+          originDomain,
+          commitmentDispatchTx: receipt.transactionHash,
+        },
+        'RemoteCallDispatched event not found',
+      );
       throw new Error('RemoteCallDispatched event not found');
     }
     const parsedCall = iface.parseLog(callLog);
