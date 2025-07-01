@@ -17,7 +17,6 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
-use api_rs::apis::kaspa_transactions_api::GetTransactionTransactionsTransactionIdGetParams;
 
 // Add imports for sync methods
 use api_rs::apis::configuration::Configuration;
