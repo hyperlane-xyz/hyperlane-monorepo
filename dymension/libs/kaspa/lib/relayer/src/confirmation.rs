@@ -4,10 +4,10 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     ProgressIndication, QueryOutpointRequest, WithdrawalId,
 };
 
+use api_rs::models::TxModel;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::RpcTransaction;
-use api_rs::models::TxModel;
 
 use kaspa_addresses::Address;
 use kaspa_wallet_core::error::Error;
@@ -20,8 +20,8 @@ use api_rs::apis::{
     },
 };
 
-use hex;
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
+use hex;
 
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
@@ -46,9 +46,12 @@ pub async fn prepare_progress_indication(
     println!("Tracing transactions to extract withdrawal IDs...");
     let msg_ids = trace_transactions(config, new_utxo, anchor_utxo).await?;
 
-    let withdrawal_ids: Vec<WithdrawalId> = msg_ids.into_iter().map(|id| WithdrawalId {
-        message_id: id.0.to_string(),
-    }).collect();
+    let withdrawal_ids: Vec<WithdrawalId> = msg_ids
+        .into_iter()
+        .map(|id| WithdrawalId {
+            message_id: id.0.to_string(),
+        })
+        .collect();
 
     println!(
         "Extracted {} withdrawal IDs from payloads",
@@ -129,7 +132,8 @@ pub async fn trace_transactions(
         .map_err(|e| {
             anyhow::anyhow!(
                 "Failed to get transaction {}: {}",
-                current_utxo.transaction_id, e
+                current_utxo.transaction_id,
+                e
             )
         })?;
 
@@ -138,7 +142,7 @@ pub async fn trace_transactions(
             // Deserialize the payload bytes into MessageIDs
             let message_ids = corelib::payload::MessageIDs::from_bytes(payload.as_bytes())
                 .map_err(|e| anyhow::anyhow!("Failed to deserialize MessageIDs: {}", e))?;
-            
+
             // Convert each message ID into a WithdrawalId and add to the list
             processed_withdrawals.extend(message_ids.0);
         } else {
@@ -184,7 +188,10 @@ pub fn get_previous_utxo_in_lineage(
     lineage_address: &str,
     anchor_utxo: TransactionOutpoint,
 ) -> Result<Option<TransactionOutpoint>> {
-    let inputs = transaction.inputs.as_ref().ok_or(Error::Custom("Inputs not found".to_string()))?;
+    let inputs = transaction
+        .inputs
+        .as_ref()
+        .ok_or(Error::Custom("Inputs not found".to_string()))?;
     // check if we reached the anchor transaction_id
     for input in inputs {
         println!("Checking input: {:?}", input.index);
@@ -209,11 +216,14 @@ pub fn get_previous_utxo_in_lineage(
             ))?;
         if input_address == lineage_address {
             // Use the previous outpoint of this canonical input as the next UTXO
-            let prev_hash_bytes = hex::decode(&input.previous_outpoint_hash)
-                .map_err(|e| Error::Custom(format!("Invalid hex in previous_outpoint_hash: {}", e)))?;
+            let prev_hash_bytes = hex::decode(&input.previous_outpoint_hash).map_err(|e| {
+                Error::Custom(format!("Invalid hex in previous_outpoint_hash: {}", e))
+            })?;
             let next_utxo = TransactionOutpoint {
                 transaction_id: kaspa_hashes::Hash::from_bytes(
-                    prev_hash_bytes.try_into().map_err(|_| Error::Custom("Invalid length for hash".to_string()))?
+                    prev_hash_bytes
+                        .try_into()
+                        .map_err(|_| Error::Custom("Invalid length for hash".to_string()))?,
                 ),
                 index: input.previous_outpoint_index.parse().unwrap(),
             };

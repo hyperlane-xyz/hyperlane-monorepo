@@ -2,24 +2,16 @@
 
 mod x;
 
-use core::api::deposits::Deposit;
-use std::error::Error;
+use api_rs::apis::configuration;
+use bytes::Bytes;
 use core::api::client::get_local_testnet_client;
+use core::api::deposits::Deposit;
 use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::ESCROW_ADDRESS;
-use api_rs::apis::configuration;
-use bytes::Bytes;
-use relayer::withdraw::*;
-use validator::withdraw::*;
-use relayer::handle_new_deposit;
-use validator::validate_deposit;
-use x::args::Args;
-use x::consts::*;
-use std::sync::Arc;
-use hyperlane_core::{Encode,Decode,H256,HyperlaneMessage,U256};
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
@@ -36,15 +28,26 @@ use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
+use relayer::handle_new_deposit;
+use relayer::withdraw::*;
+use std::error::Error;
+use std::sync::Arc;
+use validator::validate_deposit;
+use validator::withdraw::*;
+use x::args::Args;
+use x::consts::*;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
 use secp256k1::{rand::thread_rng, Keypair};
 
+use api_rs::apis::kaspa_transactions_api::{
+    get_transaction_transactions_transaction_id_get,
+    GetTransactionTransactionsTransactionIdGetParams,
+};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
-use api_rs::apis::kaspa_transactions_api::{GetTransactionTransactionsTransactionIdGetParams,get_transaction_transactions_transaction_id_get};
 
 pub async fn deposit(
     w: &Arc<Wallet>,
@@ -96,7 +99,6 @@ fn get_tn10_config() -> configuration::Configuration {
     }
 }
 
-
 async fn demo() -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
 
@@ -107,9 +109,8 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
-
-    println!("address {}",&w.account()?.receive_address()?);
-    println!("balance {}",&w.account()?.get_list_string()?);
+    println!("address {}", &w.account()?.receive_address()?);
+    println!("balance {}", &w.account()?.get_list_string()?);
 
     // deposit to escrow address
     let amt = DEPOSIT_AMOUNT;
@@ -141,16 +142,19 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // handle deposit (relayer operation)
     let deposit_fxg = handle_new_deposit(&deposit).await?;
 
-    // deposit encode to bytes 
-    let deposit_bytes_recv: Bytes = (&deposit_fxg).into(); 
+    // deposit encode to bytes
+    let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
 
     // deposit from bytes
-    let deposit_recv  = DepositFXG::try_from(deposit_bytes_recv)?;
+    let deposit_recv = DepositFXG::try_from(deposit_bytes_recv)?;
 
-    println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_recv.tx_id, deposit_recv.block_id,deposit_recv.amount);
+    println!(
+        "Deposit pulled by relay tx_id:{} block_id:{} amount:{}",
+        deposit_recv.tx_id, deposit_recv.block_id, deposit_recv.amount
+    );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv).await?;
+    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv).await?;
 
     if validation_result {
         println!("Deposit validated");

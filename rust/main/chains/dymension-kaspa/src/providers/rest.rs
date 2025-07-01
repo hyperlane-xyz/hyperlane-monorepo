@@ -12,8 +12,8 @@ use hyperlane_metric::prometheus_metric::{
 };
 use url::Url;
 
-use dym_kas_api::models::TxModel;
 use dym_kas_api::apis::configuration::Configuration;
+use dym_kas_api::models::TxModel;
 pub use dym_kas_core::api::client::get_config;
 pub use dym_kas_core::api::deposits::*;
 

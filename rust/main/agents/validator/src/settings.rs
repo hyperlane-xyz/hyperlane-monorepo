@@ -22,6 +22,7 @@ use hyperlane_core::{
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use tracing::warn;
 
 /// Settings for RPCs
 #[derive(Debug, Clone)]
@@ -81,6 +82,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key("originChainName")
             .parse_string()
             .end();
+
+        warn!("origin_chain_name: {:?}", origin_chain_name);
 
         let allow_public_rpcs = p
             .chain(&mut err)

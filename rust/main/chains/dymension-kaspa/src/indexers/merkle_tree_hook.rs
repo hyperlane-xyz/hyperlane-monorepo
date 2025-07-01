@@ -22,7 +22,7 @@ pub struct KaspaMerkle {
 
 impl KaspaMerkle {
     /// New
-    pub fn new(provider: KaspaProvider, locator: &ContractLocator) -> ChainResult<Self> {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             provider,
             address: locator.address,
@@ -60,7 +60,7 @@ impl MerkleTreeHook for KaspaMerkle {
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        Err(ChainCommunicationError::from_other_str("not implemented"))
+        Ok(0)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -116,6 +116,6 @@ impl Indexer<MerkleTreeInsertion> for KaspaMerkle {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for KaspaMerkle {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        Err(ChainCommunicationError::from_other_str("not implemented"))
+        Ok((None, 0))
     }
 }

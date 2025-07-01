@@ -39,10 +39,10 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    KnownHyperlaneDomain, Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType,
-    ValidatorAnnounce, H256, H512, U256,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType,
+    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, InterchainGasPayment, KnownHyperlaneDomain, Mailbox,
+    MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H256, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
@@ -584,7 +584,8 @@ impl BaseAgent for Relayer {
                     &mut tasks,
                     task_monitor.clone(),
                     send_channels.clone(),
-                ).await;
+                )
+                .await;
                 continue;
             }
             let maybe_broadcaster = self
@@ -1460,7 +1461,7 @@ impl Relayer {
             hub_mailbox.clone(),
             metadata_getter,
         );
-        
+
         // sync relayer before starting other tasks
         b.sync_relayer_if_needed().await.unwrap();
 
@@ -1468,7 +1469,6 @@ impl Relayer {
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -1486,7 +1486,18 @@ impl Relayer {
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+        let dym_domain = HyperlaneDomain::Unknown {
+            domain_id: 1260813472,
+            domain_name: "dymension".to_string(),
+            domain_type: HyperlaneDomainType::Unknown, // TODO: fix
+            domain_protocol: HyperlaneDomainProtocol::CosmosNative,
+            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+        };
+
+        if !mailboxes.contains_key(&dym_domain) {
+            return Ok(None);
+        }
+
         let dym_mailbox_trait = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_trait
             .downcast_arc::<CosmosNativeMailbox>()

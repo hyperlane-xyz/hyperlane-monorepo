@@ -50,8 +50,8 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        // TODO: can arguably return the server URL here
-        Ok(vec![])
+        let c = "/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp/signatures";
+        Ok(vec![vec![format!("file://{}", c)]])
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {

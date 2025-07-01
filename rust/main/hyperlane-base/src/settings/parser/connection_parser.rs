@@ -333,14 +333,15 @@ pub fn build_kaspa_connection_conf(
 
     let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
 
-    let validator_ids: Vec<H256> = chain
-        .chain(err)
-        .get_key("validatorHLIDs")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
-        .collect();
+    // let validator_ids: Vec<H256> = chain
+    //     .chain(err)
+    //     .get_key("validatorHLIDs")
+    //     .parse_string()
+    //     .end()?
+    //     .split(',')
+    //     .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
+    //     .collect();
+    let validator_ids: Vec<H256> = vec![];
 
     let validator_hosts: Vec<String> = chain
         .chain(err)
@@ -360,6 +361,7 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
+    // TODO: can technically be derived from pub keys
     let escrow_address = chain
         .chain(err)
         .get_opt_key("escrowAddress")

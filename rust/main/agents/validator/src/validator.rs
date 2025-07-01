@@ -223,6 +223,9 @@ impl BaseAgent for Validator {
                 )
                 .router(),
             );
+
+        warn!("is kaspa: {}", is_kas(&self.origin_chain));
+
         if is_kas(&self.origin_chain) {
             let prov = self.dymension_kaspa_args.clone().unwrap().kas_provider;
             router = router.merge(

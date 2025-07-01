@@ -6,7 +6,12 @@ use kaspa_txscript::{
 };
 
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+
+pub fn generate_escrow_priv_key() -> Keypair {
+    Keypair::new(secp256k1::SECP256K1, &mut thread_rng())
+}
 
 pub struct Escrow {
     pub keys: Vec<Keypair>, // private
@@ -81,5 +86,18 @@ impl EscrowPublic {
             addr,
             pubs: pubs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_escrow_priv_key() {
+        let kp = generate_escrow_priv_key();
+        let s = serde_json::to_string(&kp).unwrap();
+        let kp_parsed: Keypair = serde_json::from_str(&s).unwrap();
+        assert_eq!(kp, kp_parsed);
     }
 }

@@ -1,25 +1,24 @@
 pub mod api;
 pub mod confirmation;
+pub mod consts;
 pub mod deposit;
 pub mod escrow;
+pub mod payload;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
-pub mod payload;
-pub mod consts;
 use std::{error::Error, io::Cursor};
 
-use hyperlane_core::{RawHyperlaneMessage,HyperlaneMessage,Decode};
+use eyre::Result;
+use hyperlane_core::{Decode, HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix;
 use kaspa_rpc_core::RpcScriptPublicKey;
-pub use secp256k1::Keypair as KaspaSecpKeypair;
 use kaspa_txscript::extract_script_pub_key_address;
-use eyre::Result;
+pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 pub const ESCROW_ADDRESS: &'static str =
     "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
-
 
 pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage, anyhow::Error> {
     const MIN_EXPECTED_LENGTH: usize = 77;
