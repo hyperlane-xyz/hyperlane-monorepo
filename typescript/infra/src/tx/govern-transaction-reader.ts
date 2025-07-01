@@ -35,7 +35,7 @@ import {
   WarpCoreConfig,
   coreFactories,
   interchainAccountFactories,
-  isProxyAdminByBytecode,
+  isProxyAdminFromBytecode,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -1283,7 +1283,7 @@ export class GovernTransactionReader {
       return true;
     }
 
-    return await isProxyAdminByBytecode(
+    return await isProxyAdminFromBytecode(
       this.multiProvider.getProvider(chain),
       tx.to,
     );

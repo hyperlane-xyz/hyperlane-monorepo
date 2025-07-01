@@ -463,7 +463,7 @@ export {
   proxyAdmin,
   proxyConstructorArgs,
   proxyImplementation,
-  isProxyAdminByBytecode,
+  isProxyAdminFromBytecode,
 } from './deploy/proxy.js';
 export {
   ChainGasOracleParams,

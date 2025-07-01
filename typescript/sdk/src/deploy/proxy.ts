@@ -136,6 +136,15 @@ export function proxyAdminUpdateTxs(
   return transactions;
 }
 
+const requiredProxyAdminFunctionSelectors = [
+  'owner()',
+  'getProxyAdmin(address)',
+  'getProxyImplementation(address)',
+  'upgrade(address,address)',
+  'upgradeAndCall(address,address,bytes)',
+  'changeProxyAdmin(address,address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
+
 /**
  * Check if contract bytecode matches ProxyAdmin patterns
  * This is more efficient than function calls but less reliable
@@ -143,36 +152,13 @@ export function proxyAdminUpdateTxs(
  * @param address The contract address
  * @returns true if the bytecode suggests it's a ProxyAdmin
  */
-export async function isProxyAdminByBytecode(
+export async function isProxyAdminFromBytecode(
   provider: EthersLikeProvider,
   address: Address,
 ): Promise<boolean> {
-  try {
-    const code = await provider.getCode(address);
-    if (code === '0x') {
-      return false;
-    }
-
-    // Check for common ProxyAdmin function selectors in bytecode
-    const proxyAdminSelectors = [
-      '0x8da5cb5b', // owner()
-      '0xf3b7dead', // getProxyAdmin(address)
-      '0x204e1c7a', // getProxyImplementation(address)
-      '0x99a88ec4', // upgrade(address,address)
-      '0x9623609d', // upgradeAndCall(address,address,bytes)
-      '0x7eff275e', // changeProxyAdmin(address,address)
-    ];
-
-    // Early out: check if any key function is missing
-    for (const selector of proxyAdminSelectors) {
-      if (!code.includes(selector.slice(2))) {
-        // Remove '0x' prefix
-        return false;
-      }
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
+  const code = await provider.getCode(address);
+  if (code === '0x') return false;
+  return requiredProxyAdminFunctionSelectors.every((selector) =>
+    code.includes(selector),
+  );
 }
