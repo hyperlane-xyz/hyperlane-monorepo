@@ -70,10 +70,10 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
 
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
-    origin: u32,
-    destination: u32,
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
 }
 
 /// A relayer agent
@@ -423,8 +423,8 @@ impl BaseAgent for Relayer {
 
                 msg_ctxs.insert(
                     ContextKey {
-                        origin: origin.id(),
-                        destination: destination.id(),
+                        origin: origin.clone(),
+                        destination: destination.clone(),
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
@@ -971,8 +971,8 @@ impl Relayer {
             .keys()
             .filter_map(|destination| {
                 let key = ContextKey {
-                    origin: origin.id(),
-                    destination: destination.id(),
+                    origin: origin.clone(),
+                    destination: destination.clone(),
                 };
                 let context = self
                     .msg_ctxs

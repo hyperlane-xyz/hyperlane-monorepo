@@ -400,7 +400,6 @@ mod tests {
             false,
         );
         let message_context = Arc::new(MessageContext {
-            origin: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             destination_mailbox: arb_mailbox,
             origin_db: Arc::new(base_db.clone()),
             cache: cache.clone(),

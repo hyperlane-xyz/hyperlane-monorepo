@@ -107,7 +107,6 @@ pub fn dummy_message_context(
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> MessageContext {
     MessageContext {
-        origin: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
         destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
         origin_db: Arc::new(db.clone()),
         cache,
