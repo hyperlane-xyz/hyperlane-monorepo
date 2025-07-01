@@ -19,13 +19,16 @@ use crate::msg::{
 
 use super::{
     aggregation::AggregationIsmMetadataBuilder,
-    base::{IsmWithMetadataAndBody, IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
+    base::{
+        IsmWithMetadataAndBody, IsmWithMetadataAndType, MessageMetadataBuildParams,
+        MetadataBuildError,
+    },
     ccip_read::CcipReadIsmMetadataBuilder,
     fsr::FsrMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
-    Metadata, MetadataBuilder, MetadataAndMessageBuilder,
+    Metadata, MetadataAndMessageBuilder, MetadataBuilder,
 };
 
 /// Builds metadata for a message.
@@ -208,18 +211,19 @@ pub async fn build_message_metadata_and_body(
 
     // Handle FSR specifically for message body replacement
     if module_type == ModuleType::FsrRead {
-        let fsr_builder = FsrMetadataBuilder::new(
-            CcipReadIsmMetadataBuilder::new(message_builder.clone())
-        );
-        
-        let enhanced_result = fsr_builder.build_enhanced(ism_address, message, params).await?;
-        
+        let fsr_builder =
+            FsrMetadataBuilder::new(CcipReadIsmMetadataBuilder::new(message_builder.clone()));
+
+        let enhanced_result = fsr_builder
+            .build_enhanced(ism_address, message, params)
+            .await?;
+
         tracing::info!(
             message_id = ?message.id(),
             has_replaced_body = enhanced_result.replaced_message_body.is_some(),
             "FSR enhanced metadata built"
         );
-        
+
         return Ok(IsmWithMetadataAndBody {
             ism,
             metadata: enhanced_result.metadata,
@@ -229,8 +233,13 @@ pub async fn build_message_metadata_and_body(
 
     // For all other ISM types, use standard building with no message body replacement
     let standard_result = build_message_metadata(
-        message_builder, ism_address, message, params, Some((ism, module_type))
-    ).await?;
+        message_builder,
+        ism_address,
+        message,
+        params,
+        Some((ism, module_type)),
+    )
+    .await?;
 
     Ok(IsmWithMetadataAndBody {
         ism: standard_result.ism,
@@ -295,9 +304,9 @@ pub async fn build_message_metadata(
         ModuleType::FsrRead => {
             // For FSR in standard build, just build metadata without message body replacement
             // Message body replacement is handled in the enhanced build flow
-            Box::new(FsrMetadataBuilder::new(
-                CcipReadIsmMetadataBuilder::new(message_builder)
-            ))
+            Box::new(FsrMetadataBuilder::new(CcipReadIsmMetadataBuilder::new(
+                message_builder,
+            )))
         }
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };

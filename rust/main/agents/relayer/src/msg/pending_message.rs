@@ -20,8 +20,8 @@ use hyperlane_base::{
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
-    MessageSubmissionData, ModuleType, PendingOperation, PendingOperationResult, PendingOperationStatus,
-    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    MessageSubmissionData, ModuleType, PendingOperation, PendingOperationResult,
+    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -32,7 +32,10 @@ use crate::{
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder, MetadataAndMessageBuilder},
+    metadata::{
+        BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataAndMessageBuilder,
+        MetadataBuilder,
+    },
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -989,15 +992,17 @@ impl PendingMessage {
         let params = MessageMetadataBuildParams::default();
 
         let build_metadata_start = Instant::now();
-        
+
         // Always use the enhanced metadata and message builder
         // It handles FSR ISMs with message body replacement and non-FSR ISMs without replacement
         let metadata_res = match <MessageMetadataBuilder as MetadataAndMessageBuilder>::build(
             &message_metadata_builder,
             ism_address,
             &self.message,
-            params
-        ).await {
+            params,
+        )
+        .await
+        {
             Ok(result) => {
                 // Handle potential message body replacement for FSR ISMs
                 if let Some(replaced_body) = result.replaced_message_body {
@@ -1007,10 +1012,10 @@ impl PendingMessage {
                         replaced_body_len = replaced_body.len(),
                         "FSR ISM replacing message body"
                     );
-                    
+
                     // Replace the message body with the FSR-returned body
                     self.message.body = replaced_body.into();
-                    
+
                     tracing::info!(
                         message_id = ?self.message.id(),
                         new_body_len = self.message.body.len(),

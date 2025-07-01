@@ -26,7 +26,7 @@ pub struct EnhancedMetadataResult {
 /// Response from FSR server that can include both metadata and message body replacement
 #[derive(Serialize, Deserialize, Debug)]
 struct FsrResponse {
-    data: String,           // metadata (hex string)
+    data: String, // metadata (hex string)
     #[serde(rename = "messageBody")]
     message_body: Option<String>, // optional replacement message body (hex string)
 }
@@ -55,7 +55,10 @@ impl FsrMetadataBuilder {
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         // Get offchain lookup info using the inherited CCIP Read functionality
-        let info = self.ccip_read_builder.call_get_offchain_verify_info(ism, message).await?;
+        let info = self
+            .ccip_read_builder
+            .call_get_offchain_verify_info(ism, message)
+            .await?;
 
         let ccip_url_regex = super::ccip_read::create_ccip_url_regex();
 
@@ -126,19 +129,19 @@ impl FsrMetadataBuilder {
                         .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
                     // Parse optional message body replacement
-                    let replaced_message_body = if let Some(body_hex) = fsr_response.message_body {
-                        let body_data = if body_hex.starts_with("0x") {
-                            &body_hex[2..]
+                    let replaced_message_body =
+                        if let Some(body_hex) = fsr_response.message_body {
+                            let body_data = if body_hex.starts_with("0x") {
+                                &body_hex[2..]
+                            } else {
+                                &body_hex
+                            };
+                            Some(hex::decode(body_data).map_err(|err| {
+                                MetadataBuildError::FailedToBuild(err.to_string())
+                            })?)
                         } else {
-                            &body_hex
+                            None
                         };
-                        Some(
-                            hex::decode(body_data)
-                                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
-                        )
-                    } else {
-                        None
-                    };
 
                     info!(
                         ?ism_address,
@@ -154,7 +157,10 @@ impl FsrMetadataBuilder {
                 }
                 Err(_err) => {
                     // try the next URL
-                    warn!(?ism_address, url, "Failed to parse FSR response, trying next URL");
+                    warn!(
+                        ?ism_address,
+                        url, "Failed to parse FSR response, trying next URL"
+                    );
                 }
             }
         }
