@@ -637,6 +637,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('milkyway') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
+      // ICA v2 deploys that superswaps make use of, once we have body regex MatchingList support this
+      // can be made more specific
       ...superswapIcaV2MatchingList,
     ],
   },
