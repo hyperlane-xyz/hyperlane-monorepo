@@ -62,10 +62,16 @@ const safeSubmitter: SubmitterMetadata = {
   safeAddress: icaOwner,
 };
 
+const icaChains = Object.keys(awIcas);
+
 export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
   const submitterMetadata = CCTP_CHAINS.map((chain): SubmitterMetadata => {
-    if (chain === safeChain) {
-      return safeSubmitter;
+    if (!icaChains.includes(chain)) {
+      return {
+        type: TxSubmitterType.GNOSIS_SAFE,
+        chain,
+        safeAddress: awSafes[chain],
+      };
     }
 
     return {
