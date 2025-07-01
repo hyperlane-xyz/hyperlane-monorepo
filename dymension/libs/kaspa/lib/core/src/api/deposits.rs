@@ -58,11 +58,10 @@ impl TryFrom<TxModel> for Deposit {
             .is_accepted
             .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
         let tx_hash = KaspaHash::from_str(&tx_id)?;
-
         let outputs = tx
-            .outputs.ok_or(eyre::eyre!("outputs are missing"))?; // TODO: payload can definitely be missing!
+            .outputs.ok_or(eyre::eyre!("outputs are missing"))?; // TODO: outputs may be missing!
         let block_hash = tx
-            .block_hash.ok_or(eyre::eyre!("Block hash is missing"))?; // TODO: payload can definitely be missing!
+            .block_hash.ok_or(eyre::eyre!("Block hash is missing"))?; 
 
         Ok(Deposit {
             id: tx_hash,
