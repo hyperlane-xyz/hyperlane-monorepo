@@ -47,9 +47,7 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
-        // temporarily disable so when ownership is transferred to ICA
-        // the in-flight message will upgrade to an already deployed implementation
-        // contractVersion: '8.1.0',
+        contractVersion: '8.1.0',
       };
       return [chain, config];
     }),
@@ -64,10 +62,7 @@ const safeSubmitter: SubmitterMetadata = {
   safeAddress: icaOwner,
 };
 
-const tempSafeChains = ['arbitrum', 'optimism', 'base'];
-const icaChains = Object.keys(awIcas).filter(
-  (chain) => !tempSafeChains.includes(chain),
-);
+const icaChains = Object.keys(awIcas);
 
 export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
   const submitterMetadata = CCTP_CHAINS.map((chain): SubmitterMetadata => {

@@ -171,7 +171,7 @@ export const awIcas: ChainMap<Address> = {
 
   // Jul 1, 2025 - CCTP
   // ----------------------------------------------------------
-  optimism: '0x874C8795d84DA7495416c25df2318899BeC7596a',
-  arbitrum: '0x0a44BFeE8F86e05EE91133838E64A781A4Cb3321',
-  base: '0x234B9c4718f38a90F065476c645C78c975bB0952',
+  arbitrum: '0xaB547e6cde21a5cC3247b8F80e6CeC3a030FAD4A',
+  optimism: '0x20E9C1776A9408923546b64D5ea8BfdF0B7319d6',
+  base: '0xA6D9Aa3878423C266480B5a7cEe74917220a1ad2',
 } as const;
