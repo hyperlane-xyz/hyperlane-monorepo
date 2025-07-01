@@ -72,7 +72,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// The recipient address of this operation.
     fn recipient_address(&self) -> &H256;
 
-    /// The recipient address of this operation.
+    /// The message body of this operation.
     fn body(&self) -> &[u8];
 
     /// Label to use for metrics granularity.

@@ -248,10 +248,7 @@ impl<'de> Visitor<'de> for FilterVisitor<RegexWrapper> {
     type Value = RegexWrapper;
 
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "Expecting either a wildcard \"*\", hex/base58 address string, or list of hex/base58 address strings"
-        )
+        write!(fmt, "Expecting a valid regex pattern string")
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
