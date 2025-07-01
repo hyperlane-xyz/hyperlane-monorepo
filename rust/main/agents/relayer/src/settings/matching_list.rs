@@ -256,7 +256,7 @@ impl<'de> Visitor<'de> for FilterVisitor<RegexWrapper> {
         E: Error,
     {
         Regex::new(v)
-            .map(|regex| RegexWrapper(regex))
+            .map(RegexWrapper)
             .map_err(|err| E::custom(err.to_string()))
     }
 }
