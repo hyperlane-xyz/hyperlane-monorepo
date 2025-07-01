@@ -38,7 +38,7 @@ impl MatchingList {
             sender_address: Default::default(),
             destination_domain: Default::default(),
             recipient_address: Default::default(),
-            regex: Default::default(),
+            body: Default::default(),
         }]))
     }
 
@@ -49,7 +49,7 @@ impl MatchingList {
             sender_address: Default::default(),
             destination_domain: Filter::Enumerated(vec![destination_domain]),
             recipient_address: Default::default(),
-            regex: Default::default(),
+            body: Default::default(),
         }]))
     }
 
@@ -317,7 +317,7 @@ pub struct ListElement {
     #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
     #[serde(default, rename = "regex")]
-    regex: Option<RegexWrapper>,
+    body: Option<RegexWrapper>,
 }
 
 impl Display for ListElement {
@@ -378,7 +378,7 @@ fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: 
             && rule.destination_domain.matches(&info.dst_domain)
             && rule.recipient_address.matches(info.dst_addr)
             && rule
-                .regex
+                .body
                 .as_ref()
                 .map(|regex| regex.0.is_match(&info.body))
                 .unwrap_or(true)
