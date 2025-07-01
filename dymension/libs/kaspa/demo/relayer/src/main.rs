@@ -9,7 +9,6 @@ use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use core::ESCROW_ADDRESS;
 use api_rs::apis::configuration;
 use bytes::Bytes;
 use relayer::withdraw::*;
@@ -49,12 +48,12 @@ use api_rs::apis::kaspa_transactions_api::{GetTransactionTransactionsTransaction
 pub async fn deposit(
     w: &Arc<Wallet>,
     secret: &Secret,
-    address: Address,
+    address: &Address,
     amt: u64,
 ) -> Result<TransactionId, KaspaError> {
     let a = w.account()?;
 
-    let dst = PaymentDestination::from(PaymentOutput::new(address, amt));
+    let dst = PaymentDestination::from(PaymentOutput::new(address.clone(), amt));
     let fees = Fees::from(0i64);
     let payment_secret = None;
     let abortable = Abortable::new();
@@ -103,6 +102,9 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // parse demo args
     let args = Args::parse();
 
+    // create escrow address
+    let address_str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+    let escrow_address =  Address::try_from(address_str)?;
     // load wallet (using kaspa wallet)
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
@@ -113,8 +115,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
 
     // deposit to escrow address
     let amt = DEPOSIT_AMOUNT;
-    let escrow_address = Address::try_from(ESCROW_ADDRESS)?;
-    let tx_id = deposit(&w, &s, escrow_address, amt).await?;
+    let tx_id = deposit(&w, &s, &escrow_address, amt).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     // wait (it may take some time that the deposit is available to indexer-archive rpc service)
@@ -139,7 +140,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let deposit = Deposit::try_from(res)?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&deposit).await?;
+    let deposit_fxg = handle_new_deposit(&deposit,&escrow_address).await?;
 
     // deposit encode to bytes 
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into(); 
@@ -150,7 +151,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_recv.tx_id, deposit_recv.block_id,deposit_recv.amount);
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv).await?;
+    let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv,&escrow_address).await?;
 
     if validation_result {
         println!("Deposit validated");

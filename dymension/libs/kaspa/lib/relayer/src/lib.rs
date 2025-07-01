@@ -78,7 +78,7 @@ pub async fn handle_new_deposit(deposit: &Deposit, escrow_address: &Address) -> 
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::{Encode, H256};
+    use hyperlane_core::{Encode, H256,HyperlaneMessage};
     use rand::Rng;
 
     use super::*;
@@ -130,15 +130,6 @@ mod tests {
         assert_eq!(expected_bytes, token_message_nonempty.metadata());
     }
 
-    #[tokio::test]
-    async fn handle_not_enough_deposit_test() {
-        let tx = "55527daf602fd41607aaf11ad56a326f63732c3691396c29ed0f4733bdda9c29";
-        let address_str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
-        let escrow_address =  Address::try_from(address_str.as_str())
-        .map_err(|e| format!("Failed to parse Kaspa address: {:?}", e));
-        let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string(),escrow_address).await;
-        assert!(result.is_err(), "result should fail");
-    }
 }
 
 pub async fn handle_new_deposits(

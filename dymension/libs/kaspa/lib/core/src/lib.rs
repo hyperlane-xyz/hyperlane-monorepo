@@ -17,9 +17,6 @@ pub use secp256k1::Keypair as KaspaSecpKeypair;
 use kaspa_txscript::extract_script_pub_key_address;
 use eyre::Result;
 
-//pub const ESCROW_ADDRESS: &'static str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
-
-
 pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage, anyhow::Error> {
     const MIN_EXPECTED_LENGTH: usize = 77;
 

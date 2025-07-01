@@ -83,7 +83,7 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                let new_deposit_res = relayer_on_new_deposit(d,self.provider.escrow_address()).await;
+                let new_deposit_res = relayer_on_new_deposit(d,&self.provider.escrow_address()).await;
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
