@@ -9,6 +9,7 @@ import {
   ChainMap,
   ChainName,
   CosmosNativeWarpRouteReader,
+  DerivedTokenRouterConfig,
   DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
@@ -19,7 +20,7 @@ import {
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { logGray, logRed, logTable } from '../logger.js';
+import { logGray, logRed, logTable, warnYellow } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
@@ -108,11 +109,12 @@ async function deriveWarpRouteConfigs(
             cosmosProvider,
           ).deriveWarpRouteConfig(address);
         }
-        default:
-          logRed(
+        default: {
+          warnYellow(
             `protocol type ${context.multiProvider.getProtocol(chain)} not supported`,
           );
-          process.exit(1);
+          return {} as DerivedTokenRouterConfig;
+        }
       }
     }),
   );
