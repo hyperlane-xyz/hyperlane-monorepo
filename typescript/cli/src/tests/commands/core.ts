@@ -40,6 +40,72 @@ export class HyperlaneCore {
   }
 
   /**
+   * Creates a Hyperlane core deployment config
+   */
+  public init(privateKey?: string, privateKeyEnv?: string): ProcessPromise {
+    const flags = [
+      '--registry',
+      this.registryPath,
+      '--config',
+      this.coreOutputPath,
+      '--verbosity',
+      'debug',
+      '--yes',
+    ];
+
+    if (privateKey) {
+      flags.push(this.privateKeyFlag, privateKey);
+    }
+
+    return $`${[
+      `${this.hypKeyEnvName}=${privateKeyEnv}`,
+    ]} ${this.cmdPrefix} hyperlane core init ${flags}`;
+  }
+
+  /**
+   * Reads a Hyperlane core deployment on the specified chain using the provided config.
+   */
+  public read(chain: string): ProcessPromise {
+    return $`${this.cmdPrefix} hyperlane core read \
+        --registry ${this.registryPath} \
+        --config ${this.coreOutputPath} \
+        --chain ${chain} \
+        --verbosity debug \
+        --yes`;
+  }
+
+  /**
+   * Reads the Core deployment config and outputs it to specified output path.
+   */
+  public async readConfig(chain: string): Promise<DerivedCoreConfig> {
+    await this.read(chain);
+    return readYamlOrJson(this.coreOutputPath);
+  }
+
+  /**
+   * Verifies that a Hyperlane core deployment matches the provided config on the specified chain.
+   */
+  public check(chain: string, mailbox?: string): ProcessPromise {
+    const flags = [
+      '--registry',
+      this.registryPath,
+      '--config',
+      this.coreOutputPath,
+      '--chain',
+      chain,
+      '--verbosity',
+      'debug',
+      '--yes',
+    ];
+
+    if (mailbox) {
+      flags.push('--mailbox', mailbox);
+    }
+
+    return $`${this.cmdPrefix} hyperlane core check ${flags}`;
+  }
+
+  /**
    * Deploys the Hyperlane core contracts to the specified chain using the provided config.
    */
   public deployRaw(
@@ -83,64 +149,6 @@ export class HyperlaneCore {
   }
 
   /**
-   * Reads a Hyperlane core deployment on the specified chain using the provided config.
-   */
-  public read(chain: string): ProcessPromise {
-    return $`${this.cmdPrefix} hyperlane core read \
-        --registry ${this.registryPath} \
-        --config ${this.coreOutputPath} \
-        --chain ${chain} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  /**
-   * Verifies that a Hyperlane core deployment matches the provided config on the specified chain.
-   */
-  public check(chain: string, mailbox?: string): ProcessPromise {
-    const flags = [
-      '--registry',
-      this.registryPath,
-      '--config',
-      this.coreOutputPath,
-      '--chain',
-      chain,
-      '--verbosity',
-      'debug',
-      '--yes',
-    ];
-
-    if (mailbox) {
-      flags.push('--mailbox', mailbox);
-    }
-
-    return $`${this.cmdPrefix} hyperlane core check ${flags}`;
-  }
-
-  /**
-   * Creates a Hyperlane core deployment config
-   */
-  public init(privateKey?: string, privateKeyEnv?: string): ProcessPromise {
-    const flags = [
-      '--registry',
-      this.registryPath,
-      '--config',
-      this.coreOutputPath,
-      '--verbosity',
-      'debug',
-      '--yes',
-    ];
-
-    if (privateKey) {
-      flags.push(this.privateKeyFlag, privateKey);
-    }
-
-    return $`${[
-      `${this.hypKeyEnvName}=${privateKeyEnv}`,
-    ]} ${this.cmdPrefix} hyperlane core init ${flags}`;
-  }
-
-  /**
    * Updates a Hyperlane core deployment on the specified chain using the provided config.
    */
   public apply(chain: string, privateKey: string): ProcessPromise {
@@ -151,13 +159,5 @@ export class HyperlaneCore {
         ${this.privateKeyFlag} ${privateKey} \
         --verbosity debug \
         --yes`;
-  }
-
-  /**
-   * Reads the Core deployment config and outputs it to specified output path.
-   */
-  public async readConfig(chain: string): Promise<DerivedCoreConfig> {
-    await this.read(chain);
-    return readYamlOrJson(this.coreOutputPath);
   }
 }
