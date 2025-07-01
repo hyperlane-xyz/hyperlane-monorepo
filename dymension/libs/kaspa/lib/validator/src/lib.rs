@@ -16,8 +16,9 @@ use kaspa_rpc_core::RpcHash;
 
 use hyperlane_core::U256;
 use eyre::Result;
+use kaspa_addresses::Address;
 
-pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> Result<bool> {
+pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, escrow_address: &Address) -> Result<bool> {
     
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
@@ -51,7 +52,7 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
         return Ok(false);
     }
 
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key).map_err(|e| eyre::eyre!(e))?;
+    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key,escrow_address).map_err(|e| eyre::eyre!(e))?;
 
     if !is_escrow {
         return Ok(false);
@@ -62,12 +63,12 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
 }
 
 
-pub async fn validate_deposits(client: &Arc<DynRpcApi>, deposits: Vec<&DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {
+pub async fn validate_deposits(client: &Arc<DynRpcApi>, deposits: Vec<&DepositFXG>, escrow_address: &Address) -> Result<Vec<bool>, Box<dyn Error>> {
 
     let mut results: Vec<bool> = vec![];
     // iterate over all deposits and validate one by one
     for deposit in deposits {
-        let result = validate_deposit(client,deposit).await?;
+        let result = validate_deposit(client,deposit,escrow_address).await?;
         results.push(result);
     }
     Ok(results)

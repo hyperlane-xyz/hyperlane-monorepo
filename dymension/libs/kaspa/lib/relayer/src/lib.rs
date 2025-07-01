@@ -11,7 +11,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
 
-use corelib::{api::deposits::Deposit, deposit::DepositFXG, ESCROW_ADDRESS};
+use corelib::{api::deposits::Deposit, deposit::DepositFXG};
 use eyre::Result;
 use hyperlane_core::{RawHyperlaneMessage,Encode,U256};
 use hyperlane_warp_route::TokenMessage;
@@ -19,9 +19,10 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
 use corelib::{parse_hyperlane_message,parse_hyperlane_metadata};
+use kaspa_addresses::Address;
 
 
-pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
+pub async fn handle_new_deposit(deposit: &Deposit, escrow_address: &Address) -> Result<DepositFXG> {
 
     // decode payload into Hyperlane message
     let rawmessage: RawHyperlaneMessage = hex::decode(deposit.payload.clone()).map_err(|e| eyre::eyre!(e))?;
@@ -35,7 +36,7 @@ pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
     let utxo_index = deposit.outputs
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= token_message.amount() && utxo.script_public_key_address.as_ref().unwrap() == ESCROW_ADDRESS
+            U256::from(utxo.amount) >= token_message.amount() && utxo.script_public_key_address.clone().unwrap() == escrow_address.address_to_string()
         })
         .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
@@ -81,7 +82,7 @@ mod tests {
     use rand::Rng;
 
     use super::*;
-    use std::result::Result as StdResult;
+    use std::{ops::Add, result::Result as StdResult};
 
     /// Helper to create a HyperlaneMessage with a serialized TokenMessage in its body.
     fn create_hyperlane_message_with_token(
@@ -132,18 +133,21 @@ mod tests {
     #[tokio::test]
     async fn handle_not_enough_deposit_test() {
         let tx = "55527daf602fd41607aaf11ad56a326f63732c3691396c29ed0f4733bdda9c29";
-        let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
+        let address_str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+        let escrow_address =  Address::try_from(address_str.as_str())
+        .map_err(|e| format!("Failed to parse Kaspa address: {:?}", e));
+        let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string(),escrow_address).await;
         assert!(result.is_err(), "result should fail");
     }
 }
 
 pub async fn handle_new_deposits(
-    deposits: Vec<&Deposit>,
+    deposits: Vec<&Deposit>,escrow_address: &Address
 ) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
     let mut txs = Vec::new();
 
     for deposit in deposits {
-        let tx = handle_new_deposit(deposit).await?;
+        let tx = handle_new_deposit(deposit,escrow_address).await?;
         txs.push(tx);
     }
 
