@@ -1,0 +1,30 @@
+{
+  "subtensor": {
+    "hex": "0x000000000000000000000000b833e8137fedf80de7e908dc6fea43a029142f20",
+    "base58": "1111111111113Zqsxh77mETmH4DKhM9r8bPJonHm"
+  },
+  "base": {
+    "hex": "0x00000000000000000000000026af973a5b256f9b9bc0b1a3c566de1566568a87",
+    "base58": "111111111111YG4VUEpTecUfFXDssQfKUpCGdZG"
+  },
+  "arbitrum": {
+    "hex": "0x00000000000000000000000008cb067bfee76984ac9b9cf0c08b100ede87256a",
+    "base58": "111111111111876eo3g6YvKUvLj3dWzR5kbHtWm"
+  },
+  "solanamainnet": {
+    "hex": "0x03f0d1b0ebbc3caa2a101111e26b6ee3ac2a971ae2dc841f14eda9b3cb9cf5b7",
+    "base58": "GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c"
+  },
+  "ethereum": {
+    "hex": "0x0000000000000000000000003c43c421f08e2a48889ea3f75a747b7a7a366a0b",
+    "base58": "111111111111qhNqRUzcpvPZ4XypQPtGsRtHjR4"
+  },
+  "polygon": {
+    "hex": "0x0000000000000000000000007d0b6144a6eaab7f43dc03b766c4a48e6323ab17",
+    "base58": "1111111111112k3MbaWjykLuJq6B5aCzesh65GES"
+  },
+  "unichain": {
+    "hex": "0x000000000000000000000000b6cb80e72288faa2a5b34d7e505b1f94c2eb8537",
+    "base58": "1111111111113YhuACMkYaTfjmJZaEw89ewnBeH4"
+  }
+}

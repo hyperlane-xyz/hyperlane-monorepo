@@ -27,5 +27,23 @@
     "name": "USD Coin",
     "symbol": "USDC",
     "foreignDeployment": "0xB833E8137FEDf80de7E908dc6fea43a029142F20"
+  },
+  "polygon": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x7D0B6144a6EaAB7F43dC03B766C4a48e6323Ab17",
+    "token": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+  },
+  "unichain": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0xb6cb80E72288Faa2a5B34d7e505b1F94c2EB8537",
+    "token": "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
+  },
+  "arbitrum": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x08CB067BFEE76984Ac9b9cf0C08B100Ede87256A",
+    "token": "0xaf88d065e77c8cc2239327c5edb3a432268e5831"
   }
 }
