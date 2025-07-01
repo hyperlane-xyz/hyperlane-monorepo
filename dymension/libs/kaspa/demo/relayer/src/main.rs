@@ -5,23 +5,14 @@ mod x;
 use api_rs::apis::configuration;
 use bytes::Bytes;
 use core::api::deposits::Deposit;
-use std::error::Error;
 use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use kaspa_consensus_core::tx::TransactionId;
-use kaspa_wallet_core::prelude::Secret;
-use kaspa_wallet_core::wallet::Wallet;
-use relayer::withdraw::*;
-use validator::withdraw::*;
-use validator::validate_deposit;
-use x::args::Args;
-use x::consts::*;
-use std::sync::Arc;
-use hyperlane_core::{Encode,Decode,H256,HyperlaneMessage,U256};
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
+use kaspa_consensus_core::tx::TransactionId;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
     sign::sign,
@@ -35,19 +26,32 @@ use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
-use kaspa_wallet_core::tx::{Fees,PaymentDestination,PaymentOutput};
+use kaspa_wallet_core::prelude::Secret;
+use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
+use kaspa_wallet_core::wallet::Wallet;
 use relayer::handle_new_deposit;
 use relayer::withdraw::*;
+use relayer::withdraw::*;
+use std::error::Error;
+use std::sync::Arc;
+use validator::validate_deposit;
+use validator::withdraw::*;
+use x::args::Args;
+use x::consts::*;
 
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
 use secp256k1::{rand::thread_rng, Keypair};
 
+use api_rs::apis::kaspa_transactions_api::{
+    get_transaction_transactions_transaction_id_get,
+    GetTransactionTransactionsTransactionIdGetParams,
+};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
-use api_rs::apis::kaspa_transactions_api::{GetTransactionTransactionsTransactionIdGetParams,get_transaction_transactions_transaction_id_get};
 
-const ESCROW_ADDRESS: &str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+const ESCROW_ADDRESS: &str =
+    "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
 
 pub async fn deposit(
     w: &Arc<Wallet>,
@@ -117,7 +121,6 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // parse demo args
     let args = Args::parse();
 
-
     // load wallet (using kaspa wallet)
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
@@ -167,7 +170,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let deposit = Deposit::try_from(res)?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&deposit,&escrow_address).await?;
+    let deposit_fxg = handle_new_deposit(&deposit, &escrow_address).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
@@ -181,7 +184,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv,&escrow_address).await?;
+    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address).await?;
 
     if validation_result {
         info!("Deposit validated");

@@ -60,10 +60,8 @@ impl TryFrom<TxModel> for Deposit {
             .is_accepted
             .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
         let tx_hash = KaspaHash::from_str(&tx_id)?;
-        let outputs = tx
-            .outputs.ok_or(eyre::eyre!("outputs are missing"))?; // TODO: outputs may be missing!
-        let block_hash = tx
-            .block_hash.ok_or(eyre::eyre!("Block hash is missing"))?; 
+        let outputs = tx.outputs.ok_or(eyre::eyre!("outputs are missing"))?; // TODO: outputs may be missing!
+        let block_hash = tx.block_hash.ok_or(eyre::eyre!("Block hash is missing"))?;
 
         Ok(Deposit {
             id: tx_hash,
@@ -119,7 +117,11 @@ impl HttpClient {
 
         Ok(res
             .into_iter()
-            .filter(|tx| tx.is_accepted.expect("accepted not found in tx") && is_valid_escrow_transfer(tx,&address.to_string()).expect("unable to validate txs"))
+            .filter(|tx| {
+                tx.is_accepted.expect("accepted not found in tx")
+                    && is_valid_escrow_transfer(tx, &address.to_string())
+                        .expect("unable to validate txs")
+            })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
     }
@@ -133,13 +135,11 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     if let Some(output) = &tx.outputs {
         for utxo in output {
             if let Some(dest) = utxo.script_public_key_address.as_ref() {
-                if  dest == address {
-                    return Ok(true)
+                if dest == address {
+                    return Ok(true);
                 }
             }
-
-        } 
+        }
     }
     Ok(false)
 }
-

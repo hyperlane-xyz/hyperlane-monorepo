@@ -33,10 +33,10 @@ async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<
 
     let network_id = if network == NetworkType::Mainnet {
         NetworkId::new(network) // This expression returns a NetworkId
-    } else {        
+    } else {
         NetworkId::with_suffix(network, 10) // This expression also returns a NetworkId
     };
-    
+
     let params = NetworkParams::from(network_id);
     let dag_info = client.get_block_dag_info().await?;
     if block.header.daa_score + params.user_transaction_maturity_period_daa()
@@ -48,7 +48,11 @@ async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<
     Ok(false)
 }
 
-pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, escrow_address: &Address) -> Result<bool> {
+pub async fn validate_deposit(
+    client: &Arc<DynRpcApi>,
+    deposit: &DepositFXG,
+    escrow_address: &Address,
+) -> Result<bool> {
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
 
@@ -82,7 +86,8 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, esc
         return Ok(false);
     }
 
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key,escrow_address).map_err(|e| eyre::eyre!(e))?;
+    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)
+        .map_err(|e| eyre::eyre!(e))?;
 
     if !is_escrow {
         return Ok(false);
@@ -95,13 +100,15 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, esc
     Ok(true)
 }
 
-
-pub async fn validate_deposits(client: &Arc<DynRpcApi>, deposits: Vec<&DepositFXG>, escrow_address: &Address) -> Result<Vec<bool>, Box<dyn Error>> {
-
+pub async fn validate_deposits(
+    client: &Arc<DynRpcApi>,
+    deposits: Vec<&DepositFXG>,
+    escrow_address: &Address,
+) -> Result<Vec<bool>, Box<dyn Error>> {
     let mut results: Vec<bool> = vec![];
     // iterate over all deposits and validate one by one
     for deposit in deposits {
-        let result = validate_deposit(client,deposit,escrow_address).await?;
+        let result = validate_deposit(client, deposit, escrow_address).await?;
         results.push(result);
     }
     Ok(results)

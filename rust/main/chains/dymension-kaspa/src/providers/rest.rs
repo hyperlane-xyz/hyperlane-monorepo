@@ -137,7 +137,11 @@ impl RestProvider {
 
     /// dococo
     pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
-        let res = self.client.client.get_deposits(&self.conf.kaspa_escrow_addr).await;
+        let res = self
+            .client
+            .client
+            .get_deposits(&self.conf.kaspa_escrow_addr)
+            .await;
         return res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()));
     }
 }
