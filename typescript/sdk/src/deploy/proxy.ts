@@ -139,12 +139,12 @@ export function proxyAdminUpdateTxs(
 /**
  * Check if contract bytecode matches ProxyAdmin patterns
  * This is more efficient than function calls but less reliable
- * @param address The contract address
  * @param provider The provider to use
+ * @param address The contract address
  * @returns true if the bytecode suggests it's a ProxyAdmin
  */
 export async function isProxyAdminByBytecode(
-  provider: ethers.providers.Provider,
+  provider: EthersLikeProvider,
   address: Address,
 ): Promise<boolean> {
   try {
