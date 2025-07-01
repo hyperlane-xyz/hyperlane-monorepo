@@ -280,6 +280,7 @@ mod test {
                     Filter::Wildcard,
                     Filter::Wildcard,
                     Filter::Wildcard,
+                    None,
                 )])),
                 "abcd".to_string(),
             )],
