@@ -6,7 +6,7 @@ use eyre::Result;
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tokio_metrics::TaskMonitor;
-use tracing::{instrument, warn, Span};
+use tracing::{warn, Span};
 use tracing_futures::Instrument;
 
 #[async_trait]
@@ -42,7 +42,6 @@ impl Processor {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
     async fn main_loop(mut self) {
         loop {
             if let Err(err) = self.ticker.tick().await {

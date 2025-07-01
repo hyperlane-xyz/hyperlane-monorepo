@@ -217,7 +217,9 @@ abstract class TokenDeployer<
     for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
         metadataMap.set(chain, TokenMetadataSchema.parse(config));
-      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+      }
+
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
         continue;
@@ -358,15 +360,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
         const router = this.router(deployedContractsMap[chain]).address;
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
-
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
 
         const rebalancers = Array.from(config.allowedRebalancers ?? []);
         for (const rebalancer of rebalancers) {
@@ -385,15 +387,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
         const router = this.router(deployedContractsMap[chain]);
         const movableToken = MovableCollateralRouter__factory.connect(
           router.address,
           this.multiProvider.getSigner(chain),
         );
-
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
 
         const bridgesToAllow = Object.entries(
           resolveRouterMapConfig(
@@ -430,15 +432,15 @@ abstract class TokenDeployer<
   ): Promise<void> {
     await promiseObjAll(
       objMap(configMap, async (chain, config) => {
+        if (!isMovableCollateralTokenConfig(config)) {
+          return;
+        }
+
         const router = this.router(deployedContractsMap[chain]).address;
         const movableToken = MovableCollateralRouter__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
-
-        if (!isMovableCollateralTokenConfig(config)) {
-          return;
-        }
 
         const tokenApprovalTxs = Object.values(
           config.allowedRebalancingBridges ?? {},
