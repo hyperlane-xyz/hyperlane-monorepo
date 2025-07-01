@@ -222,7 +222,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
-    arcadia: true,
+    arcadia: false,
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
@@ -374,7 +374,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     appchain: true,
     arbitrum: true,
     arbitrumnova: true,
-    arcadia: true,
+    arcadia: false,
     artela: true,
     astar: true,
     aurora: true,
@@ -596,6 +596,23 @@ const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
 );
 
+// ICA v2 deploys that superswaps make use of
+const superswapIcaV2MatchingList = chainMapMatchingList({
+  base: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07',
+  bob: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8',
+  celo: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953',
+  fraxtal: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594',
+  ink: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3',
+  lisk: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166',
+  metal: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4',
+  mode: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50',
+  optimism: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75',
+  soneium: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C',
+  superseed: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3',
+  swell: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7',
+  unichain: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B',
+});
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -627,6 +644,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('milkyway') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
+      // ICA v2 deploys that superswaps make use of, once we have body regex MatchingList support this
+      // can be made more specific
+      ...superswapIcaV2MatchingList,
     ],
   },
   {
@@ -764,6 +784,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'stHYPER-STAGING/bsc-ethereum',
       matchingList: stagingStHyperMatchingList,
     },
+    {
+      name: 'superswap_ica_v2',
+      matchingList: superswapIcaV2MatchingList,
+    },
   ];
 };
 
@@ -824,7 +848,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0e82fc3-20250630-122836',
+      tag: 'af276f2-20250630-165838',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -855,7 +879,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '78fbcd8-20250630-155425',
+      tag: 'af276f2-20250630-165838',
     },
     resources: scraperResources,
   },
@@ -870,7 +894,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '78fbcd8-20250630-155425',
+      tag: 'af276f2-20250630-165838',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -914,7 +938,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0e82fc3-20250630-122836',
+      tag: 'af276f2-20250630-165838',
     },
     blacklist,
     gasPaymentEnforcement,
