@@ -3,7 +3,8 @@ pub mod deposit;
 pub mod withdraw;
 pub mod withdrawal;
 
-use kaspa_wallet_core::prelude::DynRpcApi;
+use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
+use kaspa_wrpc_client::prelude::NetworkId;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 use core::{is_utxo_escrow_address, parse_hyperlane_metadata};
@@ -12,10 +13,24 @@ use std::str::FromStr;
 
 use core::deposit::DepositFXG;
 use std::sync::Arc;
-use kaspa_rpc_core::RpcHash;
+use kaspa_rpc_core::{RpcBlock, RpcHash, RpcTransactionOutput};
 
 use hyperlane_core::U256;
 use eyre::Result;
+
+async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<bool>  {
+    let network = client.get_current_network().await?; 
+    let network_id = NetworkId::new(network);
+    let params = NetworkParams::from(network_id);
+
+    let dag_info = client.get_block_dag_info().await?; 
+    if block.header.daa_score + params.user_transaction_maturity_period_daa() > dag_info.virtual_daa_score {
+        return Ok(true)
+    } 
+    
+    Ok(false)
+    
+}
 
 pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> Result<bool> {
     
@@ -23,10 +38,10 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
 
     // get block from rpc
-    let block = client.get_block(block_hash, true).await?;
+    let block: RpcBlock = client.get_block(block_hash, true).await?;
 
     // find tx in block
-    let tx_index = block.verbose_data
+    let tx_index = block.verbose_data.as_ref()
         .ok_or("block data not found")
         .map_err(|e: &'static str| eyre::eyre!(e))?
         .transaction_ids
@@ -38,7 +53,7 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
 
     println!("tx index {}",tx_index);
     // get utxo in the tx from index in deposit.
-    let utxo: &kaspa_rpc_core::RpcTransactionOutput = block.transactions[tx_index]
+    let utxo: &RpcTransactionOutput = block.transactions[tx_index]
         .outputs
         .get(deposit.utxo_index)
         .ok_or("utxo not found by index")
@@ -57,7 +72,10 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
         return Ok(false);
     }
 
-    //TODO: validate tx maturity.
+    let maturity_result = validate_maturity(client, &block).await?;
+    if !maturity_result {
+        return Ok(false);
+    }
     Ok(true)
 }
 
