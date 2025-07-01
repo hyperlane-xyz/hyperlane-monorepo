@@ -45,6 +45,8 @@ export enum ModuleType {
   ARB_L2_TO_L1,
   WEIGHTED_MERKLE_ROOT_MULTISIG,
   WEIGHTED_MESSAGE_ID_MULTISIG,
+  OP_L2_TO_L1,
+  FSR_READ,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -70,6 +72,8 @@ export enum IsmType {
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
+  OP_L2_TO_L1 = 'opL2ToL1Ism',
+  FSR_READ = 'fsrReadIsm',
 }
 
 // ISM types that can be updated in-place
@@ -136,6 +140,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.OP_L2_TO_L1:
+      return ModuleType.OP_L2_TO_L1;
+    case IsmType.FSR_READ:
+      return ModuleType.FSR_READ;
   }
 }
 
