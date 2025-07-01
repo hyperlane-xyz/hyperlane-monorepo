@@ -13,12 +13,11 @@ use api_rs::models::{TxInput, TxModel, TxOutput};
 
 use crate::confirmation::get_previous_utxo_in_lineage;
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kaspa_hashes::Hash;
     use hex;
+    use kaspa_hashes::Hash;
 
     #[test]
     // FIXME: update after integration with withdraw flow
@@ -45,7 +44,8 @@ mod tests {
             index: 10,
         };
 
-        let lineage_address = "kaspa:qp9z8a0w7jedatvpr3l0knc6l0vdlpz7sp9kcd4yqq0up9hp87q4zyzr5ave9".to_string();
+        let lineage_address =
+            "kaspa:qp9z8a0w7jedatvpr3l0knc6l0vdlpz7sp9kcd4yqq0up9hp87q4zyzr5ave9".to_string();
 
         // Build test data transaction
         // (based on https://explorer.kaspa.org/txs/a778eb4676deba2b120e6d983eb74c1a0d4a9017361faedbb141b9632242e6d0?blockHash=2e802dccafa9f443199a1f646a2f4497ff769cda6126075e67e83017b4f2287c)
@@ -107,25 +107,26 @@ mod tests {
                 },
             ]),
         };
-        
+
         // Assert the result
         let result = get_previous_utxo_in_lineage(&test_transaction, &lineage_address, anchor_utxo);
         assert!(result.is_ok());
-        assert_eq!( result.unwrap(),None); // We reached the anchor UTXO, so we should return None
+        assert_eq!(result.unwrap(), None); // We reached the anchor UTXO, so we should return None
 
         // modify the test transaction to not contain the anchor UTXO
         let mut new_test_transaction = test_transaction.clone();
         if let Some(ref mut inputs) = new_test_transaction.inputs {
             inputs.remove(1);
         }
-        
+
         // Assert the result
-        let result = get_previous_utxo_in_lineage(&new_test_transaction, &lineage_address, anchor_utxo);
+        let result =
+            get_previous_utxo_in_lineage(&new_test_transaction, &lineage_address, anchor_utxo);
         assert!(result.is_err()); // we expect an error because we have no anchor UTXO in the new transaction and no previous UTXO
 
         // modify the test transaction to contain lineage input (but not the anchor UTXO)
         let mut new_test_transaction = test_transaction.clone();
-        let expected_new_utxo = TransactionOutpoint{ 
+        let expected_new_utxo = TransactionOutpoint {
             transaction_id: Hash::from_bytes(
                 hex::decode("e17ccebfab0f814978a94a22de5389127128e83e912492faf9aa3a521b163eef")
                     .unwrap()
@@ -150,12 +151,13 @@ mod tests {
             });
         }
 
-        // Call the get_previous_utxo_in_lineage function   
-        let result = get_previous_utxo_in_lineage(&new_test_transaction, &lineage_address, anchor_utxo);
+        // Call the get_previous_utxo_in_lineage function
+        let result =
+            get_previous_utxo_in_lineage(&new_test_transaction, &lineage_address, anchor_utxo);
 
         // Assert the result
         assert!(result.is_ok());
 
-        assert_eq!( result.unwrap(),Some(expected_new_utxo)); 
+        assert_eq!(result.unwrap(), Some(expected_new_utxo));
     }
-}   
+}

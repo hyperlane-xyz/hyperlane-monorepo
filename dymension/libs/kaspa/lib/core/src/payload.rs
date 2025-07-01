@@ -1,8 +1,8 @@
+use crate::consts::KEY_MESSAGE_IDS;
 use eyre::Error as EyreError;
 use hyperlane_core::H256;
 use kaspa_wallet_pskt::pskt::PSKT;
 use serde::{Deserialize, Serialize};
-use crate::consts::KEY_MESSAGE_IDS;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessageID(pub H256);

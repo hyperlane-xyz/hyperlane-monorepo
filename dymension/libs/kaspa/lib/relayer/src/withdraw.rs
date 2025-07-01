@@ -133,7 +133,7 @@ pub fn finalize_pskt(
 ) -> Result<RpcTransaction, Error> {
     let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&c)
         .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
-    
+
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -142,7 +142,7 @@ pub fn finalize_pskt(
                 .iter()
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
-                    match input.sig_op_count { 
+                    match input.sig_op_count {
                         Some(n) => {
                             return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
                                 // relayer UTXO
@@ -183,16 +183,18 @@ pub fn finalize_pskt(
                                 sigs.into_iter()
                                     .chain(
                                         ScriptBuilder::new()
-                                            .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                            .add_data(
+                                                input.redeem_script.as_ref().unwrap().as_slice(),
+                                            )
                                             .unwrap()
                                             .drain()
                                             .iter()
                                             .cloned(),
                                     )
                                     .collect()
-                            }
+                            };
                         }
-                        None => vec![] // Should not happen
+                        None => vec![], // Should not happen
                     }
                 })
                 .collect())
@@ -201,10 +203,10 @@ pub fn finalize_pskt(
 
     let mass = 10_000; // TODO: why? is it okay to keep this value?
     let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
-    
+
     // Inject the expected payload
     tx.payload = msg_ids_bytes;
-    
+
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
 }

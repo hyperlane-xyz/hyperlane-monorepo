@@ -15,9 +15,9 @@ pub struct ConnectionConf {
     pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
     pub validator_ids: Vec<H256>, // TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
     pub validator_hosts: Vec<String>,
-    pub validator_pks: Vec<String>,
-    pub kaspa_escrow_addr: String,
-    pub kaspa_escrow_private_key: Option<String>, // only populated if kaspa escrow validator
+    pub validator_pub_keys: Vec<String>,
+    pub kaspa_escrow_addr: String, // TODO: can be derived from pub keys
+    pub kaspa_escrow_private_key: Option<String>, // only populated if kaspa escrow validator, TODO: use wallet/keychain instead
 
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
@@ -35,7 +35,7 @@ impl ConnectionConf {
         kaspa_rest_url: Url,
         validator_ids: Vec<H256>,
         validator_hosts: Vec<String>,
-        validator_pks: Vec<String>,
+        validator_pub_keys: Vec<String>,
         escrow_address: String,
         kaspa_escrow_private_key: Option<String>,
         multisig_threshold_hub_ism: usize,
@@ -48,7 +48,7 @@ impl ConnectionConf {
             kaspa_rest_url,
             validator_ids,
             validator_hosts,
-            validator_pks,
+            validator_pub_keys,
             kaspa_escrow_addr: escrow_address,
             kaspa_escrow_private_key,
             multisig_threshold_hub_ism,

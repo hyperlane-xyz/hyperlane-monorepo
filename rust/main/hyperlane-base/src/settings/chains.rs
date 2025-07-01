@@ -18,7 +18,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use dymension_kaspa::{self as dym_kaspa, KaspaProvider};
+use dymension_kaspa::{self as dym_kaspa, KaspaMerkle, KaspaProvider};
 use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
     CosmosProvider, Signer,
@@ -437,8 +437,10 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Kaspa(_) => {
-                todo!("Kaspa does not support merkle tree hooks yet")
+            ChainConnectionConf::Kaspa(conf) => {
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
+                let h = KaspaMerkle::new(provider, locator.clone())?;
+                Ok(Box::new(h) as Box<dyn MerkleTreeHook>)
             }
         }
         .context(ctx)
@@ -819,7 +821,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Kaspa(conf) => {
                 let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
-                let indexer = Box::new(dym_kaspa::KaspaMerkle::new(provider, &locator)?);
+                let indexer = Box::new(dym_kaspa::KaspaMerkle::new(provider, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }

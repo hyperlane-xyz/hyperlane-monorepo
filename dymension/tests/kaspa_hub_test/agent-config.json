@@ -74,18 +74,28 @@
           "http": "https://www.google.com"
         }
       ],
-      "escrowAddress": "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p",
+      "walletSecret": "lkjsdf",
+      "kaspaRpcUrl": "localhost:17210",
       "kaspaRestUrl": "https://api-tn10.kaspa.org",
-      "validatorHosts": "",
-      "validatorIDS": "",
-      "kaspaMultisigThreshold": 3
+      "validatorHLIDS": "",
+      "validatorHosts": "0.0.0.0:9090",
+      "validatorPubsKaspa": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
+      "escrowAddress": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr",
+      "kaspaEscrowPrivateKey": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
+      "kaspaMultisigThresholdHubIsm": 1,
+      "kaspaMultisigThresholdEscrow": 1,
+      "grpcUrls": [
+        {
+          "http": "http://127.0.0.1:8090"
+        }
+      ]
     }
   },
   "defaultRpcConsensusType": "fallback",
   "origin_chains": [
-    "kaspatest10"
+    "kaspatest10","dymension"
   ],
   "destination_chains": [
-    "kaspatest10"
+    "kaspatest10","dymension"
   ]
 }

@@ -1,14 +1,14 @@
 use api_rs::apis::configuration::Configuration;
 
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
-use std::time::Duration;
 use reqwest_middleware::ClientBuilder;
-use std::{error::Error, num::NonZeroU32};
 use std::sync::Arc;
+use std::time::Duration;
+use std::{error::Error, num::NonZeroU32};
 use url::Url;
 
 use kaspa_wrpc_client::{
-    client::{ConnectOptions,ConnectStrategy},
+    client::{ConnectOptions, ConnectStrategy},
     prelude::{NetworkId, NetworkType},
     KaspaRpcClient, Resolver, WrpcEncoding,
 };
@@ -46,8 +46,7 @@ pub fn get_config(url: &Url) -> Configuration {
     }
 }
 
-pub async fn get_local_testnet_client() ->  Result<KaspaRpcClient, Box<dyn Error>> {
-
+pub async fn get_local_testnet_client() -> Result<KaspaRpcClient, Box<dyn Error>> {
     // Select encoding method to use, depending on node settings
     let encoding = WrpcEncoding::Borsh;
 
@@ -72,7 +71,7 @@ pub async fn get_local_testnet_client() ->  Result<KaspaRpcClient, Box<dyn Error
         subscription_context,
     )?;
 
-        // Advanced connection options
+    // Advanced connection options
     let timeout = 5_000;
     let options = ConnectOptions {
         block_async_connect: true,

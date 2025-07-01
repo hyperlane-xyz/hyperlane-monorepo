@@ -16,6 +16,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
+use tracing::warn;
 
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
@@ -24,25 +25,25 @@ use dym_kas_validator::withdrawal::validate_withdrawals;
 
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
-    signer: Option<Arc<S>>,
+    ism_signer: Option<Arc<S>>,
     kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
 }
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
     pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
-            signer: Some(signer),
+            ism_signer: Some(signer),
             kas_provider: Some(kas_provider),
         }
     }
-    fn must_signer(&self) -> Arc<S> {
-        self.signer.as_ref().unwrap().clone()
+    fn must_ism_signer(&self) -> Arc<S> {
+        self.ism_signer.as_ref().unwrap().clone()
     }
     fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_provider.as_ref().unwrap().must_kas_key()
     }
     pub fn default() -> Self {
         Self {
-            signer: None,
+            ism_signer: None,
             kas_provider: None,
         }
     }
@@ -62,6 +63,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
             post(respond_validate_confirmed_withdrawals::<S>),
         )
         .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
+        .route("/kaspa-ping", post(respond_kaspa_ping::<S>))
         .with_state(Arc::new(resources))
 }
 
@@ -97,7 +99,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     };
 
     let sig = resources
-        .must_signer()
+        .must_ism_signer()
         .sign(to_sign) // TODO: need to lock first?
         .await
         .map_err(|e| AppError(e.into()))?;
@@ -126,7 +128,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let progress_indication = &confirmation_fxg.progress_indication;
 
     let sig = resources
-        .must_signer() // TODO: need to lock?
+        .must_ism_signer() // TODO: need to lock?
         .sign(SignableProgressIndication {
             progress_indication: progress_indication.clone(),
         })
@@ -231,4 +233,12 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
     Ok(Json(j))
+}
+
+async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    _body: Bytes,
+) -> HandlerResult<Json<String>> {
+    warn!("VALIDATOR SERVER, GOT KASPA PING");
+    Ok(Json("pong".to_string()))
 }

@@ -13,7 +13,7 @@ use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
 
-use hyperlane_core::{HyperlaneMessage,H256,U256};
+use hyperlane_core::{HyperlaneMessage, H256, U256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
