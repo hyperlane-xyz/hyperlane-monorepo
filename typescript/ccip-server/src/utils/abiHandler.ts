@@ -79,7 +79,7 @@ export function createAbiHandler<
 
       let relayer: string | undefined;
       if (verifyRelayerSignatureUrl) {
-        handlerLogger.debug(
+        handlerLogger.info(
           { sender, data, verifyRelayerSignatureUrl },
           'Verifying relayer signature',
         );
@@ -110,14 +110,14 @@ export function createAbiHandler<
       );
 
       if (skipResultEncoding) {
-        handlerLogger.debug({ reqBody: body }, 'Skipping result encoding');
+        handlerLogger.info({ reqBody: body }, 'Skipping result encoding');
         return res.json({ data: result });
       }
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
-      handlerLogger.debug({ reqBody: body, encoded }, 'Result encoded');
+      handlerLogger.info({ reqBody: body, encoded }, 'Result encoded');
       return res.json({ data: encoded });
     } catch (err: any) {
       handlerLogger.error(

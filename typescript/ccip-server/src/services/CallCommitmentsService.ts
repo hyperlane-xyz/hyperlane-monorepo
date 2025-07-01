@@ -174,7 +174,7 @@ export class CallCommitmentsService extends BaseService {
 
     try {
       const revealMsgId = messageId(message);
-      log.debug(
+      log.info(
         { revealMsgId, message, relayer },
         'Generated reveal message ID',
       );
@@ -339,7 +339,7 @@ export class CallCommitmentsService extends BaseService {
    * Throws if not found.
    */
   private async fetchCommitmentRecord(revealMessageId: string, logger: Logger) {
-    logger.debug(
+    logger.info(
       { revealMessageId },
       'Fetching commitment from DB with revealMessageId',
     );
@@ -359,7 +359,7 @@ export class CallCommitmentsService extends BaseService {
     }
 
     const parsed = CommitmentRecordSchema.parse(record);
-    logger.debug(
+    logger.info(
       { commitment: parsed.commitment, revealMessageId },
       'Successfully fetched commitment record',
     );
