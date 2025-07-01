@@ -6,7 +6,7 @@ use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf, Settings},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
 use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
 use tokio::sync::RwLock;

@@ -203,7 +203,7 @@ mod tests {
                     expected_policies.clone(),
                 ),
             ]
-            .map(|(domain, policies)| (domain.id(), policies))
+            .map(|(domain, policies)| (domain.name().to_string(), policies))
             .into_iter()
             .collect(),
         };
