@@ -7,7 +7,7 @@ use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tonic::async_trait;
 use tracing::warn;
 use url::Url;
@@ -31,13 +31,13 @@ use super::RestProvider;
 
 use crate::ConnectionConf;
 use eyre::Result;
-
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
 use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use kaspa_consensus_core::tx::TransactionOutpoint;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -53,6 +53,12 @@ pub struct KaspaProvider {
       TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
     */
     kas_key: Option<KaspaSecpKeypair>,
+
+    // Queue stores confirmations that need to be sent on the Hub eventually.
+    // It stores two values: prev_outpoint and next_outpoint, respectively.
+    // Note that IndicateProgress tx and Outpoint query create a race condition over
+    // the last outpoint stored on the Hub.
+    queue: Arc<Mutex<Vec<(TransactionOutpoint, TransactionOutpoint)>>>,
 }
 
 impl KaspaProvider {
@@ -87,6 +93,7 @@ impl KaspaProvider {
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
+            queue: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -123,7 +130,7 @@ impl KaspaProvider {
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Option<WithdrawFXG>> {
+    ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
         on_new_withdrawals(
             msgs,
             self.easy_wallet.clone(),
@@ -134,8 +141,21 @@ impl KaspaProvider {
         .await
     }
 
+    /// Take all elements from progress indication queue and replace the vector with an empty one
+    pub fn fetch_clear_indicate_progress_queue(
+        &self,
+    ) -> Vec<(TransactionOutpoint, TransactionOutpoint)> {
+        let mut guard = self.queue.lock().unwrap();
+        std::mem::take(&mut *guard)
+    }
+
     /// dococo
-    pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
+    /// Returns next outpoint
+    pub async fn process_withdrawal(
+        &self,
+        fxg: &WithdrawFXG,
+        prev_outpoint: &TransactionOutpoint,
+    ) -> Result<()> {
         let all_bundles = {
             let mut bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
             let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
@@ -144,7 +164,39 @@ impl KaspaProvider {
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
         let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
-        let res = self.submit_txs(finalized).await?;
+        let res_tx_ids = self.submit_txs(finalized.clone()).await?;
+
+        // to indicate progress on the Hub, we need to know:
+        // - the first outpoint preceding the withdrawal and
+        // - the last outpoint of the withdrawal batch
+
+        // assumption: all transaction details live on respective vector indices,
+        // i.e. len(txs_signed) == len(finalized) == len(res_tx_ids)
+        // and index IDX corresponds to the same transaction in each vector.
+        let last_idx = finalized.len() - 1;
+
+        let last_tx = finalized.get(last_idx).unwrap();
+
+        // find the index of anchor.
+        // its recipient must be the escrow address.
+        let output_idx = last_tx
+            .outputs
+            .iter()
+            .position(|o| o.script_public_key == self.escrow().p2sh.clone().into())
+            .unwrap_or_else(|| 0);
+
+        let tx_id = res_tx_ids.get(last_idx).unwrap();
+
+        let next_outpoint = TransactionOutpoint {
+            transaction_id: (*tx_id).into(),
+            index: (output_idx as u32).into(),
+        };
+
+        self.queue
+            .lock()
+            .map_err(|e| eyre::eyre!("Failed to lockup progress indication queue: {}", e))?
+            .push((prev_outpoint.clone(), next_outpoint.clone()));
+
         Ok(())
     }
 

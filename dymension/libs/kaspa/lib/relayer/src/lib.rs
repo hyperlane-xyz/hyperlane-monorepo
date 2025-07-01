@@ -7,7 +7,7 @@ pub mod withdraw_construction;
 use tracing::info;
 
 // Re-export the main function for easier access
-pub use hub_to_kaspa::build_withdrawal_pskts;
+pub use hub_to_kaspa::build_withdrawal_pskt;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
