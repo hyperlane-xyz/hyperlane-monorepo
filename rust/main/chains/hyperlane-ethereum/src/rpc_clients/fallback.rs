@@ -203,8 +203,11 @@ where
                 if resp.is_err() {
                     self.handle_failed_provider(priority).await;
                 }
-                let _span =
-                    warn_span!("fallback_request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                tracing::debug!(
+                    fallback_count = idx,
+                    provider_index = priority.index,
+                    "fallback_request"
+                );
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
