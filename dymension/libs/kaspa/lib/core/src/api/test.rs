@@ -11,8 +11,9 @@ mod tests {
     use url::Url;
 
     fn t_config() -> configuration::Configuration {
-        let url = Url::parse("https://api-tn10.kaspa.org").unwrap();
-        get_config(&url)
+        let url = "https://api-tn10.kaspa.org";
+        let c = reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build();
+        get_config(&url, c)
     }
 
     const DAN_TESTNET_ADDR: &str =

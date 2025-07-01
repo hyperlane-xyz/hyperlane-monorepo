@@ -2,15 +2,14 @@
 
 mod x;
 
+use api_rs::apis::configuration;
+use bytes::Bytes;
 use core::api::deposits::Deposit;
 use std::error::Error;
-use core::api::client::get_local_testnet_client;
 use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use api_rs::apis::configuration;
-use bytes::Bytes;
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_wallet_core::prelude::Secret;
 use kaspa_wallet_core::wallet::Wallet;
@@ -48,11 +47,32 @@ use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
 use api_rs::apis::kaspa_transactions_api::{GetTransactionTransactionsTransactionIdGetParams,get_transaction_transactions_transaction_id_get};
 
+const ESCROW_ADDRESS: &str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+
 pub async fn deposit(
     w: &Arc<Wallet>,
     secret: &Secret,
     address: &Address,
     amt: u64,
+) -> Result<TransactionId, KaspaError> {
+    let mut hl_message = HyperlaneMessage::default();
+    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
+
+    let encoded_bytes = token_message.to_vec();
+
+    hl_message.body = encoded_bytes;
+
+    let payload = hl_message.to_vec();
+
+    deposit_impl(w, secret, address, amt, payload.clone()).await
+}
+
+pub async fn deposit_impl(
+    w: &Arc<Wallet>,
+    secret: &Secret,
+    address: &Address,
+    amt: u64,
+    payload: Vec<u8>,
 ) -> Result<TransactionId, KaspaError> {
     let a = w.account()?;
 
@@ -61,13 +81,6 @@ pub async fn deposit(
     let payment_secret = None;
     let abortable = Abortable::new();
 
-    let mut hl_message = HyperlaneMessage::default();
-    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
-
-    let encoded_bytes = token_message.to_vec();
-    hl_message.body = encoded_bytes;
-
-    let payload = hl_message.to_vec();
     // use account.send, because wallet.accounts_send(AccountsSendRequest{..}) is buggy
     let (summary, _) = a
         .send(
@@ -104,20 +117,33 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // parse demo args
     let args = Args::parse();
 
-    // create escrow address
-    let address_str = "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
-    let escrow_address =  Address::try_from(address_str)?;
+
     // load wallet (using kaspa wallet)
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
-    println!("address {}", &w.account()?.receive_address()?);
-    println!("balance {}", &w.account()?.get_list_string()?);
+    info!("address {}", &w.account()?.receive_address()?);
+    info!("balance {}", &w.account()?.get_list_string()?);
 
     // deposit to escrow address
-    let amt = DEPOSIT_AMOUNT;
-    let tx_id = deposit(&w, &s, &escrow_address, amt).await?;
+    let amt = args.amount.unwrap_or(DEPOSIT_AMOUNT);
+    let escrow_address = if let Some(e) = args.escrow_address {
+        Address::try_from(e)?
+    } else {
+        Address::try_from(ESCROW_ADDRESS)?
+    };
+
+    let tx_id = if let Some(payload) = args.payload {
+        deposit_impl(&w, &s, &escrow_address, amt, payload.as_bytes().to_vec()).await?
+    } else {
+        deposit(&w, &s, &escrow_address, amt).await?
+    };
+
     info!("Sent deposit transaction: {}", tx_id);
+
+    if args.only_deposit {
+        return Ok(());
+    }
 
     // wait (it may take some time that the deposit is available to indexer-archive rpc service)
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
@@ -149,7 +175,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     // deposit from bytes
     let deposit_recv = DepositFXG::try_from(deposit_bytes_recv)?;
 
-    println!(
+    info!(
         "Deposit pulled by relay tx_id:{} block_id:{} amount:{}",
         deposit_recv.tx_id, deposit_recv.block_id, deposit_recv.amount
     );
@@ -158,9 +184,9 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv,&escrow_address).await?;
 
     if validation_result {
-        println!("Deposit validated");
+        info!("Deposit validated");
     } else {
-        println!("Failed to validate deposit");
+        info!("Failed to validate deposit");
     }
 
     w.stop().await?;

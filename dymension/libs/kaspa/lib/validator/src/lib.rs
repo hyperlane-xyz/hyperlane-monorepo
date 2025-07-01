@@ -30,12 +30,17 @@ use kaspa_addresses::Address;
 
 async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<bool> {
     let network = client.get_current_network().await?;
-    let network_id = NetworkId::new(network);
-    let params = NetworkParams::from(network_id);
 
+    let network_id = if network == NetworkType::Mainnet {
+        NetworkId::new(network) // This expression returns a NetworkId
+    } else {        
+        NetworkId::with_suffix(network, 10) // This expression also returns a NetworkId
+    };
+    
+    let params = NetworkParams::from(network_id);
     let dag_info = client.get_block_dag_info().await?;
     if block.header.daa_score + params.user_transaction_maturity_period_daa()
-        > dag_info.virtual_daa_score
+        < dag_info.virtual_daa_score
     {
         return Ok(true);
     }

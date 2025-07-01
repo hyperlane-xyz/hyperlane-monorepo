@@ -1,9 +1,11 @@
+use api_rs::apis::configuration::Configuration;
 use tracing::info;
 
 use url::Url;
 
 use eyre::{Error, Result};
 
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::hash::{BuildHasher, Hash, Hasher, RandomState};
 use std::str::FromStr;
 
@@ -16,7 +18,7 @@ use api_rs::apis::kaspa_addresses_api::{
 };
 use api_rs::models::{TxModel, TxOutput};
 
-use super::client::get_config;
+use super::client::{get_client, get_config};
 
 #[derive(Debug, Clone)]
 pub struct Deposit {
@@ -80,16 +82,14 @@ pub fn get_deposits() -> Vec<Deposit> {
 
 #[derive(Debug, Clone)]
 pub struct HttpClient {
-    pub url: Url,
-    client: reqwest::Client, // TODO: ignored for now
+    pub url: String,
+    client: ClientWithMiddleware,
 }
 
 impl HttpClient {
-    pub fn new(url: Url) -> Self {
-        Self {
-            url,
-            client: reqwest::Client::new(),
-        }
+    pub fn new(url: String) -> Self {
+        let c = get_client();
+        Self { url, client: c }
     }
 
     pub async fn get_deposits(&self, address: &str) -> Result<Vec<Deposit>> {
@@ -100,7 +100,7 @@ impl HttpClient {
         let resolve_previous_outpoints = None;
         let acceptance = None;
 
-        let c = get_config(&self.url);
+        let c = self.get_config();
         info!("FOO|GET_DEPOSITS_CONFIG c: {:?}", c.base_path);
 
         let res = transactions_page(
@@ -121,5 +121,9 @@ impl HttpClient {
             .into_iter()
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
+    }
+
+    pub fn get_config(&self) -> Configuration {
+        get_config(&self.url, self.client.clone())
     }
 }
