@@ -116,32 +116,27 @@ export class CallCommitmentsService extends BaseService {
       return res.status(400).json({ error: error.message });
     }
 
-    // Check if commitment already exists before attempting insert
+    // Attempt to insert the commitment, and handle the case where it already exists.
     try {
-      const existingRecord = await prisma.commitment.findUnique({
-        where: { revealMessageId },
-        select: { commitment: true }, // Only need to check existence
-      });
-
-      if (existingRecord) {
-        logger.info(
-          {
-            commitmentDispatchTx: data.commitmentDispatchTx,
-            originDomain: data.originDomain,
-            revealMessageId,
-          },
-          'Commitment already exists - returning success',
-        );
-        return res.sendStatus(200); // Idempotent operation
-      }
-
-      // No existing record, proceed with insert
       await this.insertCommitmentToDB(
         commitment,
         { ...data, ica, revealMessageId },
         logger,
       );
     } catch (error: any) {
+      if (error.code === 'P2002') {
+        logger.info(
+          {
+            commitmentDispatchTx: data.commitmentDispatchTx,
+            originDomain: data.originDomain,
+            revealMessageId,
+          },
+          'Commitment already exists. Returning success.',
+        );
+        return res.sendStatus(200); // Idempotent operation
+      }
+
+      // Any other error is unexpected.
       logger.error(
         {
           commitmentDispatchTx: data.commitmentDispatchTx,
@@ -152,7 +147,6 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error during commitment processing',
       );
-
       PrometheusMetrics.logUnhandledError(this.config.serviceName);
       return res.status(500).json({ error: 'Internal server error' });
     }
