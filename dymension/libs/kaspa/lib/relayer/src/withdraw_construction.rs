@@ -38,7 +38,7 @@ pub async fn on_new_withdrawals(
     info!("Kaspa relayer, got pending withdrawals");
 
     let withdrawal_details: Vec<_> = pending_messages
-        .into_iter()
+        .iter()
         .filter_map(|m| {
             match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
                 Ok(msg) => {
@@ -76,5 +76,9 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    Ok(Some((WithdrawFXG::new(Bundle::from(pskt)), outpoint)))
+    // We have a bundle with one PSKT which covers all the HL messages.
+    Ok(Some((
+        WithdrawFXG::new(Bundle::from(pskt), vec![pending_messages]),
+        outpoint,
+    )))
 }

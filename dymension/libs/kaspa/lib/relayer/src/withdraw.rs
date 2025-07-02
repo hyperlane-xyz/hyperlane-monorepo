@@ -22,6 +22,11 @@ use kaspa_txscript::{
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::model::RpcTransaction;
 
+use corelib::payload;
+use corelib::payload::{MessageID, MessageIDs};
+use hyperlane_core::{HyperlaneMessage, HyperlaneSignerExt};
+use kaspa_consensus_core::hashing::sighash::calc_schnorr_signature_hash;
+use kaspa_wallet_core::account::pskb::PSKBSigner;
 use std::iter;
 
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
@@ -120,7 +125,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
 
     info!("-> Relayer is finalizing");
 
-    let rpc_tx = finalize_pskt(pskt_signed, e.pubs.clone())?;
+    let rpc_tx = finalize_pskt(pskt_signed, vec![], e.pubs.clone())?;
 
     let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
 
@@ -129,9 +134,11 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
 
 pub fn finalize_pskt(
     c: PSKT<Combiner>,
+    m: Vec<HyperlaneMessage>,
     escrow_pubs: Vec<PublicKey>,
 ) -> Result<RpcTransaction, Error> {
-    let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&c)
+    let msg_ids_bytes = MessageIDs::from(m)
+        .to_bytes()
         .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
 
     let finalized_pskt = c
@@ -217,6 +224,37 @@ pub async fn sign_pay_fee(
     s: &Secret,
 ) -> Result<PSKT<Signer>, Error> {
     // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+
+    // let addr = w.account()?.change_address()?;
+    // let keydata = w.prv_key_data(s.clone());
+    // let signer = Arc::new(PSKBSigner::new(w.account()?.clone().as_dyn_arc(), keydata.clone(), None));
+    //
+    // pskt_unsigned
+    //         .pass_signature_sync(|tx, sighash| -> kaspa_wallet_core::result::Result<Vec<SignInputOk>, String> {
+    //             tx.tx
+    //                 .inputs
+    //                 .iter()
+    //                 .enumerate()
+    //                 .map(|(idx, _input)| {
+    //                     let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
+    //                     let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+    //
+    //                     // When address represents a locked UTXO, no private key is available.
+    //                     // Instead, use the account receive address' private key.
+    //                     let address = &addr;
+    //
+    //                     let public_key = signer.public_key(address).expect("Public key for input indexed address");
+    //
+    //                     signer.sign().await?;
+    //                     Ok(SignInputOk {
+    //                         signature: Signature::Schnorr(signer.sign_schnorr(address, msg).unwrap()),
+    //                         pub_key: public_key,
+    //                         key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
+    //                     })
+    //                 })
+    //                 .collect()
+    //         })
+    //         .unwrap();
 
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;

@@ -1,6 +1,6 @@
 use crate::consts::KEY_MESSAGE_IDS;
 use eyre::Error as EyreError;
-use hyperlane_core::H256;
+use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_wallet_pskt::pskt::PSKT;
 use serde::{Deserialize, Serialize};
 
@@ -32,18 +32,15 @@ impl MessageIDs {
     }
 }
 
-pub fn message_ids_payload_from_pskt<ROLE>(pskt: &PSKT<ROLE>) -> Result<Vec<u8>, EyreError> {
-    if let Some(msg_ids_value) = pskt.global.proprietaries.get(KEY_MESSAGE_IDS) {
-        let msg_ids = MessageIDs::from_value(msg_ids_value.clone())
-            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+impl From<Vec<H256>> for MessageIDs {
+    fn from(ids: Vec<H256>) -> Self {
+        MessageIDs(ids.into_iter().map(MessageID).collect())
+    }
+}
 
-        let msg_ids_bytes = msg_ids
-            .to_bytes()
-            .map_err(|e| eyre::eyre!("Serialize MessageIDs: {}", e))?;
-
-        Ok(msg_ids_bytes)
-    } else {
-        Ok(vec![]) // Empty payload
+impl From<Vec<HyperlaneMessage>> for MessageIDs {
+    fn from(m: Vec<HyperlaneMessage>) -> Self {
+        MessageIDs(m.into_iter().map(|w| MessageID(w.id())).collect())
     }
 }
 

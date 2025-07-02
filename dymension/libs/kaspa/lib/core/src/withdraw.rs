@@ -1,20 +1,40 @@
 use bytes::Bytes;
 use eyre::Error as EyreError;
+use hyperlane_core::HyperlaneMessage;
 use kaspa_wallet_pskt::prelude::Bundle;
+use serde::{Deserialize, Serialize};
 
+/// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
+/// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
+/// some HL messages.
+///
+/// PSKT inside the bundle and its HL messages should live on respective indices, i.e.,
+/// Bundle[0] = PSKT1, messages[0] = {M1, M2} <=> PSKT1 covers M1 and M2.
+///
+///      Bundle
+///        /\
+///       /  \
+///      /    \
+///  PSKT1    PSKT2
+///    /\       /\
+///   /  \     /  \
+///  /    \   /    \
+/// M1    M2 M3    M4
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WithdrawFXG {
-    // may contain other things, caches, etc
     pub bundle: Bundle,
+    pub messages: Vec<Vec<HyperlaneMessage>>,
 }
 
 impl WithdrawFXG {
-    pub fn new(bundle: Bundle) -> Self {
-        Self { bundle }
+    pub fn new(bundle: Bundle, messages: Vec<Vec<HyperlaneMessage>>) -> Self {
+        Self { bundle, messages }
     }
 
     pub fn default() -> Self {
         Self {
             bundle: Bundle::new(),
+            messages: vec![],
         }
     }
 }
@@ -23,16 +43,18 @@ impl TryFrom<Bytes> for WithdrawFXG {
     type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let s = String::from_utf8(bytes.to_vec())?;
-        let bundle = Bundle::deserialize(&s)?;
-        Ok(WithdrawFXG { bundle })
+        bincode::deserialize(&bytes).map_err(|e| {
+            eyre::Report::new(e).wrap_err("Failed to deserialize WithdrawFXG from bytes")
+        })
     }
 }
 
 impl TryFrom<&WithdrawFXG> for Bytes {
     type Error = EyreError;
+
     fn try_from(x: &WithdrawFXG) -> Result<Self, Self::Error> {
-        let encoded = x.bundle.serialize()?;
-        Ok(encoded.into())
+        Ok(Bytes::from(bincode::serialize(x).map_err(|e| {
+            eyre::Report::new(e).wrap_err("Failed to serialize WithdrawFXG into bytes")
+        })?))
     }
 }

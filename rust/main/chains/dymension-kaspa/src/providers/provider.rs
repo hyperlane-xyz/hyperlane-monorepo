@@ -154,21 +154,21 @@ impl KaspaProvider {
     /// Returns next outpoint
     pub async fn process_withdrawal(
         &self,
-        fxg: &WithdrawFXG,
-        prev_outpoint: &TransactionOutpoint,
+        fxg: WithdrawFXG,
+        prev_outpoint: TransactionOutpoint,
     ) -> Result<()> {
         info!("Kaspa provider, got withdrawal FXG, now gathering and signing");
         let all_bundles = {
-            let mut bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
+            let mut bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
             info!("Kaspa provider, got validator bundles, now signing relayer fee");
 
-            let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
+            let bundle_relayer = self.sign_relayer_fee(&fxg).await?; // TODO: can add own sig in parallel to validator network request
             info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
             bundles_validators.push(bundle_relayer);
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
+        let finalized = finalize_txs(txs_signed, fxg.messages, self.escrow().pubs.clone())?;
         let res_tx_ids = self.submit_txs(finalized.clone()).await?;
         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
@@ -209,11 +209,12 @@ impl KaspaProvider {
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
         // returns bundle of Signer
+        let wallet = self.easy_wallet.wallet.clone();
+        let secret = self.easy_wallet.secret.clone();
+
         let mut signed = Vec::new();
         for pskt in fxg.bundle.iter() {
             let pskt = PSKT::<Signer>::from(pskt.clone());
-            let wallet = self.easy_wallet.wallet.clone();
-            let secret = self.easy_wallet.secret.clone();
             signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
         }
         Ok(Bundle::from(signed))
@@ -328,15 +329,13 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
 
 fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
+    messages: Vec<Vec<HyperlaneMessage>>,
     escrow_pubs: Vec<PublicKey>,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
-        .iter()
-        /*
-        TODO: finalize_pskt has some hacky assumptions on the order of inputs, which needs to be reconciled which was only for demo
-        but we need to generalise to make it work for the real construction https://github.com/dymensionxyz/hyperlane-monorepo/blob/1bc3abb42e9cb0b67146b89afa9fe97eea267126/dymension/libs/kaspa/lib/relayer/src/withdraw.rs#L136
-        */
-        .map(|tx| finalize_pskt(tx.clone(), escrow_pubs.clone())) // TODO: avoid clones
+        .into_iter()
+        .zip(messages.into_iter())
+        .map(|(tx, messages)| finalize_pskt(tx, messages, escrow_pubs.clone()))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result.map_err(|e| eyre::eyre!(e))?;

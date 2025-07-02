@@ -190,10 +190,11 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: pskts are valid");
 
     let mut signed = Vec::new();
-    for pskt in fxg.bundle.iter() {
+    // Iterate over (PSKT; associated HL messages) pairs
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
         let signed_pskt =
-            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
+            sign_pskt(&resources.must_kas_key(), pskt, messages).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
     info!("Validator: signed pskts");

@@ -160,10 +160,7 @@ impl Mailbox for KaspaMailbox {
         info!("Kaspa mailbox, constructed withdrawal TXs");
         let (fxg, prev_outpoint) = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
 
-        let _ = self
-            .provider
-            .process_withdrawal(&fxg, &prev_outpoint)
-            .await?;
+        let _ = self.provider.process_withdrawal(fxg, prev_outpoint).await?;
         info!("Kaspa mailbox, processed withdrawals TXs");
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa

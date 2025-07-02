@@ -8,6 +8,8 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
+use corelib::payload::MessageIDs;
+use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
@@ -20,7 +22,7 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
         .enumerate()
         .map(|(i, keypair)| {
             info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt(keypair, pskt_unsigned.clone())
+            sign_pskt(keypair, pskt_unsigned.clone(), vec![])
         })
         .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
 
@@ -38,10 +40,15 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
 }
 
 // TODO: use wallet instead of raw keypair
-pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
+pub fn sign_pskt(
+    kp: &SecpKeypair,
+    pskt: PSKT<Signer>,
+    messages: Vec<HyperlaneMessage>,
+) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
-    let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&pskt)
+    let msg_ids_bytes = MessageIDs::from(messages)
+        .to_bytes()
         .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
 
     pskt.pass_signature_sync(|tx, sighashes| {
