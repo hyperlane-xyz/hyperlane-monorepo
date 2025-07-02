@@ -69,7 +69,8 @@ mkdir $AGENT_TMP/dbs
 
 cargo build --release --bin validator
 
-./target/release/validator \
+# ./target/release/validator \
+RUST_BACKTRACE=1 cargo run --release --bin validator -- \
   --db $DB_VALIDATOR \
   --originChainName kaspatest10 \
   --reorgPeriod 1 \
@@ -105,6 +106,7 @@ dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dyme
 #### 5. SETUP RELAYER 
 
 # TODO: cleanups, kaspatest10.signer not actually used
+
 ./target/release/relayer \
     --db $DB_RELAYER \
     --relayChains kaspatest10,dymension \

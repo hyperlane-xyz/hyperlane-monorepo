@@ -1,8 +1,8 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
-    SignedCheckpointWithMessageId, H256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Checkpoint,
+    CheckpointWithMessageId, Signature, SignedCheckpointWithMessageId, SignedType, H256, U256,
 };
 
 use bytes::Bytes;
@@ -13,6 +13,7 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
+use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use kaspa_wallet_pskt::prelude::Bundle;
 
@@ -242,12 +243,33 @@ mod tests {
     use dym_kas_core::deposit::DepositFXG;
 
     #[tokio::test]
-    // #[ignore = "Requires real validator server"]
-    async fn test_txs() {
+    #[ignore = "Requires real validator server"]
+    async fn test_server_smoke() {
         let host = "http://localhost:9090"; // local validator
         let deposits = DepositFXG::default();
         let res = request_validate_new_deposits(host.to_string(), &deposits).await;
         let _ = res;
         println!("res: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_body_json() {
+        let sig: SignedType<CheckpointWithMessageId> = SignedType {
+            value: CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::default(),
+                    mailbox_domain: 0,
+                    root: H256::default(),
+                    index: 0,
+                },
+                message_id: H256::default(),
+            },
+            signature: Signature {
+                r: U256::default(),
+                s: U256::default(),
+                v: 0,
+            },
+        };
+        _ = sig;
     }
 }

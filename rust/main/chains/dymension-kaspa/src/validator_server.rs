@@ -11,10 +11,15 @@ use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
 pub use dym_kas_validator::KaspaSecpKeypair;
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
+use hyperlane_core::{
+    Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
+    SignedCheckpointWithMessageId, SignedType, H256,
+};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_rs::prost::Message;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -23,6 +28,32 @@ use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdrawal::validate_withdrawals;
+
+/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
+pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    resources: ValidatorServerResources<S>,
+) -> Router {
+    Router::new()
+        .route(
+            ROUTE_VALIDATE_NEW_DEPOSITS,
+            post(respond_validate_new_deposits::<S>),
+        )
+        .route(
+            ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
+            post(respond_validate_confirmed_withdrawals::<S>),
+        )
+        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
+        .route("/kaspa-ping", post(respond_kaspa_ping::<S>))
+        .with_state(Arc::new(resources))
+}
+
+async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    _body: Bytes,
+) -> HandlerResult<Json<String>> {
+    warn!("VALIDATOR SERVER, GOT KASPA PING");
+    Ok(Json("pong".to_string()))
+}
 
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
@@ -61,28 +92,10 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 }
 
-/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
-pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    resources: ValidatorServerResources<S>,
-) -> Router {
-    Router::new()
-        .route(
-            ROUTE_VALIDATE_NEW_DEPOSITS,
-            post(respond_validate_new_deposits::<S>),
-        )
-        .route(
-            ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
-            post(respond_validate_confirmed_withdrawals::<S>),
-        )
-        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
-        .route("/kaspa-ping", post(respond_kaspa_ping::<S>))
-        .with_state(Arc::new(resources))
-}
-
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<String>> {
+) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
@@ -121,16 +134,13 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         .map_err(|e| AppError(e.into()))?;
     info!("Validator: signed deposit");
 
-    let j =
-        serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
-
-    Ok(Json(j))
+    Ok(Json(sig))
 }
 
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<String>> {
+) -> HandlerResult<Json<SignedType<SignableProgressIndication>>> {
     info!("Validator: checking confirmed kaspa withdrawal");
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
@@ -155,14 +165,66 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .map_err(|e| AppError(e.into()))?;
 
     info!("Validator: signed confirmed withdrawal");
-    let j = serde_json::to_string_pretty(&sig.signature)
-        .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
-    Ok(Json(j))
+    Ok(Json(sig))
+}
+
+async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    body: Bytes,
+) -> HandlerResult<Json<String>> {
+    info!("Validator: signing pskts");
+    let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+
+    // Call to validator.G()
+    if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
+        return Err(AppError(eyre::eyre!("Invalid confirmation")));
+    }
+    info!("Validator: pskts are valid");
+
+    let mut signed = Vec::new();
+    for pskt in fxg.bundle.iter() {
+        let pskt = PSKT::<Signer>::from(pskt.clone());
+        let signed_pskt =
+            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
+        signed.push(signed_pskt);
+    }
+    info!("Validator: signed pskts");
+    let bundle = Bundle::from(signed);
+
+    let stringy = bundle
+        .serialize()
+        .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
+
+    Ok(Json(stringy))
 }
 
 struct SignableProgressIndication {
     progress_indication: ProgressIndication,
+}
+
+impl Serialize for SignableProgressIndication {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let encoded = self.progress_indication.encode_to_vec();
+        serializer.serialize_bytes(&encoded)
+    }
+}
+
+impl<'de> Deserialize<'de> for SignableProgressIndication {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = Bytes::deserialize(deserializer)?;
+        let progress_indication =
+            ProgressIndication::decode(bytes.as_ref()).map_err(serde::de::Error::custom)?;
+        Ok(SignableProgressIndication {
+            progress_indication,
+        })
+    }
 }
 
 impl Signable for SignableProgressIndication {
@@ -224,44 +286,3 @@ impl IntoResponse for AppError {
 
 /// Allows handler to have some state
 type HandlerResult<T> = Result<T, AppError>;
-
-async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
-    body: Bytes,
-) -> HandlerResult<Json<String>> {
-    info!("Validator: signing pskts");
-    let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-
-    // Call to validator.G()
-    if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
-        return Err(AppError(eyre::eyre!("Invalid confirmation")));
-    }
-    info!("Validator: pskts are valid");
-
-    let mut signed = Vec::new();
-    for pskt in fxg.bundle.iter() {
-        let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt =
-            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
-        signed.push(signed_pskt);
-    }
-    info!("Validator: signed pskts");
-    let bundle = Bundle::from(signed);
-
-    let stringy = bundle
-        .serialize()
-        .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
-
-    let j = serde_json::to_string_pretty(&stringy)
-        .map_err(|e: serde_json::Error| AppError(e.into()))?;
-
-    Ok(Json(j))
-}
-
-async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
-    _body: Bytes,
-) -> HandlerResult<Json<String>> {
-    warn!("VALIDATOR SERVER, GOT KASPA PING");
-    Ok(Json("pong".to_string()))
-}
