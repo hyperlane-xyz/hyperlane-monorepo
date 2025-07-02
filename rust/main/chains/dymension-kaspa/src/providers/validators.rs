@@ -236,8 +236,7 @@ pub async fn request_sign_withdrawal_bundle(
 
     let status = res.status();
     if status == StatusCode::OK {
-        let body = res.json::<String>().await?;
-        let bundle = Bundle::deserialize(&body)?;
+        let bundle = res.json::<Bundle>().await?;
         Ok(Some(bundle))
     } else {
         Err(eyre::eyre!("Failed to sign withdrawal bundle: {}", status))

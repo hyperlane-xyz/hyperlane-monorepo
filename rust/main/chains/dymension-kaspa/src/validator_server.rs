@@ -172,7 +172,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<String>> {
+) -> HandlerResult<Json<Bundle>> {
     info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
@@ -192,11 +192,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
 
-    let stringy = bundle
-        .serialize()
-        .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
-
-    Ok(Json(stringy))
+    Ok(Json(bundle))
 }
 
 struct SignableProgressIndication {
