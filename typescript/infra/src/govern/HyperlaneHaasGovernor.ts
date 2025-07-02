@@ -145,6 +145,9 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     // 2. For each call, infer how it should be submitted on-chain.
     await this.inferCallSubmissionTypes();
 
+    // 2.5. Combine ICA calls that have the same callRemoteArgs
+    await this.batchIcaCalls();
+
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
     const chains = chain ? [chain] : Object.keys(this.calls);
