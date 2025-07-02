@@ -83,10 +83,12 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         address _owner,
         string[] memory __urls
     ) external virtual initializer {
-        __Ownable_init();
-        setUrls(__urls);
+        // Call initialization functions of all parent contracts
         // ISM should not be set
         _HypERC20_initialize(_hook, address(0), _owner);
+
+        // Setup urls for offchain lookup and do token approval
+        setUrls(__urls);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
