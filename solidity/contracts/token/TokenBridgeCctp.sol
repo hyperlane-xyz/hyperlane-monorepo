@@ -86,7 +86,7 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         __Ownable_init();
         setUrls(__urls);
         // ISM should not be set
-        _MailboxClient_initialize(_hook, address(0), _owner);
+        _HypERC20_initialize(_hook, address(0), _owner);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
