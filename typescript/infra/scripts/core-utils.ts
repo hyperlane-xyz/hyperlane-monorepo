@@ -33,13 +33,16 @@ export async function getHyperlaneCore(
   const config = getEnvironmentConfig(env);
   multiProvider = multiProvider || (await config.getMultiProvider());
   const chainAddresses = getEnvAddresses(env);
-  for (const [chain, legacyIcaRouters] of Object.entries(
-    legacyIcaChainRouters,
-  )) {
-    chainAddresses[chain] = {
-      ...chainAddresses[chain],
-      ...legacyIcaRouters,
-    };
+  // on mainnet3, we need to add the legacy ICA routers to the chain addresses
+  if (env === 'mainnet3') {
+    for (const [chain, legacyIcaRouters] of Object.entries(
+      legacyIcaChainRouters,
+    )) {
+      chainAddresses[chain] = {
+        ...chainAddresses[chain],
+        ...legacyIcaRouters,
+      };
+    }
   }
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   return { core, multiProvider, chainAddresses };
