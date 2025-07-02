@@ -95,7 +95,7 @@ contract HypNative is MovableCollateralRouter {
         _transferFromSender(_amount + fee);
         dispatchValue = msg.value - (_amount + fee);
         if (fee > 0) {
-            _transferTo(_getFeeRecipient(), fee);
+            _transferTo(feeRecipient(), fee);
         }
     }
 

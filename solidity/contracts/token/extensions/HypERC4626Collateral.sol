@@ -66,7 +66,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         HypERC20Collateral._transferFromSender(_amount + fee);
         if (fee > 0) {
-            HypERC20Collateral._transferTo(_getFeeRecipient(), fee);
+            HypERC20Collateral._transferTo(feeRecipient(), fee);
         }
         return msg.value;
     }

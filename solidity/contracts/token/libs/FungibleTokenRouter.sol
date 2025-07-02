@@ -37,7 +37,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         emit FeeRecipientSet(_feeRecipient);
     }
 
-    function _getFeeRecipient() internal view virtual returns (address) {
+    function feeRecipient() public view virtual returns (address) {
         return FEE_RECIPIENT_SLOT.getAddressSlot().value;
     }
 
@@ -69,12 +69,15 @@ abstract contract FungibleTokenRouter is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) internal view virtual returns (uint256 feeAmount) {
-        if (_getFeeRecipient() == address(0)) {
+        if (feeRecipient() == address(0)) {
             return 0;
         }
 
-        Quote[] memory quotes = ITokenFee(_getFeeRecipient())
-            .quoteTransferRemote(_destination, _recipient, _amount);
+        Quote[] memory quotes = ITokenFee(feeRecipient()).quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
         require(
             quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
@@ -108,7 +111,7 @@ abstract contract FungibleTokenRouter is TokenRouter {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         _transferFromSender(_amount + fee);
         if (fee > 0) {
-            _transferTo(_getFeeRecipient(), fee);
+            _transferTo(feeRecipient(), fee);
         }
         return msg.value;
     }
