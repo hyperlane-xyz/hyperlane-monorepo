@@ -27,7 +27,7 @@ describe('hyperlane core check e2e tests', async function () {
   );
 
   before(async () => {
-    await hyperlaneCore.deploy(ANVIL_KEY);
+    await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
   });
 
   it('should throw an error if the --chain param is not provided', async () => {
@@ -48,7 +48,7 @@ describe('hyperlane core check e2e tests', async function () {
   it('should successfully run the core check command', async () => {
     await hyperlaneCore.readConfig();
 
-    const output = await hyperlaneCore.check(CHAIN_NAME_2);
+    const output = await hyperlaneCore.check();
 
     expect(output.exitCode).to.equal(0);
     expect(output.text()).to.includes('No violations found');
@@ -61,7 +61,7 @@ describe('hyperlane core check e2e tests', async function () {
     const expectedDiffText = `EXPECTED: "${coreConfig.owner}"\n`;
     const expectedActualText = `ACTUAL: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"\n`;
 
-    const output = await hyperlaneCore.check(CHAIN_NAME_2).nothrow();
+    const output = await hyperlaneCore.check().nothrow();
 
     expect(output.exitCode).to.equal(1);
     expect(output.text()).to.include(expectedDiffText);

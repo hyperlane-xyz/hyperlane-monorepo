@@ -23,7 +23,6 @@ import {
   CHAIN_NAME_2,
   CORE_CONFIG_PATH,
   CORE_CONFIG_PATH_2,
-  CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
 } from '../consts.js';
@@ -36,7 +35,7 @@ describe('hyperlane core init e2e tests', async function () {
     CHAIN_NAME_2,
     REGISTRY_PATH,
     CORE_CONFIG_PATH,
-    CORE_READ_CONFIG_PATH_2,
+    CORE_CONFIG_PATH_2,
   );
 
   function assertCoreInitConfig(

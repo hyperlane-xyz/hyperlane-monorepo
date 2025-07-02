@@ -52,6 +52,14 @@ export class HyperlaneE2ECoreTestCommands {
     return `HYP_KEY_${this.protocol.toUpperCase()}`;
   }
 
+  public setCoreInputPath(coreInputPath: string) {
+    this.coreInputPath = coreInputPath;
+  }
+
+  public setCoreOutputPath(coreOutputPath: string) {
+    this.coreOutputPath = coreOutputPath;
+  }
+
   /**
    * Creates a Hyperlane core deployment config
    */
@@ -70,9 +78,9 @@ export class HyperlaneE2ECoreTestCommands {
       flags.push(this.privateKeyFlag, privateKey);
     }
 
-    return $`${[
-      `${this.hypKeyEnvName}=${privateKeyEnv}`,
-    ]} ${this.cmdPrefix} hyperlane core init ${flags}`;
+    return $`${
+      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+    } ${this.cmdPrefix} hyperlane core init ${flags}`;
   }
 
   /**
@@ -143,9 +151,9 @@ export class HyperlaneE2ECoreTestCommands {
       flags.push('--yes');
     }
 
-    return $`${[
-      `${this.hypKeyEnvName}=${privateKeyEnv}`,
-    ]} ${this.cmdPrefix} hyperlane core deploy ${flags}`;
+    return $`${
+      privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
+    } ${this.cmdPrefix} hyperlane core deploy ${flags}`;
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Wallet, ethers } from 'ethers';
 import path from 'path';
-import { $, ProcessOutput, ProcessPromise } from 'zx';
+import { $ } from 'zx';
 
 import {
   ERC20Test,
@@ -25,11 +25,7 @@ import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import {
-  KeyBoardKeys,
-  TestPromptAction,
-  asyncStreamInputWrite,
-} from '../../commands/helpers.js';
+import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -79,30 +75,6 @@ export function exportWarpConfigsToFilePaths({
     warpDeployPath: updatedWarpConfigPath,
     warpCorePath: updatedWarpCorePath,
   };
-}
-
-/**
- * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
- * in the provided order when the check in the {@link TestPromptAction} matches the output
- * of the {@link ProcessPromise}.
- */
-export async function handlePrompts(
-  processPromise: Readonly<ProcessPromise>,
-  actions: TestPromptAction[],
-): Promise<ProcessOutput> {
-  let expectedStep = 0;
-  for await (const out of processPromise.stdout) {
-    const currentLine: string = out.toString();
-
-    const currentAction = actions[expectedStep];
-    if (currentAction && currentAction.check(currentLine)) {
-      // Select mainnet chains
-      await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
-      expectedStep++;
-    }
-  }
-
-  return processPromise;
 }
 
 export const SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKeys.ARROW_DOWN.repeat(

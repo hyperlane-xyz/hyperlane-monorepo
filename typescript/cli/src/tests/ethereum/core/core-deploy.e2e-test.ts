@@ -235,6 +235,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
 
       // Deploy the core contracts with the updated mailbox owner
+      hyperlaneCore.setCoreInputPath(CORE_READ_CONFIG_PATH_2);
       await hyperlaneCore.deploy(ANVIL_KEY);
 
       // Verify that the owner has been set correctly without modifying any other owner values
