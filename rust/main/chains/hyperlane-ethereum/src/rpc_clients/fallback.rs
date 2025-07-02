@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn, warn_span};
+use tracing::{instrument, warn};
 
 use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
