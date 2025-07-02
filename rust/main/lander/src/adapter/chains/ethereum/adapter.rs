@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use ethers::prelude::H160;
+use ethers::prelude::{Address, H160};
 use ethers::{
     contract::builders::ContractCall, prelude::U64, providers::Middleware,
     types::transaction::eip2718::TypedTransaction,
@@ -28,7 +28,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256};
+use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256, U256};
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
@@ -112,9 +112,8 @@ impl EthereumAdapter {
         Ok(adapter)
     }
 
-    async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        self.nonce_manager.assign_nonce(tx).await?;
-        Ok(())
+    async fn set_nonce_if_needed(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
+        self.nonce_manager.calculate_next_nonce(tx).await
     }
 
     async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -475,9 +474,14 @@ impl AdaptsChain for EthereumAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use super::transaction::Precursor;
 
-        self.set_nonce_if_needed(tx).await?;
+        let nonce = self.set_nonce_if_needed(&tx.clone()).await?;
         self.set_gas_limit_if_needed(tx).await?;
         self.set_gas_price(tx).await?;
+
+        let precursor = tx.precursor_mut();
+        if let Some(nonce) = nonce {
+            precursor.tx.set_nonce(nonce);
+        }
 
         info!(?tx, "submitting transaction");
 
@@ -542,6 +546,7 @@ impl AdaptsChain for EthereumAdapter {
     }
 }
 
+use crate::transaction::TransactionUuid;
 #[cfg(test)]
 pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;
 
