@@ -6,12 +6,13 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use super::consts::*;
+use tracing::info;
 
 use hyperlane_core::{
-    BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
-    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    utils::bytes_to_hex, BatchItem, BatchResult, ChainCommunicationError, ChainResult,
+    ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::KaspaProvider;
@@ -95,8 +96,9 @@ impl Mailbox for KaspaMailbox {
     // not a precise answer since actually depends on subsequent confirmation step
     // so may often return false negative
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        info!("Kaspa mailbox, checkin if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
-            message_id: id.to_string(),
+            message_id: bytes_to_hex(&id.as_ref()),
         };
         let res = self
             .provider
@@ -145,18 +147,24 @@ impl Mailbox for KaspaMailbox {
 
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        info!(
+            "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
+            ops.len()
+        );
         let messages: Vec<HyperlaneMessage> = ops
             .iter()
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
         let fxg_res = self.provider.construct_withdrawal(messages).await?;
+        info!("Kaspa mailbox, constructed withdrawal TXs");
         let (fxg, prev_outpoint) = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
 
         let _ = self
             .provider
             .process_withdrawal(&fxg, &prev_outpoint)
             .await?;
+        info!("Kaspa mailbox, processed withdrawals TXs");
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
         // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted

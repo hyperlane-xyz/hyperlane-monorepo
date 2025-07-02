@@ -587,7 +587,7 @@ async fn submit_classic_task(
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
 
-        if is_kas(&domain.clone()) {
+        if is_kas(&domain.clone()) && batch.len() > 0 {
             /*
             We do this here rather than in OperationBatch::submit because here we have better control over error handling. The regular batch flow
             has some oddities like retrying all failed messages individually.
@@ -1073,12 +1073,15 @@ async fn submit_kaspa_batch(
     metrics: &SerialSubmitterMetrics,
     batch: Vec<&Box<dyn PendingOperation>>,
 ) {
+    info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
     let Some(first_item) = batch.first() else {
-        todo!()
+        error!("Kaspa batch, no first item");
+        return;
     };
     let Some(mailbox) = first_item.try_get_mailbox() else {
-        todo!()
+        error!("Kaspa batch, no mailbox");
+        return;
     };
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
@@ -1101,8 +1104,10 @@ async fn submit_kaspa_batch(
                 .enumerate()
                 .partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
+                        info!("Kaspa batch, successfully submitted op: {}", op.id());
                         Either::Left(op)
                     } else {
+                        info!("Kaspa batch, failed to submit op: {}", op.id());
                         Either::Right(op)
                     }
                 });

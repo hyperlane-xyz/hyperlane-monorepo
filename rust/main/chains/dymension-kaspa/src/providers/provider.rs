@@ -25,6 +25,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -156,15 +157,20 @@ impl KaspaProvider {
         fxg: &WithdrawFXG,
         prev_outpoint: &TransactionOutpoint,
     ) -> Result<()> {
+        info!("Kaspa provider, got withdrawal FXG, now gathering and signing");
         let all_bundles = {
             let mut bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
+            info!("Kaspa provider, got validator bundles, now signing relayer fee");
+
             let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
+            info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
             bundles_validators.push(bundle_relayer);
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
         let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
         let res_tx_ids = self.submit_txs(finalized.clone()).await?;
+        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
         // to indicate progress on the Hub, we need to know:
         // - the first outpoint preceding the withdrawal and
@@ -196,6 +202,7 @@ impl KaspaProvider {
             .lock()
             .map_err(|e| eyre::eyre!("Failed to lockup progress indication queue: {}", e))?
             .push((prev_outpoint.clone(), next_outpoint.clone()));
+        info!("Kaspa provider, added to progress indication work queue");
 
         Ok(())
     }
