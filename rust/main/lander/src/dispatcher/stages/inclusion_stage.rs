@@ -111,7 +111,7 @@ impl InclusionStage {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
             // evaluate the pool every block
-            sleep(*estimated_block_time).await;
+            sleep(Duration::from_millis(1)).await;
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
         }
     }
