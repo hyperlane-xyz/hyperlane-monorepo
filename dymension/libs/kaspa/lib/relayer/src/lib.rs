@@ -11,8 +11,8 @@ pub use hub_to_kaspa::build_withdrawal_pskt;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
+use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
 use corelib::{api::deposits::Deposit, deposit::DepositFXG};
-use corelib::{parse_hyperlane_message, parse_hyperlane_metadata};
 use eyre::Result;
 use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
@@ -27,9 +27,9 @@ struct ParsedHL {
 
 impl ParsedHL {
     fn parse(payload: &str) -> Result<Self> {
-        let raw = hex::decode(payload).map_err(|e| eyre::eyre!(e))?;
-        let hl_message = parse_hyperlane_message(&raw).map_err(|e| eyre::eyre!(e))?;
-        let token_message = parse_hyperlane_metadata(&hl_message).map_err(|e| eyre::eyre!(e))?;
+        let raw = hex::decode(payload)?;
+        let hl_message = parse_hyperlane_message(&raw)?;
+        let token_message = parse_hyperlane_metadata(&hl_message)?;
         Ok(ParsedHL {
             hl_message,
             token_message,

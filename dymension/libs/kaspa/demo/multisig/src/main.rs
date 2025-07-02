@@ -6,10 +6,10 @@ use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
+use hardcode::e2e::*;
 use relayer::withdraw::*;
 use validator::withdraw::*;
 use x::args::Args;
-use x::consts::*;
 
 use std::sync::Arc;
 

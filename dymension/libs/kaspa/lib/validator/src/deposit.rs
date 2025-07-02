@@ -6,7 +6,8 @@ use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
 
-use corelib::{is_utxo_escrow_address, parse_hyperlane_metadata};
+use corelib::escrow::is_utxo_escrow_address;
+use corelib::message::parse_hyperlane_metadata;
 use std::str::FromStr;
 
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
@@ -22,7 +23,7 @@ pub async fn validate_new_deposit(
     deposit: &DepositFXG,
     escrow_address: &str,
 ) -> Result<bool> {
-    // let validation_result = validate_deposit(client, deposit, escrow_address).await?;
+    // TODO: call validation! Requires fix
     Ok(true)
 }
 
@@ -73,7 +74,7 @@ pub async fn validate_deposit(
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
     // decode Hyperlane message
-    let token_message = parse_hyperlane_metadata(&deposit.payload).map_err(|e| eyre::eyre!(e))?;
+    let token_message = parse_hyperlane_metadata(&deposit.payload)?;
 
     if U256::from(utxo.value) < token_message.amount() {
         let amt = U256::from(utxo.value);
@@ -85,9 +86,7 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)
-        .map_err(|e| eyre::eyre!(e))?;
-
+    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)?;
     if !is_escrow {
         error!(
             "Deposit is not to escrow address,escrow: {:?}",

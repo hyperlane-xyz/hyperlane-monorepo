@@ -1,31 +1,43 @@
-use hex::{FromHex, ToHex};
-use kaspa_addresses::{Address, Prefix};
-use std::env;
-use std::str::FromStr;
+use clap::ArgMatches;
+mod x;
+use x::args::cli;
 
-use hyperlane_core::H256;
-use relayer::withdraw_construction::get_recipient_address;
-
-fn main() {
-    // forward direction
-    let args: Vec<String> = env::args().collect();
-    let addr_s = args.get(1).unwrap();
-    let addr = Address::try_from(addr_s.as_str()).unwrap();
-    println!("{}", addr.to_string());
-    let bz = addr.payload.as_slice();
-    let bz_hex = hex::encode(bz);
-    let s = format!("0x{}", bz_hex);
-    println!("{}", s);
-
-    // reverse direction to test
-
-    let unprefixed = s.chars().skip(2).collect::<String>();
-    let unhexed = hex::decode(unprefixed).unwrap();
-    let decoded = H256::from_slice(&unhexed);
-
-    let prefix = Prefix::Testnet;
-    let recipient_addr = get_recipient_address(decoded, prefix);
-    if recipient_addr.to_string() != addr_s.as_str() {
-        println!("{}", "something wrong");
+async fn run(matches: ArgMatches) {
+    let is_verbose = matches.get_flag("verbose");
+    if is_verbose {
+        println!("Verbose mode is enabled");
     }
+
+    match matches.subcommand() {
+        Some(("recipient", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
+            let address = sub_matches
+                .get_one::<String>("ADDRESS")
+                .expect("required argument");
+            let converted = x::addr::hl_recipient(address);
+            println!("The recipient address is: {}", converted);
+        }
+        Some(("validator", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
+            let v = x::escrow::create_one_new_validator();
+            println!("Validator infos: {}", v.to_string());
+        }
+        Some(("deposit", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
+            let args = x::deposit::DepositArgs::parse();
+            let res = x::deposit::do_deposit(args).await;
+            if let Err(e) = res {
+                eprintln!("Error: {}", e);
+            }
+        }
+        _ => {
+            unreachable!();
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let matches = cli().get_matches();
+    run(matches).await;
 }

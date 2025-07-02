@@ -1185,12 +1185,13 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "bincode",
  "bytes",
  "clap",
  "eyre",
  "governor",
+ "hardcode",
+ "hex",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
  "hyperlane-warp-route",
@@ -1731,6 +1732,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
+ "hardcode",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -1754,6 +1756,7 @@ dependencies = [
  "bytes",
  "clap",
  "core",
+ "hardcode",
  "hex",
  "hyperlane-core",
  "hyperlane-warp-route",
@@ -1780,26 +1783,21 @@ dependencies = [
 name = "demo-user"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "core",
+ "eyre",
  "hex",
  "hyperlane-core",
  "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
  "relayer",
  "secp256k1",
  "serde",
  "serde_json",
- "validator",
-]
-
-[[package]]
-name = "demo-validator"
-version = "0.1.0"
-dependencies = [
- "core",
- "kaspa-addresses",
- "secp256k1",
- "serde",
- "serde_json",
+ "tokio",
  "validator",
 ]
 
@@ -3205,6 +3203,17 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "hardcode"
+version = "0.2.0"
+dependencies = [
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "openapi",
+ "reqwest 0.12.20",
+ "reqwest-middleware",
 ]
 
 [[package]]

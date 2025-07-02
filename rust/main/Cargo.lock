@@ -2580,12 +2580,13 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "bincode",
  "bytes",
  "clap 4.5.40",
  "eyre",
  "governor",
+ "hardcode",
+ "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
  "hyperlane-warp-route",
@@ -5831,6 +5832,17 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "hardcode"
+version = "0.2.0"
+dependencies = [
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "openapi",
+ "reqwest 0.12.15",
+ "reqwest-middleware",
 ]
 
 [[package]]

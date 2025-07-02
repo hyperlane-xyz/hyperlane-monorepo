@@ -5,6 +5,8 @@ use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
 
+use eyre::Result;
+use kaspa_rpc_core::RpcScriptPublicKey;
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -87,6 +89,14 @@ impl EscrowPublic {
             pubs: pubs,
         }
     }
+}
+
+pub fn is_utxo_escrow_address(pk: &RpcScriptPublicKey, escrow_address: &str) -> Result<bool> {
+    let address = extract_script_pub_key_address(pk, Prefix::Testnet)?;
+    if address.to_string() == escrow_address {
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 #[cfg(test)]

@@ -3,7 +3,9 @@ pub mod confirmation;
 pub mod consts;
 pub mod deposit;
 pub mod escrow;
+pub mod message;
 pub mod payload;
+pub mod user;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
@@ -16,33 +18,3 @@ use kaspa_addresses::Prefix;
 use kaspa_rpc_core::RpcScriptPublicKey;
 use kaspa_txscript::extract_script_pub_key_address;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
-
-pub const ESCROW_ADDRESS: &'static str =
-    "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
-
-pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage, anyhow::Error> {
-    const MIN_EXPECTED_LENGTH: usize = 77;
-
-    if m.len() < MIN_EXPECTED_LENGTH {
-        return Err(anyhow::Error::msg("Value cannot be zero."));
-    }
-    let message = HyperlaneMessage::from(m);
-
-    Ok(message)
-}
-
-pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage, anyhow::Error> {
-    // decode token message inside  Hyperlane message
-    let mut reader = Cursor::new(m.body.as_slice());
-    let token_message = TokenMessage::read_from(&mut reader)?;
-
-    Ok(token_message)
-}
-
-pub fn is_utxo_escrow_address(pk: &RpcScriptPublicKey, escrow_address: &str) -> Result<bool> {
-    let address = extract_script_pub_key_address(pk, Prefix::Testnet)?;
-    if address.to_string() == escrow_address {
-        return Ok(true);
-    }
-    Ok(false)
-}

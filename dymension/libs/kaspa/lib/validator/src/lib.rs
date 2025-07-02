@@ -8,7 +8,8 @@ use tracing::{error, info, warn};
 use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
-use corelib::{is_utxo_escrow_address, parse_hyperlane_metadata};
+use corelib::escrow::is_utxo_escrow_address;
+use corelib::message::parse_hyperlane_metadata;
 use std::error::Error;
 use std::str::FromStr;
 
