@@ -7,19 +7,14 @@ use ethers::{
     types::transaction::eip2718::TypedTransaction,
 };
 use ethers_core::abi::Function;
+use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
 use tokio::sync::Mutex;
+use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
-    dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
-    payload::{FullPayload, PayloadDetails},
-    transaction::{Transaction, TransactionStatus, VmSpecificTxData},
-    DispatcherMetrics, LanderError,
-};
 use hyperlane_base::{
     db::HyperlaneRocksDB,
     settings::{
@@ -34,10 +29,20 @@ use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
+use crate::{
+    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
+    payload::{FullPayload, PayloadDetails},
+    transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData},
+    DispatcherMetrics, LanderError,
+};
+
 use super::{
     metrics::EthereumAdapterMetrics, nonce::NonceManager, transaction::Precursor,
     EthereumTxPrecursor,
 };
+
+use gas_price::GasPrice;
 
 mod gas_limit_estimator;
 mod gas_price;
@@ -123,26 +128,92 @@ impl EthereumAdapter {
         Ok(())
     }
 
-    async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+    async fn set_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
         // even if the gas price is already set, we still want to (re-)estimate it
         // to be resilient to gas spikes
-        let old_tx_precursor = tx.precursor().clone();
-        let new_tx_precursor = tx.precursor_mut();
+        let old_tx_precursor = tx.precursor();
 
-        // first, estimate the gas price and set it on the new transaction precursor
-        gas_price::estimator::estimate_gas_price(
+        let old_gas_price = gas_price::extract_gas_price(old_tx_precursor);
+
+        // first, estimate the gas price
+        let estimated_gas_price = gas_price::estimate_gas_price(
             &self.provider,
-            new_tx_precursor,
+            old_tx_precursor,
             &self.transaction_overrides,
             &self.domain,
         )
-        .await?;
+        .await;
 
         // then, compare the estimated gas price with `current * escalation_multiplier`
-        gas_price::escalator::escalate_gas_price_if_needed(&old_tx_precursor, new_tx_precursor);
+        let escalated_gas_price =
+            gas_price::escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
 
-        info!(old=?old_tx_precursor, new=?tx.precursor(), "estimated gas price for transaction");
-        Ok(())
+        let new_gas_price = match escalated_gas_price {
+            GasPrice::None => estimated_gas_price,
+            _ => escalated_gas_price,
+        };
+
+        info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
+        Ok(new_gas_price)
+    }
+
+    fn update_tx(&self, tx: &mut Transaction, nonce: Option<U256>, gas_price: GasPrice) {
+        let precursor = tx.precursor_mut();
+
+        if let GasPrice::Eip1559 {
+            max_fee,
+            max_priority_fee,
+        } = gas_price
+        {
+            // Re-create the whole EIP-1559 transaction request in this case
+
+            let tx = precursor.tx.clone();
+
+            let mut request = Eip1559TransactionRequest::new();
+            if let Some(from) = tx.from() {
+                request = request.from(*from);
+            }
+            if let Some(to) = tx.to() {
+                request = request.to(to.clone());
+            }
+            if let Some(data) = tx.data() {
+                request = request.data(data.clone());
+            }
+            if let Some(value) = tx.value() {
+                request = request.value(*value);
+            }
+            if let Some(nonce) = tx.nonce() {
+                request = request.nonce(*nonce);
+            }
+            if let Some(gas_limit) = tx.gas() {
+                request = request.gas(*gas_limit);
+            }
+            if let Some(chain_id) = tx.chain_id() {
+                request = request.chain_id(chain_id);
+            }
+            request = request.max_fee_per_gas(max_fee);
+            request = request.max_priority_fee_per_gas(max_priority_fee);
+
+            let eip_1559_tx = TypedTransaction::Eip1559(request);
+            precursor.tx = eip_1559_tx.clone();
+        }
+
+        match gas_price {
+            GasPrice::None => {}
+            GasPrice::NonEip1559 { gas_price } => {
+                precursor.tx.set_gas_price(gas_price);
+            }
+            GasPrice::Eip1559 { .. } => {}
+        }
+
+        match nonce {
+            None => {}
+            Some(nonce) => {
+                precursor.tx.set_nonce(nonce);
+            }
+        }
+
+        info!(?tx, "updated transaction with nonce and gas price");
     }
 
     fn filter<I: Clone>(items: &[I], indices: Vec<usize>) -> Vec<I> {
@@ -474,14 +545,17 @@ impl AdaptsChain for EthereumAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use super::transaction::Precursor;
 
-        let nonce = self.set_nonce_if_needed(&tx.clone()).await?;
-        self.set_gas_limit_if_needed(tx).await?;
-        self.set_gas_price(tx).await?;
+        let tx_for_nonce = tx.clone();
+        let tx_for_gas_price = tx.clone();
 
-        let precursor = tx.precursor_mut();
-        if let Some(nonce) = nonce {
-            precursor.tx.set_nonce(nonce);
-        }
+        let (nonce, gas_price) = try_join!(
+            self.set_nonce_if_needed(&tx_for_nonce),
+            self.set_gas_price(&tx_for_gas_price)
+        )?;
+
+        self.set_gas_limit_if_needed(tx).await?;
+
+        self.update_tx(tx, nonce, gas_price);
 
         info!(?tx, "submitting transaction");
 
@@ -546,7 +620,6 @@ impl AdaptsChain for EthereumAdapter {
     }
 }
 
-use crate::transaction::TransactionUuid;
 #[cfg(test)]
 pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;
 
