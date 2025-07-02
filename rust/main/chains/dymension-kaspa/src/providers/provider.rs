@@ -319,7 +319,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
     for all_actor_sigs_for_tx in tx_sigs.iter() {
         let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
         for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
-            combiner = (combiner + tx_sig.clone()).unwrap();
+            combiner = (combiner + tx_sig.clone())?;
         }
         ret.push(combiner);
     }

@@ -3,6 +3,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::wallet::NetworkInfo;
+use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -101,7 +102,7 @@ pub async fn build_withdrawal_pskt(
 
     let relayer_utxos = get_utxo_to_spend(
         // TODO: receive_address or change_address??
-        relayer.receive_address()?.clone(),
+        relayer.change_address()?.clone(),
         kaspa_rpc,
         network_id,
     )
@@ -406,7 +407,7 @@ pub(crate) async fn get_pending_withdrawals(
     let withdrawal_ids: Vec<_> = withdrawals
         .iter()
         .map(|m| WithdrawalId {
-            message_id: m.id().to_string(),
+            message_id: m.id().encode_hex(),
         })
         .collect();
 

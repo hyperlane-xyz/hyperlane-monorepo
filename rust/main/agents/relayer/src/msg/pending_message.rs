@@ -910,43 +910,7 @@ impl PendingMessage {
         max_retries: u32,
         message_id: Option<H256>,
     ) -> Option<Duration> {
-        Some(Duration::from_secs(match num_retries {
-            i if i < 1 => return None,
-            1 => 5,
-            2 => 10,
-            3 => 30,
-            4 => 60,
-            i if (5..25).contains(&i) => 60 * 3,
-            // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
-            // wait 30min for the next 5 attempts
-            i if (40..45).contains(&i) => 60 * 30,
-            // wait 60min for the next 5 attempts
-            i if (45..50).contains(&i) => 60 * 60,
-            // linearly increase the backoff time, adding 1h for each additional attempt
-            i if (50..max_retries).contains(&i) => {
-                let hour: u64 = 60 * 60;
-                let two_hours: u64 = hour * 2;
-                // To be extra safe, `max` to make sure it's at least 2 hours.
-                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
-                // Schedule it at some random point in the next 6 hours to
-                // avoid scheduling messages with the same # of retries
-                // at the exact same time and starve new messages.
-                target + (rand::random::<u64>() % (6 * hour))
-            }
-            // after `max_message_retries`, the message is considered undeliverable
-            // and the backoff is set as far into the future as possible
-            _ => {
-                if let Some(message_id) = message_id {
-                    warn!(
-                        message_id = ?message_id,
-                        ?max_retries,
-                        "Message has been retried too many times, skipping",
-                    );
-                }
-                chrono::Duration::weeks(10).num_seconds() as u64
-            }
-        }))
+        Some(Duration::from_secs(20)) // TODO: bring back original
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
