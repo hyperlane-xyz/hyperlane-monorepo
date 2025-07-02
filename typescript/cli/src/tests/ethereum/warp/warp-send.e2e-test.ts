@@ -23,6 +23,11 @@ import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore, deployToken } from '../commands/helpers.js';
+import {
+  hyperlaneWarpDeploy,
+  hyperlaneWarpSendRelay,
+} from '../commands/warp.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -33,14 +38,8 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
-  deployOrUseExistingCore,
-  deployToken,
   getCombinedWarpRoutePath,
-} from '../commands/helpers.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpSendRelay,
-} from '../commands/warp.js';
+} from '../consts.js';
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);

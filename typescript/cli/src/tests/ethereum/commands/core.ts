@@ -4,8 +4,9 @@ import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
+import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
-import { ANVIL_KEY, REGISTRY_PATH, localTestRunCmdPrefix } from './helpers.js';
+import { localTestRunCmdPrefix } from './helpers.js';
 
 /**
  * Deploys the Hyperlane core contracts to the specified chain using the provided config.

@@ -8,22 +8,36 @@ import {
   ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddress } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
-import { hyperlaneCoreInit } from '../commands/core.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  ANVIL_KEY,
   CONFIRM_DETECTED_OWNER_STEP,
-  CORE_CONFIG_PATH_2,
-  DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   TestPromptAction,
   handlePrompts,
-} from '../commands/helpers.js';
+} from '../../commands/helpers.js';
+import {
+  ANVIL_KEY,
+  CHAIN_NAME_2,
+  CORE_CONFIG_PATH,
+  CORE_CONFIG_PATH_2,
+  CORE_READ_CONFIG_PATH_2,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
+} from '../consts.js';
 
 describe('hyperlane core init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+
+  const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_2,
+  );
 
   function assertCoreInitConfig(
     coreConfig: CoreConfig,
@@ -47,7 +61,7 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('hyperlane core init', () => {
     it('should successfully generate the core contract deployment config', async () => {
-      const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2).stdio('pipe');
+      const output = hyperlaneCore.init().stdio('pipe');
 
       const owner = normalizeAddress(randomAddress());
       const feeHookOwner = normalizeAddress(randomAddress());
@@ -100,11 +114,7 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreInit(
-        CORE_CONFIG_PATH_2,
-        undefined,
-        ANVIL_KEY,
-      ).stdio('pipe');
+      const output = hyperlaneCore.init(undefined, ANVIL_KEY).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -132,11 +142,7 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreInit(
-        CORE_CONFIG_PATH_2,
-        undefined,
-        ANVIL_KEY,
-      ).stdio('pipe');
+      const output = hyperlaneCore.init(undefined, ANVIL_KEY).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -165,9 +171,7 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2, ANVIL_KEY).stdio(
-        'pipe',
-      );
+      const output = hyperlaneCore.init(ANVIL_KEY).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -195,9 +199,7 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2, ANVIL_KEY).stdio(
-        'pipe',
-      );
+      const output = hyperlaneCore.init(ANVIL_KEY).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 

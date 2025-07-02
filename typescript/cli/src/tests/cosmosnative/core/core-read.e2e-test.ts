@@ -7,7 +7,7 @@ import { ChainMetadata, CoreConfig, IgpConfig } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
-import { HyperlaneCore } from '../../commands/core.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CHAIN_1_METADATA_PATH,
   CHAIN_NAME_1,
@@ -21,8 +21,9 @@ import {
 describe('hyperlane cosmosnative core read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-  const hyperlaneCore = new HyperlaneCore(
+  const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.CosmosNative,
+    CHAIN_NAME_1,
     REGISTRY_PATH,
     CORE_CONFIG_PATH,
     CORE_READ_CONFIG_PATH_1,
@@ -55,9 +56,9 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
   });
 
   it('should read a core deployment', async () => {
-    await hyperlaneCore.deploy(CHAIN_NAME_1, HYP_KEY);
+    await hyperlaneCore.deploy(HYP_KEY);
 
-    const coreConfig: CoreConfig = await hyperlaneCore.readConfig(CHAIN_NAME_1);
+    const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
     expect(coreConfig.proxyAdmin?.owner).to.be.undefined;

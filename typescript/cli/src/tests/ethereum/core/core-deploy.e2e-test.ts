@@ -8,14 +8,17 @@ import {
   ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  hyperlaneCoreDeploy,
-  hyperlaneCoreDeployRaw,
-  readCoreConfig,
-} from '../commands/core.js';
+  KeyBoardKeys,
+  SELECT_MAINNET_CHAIN_TYPE_STEP,
+  SETUP_CHAIN_SIGNER_MANUALLY_STEP,
+  TestPromptAction,
+  handlePrompts,
+} from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -23,15 +26,19 @@ import {
   CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
-  KeyBoardKeys,
-  SELECT_MAINNET_CHAIN_TYPE_STEP,
-  SETUP_CHAIN_SIGNER_MANUALLY_STEP,
-  TestPromptAction,
-  handlePrompts,
-} from '../commands/helpers.js';
+  REGISTRY_PATH,
+} from '../consts.js';
 
 describe('hyperlane core deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
+  const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_2,
+  );
 
   let signer: Signer;
   let initialOwnerAddress: Address;
@@ -59,7 +66,7 @@ describe('hyperlane core deploy e2e tests', async function () {
           // Scroll down through the mainnet chains list and select anvil2
           input: `${KeyBoardKeys.ARROW_DOWN.repeat(2)}}${KeyBoardKeys.ENTER}`,
         },
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP,
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts
           check: (currentOutput) =>
@@ -74,16 +81,13 @@ describe('hyperlane core deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH).stdio('pipe');
+      const output = hyperlaneCore.deployRaw().stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -100,9 +104,12 @@ describe('hyperlane core deploy e2e tests', async function () {
 
   describe('hyperlane core deploy --yes', () => {
     it('should fail if the --chain flag is not provided but the --yes flag is', async () => {
-      const steps: TestPromptAction[] = [SETUP_CHAIN_SIGNER_MANUALLY_STEP];
+      const steps: TestPromptAction[] = [
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
+      ];
 
-      const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, undefined, true)
+      const output = hyperlaneCore
+        .deployRaw(undefined, undefined, true)
         .nothrow()
         .stdio('pipe');
 
@@ -137,18 +144,13 @@ describe('hyperlane core deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, ANVIL_KEY).stdio(
-        'pipe',
-      );
+      const output = hyperlaneCore.deployRaw(ANVIL_KEY).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -187,21 +189,15 @@ describe('hyperlane core deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreDeployRaw(
-        CORE_CONFIG_PATH,
-        undefined,
-        undefined,
-        ANVIL_KEY,
-      ).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(undefined, ANVIL_KEY, undefined)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -218,12 +214,9 @@ describe('hyperlane core deploy e2e tests', async function () {
 
   describe('hyperlane core deploy --yes --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
+      await hyperlaneCore.deploy(ANVIL_KEY);
 
-      const coreConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
@@ -242,13 +235,10 @@ describe('hyperlane core deploy e2e tests', async function () {
       writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
 
       // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
+      await hyperlaneCore.deploy(ANVIL_KEY);
 
       // Verify that the owner has been set correctly without modifying any other owner values
-      const updatedConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
 
       expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
       expect(updatedConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
@@ -267,13 +257,10 @@ describe('hyperlane core deploy e2e tests', async function () {
       writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
 
       // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
+      await hyperlaneCore.deploy(ANVIL_KEY);
 
       // Verify that the owner has been set correctly without modifying any other owner values
-      const updatedConfig: CoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CONFIG_PATH_2,
-      );
+      const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
 
       expect(updatedConfig.owner).to.equal(initialOwnerAddress);
       expect(updatedConfig.proxyAdmin?.owner.toLowerCase()).to.equal(newOwner);

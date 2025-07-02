@@ -12,6 +12,13 @@ import {
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  deployOrUseExistingCore,
+  extendWarpConfig,
+  getDomainId,
+  setupIncompleteWarpRouteExtension,
+} from '../commands/helpers.js';
+import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
+import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -23,13 +30,8 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-  deployOrUseExistingCore,
-  extendWarpConfig,
   getCombinedWarpRoutePath,
-  getDomainId,
-  setupIncompleteWarpRouteExtension,
-} from '../commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
+} from '../consts.js';
 
 describe('hyperlane warp apply recovery extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

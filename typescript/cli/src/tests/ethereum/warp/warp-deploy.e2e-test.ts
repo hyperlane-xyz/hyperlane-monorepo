@@ -31,23 +31,15 @@ import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
-  DEFAULT_E2E_TEST_TIMEOUT,
-  GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   KeyBoardKeys,
-  REGISTRY_PATH,
-  TEMP_PATH,
   TestPromptAction,
-  WARP_DEPLOY_OUTPUT_PATH,
+  handlePrompts,
+} from '../../commands/helpers.js';
+import {
+  GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
-  handlePrompts,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpDeploy,
@@ -55,6 +47,18 @@ import {
   hyperlaneWarpSendRelay,
   readWarpConfig,
 } from '../commands/warp.js';
+import {
+  ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
+  TEMP_PATH,
+  WARP_DEPLOY_OUTPUT_PATH,
+} from '../consts.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;

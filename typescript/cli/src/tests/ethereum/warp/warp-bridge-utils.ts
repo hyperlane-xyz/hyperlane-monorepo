@@ -15,6 +15,13 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  deploy4626Vault,
+  deployOrUseExistingCore,
+  deployToken,
+  sendWarpRouteMessageRoundTrip,
+} from '../commands/helpers.js';
+import { generateWarpConfigs, hyperlaneWarpDeploy } from '../commands/warp.js';
+import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
@@ -23,12 +30,7 @@ import {
   CORE_CONFIG_PATH,
   REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
-  deploy4626Vault,
-  deployOrUseExistingCore,
-  deployToken,
-  sendWarpRouteMessageRoundTrip,
-} from '../commands/helpers.js';
-import { generateWarpConfigs, hyperlaneWarpDeploy } from '../commands/warp.js';
+} from '../consts.js';
 
 export const TOTAL_PARTS = 2;
 

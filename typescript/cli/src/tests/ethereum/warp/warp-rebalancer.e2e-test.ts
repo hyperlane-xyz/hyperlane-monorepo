@@ -30,18 +30,6 @@ import {
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
-  ANVIL_DEPLOYER_ADDRESS,
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_4_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CHAIN_NAME_4,
-  CORE_CONFIG_PATH,
-  DEFAULT_E2E_TEST_TIMEOUT,
-  REBALANCER_CONFIG_PATH,
-  REGISTRY_PATH,
   createSnapshot,
   deployOrUseExistingCore,
   deployToken,
@@ -54,6 +42,20 @@ import {
   hyperlaneWarpRebalancer,
   hyperlaneWarpSendRelay,
 } from '../commands/warp.js';
+import {
+  ANVIL_DEPLOYER_ADDRESS,
+  ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
+  CHAIN_4_METADATA_PATH,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CHAIN_NAME_4,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  REBALANCER_CONFIG_PATH,
+  REGISTRY_PATH,
+} from '../consts.js';
 
 chai.use(chaiAsPromised);
 chai.should();

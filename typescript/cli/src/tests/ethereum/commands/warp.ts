@@ -11,13 +11,9 @@ import {
 import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
+import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
-import {
-  ANVIL_KEY,
-  REGISTRY_PATH,
-  getDeployedWarpAddress,
-  localTestRunCmdPrefix,
-} from './helpers.js';
+import { getDeployedWarpAddress, localTestRunCmdPrefix } from './helpers.js';
 
 $.verbose = true;
 

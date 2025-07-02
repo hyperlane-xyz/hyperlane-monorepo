@@ -13,6 +13,16 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  deployOrUseExistingCore,
+  extendWarpConfig,
+  getDomainId,
+} from '../commands/helpers.js';
+import {
+  hyperlaneWarpApply,
+  hyperlaneWarpDeploy,
+  readWarpConfig,
+} from '../commands/warp.js';
+import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -23,15 +33,7 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-  deployOrUseExistingCore,
-  extendWarpConfig,
-  getDomainId,
-} from '../commands/helpers.js';
-import {
-  hyperlaneWarpApply,
-  hyperlaneWarpDeploy,
-  readWarpConfig,
-} from '../commands/warp.js';
+} from '../consts.js';
 
 describe('hyperlane warp apply config extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

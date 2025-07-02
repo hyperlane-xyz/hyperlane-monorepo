@@ -6,10 +6,10 @@ import {
   CoreConfig,
   ProtocolFeeHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
-import { hyperlaneCoreDeploy, readCoreConfig } from '../commands/core.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -17,10 +17,19 @@ import {
   CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
-} from '../commands/helpers.js';
+  REGISTRY_PATH,
+} from '../consts.js';
 
 describe('hyperlane core read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
+  const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_2,
+  );
 
   let signer: Signer;
   let initialOwnerAddress: Address;
@@ -39,12 +48,9 @@ describe('hyperlane core read e2e tests', async function () {
   });
 
   it('should read a core deployment', async () => {
-    await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
+    await hyperlaneCore.deploy(ANVIL_KEY);
 
-    const coreConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME_2,
-      CORE_READ_CONFIG_PATH_2,
-    );
+    const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
     expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);

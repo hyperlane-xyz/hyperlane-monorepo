@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { REGISTRY_PATH } from './commands/helpers.js';
+import { REGISTRY_PATH } from './consts.js';
 
 // Reset the test registry for each test invocation
 beforeEach(() => {

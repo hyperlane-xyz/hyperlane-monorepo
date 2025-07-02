@@ -4,6 +4,11 @@ import { TokenType } from '@hyperlane-xyz/sdk';
 import { writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './commands/core.js';
+import { hyperlaneRelayer, hyperlaneSendMessage } from './commands/helpers.js';
+import {
+  hyperlaneWarpDeploy,
+  hyperlaneWarpSendRelay,
+} from './commands/warp.js';
 import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -11,13 +16,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEMP_PATH,
-  hyperlaneRelayer,
-  hyperlaneSendMessage,
-} from './commands/helpers.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpSendRelay,
-} from './commands/warp.js';
+} from './consts.js';
 
 const SYMBOL = 'ETH';
 const WARP_ID = createWarpRouteConfigId(SYMBOL, CHAIN_NAME_3);

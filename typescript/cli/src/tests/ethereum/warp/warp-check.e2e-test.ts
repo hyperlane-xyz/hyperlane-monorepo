@@ -35,6 +35,12 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore, deployToken } from '../commands/helpers.js';
+import {
+  hyperlaneWarpApply,
+  hyperlaneWarpCheckRaw,
+  hyperlaneWarpDeploy,
+} from '../commands/warp.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -46,15 +52,8 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
-  deployOrUseExistingCore,
-  deployToken,
   getCombinedWarpRoutePath,
-} from '../commands/helpers.js';
-import {
-  hyperlaneWarpApply,
-  hyperlaneWarpCheckRaw,
-  hyperlaneWarpDeploy,
-} from '../commands/warp.js';
+} from '../consts.js';
 
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

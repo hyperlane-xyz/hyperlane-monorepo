@@ -13,7 +13,7 @@ import {
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { HyperlaneCore } from '../../commands/core.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
@@ -34,8 +34,9 @@ import {
 describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-  const hyperlaneCore = new HyperlaneCore(
+  const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.CosmosNative,
+    CHAIN_NAME_1,
     REGISTRY_PATH,
     CORE_CONFIG_PATH,
     CORE_READ_CONFIG_PATH_1,
@@ -99,8 +100,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig =
-        await hyperlaneCore.readConfig(CHAIN_NAME_1);
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -165,8 +165,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig =
-        await hyperlaneCore.readConfig(CHAIN_NAME_1);
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -215,8 +214,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const coreConfig: CoreConfig =
-        await hyperlaneCore.readConfig(CHAIN_NAME_1);
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
       // Assuming that the ProtocolFeeHook is used for deployment
@@ -235,10 +233,9 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('hyperlane cosmosnative core deploy --yes --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      await hyperlaneCore.deploy(HYP_KEY, CHAIN_NAME_1);
+      await hyperlaneCore.deploy(HYP_KEY);
 
-      const coreConfig: CoreConfig =
-        await hyperlaneCore.readConfig(CHAIN_NAME_1);
+      const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
       expect(coreConfig.owner).to.equal(initialOwnerAddress);
       expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
@@ -259,11 +256,10 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
       writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
 
       // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCore.deploy(HYP_KEY, CHAIN_NAME_1);
+      await hyperlaneCore.deploy(HYP_KEY);
 
       // Verify that the owner has been set correctly without modifying any other owner values
-      const updatedConfig: CoreConfig =
-        await hyperlaneCore.readConfig(CHAIN_NAME_1);
+      const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
 
       expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
       expect(updatedConfig.proxyAdmin?.owner).to.be.undefined;

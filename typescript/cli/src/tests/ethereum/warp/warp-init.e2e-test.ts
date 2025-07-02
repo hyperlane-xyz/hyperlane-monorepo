@@ -10,25 +10,29 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import {
+  CONFIRM_DETECTED_OWNER_STEP,
+  KeyBoardKeys,
+  SELECT_MAINNET_CHAIN_TYPE_STEP,
+  TestPromptAction,
+  handlePrompts,
+} from '../../commands/helpers.js';
+import {
+  CONFIRM_CHAIN_SELECTION_STEP,
+  CONFIRM_DETECTED_PROXY_ADMIN_STEP,
+  CONFIRM_DETECTED_TRUSTED_ISM_STEP,
+  SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
+  SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
+  deployToken,
+} from '../commands/helpers.js';
+import { hyperlaneWarpInit, hyperlaneWarpInitRaw } from '../commands/warp.js';
+import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CONFIRM_CHAIN_SELECTION_STEP,
-  CONFIRM_DETECTED_OWNER_STEP,
-  CONFIRM_DETECTED_PROXY_ADMIN_STEP,
-  CONFIRM_DETECTED_TRUSTED_ISM_STEP,
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_CONFIGS_PATH,
-  KeyBoardKeys,
-  SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
-  SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
-  SELECT_MAINNET_CHAIN_TYPE_STEP,
-  TestPromptAction,
   WARP_CONFIG_PATH_2,
-  deployToken,
-  handlePrompts,
-} from '../commands/helpers.js';
-import { hyperlaneWarpInit, hyperlaneWarpInitRaw } from '../commands/warp.js';
+} from '../consts.js';
 
 describe('hyperlane warp init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
