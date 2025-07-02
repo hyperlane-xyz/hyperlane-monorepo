@@ -20,8 +20,8 @@ use hyperlane_base::{
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
-    MessageSubmissionData, ModuleType, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -32,10 +32,7 @@ use crate::{
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{
-        BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataAndMessageBuilder,
-        MetadataBuilder,
-    },
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataAndMessageBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.

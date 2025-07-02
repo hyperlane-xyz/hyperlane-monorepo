@@ -18,7 +18,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  *
  * The message payload contains the FSR directive specifying what event to verify.
  */
-contract PolymerISM is AbstractCcipReadIsm, Initializable {
+contract PolymerISM is AbstractCcipReadIsm {
     // --- Libraries ---
     using Message for bytes;
 
@@ -89,9 +89,10 @@ contract PolymerISM is AbstractCcipReadIsm, Initializable {
     }
 
     // --- IInterchainSecurityModule Implementation ---
+
     /**
      * @notice Returns the module type for this ISM.
-     * @dev This ISM uses FSR (Foreign State Read) pattern
+     * @dev This ISM uses FSR (Foreign State Read) pattern, overriding the CCIP_READ type from parent
      * @return uint8 The module type identifier (Types.FSR_READ)
      */
     function moduleType() external pure override returns (uint8) {
@@ -152,18 +153,10 @@ contract PolymerISM is AbstractCcipReadIsm, Initializable {
         bytes calldata _metadata,
         bytes calldata _message
     ) internal returns (bool) {
-        // Decode the FSR server response
-        // Expected format: abi.encode(result, proof)
-        (string memory result, bytes memory polymerProofBytes) = abi.decode(
-            _metadata,
-            (string, bytes)
-        );
+        // Step 1: Validate and extract proof
+        bytes memory polymerProofBytes = _extractProof(_metadata);
 
-        // Basic check: ensure proof is not empty
-        require(polymerProofBytes.length > 0, "PolymerISM: Empty proof");
-
-        // Call Polymer Prover to validate the event proof and extract details.
-        // This reverts if the proof itself is invalid according to the Polymer contract.
+        // Step 2: Validate event using Polymer prover
         (
             uint32 chainId_from_proof,
             address emittingContract_from_proof,
@@ -171,6 +164,56 @@ contract PolymerISM is AbstractCcipReadIsm, Initializable {
             bytes memory data_from_proof
         ) = polymerProver.validateEvent(polymerProofBytes);
 
+        // Step 3: Verify message and directive
+        uint64 expectedChainId = _verifyMessageAndDirective(_message);
+
+        // Step 4: Verify chain ID matches
+        require(
+            chainId_from_proof == expectedChainId,
+            "PolymerISM: chain ID mismatch"
+        );
+
+        // Step 5: Emit verification event
+        _emitVerificationEvent(
+            _message,
+            chainId_from_proof,
+            emittingContract_from_proof,
+            topics_from_proof,
+            data_from_proof
+        );
+
+        return true;
+    }
+
+    /**
+     * @notice Extract and validate proof from metadata
+     * @param _metadata The FSR proof metadata from CCIP server
+     * @return polymerProofBytes The validated proof bytes
+     */
+    function _extractProof(
+        bytes calldata _metadata
+    ) internal pure returns (bytes memory) {
+        // Decode the FSR server response
+        // Expected format: abi.encode(result, proof)
+        (, bytes memory polymerProofBytes) = abi.decode(
+            _metadata,
+            (string, bytes)
+        );
+
+        // Basic check: ensure proof is not empty
+        require(polymerProofBytes.length > 0, "PolymerISM: Empty proof");
+
+        return polymerProofBytes;
+    }
+
+    /**
+     * @notice Verify message origin/destination and extract expected chain ID from directive
+     * @param _message The message to verify
+     * @return expectedChainId The expected chain ID from the directive
+     */
+    function _verifyMessageAndDirective(
+        bytes calldata _message
+    ) internal view returns (uint64) {
         // Verify that the FSR request was made from and to the same chain.
         require(
             block.chainid == _message.origin() &&
@@ -201,20 +244,24 @@ contract PolymerISM is AbstractCcipReadIsm, Initializable {
         );
 
         // Parse EVM log parameters: [chainId, blockNumber, txIndex, logIndex]
-        (
-            uint64 expectedChainId,
-            uint64 blockNumber,
-            uint32 txIndex,
-            uint32 logIndex
-        ) = abi.decode(params, (uint64, uint64, uint32, uint32));
-
-        // Verify the chain ID matches
-        require(
-            chainId_from_proof == expectedChainId,
-            "PolymerISM: chain ID mismatch"
+        (uint64 expectedChainId, , , ) = abi.decode(
+            params,
+            (uint64, uint64, uint32, uint32)
         );
 
-        // Calculate event hash for logging
+        return expectedChainId;
+    }
+
+    /**
+     * @notice Helper function to emit verification event and avoid stack too deep
+     */
+    function _emitVerificationEvent(
+        bytes calldata _message,
+        uint256 chainId_from_proof,
+        address emittingContract_from_proof,
+        bytes memory topics_from_proof,
+        bytes memory data_from_proof
+    ) internal {
         bytes32 eventHash = keccak256(
             abi.encodePacked(
                 chainId_from_proof,
@@ -224,14 +271,11 @@ contract PolymerISM is AbstractCcipReadIsm, Initializable {
             )
         );
 
-        // Emit verification event
         emit FsrVerified(
             _message.id(),
             chainId_from_proof,
             emittingContract_from_proof,
             eventHash
         );
-
-        return true;
     }
 }

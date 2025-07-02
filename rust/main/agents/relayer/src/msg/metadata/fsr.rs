@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
-use ethers::abi::AbiDecode;
+use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument, warn};
 
@@ -12,7 +10,6 @@ use hyperlane_core::{HyperlaneMessage, H256};
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
-    message_builder::MessageMetadataBuilder,
     Metadata, MetadataBuilder,
 };
 
@@ -40,12 +37,12 @@ pub struct FsrMetadataBuilder {
 
 impl FsrMetadataBuilder {
     /// Enhanced build method that can return both metadata and replaced message body
-    #[instrument(err, skip(self, message, params))]
+    #[instrument(err, skip(self, message, _params))]
     pub async fn build_enhanced(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
+        _params: MessageMetadataBuildParams,
     ) -> Result<EnhancedMetadataResult, MetadataBuildError> {
         // Get the ISM contract
         let ism = self
