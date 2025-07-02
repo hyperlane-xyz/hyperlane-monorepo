@@ -894,7 +894,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: 'c40b577-20250701-162513',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
