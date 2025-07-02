@@ -12,6 +12,14 @@
     "starknet": "^7.4.0",
     "yaml": "2.4.5"
   },
+  "peerDependencies": {
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/pino-logging-gcp-config": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
