@@ -189,7 +189,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     config,
     hookMetadata,
   }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
-    const localRouter = this.router(this.contractsMap[chain]);
+    const localRouter = config.localRouter
+      ? InterchainAccountRouter__factory.connect(
+          config.localRouter,
+          this.multiProvider.getSigner(chain),
+        )
+      : this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
     const remoteRouter = addressToBytes32(

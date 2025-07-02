@@ -13,7 +13,7 @@ import {
   getGovernanceIcas,
   getGovernanceSafes,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import { chainsToSkip, legacyIcaChainRouters } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';

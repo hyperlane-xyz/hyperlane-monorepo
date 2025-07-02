@@ -3,6 +3,7 @@ import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Contexts } from '../config/contexts.js';
 import { environments } from '../config/environments/index.js';
 import { getEnvAddresses } from '../config/registry.js';
+import { legacyIcaChainRouters } from '../src/config/chain.js';
 import { DeployEnvironment } from '../src/config/environment.js';
 
 import { getAgentConfig, getArgs, withContext } from './agent-utils.js';
@@ -32,6 +33,14 @@ export async function getHyperlaneCore(
   const config = getEnvironmentConfig(env);
   multiProvider = multiProvider || (await config.getMultiProvider());
   const chainAddresses = getEnvAddresses(env);
+  for (const [chain, legacyIcaRouters] of Object.entries(
+    legacyIcaChainRouters,
+  )) {
+    chainAddresses[chain] = {
+      ...chainAddresses[chain],
+      ...legacyIcaRouters,
+    };
+  }
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   return { core, multiProvider, chainAddresses };
 }
