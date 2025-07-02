@@ -1,4 +1,6 @@
-use crate::hub_to_kaspa::build_withdrawal_pskt;
+use super::hub_to_kaspa::build_withdrawal_pskt;
+use super::hub_to_kaspa::get_pending_withdrawals;
+use super::hub_to_kaspa::WithdrawalDetails;
 use corelib::escrow::EscrowPublic;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
@@ -31,10 +33,9 @@ pub async fn on_new_withdrawals(
     hub_height: Option<u32>,
 ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
     info!("Kaspa relayer, getting pending withdrawals");
-    let (outpoint, pending_messages) =
-        crate::hub_to_kaspa::get_pending_withdrawals(messages, &cosmos, hub_height)
-            .await
-            .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
+    let (outpoint, pending_messages) = get_pending_withdrawals(messages, &cosmos, hub_height)
+        .await
+        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     info!("Kaspa relayer, got pending withdrawals");
 
     let withdrawal_details: Vec<_> = pending_messages
@@ -45,7 +46,7 @@ pub async fn on_new_withdrawals(
                     let kaspa_recipient =
                         get_recipient_address(m.recipient, relayer.network_info.address_prefix);
 
-                    Some(crate::hub_to_kaspa::WithdrawalDetails {
+                    Some(WithdrawalDetails {
                         message_id: m.id(),
                         recipient: kaspa_recipient,
                         amount_sompi: msg.amount().as_u64(),

@@ -14,8 +14,8 @@ use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw::on_new_withdrawals;
 use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
@@ -338,7 +338,7 @@ fn finalize_txs(
         .map(|(tx, messages)| finalize_pskt(tx, messages, escrow_pubs.clone()))
         .collect();
 
-    let transactions: Vec<RpcTransaction> = transactions_result.map_err(|e| eyre::eyre!(e))?;
+    let transactions: Vec<RpcTransaction> = transactions_result?;
 
     Ok(transactions)
 }

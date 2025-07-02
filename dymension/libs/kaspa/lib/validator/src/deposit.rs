@@ -18,20 +18,31 @@ use std::sync::Arc;
 use eyre::Result;
 use hyperlane_core::U256;
 
+use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+
+pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
+    Ok(true)
+}
+
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
     escrow_address: &str,
     network_params: &NetworkParams,
 ) -> Result<bool> {
-    let validation_result = validate_deposit(client, deposit, escrow_address,network_params).await?;
+    let validation_result =
+        validate_deposit(client, deposit, escrow_address, network_params).await?;
     Ok(validation_result)
 }
 
-async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock, network_params: &NetworkParams) -> Result<bool> {
-    
+async fn validate_maturity(
+    client: &Arc<DynRpcApi>,
+    block: &RpcBlock,
+    network_params: &NetworkParams,
+) -> Result<bool> {
     let dag_info = client.get_block_dag_info().await?;
-    if block.header.daa_score + network_params.user_transaction_maturity_period_daa() < dag_info.virtual_daa_score
+    if block.header.daa_score + network_params.user_transaction_maturity_period_daa()
+        < dag_info.virtual_daa_score
     {
         return Ok(true);
     }
@@ -93,7 +104,7 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    let maturity_result = validate_maturity(client, &block,network_params).await?;
+    let maturity_result = validate_maturity(client, &block, network_params).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",

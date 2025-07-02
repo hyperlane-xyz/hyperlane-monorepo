@@ -20,7 +20,7 @@ use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
 // Add imports for sync methods
 use api_rs::apis::configuration::Configuration;
-use dym_kas_relayer::confirmation::{prepare_progress_indication, trace_transactions};
+use dym_kas_relayer::confirm::{prepare_progress_indication, trace_transactions};
 use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
 
 pub struct Foo<C: MetadataConstructor> {

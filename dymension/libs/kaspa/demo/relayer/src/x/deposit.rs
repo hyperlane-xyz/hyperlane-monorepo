@@ -28,7 +28,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use relayer::handle_new_deposit;
+use relayer::deposit::handle_new_deposit;
 use relayer::withdraw::*;
 use std::error::Error;
 use std::sync::Arc;

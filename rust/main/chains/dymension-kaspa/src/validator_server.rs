@@ -27,7 +27,7 @@ use tracing::{info, warn};
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdrawal::validate_withdrawals;
+use dym_kas_validator::withdraw::validate_withdrawals;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
@@ -85,10 +85,7 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 
     fn must_network_params(&self) -> &NetworkParams {
-        return NetworkParams::from(self.kas_provider
-            .as_ref()
-            .unwrap()
-            .wallet().network_id());
+        return NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id());
     }
 
     pub fn default() -> Self {
