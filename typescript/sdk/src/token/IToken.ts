@@ -51,6 +51,12 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
+  limits: z
+    .record(z.number())
+    .optional()
+    .describe(
+      'The limits set to the current token towards a destination chain',
+    ),
 });
 
 export type TokenArgs = Omit<
