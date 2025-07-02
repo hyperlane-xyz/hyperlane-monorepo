@@ -3,10 +3,10 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {MailboxClient} from "contracts/client/MailboxClient.sol";
-import {RateLimited} from "contracts/libs/RateLimited.sol";
-import {Message} from "contracts/libs/Message.sol";
-import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {RateLimited} from "../../libs/RateLimited.sol";
+import {Message} from "../../libs/Message.sol";
+import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 
 contract RateLimitedIsm is
     MailboxClient,

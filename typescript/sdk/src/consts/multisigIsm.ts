@@ -989,6 +989,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  galactica: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xfc48af3372d621f476c53d79d42a9e96ce11fd7d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   game7: {
     threshold: 2,
     validators: [
@@ -1019,18 +1029,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x23d549bf757a02a6f6068e9363196ecd958c974e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  guru: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x0d756d9051f12c4de6aee2ee972193a2adfe00ef',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -1234,18 +1232,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  kroma: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x71b83c21342787d758199e4b8634d3a15f02dc6e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
@@ -1666,6 +1652,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  noble: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x28495e5c72a7dafd1658e5d99dfeffaada175c46',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -2657,6 +2653,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  xrplevm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x14d3e2f28d60d54a1659a205cb71e6e440f06510',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
