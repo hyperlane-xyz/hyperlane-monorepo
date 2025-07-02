@@ -433,7 +433,7 @@ where
                 self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
-                index_settings.from as u32,
+                (index_settings.from as u64).min(u32::MAX as u64) as u32,
             )
             .await?,
         ))
@@ -476,7 +476,7 @@ where
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
-                index_settings.from as u32,
+                (index_settings.from as u64).min(u32::MAX as u64) as u32,
                 index_settings.mode,
             )
             .await?,
