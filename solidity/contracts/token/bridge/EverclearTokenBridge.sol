@@ -114,11 +114,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32[] calldata _destinations,
         bytes32[] calldata _outputAssets
     ) external onlyOwner {
-        uint256 len = _destinations.length;
         require(
             _destinations.length == _outputAssets.length,
             "ETB: Length mismatch"
         );
+
+        uint256 len = _destinations.length;
 
         for (uint256 i = 0; i < len; ) {
             outputAssets[_destinations[i]] = _outputAssets[i];
