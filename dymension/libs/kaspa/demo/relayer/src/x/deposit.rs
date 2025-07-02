@@ -27,6 +27,7 @@ use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
+use kaspa_wallet_core::utxo::NetworkParams;
 use relayer::handle_new_deposit;
 use relayer::withdraw::*;
 use std::error::Error;
@@ -130,8 +131,13 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result =
-        validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address.to_string()).await?;
+    let validation_result = validate_deposit(
+        &w.rpc_api(),
+        &deposit_recv,
+        &escrow_address.to_string(),
+        NetworkParams::from(w.network_id()?),
+    )
+    .await?;
 
     if validation_result {
         println!("Deposit validated");
