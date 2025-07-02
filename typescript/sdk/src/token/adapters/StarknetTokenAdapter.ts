@@ -104,7 +104,7 @@ export class StarknetTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.contract.total_supply();
   }
 }
 
@@ -152,7 +152,7 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.getTotalSupply();
   }
 
   async quoteTransferRemoteGas(
