@@ -405,16 +405,22 @@ where
         // RPC provider does not provide historical blocks.
         // It should be used with care since it can lead to missing events.
         let from = index_settings.from;
-        let from = watermark
-            .map(|w| if w <= from {
+
+        let from = if from < 0 {
+            let finalized_block_number = self.indexer.get_finalized_block_number().await?;
+            (finalized_block_number as i64).saturating_add(from)
+        } else {
+            watermark
+            .map(|w| if w <= from as u32 {
                 warn!(
                     ?w,
                     ?from,
                     "Watermark from database is lower than the configured lowest block height, using the configured block height"
                 );
                 from
-            } else { w })
-            .unwrap_or(from);
+            } else { w as i64 })
+            .unwrap_or(from)
+        };
         let index_settings = IndexSettings {
             from,
             chunk_size: index_settings.chunk_size,
@@ -427,7 +433,7 @@ where
                 self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
-                index_settings.from,
+                index_settings.from as u32,
             )
             .await?,
         ))
@@ -470,7 +476,7 @@ where
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
-                index_settings.from,
+                index_settings.from as u32,
                 index_settings.mode,
             )
             .await?,
