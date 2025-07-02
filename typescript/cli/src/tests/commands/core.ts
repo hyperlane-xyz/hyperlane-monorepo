@@ -1,8 +1,10 @@
 import { $, ProcessPromise } from 'zx';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { ChainName, DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { getContext } from '../../context/context.js';
 import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
@@ -157,6 +159,28 @@ export class HyperlaneE2ECoreTestCommands {
         ${this.privateKeyFlag} ${privateKey} \
         --verbosity debug \
         --yes`;
+  }
+
+  /**
+   * Deploys new core contracts on the specified chain if it doesn't already exist, and returns the chain addresses.
+   */
+  public async deployOrUseExistingCore(
+    privateKey: string,
+  ): Promise<ChainAddresses> {
+    const { registry } = await getContext({
+      registryUris: [this.registryPath],
+      key: privateKey,
+    });
+    const addresses = (await registry.getChainAddresses(
+      this.chain,
+    )) as ChainAddresses;
+
+    if (!addresses) {
+      await this.deploy(privateKey);
+      return this.deployOrUseExistingCore(privateKey);
+    }
+
+    return addresses;
   }
 
   /**
