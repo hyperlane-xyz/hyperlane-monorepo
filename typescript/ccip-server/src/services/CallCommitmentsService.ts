@@ -116,27 +116,15 @@ export class CallCommitmentsService extends BaseService {
       return res.status(400).json({ error: error.message });
     }
 
-    // Attempt to insert the commitment, and handle the case where it already exists.
+    // Attempt to insert the commitment. Using upsert for idempotency.
     try {
-      await this.insertCommitmentToDB(
+      await this.upsertCommitmentInDB(
         commitment,
         { ...data, ica, revealMessageId },
         logger,
       );
     } catch (error: any) {
-      if (error.code === 'P2002') {
-        logger.info(
-          {
-            commitmentDispatchTx: data.commitmentDispatchTx,
-            originDomain: data.originDomain,
-            revealMessageId,
-          },
-          'Commitment already exists. Returning success.',
-        );
-        return res.sendStatus(200); // Idempotent operation
-      }
-
-      // Any other error is unexpected.
+      // Any database error is unexpected.
       logger.error(
         {
           commitmentDispatchTx: data.commitmentDispatchTx,
@@ -284,9 +272,9 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Insert a new commitment record into the database.
+   * Upsert a commitment record into the database.
    */
-  private async insertCommitmentToDB(
+  private async upsertCommitmentInDB(
     commitment: string,
     data: PostCallsType & {
       ica: string;
@@ -304,8 +292,10 @@ export class CallCommitmentsService extends BaseService {
       originDomain,
     } = data;
 
-    await prisma.commitment.create({
-      data: {
+    await prisma.commitment.upsert({
+      where: { revealMessageId },
+      update: {}, // Do nothing if it already exists.
+      create: {
         commitment,
         revealMessageId,
         calls,
@@ -324,7 +314,7 @@ export class CallCommitmentsService extends BaseService {
         callsCount: calls.length,
         originDomain,
       },
-      'Stored commitment to database',
+      'Upserted commitment to database',
     );
   }
 
