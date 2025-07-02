@@ -15,6 +15,7 @@ docs
 flattened/
 buildArtifact.json
 fixtures/
+broadcast/
 # ZKSync
 artifacts-zk
 cache-zk

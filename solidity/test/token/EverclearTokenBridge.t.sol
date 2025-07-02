@@ -1,0 +1,552 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity ^0.8.22;
+
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+
+import {EverclearTokenBridge} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
+import {IEverclearAdapter, IEverclear} from "../../contracts/interfaces/IEverclearAdapter.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+
+/**
+ * @notice Mock implementation of IEverclearAdapter for testing
+ */
+contract MockEverclearAdapter is IEverclearAdapter {
+    uint256 public constant INTENT_FEE = 1000; // 0.001 ETH
+    bool public shouldRevert = false;
+    bytes32 public lastIntentId;
+    IEverclear.Intent public lastIntent;
+
+    // Track calls for verification
+    uint256 public newIntentCallCount;
+    uint32[] public lastDestinations;
+    bytes32 public lastReceiver;
+    address public lastInputAsset;
+    bytes32 public lastOutputAsset;
+    uint256 public lastAmount;
+    uint24 public lastMaxFee;
+    uint48 public lastTtl;
+    bytes public lastData;
+    FeeParams public lastFeeParams;
+
+    function setRevert(bool _shouldRevert) external {
+        shouldRevert = _shouldRevert;
+    }
+
+    function newIntent(
+        uint32[] memory _destinations,
+        bytes32 _receiver,
+        address _inputAsset,
+        bytes32 _outputAsset,
+        uint256 _amount,
+        uint24 _maxFee,
+        uint48 _ttl,
+        bytes calldata _data,
+        FeeParams calldata _feeParams
+    ) external payable override returns (bytes32, IEverclear.Intent memory) {
+        if (shouldRevert) {
+            revert("MockEverclearAdapter: reverted");
+        }
+
+        // Store call data for verification
+        newIntentCallCount++;
+        lastDestinations = _destinations;
+        lastReceiver = _receiver;
+        lastInputAsset = _inputAsset;
+        lastOutputAsset = _outputAsset;
+        lastAmount = _amount;
+        lastMaxFee = _maxFee;
+        lastTtl = _ttl;
+        lastData = _data;
+        lastFeeParams = _feeParams;
+
+        // Generate mock intent ID
+        lastIntentId = keccak256(
+            abi.encodePacked(block.timestamp, _receiver, _amount)
+        );
+
+        // Create mock intent
+        lastIntent = IEverclear.Intent({
+            initiator: bytes32(uint256(uint160(msg.sender))),
+            receiver: _receiver,
+            inputAsset: bytes32(uint256(uint160(_inputAsset))),
+            outputAsset: _outputAsset,
+            maxFee: _maxFee,
+            origin: uint32(block.chainid),
+            destinations: _destinations,
+            nonce: uint64(newIntentCallCount),
+            timestamp: uint48(block.timestamp),
+            ttl: _ttl,
+            amount: _amount,
+            data: _data
+        });
+
+        return (lastIntentId, lastIntent);
+    }
+}
+
+contract EverclearTokenBridgeTest is Test {
+    using TypeCasts for address;
+
+    // Constants
+    uint32 internal constant ORIGIN = 11;
+    uint32 internal constant DESTINATION = 12;
+    uint8 internal constant DECIMALS = 18;
+    uint256 internal constant SCALE = 1e18;
+    uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
+    uint256 internal constant TRANSFER_AMT = 100e18;
+    uint256 internal constant FEE_AMOUNT = 5e18; // 5 tokens fee
+    uint256 internal constant GAS_PAYMENT = 0.001 ether;
+    string internal constant NAME = "TestToken";
+    string internal constant SYMBOL = "TT";
+
+    // Test addresses
+    address internal constant ALICE = address(0x1);
+    address internal constant BOB = address(0x2);
+    address internal constant OWNER = address(0x3);
+    address internal constant PROXY_ADMIN = address(0x37);
+
+    // Mock contracts
+    ERC20Test internal token;
+    MockMailbox internal mailbox;
+    MockEverclearAdapter internal everclearAdapter;
+    TestPostDispatchHook internal hook;
+
+    // Main contract
+    EverclearTokenBridge internal bridge;
+
+    // Test data
+    bytes32 internal constant OUTPUT_ASSET = bytes32(uint256(0x456));
+    bytes32 internal constant RECIPIENT = bytes32(uint256(uint160(BOB)));
+    uint256 internal feeDeadline;
+    bytes internal feeSignature = hex"1234567890abcdef";
+
+    // Events to test
+    event FeeParamsUpdated(uint256 fee, uint256 deadline);
+    event OutputAssetSet(uint32 destination, bytes32 outputAsset);
+
+    function setUp() public {
+        // Setup basic infrastructure
+        mailbox = new MockMailbox(ORIGIN);
+        token = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
+        everclearAdapter = new MockEverclearAdapter();
+        hook = new TestPostDispatchHook();
+
+        // Set fee deadline to future
+        feeDeadline = block.timestamp + 3600; // 1 hour from now
+
+        // Deploy bridge implementation
+        EverclearTokenBridge implementation = new EverclearTokenBridge(
+            address(token),
+            SCALE,
+            address(mailbox),
+            everclearAdapter
+        );
+
+        // Deploy proxy
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                EverclearTokenBridge.initialize.selector,
+                address(hook),
+                address(0), // No ISM
+                OWNER
+            )
+        );
+
+        bridge = EverclearTokenBridge(address(proxy));
+
+        // Setup initial state
+        vm.startPrank(OWNER);
+        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setOutputAsset(DESTINATION, OUTPUT_ASSET);
+        // Enroll remote router for destination domain => Only needed for `quoteTransferRemote`
+        bridge.enrollRemoteRouter(DESTINATION, OUTPUT_ASSET); // Using OUTPUT_ASSET as mock router address
+        vm.stopPrank();
+
+        // Mint tokens to users
+        token.mintTo(ALICE, 1000e18);
+
+        // Setup allowances
+        vm.prank(ALICE);
+        token.approve(address(bridge), type(uint256).max);
+    }
+
+    // ============ Constructor Tests ============
+
+    function testConstructor() public {
+        EverclearTokenBridge newBridge = new EverclearTokenBridge(
+            address(token),
+            SCALE,
+            address(mailbox),
+            everclearAdapter
+        );
+
+        assertEq(address(newBridge.wrappedToken()), address(token));
+        assertEq(
+            address(newBridge.everclearAdapter()),
+            address(everclearAdapter)
+        );
+        assertEq(address(newBridge.mailbox()), address(mailbox));
+    }
+
+    // ============ Initialize Tests ============
+
+    function testInitialize() public {
+        assertEq(bridge.owner(), OWNER);
+        assertEq(
+            token.allowance(address(bridge), address(everclearAdapter)),
+            type(uint256).max
+        );
+    }
+
+    function testInitializeCannotBeCalledTwice() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        bridge.initialize(address(hook), address(0), OWNER);
+    }
+
+    // ============ setFeeParams Tests ============
+
+    function testSetFeeParams() public {
+        uint256 newFee = 10e18;
+        uint256 newDeadline = block.timestamp + 7200;
+        bytes memory newSig = hex"abcdef";
+
+        vm.expectEmit(true, true, false, true);
+        emit FeeParamsUpdated(newFee, newDeadline);
+
+        vm.prank(OWNER);
+        bridge.setFeeParams(newFee, newDeadline, newSig);
+
+        (uint256 fee, uint256 deadline, bytes memory sig) = bridge.feeParams();
+        assertEq(fee, newFee);
+        assertEq(deadline, newDeadline);
+        assertEq(sig, newSig);
+    }
+
+    function testSetFeeParamsOnlyOwner() public {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(ALICE);
+        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+    }
+
+    // ============ setOutputAsset Tests ============
+
+    function testSetOutputAsset() public {
+        bytes32 newOutputAsset = bytes32(uint256(0x789));
+
+        vm.expectEmit(true, true, false, true);
+        emit OutputAssetSet(DESTINATION, newOutputAsset);
+
+        vm.prank(OWNER);
+        bridge.setOutputAsset(DESTINATION, newOutputAsset);
+
+        assertEq(bridge.outputAssets(DESTINATION), newOutputAsset);
+    }
+
+    function testSetOutputAssetOnlyOwner() public {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(ALICE);
+        bridge.setOutputAsset(DESTINATION, OUTPUT_ASSET);
+    }
+
+    // ============ setOutputAssetsBatch Tests ============
+
+    function testSetOutputAssetsBatch() public {
+        uint32[] memory destinations = new uint32[](2);
+        destinations[0] = 13;
+        destinations[1] = 14;
+
+        bytes32[] memory outputAssets = new bytes32[](2);
+        outputAssets[0] = bytes32(uint256(0x111));
+        outputAssets[1] = bytes32(uint256(0x222));
+
+        vm.expectEmit(true, true, false, true);
+        emit OutputAssetSet(13, outputAssets[0]);
+        vm.expectEmit(true, true, false, true);
+        emit OutputAssetSet(14, outputAssets[1]);
+
+        vm.prank(OWNER);
+        bridge.setOutputAssetsBatch(destinations, outputAssets);
+
+        assertEq(bridge.outputAssets(13), outputAssets[0]);
+        assertEq(bridge.outputAssets(14), outputAssets[1]);
+    }
+
+    function testSetOutputAssetsBatchLengthMismatch() public {
+        uint32[] memory destinations = new uint32[](2);
+        destinations[0] = 13;
+        destinations[1] = 14;
+
+        bytes32[] memory outputAssets = new bytes32[](1);
+        outputAssets[0] = bytes32(uint256(0x111));
+
+        vm.expectRevert("ETB: Length mismatch");
+        vm.prank(OWNER);
+        bridge.setOutputAssetsBatch(destinations, outputAssets);
+    }
+
+    function testSetOutputAssetsBatchOnlyOwner() public {
+        uint32[] memory destinations = new uint32[](1);
+        bytes32[] memory outputAssets = new bytes32[](1);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(ALICE);
+        bridge.setOutputAssetsBatch(destinations, outputAssets);
+    }
+
+    // ============ isOutputAssetSet Tests ============
+
+    function testIsOutputAssetSet() public {
+        assertTrue(bridge.isOutputAssetSet(DESTINATION));
+        assertFalse(bridge.isOutputAssetSet(999));
+    }
+
+    // ============ quoteTransferRemote Tests ============
+
+    function testQuoteTransferRemote() public {
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT
+        );
+
+        assertEq(quotes.length, 2);
+        assertEq(quotes[0].token, address(0)); // Gas payment
+        assertEq(quotes[1].token, address(token));
+        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+    }
+
+    // ============ transferRemote Tests ============
+
+    function testTransferRemote() public {
+        uint256 initialBalance = token.balanceOf(ALICE);
+        uint256 initialBridgeBalance = token.balanceOf(address(bridge));
+
+        vm.prank(ALICE);
+        bytes32 result = bridge.transferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT
+        );
+
+        // Check return value
+        assertEq(result, bytes32(0));
+
+        // Check balances
+        assertEq(
+            token.balanceOf(ALICE),
+            initialBalance - TRANSFER_AMT - FEE_AMOUNT
+        );
+        assertEq(
+            token.balanceOf(address(bridge)),
+            initialBridgeBalance + TRANSFER_AMT + FEE_AMOUNT
+        );
+
+        // Check Everclear adapter was called correctly
+        assertEq(everclearAdapter.newIntentCallCount(), 1);
+        assertEq(everclearAdapter.lastDestinations(0), DESTINATION);
+        assertEq(everclearAdapter.lastReceiver(), RECIPIENT);
+        assertEq(everclearAdapter.lastInputAsset(), address(token));
+        assertEq(everclearAdapter.lastOutputAsset(), OUTPUT_ASSET);
+        assertEq(everclearAdapter.lastAmount(), TRANSFER_AMT);
+        assertEq(everclearAdapter.lastMaxFee(), 0);
+        assertEq(everclearAdapter.lastTtl(), 0);
+        assertEq(everclearAdapter.lastData(), "");
+
+        // Check fee params
+        (uint256 fee, uint256 deadline, bytes memory sig) = everclearAdapter
+            .lastFeeParams();
+        assertEq(fee, FEE_AMOUNT);
+        assertEq(deadline, feeDeadline);
+        assertEq(sig, feeSignature);
+    }
+
+    function testTransferRemoteOutputAssetNotSet() public {
+        vm.expectRevert("ETB: Output asset not set");
+        vm.prank(ALICE);
+        bridge.transferRemote(999, RECIPIENT, TRANSFER_AMT); // Domain 999 has no output asset
+    }
+
+    function testTransferRemoteFeeParamsExpired() public {
+        // Set expired fee params
+        vm.warp(feeDeadline + 1);
+
+        vm.expectRevert("ETB: Fee params deadline expired");
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
+    }
+
+    function testTransferRemoteInsufficientBalance() public {
+        // Try to transfer more than balance + fee
+        uint256 aliceBalance = token.balanceOf(ALICE);
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, aliceBalance);
+    }
+
+    function testTransferRemoteInsufficientAllowance() public {
+        vm.prank(ALICE);
+        token.approve(address(bridge), TRANSFER_AMT); // Less than transfer + fee
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
+    }
+
+    function testTransferRemoteEverclearAdapterReverts() public {
+        everclearAdapter.setRevert(true);
+
+        vm.expectRevert("MockEverclearAdapter: reverted");
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
+    }
+
+    // ============ Edge Cases Tests ============
+
+    function testTransferRemoteZeroAmount() public {
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, 0);
+
+        // Should still charge fee
+        assertEq(everclearAdapter.lastAmount(), 0);
+        // Fee should still be deducted
+        assertEq(token.balanceOf(ALICE), 1000e18 - FEE_AMOUNT);
+    }
+
+    function testTransferRemoteMaxAmount() public {
+        uint256 maxAmount = token.balanceOf(ALICE) - FEE_AMOUNT;
+
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, maxAmount);
+
+        assertEq(everclearAdapter.lastAmount(), maxAmount);
+        assertEq(token.balanceOf(ALICE), 0);
+    }
+
+    // ============ Fuzz Tests ============
+
+    function testFuzzTransferRemote(uint256 amount) public {
+        // Bound the amount to reasonable values
+        amount = bound(amount, 0, 500e18); // Max 500 tokens
+
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, amount);
+
+        assertEq(everclearAdapter.lastAmount(), amount);
+        assertEq(token.balanceOf(ALICE), 1000e18 - amount - FEE_AMOUNT);
+    }
+
+    function testFuzzSetFeeParams(uint256 fee, uint256 deadline) public {
+        // Bound to reasonable values
+        fee = bound(fee, 0, 100e18);
+        deadline = bound(
+            deadline,
+            block.timestamp + 1,
+            block.timestamp + 365 days
+        );
+
+        vm.prank(OWNER);
+        bridge.setFeeParams(fee, deadline, feeSignature);
+
+        (uint256 storedFee, uint256 storedDeadline, ) = bridge.feeParams();
+        assertEq(storedFee, fee);
+        assertEq(storedDeadline, deadline);
+    }
+
+    function testFuzzSetOutputAsset(
+        uint32 destination,
+        bytes32 outputAsset
+    ) public {
+        vm.assume(outputAsset != bytes32(0)); // Assume non-zero output asset
+
+        vm.prank(OWNER);
+        bridge.setOutputAsset(destination, outputAsset);
+
+        assertEq(bridge.outputAssets(destination), outputAsset);
+        assertTrue(bridge.isOutputAssetSet(destination));
+    }
+
+    // ============ Integration Tests ============
+
+    function testFullTransferFlow() public {
+        // Setup: Alice wants to transfer 100 tokens to Bob on destination chain
+        uint256 transferAmount = 100e18;
+        uint256 initialAliceBalance = token.balanceOf(ALICE);
+
+        // 1. Get quote
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            DESTINATION,
+            RECIPIENT,
+            transferAmount
+        );
+        uint256 totalCost = quotes[1].amount; // Token cost including fee
+
+        // 2. Execute transfer
+        vm.prank(ALICE);
+        bytes32 transferId = bridge.transferRemote(
+            DESTINATION,
+            RECIPIENT,
+            transferAmount
+        );
+
+        // 3. Verify state changes
+        assertEq(transferId, bytes32(0)); // Everclear manages the actual ID
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - totalCost);
+
+        // 4. Verify Everclear intent was created correctly
+        assertEq(everclearAdapter.newIntentCallCount(), 1);
+        assertEq(everclearAdapter.lastAmount(), transferAmount);
+        assertEq(everclearAdapter.lastReceiver(), RECIPIENT);
+        assertEq(everclearAdapter.lastOutputAsset(), OUTPUT_ASSET);
+    }
+
+    function testMultipleTransfers() public {
+        uint256 transferAmount = 50e18;
+
+        // Execute multiple transfers
+        vm.startPrank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, transferAmount);
+        bridge.transferRemote(DESTINATION, RECIPIENT, transferAmount);
+        vm.stopPrank();
+
+        // Verify both transfers were processed
+        assertEq(everclearAdapter.newIntentCallCount(), 2);
+        assertEq(
+            token.balanceOf(ALICE),
+            1000e18 - 2 * (transferAmount + FEE_AMOUNT)
+        );
+    }
+
+    // ============ Gas Optimization Tests ============
+
+    function testGasUsageTransferRemote() public {
+        vm.prank(ALICE);
+        uint256 gasBefore = gasleft();
+        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        // Log gas usage for analysis (adjust threshold as needed)
+        emit log_named_uint("Gas used for transferRemote", gasUsed);
+        assertTrue(gasUsed < 600000); // Reasonable gas limit (adjusted based on actual usage)
+    }
+}
