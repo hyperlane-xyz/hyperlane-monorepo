@@ -168,12 +168,12 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         if (!call.callRemoteArgs) continue;
 
         // Create a key based on all callRemoteArgs properties except innerCalls
-        const key = JSON.stringify({
-          chain: call.callRemoteArgs.chain,
-          destination: call.callRemoteArgs.destination,
-          config: call.callRemoteArgs.config,
-          hookMetadata: call.callRemoteArgs.hookMetadata,
-        });
+        const key = [
+          call.callRemoteArgs.chain,
+          call.callRemoteArgs.destination,
+          JSON.stringify(call.callRemoteArgs.config),
+          JSON.stringify(call.callRemoteArgs.hookMetadata),
+        ].join('|');
 
         if (!callGroups.has(key)) {
           callGroups.set(key, []);
@@ -201,8 +201,6 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         // Create the combined callRemoteArgs
         const combinedCallRemoteArgs = {
           ...baseCallRemoteArgs,
-          chain,
-          destination: baseCallRemoteArgs.destination,
           innerCalls: combinedInnerCalls,
         };
 
