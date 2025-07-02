@@ -1,79 +1,134 @@
-import { Server } from '@chainlink/ccip-read-server';
+import cors from 'cors';
+import express from 'express';
+import { pinoHttp } from 'pino-http';
 
-import { CCTPServiceAbi } from './abis/CCTPServiceAbi.js';
-import { OPStackServiceAbi } from './abis/OPStackServiceAbi.js';
-import { ProofsServiceAbi } from './abis/ProofsServiceAbi.js';
-import * as config from './config.js';
+import { createServiceLogger } from '@hyperlane-xyz/utils';
+
+import packageJson from '../package.json' with { type: 'json' };
+
+import { getEnabledModules } from './config.js';
+import { ServiceFactory } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
+import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
-import { ProofsService } from './services/ProofsService.js';
+import {
+  PrometheusMetrics,
+  startPrometheusServer,
+} from './utils/prometheus.js';
 
-// Initialize Services
-const proofsService = new ProofsService(
-  {
-    lightClientAddress: config.LIGHT_CLIENT_ADDR,
-    stepFunctionId: config.STEP_FN_ID,
-    platformUrl: config.SUCCINCT_PLATFORM_URL,
-    apiKey: config.SUCCINCT_API_KEY,
-  },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: `${config.SERVER_URL_PREFIX}:${config.SERVER_PORT}` },
-);
+export const moduleRegistry: Record<string, ServiceFactory> = {
+  callCommitments: CallCommitmentsService,
+  cctp: CCTPService,
+  opstack: OPStackService,
+};
 
-const opStackService = new OPStackService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: config.L2_RPC_ADDRESS, chainId: config.L2_CHAIN_ID },
-  {
-    l1: {
-      AddressManager: config.L1_ADDRESS_MANAGER,
-      L1CrossDomainMessenger: config.L1_CROSS_DOMAIN_MESSENGER,
-      L1StandardBridge: config.L1_STANDARD_BRIDGE,
-      StateCommitmentChain: config.L1_STATE_COMMITMENT_CHAIN,
-      CanonicalTransactionChain: config.L1_CANONICAL_TRANSACTION_CHAIN,
-      BondManager: config.L1_BOND_MANAGER,
-      OptimismPortal: config.L1_OPTIMISM_PORTAL,
-      L2OutputOracle: config.L2_OUTPUT_ORACLE,
-    },
-  },
-);
+async function startServer() {
+  // Initialize logger first thing in startup
+  const logger = await createServiceLogger({
+    service: 'ccip-server',
+    version: packageJson.version,
+  });
 
-const cctpService = new CCTPService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.CCTP_ATTESTATION_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-);
+  const app = express();
+  app.use(cors());
+  app.use(express.json() as express.RequestHandler);
+  app.use(pinoHttp({ logger }));
 
-// Initialize Server and add Service handlers
-const server = new Server();
+  if (getEnabledModules().length === 0) {
+    logger.warn(
+      '⚠️  No modules enabled. Set ENABLED_MODULES environment variable to mount services.',
+    );
+  }
 
-server.add(ProofsServiceAbi, [
-  { type: 'getProofs', func: proofsService.getProofs.bind(this) },
-]);
+  // Dynamically mount only modules listed in the ENABLED_MODULES env var
+  for (const name of getEnabledModules()) {
+    try {
+      const ServiceClass = moduleRegistry[name];
+      if (!ServiceClass) {
+        logger.warn(
+          {
+            moduleName: name,
+          },
+          '⚠️  Module not found; skipping',
+        );
+        continue;
+      }
+      const service = await ServiceClass.create(name);
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getWithdrawalProof',
-    func: opStackService.getWithdrawalProof.bind(opStackService),
-  },
-]);
+      app.use(`/${name}`, (req, res, next) => {
+        res.on('finish', () => {
+          // TODO: add a success label to the metric, once we properly distinguish unhandled errors from handled errors
+          PrometheusMetrics.logLookupRequest(name, res.statusCode);
+        });
+        next();
+      });
+      app.use(`/${name}`, service.router);
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getFinalizeWithdrawalTx',
-    func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
-  },
-]);
+      logger.info(
+        {
+          moduleName: name,
+        },
+        '✅  Mounted module',
+      );
+    } catch (error) {
+      logger.error(
+        {
+          moduleName: name,
+          error,
+        },
+        'Error initializing module',
+      );
+      PrometheusMetrics.logUnhandledError(name);
+      throw error;
+    }
+  }
 
-server.add(CCTPServiceAbi, [
-  {
-    type: 'getCCTPAttestation',
-    func: cctpService.getCCTPAttestation.bind(cctpService),
-  },
-]);
+  // Register Health Service
+  const healthService = await HealthService.create('health');
+  app.use(`/health`, healthService.router);
 
-// Start Server
-const app = server.makeApp(config.SERVER_URL_PREFIX);
-app.listen(config.SERVER_PORT, () =>
-  console.log(`Listening on port ${config.SERVER_PORT}`),
-);
+  // Log and handle undefined endpoints
+  app.use((req, res) => {
+    req.log.info(
+      {
+        method: req.method,
+        url: req.originalUrl,
+      },
+      'Undefined request',
+    );
+    res.status(404).json({ error: 'Endpoint not found' });
+  });
+
+  const port = parseInt(process.env.SERVER_PORT ?? '3000');
+  app.listen(port, () => logger.info(`Server listening on port ${port}`));
+
+  return logger; // Return logger for error handlers
+}
+
+// Start the server and handle startup logging
+startServer()
+  .then((logger) => logger.info('Server startup completed'))
+  .catch((err) => {
+    console.error('Server startup failed:', err); // Fallback to console if logger failed
+    process.exit(1);
+  });
+
+startPrometheusServer()
+  .then(() => console.log('Prometheus server started'))
+  .catch((err) => console.error('Prometheus server startup failed:', err));
+
+/*
+ * TODO: if PRISMA throws an error the entire express application crashes.
+ *  This is a temporary workaround to catch these kind of errors.
+ *
+ * Will add a global error handler middleware to handle these errors instead.
+ * */
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err); // Fallback to console
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason); // Fallback to console
+  process.exit(1);
+});

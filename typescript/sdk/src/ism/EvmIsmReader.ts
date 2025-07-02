@@ -56,7 +56,7 @@ export interface IsmReader {
   deriveOffchainLookupConfig(
     address: string,
   ): Promise<WithAddress<OffchainLookupIsmConfig>>;
-  deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
+  deriveRoutingConfig(address: Address): Promise<WithAddress<DerivedIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>>;
@@ -199,7 +199,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
   async deriveRoutingConfig(
     address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
+  ): Promise<WithAddress<DerivedIsmConfig>> {
     const abstractRoutingIsm = AbstractRoutingIsm__factory.connect(
       address,
       this.provider,
@@ -209,6 +209,32 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       await abstractRoutingIsm.moduleType(),
       ModuleType.ROUTING,
     );
+
+    // check if its the ICA ISM
+    try {
+      const icaInstance = InterchainAccountRouter__factory.connect(
+        address,
+        this.provider,
+      );
+      await icaInstance.CCIP_READ_ISM();
+      if (this.messageContext) {
+        // Route via the message context to get routed ISM
+        const routedIsm = await icaInstance.route(this.messageContext.message);
+        return this.deriveIsmConfig(routedIsm);
+      }
+      // If no message context, just return this ICA ISM placeholder
+      return {
+        address,
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        owner: await icaInstance.owner(),
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing CCIP_READ_ISM property, implying this is not an ICA ISM.',
+        address,
+      );
+    }
 
     let owner: Address | undefined;
     const ownableIsm = Ownable__factory.connect(address, this.provider);
@@ -221,7 +247,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
-    // If the current ISM does not have an owner then it is either an ICA Router or Amount Router
+    // If the current ISM does not have an owner then it is an Amount Router
     if (!owner) {
       return this.deriveNonOwnableRoutingConfig(address);
     }
@@ -340,11 +366,31 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   ): Promise<WithAddress<RoutingIsmConfig>> {
     const ism = AmountRoutingIsm__factory.connect(address, this.provider);
 
-    const [lowerIsm, upperIsm, threshold] = await Promise.all([
-      ism.lower(),
-      ism.upper(),
-      ism.threshold(),
-    ]);
+    let lowerIsm: Address;
+    let upperIsm: Address;
+    let threshold: BigNumber;
+    try {
+      [lowerIsm, upperIsm, threshold] = await Promise.all([
+        ism.lower(),
+        ism.upper(),
+        ism.threshold(),
+      ]);
+    } catch {
+      // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
+      this.logger.debug(
+        'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
+        address,
+      );
+
+      // return a basic ICA routing config for legacy contracts
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        address,
+        owner: ethers.constants.AddressZero,
+      };
+    }
+
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,

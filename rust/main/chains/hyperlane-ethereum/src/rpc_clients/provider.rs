@@ -6,24 +6,26 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::types::{Block, H160, H256 as EthersH256};
-use ethers::{prelude::Middleware, types::TransactionReceipt};
-use ethers_contract::builders::ContractCall;
-use ethers_core::abi::Function;
+use ethers::prelude::Middleware;
+use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
+use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
+use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{BlockId, FeeHistory, U256 as EthersU256};
-use ethers_core::{abi::Address, types::BlockNumber};
-use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
+use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
+    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
+use crate::contracts::multicall::BatchCache;
 use crate::{
-    get_finalized_block_number, BuildableWithProvider, ConnectionConf, EthereumReorgPeriod,
+    get_finalized_block_number, multicall, BuildableWithProvider, ConnectionConf,
+    EthereumReorgPeriod,
 };
 
 // From
@@ -50,23 +52,6 @@ pub struct ZksyncEstimateFeeResponse {
 pub struct EthereumProvider<M> {
     provider: Arc<M>,
     domain: HyperlaneDomain,
-}
-
-impl<M> EthereumProvider<M> {
-    /// Create a ContractCall object for a given transaction and function.
-    pub fn build_contract_call<D>(
-        &self,
-        tx: TypedTransaction,
-        function: Function,
-    ) -> ContractCall<M, D> {
-        ContractCall {
-            tx,
-            function,
-            block: None,
-            client: self.provider.clone(),
-            datatype: PhantomData::<D>,
-        }
-    }
 }
 
 impl<M> HyperlaneChain for EthereumProvider<M>
@@ -108,7 +93,29 @@ pub trait EvmProviderForLander: Send + Sync {
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError>;
+    ) -> ChainResult<U256>;
+
+    /// Batches precursors into a single transaction
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
+    ) -> ChainResult<(TypedTransaction, Function)>;
+
+    /// Simulate the batch transaction without sending it to the blockchain
+    async fn simulate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
+
+    /// Estimate the batch transaction, which includes a multi-precursor transaction
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -178,9 +185,55 @@ where
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError> {
+    ) -> ChainResult<U256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
+        Ok(gas_limit)
+    }
+
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
+    ) -> ChainResult<(TypedTransaction, Function)> {
+        let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
+        let contract_calls = self.create_contract_calls(precursors);
+        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
+
+        let mut tx = multicall_contract_call.tx;
+        tx.set_from(signer);
+
+        let function = multicall_contract_call.function;
+
+        Ok((tx, function))
+    }
+
+    async fn simulate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)> {
+        let (multi_tx, multi_function) = multi_precursor;
+        let multicall_contract_call =
+            self.build_contract_call::<Vec<MulticallResult>>(multi_tx, multi_function);
+        let call_results = multicall_contract_call.call().await?;
+
+        let (successful, failed) = multicall::filter(&call_results);
+
+        Ok((successful, failed))
+    }
+
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256> {
+        let (multi_tx, multi_function) = multi_precursor;
+        let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
+        let contract_calls = self.create_contract_calls(precursors);
+
+        let gas_limit = multicall::estimate(&multicall_contract_call, contract_calls).await?;
         Ok(gas_limit)
     }
 
@@ -247,6 +300,64 @@ where
 
     fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
+    }
+}
+
+impl<M> EthereumProvider<M>
+where
+    M: 'static + Middleware,
+{
+    /// Create a ContractCall object for a given transaction and function.
+    fn build_contract_call<D>(
+        &self,
+        tx: TypedTransaction,
+        function: Function,
+    ) -> ContractCall<M, D> {
+        ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<D>,
+        }
+    }
+
+    fn create_contract_calls(
+        &self,
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> Vec<ContractCall<M, ()>> {
+        precursors
+            .into_iter()
+            .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
+            .collect::<Vec<_>>()
+    }
+
+    async fn create_multicall(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+    ) -> eyre::Result<Multicall<M>> {
+        multicall::build_multicall(
+            self.provider.clone(),
+            self.domain.clone(),
+            cache,
+            batch_contract_address,
+        )
+        .await
+    }
+
+    #[instrument(err, skip(self))]
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
+        let storage = self
+            .provider
+            .get_storage_at(
+                ethers_core_types::H160::from(address),
+                location.into(),
+                None,
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(storage.into())
     }
 }
 
@@ -384,30 +495,11 @@ where
     }
 }
 
-impl<M> EthereumProvider<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
-        let storage = self
-            .provider
-            .get_storage_at(
-                ethers_core_types::H160::from(address),
-                location.into(),
-                None,
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        Ok(storage.into())
-    }
-}
-
 /// Builder for hyperlane providers.
-pub struct SubmitterProviderBuilder {}
+pub struct LanderProviderBuilder {}
 
 #[async_trait]
-impl BuildableWithProvider for SubmitterProviderBuilder {
+impl BuildableWithProvider for LanderProviderBuilder {
     type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
 

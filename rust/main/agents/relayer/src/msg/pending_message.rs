@@ -131,8 +131,8 @@ impl Debug for PendingMessage {
                 }
             })
             .unwrap_or(0);
-        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?}, status: {:?}, app_context: {:?} }}",
-               self.num_retries, self.message, self.status, self.app_context)
+        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message_id: {:?}, status: {:?}, app_context: {:?} }}",
+               self.num_retries, self.message.id(), self.status, self.app_context)
     }
 }
 
@@ -991,41 +991,44 @@ impl PendingMessage {
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
-            .await
-            .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::CouldNotFetch => {
-                    self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
-                }
-                // If the metadata building is refused, we still allow it to be retried later.
-                MetadataBuildError::Refused(reason) => {
-                    warn!(?reason, "Metadata building refused");
-                    self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
-                }
-                // These errors cannot be recovered from, so we drop them
-                MetadataBuildError::UnsupportedModuleType(reason) => {
-                    warn!(?reason, "Unsupported module type");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::MaxIsmDepthExceeded(depth) => {
-                    warn!(depth, "Max ISM depth reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::MaxIsmCountReached(count) => {
-                    warn!(count, "Max ISM count reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::AggregationThresholdNotMet(threshold) => {
-                    warn!(threshold, "Aggregation threshold not met");
-                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
-                }
-                MetadataBuildError::MaxValidatorCountReached(count) => {
-                    warn!(count, "Max validator count reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-            });
+            .await;
+
+        tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
+
+        let metadata_res = metadata_res.map_err(|err| match &err {
+            MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::CouldNotFetch => {
+                self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+            }
+            // If the metadata building is refused, we still allow it to be retried later.
+            MetadataBuildError::Refused(reason) => {
+                warn!(?reason, "Metadata building refused");
+                self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
+            }
+            // These errors cannot be recovered from, so we drop them
+            MetadataBuildError::UnsupportedModuleType(reason) => {
+                warn!(?reason, "Unsupported module type");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                warn!(depth, "Max ISM depth reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MaxIsmCountReached(count) => {
+                warn!(count, "Max ISM count reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                warn!(threshold, "Aggregation threshold not met");
+                self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+            }
+            MetadataBuildError::MaxValidatorCountReached(count) => {
+                warn!(count, "Max validator count reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+        });
         let build_metadata_end = Instant::now();
 
         let metrics_params = MetadataBuildMetric {
@@ -1386,5 +1389,41 @@ mod test {
             .expect("Message status not found");
 
         assert_eq!(db_status, expected_status);
+    }
+
+    #[test]
+    fn check_debug_print() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+
+        let pending_message_debug = format!("{:?}", pending_message);
+        let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
+        assert_eq!(pending_message_debug, expected);
     }
 }

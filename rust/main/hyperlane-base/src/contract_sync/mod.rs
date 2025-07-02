@@ -230,7 +230,6 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[instrument(fields(domain=domain.name()), skip(indexer, store, stored_logs_metric, indexed_height_metric, liveness_metric))]
     async fn cursor_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,
@@ -241,6 +240,7 @@ where
         indexed_height_metric: GenericGauge<AtomicI64>,
         liveness_metric: GenericGauge<AtomicI64>,
     ) {
+        tracing::info_span!("cursor_indexer_task", domain = domain.name());
         loop {
             Self::update_liveness_metric(&liveness_metric);
             indexed_height_metric.set(cursor.latest_queried_block() as i64);
@@ -256,7 +256,7 @@ where
 
             let range = match action {
                 CursorAction::Sleep(duration) => {
-                    debug!(
+                    trace!(
                         cursor = ?cursor,
                         sleep_duration = ?duration,
                         "Cursor can't make progress, sleeping",
@@ -266,7 +266,7 @@ where
                 }
                 CursorAction::Query(range) => range,
             };
-            debug!(?range, "Looking for events in index range");
+            trace!(?range, "Looking for events in index range");
 
             let logs = match indexer.fetch_logs_in_range(range.clone()).await {
                 Ok(logs) => logs,
