@@ -1,5 +1,5 @@
 #![allow(unused)] // TODO: remove
-use eyre::{Result, eyre};
+use eyre::{eyre, Result};
 
 mod x;
 
@@ -13,13 +13,15 @@ use hardcode::e2e::{
     DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
     RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
-use relayer::withdraw::hub_to_kaspa::*;
 use relayer::withdraw::demo::*;
+use relayer::withdraw::hub_to_kaspa::*;
 use validator::withdraw::*;
 use x::args::Args;
 
 use std::sync::Arc;
 
+use corelib::withdraw::WithdrawFXG;
+use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -30,8 +32,6 @@ use kaspa_consensus_core::{
         TransactionOutput, UtxoEntry,
     },
 };
-use corelib::withdraw::WithdrawFXG;
-use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
@@ -49,8 +49,8 @@ use kaspa_txscript::{
 use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
-use workflow_core::abortable::Abortable;
 use relayer::withdraw::messages::WithdrawalDetails;
+use workflow_core::abortable::Abortable;
 
 /*
 Demo:
@@ -87,7 +87,7 @@ async fn demo() -> Result<()> {
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
 
-    let e = Escrow::new(2);
+    let e = Escrow::new(1);
     info!(
         "Created escrow address: {}",
         e.public(e2e_address_prefix).addr
@@ -104,8 +104,8 @@ async fn demo() -> Result<()> {
     check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
     let user_addr = w.account()?.receive_address()?;
-    
-    let details = WithdrawalDetails{
+
+    let details = WithdrawalDetails {
         message_id: H256::random(),
         recipient: user_addr,
         amount_sompi: amt,
@@ -125,9 +125,7 @@ async fn demo() -> Result<()> {
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     let hl_msg = HyperlaneMessage::default();
-    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]); 
-
-    // We have a bundle with one PSKT which covers all the HL messages.
+    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]);
 
     let pskt_unsigned = build_withdrawal_tx(
         rpc.as_ref(),
@@ -139,17 +137,20 @@ async fn demo() -> Result<()> {
     )
     .await?;
 
-    let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
+    let bundle_val = sign_withdrawal_fxg(fxg, e.keys.first().unwrap())?;
 
-    let tx_id = send_tx(
-        rpc.as_ref(),
-        pskt_signed_vals,
-        pskt_unsigned,
-        &e.public(e2e_address_prefix),
+    let finalized = combine_bundles_with_fee(
+        vec![bundle_val],
+        &fxg,
+        e.m(),
+        e.public(e2e_address_prefix).pubs.clone(),
         &w,
-        &s,
     )
     .await?;
+
+    let res = rpc
+        .submit_transaction(finalized.first().unwrap().clone(), false)
+        .await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 

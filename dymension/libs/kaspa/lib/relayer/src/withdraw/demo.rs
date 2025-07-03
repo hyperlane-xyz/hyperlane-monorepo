@@ -103,29 +103,3 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
 
     Ok(pskt)
 }
-
-// used by multisig demo
-pub async fn send_tx<T: RpcApi + ?Sized>(
-    rpc: &T,
-    pskt_signed_vals: PSKT<Combiner>,
-    pskt_unsigned: PSKT<Signer>,
-    e: &EscrowPublic,
-    w_relayer: &Arc<Wallet>,
-    s_relayer: &Secret,
-) -> Result<TransactionId> {
-    info!("-> Relayer   is signing their copy...");
-
-    let pskt_signed_relayer: PSKT<Signer> =
-        sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer, vec![]).await?;
-    let combiner = pskt_signed_relayer.combiner();
-    let pskt_signed = (combiner + pskt_signed_vals).unwrap();
-
-    info!("-> Relayer is finalizing");
-
-    let rpc_tx = finalize_pskt(pskt_signed, vec![], e.pubs.clone())?;
-
-    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
-
-    Ok(tx_id)
-}
-
