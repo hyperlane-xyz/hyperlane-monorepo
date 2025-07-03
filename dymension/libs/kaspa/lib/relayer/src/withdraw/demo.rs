@@ -17,7 +17,7 @@ use kaspa_wallet_pskt::prelude::*;
 use kaspa_txscript::
     standard::pay_to_address_script
 ;
-use super::finalize_pskt;
+use super::hub_to_kaspa::finalize_pskt;
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 

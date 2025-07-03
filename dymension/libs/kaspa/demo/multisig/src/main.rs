@@ -12,7 +12,8 @@ use hardcode::e2e::{
     DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
     RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
-use relayer::withdraw::*;
+use relayer::withdraw::hub_to_kaspa::*;
+use relayer::withdraw::demo::*;
 use validator::withdraw::*;
 use x::args::Args;
 

@@ -170,7 +170,7 @@ pub async fn build_withdrawal_pskt(
         u.outpoint.transaction_id == current_anchor.transaction_id
             && u.outpoint.index == current_anchor.index
     }) {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "No UTXOs found for current anchor: {:?}",
             current_anchor
         ));
@@ -204,7 +204,7 @@ pub async fn build_withdrawal_pskt(
         .fold(0, |acc, w| acc + w.amount_sompi);
 
     if escrow_balance < withdrawal_balance {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Insufficient funds in escrow: {} < {}",
             escrow_balance,
             withdrawal_balance
@@ -277,7 +277,7 @@ pub async fn build_withdrawal_pskt(
     let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Insufficient relayer funds to cover tx fee: {} < {}",
             relayer_balance,
             tx_fee
@@ -301,7 +301,7 @@ pub async fn build_withdrawal_pskt(
                     .unwrap(),
             )
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt input for escrow: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
 
         pskt = pskt.input(pskt_input);
     }
@@ -317,7 +317,7 @@ pub async fn build_withdrawal_pskt(
                     .unwrap(),
             )
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt input for relayer: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
 
         pskt = pskt.input(pskt_input);
     }
@@ -328,7 +328,7 @@ pub async fn build_withdrawal_pskt(
             .amount(output.value)
             .script_public_key(output.script_public_key)
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt output for withdrawal: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
         pskt = pskt.output(pskt_output);
     }
@@ -338,7 +338,7 @@ pub async fn build_withdrawal_pskt(
         .amount(escrow_balance - withdrawal_balance)
         .script_public_key(escrow.p2sh.clone())
         .build()
-        .map_err(|e| anyhow::anyhow!("Build pskt output for escrow change: {}", e))?;
+        .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
     // relayer_balance - tx_fee as checked above
     let relayer_change = OutputBuilder::default()
@@ -347,7 +347,7 @@ pub async fn build_withdrawal_pskt(
             &relayer.change_address()?,
         )))
         .build()
-        .map_err(|e| anyhow::anyhow!("Build pskt output for relayer change: {}", e))?;
+        .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
     // escrow_change should always be present even if it's dust
     pskt = pskt.output(escrow_change);
@@ -367,12 +367,12 @@ async fn get_utxo_to_spend(
     let mut utxos = kaspa_rpc
         .get_utxos_by_addresses(vec![addr.clone()])
         .await
-        .map_err(|e| anyhow::anyhow!("Get escrow UTXOs: {}", e))?;
+        .map_err(|e| eyre::eyre!("Get escrow UTXOs: {}", e))?;
 
     let block = kaspa_rpc
         .get_block_dag_info()
         .await
-        .map_err(|e| anyhow::anyhow!("Get block DAG info: {}", e))?;
+        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
     let current_daa_score = block.virtual_daa_score;
 
     // Descending order – older UTXOs first
@@ -469,14 +469,14 @@ pub(crate) async fn get_pending_withdrawals(
     let resp = cosmos
         .withdrawal_status(withdrawal_ids, height)
         .await
-        .map_err(|e| anyhow::anyhow!("Query outpoint from x/kas: {}", e))?;
+        .map_err(|e| eyre::eyre!("Query outpoint from x/kas: {}", e))?;
 
     let outpoint_data = resp
         .outpoint
-        .ok_or_else(|| anyhow::anyhow!("No outpoint data in response"))?;
+        .ok_or_else(|| eyre::eyre!("No outpoint data in response"))?;
 
     if outpoint_data.transaction_id.len() != 32 {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Invalid transaction ID length: expected 32 bytes, got {}",
             outpoint_data.transaction_id.len()
         ));
@@ -488,7 +488,7 @@ pub(crate) async fn get_pending_withdrawals(
             .transaction_id
             .as_slice()
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Convert tx ID to Kaspa tx ID: {:}", e))?,
+            .map_err(|e| eyre::eyre!("Convert tx ID to Kaspa tx ID: {:}", e))?,
     );
 
     // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
@@ -588,7 +588,7 @@ mod tests {
 
         // Step 4: Create WithdrawFXG using Bundle::from(pskt)
         let bundle = Bundle::from(pskt_signer);
-        let withdraw_fxg = WithdrawFXG::new(bundle);
+        let withdraw_fxg = WithdrawFXG::new(bundle, vec![]);
 
         // Step 5: Convert WithdrawFXG to Bytes
         let serialized_bytes =
@@ -677,7 +677,7 @@ pub fn finalize_pskt(
                                     .1
                                     .into_bytes();
 
-                                iter::once(65u8)
+                                std::iter::once(65u8)
                                     .chain(sig)
                                     .chain([input.sighash_type.to_u8()])
                                     .collect()
@@ -694,7 +694,7 @@ pub fn finalize_pskt(
                                     .iter()
                                     .flat_map(|kp| {
                                         let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                                        iter::once(OpData65)
+                                        std::iter::once(OpData65)
                                             .chain(sig)
                                             .chain([input.sighash_type.to_u8()])
                                     })
