@@ -75,6 +75,16 @@ contract HypNative is MovableCollateralRouter {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
     }
 
+    function _nativeRebalanceValue(
+        uint256 collateralAmount
+    ) internal override returns (uint256 nativeValue) {
+        nativeValue = msg.value + collateralAmount;
+        require(
+            address(this).balance >= nativeValue,
+            "Native: rebalance amount exceeds balance"
+        );
+    }
+
     /**
      * @dev Sends `_amount` of native token to `_recipient` balance.
      * @inheritdoc TokenRouter
@@ -101,24 +111,5 @@ contract HypNative is MovableCollateralRouter {
 
     receive() external payable {
         emit Donation(msg.sender, msg.value);
-    }
-
-    /**
-     * @dev This function uses `msg.value` as payment for the bridge.
-     * User collateral is never used to make bridge payments!
-     * The rebalancer is to pay all fees for the bridge.
-     */
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ITokenBridge bridge
-    ) internal override {
-        uint fee = msg.value + amount;
-        require(
-            address(this).balance >= fee,
-            "Native: rebalance amount exceeds balance"
-        );
-        bridge.transferRemote{value: fee}(domain, recipient, amount);
     }
 }
