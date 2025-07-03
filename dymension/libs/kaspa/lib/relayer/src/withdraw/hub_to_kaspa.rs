@@ -34,7 +34,6 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use secp256k1::PublicKey;
 use std::io::Cursor;
@@ -45,84 +44,7 @@ use corelib::withdraw::WithdrawFXG;
 use kaspa_addresses::Prefix;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
-
-pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
-    let addr = kaspa_addresses::Address::new(
-        prefix,
-        kaspa_addresses::Version::PubKey, // should always be PubKey
-        recipient.as_bytes(),
-    );
-    addr
-}
-
-/// Processes given messages and returns WithdrawFXG and the very first outpoint
-/// (the one preceding all the given transfers; it should be used during process indication).
-pub async fn on_new_withdrawals(
-    messages: Vec<HyperlaneMessage>,
-    relayer: EasyKaspaWallet,
-    cosmos: CosmosGrpcClient,
-    escrow_public: EscrowPublic,
-    hub_height: Option<u32>,
-) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
-    info!("Kaspa relayer, getting pending withdrawals");
-    let (outpoint, pending_messages) = get_pending_withdrawals(messages, &cosmos, hub_height)
-        .await
-        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
-    info!("Kaspa relayer, got pending withdrawals");
-
-    let withdrawal_details: Vec<_> = pending_messages
-        .iter()
-        .filter_map(|m| {
-            match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
-                Ok(msg) => {
-                    let kaspa_recipient =
-                        get_recipient_address(m.recipient, relayer.network_info.address_prefix);
-
-                    Some(WithdrawalDetails {
-                        message_id: m.id(),
-                        recipient: kaspa_recipient,
-                        amount_sompi: msg.amount().as_u64(),
-                    })
-                }
-                Err(e) => None, // TODO: log?
-            }
-        })
-        .collect();
-
-    if withdrawal_details.is_empty() {
-        info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
-        return Ok(None); // nothing to process
-    }
-    info!(
-        "Kaspa relayer, got pending withdrawals, building PSKT, len: {}",
-        withdrawal_details.len()
-    );
-
-    let pskt = build_withdrawal_pskt(
-        withdrawal_details,
-        &relayer.api(),
-        &escrow_public,
-        &relayer.account(),
-        &outpoint,
-        relayer.network_info.network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
-
-    // We have a bundle with one PSKT which covers all the HL messages.
-    Ok(Some((
-        WithdrawFXG::new(Bundle::from(pskt), vec![pending_messages]),
-        outpoint,
-    )))
-}
-
-/// Details of a withdrawal extracted from HyperlaneMessage
-#[derive(Debug, Clone)]
-pub(crate) struct WithdrawalDetails {
-    pub message_id: H256,
-    pub recipient: kaspa_addresses::Address,
-    pub amount_sompi: u64,
-}
+use super::messages::WithdrawalDetails;
 
 /// Builds a single withdrawal PSKT.
 ///
@@ -457,66 +379,6 @@ fn estimate_fee(
 
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
     mass
-}
-
-pub(crate) async fn get_pending_withdrawals(
-    withdrawals: Vec<HyperlaneMessage>,
-    cosmos: &CosmosGrpcClient,
-    height: Option<u32>,
-) -> Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
-    // A list of withdrawal IDs to request their statuses from the Hub
-    let withdrawal_ids: Vec<_> = withdrawals
-        .iter()
-        .map(|m| WithdrawalId {
-            message_id: m.id().encode_hex(),
-        })
-        .collect();
-
-    // Request withdrawal statuses from the Hub
-    let resp = cosmos
-        .withdrawal_status(withdrawal_ids, height)
-        .await
-        .map_err(|e| eyre::eyre!("Query outpoint from x/kas: {}", e))?;
-
-    let outpoint_data = resp
-        .outpoint
-        .ok_or_else(|| eyre::eyre!("No outpoint data in response"))?;
-
-    if outpoint_data.transaction_id.len() != 32 {
-        return Err(eyre::eyre!(
-            "Invalid transaction ID length: expected 32 bytes, got {}",
-            outpoint_data.transaction_id.len()
-        ));
-    }
-
-    // Convert the transaction ID to kaspa transaction ID
-    let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(
-        outpoint_data
-            .transaction_id
-            .as_slice()
-            .try_into()
-            .map_err(|e| eyre::eyre!("Convert tx ID to Kaspa tx ID: {:}", e))?,
-    );
-
-    // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
-    // then the respective element of withdrawals is Unprocessed.
-    let pending_withdrawals: Vec<_> = resp
-        .status
-        .into_iter()
-        .enumerate()
-        .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
-            _ => None, // Ignore other statuses
-        })
-        .collect();
-
-    Ok((
-        TransactionOutpoint {
-            transaction_id: kaspa_tx_id,
-            index: outpoint_data.index,
-        },
-        pending_withdrawals,
-    ))
 }
 
 // used by multisig demo AND real code
