@@ -271,7 +271,7 @@ impl InclusionStage {
 
                     match submit_result {
                         Ok(()) => Ok(tx_guard.clone()),
-                        Err(err) if matches!(err, LanderError::TxReSubmissionWarning(_)) => {
+                        Err(err) if matches!(err, LanderError::UnclearTxSubmissionError(_)) => {
                             warn!(?tx, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
                             Ok(tx_guard.clone())
                         }

@@ -48,6 +48,8 @@ mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 
+const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
     pub domain: HyperlaneDomain,
@@ -556,9 +558,9 @@ impl AdaptsChain for EthereumAdapter {
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {
-                return if e.to_string().contains("nonce too low") {
-                    Err(LanderError::TxReSubmissionWarning(
-                        "nonce too low".to_string(),
+                return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
+                    Err(LanderError::UnclearTxSubmissionError(
+                        NONCE_TOO_LOW_ERROR.to_string(),
                     ))
                 } else {
                     Err(e.into())
