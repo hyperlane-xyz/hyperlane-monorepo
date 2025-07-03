@@ -15,21 +15,19 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract MockMovableCollateralRouter is MovableCollateralRouter {
     constructor(address _mailbox) FungibleTokenRouter(1, _mailbox) {}
 
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
     function balanceOf(
         address _account
     ) external view override returns (uint256) {
         return 0;
     }
 
-    function _transferFromSender(
-        uint256 _amount
-    ) internal override returns (bytes memory) {}
+    function _transferFromSender(uint256 _amount) internal override {}
 
-    function _transferTo(
-        address _to,
-        uint256 _amount,
-        bytes calldata _metadata
-    ) internal override {}
+    function _transferTo(address _to, uint256 _amount) internal override {}
 
     function _handle(
         uint32 _origin,
@@ -38,7 +36,7 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
     ) internal override {}
 }
 
-contract MockTokenBridge is ITokenBridge {
+contract MockITokenBridge is ITokenBridge {
     ERC20Test token;
     bytes32 public myRecipient;
 
@@ -69,7 +67,7 @@ contract MovableCollateralRouterTest is Test {
     using TypeCasts for address;
 
     MovableCollateralRouter internal router;
-    MockTokenBridge internal vtb;
+    MockITokenBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
@@ -80,7 +78,7 @@ contract MovableCollateralRouterTest is Test {
         mailbox = new MockMailbox(1);
         router = new MockMovableCollateralRouter(address(mailbox));
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
-        vtb = new MockTokenBridge(token);
+        vtb = new MockITokenBridge(token);
 
         remote = vm.addr(10);
 

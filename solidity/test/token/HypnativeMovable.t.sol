@@ -3,13 +3,14 @@ pragma solidity ^0.8.13;
 
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
+import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 
 import "forge-std/Test.sol";
 
-contract MockTokenBridgeEth is ITokenBridge {
+contract MockITokenBridgeEth is ITokenBridge {
     constructor() {}
 
     function transferRemote(
@@ -31,7 +32,7 @@ contract MockTokenBridgeEth is ITokenBridge {
 
 contract HypNativeMovableTest is Test {
     HypNative internal router;
-    MockTokenBridgeEth internal vtb;
+    MockITokenBridgeEth internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
@@ -45,7 +46,7 @@ contract HypNativeMovableTest is Test {
             destinationDomain,
             bytes32(uint256(uint160(0)))
         );
-        vtb = new MockTokenBridgeEth();
+        vtb = new MockITokenBridgeEth();
     }
 
     function testMovingCollateral() public {

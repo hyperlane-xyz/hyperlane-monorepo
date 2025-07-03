@@ -12,19 +12,16 @@ contract HypFiatToken is HypERC20Collateral {
         address _mailbox
     ) HypERC20Collateral(_fiatToken, _scale, _mailbox) {}
 
-    function _transferFromSender(
-        uint256 _amount
-    ) internal override returns (bytes memory metadata) {
+    function _transferFromSender(uint256 _amount) internal override {
         // transfer amount to address(this)
-        metadata = super._transferFromSender(_amount);
+        HypERC20Collateral._transferFromSender(_amount);
         // burn amount of address(this) balance
         IFiatToken(address(wrappedToken)).burn(_amount);
     }
 
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata /*metadata*/
+        uint256 _amount
     ) internal override {
         require(
             IFiatToken(address(wrappedToken)).mint(_recipient, _amount),
