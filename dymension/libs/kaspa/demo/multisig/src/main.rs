@@ -1,4 +1,5 @@
 #![allow(unused)] // TODO: remove
+use eyre::{Result, eyre};
 
 mod x;
 
@@ -71,7 +72,7 @@ We will test against testnet 10. The wallet has 200'000 KAS available.
 
 
  */
-async fn demo() -> Result<(), Error> {
+async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
     let args = Args::parse();

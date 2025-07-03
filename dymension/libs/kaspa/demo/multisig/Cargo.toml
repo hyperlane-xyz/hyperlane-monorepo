@@ -21,3 +21,4 @@ workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 clap = { workspace = true }
+eyre = { workspace = true }

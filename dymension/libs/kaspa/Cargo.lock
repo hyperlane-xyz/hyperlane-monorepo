@@ -1771,6 +1771,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
+ "eyre",
  "hardcode",
  "kaspa-addresses",
  "kaspa-consensus-core",

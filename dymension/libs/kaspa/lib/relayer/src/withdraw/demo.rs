@@ -1,4 +1,5 @@
 use corelib::escrow::*;
+use eyre::{Result, eyre};
 
 use std::sync::Arc;
 
@@ -18,13 +19,10 @@ use kaspa_txscript::
     standard::pay_to_address_script
 ;
 use super::hub_to_kaspa::finalize_pskt;
+use super::hub_to_kaspa::sign_pay_fee;
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
-use kaspa_wallet_core::derivation::build_derivate_paths;
 
 // used by multisig demo
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
@@ -114,7 +112,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     e: &EscrowPublic,
     w_relayer: &Arc<Wallet>,
     s_relayer: &Secret,
-) -> Result<TransactionId, Error> {
+) -> Result<TransactionId> {
     info!("-> Relayer   is signing their copy...");
 
     let pskt_signed_relayer: PSKT<Signer> =
@@ -131,67 +129,3 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-// used by demo only
-pub async fn sign_pay_fee(
-    pskt: PSKT<Signer>,
-    w: &Arc<Wallet>,
-    s: &Secret,
-    payload: Vec<u8>,
-) -> Result<PSKT<Signer>, Error> {
-    // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
-    // It's a hack allowing to sign PSKT with a custom payload.
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
-
-    // Get the active account from the wallet and its address
-    let acc = w.account()?;
-
-    // Get private and public keys for the active account
-    let keydata = acc.prv_key_data(s.clone()).await?;
-    let xprv = keydata.get_xprv(Some(s))?;
-    let key_fingerprint = xprv.public_key().fingerprint();
-
-    // Create keypair from the private key
-    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
-    let pk = kp.public_key();
-
-    // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
-    // Use receive one as it is used in `Account.pskb_sign`.
-    let derivation = acc.as_derivation_capable()?;
-    let (derivation_path, _) = build_derivate_paths(
-        &derivation.account_kind(),
-        derivation.account_index(),
-        derivation.cosigner_index(),
-    )?;
-
-    // reused_values is something copied from the `pskb_signer_for_address` funciton
-    let reused_values = SigHashReusedValuesUnsync::new();
-
-    pskt.pass_signature_sync(|tx, sighash| {
-        // Sign tx as if it had a payload
-        let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = payload;
-        let tx_verifiable = tx_payload.as_verifiable();
-
-        tx_payload
-            .tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash =
-                    calc_schnorr_signature_hash(&tx_verifiable, idx, sighash[idx], &reused_values);
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: pk,
-                    key_source: Some(KeySource {
-                        key_fingerprint,
-                        derivation_path: derivation_path.clone(),
-                    }),
-                })
-            })
-            .collect()
-    })
-}
