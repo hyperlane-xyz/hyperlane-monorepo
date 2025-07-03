@@ -105,4 +105,7 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
+
+  // cttp token bridge
+  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }

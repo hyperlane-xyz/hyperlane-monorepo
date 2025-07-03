@@ -36,3 +36,6 @@ pub use types::*;
 
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;
+
+/// code related to testing
+pub mod tests;

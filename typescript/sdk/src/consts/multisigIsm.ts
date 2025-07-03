@@ -1655,6 +1655,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  noble: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x28495e5c72a7dafd1658e5d99dfeffaada175c46',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   nobletestnet: {
     threshold: 1,
     validators: [
@@ -2643,6 +2653,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  xrplevm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x14d3e2f28d60d54a1659a205cb71e6e440f06510',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
