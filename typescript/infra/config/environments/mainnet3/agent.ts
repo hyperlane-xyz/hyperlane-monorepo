@@ -614,6 +614,7 @@ const superswapIcaV2MatchingList = chainMapMatchingList({
 });
 
 // CTTP Token bridges that we use for rebalancing
+// https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/deployments/warp_routes/USDC/mainnet-cctp-config.yaml
 const cttpTokenBridgeMatchingList = chainMapMatchingList({
   avalanche: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677',
   unichain: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682',
