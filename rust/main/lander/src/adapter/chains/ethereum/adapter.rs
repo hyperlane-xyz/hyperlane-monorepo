@@ -117,18 +117,11 @@ impl EthereumAdapter {
         Ok(adapter)
     }
 
-    async fn set_nonce_if_needed(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
+    async fn calculate_nonce(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 
-    async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        if tx.precursor().tx.gas().is_none() {
-            self.estimate_tx(tx).await?;
-        }
-        Ok(())
-    }
-
-    async fn set_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
+    async fn estimate_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
         // even if the gas price is already set, we still want to (re-)estimate it
         // to be resilient to gas spikes
         let old_tx_precursor = tx.precursor();
@@ -549,11 +542,9 @@ impl AdaptsChain for EthereumAdapter {
         let tx_for_gas_price = tx.clone();
 
         let (nonce, gas_price) = try_join!(
-            self.set_nonce_if_needed(&tx_for_nonce),
-            self.set_gas_price(&tx_for_gas_price)
+            self.calculate_nonce(&tx_for_nonce),
+            self.estimate_gas_price(&tx_for_gas_price)
         )?;
-
-        self.set_gas_limit_if_needed(tx).await?;
 
         self.update_tx(tx, nonce, gas_price);
 
