@@ -146,8 +146,6 @@ cargo run kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456
 # kastest10 domain is 80808082
 dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
-
-
 #### APPENDIX: DEBUG TIPS 
 
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
