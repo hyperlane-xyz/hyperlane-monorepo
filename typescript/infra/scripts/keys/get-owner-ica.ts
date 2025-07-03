@@ -14,7 +14,6 @@ import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import {
   chainsToSkip,
   legacyEthIcaRouter,
-  legacyIcaChainRouters,
   legacyIcaChains,
 } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
@@ -96,15 +95,17 @@ async function main() {
         : ownerChainInterchainAccountRouter;
 
       try {
-        const account = await ica.getAccount(chain, ownerConfig, icaRouter);
+        const account = await ica.getAccount(chain, {
+          ...ownerConfig,
+          localRouter: icaRouter,
+        });
         const result: { ICA: Address; Deployed?: string } = { ICA: account };
 
         if (deploy) {
-          const deployedAccount = await ica.deployAccount(
-            chain,
-            ownerConfig,
-            icaRouter,
-          );
+          const deployedAccount = await ica.deployAccount(chain, {
+            ...ownerConfig,
+            localRouter: icaRouter,
+          });
           result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
           if (result.Deployed === '❌') {
             rootLogger.warn(

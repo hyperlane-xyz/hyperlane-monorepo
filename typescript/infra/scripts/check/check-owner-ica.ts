@@ -13,7 +13,7 @@ import {
   getGovernanceIcas,
   getGovernanceSafes,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import { chainsToSkip, legacyIcaChainRouters } from '../../src/config/chain.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
@@ -79,11 +79,10 @@ async function main() {
       rootLogger.error(`No expected address found for ${chain}`);
       continue;
     }
-    const actualAccount = await interchainAccountApp.getAccount(
-      chain,
-      ownerConfig,
-      ownerChainInterchainAccountRouter,
-    );
+    const actualAccount = await interchainAccountApp.getAccount(chain, {
+      ...ownerConfig,
+      localRouter: ownerChainInterchainAccountRouter,
+    });
     if (!eqAddress(expectedAddress, actualAccount)) {
       mismatchedResults[chain] = {
         Expected: expectedAddress,
