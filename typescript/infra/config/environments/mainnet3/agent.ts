@@ -615,12 +615,12 @@ const superswapIcaV2MatchingList = chainMapMatchingList({
 
 // CTTP Token bridges that we use for rebalancing
 const cttpTokenBridgeMatchingList = chainMapMatchingList({
-  avalanche: '0x30140FC01533586C3876161a1d1BAd846C13dC56',
-  unichain: '0xF476A9670Aa52A7af6c0E0213BD1cCDb1f841f5d',
-  optimism: '0x65b65C95BBF0C625654A3AABb89F634CdBaf8964',
-  arbitrum: '0xc7d592fc9Ac2481a814CDCD5efaAB422c8d1F793',
-  base: '0x370F57B343b52416bba5df4747fd7c03921bFA55',
-  ethereum: '0x7f1514C5743CBE4AEF633393963BB3aC7E5f084C',
+  avalanche: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677',
+  unichain: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682',
+  optimism: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE',
+  arbitrum: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2',
+  base: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975',
+  ethereum: '0xedCBAa585FD0F80f20073F9958246476466205b8',
 });
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
