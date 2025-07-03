@@ -85,10 +85,9 @@ class CCTPService extends BaseService {
     receipt: ethers.providers.TransactionReceipt,
     logger: Logger,
   ) {
-    logger.debug(
+    logger.info(
       {
         transactionHash: receipt.transactionHash,
-        logsCount: receipt.logs.length,
       },
       'Extracting CCTP message from receipt',
     );
@@ -100,7 +99,7 @@ class CCTPService extends BaseService {
       try {
         const parsedLog = iface.parseLog(receiptLog);
         if (parsedLog.name === event.name) {
-          logger.debug(
+          logger.info(
             { cctpMessage: parsedLog.args.message },
             'Found CCTP MessageSent event',
           );
@@ -123,10 +122,13 @@ class CCTPService extends BaseService {
   async getCCTPAttestation(message: string, logger: Logger) {
     const log = this.addLoggerServiceContext(logger);
 
-    log.info({ cctpMessage: message }, 'Processing CCTP attestation request');
+    log.info(
+      { hyperlaneMessage: message },
+      'Processing CCTP attestation request',
+    );
 
     const messageId: string = ethers.utils.keccak256(message);
-    log.debug({ messageId }, 'Generated message ID');
+    log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
@@ -138,7 +140,7 @@ class CCTPService extends BaseService {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    log.info({ txHash }, 'Retrieved transaction hash');
+    log.info({ txHash, messageId }, 'Retrieved transaction hash');
 
     const parsedMessage = parseMessage(message);
 
@@ -158,6 +160,8 @@ class CCTPService extends BaseService {
       {
         messageId,
         attestation,
+        cctpMessage,
+        relayedCctpMessage,
       },
       'CCTP attestation retrieved successfully',
     );
