@@ -698,7 +698,7 @@ export function writeAddresses(
   addressesMap: ChainMap<Record<string, Address>>,
   targetNetworks?: ChainName[],
 ) {
-  if (targetNetworks) {
+  if (targetNetworks && targetNetworks.length > 0) {
     addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
       return targetNetworks.includes(chain as ChainName);
     });
