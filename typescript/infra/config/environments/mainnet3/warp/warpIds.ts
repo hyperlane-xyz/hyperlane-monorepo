@@ -105,5 +105,5 @@ export enum WarpRouteIds {
   stHYPER = 'stHYPER/bsc-ethereum',
 
   // cttp token bridge
-  USDC_MAINNET_CCTP = 'USDC/mainnet-cctp',
+  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }
