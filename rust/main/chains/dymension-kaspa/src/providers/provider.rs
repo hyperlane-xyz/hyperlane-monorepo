@@ -162,7 +162,11 @@ impl KaspaProvider {
             let mut bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
             info!("Kaspa provider, got validator bundles, now signing relayer fee");
             if bundles_validators.len() < self.conf.multisig_threshold_kaspa as usize {
-                return Err(eyre!("Not enough validator bundles, required: {}, got: {}", self.conf.multisig_threshold_kaspa, bundles_validators.len()));
+                return Err(eyre!(
+                    "Not enough validator bundles, required: {}, got: {}",
+                    self.conf.multisig_threshold_kaspa,
+                    bundles_validators.len()
+                ));
             }
 
             let bundle_relayer = self.sign_relayer_fee(&fxg).await?; // TODO: can add own sig in parallel to validator network request
@@ -348,7 +352,12 @@ fn finalize_txs(
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, messages)| finalize_pskt(tx, messages, escrow_pubs.clone()))
+        .map(|(tx, messages)| {
+            let msg_ids_bytes = MessageIDs::from(messages)
+                .to_bytes()
+                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
+        })
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;

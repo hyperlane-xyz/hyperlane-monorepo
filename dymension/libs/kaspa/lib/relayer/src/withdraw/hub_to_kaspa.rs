@@ -1,8 +1,8 @@
-use anyhow::Result;
+use eyre::Result;
+
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
-use corelib::wallet::NetworkInfo;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -21,17 +21,93 @@ use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
 use kaspa_hashes;
-use kaspa_rpc_core::{RpcUtxoEntry, RpcUtxosByAddressesEntry};
-use kaspa_txscript;
+use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
+use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use std::collections::BTreeMap;
+use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
+
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
+use kaspa_addresses::Prefix;
+use kaspa_wallet_pskt::prelude::Bundle;
+use tracing::info;
+
+pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
+    let addr = kaspa_addresses::Address::new(
+        prefix,
+        kaspa_addresses::Version::PubKey, // should always be PubKey
+        recipient.as_bytes(),
+    );
+    addr
+}
+
+/// Processes given messages and returns WithdrawFXG and the very first outpoint
+/// (the one preceding all the given transfers; it should be used during process indication).
+pub async fn on_new_withdrawals(
+    messages: Vec<HyperlaneMessage>,
+    relayer: EasyKaspaWallet,
+    cosmos: CosmosGrpcClient,
+    escrow_public: EscrowPublic,
+    hub_height: Option<u32>,
+) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
+    info!("Kaspa relayer, getting pending withdrawals");
+    let (outpoint, pending_messages) = get_pending_withdrawals(messages, &cosmos, hub_height)
+        .await
+        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
+    info!("Kaspa relayer, got pending withdrawals");
+
+    let withdrawal_details: Vec<_> = pending_messages
+        .iter()
+        .filter_map(|m| {
+            match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
+                Ok(msg) => {
+                    let kaspa_recipient =
+                        get_recipient_address(m.recipient, relayer.network_info.address_prefix);
+
+                    Some(WithdrawalDetails {
+                        message_id: m.id(),
+                        recipient: kaspa_recipient,
+                        amount_sompi: msg.amount().as_u64(),
+                    })
+                }
+                Err(e) => None, // TODO: log?
+            }
+        })
+        .collect();
+
+    if withdrawal_details.is_empty() {
+        info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
+        return Ok(None); // nothing to process
+    }
+    info!(
+        "Kaspa relayer, got pending withdrawals, building PSKT, len: {}",
+        withdrawal_details.len()
+    );
+
+    let pskt = build_withdrawal_pskt(
+        withdrawal_details,
+        &relayer.api(),
+        &escrow_public,
+        &relayer.account(),
+        &outpoint,
+        relayer.network_info.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    // We have a bundle with one PSKT which covers all the HL messages.
+    Ok(Some((
+        WithdrawFXG::new(Bundle::from(pskt), vec![pending_messages]),
+        outpoint,
+    )))
+}
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -571,4 +647,87 @@ mod tests {
             "Number of proprietaries should be preserved"
         );
     }
+}
+
+// used by multisig demo AND real code
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    payload: Vec<u8>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<RpcTransaction, Error> {
+    let finalized_pskt = c
+        .finalizer()
+        .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+            Ok(inner
+                .inputs
+                .iter()
+                .enumerate()
+                .map(|(i, input)| -> Vec<u8> {
+                    match input.sig_op_count {
+                        Some(n) => {
+                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
+                                // relayer UTXO
+
+                                let sig = input
+                                    .partial_sigs
+                                    .iter()
+                                    .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
+                                    .next()
+                                    .unwrap()
+                                    .1
+                                    .into_bytes();
+
+                                iter::once(65u8)
+                                    .chain(sig)
+                                    .chain([input.sighash_type.to_u8()])
+                                    .collect()
+                            } else {
+                                // escrow UTXO
+
+                                // Return the full script
+
+                                // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                                // ORIGINAL COMMENT: considering xpubs sorted order
+
+                                // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                                let sigs: Vec<_> = escrow_pubs
+                                    .iter()
+                                    .flat_map(|kp| {
+                                        let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                        iter::once(OpData65)
+                                            .chain(sig)
+                                            .chain([input.sighash_type.to_u8()])
+                                    })
+                                    .collect();
+
+                                // Then add the multisig redeem script to the end
+                                sigs.into_iter()
+                                    .chain(
+                                        ScriptBuilder::new()
+                                            .add_data(
+                                                input.redeem_script.as_ref().unwrap().as_slice(),
+                                            )
+                                            .unwrap()
+                                            .drain()
+                                            .iter()
+                                            .cloned(),
+                                    )
+                                    .collect()
+                            };
+                        }
+                        None => vec![], // Should not happen
+                    }
+                })
+                .collect())
+        })
+        .unwrap();
+
+    let mass = 10_000; // TODO: why? is it okay to keep this value?
+    let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
+
+    // Inject the expected payload
+    tx.payload = payload;
+
+    let rpc_tx = (&tx).into();
+    Ok(rpc_tx)
 }

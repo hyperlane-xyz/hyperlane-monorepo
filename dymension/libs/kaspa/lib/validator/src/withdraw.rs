@@ -21,6 +21,7 @@ pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
 }
 
 // Mimic a parallel multi-validator signing process
+// used by multisig demo
 pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
     let signed: Vec<PSKT<Signer>> = e
         .keys
