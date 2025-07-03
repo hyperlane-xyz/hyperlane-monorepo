@@ -1,4 +1,5 @@
 use super::endpoints::*;
+use super::providers::KaspaProvider;
 use axum::{
     body::Bytes,
     extract::State,
@@ -8,9 +9,14 @@ use axum::{
     Router,
 };
 use dym_kas_core::deposit::DepositFXG;
+use dym_kas_core::payload::MessageIDs;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
+use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::sign_pskt;
+use dym_kas_validator::withdraw::validate_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
+use eyre::eyre;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
@@ -23,11 +29,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tracing::{info, warn};
-
-use super::providers::KaspaProvider;
-use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
-use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::validate_withdrawals;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
@@ -190,8 +191,14 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     // Iterate over (PSKT; associated HL messages) pairs
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt =
-            sign_pskt(&resources.must_kas_key(), pskt, messages).map_err(|e| AppError(e.into()))?;
+
+        let payload_msg_ids = MessageIDs::from(messages)
+            .to_bytes()
+            .map_err(|e| AppError(eyre::eyre!("Deserialize MessageIDs: {}", e)))?;
+
+        let signed_pskt = sign_pskt(&resources.must_kas_key(), pskt, payload_msg_ids)
+            .map_err(|e| AppError(e.into()))?;
+
         signed.push(signed_pskt);
     }
     info!("Validator: signed pskts");

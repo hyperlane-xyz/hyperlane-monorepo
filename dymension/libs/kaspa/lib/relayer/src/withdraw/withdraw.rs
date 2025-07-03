@@ -25,8 +25,11 @@ use kaspa_rpc_core::model::RpcTransaction;
 use corelib::payload;
 use corelib::payload::{MessageID, MessageIDs};
 use hyperlane_core::{HyperlaneMessage, HyperlaneSignerExt};
-use kaspa_consensus_core::hashing::sighash::calc_schnorr_signature_hash;
+use kaspa_consensus_core::hashing::sighash::{
+    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
+};
 use kaspa_wallet_core::account::pskb::PSKBSigner;
+use kaspa_wallet_core::derivation::build_derivate_paths;
 use std::iter;
 
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
@@ -119,7 +122,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     info!("-> Relayer   is signing their copy...");
 
     let pskt_signed_relayer: PSKT<Signer> =
-        sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+        sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer, vec![]).await?;
     let combiner = pskt_signed_relayer.combiner();
     let pskt_signed = (combiner + pskt_signed_vals).unwrap();
 
@@ -219,53 +222,69 @@ pub fn finalize_pskt(
 }
 
 pub async fn sign_pay_fee(
-    pskt_unsigned: PSKT<Signer>,
+    pskt: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,
+    payload: Vec<u8>,
 ) -> Result<PSKT<Signer>, Error> {
-    // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+    // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
+    // It's a hack allowing to sign PSKT with a custom payload.
+    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
 
-    // let addr = w.account()?.change_address()?;
-    // let keydata = w.prv_key_data(s.clone());
-    // let signer = Arc::new(PSKBSigner::new(w.account()?.clone().as_dyn_arc(), keydata.clone(), None));
-    //
-    // pskt_unsigned
-    //         .pass_signature_sync(|tx, sighash| -> kaspa_wallet_core::result::Result<Vec<SignInputOk>, String> {
-    //             tx.tx
-    //                 .inputs
-    //                 .iter()
-    //                 .enumerate()
-    //                 .map(|(idx, _input)| {
-    //                     let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
-    //                     let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
-    //
-    //                     // When address represents a locked UTXO, no private key is available.
-    //                     // Instead, use the account receive address' private key.
-    //                     let address = &addr;
-    //
-    //                     let public_key = signer.public_key(address).expect("Public key for input indexed address");
-    //
-    //                     signer.sign().await?;
-    //                     Ok(SignInputOk {
-    //                         signature: Signature::Schnorr(signer.sign_schnorr(address, msg).unwrap()),
-    //                         pub_key: public_key,
-    //                         key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
-    //                     })
-    //                 })
-    //                 .collect()
-    //         })
-    //         .unwrap();
+    // Get the active account from the wallet and its address
+    let acc = w.account()?;
 
-    let bundle = Bundle::from(pskt_unsigned);
-    let addr = w.account()?.change_address()?;
-    let sign_for_address = Some(&addr);
-    let bundle_signed = w
-        .account()?
-        .pskb_sign(&bundle, s.clone(), None, sign_for_address)
-        .await?;
+    // Get private and public keys for the active account
+    let keydata = acc.prv_key_data(s.clone()).await?;
+    let xprv = keydata.get_xprv(Some(s))?;
+    let key_fingerprint = xprv.public_key().fingerprint();
 
-    let pskt_done = bundle_signed.iter().next().unwrap();
+    // Create keypair from the private key
+    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
+    let pk = kp.public_key();
 
-    let combiner = PSKT::from(pskt_done.clone());
-    Ok(combiner)
+    // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
+    // Use receive one as it is used in `Account.pskb_sign`.
+    let derivation = acc.as_derivation_capable()?;
+    let (derivation_path, _) = build_derivate_paths(
+        &derivation.account_kind(),
+        derivation.account_index(),
+        derivation.cosigner_index(),
+    )?;
+
+    // reused_values is something copied from the `pskb_signer_for_address` funciton
+    let reused_values = SigHashReusedValuesUnsync::new();
+
+    pskt.pass_signature_sync(|tx, sighash| {
+        // Sign tx as if it had a payload
+        let mut tx_payload = tx.clone();
+        tx_payload.tx.payload = payload;
+        let tx_verifiable = tx_payload.as_verifiable();
+
+        tx_payload
+            .tx
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(idx, _input)| {
+                let hash = calc_schnorr_signature_hash(
+                    &tx_verifiable,
+                    idx,
+                    sighash[idx],
+                    &reused_values,
+                );
+                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
+                    .map_err(|e| e.to_string())?;
+                Ok(SignInputOk {
+                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
+                    pub_key: pk,
+                    key_source: Some(KeySource {
+                        key_fingerprint,
+                        derivation_path: derivation_path.clone(),
+                    }),
+                })
+            })
+            .collect()
+    })
 }

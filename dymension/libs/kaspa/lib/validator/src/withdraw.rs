@@ -49,18 +49,16 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
 pub fn sign_pskt(
     kp: &SecpKeypair,
     pskt: PSKT<Signer>,
-    messages: Vec<HyperlaneMessage>,
+    payload: Vec<u8>,
 ) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
-
-    let msg_ids_bytes = MessageIDs::from(messages)
-        .to_bytes()
-        .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+    let pk = kp.public_key();
 
     pskt.pass_signature_sync(|tx, sighashes| {
         // Sign tx as if it had a payload
         let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = msg_ids_bytes;
+        tx_payload.tx.payload = payload;
+        let tx_verifiable = tx_payload.as_verifiable();
 
         tx_payload
             .tx
@@ -69,7 +67,7 @@ pub fn sign_pskt(
             .enumerate()
             .map(|(idx, _input)| {
                 let hash = calc_schnorr_signature_hash(
-                    &tx_payload.as_verifiable(),
+                    &tx_verifiable,
                     idx,
                     sighashes[idx], // TODO: don't forget need to verify it's what's expected
                     &reused_values,
@@ -78,7 +76,7 @@ pub fn sign_pskt(
                     .map_err(|e| e.to_string())?;
                 Ok(SignInputOk {
                     signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: kp.public_key(),
+                    pub_key: pk,
                     key_source: None,
                 })
             })

@@ -1,7 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
-use eyre::Result as EyreResult;
+use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -41,6 +41,7 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use kaspa_consensus_core::tx::TransactionOutpoint;
+use dym_kas_core::payload::MessageIDs;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -212,9 +213,15 @@ impl KaspaProvider {
         let secret = self.easy_wallet.secret.clone();
 
         let mut signed = Vec::new();
-        for pskt in fxg.bundle.iter() {
+        // Iterate over (PSKT; associated HL messages) pairs
+        for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
             let pskt = PSKT::<Signer>::from(pskt.clone());
-            signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
+
+            let payload_msg_ids = MessageIDs::from(messages)
+                .to_bytes()
+                .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+            signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
         }
         Ok(Bundle::from(signed))
     }
