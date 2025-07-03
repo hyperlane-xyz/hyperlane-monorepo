@@ -344,4 +344,11 @@ contract TokenBridgeCctp is
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
     }
+
+    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
+        require(
+            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message body length"
+        );
+    }
 }
