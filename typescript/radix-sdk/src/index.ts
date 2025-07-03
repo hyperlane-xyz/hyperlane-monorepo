@@ -5,22 +5,23 @@ import {
   PrivateKey,
   SimpleTransactionBuilder,
 } from '@radixdlt/radix-engine-toolkit';
+import { getRandomValues } from 'crypto';
 import fetch from 'node-fetch';
 // 2.6.9
-import { default as http, default as https } from 'node:http';
+import { default as http, default as https } from 'node:https';
 
 // NOTE:
 // To run this, you will need to have a local node running - see https://github.com/radixdlt/babylon-node/tree/main/testnet-node
 // Then check out this repository, go to examples/core-e2e-example, and run `yarn` to install followed by `yarn start`
 
 // Polyfill global crypto (works on NodeJS 15+) - comment the below line out if wanting to run this a web browser
-global.crypto = require('crypto').webcrypto;
+// global.crypto = require('crypto').webcrypto;
 
 export async function generateSecureRandomBytes(
   count: number,
 ): Promise<Uint8Array> {
   const byteArray = new Uint8Array(count);
-  global.crypto.getRandomValues(byteArray);
+  getRandomValues(byteArray);
   return byteArray;
 }
 
@@ -32,7 +33,7 @@ async function generateEd25519PrivateKey(): Promise<PrivateKey> {
 
 const networkId = NetworkId.Simulator; // For mainnet, use NetworkId.Mainnet
 const logicalNetworkName = 'stokenet'; // For mainnet, use "mainnet"
-const coreApiBase = 'http://127.0.0.1:3333/core'; // Note - in nodeJS, you may need to use 127.0.0.1 instead of localhost
+const coreApiBase = 'https://stokenet.radixdlt.com'; // Note - in nodeJS, you may need to use 127.0.0.1 instead of localhost
 const dashboardBase = 'https://stokenet-dashboard.radixdlt.com'; // For mainnet, use "https://dashboard.radixdlt.com"
 
 async function generateNewEd25519VirtualAccount(networkId: number) {
