@@ -15,7 +15,7 @@ impl NonceManagerState {
         nonce: &Option<U256>,
     ) -> NonceResult<U256> {
         if let Some(nonce) = nonce {
-            // If different nonce was assigned to the transaction,
+            // If the different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
             warn!(
                 ?nonce,
