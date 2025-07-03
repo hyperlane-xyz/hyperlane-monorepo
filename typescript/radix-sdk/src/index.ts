@@ -126,6 +126,7 @@ async function getTestnetXrd(
   return intentHashTransactionId;
 }
 
+// @ts-ignore
 const main = async () => {
   const account1 = await generateNewEd25519VirtualAccount(networkId);
   const account2 = await generateNewEd25519VirtualAccount(networkId);
@@ -216,6 +217,34 @@ const main = async () => {
     },
   });
   await pollForCommit(gateway, intentHashTransactionId.id);
+
+  const transactionReceipt =
+    await gateway.transaction.innerClient.transactionCommittedDetails({
+      transactionCommittedDetailsRequest: {
+        intent_hash: intentHashTransactionId.id,
+      },
+    });
+  console.log(transactionReceipt);
 };
 
-main();
+// retrieve newly created mailbox id after init
+const getTransactionDetails = async () => {
+  const gateway = GatewayApiClient.initialize({
+    applicationName,
+    networkId,
+  });
+
+  const transactionReceipt = await gateway.transaction.getCommittedDetails(
+    'txid_tdx_2_1wf3z84nvnpltuv6uar7y3phcz7k4qqn74n2chgc9mzfnlzkh256s047a6g',
+  );
+  const mailbox = (
+    transactionReceipt.transaction.receipt?.state_updates as any
+  ).new_global_entities.find(
+    (entity: any) => entity.entity_type === 'GlobalGenericComponent',
+  ).entity_address;
+
+  console.log(mailbox);
+};
+
+// main();
+getTransactionDetails();
