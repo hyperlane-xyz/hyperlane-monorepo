@@ -144,7 +144,7 @@ async fn demo() -> Result<()> {
         &fxg,
         e.m(),
         e.public(e2e_address_prefix).pubs.clone(),
-        &w,
+        &w, // TODO: instead of using wallet directly, need to create easy wallet object
     )
     .await?;
 
