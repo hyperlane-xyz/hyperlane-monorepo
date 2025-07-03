@@ -8447,6 +8447,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@radixdlt/babylon-core-api-sdk": "npm:^1.3.0"
+    "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-engine-toolkit": "npm:^1.0.5"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
@@ -12115,6 +12116,13 @@ __metadata:
   version: 1.3.0
   resolution: "@radixdlt/babylon-core-api-sdk@npm:1.3.0"
   checksum: 10/1a38296483d39fc30246fbbd99710c448f056132c462e0deb1941912e36f9e831c35de635bdc57c92b33bfe9d8a499e2dbf291be31494c22f98fe6388b616fc6
+  languageName: node
+  linkType: hard
+
+"@radixdlt/babylon-gateway-api-sdk@npm:^1.10.1":
+  version: 1.10.1
+  resolution: "@radixdlt/babylon-gateway-api-sdk@npm:1.10.1"
+  checksum: 10/9d0c5158784a979f426ec486a18bf9906c8fef21dd2f8d1d0dacad48b0314d6dfb1686a45966c3a987154b23d2cdccfcccb80f2185a46edcfb8d49ccd9e0ccec
   languageName: node
   linkType: hard
 

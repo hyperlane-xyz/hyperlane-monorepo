@@ -1,4 +1,4 @@
-import { CoreApiClient } from '@radixdlt/babylon-core-api-sdk';
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   NetworkId,
@@ -6,16 +6,6 @@ import {
   SimpleTransactionBuilder,
 } from '@radixdlt/radix-engine-toolkit';
 import { getRandomValues } from 'crypto';
-import fetch from 'node-fetch';
-// 2.6.9
-import { default as http, default as https } from 'node:https';
-
-// NOTE:
-// To run this, you will need to have a local node running - see https://github.com/radixdlt/babylon-node/tree/main/testnet-node
-// Then check out this repository, go to examples/core-e2e-example, and run `yarn` to install followed by `yarn start`
-
-// Polyfill global crypto (works on NodeJS 15+) - comment the below line out if wanting to run this a web browser
-// global.crypto = require('crypto').webcrypto;
 
 export async function generateSecureRandomBytes(
   count: number,
@@ -31,9 +21,8 @@ async function generateEd25519PrivateKey(): Promise<PrivateKey> {
   return new PrivateKey.Ed25519(await generateSecureRandomBytes(32));
 }
 
-const networkId = NetworkId.Simulator; // For mainnet, use NetworkId.Mainnet
-const logicalNetworkName = 'stokenet'; // For mainnet, use "mainnet"
-const coreApiBase = 'https://stokenet.radixdlt.com'; // Note - in nodeJS, you may need to use 127.0.0.1 instead of localhost
+const networkId = NetworkId.Stokenet; // For mainnet, use NetworkId.Mainnet
+const applicationName = 'Hyperlane Test';
 const dashboardBase = 'https://stokenet-dashboard.radixdlt.com'; // For mainnet, use "https://dashboard.radixdlt.com"
 
 async function generateNewEd25519VirtualAccount(networkId: number) {
@@ -43,7 +32,6 @@ async function generateNewEd25519VirtualAccount(networkId: number) {
     publicKey,
     networkId,
   );
-
   return {
     privateKey,
     publicKey,
@@ -53,16 +41,17 @@ async function generateNewEd25519VirtualAccount(networkId: number) {
 }
 
 async function pollForCommit(
-  coreApiClient: CoreApiClient,
+  gateway: GatewayApiClient,
   intentHashTransactionId: string,
 ): Promise<void> {
   const pollAttempts = 200;
   const pollDelayMs = 5000;
 
   for (let i = 0; i < pollAttempts; i++) {
-    const statusOutput = await coreApiClient.LTS.getTransactionStatus({
-      intent_hash: intentHashTransactionId,
-    });
+    const statusOutput =
+      await gateway.transaction.innerClient.transactionStatus({
+        transactionStatusRequest: { intent_hash: intentHashTransactionId },
+      });
     switch (statusOutput.intent_status) {
       case 'CommittedSuccess':
         console.info(
@@ -70,15 +59,11 @@ async function pollForCommit(
         );
         return;
       case 'CommittedFailure':
-      case 'PermanentRejection':
         // You will typically wish to build a new transaction and try again.
         throw new Error(
-          `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.status_description}`,
+          `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.intent_status_description}`,
         );
-      case 'NotSeen':
-      case 'InMempool':
-      case 'FateUncertain':
-      case 'FateUncertainButLikelyRejection':
+      case 'CommitPendingOutcomeUnknown':
         // We keep polling
         if (i < pollAttempts) {
           console.debug(
@@ -86,7 +71,7 @@ async function pollForCommit(
               i + 1
             }/${pollAttempts} - retrying in ${pollDelayMs}ms] - STATUS: ${
               statusOutput.intent_status
-            } DESCRIPTION: ${statusOutput.status_description}`,
+            } DESCRIPTION: ${statusOutput.intent_status_description}`,
           );
           await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
         } else {
@@ -95,7 +80,7 @@ async function pollForCommit(
               pollAttempts * pollDelayMs
             }ms - instead it resulted in STATUS: ${
               statusOutput.intent_status
-            } DESCRIPTION: ${statusOutput.status_description}`,
+            } DESCRIPTION: ${statusOutput.intent_status_description}`,
           );
         }
     }
@@ -103,25 +88,27 @@ async function pollForCommit(
 }
 
 async function getTestnetXrd(
-  coreApiClient: CoreApiClient,
+  gateway: GatewayApiClient,
   accountAddress: string,
 ): Promise<string> {
   const constructionMetadata =
-    await coreApiClient.LTS.getConstructionMetadata();
+    await gateway.transaction.innerClient.transactionConstruction();
 
   const freeXrdForAccountTransaction =
     await SimpleTransactionBuilder.freeXrdFromFaucet({
       networkId,
       toAccount: accountAddress,
-      validFromEpoch: constructionMetadata.current_epoch,
+      validFromEpoch: constructionMetadata.ledger_state.epoch,
     });
 
   const intentHashTransactionId = freeXrdForAccountTransaction.transactionId.id;
 
-  await coreApiClient.LTS.submitTransaction({
-    notarized_transaction_hex: freeXrdForAccountTransaction.toHex(),
+  await gateway.transaction.innerClient.transactionSubmit({
+    transactionSubmitRequest: {
+      notarized_transaction_hex: freeXrdForAccountTransaction.toHex(),
+    },
   });
-  await pollForCommit(coreApiClient, intentHashTransactionId);
+  await pollForCommit(gateway, intentHashTransactionId);
 
   return intentHashTransactionId;
 }
@@ -136,18 +123,14 @@ const main = async () => {
   console.log(`Account 1: ${account1.dashboardLink}`);
   console.log(`Account 2: ${account2.dashboardLink}`);
 
-  const coreApiClient = await CoreApiClient.initialize({
-    basePath: coreApiBase,
-    logicalNetworkName,
-    fetch,
-    // Configuration for fixing issues with node-fetch
-    httpAgent: new http.Agent({ keepAlive: true }),
-    httpsAgent: new https.Agent({ keepAlive: true }),
+  const gateway = GatewayApiClient.initialize({
+    applicationName,
+    networkId,
   });
 
   // NOTE - The faucet is empty on mainnet
   const faucetIntentHashTransactionId = await getTestnetXrd(
-    coreApiClient,
+    gateway,
     account1.address,
   );
 
@@ -156,10 +139,10 @@ const main = async () => {
   );
 
   const constructionMetadata =
-    await coreApiClient.LTS.getConstructionMetadata();
+    await gateway.transaction.innerClient.transactionConstruction();
   const builder = await SimpleTransactionBuilder.new({
     networkId,
-    validFromEpoch: constructionMetadata.current_epoch,
+    validFromEpoch: constructionMetadata.ledger_state.epoch,
     fromAccount: account1.address,
     signerPublicKey: account1.publicKey,
   });
@@ -185,10 +168,12 @@ const main = async () => {
   console.log(
     `Submitting XRD transfer from account 1 to account 2: ${intentHashTransactionId}`,
   );
-  await coreApiClient.LTS.submitTransaction({
-    notarized_transaction_hex: notarizedTransaction.toHex(),
+  await gateway.transaction.innerClient.transactionSubmit({
+    transactionSubmitRequest: {
+      notarized_transaction_hex: notarizedTransaction.toHex(),
+    },
   });
-  await pollForCommit(coreApiClient, intentHashTransactionId);
+  await pollForCommit(gateway, intentHashTransactionId);
 };
 
 main();
