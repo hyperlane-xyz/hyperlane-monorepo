@@ -211,6 +211,58 @@ contract TokenBridgeCctp is
         return true;
     }
 
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.CCTP);
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function supportsMetadata(
+        bytes calldata metadata
+    ) public pure override returns (bool) {
+        return true;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) external pure override returns (uint256) {
+        return 0;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function postDispatch(
+        bytes calldata /*metadata*/,
+        bytes calldata message
+    ) external payable override {
+        require(_isLatestDispatched(message.id()), "Message not dispatched");
+
+        uint32 destination = message.destination();
+        bytes32 ism = _mustHaveRemoteRouter(destination);
+        uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
+        messageTransmitter.sendMessageWithCaller({
+            destinationDomain: circleDestination,
+            recipient: ism,
+            // enforces that only the enrolled ISM's verify() can deliver the CCTP message
+            destinationCaller: ism,
+            messageBody: abi.encode(message.id())
+        });
+    }
+
+    /// @inheritdoc IMessageHandler
+    function handleReceiveMessage(
+        uint32 /*sourceDomain*/,
+        bytes32 /*sender*/,
+        bytes calldata /*body*/
+    ) external override returns (bool) {
+        require(
+            msg.sender == address(messageTransmitter),
+            "Invalid message transmitter"
+        );
+        return true;
+    }
+
     function _validateMessageLength(bytes memory _tokenMessage) internal pure {
         require(
             _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
@@ -291,57 +343,5 @@ contract TokenBridgeCctp is
         bytes calldata metadata
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.HookTypes.CCTP);
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function supportsMetadata(
-        bytes calldata metadata
-    ) public pure override returns (bool) {
-        return true;
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (uint256) {
-        return 0;
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function postDispatch(
-        bytes calldata /*metadata*/,
-        bytes calldata message
-    ) external payable override {
-        require(_isLatestDispatched(message.id()), "Message not dispatched");
-
-        uint32 destination = message.destination();
-        bytes32 ism = _mustHaveRemoteRouter(destination);
-        uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
-        messageTransmitter.sendMessageWithCaller({
-            destinationDomain: circleDestination,
-            recipient: ism,
-            // enforces that only the enrolled ISM's verify() can deliver the CCTP message
-            destinationCaller: ism,
-            messageBody: abi.encode(message.id())
-        });
-    }
-
-    /// @inheritdoc IMessageHandler
-    function handleReceiveMessage(
-        uint32 /*sourceDomain*/,
-        bytes32 /*sender*/,
-        bytes calldata /*body*/
-    ) external override returns (bool) {
-        require(
-            msg.sender == address(messageTransmitter),
-            "Invalid message transmitter"
-        );
-        return true;
     }
 }
