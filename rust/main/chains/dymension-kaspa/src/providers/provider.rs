@@ -139,9 +139,7 @@ impl KaspaProvider {
     /// Returns next outpoint
     pub async fn process_withdrawal_messages(
         &self,
-        // fxg: WithdrawFXG,
         msgs: Vec<HyperlaneMessage>,
-        // prev_outpoint: TransactionOutpoint,
     ) -> Result<()> {
         let res = on_new_withdrawals(
             msgs,

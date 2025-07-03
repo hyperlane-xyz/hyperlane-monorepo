@@ -22,3 +22,4 @@ tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 clap = { workspace = true }
 eyre = { workspace = true }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }

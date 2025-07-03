@@ -30,6 +30,8 @@ use kaspa_consensus_core::{
         TransactionOutput, UtxoEntry,
     },
 };
+use corelib::withdraw::WithdrawFXG;
+use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
@@ -48,6 +50,7 @@ use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
+use relayer::withdraw::messages::WithdrawalDetails;
 
 /*
 Demo:
@@ -101,6 +104,30 @@ async fn demo() -> Result<()> {
     check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
     let user_addr = w.account()?.receive_address()?;
+    
+    let details = WithdrawalDetails{
+        message_id: H256::random(),
+        recipient: user_addr,
+        amount_sompi: amt,
+    };
+
+    let outpoint = TransactionOutpoint::new(tx_id, 0); // TODO:
+
+    let pskt = build_withdrawal_pskt(
+        vec![details],
+        &rpc,
+        &e.public(e2e_address_prefix),
+        &w.account()?,
+        &outpoint,
+        e2e_network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    let hl_msg = HyperlaneMessage::default();
+    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]); 
+
+    // We have a bundle with one PSKT which covers all the HL messages.
 
     let pskt_unsigned = build_withdrawal_tx(
         rpc.as_ref(),

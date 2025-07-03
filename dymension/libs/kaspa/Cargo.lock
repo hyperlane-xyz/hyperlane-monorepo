@@ -1773,6 +1773,7 @@ dependencies = [
  "core",
  "eyre",
  "hardcode",
+ "hyperlane-core",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
