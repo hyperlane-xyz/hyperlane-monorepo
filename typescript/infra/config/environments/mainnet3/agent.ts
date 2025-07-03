@@ -613,6 +613,16 @@ const superswapIcaV2MatchingList = chainMapMatchingList({
   unichain: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B',
 });
 
+// CTTP Token bridges that we use for rebalancing
+const cttpTokenBridgeMatchingList = chainMapMatchingList({
+  avalanche: '0x30140FC01533586C3876161a1d1BAd846C13dC56',
+  unichain: '0xF476A9670Aa52A7af6c0E0213BD1cCDb1f841f5d',
+  optimism: '0x65b65C95BBF0C625654A3AABb89F634CdBaf8964',
+  arbitrum: '0xc7d592fc9Ac2481a814CDCD5efaAB422c8d1F793',
+  base: '0x370F57B343b52416bba5df4747fd7c03921bFA55',
+  ethereum: '0x7f1514C5743CBE4AEF633393963BB3aC7E5f084C',
+});
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -787,6 +797,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'superswap_ica_v2',
       matchingList: superswapIcaV2MatchingList,
+    },
+    {
+      name: 'cttp_token_bridge',
+      matchingList: cttpTokenBridgeMatchingList,
     },
   ];
 };
