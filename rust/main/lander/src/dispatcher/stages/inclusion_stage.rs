@@ -87,10 +87,16 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                // the lock is held until the metric is updated, to prevent race conditions
-                let mut pool_lock = pool.lock().await;
-                let pool_len = pool_lock.len();
-                pool_lock.insert(tx.uuid.clone(), tx.clone());
+                info!(
+                    ?tx,
+                    "Received transaction from building stage, awaiting lock on pool"
+                );
+                let pool_len = {
+                    let mut pool_lock = pool.lock().await;
+                    let pool_len = pool_lock.len();
+                    pool_lock.insert(tx.uuid.clone(), tx.clone());
+                    pool_len
+                };
                 info!(?tx, "Received transaction");
                 state
                     .metrics
@@ -112,12 +118,21 @@ impl InclusionStage {
         let mut sleep_duration = *estimated_block_time;
         loop {
             // evaluate the pool every block
+            info!(
+                ?sleep_duration,
+                "sleeping before processing transactions in inclusion stage"
+            );
             sleep(sleep_duration).await;
 
             let before_processing = std::time::Instant::now();
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
             let elapsed = before_processing.elapsed();
             sleep_duration = estimated_block_time.saturating_sub(elapsed);
+            info!(
+                ?elapsed,
+                ?sleep_duration,
+                "Processed transactions in inclusion stage"
+            );
         }
     }
 
@@ -132,7 +147,10 @@ impl InclusionStage {
             .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
 
         let pool_snapshot = {
-            let pool_snapshot = pool.lock().await.clone();
+            info!("Taking snapshot of inclusion pool");
+            let pool_snapshot = pool.lock().await;
+            info!(pool_size=?pool_snapshot.len(), "Inclusion pool snapshot taken");
+            let pool_snapshot = pool_snapshot.clone();
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
                 pool_snapshot.len() as u64,
