@@ -19,25 +19,35 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Convert address
-    Recipient(RecipientArgs),
-
+    /// Convert kaspa address (like kaspatest:pzlq49sp...y4za866ne90v7e6pyrfr) to HL address (like 0x000000000..0000000)
+    Recipient(RecipientCli),
+    /// Get the escrow address for some secp256k1 pub keys (like kaspatest:pzlq49spp6...66ne90v7e6pyrfr)
+    Escrow(EscrowCli),
+    /// Generate all the info needed for a validator (without escrow address)
+    Validator,
     /// Generate all the info needed for a validator with a 1 of 1 multisig escrow
-    Validator, // This subcommand takes no arguments
-
-    /// Make a user deposit
-    Deposit(DepositArgsCli),
+    #[clap(name = "validator-with-escrow")]
+    ValidatorAndEscrow,
+    /// Make a user deposit (to escrow)
+    Deposit(DepositCli),
 }
 
 #[derive(Args, Debug)]
-pub struct RecipientArgs {
+pub struct EscrowCli {
+    /// Comma separated list of pub keys
+    #[arg(required = true, index = 1)]
+    pub pub_keys: String,
+}
+
+#[derive(Args, Debug)]
+pub struct RecipientCli {
     /// The address to be converted
     #[arg(required = true, index = 1)]
     pub address: String,
 }
 
 #[derive(Args, Debug, Clone)]
-pub struct DepositArgsCli {
+pub struct DepositCli {
     /// The escrow address (like kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr)
     #[arg(long, required = true)]
     pub escrow_address: String,
@@ -65,7 +75,7 @@ pub struct DepositArgsCli {
     pub wallet_secret: String,
 }
 
-impl DepositArgsCli {
+impl DepositCli {
     pub fn to_deposit_args(&self) -> DepositArgs {
         DepositArgs {
             escrow_address: self.escrow_address.clone(),
