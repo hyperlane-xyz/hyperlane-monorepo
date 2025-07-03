@@ -6,6 +6,7 @@ use std::time::Duration;
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
+use futures_util::try_join;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -58,17 +59,10 @@ impl InclusionStage {
             state,
             domain,
         } = self;
-        let futures = vec![
-            tokio::spawn(
-                Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
-                    .instrument(info_span!("receive_txs")),
-            ),
-            tokio::spawn(
-                Self::process_txs(pool, finality_stage_sender, state, domain)
-                    .instrument(info_span!("process_txs")),
-            ),
-        ];
-        if let Err(err) = try_join_all(futures).await {
+        if let Err(err) = try_join!(
+            Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone()),
+            Self::process_txs(pool, finality_stage_sender, state, domain)
+        ) {
             error!(
                 error=?err,
                 "Inclusion stage future panicked"
@@ -87,10 +81,6 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                info!(
-                    ?tx,
-                    "Received transaction from building stage, awaiting lock on pool"
-                );
                 let pool_len = {
                     let mut pool_lock = pool.lock().await;
                     let pool_len = pool_lock.len();
@@ -116,11 +106,9 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         loop {
             // evaluate the pool every block
-            info!("sleeping before processing transactions in inclusion stage");
             sleep(Duration::from_millis(10)).await;
 
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
-            info!("Processed transactions in inclusion stage");
         }
     }
 
@@ -135,9 +123,7 @@ impl InclusionStage {
             .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
 
         let pool_snapshot = {
-            info!("Taking snapshot of inclusion pool");
             let pool_snapshot = pool.lock().await;
-            info!(pool_size=?pool_snapshot.len(), "Inclusion pool snapshot taken");
             let pool_snapshot = pool_snapshot.clone();
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
@@ -146,6 +132,9 @@ impl InclusionStage {
             );
             pool_snapshot
         };
+        if pool_snapshot.is_empty() {
+            return Ok(());
+        }
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
         for (_, mut tx) in pool_snapshot {
             if let Err(err) =

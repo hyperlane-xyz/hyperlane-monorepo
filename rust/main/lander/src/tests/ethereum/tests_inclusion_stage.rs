@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
@@ -22,7 +22,7 @@ use crate::adapter::chains::ethereum::{
 };
 use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
-use crate::transaction::{Transaction, TransactionUuid};
+use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
@@ -754,6 +754,7 @@ async fn test_tx_ready_for_resubmission() {
     let duration_since_epoch = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
+    #[allow(deprecated)]
     let mock_last_submission_attempt = Utc.timestamp(
         duration_since_epoch.as_secs() as i64,
         duration_since_epoch.subsec_nanos(),
