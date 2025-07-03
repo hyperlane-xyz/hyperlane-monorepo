@@ -14,7 +14,7 @@ contract RoutingFee is BaseFee {
         address _owner
     ) BaseFee(_token, type(uint256).max, type(uint256).max, _owner) {}
 
-    mapping(uint32 => address) public feeContracts;
+    mapping(uint32 destination => address feeContract) public feeContracts;
 
     event FeeContractSet(uint32 destination, address feeContract);
 
@@ -52,7 +52,7 @@ contract RoutingFee is BaseFee {
         quotes = new Quote[](0);
     }
 
-    function feeType() external view override returns (FeeType) {
+    function feeType() external pure override returns (FeeType) {
         return FeeType.ROUTING;
     }
 }

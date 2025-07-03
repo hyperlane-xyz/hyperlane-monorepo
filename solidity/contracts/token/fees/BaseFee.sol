@@ -72,7 +72,7 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
     }
 
     function _quoteTransfer(
-        uint256 _amount
+        uint256 /*_amount*/
     ) internal view virtual returns (uint256 fee) {
         return 0;
     }

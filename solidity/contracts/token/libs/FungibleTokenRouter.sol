@@ -78,6 +78,10 @@ abstract contract FungibleTokenRouter is TokenRouter {
             _recipient,
             _amount
         );
+        if (quotes.length == 0) {
+            return 0;
+        }
+
         require(
             quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
