@@ -119,7 +119,7 @@ pub async fn on_new_withdrawals(
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
-pub(crate) struct WithdrawalDetails {
+pub struct WithdrawalDetails {
     pub message_id: H256,
     pub recipient: kaspa_addresses::Address,
     pub amount_sompi: u64,
