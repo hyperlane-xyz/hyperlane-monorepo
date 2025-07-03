@@ -41,7 +41,8 @@ use api_rs::apis::kaspa_transactions_api::{
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
 
-pub async fn deposit(
+// TODO: move to demo/call site, because not reusable
+pub async fn deposit_with_default_hl_Message(
     w: &Arc<Wallet>,
     secret: &Secret,
     address: Address,
@@ -56,10 +57,10 @@ pub async fn deposit(
 
     let payload = hl_message.to_vec();
 
-    deposit_impl(w, secret, address.clone(), amt, payload.clone()).await
+    deposit_with_payload(w, secret, address.clone(), amt, payload.clone()).await
 }
 
-pub async fn deposit_impl(
+pub async fn deposit_with_payload(
     w: &Arc<Wallet>,
     secret: &Secret,
     address: Address,
@@ -78,7 +79,10 @@ pub async fn deposit_impl(
         .send(
             dst,
             fees,
-            Some(payload),
+            match payload.len() {
+                0 => None,
+                _ => Some(payload),
+            },
             secret.clone(),
             payment_secret,
             &abortable,

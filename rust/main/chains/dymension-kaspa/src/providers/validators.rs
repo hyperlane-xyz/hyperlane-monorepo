@@ -122,7 +122,10 @@ impl ValidatorsClient {
     }
 
     /// this runs on relayer
-    pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
+    pub async fn get_withdraw_sigs(
+        &self,
+        fxg: &WithdrawFXG,
+    ) -> ChainResult<Vec<Bundle>> {
         // returns bundle of signer
         // map validator addr to sig(s)
         // TODO: in parallel
@@ -152,10 +155,10 @@ impl ValidatorsClient {
                         );
                     }
                 },
-                Err(_e) => {
+                Err(e) => {
                     error!(
-                        "Dymension, got withdrawal sig response Err, validator: {:?}",
-                        h
+                        "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
+                        h, e
                     );
                 }
             }

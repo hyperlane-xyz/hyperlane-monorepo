@@ -6,7 +6,7 @@ use corelib::api::deposits::Deposit;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
-use corelib::user::deposit::{deposit as do_deposit, deposit_impl};
+use corelib::user::deposit::{deposit_with_default_hl_Message as do_deposit, deposit_with_payload};
 use corelib::wallet::*;
 use hardcode::e2e::*;
 use hex;
@@ -84,7 +84,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         info!("Dymension, sending deposit with payload: {:?}", payload);
         // deposit_impl(&w, &s, escrow_address.clone(), amt, payload.as_bytes().to_vec()).await?
         let bz = hex::decode(payload).unwrap();
-        deposit_impl(&w, &s, escrow_address.clone(), amt, bz).await?
+        deposit_with_payload(&w, &s, escrow_address.clone(), amt, bz).await?
     } else {
         do_deposit(&w, &s, escrow_address.clone(), amt).await?
     };

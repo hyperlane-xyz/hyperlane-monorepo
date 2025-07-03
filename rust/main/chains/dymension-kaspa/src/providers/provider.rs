@@ -157,10 +157,13 @@ impl KaspaProvider {
         fxg: WithdrawFXG,
         prev_outpoint: TransactionOutpoint,
     ) -> Result<()> {
-        info!("Kaspa provider, got withdrawal FXG, now gathering and signing");
+        info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
         let all_bundles = {
             let mut bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
             info!("Kaspa provider, got validator bundles, now signing relayer fee");
+            if bundles_validators.len() < self.conf.multisig_threshold_kaspa as usize {
+                return Err(eyre!("Not enough validator bundles, required: {}, got: {}", self.conf.multisig_threshold_kaspa, bundles_validators.len()));
+            }
 
             let bundle_relayer = self.sign_relayer_fee(&fxg).await?; // TODO: can add own sig in parallel to validator network request
             info!("Kaspa provider, got relayer fee bundle, now combining all bundles");

@@ -5,8 +5,13 @@ mod x;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
+use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::wallet::*;
-use hardcode::e2e::*;
+use hardcode::e2e::{
+    get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
+    DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
+    RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+};
 use relayer::withdraw::*;
 use validator::withdraw::*;
 use x::args::Args;
@@ -71,33 +76,37 @@ async fn demo() -> Result<(), Error> {
     let args = Args::parse();
 
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
-    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
+    let w = get_wallet(&s, e2e_network_id, e2e_url.to_string()).await?;
 
     let rpc = w.rpc_api();
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
 
     let e = Escrow::new(2);
-    info!("Created escrow address: {}", e.public(ADDRESS_PREFIX).addr);
+    info!(
+        "Created escrow address: {}",
+        e.public(e2e_address_prefix).addr
+    );
 
-    let amt = DEPOSIT_AMOUNT;
-    let tx_id = deposit(&w, &s, &e, amt, ADDRESS_PREFIX).await?;
+    let amt = e2e_deposit_amount;
+    let addr = e.public(e2e_address_prefix).addr;
+    let tx_id = deposit(&w, &s, addr, amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
     let user_addr = w.account()?.receive_address()?;
 
     let pskt_unsigned = build_withdrawal_tx(
         rpc.as_ref(),
-        &e.public(ADDRESS_PREFIX),
+        &e.public(e2e_address_prefix),
         user_addr,
         &w.account()?,
         amt,
-        RELAYER_NETWORK_FEE,
+        e2e_relayer_network_fee,
     )
     .await?;
 
@@ -107,7 +116,7 @@ async fn demo() -> Result<(), Error> {
         rpc.as_ref(),
         pskt_signed_vals,
         pskt_unsigned,
-        &e.public(ADDRESS_PREFIX),
+        &e.public(e2e_address_prefix),
         &w,
         &s,
     )
@@ -116,7 +125,7 @@ async fn demo() -> Result<(), Error> {
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
     w.stop().await?;
     Ok(())

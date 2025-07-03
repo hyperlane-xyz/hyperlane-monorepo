@@ -36,7 +36,7 @@ cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-mo
 
 ```bash
 cargo run # it will generate a private key, then fund it
-cargo run -- -k $PRIVATE_KEY
+cargo run -- -r 
 ```
 
 ## Multisig Theory
