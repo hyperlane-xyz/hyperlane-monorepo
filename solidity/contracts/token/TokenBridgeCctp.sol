@@ -336,7 +336,7 @@ contract TokenBridgeCctp is
     function handleReceiveMessage(
         uint32 /*sourceDomain*/,
         bytes32 /*sender*/,
-        bytes calldata body
+        bytes calldata /*body*/
     ) external override returns (bool) {
         require(
             msg.sender == address(messageTransmitter),
