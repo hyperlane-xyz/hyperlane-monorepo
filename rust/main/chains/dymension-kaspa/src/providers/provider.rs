@@ -136,27 +136,30 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub async fn construct_withdrawal(
+    /// Returns next outpoint
+    pub async fn process_withdrawal_messages(
         &self,
+        // fxg: WithdrawFXG,
         msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
-        on_new_withdrawals(
+        // prev_outpoint: TransactionOutpoint,
+    ) -> Result<()> {
+        let res = on_new_withdrawals(
             msgs,
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
             None,
         )
-        .await
-    }
+        .await?;
+        info!("Kaspa mailbox, constructed withdrawal TXs");
 
-    /// dococo
-    /// Returns next outpoint
-    pub async fn process_withdrawal(
-        &self,
-        fxg: WithdrawFXG,
-        prev_outpoint: TransactionOutpoint,
-    ) -> Result<()> {
+        if res.is_none() {
+            info!("On new withdrawals decided not to handle withdrawal messages");
+            return Ok(());
+        }
+
+        let (fxg, prev_outpoint) = res.unwrap();
+
         info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
         let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
 
