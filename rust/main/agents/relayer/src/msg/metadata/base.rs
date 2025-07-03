@@ -74,7 +74,7 @@ pub trait MetadataAndMessageBuilder: Send + Sync {
         ism_address: H256,
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
-    ) -> Result<IsmWithMetadataAndBody, MetadataBuildError>;
+    ) -> Result<IsmWithMetadataAndMessage, MetadataBuildError>;
 }
 
 #[derive(Clone, Debug, Default)]
@@ -96,12 +96,12 @@ pub struct IsmWithMetadataAndType {
     pub metadata: Metadata,
 }
 
-/// Enhanced version that includes optional message body replacement for FSR
+/// Enhanced version that includes optional message transformation for FSR
 #[derive(Debug)]
-pub struct IsmWithMetadataAndBody {
+pub struct IsmWithMetadataAndMessage {
     pub ism: Box<dyn InterchainSecurityModule>,
     pub metadata: Metadata,
-    pub replaced_message_body: Option<Vec<u8>>,
+    pub transformed_message: Option<HyperlaneMessage>,
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time

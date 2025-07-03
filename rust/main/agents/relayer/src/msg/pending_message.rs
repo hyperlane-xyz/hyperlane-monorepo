@@ -1001,23 +1001,17 @@ impl PendingMessage {
         .await
         {
             Ok(result) => {
-                // Handle potential message body replacement for FSR ISMs
-                if let Some(replaced_body) = result.replaced_message_body {
+                // Handle potential message transformation for FSR ISMs
+                if let Some(transformed_message) = result.transformed_message {
                     tracing::info!(
                         message_id = ?self.message.id(),
-                        original_body_len = self.message.body.len(),
-                        replaced_body_len = replaced_body.len(),
-                        "FSR ISM replacing message body"
+                        original_origin = self.message.origin,
+                        new_origin = transformed_message.origin,
+                        "Message transformed by ISM"
                     );
 
-                    // Replace the message body with the FSR-returned body
-                    self.message.body = replaced_body.into();
-
-                    tracing::info!(
-                        message_id = ?self.message.id(),
-                        new_body_len = self.message.body.len(),
-                        "Message body successfully replaced for FSR processing"
-                    );
+                    // Replace the entire message with the transformed message
+                    self.message = transformed_message;
                 }
                 Ok(result.metadata)
             }

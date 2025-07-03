@@ -14,4 +14,5 @@ pub(crate) use base::{
     MetadataAndMessageBuilder, MetadataBuildError, MetadataBuilder,
 };
 pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata};
+pub(crate) use fsr::{EnhancedMetadataResult, FsrHeader, FsrMetadataBuilder};
 pub(crate) use message_builder::MessageMetadataBuilder;

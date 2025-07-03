@@ -20,7 +20,7 @@ use crate::msg::{
 use super::{
     aggregation::AggregationIsmMetadataBuilder,
     base::{
-        IsmWithMetadataAndBody, IsmWithMetadataAndType, MessageMetadataBuildParams,
+        IsmWithMetadataAndMessage, IsmWithMetadataAndType, MessageMetadataBuildParams,
         MetadataBuildError,
     },
     ccip_read::CcipReadIsmMetadataBuilder,
@@ -78,7 +78,7 @@ impl MetadataAndMessageBuilder for MessageMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
-    ) -> Result<IsmWithMetadataAndBody, MetadataBuildError> {
+    ) -> Result<IsmWithMetadataAndMessage, MetadataBuildError> {
         build_message_metadata_and_body(self.clone(), ism_address, message, params, None).await
     }
 }
@@ -172,7 +172,7 @@ pub async fn build_message_metadata_and_body(
     message: &HyperlaneMessage,
     mut params: MessageMetadataBuildParams,
     maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
-) -> Result<IsmWithMetadataAndBody, MetadataBuildError> {
+) -> Result<IsmWithMetadataAndMessage, MetadataBuildError> {
     let (ism, module_type) = match maybe_ism_and_module_type {
         Some((ism, module_type)) => (ism, module_type),
         None => ism_and_module_type(message_builder.clone(), ism_address).await?,
@@ -220,14 +220,14 @@ pub async fn build_message_metadata_and_body(
 
         tracing::info!(
             message_id = ?message.id(),
-            has_replaced_body = enhanced_result.replaced_message_body.is_some(),
+            has_transformed_message = enhanced_result.transformed_message.is_some(),
             "FSR enhanced metadata built"
         );
 
-        return Ok(IsmWithMetadataAndBody {
+        return Ok(IsmWithMetadataAndMessage {
             ism,
             metadata: enhanced_result.metadata,
-            replaced_message_body: enhanced_result.replaced_message_body,
+            transformed_message: enhanced_result.transformed_message,
         });
     }
 
@@ -241,10 +241,10 @@ pub async fn build_message_metadata_and_body(
     )
     .await?;
 
-    Ok(IsmWithMetadataAndBody {
+    Ok(IsmWithMetadataAndMessage {
         ism: standard_result.ism,
         metadata: standard_result.metadata,
-        replaced_message_body: None, // No replacement for non-FSR ISMs
+        transformed_message: None, // No replacement for non-FSR ISMs
     })
 }
 
