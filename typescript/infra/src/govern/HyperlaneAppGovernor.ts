@@ -15,7 +15,6 @@ import {
   OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
-  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -28,9 +27,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
-import { regularIcas } from '../../config/environments/mainnet3/governance/ica/regular.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
 import {
   GovernanceType,
   Owner,
@@ -397,6 +395,13 @@ export abstract class HyperlaneAppGovernor<
       accountConfig = {
         origin,
         owner: remoteOwner,
+        ...(legacyIcaChainRouters[chain]
+          ? {
+              localRouter: legacyEthIcaRouter,
+              routerOverride:
+                legacyIcaChainRouters[chain].interchainAccountRouter,
+            }
+          : {}),
       };
     }
 
