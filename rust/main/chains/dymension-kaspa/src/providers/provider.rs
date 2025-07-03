@@ -16,7 +16,7 @@ use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_relayer::withdraw::hub_to_kaspa::on_new_withdrawals;
 use dym_kas_relayer::withdraw::hub_to_kaspa::finalize_pskt;
-use dym_kas_relayer::withdraw::demo::sign_pay_fee;
+use dym_kas_relayer::withdraw::hub_to_kaspa::sign_pay_fee;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
