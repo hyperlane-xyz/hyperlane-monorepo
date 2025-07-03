@@ -8,6 +8,7 @@ import {
   ChainName,
   ChainTechnicalStack,
   CheckerViolation,
+  GetCallRemoteSettings,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
@@ -53,7 +54,7 @@ export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
   expandedDescription?: string;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
   governanceType?: GovernanceType;
 };
 
@@ -61,7 +62,7 @@ export type InferredCall = {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
 };
 
 export abstract class HyperlaneAppGovernor<
@@ -138,15 +139,15 @@ export abstract class HyperlaneAppGovernor<
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
       callsForSubmissionType.map(
-        ({ icaTargetChain, description, expandedDescription, ...call }) => {
+        ({ callRemoteArgs, description, expandedDescription, ...call }) => {
           // Print a blank line to separate calls
           rootLogger.info('');
 
           // Print the ICA call header if it exists
-          if (icaTargetChain) {
+          if (callRemoteArgs) {
             rootLogger.info(
               chalk.bold(
-                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${callRemoteArgs.destination}`,
               ),
             );
           }
@@ -300,7 +301,7 @@ export abstract class HyperlaneAppGovernor<
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
         submissionType: inferredCall.type,
-        icaTargetChain: inferredCall.icaTargetChain,
+        callRemoteArgs: inferredCall.callRemoteArgs,
         ...inferredCall.call,
       });
     };
@@ -430,7 +431,7 @@ export abstract class HyperlaneAppGovernor<
     );
 
     // Get the encoded call to the remote ICA
-    const callRemote = await this.interchainAccount.getCallRemote({
+    const callRemoteArgs: GetCallRemoteSettings = {
       chain: origin,
       destination: chain,
       innerCalls: [
@@ -441,7 +442,9 @@ export abstract class HyperlaneAppGovernor<
         },
       ],
       config: accountConfig,
-    });
+    };
+    const callRemote =
+      await this.interchainAccount.getCallRemote(callRemoteArgs);
 
     // If the call to the remote ICA is not valid, default to manual submission
     if (!callRemote.to || !callRemote.data) {
@@ -489,7 +492,7 @@ export abstract class HyperlaneAppGovernor<
         type: subType,
         chain: origin,
         call: encodedCall,
-        icaTargetChain: chain,
+        callRemoteArgs,
       };
     }
 
