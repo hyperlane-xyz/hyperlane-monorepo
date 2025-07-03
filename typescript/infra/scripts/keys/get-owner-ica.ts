@@ -11,7 +11,10 @@ import {
 
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import {
+  chainsToSkip,
+  chainsToSkipCheckDeploy,
+} from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
@@ -80,7 +83,10 @@ async function main() {
   const getOwnerIcaChains = (
     chains?.length ? chains : config.supportedChainNames
   ).filter(
-    (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
+    (chain) =>
+      isEthereumProtocolChain(chain) &&
+      !chainsToSkip.includes(chain) &&
+      !chainsToSkipCheckDeploy.includes(chain),
   );
 
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};

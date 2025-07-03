@@ -37,6 +37,8 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
+          interchainAccountRouter: DEPLOYER,
+          offchainLookupIsm: DEPLOYER,
         },
       },
     ];

@@ -164,8 +164,8 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           originRouterAddress,
           destinationIsmAddress,
           {
-            ...txOverrides,
             gasLimit: gasWithBuffer,
+            ...txOverrides,
           },
         ),
       );
