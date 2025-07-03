@@ -7,6 +7,7 @@ import { getRegistry } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -96,7 +97,7 @@ export const getSubtensorUSDCWarpConfig = async (
               mailbox: routerConfig[currentChain].mailbox,
               foreignDeployment: 'GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c',
               owner,
-              gas: 300000,
+              gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
             },
           ];
         }
