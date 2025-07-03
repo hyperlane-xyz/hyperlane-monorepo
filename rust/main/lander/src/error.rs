@@ -8,11 +8,8 @@ pub enum LanderError {
     NetworkError(String),
     #[error("Transaction error: {0}")]
     TxSubmissionError(String),
-    // This error is used to indicate that submission of a transaction failed,
-    // but we should check the status of the transaction before dropping it so that
-    // we don't drop a transaction that was successfully submitted.
-    #[error("Unclear transaction submission error: {0}")]
-    UnclearTxSubmissionError(String),
+    /// This error means that a transaction was already submitted
+    /// For EVM, it may mean that nonce got clashed on the chain.
     #[error("This transaction has already been broadcast")]
     TxAlreadyExists,
     #[error("The transaction reverted")]
@@ -48,7 +45,6 @@ impl LanderError {
         match self {
             NetworkError(_) => "NetworkError".to_string(),
             TxSubmissionError(_) => "TxSubmissionError".to_string(),
-            UnclearTxSubmissionError(_) => "TxReSubmissionWarning".to_string(),
             TxAlreadyExists => "TxAlreadyExists".to_string(),
             TxReverted => "TxReverted".to_string(),
             ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
@@ -111,8 +107,7 @@ impl IsRetryable for LanderError {
             SimulationFailed(reasons) => reasons
                 .iter()
                 .all(|r| r.contains(SIMULATED_DELIVERY_FAILURE_ERROR)),
-            UnclearTxSubmissionError(_)
-            | ChannelSendFailure(_)
+            ChannelSendFailure(_)
             | NonRetryableError(_)
             | TxReverted
             | EstimationFailed

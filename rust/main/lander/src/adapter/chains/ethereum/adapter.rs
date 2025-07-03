@@ -539,6 +539,7 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use super::transaction::Precursor;
+        use LanderError::TxAlreadyExists;
 
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
@@ -559,9 +560,7 @@ impl AdaptsChain for EthereumAdapter {
             Ok(hash) => hash,
             Err(e) => {
                 return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
-                    Err(LanderError::UnclearTxSubmissionError(
-                        NONCE_TOO_LOW_ERROR.to_string(),
-                    ))
+                    Err(TxAlreadyExists)
                 } else {
                     Err(e.into())
                 }
