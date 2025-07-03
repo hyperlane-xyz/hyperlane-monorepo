@@ -551,10 +551,20 @@ impl AdaptsChain for EthereumAdapter {
         info!(?tx, "submitting transaction");
 
         let precursor = tx.precursor();
-        let hash = self
-            .provider
-            .send(&precursor.tx, &precursor.function)
-            .await?;
+
+        let send_result = self.provider.send(&precursor.tx, &precursor.function).await;
+        let hash = match send_result {
+            Ok(hash) => hash,
+            Err(e) => {
+                return if e.to_string().contains("nonce too low") {
+                    Err(LanderError::TxReSubmissionWarning(
+                        "nonce too low".to_string(),
+                    ))
+                } else {
+                    Err(e.into())
+                }
+            }
+        };
 
         tx.tx_hashes.push(hash.into());
 
