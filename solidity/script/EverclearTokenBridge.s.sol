@@ -4,6 +4,7 @@ pragma solidity ^0.8.22;
 import {EverclearTokenBridge, IEverclearAdapter} from "contracts/token/bridge/EverclearTokenBridge.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "forge-std/Script.sol";
 
@@ -16,14 +17,12 @@ contract EverclearTokenBridgeScript is Script {
 
         // Deploy the bridge. This is an ARB eth bridge.
         EverclearTokenBridge bridge = new EverclearTokenBridge(
-            0x82aF49447D8a07e3bd95BD0d56f35241523fBab1, // WETH
-            1,
-            0x979Ca5202784112f4738403dBec5D0F3B9daabB9, // Mailbox
+            IERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1), // WETH
             IEverclearAdapter(0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75) // Everclear adapter
         );
 
         // Initialize the bridge
-        bridge.initialize(address(0), address(0), deployer);
+        bridge.initialize(deployer);
 
         // Set the output asset for the bridge.
         // This is optimism weth

@@ -4,6 +4,9 @@ pragma solidity ^0.8.22;
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title EverclearTokenBridge
@@ -11,7 +14,9 @@ import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
  * @notice A token bridge that integrates with Everclear's intent-based architecture
  * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
-contract EverclearTokenBridge is HypERC20Collateral {
+contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
+    using SafeERC20 for IERC20;
+
     /// @notice The output asset for a given destination domain
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
     mapping(uint32 destination => bytes32 outputAssets) public outputAssets;
@@ -38,36 +43,26 @@ contract EverclearTokenBridge is HypERC20Collateral {
      */
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
 
+    IERC20 public immutable token;
+
     /**
      * @notice Constructor to initialize the Everclear token bridge
-     * @param erc20 The address of the ERC20 token to be used as collateral
-     * @param _scale The scaling factor for token amounts
-     * @param _mailbox The address of the Hyperlane mailbox contract
+     * @param _erc20 The address of the ERC20 token to be used as collateral
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
-    constructor(
-        address erc20,
-        uint256 _scale,
-        address _mailbox,
-        IEverclearAdapter _everclearAdapter
-    ) HypERC20Collateral(erc20, _scale, _mailbox) {
+    constructor(IERC20 _erc20, IEverclearAdapter _everclearAdapter) {
+        token = _erc20;
         everclearAdapter = _everclearAdapter;
     }
 
     /**
-     * @notice Initializes the contract with required parameters
-     * @dev Sets up the mailbox client and approves the Everclear adapter to spend tokens
-     * @param _hook The address of the post-dispatch hook contract
-     * @param _interchainSecurityModule The address of the interchain security module
-     * @param _owner The address that will own this contract
+     * @notice Initializes the proxy contract.
+     * @dev Approves the Everclear adapter to spend tokens
      */
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) public override initializer {
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-        wrappedToken.approve(address(everclearAdapter), type(uint256).max);
+    function initialize(address _owner) public initializer {
+        __Ownable_init();
+        _transferOwnership(_owner);
+        token.approve(address(everclearAdapter), type(uint256).max);
     }
 
     /**
@@ -155,13 +150,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint256 _amount
     ) public view override returns (Quote[] memory quotes) {
         quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
-        });
+        quotes[0] = Quote({token: address(0), amount: 0});
 
         quotes[1] = Quote({
-            token: address(wrappedToken),
+            token: address(token),
             amount: _amount + feeParams.fee
         });
     }
@@ -181,8 +173,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
     ) external payable override returns (bytes32) {
         IEverclearAdapter.FeeParams memory _feeParams = feeParams;
 
-        // Charge sender for the fee
-        _transferFromSender(_amount + _feeParams.fee);
+        // Charge sender the stored fee
+        token.safeTransferFrom({
+            from: msg.sender,
+            to: address(this),
+            value: _amount + _feeParams.fee
+        });
 
         // Create everclear intent
         _createIntent(_destination, _recipient, _amount, _feeParams);
@@ -223,7 +219,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         everclearAdapter.newIntent({
             _destinations: destinations,
             _receiver: _recipient,
-            _inputAsset: address(wrappedToken),
+            _inputAsset: address(token),
             _outputAsset: outputAsset,
             _amount: _amount,
             _maxFee: 0,

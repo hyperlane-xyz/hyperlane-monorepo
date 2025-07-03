@@ -154,9 +154,7 @@ contract EverclearTokenBridgeTest is Test {
 
         // Deploy bridge implementation
         EverclearTokenBridge implementation = new EverclearTokenBridge(
-            address(token),
-            SCALE,
-            address(mailbox),
+            token,
             everclearAdapter
         );
 
@@ -166,20 +164,16 @@ contract EverclearTokenBridgeTest is Test {
             PROXY_ADMIN,
             abi.encodeWithSelector(
                 EverclearTokenBridge.initialize.selector,
-                address(hook),
-                address(0), // No ISM
                 OWNER
             )
         );
 
         bridge = EverclearTokenBridge(address(proxy));
-
         // Setup initial state
         vm.startPrank(OWNER);
         bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
         bridge.setOutputAsset(DESTINATION, OUTPUT_ASSET);
-        // Enroll remote router for destination domain => Only needed for `quoteTransferRemote`
-        bridge.enrollRemoteRouter(DESTINATION, OUTPUT_ASSET); // Using OUTPUT_ASSET as mock router address
+
         vm.stopPrank();
 
         // Mint tokens to users
@@ -194,18 +188,15 @@ contract EverclearTokenBridgeTest is Test {
 
     function testConstructor() public {
         EverclearTokenBridge newBridge = new EverclearTokenBridge(
-            address(token),
-            SCALE,
-            address(mailbox),
+            token,
             everclearAdapter
         );
 
-        assertEq(address(newBridge.wrappedToken()), address(token));
+        assertEq(address(newBridge.token()), address(token));
         assertEq(
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(address(newBridge.mailbox()), address(mailbox));
     }
 
     // ============ Initialize Tests ============
@@ -220,7 +211,7 @@ contract EverclearTokenBridgeTest is Test {
 
     function testInitializeCannotBeCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        bridge.initialize(address(hook), address(0), OWNER);
+        bridge.initialize(OWNER);
     }
 
     // ============ setFeeParams Tests ============
