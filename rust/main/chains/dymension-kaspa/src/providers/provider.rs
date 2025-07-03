@@ -33,6 +33,7 @@ use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
+use dym_kas_core::payload::MessageIDs;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
@@ -41,7 +42,6 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use dym_kas_core::payload::MessageIDs;
 
 /// dococo
 #[derive(Debug, Clone)]

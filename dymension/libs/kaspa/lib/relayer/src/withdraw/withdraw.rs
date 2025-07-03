@@ -268,12 +268,8 @@ pub async fn sign_pay_fee(
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &tx_verifiable,
-                    idx,
-                    sighash[idx],
-                    &reused_values,
-                );
+                let hash =
+                    calc_schnorr_signature_hash(&tx_verifiable, idx, sighash[idx], &reused_values);
                 let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
                     .map_err(|e| e.to_string())?;
                 Ok(SignInputOk {
