@@ -34,6 +34,7 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
 
     event ProtocolFeeSet(uint256 protocolFee);
     event BeneficiarySet(address beneficiary);
+    event ProtocolFeePaid(address indexed sender, uint256 fee);
 
     // ============ Constants ============
 
@@ -102,6 +103,8 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
             msg.value >= protocolFee,
             "ProtocolFee: insufficient protocol fee"
         );
+
+        emit ProtocolFeePaid(message.senderAddress(), protocolFee);
 
         _refund(metadata, message, msg.value - protocolFee);
     }
