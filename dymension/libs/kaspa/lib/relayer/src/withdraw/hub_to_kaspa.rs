@@ -48,117 +48,6 @@ use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
 
-pub async fn combine_bundles_with_fee(
-    bundles_validators: Vec<Bundle>,
-    fxg: &WithdrawFXG,
-    multisig_threshold: usize,
-    pub_keys: Vec<PublicKey>,
-    easy_wallet: &EasyKaspaWallet,
-) -> Result<Vec<RpcTransaction>> {
-    info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
-
-    let mut bundles_validators = bundles_validators;
-
-    let all_bundles = {
-        info!("Kaspa provider, got validator bundles, now signing relayer fee");
-        if bundles_validators.len() < multisig_threshold {
-            return Err(eyre!(
-                "Not enough validator bundles, required: {}, got: {}",
-                multisig_threshold,
-                bundles_validators.len()
-            ));
-        }
-
-        let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
-        info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
-        bundles_validators.push(bundle_relayer);
-        bundles_validators
-    };
-    let txs_signed = combine_all_bundles(all_bundles)?;
-    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), pub_keys)?;
-    Ok(finalized)
-}
-
-/// returns bundle of Signer
-async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    let wallet = easy_wallet.wallet.clone();
-    let secret = easy_wallet.secret.clone();
-
-    let mut signed = Vec::new();
-    // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
-        let pskt = PSKT::<Signer>::from(pskt.clone());
-
-        let payload_msg_ids = MessageIDs::from(messages)
-            .to_bytes()
-            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-
-        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
-    }
-    Ok(Bundle::from(signed))
-}
-
-/// accepts bundle of signer
-fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
-    // therefore index i of each vector corresponds to the same TX i
-
-    // make a list of lists, each top level element is a vector of pskt from a different actor
-    let actor_pskts = bundles
-        .iter()
-        .map(|b| {
-            b.iter()
-                .map(|inner| PSKT::<Signer>::from(inner.clone()))
-                .collect::<Vec<PSKT<Signer>>>()
-        })
-        .collect::<Vec<Vec<PSKT<Signer>>>>();
-
-    let n_txs = actor_pskts.first().unwrap().len();
-
-    // need to walk across each tx, and for each tx walk across each actor, and combine all for that tx, so all the sigs
-    // for each tx are grouped together in one vector
-    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
-    for tx_i in 0..n_txs {
-        let mut all_sigs_for_tx = Vec::new();
-        for tx_sigs_from_actor_j in actor_pskts.iter() {
-            all_sigs_for_tx.push(tx_sigs_from_actor_j[tx_i].clone());
-        }
-        tx_sigs.push(all_sigs_for_tx);
-    }
-
-    // walk across each tx and combine all the sigs for that tx into one combiner
-    let mut ret = Vec::new();
-    for all_actor_sigs_for_tx in tx_sigs.iter() {
-        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
-        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
-            combiner = (combiner + tx_sig.clone())?;
-        }
-        ret.push(combiner);
-    }
-    Ok(ret)
-}
-
-fn finalize_txs(
-    txs_sigs: Vec<PSKT<Combiner>>,
-    messages: Vec<Vec<HyperlaneMessage>>,
-    escrow_pubs: Vec<PublicKey>,
-) -> Result<Vec<RpcTransaction>> {
-    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
-        .into_iter()
-        .zip(messages.into_iter())
-        .map(|(tx, messages)| {
-            let msg_ids_bytes = MessageIDs::from(messages)
-                .to_bytes()
-                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
-        })
-        .collect();
-
-    let transactions: Vec<RpcTransaction> = transactions_result?;
-
-    Ok(transactions)
-}
-
 /// Builds a single withdrawal PSKT.
 ///
 /// Example:
@@ -492,6 +381,117 @@ fn estimate_fee(
 
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
     mass
+}
+
+pub async fn combine_bundles_with_fee(
+    bundles_validators: Vec<Bundle>,
+    fxg: &WithdrawFXG,
+    multisig_threshold: usize,
+    pub_keys: Vec<PublicKey>,
+    easy_wallet: &EasyKaspaWallet,
+) -> Result<Vec<RpcTransaction>> {
+    info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
+
+    let mut bundles_validators = bundles_validators;
+
+    let all_bundles = {
+        info!("Kaspa provider, got validator bundles, now signing relayer fee");
+        if bundles_validators.len() < multisig_threshold {
+            return Err(eyre!(
+                "Not enough validator bundles, required: {}, got: {}",
+                multisig_threshold,
+                bundles_validators.len()
+            ));
+        }
+
+        let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
+        info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
+        bundles_validators.push(bundle_relayer);
+        bundles_validators
+    };
+    let txs_signed = combine_all_bundles(all_bundles)?;
+    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), pub_keys)?;
+    Ok(finalized)
+}
+
+/// returns bundle of Signer
+async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+    let wallet = easy_wallet.wallet.clone();
+    let secret = easy_wallet.secret.clone();
+
+    let mut signed = Vec::new();
+    // Iterate over (PSKT; associated HL messages) pairs
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+        let pskt = PSKT::<Signer>::from(pskt.clone());
+
+        let payload_msg_ids = MessageIDs::from(messages)
+            .to_bytes()
+            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
+    }
+    Ok(Bundle::from(signed))
+}
+
+/// accepts bundle of signer
+fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
+    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
+    // therefore index i of each vector corresponds to the same TX i
+
+    // make a list of lists, each top level element is a vector of pskt from a different actor
+    let actor_pskts = bundles
+        .iter()
+        .map(|b| {
+            b.iter()
+                .map(|inner| PSKT::<Signer>::from(inner.clone()))
+                .collect::<Vec<PSKT<Signer>>>()
+        })
+        .collect::<Vec<Vec<PSKT<Signer>>>>();
+
+    let n_txs = actor_pskts.first().unwrap().len();
+
+    // need to walk across each tx, and for each tx walk across each actor, and combine all for that tx, so all the sigs
+    // for each tx are grouped together in one vector
+    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
+    for tx_i in 0..n_txs {
+        let mut all_sigs_for_tx = Vec::new();
+        for tx_sigs_from_actor_j in actor_pskts.iter() {
+            all_sigs_for_tx.push(tx_sigs_from_actor_j[tx_i].clone());
+        }
+        tx_sigs.push(all_sigs_for_tx);
+    }
+
+    // walk across each tx and combine all the sigs for that tx into one combiner
+    let mut ret = Vec::new();
+    for all_actor_sigs_for_tx in tx_sigs.iter() {
+        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
+        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
+            combiner = (combiner + tx_sig.clone())?;
+        }
+        ret.push(combiner);
+    }
+    Ok(ret)
+}
+
+fn finalize_txs(
+    txs_sigs: Vec<PSKT<Combiner>>,
+    messages: Vec<Vec<HyperlaneMessage>>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<Vec<RpcTransaction>> {
+    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
+        .into_iter()
+        .zip(messages.into_iter())
+        .map(|(tx, messages)| {
+            let msg_ids_bytes = MessageIDs::from(messages)
+                .to_bytes()
+                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
+        })
+        .collect();
+
+    let transactions: Vec<RpcTransaction> = transactions_result?;
+
+    Ok(transactions)
 }
 
 // used by multisig demo AND real code
