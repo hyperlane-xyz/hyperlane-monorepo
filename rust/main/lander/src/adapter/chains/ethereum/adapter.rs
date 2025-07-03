@@ -340,6 +340,27 @@ impl AdaptsChain for EthereumAdapter {
         todo!()
     }
 
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let estimated_block_time = self.estimated_block_time();
+        let Some(last_submission_time) = tx.last_submission_attempt else {
+            // If the transaction has never been submitted, it is ready for resubmission
+            return true;
+        };
+        let elapsed = chrono::Utc::now() - last_submission_time;
+        let elapsed = match elapsed.to_std() {
+            Ok(duration) => duration,
+            Err(err) => {
+                warn!(
+                    ?elapsed,
+                    ?err,
+                    "Failed to convert elapsed time to std::time::Duration, defaulting to considering the tx ready for resubmission"
+                );
+                return true;
+            }
+        };
+        elapsed > *estimated_block_time
+    }
+
     /// Builds a transaction for the given payloads.
     ///
     /// If there is only one payload, it builds a transaction without batching.

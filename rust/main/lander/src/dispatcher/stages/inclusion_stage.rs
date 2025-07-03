@@ -114,25 +114,13 @@ impl InclusionStage {
         state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
-        let estimated_block_time = state.adapter.estimated_block_time();
-        let mut sleep_duration = *estimated_block_time;
         loop {
             // evaluate the pool every block
-            info!(
-                ?sleep_duration,
-                "sleeping before processing transactions in inclusion stage"
-            );
-            sleep(sleep_duration).await;
+            info!("sleeping before processing transactions in inclusion stage");
+            sleep(Duration::from_millis(10)).await;
 
-            let before_processing = std::time::Instant::now();
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
-            let elapsed = before_processing.elapsed();
-            sleep_duration = estimated_block_time.saturating_sub(elapsed);
-            info!(
-                ?elapsed,
-                ?sleep_duration,
-                "Processed transactions in inclusion stage"
-            );
+            info!("Processed transactions in inclusion stage");
         }
     }
 
