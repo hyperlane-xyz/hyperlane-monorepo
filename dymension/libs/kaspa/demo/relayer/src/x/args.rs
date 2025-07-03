@@ -1,4 +1,4 @@
-use kaspa_core::kaspad_env::version;
+use corelib::env::version;
 
 use clap::{Arg, ArgAction, Command};
 
@@ -12,7 +12,7 @@ pub fn cli() -> Command {
             NAME,
             version()
         ))
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(version())
         .arg(
             Arg::new("rpcserver")
                 .long("rpcserver")

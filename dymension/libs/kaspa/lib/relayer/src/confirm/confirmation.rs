@@ -1,4 +1,5 @@
 use anyhow::Result;
+use corelib::confirmation::ConfirmationFXGCache;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     ProgressIndication, QueryOutpointRequest, WithdrawalId,
@@ -23,7 +24,8 @@ use api_rs::apis::{
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
 
-/// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
+/// WARNING: ONLY FOR UNHAPPY PATH
+/// /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
 /// all withdrawal payloads that were processed in between.
 ///
@@ -34,54 +36,7 @@ use hex;
 ///
 /// # Returns
 /// * `Result<ConfirmationFXG, Error>` - The confirmation FXG containing the progress indication with old and new outpoints
-///   and a list of processed withdrawal IDs
-pub async fn prepare_progress_indication(
-    config: &Configuration,
-    anchor_utxo: TransactionOutpoint,
-    new_utxo: TransactionOutpoint,
-) -> Result<ConfirmationFXG> {
-    println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
-
-    // Trace transactions from the new UTXO back to the old one.
-    println!("Tracing transactions to extract withdrawal IDs...");
-    let msg_ids = trace_transactions(config, new_utxo, anchor_utxo).await?;
-
-    let withdrawal_ids: Vec<WithdrawalId> = msg_ids
-        .into_iter()
-        .map(|id| WithdrawalId {
-            message_id: id.0.to_string(),
-        })
-        .collect();
-
-    println!(
-        "Extracted {} withdrawal IDs from payloads",
-        withdrawal_ids.len()
-    );
-
-    let new_outpoint_indication =
-        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-            transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
-            index: new_utxo.index,
-        };
-
-    let anchor_outpoint_indication =
-        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-            transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
-            index: anchor_utxo.index,
-        };
-
-    let progress_indication = ProgressIndication {
-        old_outpoint: Some(anchor_outpoint_indication),
-        new_outpoint: Some(new_outpoint_indication),
-        processed_withdrawals: withdrawal_ids,
-    };
-
-    println!("ProgressIndication: {:?}", progress_indication);
-
-    let confirmation_fxg = ConfirmationFXG::new(progress_indication);
-    Ok(confirmation_fxg)
-}
-
+///   and a list of processed withdrawal ID
 /// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
 /// collecting payloads along the way.
 /// Follows the transaction lineage of the escrow address.
@@ -93,21 +48,22 @@ pub async fn prepare_progress_indication(
 ///
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
-pub async fn trace_transactions(
+pub async fn expensive_trace_transactions(
     config: &Configuration,
-    new_utxo: TransactionOutpoint,
-    anchor_utxo: TransactionOutpoint,
-) -> Result<Vec<MessageID>> {
+    new_out: TransactionOutpoint,
+    anchor_out: TransactionOutpoint,
+) -> Result<ConfirmationFXG> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
-        new_utxo, anchor_utxo
+        new_out, anchor_out
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
-    let mut current_utxo = new_utxo;
+    let mut outpoints: Vec<TransactionOutpoint> = Vec::new();
+    let mut curr_out = new_out;
     let mut step = 0;
     let max_steps = 10;
-    while current_utxo != anchor_utxo {
+    while curr_out != anchor_out {
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
@@ -116,12 +72,12 @@ pub async fn trace_transactions(
             ));
         }
 
-        println!("Processing step {}: UTXO {:?}", step, current_utxo);
+        println!("Processing step {}: UTXO {:?}", step, curr_out);
 
         let transaction = get_transaction_transactions_transaction_id_get(
             config,
             GetTransactionTransactionsTransactionIdGetParams {
-                transaction_id: current_utxo.transaction_id.to_string(),
+                transaction_id: curr_out.transaction_id.to_string(),
                 block_hash: None,
                 inputs: Some(true),
                 outputs: Some(true),
@@ -132,7 +88,7 @@ pub async fn trace_transactions(
         .map_err(|e| {
             anyhow::anyhow!(
                 "Failed to get transaction {}: {}",
-                current_utxo.transaction_id,
+                curr_out.transaction_id,
                 e
             )
         })?;
@@ -154,10 +110,10 @@ pub async fn trace_transactions(
             .outputs
             .as_ref()
             .ok_or(Error::Custom("Transaction outputs not found".to_string()))?
-            .get(current_utxo.index as usize)
+            .get(curr_out.index as usize)
             .ok_or(Error::Custom(format!(
                 "Output index {} not found",
-                current_utxo.index
+                curr_out.index
             )))?
             .script_public_key_address
             .as_ref()
@@ -166,10 +122,12 @@ pub async fn trace_transactions(
             ))?
             .clone();
 
+        outpoints.push(curr_out);
+
         // Find the next UTXO to trace by checking all inputs
         // not supposed to happen in current design (we assume single hop between anchor and new UTXO)
-        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_utxo) {
-            Ok(Some(next_utxo)) => current_utxo = next_utxo,
+        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_out) {
+            Ok(Some(next_out)) => curr_out = next_out,
             Ok(None) => break, // Reached the break point
             Err(e) => return Err(anyhow::anyhow!(e)),
         }
@@ -180,7 +138,10 @@ pub async fn trace_transactions(
         processed_withdrawals.len(),
         step
     );
-    Ok(processed_withdrawals)
+    Ok(ConfirmationFXG::from_msgs_outpoints(
+        processed_withdrawals,
+        outpoints,
+    ))
 }
 
 pub fn get_previous_utxo_in_lineage(

@@ -19,8 +19,8 @@
 
 #### 0. Setup escrow
 
-# in libs/kaspa/demo/validator
-cargo run
+# in libs/kaspa/demo/user
+cargo run validator
 # THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below. Do NOT unescape json quotes
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
@@ -30,7 +30,7 @@ cargo run
 
 # in rusty-kaspa/wallet/native
 cargo run
-# TODO: finish cli instructions
+# TODO: finish native wallet cli instructions
 # seed escrow with a few kas
 
 #### 1. Setup HUB
@@ -90,13 +90,12 @@ TOKEN_ID=$(hub q warp tokens -o json | jq -r '.tokens[0].id')
 ESCROW_ADDR=kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
-
 dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json'
 
 OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
-
+# need to convert outpoint to base64 when passing to hub
 echo "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a" | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 
 dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
@@ -133,23 +132,36 @@ dymd q forward hl-message-kaspa "0x726f757465725f6170700000000000000000000000000
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # (100 billion sompi = 1 TKAS)
 # TODO: add 0x prefix to hex string, requires a change on parser
-cargo run -- -w lkjsdf -d -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8" -a 100000000
+cargo run -- deposit \
+  --escrow-address kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr \
+  --amount 100000000 \
+  --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8 \
+  --wrpc-url localhost:17210 \
+  --network-id testnet-10 \
+  --wallet-secret lkjsdf
+
+cargo run 
 
 # *WITHDRAWALS*
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
 # in demos/user
-cargo run kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
+cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 80808082
 dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
+###############################################################
+###############################################################
+###############################################################
+###############################################################
+###############################################################
 #### APPENDIX: DEBUG TIPS 
 
+# check that validator server is working
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
-
 
 # emergency fix for hooks
 # mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)

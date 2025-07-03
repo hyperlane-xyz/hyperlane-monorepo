@@ -1,6 +1,8 @@
+use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::H256;
 use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +38,13 @@ impl WithdrawFXG {
             bundle: Bundle::new(),
             messages: vec![],
         }
+    }
+
+    pub fn ids(&self) -> Vec<MessageID> {
+        self.messages
+            .iter()
+            .flat_map(|m| m.iter().map(|m| MessageID(m.id())))
+            .collect()
     }
 }
 

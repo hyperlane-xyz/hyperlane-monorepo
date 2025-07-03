@@ -1463,7 +1463,7 @@ impl Relayer {
         );
 
         // sync relayer before starting other tasks
-        b.sync_relayer_if_needed().await.unwrap();
+        b.sync_hub_if_needed().await.unwrap();
 
         tasks.push(b.run_loops(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain

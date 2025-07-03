@@ -18,9 +18,8 @@ use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
-// Add imports for sync methods
 use api_rs::apis::configuration::Configuration;
-use dym_kas_relayer::confirm::{prepare_progress_indication, trace_transactions};
+use dym_kas_relayer::confirm::expensive_trace_transactions;
 use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
 
 pub struct Foo<C: MetadataConstructor> {
@@ -164,13 +163,20 @@ where
             // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
-            let confirmations = self.provider.fetch_clear_indicate_progress_queue();
+            let confirmations = self.provider.consume_confirmation_queue();
 
             match confirmations.last() {
                 None => {}
-                Some((prev, next)) => {
-                    let res = self.run_sync_flow(prev.clone(), next.clone()).await;
-                    // TODO: check result
+                Some(confirmation) => {
+                    let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
+                    match res {
+                        Ok(_) => {
+                            info!("Dymension, confirmed withdrawal on hub: {:?}", confirmation);
+                        }
+                        Err(e) => {
+                            error!("Dymension, confirm withdrawal on hub: {:?}", e);
+                        }
+                    }
                 }
             }
 
@@ -234,13 +240,12 @@ where
     /* -------------------------------------------------------------------------- */
     // TODO: move to a separate file
 
-    /// Sync relayer that blocks until the system is synced
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
-    pub async fn sync_relayer_if_needed(&self) -> Result<()> {
+    pub async fn sync_hub_if_needed(&self) -> Result<()> {
         // get anchor utxo from hub
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
-        let anchor_utxo = resp
+        let anchor = resp
             .outpoint
             .map(|o| TransactionOutpoint {
                 transaction_id: kaspa_hashes::Hash::from_bytes(
@@ -252,62 +257,42 @@ where
 
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
-        let utxos = self
+        let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address])
+            .get_utxos_by_addresses(vec![escrow_address]) // TODO: probably doesnt work because utxos are not spent..
             .await?;
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
-        let is_synced = utxos.iter().any(|utxo| {
-            utxo.outpoint.transaction_id == anchor_utxo.transaction_id
-                && utxo.outpoint.index == anchor_utxo.index
+        let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
+            utxo.outpoint.transaction_id == anchor.transaction_id
+                && utxo.outpoint.index == anchor.index
         });
-        if !is_synced {
-            info!("System is not synced, preparing progress indication and submitting to hub");
+        if !hub_is_synced {
+            info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
 
-            let mut next_utxo = None;
-            for utxo in utxos {
-                let utxo_to_test = TransactionOutpoint::from(utxo.outpoint);
-                let result = trace_transactions(&conf, utxo_to_test, anchor_utxo).await;
-                if result.is_ok() {
-                    next_utxo = Some(utxo_to_test);
+            for utxo in all_escrow_utxos {
+                let outp_to_test = TransactionOutpoint::from(utxo.outpoint);
+                let fxg = expensive_trace_transactions(&conf, outp_to_test, anchor).await;
+                if fxg.is_ok() {
+                    // TODO: better error handling?
+                    self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                     break;
                 }
             }
-            let next_utxo = next_utxo.ok_or_else(|| anyhow::anyhow!("No suitable UTXO found"))?;
-            self.run_sync_flow(anchor_utxo, next_utxo).await?;
         }
         info!("System is synced, proceeding with other tasks");
         Ok(())
     }
 
     /// Handle sync requirement by preparing progress indication and submitting to hub
-    /*
-    - [x] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
-    - [x] Relayer will need to reach out to validators to gather the signatures over the progress indication
-    - [x] Validator will need endpoint
-    - [x] Validator will need to call VERIFY
-    - [x] ProgressIndication will need to be converted to bytes/digest in same way as the hub does it
-    - [x] Validator will need to sign appropriately TODO: check/fix/test this part
-    - [x] Validator return
-    - [x] Relayer post to hub
-    // needs to satisfy
-    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
-    // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    */
-    async fn run_sync_flow(
-        &self,
-        anchor_utxo: TransactionOutpoint,
-        new_utxo: TransactionOutpoint,
-    ) -> Result<()> {
-        // Prepare progress indication
-        let conf = self.provider.rest().get_config();
-        let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;
-
+    /// needs to satisfy
+    /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
+    /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
+    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
         let mut sigs = self
             .provider
             .validators()

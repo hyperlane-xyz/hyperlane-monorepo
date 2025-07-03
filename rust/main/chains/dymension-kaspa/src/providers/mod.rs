@@ -1,3 +1,4 @@
+pub mod confirmation_queue;
 mod provider;
 mod rest;
 mod validators;

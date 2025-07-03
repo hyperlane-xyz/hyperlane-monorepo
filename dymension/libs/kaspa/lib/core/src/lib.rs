@@ -1,12 +1,13 @@
 pub mod api;
+pub mod balance;
 pub mod confirmation;
 pub mod consts;
 pub mod deposit;
+pub mod env;
 pub mod escrow;
 pub mod message;
 pub mod payload;
 pub mod user;
-pub mod util;
 pub mod wallet;
 pub mod withdraw;
 use std::{error::Error, io::Cursor};

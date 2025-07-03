@@ -1,4 +1,4 @@
-use kaspa_core::kaspad_env::version;
+use corelib::env::version;
 
 use clap::{Arg, Command};
 
@@ -12,7 +12,7 @@ pub fn cli() -> Command {
             NAME,
             version()
         ))
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(version())
         .arg(
             Arg::new("private-key")
                 .long("private-key")
@@ -38,7 +38,6 @@ pub fn cli() -> Command {
 }
 
 pub struct Args {
-    pub private_key: Option<String>, // TODO: not used
     pub wallet_secret: Option<String>,
     pub rpc_server: String, // TODO: use
 }
@@ -47,7 +46,6 @@ impl Args {
     pub fn parse() -> Self {
         let m = cli().get_matches();
         Args {
-            private_key: m.get_one::<String>("private-key").cloned(),
             wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
             rpc_server: m
                 .get_one::<String>("rpcserver")
