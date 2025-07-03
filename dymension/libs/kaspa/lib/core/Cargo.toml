@@ -41,3 +41,4 @@ reqwest-ratelimit = "0.4.1"
 governor = "0.10"
 serde = { version = "^1.0", features = ["derive"] }
 borsh = { version = "1.5.1", features = ["derive", "rc"] }
+postcard = { version = "1.0", features = ["alloc"] }
