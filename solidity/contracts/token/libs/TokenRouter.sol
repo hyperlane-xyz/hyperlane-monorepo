@@ -124,9 +124,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     /**
      * @dev Called by `transferRemote` before message dispatch.
+     * @dev Can be overriden to add metadata to the message.
+     * @dev Can be overriden to change the value forwarded to the mailbox.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @return dispatchValue The value to be forwarded to the mailbox.
+     * @return message The message to the router on the destination chain.
      */
     function _beforeDispatch(
-        uint32 _destination,
+        uint32 /*_destination*/,
         bytes32 _recipient,
         uint256 _amountOrId
     ) internal virtual returns (uint256 dispatchValue, bytes memory message) {
