@@ -54,7 +54,7 @@ pub fn escalate_gas_price_if_needed(
             );
 
             GasPrice::NonEip1559 {
-                gas_price: *estimated_gas_price,
+                gas_price: escalated_gas_price,
             }
         }
         (
