@@ -228,6 +228,7 @@ const main = async () => {
 };
 
 // retrieve newly created mailbox id after init
+// @ts-ignore
 const getTransactionDetails = async () => {
   const gateway = GatewayApiClient.initialize({
     applicationName,
@@ -246,5 +247,26 @@ const getTransactionDetails = async () => {
   console.log(mailbox);
 };
 
+// @ts-ignore
+const getMailboxState = async () => {
+  const gateway = GatewayApiClient.initialize({
+    applicationName,
+    networkId,
+  });
+
+  const transactionReceipt = await gateway.state.innerClient.stateEntityDetails(
+    {
+      stateEntityDetailsRequest: {
+        addresses: [
+          'component_tdx_2_1cr4cc66g9prezvyw9vhznsx4wm0admw6a2q4mxewfvpzx09mp049wc',
+        ],
+      },
+    },
+  );
+
+  console.log((transactionReceipt.items[0].details as any).state.fields);
+};
+
 // main();
-getTransactionDetails();
+// getTransactionDetails();
+getMailboxState();
