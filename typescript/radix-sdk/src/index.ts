@@ -1,9 +1,22 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
+  ManifestBuilder,
   NetworkId,
+  NotarizedTransaction,
   PrivateKey,
+  RadixEngineToolkit,
+  Signature,
+  SignatureWithPublicKey,
   SimpleTransactionBuilder,
+  TransactionBuilder,
+  TransactionHeader,
+  TransactionManifest,
+  decimal,
+  enumeration,
+  expression,
+  generateRandomNonce,
+  u32,
 } from '@radixdlt/radix-engine-toolkit';
 import { getRandomValues } from 'crypto';
 
@@ -61,7 +74,7 @@ async function pollForCommit(
       case 'CommittedFailure':
         // You will typically wish to build a new transaction and try again.
         throw new Error(
-          `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.intent_status_description}`,
+          `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
         );
       case 'CommitPendingOutcomeUnknown':
         // We keep polling
@@ -116,9 +129,9 @@ async function getTestnetXrd(
 const main = async () => {
   const account1 = await generateNewEd25519VirtualAccount(networkId);
   const account2 = await generateNewEd25519VirtualAccount(networkId);
-  const knownAddresses =
-    await LTSRadixEngineToolkit.Derive.knownAddresses(networkId);
-  const xrd = knownAddresses.resources.xrdResource;
+  // const knownAddresses =
+  //   await LTSRadixEngineToolkit.Derive.knownAddresses(networkId);
+  // const xrd = knownAddresses.resources.xrdResource;
 
   console.log(`Account 1: ${account1.dashboardLink}`);
   console.log(`Account 2: ${account2.dashboardLink}`);
@@ -140,40 +153,69 @@ const main = async () => {
 
   const constructionMetadata =
     await gateway.transaction.innerClient.transactionConstruction();
-  const builder = await SimpleTransactionBuilder.new({
+
+  const transactionHeader: TransactionHeader = {
     networkId,
-    validFromEpoch: constructionMetadata.ledger_state.epoch,
-    fromAccount: account1.address,
-    signerPublicKey: account1.publicKey,
-  });
+    startEpochInclusive: constructionMetadata.ledger_state.epoch,
+    endEpochExclusive: constructionMetadata.ledger_state.epoch + 2,
+    nonce: generateRandomNonce(),
+    notaryPublicKey: account1.publicKey,
+    notaryIsSignatory: true,
+    tipPercentage: 0,
+  };
 
-  // Note - by default this sets to permanently reject after 2 epochs (5-10 minutes)
-  const unsignedTransaction = builder
-    .transferFungible({
-      toAccount: account2.address,
-      resourceAddress: xrd,
-      amount: 100,
-    })
-    .compileIntent();
+  const transactionManifest: TransactionManifest = new ManifestBuilder()
+    .callMethod(
+      'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+      'lock_fee',
+      [decimal(5000)],
+    )
+    .callFunction(
+      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      'Mailbox',
+      'mailbox_instantiate',
+      [u32(75898670)],
+    )
+    .callMethod(account1.address, 'try_deposit_batch_or_refund', [
+      expression('EntireWorktop'),
+      enumeration(0),
+    ])
+    .build();
 
-  const notarySignature = account1.privateKey.signToSignature(
-    unsignedTransaction.hashToNotarize,
+  const signIntent = (hashToSign: Uint8Array): SignatureWithPublicKey => {
+    return account1.privateKey.signToSignatureWithPublicKey(hashToSign);
+  };
+
+  const notarizeIntent = (hashToSign: Uint8Array): Signature => {
+    return account1.privateKey.signToSignature(hashToSign);
+  };
+
+  const transaction: NotarizedTransaction = await TransactionBuilder.new().then(
+    (builder) =>
+      builder
+        .header(transactionHeader)
+        .manifest(transactionManifest)
+        .sign(signIntent)
+        .notarize(notarizeIntent),
   );
 
-  const notarizedTransaction =
-    unsignedTransaction.compileNotarized(notarySignature);
+  const compiledNotarizedTransaction =
+    await RadixEngineToolkit.NotarizedTransaction.compile(transaction);
 
-  const intentHashTransactionId = notarizedTransaction.transactionId.id;
+  const intentHashTransactionId =
+    await RadixEngineToolkit.NotarizedTransaction.intentHash(transaction);
 
   console.log(
-    `Submitting XRD transfer from account 1 to account 2: ${intentHashTransactionId}`,
+    `Submitting create mailbox transaction: ${intentHashTransactionId.id}`,
   );
   await gateway.transaction.innerClient.transactionSubmit({
     transactionSubmitRequest: {
-      notarized_transaction_hex: notarizedTransaction.toHex(),
+      notarized_transaction_hex: Buffer.from(
+        compiledNotarizedTransaction,
+      ).toString('hex'),
     },
   });
-  await pollForCommit(gateway, intentHashTransactionId);
+  await pollForCommit(gateway, intentHashTransactionId.id);
 };
 
 main();
