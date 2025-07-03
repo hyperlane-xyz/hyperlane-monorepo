@@ -20,7 +20,7 @@
 #### 0. Setup escrow
 
 # in libs/kaspa/demo/user
-cargo run validator
+cargo run validator-with-escrow
 # THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below. Do NOT unescape json quotes
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
