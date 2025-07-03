@@ -7,13 +7,19 @@ import { Address } from '@hyperlane-xyz/utils';
 // --governanceType abacusWorks
 // -c <chain1> <chain2> ... \
 export const awIcasV2: ChainMap<Address> = {
+  // keep safe-owned for now
+  // arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
+  // base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
+  // bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
+  // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
+  // optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
+
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   ancient8: '0xE78B22275FfbF789aD5dAD25cC6d9C50c38286f7',
   alephzeroevmmainnet: '0x7113dcf70eF420Ab74435A680E3ACCDb3dA4056d',
   apechain: '0x4745601a50CEE53b66221032318a2547D5741ae8',
   appchain: '0xA843bFe58EbffaDc274b6718b238d60141E1281b',
-  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
   arbitrumnova: '0x29eE2B1F2cA4C53DcbC237d81ea1e7d6a885FeDC',
   artela: '0x17C13CD3211d1b0532faC4Ec967254e63A2D4625',
   astar: '0x6E8BAA8b8326A984D231ccD98421184D1a0826e0',
@@ -23,13 +29,11 @@ export const awIcasV2: ChainMap<Address> = {
   flame: '0x3105fcaDc39f3FBb356bB6EcfdF7026Fa741d11D',
   avalanche: '0xe9232de913DfB7AC5E3e8dC3c3f48e2b7480889D',
   b3: '0x4E5265D24E7EDd96e695dF9EB2983811fb4Fd21e',
-  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
   berachain: '0x602C75F468df1AC861862D8fdBFdf5f08d8Bdb88',
   bitlayer: '0x2A59725D978616DebFc43f8136A0d6258bC23cc5',
   blast: '0xc242beF1ffd95C1b3B7e8d6bB87947d3ADb335Ad',
   bob: '0xcBbB0A004177f12672fF02837AEB25d04bE74621',
   boba: '0x1301a4D0E15ca5F595a0207aD7990B864E93469A',
-  bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   bsquared: '0x304B82cca054b240a3127b34Bd1dc91772Baa630',
   celo: '0x0691c077d180ca7615911b65DE4fA0B313d75aDd',
   cheesechain: '0x570B22210aA421577B5b084874E5b8BAfE097315',
@@ -44,7 +48,6 @@ export const awIcasV2: ChainMap<Address> = {
   dogechain: '0x1526bC988a6B66bAe5813504531F72BCB7a86Aad',
   duckchain: '0xB8921fc1142C4a15e62A4D77f6F7f655201D2a4e',
   endurance: '0xf07a953b6AfD49CDa9C3b1C166e830d5A1C811B5',
-  ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
   everclear: '0xf8689875C9b3a92F1b843886B04c64Ed663C6036',
   evmos: '0x8738f5E689573C930CA0f4120Dd831e214089A35',
   fantom: '0x7B8C44B832aA5D95f3A40f6f0e8F54Cb3EB3DC55',
@@ -89,7 +92,6 @@ export const awIcasV2: ChainMap<Address> = {
   oortmainnet: '0xE92Bf41B0fd76f72274fECa87179AE6E235c3c7F',
   ontology: '0x6F9c6b3979E46B64bE0Cb3E29376A1e1aa54a160',
   opbnb: '0xc8B74D2bD580F122a9d5Ce40d4631afa2Ae8FB3C',
-  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
   orderly: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
   peaq: '0xbeCd9B31ba4DbAC6DDc5C42cCC5fAF408CAd4921',
   plume: '0x2a8320c609dcdcdC4Ad906d7e5D6426f7e1dA0e4',
