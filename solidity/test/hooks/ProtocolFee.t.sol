@@ -165,12 +165,27 @@ contract ProtocolFeeTest is Test {
 
         for (uint256 i = 0; i < dispatchCalls; i++) {
             vm.prank(alice);
-            fees.postDispatch{value: feeRequired}("", "");
+            fees.postDispatch{value: feeRequired}("", testMessage);
         }
 
         fees.collectProtocolFees();
 
         assertEq(bob.balance, balanceBefore + feeRequired * dispatchCalls);
+    }
+
+    function testFuzz_postDispatch_emitsProtocolFeePaid(
+        uint256 feeRequired,
+        uint256 feeSent
+    ) public {
+        feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
+        feeSent = bound(feeSent, feeRequired, 10 * feeRequired);
+        vm.deal(alice, feeSent);
+
+        fees.setProtocolFee(feeRequired);
+
+        vm.expectEmit(true, false, false, true);
+        emit ProtocolFee.ProtocolFeePaid(alice, feeRequired);
+        fees.postDispatch{value: feeSent}("", testMessage);
     }
 
     // ============ Helper Functions ============
