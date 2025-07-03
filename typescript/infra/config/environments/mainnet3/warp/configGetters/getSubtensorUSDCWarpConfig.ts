@@ -62,61 +62,74 @@ export const getSubtensorUSDCWarpConfig = async (
     ),
   );
 
-  const conf = Object.fromEntries(
-    deploymentChains.map((chain): [DeploymentChain, HypTokenRouterConfig] => {
-      const owner = awIcas[chain] ?? awSafes[chain] ?? chainOwners[chain].owner;
+  return Object.fromEntries(
+    deploymentChains.map(
+      (currentChain): [DeploymentChain, HypTokenRouterConfig] => {
+        const owner =
+          awIcas[currentChain] ??
+          awSafes[currentChain] ??
+          chainOwners[currentChain].owner;
 
-      if (chain === syntethicChain) {
-        return [
-          chain,
-          {
-            type: TokenType.synthetic,
-            mailbox: routerConfig[chain].mailbox,
-            owner,
-          },
-        ];
-      }
+        if (currentChain === syntethicChain) {
+          return [
+            currentChain,
+            {
+              type: TokenType.synthetic,
+              mailbox: routerConfig[currentChain].mailbox,
+              owner,
+            },
+          ];
+        }
 
-      if (chain === 'solanamainnet') {
+        const usdcTokenAddress = usdcTokenAddresses[currentChain];
+        assert(
+          usdcTokenAddress,
+          `USDC token address not found for chain ${currentChain}`,
+        );
+
+        if (currentChain === 'solanamainnet') {
+          return [
+            currentChain,
+            {
+              type: TokenType.collateral,
+              token: usdcTokenAddress,
+              mailbox: routerConfig[currentChain].mailbox,
+              foreignDeployment: 'GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c',
+              owner,
+              gas: 300000,
+            },
+          ];
+        }
+
+        const allowedRebalancingBridges = Object.fromEntries(
+          Object.entries(cctpBridges)
+            .filter(
+              ([chainName, _]) =>
+                // Get only chains included in this deployment config and exclude the current one
+                deploymentChains.includes(chainName as DeploymentChain) &&
+                chainName !== currentChain,
+            )
+            .map(([chainName, bridgeAddress]) => [
+              chainName,
+              [{ bridge: bridgeAddress }],
+            ]),
+        );
+
         return [
-          chain,
+          currentChain,
           {
             type: TokenType.collateral,
-            token: usdcTokenAddresses[chain],
-            mailbox: routerConfig[chain].mailbox,
-            foreignDeployment: 'GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c',
+            token: usdcTokenAddress,
+            mailbox: routerConfig[currentChain].mailbox,
             owner,
-            gas: 300000,
+            allowedRebalancers: [REBALANCER],
+            allowedRebalancingBridges: allowedRebalancingBridges,
+            contractVersion: existingChains.includes(currentChain)
+              ? CONTRACTS_PACKAGE_VERSION
+              : undefined,
           },
         ];
-      }
-
-      const allowedRebalancingBridges = Object.fromEntries(
-        Object.entries(cctpBridges)
-          .filter(
-            ([chainName, _]) =>
-              deploymentChains.includes(chainName as DeploymentChain) &&
-              chainName !== chain,
-          )
-          .map(([chainName, addy]) => [chainName, [{ bridge: addy }]]),
-      );
-
-      return [
-        chain,
-        {
-          type: TokenType.collateral,
-          token: usdcTokenAddresses[chain],
-          mailbox: routerConfig[chain].mailbox,
-          owner,
-          allowedRebalancers: [REBALANCER],
-          allowedRebalancingBridges: allowedRebalancingBridges,
-          contractVersion: existingChains.includes(chain)
-            ? CONTRACTS_PACKAGE_VERSION
-            : undefined,
-        },
-      ];
-    }),
+      },
+    ),
   );
-
-  return conf;
 };

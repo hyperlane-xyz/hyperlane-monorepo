@@ -57,6 +57,7 @@ import {
 import {
   ProtocolType,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -490,38 +491,41 @@ export async function extendWarpRoute(
     warpCoreConfigByChain,
   } = getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  const filteredExtendedConfigs = Object.fromEntries(
-    Object.entries(initialExtendedConfigs).filter(
-      ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) ===
-        ProtocolType.Ethereum,
-    ),
+  // Remove all the non-EVM chains from the extended configuration to aovid
+  // having the extension crash
+  const filteredExtendedConfigs = objFilter(
+    initialExtendedConfigs,
+    (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
   );
 
-  const filteredExistingConfigs = Object.fromEntries(
-    Object.entries(existingConfigs).filter(
-      ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) ===
-        ProtocolType.Ethereum,
-    ),
+  const filteredExistingConfigs = objFilter(
+    existingConfigs,
+    (chainName, _): _ is (typeof existingConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
   );
 
-  const filteredWarpCoreConfigByChain = Object.fromEntries(
-    Object.entries(warpCoreConfigByChain).filter(
-      ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) ===
-        ProtocolType.Ethereum,
-    ),
+  const filteredWarpCoreConfigByChain = objFilter(
+    warpCoreConfigByChain,
+    (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
   );
 
-  const nonEvmWarpCoreConfigs = Object.entries(warpCoreConfigByChain)
+  // Get the non EVM chains that should not be unenrolled/removed after the extension
+  // otherwise the update will generate unenroll transactions
+  const nonEvmWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
+    warpCoreConfigByChain,
+  )
     .filter(
       ([chainName]) =>
-        // Keep only those non EVM chains that should not be unenrolled after the extension
         context.multiProtocolProvider.getProtocol(chainName) !==
           ProtocolType.Ethereum && !!warpDeployConfig[chainName],
     )
     .map(([_, config]) => config);
+
   const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
   if (extendedChains.length === 0) {
     return warpCoreConfig;
