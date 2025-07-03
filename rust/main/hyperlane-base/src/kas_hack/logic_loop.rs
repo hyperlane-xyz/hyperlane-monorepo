@@ -245,7 +245,7 @@ where
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
         // get anchor utxo from hub
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
-        let anchor = resp
+        let old_anchor = resp
             .outpoint
             .map(|o| TransactionOutpoint {
                 transaction_id: kaspa_hashes::Hash::from_bytes(
@@ -266,8 +266,8 @@ where
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
         let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
-            utxo.outpoint.transaction_id == anchor.transaction_id
-                && utxo.outpoint.index == anchor.index
+            utxo.outpoint.transaction_id == old_anchor.transaction_id
+                && utxo.outpoint.index == old_anchor.index
         });
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
@@ -275,8 +275,9 @@ where
             let conf = self.provider.rest().get_config();
 
             for utxo in all_escrow_utxos {
-                let outp_to_test = TransactionOutpoint::from(utxo.outpoint);
-                let fxg = expensive_trace_transactions(&conf, outp_to_test, anchor).await;
+                let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
+                let fxg =
+                    expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
                 if fxg.is_ok() {
                     // TODO: better error handling?
                     self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;

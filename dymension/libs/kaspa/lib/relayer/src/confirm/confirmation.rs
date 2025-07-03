@@ -51,11 +51,11 @@ use hex;
 pub async fn expensive_trace_transactions(
     config: &Configuration,
     new_out: TransactionOutpoint,
-    anchor_out: TransactionOutpoint,
+    old_out: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
-        new_out, anchor_out
+        new_out, old_out
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
@@ -63,7 +63,7 @@ pub async fn expensive_trace_transactions(
     let mut curr_out = new_out;
     let mut step = 0;
     let max_steps = 10;
-    while curr_out != anchor_out {
+    while curr_out != old_out {
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
@@ -126,7 +126,7 @@ pub async fn expensive_trace_transactions(
 
         // Find the next UTXO to trace by checking all inputs
         // not supposed to happen in current design (we assume single hop between anchor and new UTXO)
-        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_out) {
+        match get_previous_utxo_in_lineage(&transaction, &lineage_address, old_out) {
             Ok(Some(next_out)) => curr_out = next_out,
             Ok(None) => break, // Reached the break point
             Err(e) => return Err(anyhow::anyhow!(e)),
@@ -138,6 +138,11 @@ pub async fn expensive_trace_transactions(
         processed_withdrawals.len(),
         step
     );
+
+    // it should start with old and end with new
+    outpoints.push(old_out);
+    outpoints.reverse();
+
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
         outpoints,

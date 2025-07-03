@@ -200,7 +200,11 @@ impl KaspaProvider {
 
         self.queue.push(ConfirmationFXG::from_msgs_outpoints(
             fxg.ids(),
-            vec![prev_outpoint.clone(), next_outpoint.clone()], // TODO: fix
+            vec![
+                prev_outpoint.clone(),
+                // TODO: it also needs to include any outpoints in-between
+                next_outpoint.clone(),
+            ],
         ));
         info!("Kaspa provider, added to progress indication work queue");
 
