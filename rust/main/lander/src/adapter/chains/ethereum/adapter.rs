@@ -48,6 +48,8 @@ mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 
+const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
     pub domain: HyperlaneDomain,
@@ -340,6 +342,27 @@ impl AdaptsChain for EthereumAdapter {
         todo!()
     }
 
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let estimated_block_time = self.estimated_block_time();
+        let Some(last_submission_time) = tx.last_submission_attempt else {
+            // If the transaction has never been submitted, it is ready for resubmission
+            return true;
+        };
+        let elapsed = chrono::Utc::now() - last_submission_time;
+        let elapsed = match elapsed.to_std() {
+            Ok(duration) => duration,
+            Err(err) => {
+                warn!(
+                    ?elapsed,
+                    ?err,
+                    "Failed to convert elapsed time to std::time::Duration, defaulting to considering the tx ready for resubmission"
+                );
+                return true;
+            }
+        };
+        elapsed > *estimated_block_time
+    }
+
     /// Builds a transaction for the given payloads.
     ///
     /// If there is only one payload, it builds a transaction without batching.
@@ -537,6 +560,7 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use super::transaction::Precursor;
+        use LanderError::TxAlreadyExists;
 
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
@@ -551,10 +575,18 @@ impl AdaptsChain for EthereumAdapter {
         info!(?tx, "submitting transaction");
 
         let precursor = tx.precursor();
-        let hash = self
-            .provider
-            .send(&precursor.tx, &precursor.function)
-            .await?;
+
+        let send_result = self.provider.send(&precursor.tx, &precursor.function).await;
+        let hash = match send_result {
+            Ok(hash) => hash,
+            Err(e) => {
+                return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
+                    Err(TxAlreadyExists)
+                } else {
+                    Err(e.into())
+                }
+            }
+        };
 
         tx.tx_hashes.push(hash.into());
 
