@@ -58,6 +58,12 @@ export const legacyIcaChainRouters: Record<
     interchainAccountIsm: '0xcDD89f19b2d00DCB9510BB3fBd5eCeCa761fe5Ab',
     interchainAccountRouter: '0x7947b7Fe737B4bd1D3387153f32148974066E591',
   },
+  // special case for deepbrainchain as there are RPC issues currently
+  // will update this separately in the next batch
+  deepbrainchain: {
+    interchainAccountIsm: '0x5B7a808CaA2C3F1378B07cDd46eB8ccA52F67e3B',
+    interchainAccountRouter: '0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8',
+  },
 };
 export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
@@ -86,6 +92,9 @@ export const chainsToSkip: ChainName[] = [
   // special case for bouncebit as there are RPC issues currently
   // will update this separately in the next batch
   'bouncebit',
+  // special case for deepbrainchain as there are RPC issues currently
+  // will update this separately in the next batch
+  'deepbrainchain',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
