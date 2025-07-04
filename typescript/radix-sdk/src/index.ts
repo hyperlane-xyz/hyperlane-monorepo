@@ -438,10 +438,58 @@ export class RadixSDK {
     await this.submitTransaction(transactionManifest);
   }
 
-  public async getMailboxLocalDomain(mailbox: string) {
+  public async queryMailbox(mailbox: string): Promise<{
+    address: string;
+    localDomain: number;
+    nonce: number;
+    defaultIsm: string;
+    defaultHook: string;
+    requiredHook: string;
+  }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
-    console.log(JSON.stringify((details.details as any).state.fields));
+    const fields = (details.details as any).state.fields;
+
+    const result = {
+      address: mailbox,
+      localDomain: parseInt(
+        fields.find((f: any) => f.field_name === 'local_domain').value,
+      ),
+      nonce: parseInt(fields.find((f: any) => f.field_name === 'nonce').value),
+      defaultIsm: fields.find((f: any) => f.field_name === 'default_ism')
+        .fields[0].value,
+      defaultHook: fields.find((f: any) => f.field_name === 'default_hook')
+        .fields[0].value,
+      requiredHook: fields.find((f: any) => f.field_name === 'required_hook')
+        .fields[0].value,
+    };
+
+    return result;
+  }
+
+  public async queryIsm(ism: string): Promise<{
+    address: string;
+    ism: 'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'NoopIsm';
+    validators: string[];
+    threshold: number;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    const fields = (details.details as any).state.fields;
+
+    const result = {
+      address: ism,
+      ism: (details.details as any).blueprint_name,
+      validators: (
+        fields.find((f: any) => f.field_name === 'validators')?.elements ?? []
+      ).map((v: any) => v.hex),
+      threshold: parseInt(
+        fields.find((f: any) => f.field_name === 'threshold')?.value ?? '0',
+      ),
+    };
+
+    return result;
   }
 }
 
@@ -451,8 +499,6 @@ const main = async () => {
 
   const mailbox = await sdk.createMailbox(75898670);
   console.log('created mailbox with id', mailbox, '\n');
-
-  await sdk.getMailboxLocalDomain(mailbox);
 
   const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
   console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
@@ -479,6 +525,14 @@ const main = async () => {
 
   await sdk.setDefaultIsm(mailbox, merkleRootMultisigIsm);
   console.log('set default ism\n');
+
+  const m = await sdk.queryMailbox(
+    'component_tdx_2_1cqaet9grt80sn9k07hqjtugfg974x2pzmc7k3kcndqqv7895a6v8ux',
+  );
+  console.log('mailbox state', m, '\n');
+
+  const i = await sdk.queryIsm(merkleRootMultisigIsm);
+  console.log('ism state', i, '\n');
 };
 
 main();
