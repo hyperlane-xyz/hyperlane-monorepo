@@ -48,6 +48,8 @@ mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 
+const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
     pub domain: HyperlaneDomain,
@@ -558,6 +560,7 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         use super::transaction::Precursor;
+        use LanderError::TxAlreadyExists;
 
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
@@ -572,10 +575,18 @@ impl AdaptsChain for EthereumAdapter {
         info!(?tx, "submitting transaction");
 
         let precursor = tx.precursor();
-        let hash = self
-            .provider
-            .send(&precursor.tx, &precursor.function)
-            .await?;
+
+        let send_result = self.provider.send(&precursor.tx, &precursor.function).await;
+        let hash = match send_result {
+            Ok(hash) => hash,
+            Err(e) => {
+                return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
+                    Err(TxAlreadyExists)
+                } else {
+                    Err(e.into())
+                }
+            }
+        };
 
         tx.tx_hashes.push(hash.into());
 
