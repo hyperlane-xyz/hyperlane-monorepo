@@ -181,8 +181,18 @@ async fn test_channel_closed_before_any_tx() {
     drop(building_stage_sender);
 
     // Should return error due to closed channel
-    let result = tokio::time::timeout(Duration::from_millis(100), inclusion_stage.run()).await;
-    assert!(result.is_ok()); // run() should not panic
+    let result = tokio::time::timeout(
+        Duration::from_millis(100),
+        InclusionStage::receive_txs(
+            inclusion_stage.tx_receiver,
+            inclusion_stage.pool.clone(),
+            inclusion_stage.state.clone(),
+            inclusion_stage.domain.clone(),
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(result, Err(LanderError::ChannelClosed))); // run() should not panic
 }
 
 #[tokio::test]
