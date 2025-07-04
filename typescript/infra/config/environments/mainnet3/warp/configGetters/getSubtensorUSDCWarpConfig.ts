@@ -3,11 +3,12 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+
+import { getRebalancingBridgesConfigFor } from './utils.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -28,9 +29,7 @@ const existingChains: DeploymentChain[] = [
   'subtensor',
 ];
 
-const syntethicChain: DeploymentChain = 'subtensor';
-
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
+const syntheticChain: DeploymentChain = 'subtensor';
 
 const usdcTokenAddresses: Record<DeploymentChain, string> = {
   arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
@@ -45,24 +44,6 @@ const usdcTokenAddresses: Record<DeploymentChain, string> = {
 export const getSubtensorUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute('USDC/mainnet-cctp');
-
-  assert(mainnetCCTP, 'MainnetCCTP warp route not found');
-
-  const cctpBridges = Object.fromEntries(
-    mainnetCCTP.tokens.map(
-      ({ chainName, addressOrDenom }): [string, string] => {
-        assert(
-          addressOrDenom,
-          `Expected cctp bridge address to be defined on chain ${chainName}`,
-        );
-
-        return [chainName, addressOrDenom];
-      },
-    ),
-  );
-
   return Object.fromEntries(
     deploymentChains.map(
       (currentChain): [DeploymentChain, HypTokenRouterConfig] => {
@@ -71,7 +52,7 @@ export const getSubtensorUSDCWarpConfig = async (
           awSafes[currentChain] ??
           chainOwners[currentChain].owner;
 
-        if (currentChain === syntethicChain) {
+        if (currentChain === syntheticChain) {
           return [
             currentChain,
             {
@@ -102,15 +83,8 @@ export const getSubtensorUSDCWarpConfig = async (
           ];
         }
 
-        const cctpBridge = cctpBridges[currentChain];
-        const allowedRebalancingBridges = Object.fromEntries(
-          deploymentChains
-            .filter(
-              (remoteChain) =>
-                remoteChain !== currentChain && remoteChain !== 'solanamainnet',
-            )
-            .map((remoteChain) => [remoteChain, [{ bridge: cctpBridge }]]),
-        );
+        const { allowedRebalancers, allowedRebalancingBridges } =
+          getRebalancingBridgesConfigFor(currentChain, deploymentChains);
 
         return [
           currentChain,
@@ -119,8 +93,8 @@ export const getSubtensorUSDCWarpConfig = async (
             token: usdcTokenAddress,
             mailbox: routerConfig[currentChain].mailbox,
             owner,
-            allowedRebalancers: [REBALANCER],
-            allowedRebalancingBridges: allowedRebalancingBridges,
+            allowedRebalancers,
+            allowedRebalancingBridges,
             contractVersion: existingChains.includes(currentChain)
               ? CONTRACTS_PACKAGE_VERSION
               : undefined,

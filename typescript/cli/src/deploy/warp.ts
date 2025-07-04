@@ -57,6 +57,7 @@ import {
 import {
   ProtocolType,
   assert,
+  isObjEmpty,
   objFilter,
   objMap,
   promiseObjAll,
@@ -484,14 +485,10 @@ export async function extendWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
-  const {
-    existingConfigs,
-    initialExtendedConfigs,
-    extendedChains,
-    warpCoreConfigByChain,
-  } = getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
+  const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
+    getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  // Remove all the non-EVM chains from the extended configuration to aovid
+  // Remove all the non-EVM chains from the extended configuration to avoid
   // having the extension crash
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
@@ -527,7 +524,7 @@ export async function extendWarpRoute(
     .map(([_, config]) => config);
 
   const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
-  if (extendedChains.length === 0) {
+  if (filteredExtendedChains.length === 0) {
     return warpCoreConfig;
   }
 
@@ -543,7 +540,7 @@ export async function extendWarpRoute(
       filteredWarpCoreConfigByChain,
     );
 
-  // Readd the non EVM chains to the warp core config so that expanding the config
+  // Re-add the non-EVM chains to the warp core config so that expanding the config
   // to get the proper remote routers and gas config works as expected
   updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
 
