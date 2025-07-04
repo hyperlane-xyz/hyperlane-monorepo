@@ -143,6 +143,7 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .as_ref()
             .expect("No mock cache response set")
     }
+    fn update_ism_metric(&self, _params: IsmBuildMetricsParams) {}
 
     async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {
         self.responses
