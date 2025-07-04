@@ -57,7 +57,6 @@ import {
 import {
   ProtocolType,
   assert,
-  isObjEmpty,
   objFilter,
   objMap,
   promiseObjAll,
