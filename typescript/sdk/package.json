@@ -27,7 +27,7 @@
     "starknet": "^7.4.0",
     "viem": "^2.21.45",
     "zksync-ethers": "^5.10.0",
-    "zod": "^3.21.2"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

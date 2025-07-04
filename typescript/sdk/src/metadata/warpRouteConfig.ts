@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -22,7 +22,7 @@ export const WarpRouteConfigSchema = z.object({
   description: z.string().optional(),
   timeStamp: z.string().optional(), // can make it non-optional if we make it part of the warp route deployment progress
   deployer: z.string().optional(),
-  data: z.object({ config: z.record(TokenConfigSchema) }),
+  data: z.object({ config: z.record(z.string(), TokenConfigSchema) }),
 });
 
 export type WarpRouteConfig = ChainMap<z.infer<typeof TokenConfigSchema>>;

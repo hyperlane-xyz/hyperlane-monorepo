@@ -1,5 +1,5 @@
 import path from 'path';
-import { fromZodError } from 'zod-validation-error';
+import { fromZodError } from 'zod-validation-error/v4';
 
 import {
   type RebalancerConfigFileInput,

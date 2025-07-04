@@ -2,7 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { SafeParseReturnType, z } from 'zod';
+import { z } from 'zod/v4';
 
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
@@ -322,7 +322,7 @@ export const ChainMetadataSchemaObject = z.object({
     ),
 
   transactionOverrides: z
-    .record(z.any())
+    .record(z.string(), z.any())
     .optional()
     .describe('Properties to include when forming transaction requests.'),
 
@@ -430,7 +430,7 @@ export type ChainMetadata<Ext = object> = z.infer<
 
 export function safeParseChainMetadata(
   c: ChainMetadata,
-): SafeParseReturnType<ChainMetadata, ChainMetadata> {
+): z.ZodSafeParseResult<ChainMetadata> {
   return ChainMetadataSchema.safeParse(c);
 }
 

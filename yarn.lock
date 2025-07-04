@@ -8146,7 +8146,7 @@ __metadata:
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
-    zod: "npm:^3.21.2"
+    zod: "npm:^3.25.0"
   languageName: unknown
   linkType: soft
 
@@ -8198,8 +8198,8 @@ __metadata:
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
     zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
-    zod-validation-error: "npm:^3.3.0"
+    zod: "npm:^3.25.0"
+    zod-validation-error: "npm:^3.5.2"
     zx: "npm:^8.1.4"
   bin:
     hyperlane: ./cli-bundle/index.js
@@ -8411,6 +8411,7 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zod-validation-error: "npm:^3.5.2"
   peerDependencies:
     "@ethersproject/abi": "*"
   languageName: unknown
@@ -8507,7 +8508,7 @@ __metadata:
     viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
     zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
+    zod: "npm:^3.25.0"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -41036,12 +41037,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod-validation-error@npm:^3.3.0":
-  version: 3.3.0
-  resolution: "zod-validation-error@npm:3.3.0"
+"zod-validation-error@npm:^3.5.2":
+  version: 3.5.2
+  resolution: "zod-validation-error@npm:3.5.2"
   peerDependencies:
-    zod: ^3.18.0
-  checksum: 10/19574cbc453c7a41105de572546e95191958f459dd93440f541a42c0ff209b56f1cd54e8f8ab1899430dd7c183e11cd16e8cace0bd4fc5d356ef772645210792
+    zod: ^3.25.0
+  checksum: 10/ca084429d32b6e084088a2d384fd12c2839929fbf0f31e383ae1606c60a85ac0a0cf7a9c1a61f8053690c50a39e9d6ee4d1286edc19305532f20de1b369109e6
   languageName: node
   linkType: hard
 
@@ -41063,6 +41064,13 @@ __metadata:
   version: 3.24.2
   resolution: "zod@npm:3.24.2"
   checksum: 10/604c62a8cf8e330d78b106a557f4b44f5d14845d20b1360a423ccc09b58cb8525ccf7e4b40cf1bd4852d22393d2c67774b5817ec5a2fedab25f543b36ed15943
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.25.0":
+  version: 3.25.71
+  resolution: "zod@npm:3.25.71"
+  checksum: 10/5467883fa8635ea0b88cdac1d494e84ee3dc1a4f0a5aaf0a1a0644d09a529bc3c6344114e95987981f47896f1743ee2677330ed0732ce2a448a4173ed31ce3a1
   languageName: node
   linkType: hard
 
