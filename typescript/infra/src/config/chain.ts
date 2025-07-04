@@ -89,11 +89,10 @@ export const chainsToSkip: ChainName[] = [
   // special case for arcadia as it's currently under maintenance.
   // will update this separately in the next batch.
   'arcadia',
-  // special case for bouncebit as there are RPC issues currently
+  // special case for ontology, bouncebit, deepbrainchain as there are RPC issues currently
   // will update this separately in the next batch
+  'ontology',
   'bouncebit',
-  // special case for deepbrainchain as there are RPC issues currently
-  // will update this separately in the next batch
   'deepbrainchain',
 ];
 
