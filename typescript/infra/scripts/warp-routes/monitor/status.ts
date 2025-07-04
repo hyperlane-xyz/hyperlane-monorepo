@@ -7,7 +7,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HelmManager } from '../../../src/utils/helm.js';
+import { HelmManager, getHelmReleaseName } from '../../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../../src/warp/helm.js';
 import {
   assertCorrectKubeContext,
@@ -30,9 +30,7 @@ async function main() {
   await assertCorrectKubeContext(config);
 
   try {
-    const podWarpRouteId = `${WarpRouteMonitorHelmManager.getHelmReleaseName(
-      warpRouteId,
-    )}-0`;
+    const podWarpRouteId = `${getHelmReleaseName(warpRouteId, WarpRouteMonitorHelmManager.helmReleasePrefix)}-0`;
 
     rootLogger.info(chalk.grey.italic(`Fetching pod status...`));
     const pod = HelmManager.runK8sCommand(
