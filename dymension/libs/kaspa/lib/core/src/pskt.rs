@@ -18,15 +18,11 @@ use eyre::eyre;
 pub fn sign_pskt(
     pskt: PSKT<Signer>,
     key_pair: &secp256k1::Keypair,
-    payload: Vec<u8>,
     source: Option<KeySource>,
 ) -> Result<PSKT<Signer>> {
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
     pskt.pass_signature_sync(|tx, sighash| {
-        let mut tx = tx.clone();
-        tx.tx.payload = payload;
-
         tx.tx
             .inputs
             .iter()

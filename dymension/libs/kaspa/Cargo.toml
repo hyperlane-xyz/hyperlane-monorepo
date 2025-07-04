@@ -11,27 +11,26 @@ members = [
     "lib/api",
     "lib/hardcode",
     "demo/multisig",
-    "demo/multisig-working",
     "demo/relayer",
     "demo/user",
 ]
 
 [workspace.dependencies]
 
-# KASPA ( eb71df4 is v1.0.0 commit)
-kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-wrpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-addresses = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-bip32 = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-wallet-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-wallet-keys = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-notify = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
-kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "eb71df4" }
+# KASPA ( target is upstream eb71df4 is v1.0.0 commit), but we point to our fork which includes payload support in pskt
+kaspa-consensus-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-txscript = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-wallet-pskt = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-wrpc-client = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-addresses = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-bip32 = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-wallet-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-wallet-keys = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-rpc-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-grpc-client = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-notify = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-hashes = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
 
 
 api-rs = { path = "../api", package = "openapi" }

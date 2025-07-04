@@ -1,6 +1,0 @@
-testnet = true
-utxoindex = true
-rpclisten-borsh = "default" 
-# wrpc-verbose = true
-# loglevel = "DEBUG"
-# nogrpc = true

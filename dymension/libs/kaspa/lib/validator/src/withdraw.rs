@@ -26,11 +26,7 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
     for (pskt, hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload = MessageIDs::from(hl_messages)
-            .to_bytes()
-            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-
-        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, payload, None)?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;
 
         signed.push(signed_pskt);
     }
