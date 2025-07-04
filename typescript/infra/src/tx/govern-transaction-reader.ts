@@ -47,6 +47,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
+import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
 import {
   getAllSafesForChain,
   getGovernanceIcas,
@@ -62,7 +64,11 @@ import {
 } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 interface GovernTransaction extends Record<string, any> {
@@ -1240,7 +1246,8 @@ export class GovernTransactionReader {
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
       const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
+      const newOwnerInsight = await getOwnerInsight(chain, newOwner);
+      insight = `Transfer ownership to ${newOwnerInsight}`;
     }
 
     const args = formatFunctionFragmentArgs(
@@ -1523,4 +1530,27 @@ function formatOperationType(operation: OperationType | undefined): string {
     default:
       return '⚠️ Unknown ⚠️';
   }
+}
+
+async function getOwnerInsight(
+  chain: ChainName,
+  address: Address,
+): Promise<string> {
+  const { ownerType, governanceType } = await determineGovernanceType(
+    chain,
+    address,
+  );
+  if (ownerType !== Owner.UNKNOWN) {
+    return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
+  }
+
+  if (eqAddress(address, awIcasV2[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} v2)`;
+  }
+
+  if (eqAddress(address, regularIcasV2[chain])) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} v2)`;
+  }
+
+  return `${address} (Unknown)`;
 }
