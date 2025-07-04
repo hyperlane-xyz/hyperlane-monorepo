@@ -2590,6 +2590,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",

@@ -89,6 +89,10 @@ impl EscrowPublic {
             pubs: pubs,
         }
     }
+
+    pub fn has_pub(&self, pub_key: &PublicKey) -> bool {
+        self.pubs.contains(pub_key)
+    }
 }
 
 pub fn is_utxo_escrow_address(pk: &RpcScriptPublicKey, escrow_address: &str) -> Result<bool> {

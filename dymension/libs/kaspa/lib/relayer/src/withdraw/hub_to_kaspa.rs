@@ -29,6 +29,7 @@ use kaspa_hashes;
 use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
+use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::prelude::*;
@@ -92,6 +93,10 @@ pub async fn build_withdrawal_pskt(
     //////////////////
     //     UTXO     //
     //////////////////
+    info!(
+        "Building withdrawal PSKT for {} withdrawals",
+        withdrawal_details.len()
+    );
 
     // Get all available UTXOs from multisig
     let escrow_utxos = get_utxo_to_spend(escrow.addr.clone(), kaspa_rpc, network_id).await?;
@@ -146,66 +151,15 @@ pub async fn build_withdrawal_pskt(
         .iter()
         .fold(0, |acc, u| acc + u.utxo_entry.amount);
 
-    ////////////////////
-    // Input & Output //
-    ////////////////////
-
-    // Iterate through escrow and relayer UTXO – they would be transaction inputs.
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-
-    let populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    escrow.redeem_script.clone(),
-                    0, // sequence does not matter
-                    escrow.n() as u8,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)> = relayer_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![],
-                    0,                                     // sequence does not matter
-                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let outputs: Vec<TransactionOutput> = withdrawal_details
-        .into_iter()
-        .map(|w| {
-            TransactionOutput::new(
-                w.amount_sompi,
-                ScriptPublicKey::from(pay_to_address_script(&w.recipient)),
-            )
-        })
-        .collect();
-
     //////////////////
     //     Fee      //
     //////////////////
 
-    let combined_inputs: Vec<(TransactionInput, UtxoEntry)> = populated_inputs_escrow
-        .iter()
-        .cloned()
-        .chain(populated_inputs_relayer.iter().cloned())
-        .collect();
-
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
+    let tx_fee = 50000;
+
+    // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -221,12 +175,12 @@ pub async fn build_withdrawal_pskt(
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
-    for (input, entry) in populated_inputs_escrow {
-        let pskt_input = InputBuilder::default()
-            .utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
-            .sig_op_count(input.sig_op_count)
-            .redeem_script(input.signature_script)
+    for u in escrow_utxos {
+        let i = InputBuilder::default()
+            .utxo_entry(UtxoEntry::from(u.utxo_entry))
+            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
+            .sig_op_count(escrow.n() as u8)
+            .redeem_script(escrow.redeem_script.clone())
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
                     .unwrap(),
@@ -234,14 +188,14 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
 
-        pskt = pskt.input(pskt_input);
+        pskt = pskt.input(i);
     }
 
     // Add relayer inputs
-    for (input, entry) in populated_inputs_relayer {
-        let pskt_input = InputBuilder::default()
-            .utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
+    for u in relayer_utxos {
+        let i = InputBuilder::default()
+            .utxo_entry(UtxoEntry::from(u.utxo_entry))
+            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
             .sig_op_count(1) // TODO: needed if using p2pk?
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -250,20 +204,22 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
 
-        pskt = pskt.input(pskt_input);
+        pskt = pskt.input(i);
     }
 
     // Add outputs
-    for output in outputs {
-        let pskt_output = OutputBuilder::default()
-            .amount(output.value)
-            .script_public_key(output.script_public_key)
+    for w in withdrawal_details {
+        let out = OutputBuilder::default()
+            .amount(w.amount_sompi)
+            .script_public_key(ScriptPublicKey::from(pay_to_address_script(&w.recipient)))
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
-        pskt = pskt.output(pskt_output);
+        info!("Adding output for withdrawal: {}", w.amount_sompi);
+        pskt = pskt.output(out);
     }
 
+    let escrow_change_amt = escrow_balance - withdrawal_balance;
     // escrow_balance - withdrawal_balance > 0 as checked above
     let escrow_change = OutputBuilder::default()
         .amount(escrow_balance - withdrawal_balance)
@@ -271,9 +227,19 @@ pub async fn build_withdrawal_pskt(
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
+    let relayer_change_amt = relayer_balance - tx_fee;
+    if relayer_change_amt < 20_000_001 {
+        return Err(eyre::eyre!(
+            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
+            relayer_balance,
+            tx_fee,
+            relayer_change_amt
+        ));
+    }
+
     // relayer_balance - tx_fee as checked above
     let relayer_change = OutputBuilder::default()
-        .amount(relayer_balance - tx_fee)
+        .amount(relayer_change_amt)
         .script_public_key(ScriptPublicKey::from(pay_to_address_script(
             &relayer.change_address()?,
         )))
@@ -283,9 +249,7 @@ pub async fn build_withdrawal_pskt(
     // escrow_change should always be present even if it's dust
     pskt = pskt.output(escrow_change);
 
-    // if !is_transaction_output_dust(&relayer_change) {
     pskt = pskt.output(relayer_change);
-    // }
 
     Ok(pskt.no_more_inputs().no_more_outputs().signer())
 }
@@ -387,7 +351,7 @@ pub async fn combine_bundles_with_fee(
     bundles_validators: Vec<Bundle>,
     fxg: &WithdrawFXG,
     multisig_threshold: usize,
-    pub_keys: Vec<PublicKey>,
+    escrow: &EscrowPublic,
     easy_wallet: &EasyKaspaWallet,
 ) -> Result<Vec<RpcTransaction>> {
     info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
@@ -410,11 +374,10 @@ pub async fn combine_bundles_with_fee(
         bundles_validators
     };
     let txs_signed = combine_all_bundles(all_bundles)?;
-    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), pub_keys)?;
+    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), escrow)?;
     Ok(finalized)
 }
 
-/// returns bundle of Signer
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
     let wallet = easy_wallet.wallet.clone();
     let secret = easy_wallet.secret.clone();
@@ -424,11 +387,11 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload_msg_ids = MessageIDs::from(messages)
+        let payload = MessageIDs::from(messages)
             .to_bytes()
             .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
-        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
+        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload).await?);
     }
     Ok(Bundle::from(signed))
 }
@@ -466,6 +429,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     for all_actor_sigs_for_tx in tx_sigs.iter() {
         let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
         for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
+            info!("Combining PSKT");
             combiner = (combiner + tx_sig.clone())?;
         }
         ret.push(combiner);
@@ -476,16 +440,16 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
 fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
-    escrow_pubs: Vec<PublicKey>,
+    escrow: &EscrowPublic,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, messages)| {
-            let msg_ids_bytes = MessageIDs::from(messages)
+        .map(|(tx, hl_messages)| {
+            let payload = MessageIDs::from(hl_messages)
                 .to_bytes()
-                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
+                .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+            finalize_pskt(tx, payload, escrow)
         })
         .collect();
 
@@ -498,8 +462,8 @@ fn finalize_txs(
 pub fn finalize_pskt(
     c: PSKT<Combiner>,
     payload: Vec<u8>,
-    escrow_pubs: Vec<PublicKey>,
-) -> Result<RpcTransaction, Error> {
+    escrow: &EscrowPublic,
+) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -508,59 +472,59 @@ pub fn finalize_pskt(
                 .iter()
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
-                    match input.sig_op_count {
-                        Some(n) => {
-                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
-                                // relayer UTXO
+                    match &input.redeem_script {
+                        None => {
+                            // relayer UTXO
 
-                                let sig = input
-                                    .partial_sigs
-                                    .iter()
-                                    .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
-                                    .next()
-                                    .unwrap()
-                                    .1
-                                    .into_bytes();
+                            let sig = input
+                                .partial_sigs
+                                .iter()
+                                .filter(|(pk, _sig)| !escrow.has_pub(pk))
+                                .next()
+                                .unwrap()
+                                .1
+                                .into_bytes();
 
-                                std::iter::once(65u8)
-                                    .chain(sig)
-                                    .chain([input.sighash_type.to_u8()])
-                                    .collect()
-                            } else {
-                                // escrow UTXO
-
-                                // Return the full script
-
-                                // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
-                                // ORIGINAL COMMENT: considering xpubs sorted order
-
-                                // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                                let sigs: Vec<_> = escrow_pubs
-                                    .iter()
-                                    .flat_map(|kp| {
-                                        let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                                        std::iter::once(OpData65)
-                                            .chain(sig)
-                                            .chain([input.sighash_type.to_u8()])
-                                    })
-                                    .collect();
-
-                                // Then add the multisig redeem script to the end
-                                sigs.into_iter()
-                                    .chain(
-                                        ScriptBuilder::new()
-                                            .add_data(
-                                                input.redeem_script.as_ref().unwrap().as_slice(),
-                                            )
-                                            .unwrap()
-                                            .drain()
-                                            .iter()
-                                            .cloned(),
-                                    )
-                                    .collect()
-                            };
+                            std::iter::once(65u8)
+                                .chain(sig)
+                                .chain([input.sighash_type.to_u8()])
+                                .collect()
                         }
-                        None => vec![], // Should not happen
+                        Some(redeem_script) => {
+                            if redeem_script != &escrow.redeem_script {
+                                panic!("Redeem script mismatch");
+                            }
+                            // escrow UTXO
+
+                            // Return the full script
+
+                            // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                            // ORIGINAL COMMENT: considering xpubs sorted order
+
+                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                            let sigs: Vec<_> = escrow
+                                .pubs
+                                .iter()
+                                .flat_map(|kp| {
+                                    let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                    std::iter::once(OpData65)
+                                        .chain(sig)
+                                        .chain([input.sighash_type.to_u8()])
+                                })
+                                .collect();
+
+                            // Then add the multisig redeem script to the end
+                            sigs.into_iter()
+                                .chain(
+                                    ScriptBuilder::new()
+                                        .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                        .unwrap()
+                                        .drain()
+                                        .iter()
+                                        .cloned(),
+                                )
+                                .collect()
+                        }
                     }
                 })
                 .collect())
@@ -568,7 +532,12 @@ pub fn finalize_pskt(
         .unwrap();
 
     let mass = 10_000; // TODO: why? is it okay to keep this value?
-    let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
+    let finalize_fn = finalized_pskt
+        .extractor()
+        .unwrap()
+        .extract_tx()
+        .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
+    let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
     tx.payload = payload;
@@ -588,57 +557,35 @@ pub async fn sign_pay_fee(
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
 
-    // Get the active account from the wallet and its address
-    let acc = w.account()?;
+    let derivation = w.account()?.as_derivation_capable()?;
+    let keydata = w.account()?.prv_key_data(s.clone()).await?;
+    let addr = w.account()?.change_address()?;
+    let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
+    let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
+    let (_, priv_key) = pks.first().unwrap();
 
-    // Get private and public keys for the active account
-    let keydata = acc.prv_key_data(s.clone()).await?;
-    let xprv = keydata.get_xprv(Some(s))?;
-    let key_fingerprint = xprv.public_key().fingerprint();
-
-    // Create keypair from the private key
-    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
-    let pk = kp.public_key();
+    let xprv = keydata.get_xprv(None)?;
+    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, priv_key);
 
     // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
     // Use receive one as it is used in `Account.pskb_sign`.
-    let derivation = acc.as_derivation_capable()?;
     let (derivation_path, _) = build_derivate_paths(
         &derivation.account_kind(),
         derivation.account_index(),
         derivation.cosigner_index(),
     )?;
 
-    // reused_values is something copied from the `pskb_signer_for_address` funciton
-    let reused_values = SigHashReusedValuesUnsync::new();
+    let key_fingerprint = xprv.public_key().fingerprint();
 
-    pskt.pass_signature_sync(|tx, sighash| {
-        // Sign tx as if it had a payload
-        let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = payload;
-        let tx_verifiable = tx_payload.as_verifiable();
-
-        tx_payload
-            .tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash =
-                    calc_schnorr_signature_hash(&tx_verifiable, idx, sighash[idx], &reused_values);
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: pk,
-                    key_source: Some(KeySource {
-                        key_fingerprint,
-                        derivation_path: derivation_path.clone(),
-                    }),
-                })
-            })
-            .collect()
-    })
+    corelib::pskt::sign_pskt(
+        pskt,
+        &key_pair,
+        payload,
+        Some(KeySource {
+            key_fingerprint,
+            derivation_path: derivation_path.clone(),
+        }),
+    )
 }
 
 #[cfg(test)]

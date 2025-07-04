@@ -20,86 +20,21 @@ pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
     Ok(true)
 }
 
-// Mimic a parallel multi-validator signing process
-// used by multisig demo only
-pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
-    let signed: Vec<PSKT<Signer>> = e
-        .keys
-        .iter()
-        .enumerate()
-        .map(|(i, keypair)| {
-            info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt(keypair, pskt_unsigned.clone(), vec![])
-        })
-        .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
-
-    let mut combined = signed
-        .first()
-        .ok_or("No signatures provided to combine")?
-        .clone()
-        .combiner();
-
-    for s in signed.iter().skip(1) {
-        combined = (combined + s.clone()).unwrap();
-    }
-
-    Ok(combined)
-}
-
-pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for (pskt, hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload_msg_ids = MessageIDs::from(messages)
+        let payload = MessageIDs::from(hl_messages)
             .to_bytes()
             .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
-        let signed_pskt = sign_pskt(kp, pskt, payload_msg_ids)?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, payload, None)?;
 
         signed.push(signed_pskt);
     }
     info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
     Ok(bundle)
-}
-
-// TODO: use wallet instead of raw keypair
-pub fn sign_pskt(
-    kp: &SecpKeypair,
-    pskt: PSKT<Signer>,
-    payload: Vec<u8>,
-) -> Result<PSKT<Signer>, Error> {
-    let reused_values = SigHashReusedValuesUnsync::new();
-    let pk = kp.public_key();
-
-    pskt.pass_signature_sync(|tx, sighashes| {
-        // Sign tx as if it had a payload
-        let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = payload;
-        let tx_verifiable = tx_payload.as_verifiable();
-
-        tx_payload
-            .tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &tx_verifiable,
-                    idx,
-                    sighashes[idx], // TODO: don't forget need to verify it's what's expected
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: pk,
-                    key_source: None,
-                })
-            })
-            .collect()
-    })
 }

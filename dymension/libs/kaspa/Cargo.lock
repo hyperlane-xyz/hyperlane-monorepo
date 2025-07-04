@@ -627,6 +627,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bip39"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d193de1f7487df1914d3a568b772458861d33f9c54249612cc2893d6915054"
+dependencies = [
+ "bitcoin_hashes",
+ "serde",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -640,6 +651,22 @@ name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
+name = "bitcoin-internals"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9425c3bf7089c983facbae04de54513cce73b41c7f9ff8c845b54e7bc64ebbfb"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1930a4dabfebb8d7d9992db18ebe3ae2876f0a305fab206fd168df931ede293b"
+dependencies = [
+ "bitcoin-internals",
+ "hex-conservative",
+]
 
 [[package]]
 name = "bitflags"
@@ -1226,6 +1253,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
@@ -3395,6 +3423,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex-conservative"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "212ab92002354b4819390025006c897e8140934349e8635c9b077f47b4dcbd20"
+
+[[package]]
 name = "hexplay"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5273,6 +5307,32 @@ name = "multimap"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
+
+[[package]]
+name = "multisig-working"
+version = "0.1.0"
+dependencies = [
+ "bip39",
+ "clap",
+ "faster-hex",
+ "kaspa-addresses",
+ "kaspa-bip32",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-notify",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
+ "kaspa-wallet-pskt",
+ "kaspa-wrpc-client",
+ "log",
+ "secp256k1",
+ "serde_json",
+ "tokio",
+ "workflow-core",
+]
 
 [[package]]
 name = "nanoid"
@@ -8613,6 +8673,15 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

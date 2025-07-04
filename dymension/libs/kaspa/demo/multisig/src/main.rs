@@ -14,8 +14,10 @@ use hardcode::e2e::{
     RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
 use relayer::withdraw::demo::*;
-use relayer::withdraw::hub_to_kaspa::*;
-use validator::withdraw::*;
+use relayer::withdraw::hub_to_kaspa::{
+    build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
+};
+use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
 
 use std::sync::Arc;
@@ -98,8 +100,8 @@ async fn demo() -> Result<()> {
     );
 
     let amt = e2e_deposit_amount;
-    let addr = e.public(e2e_address_prefix).addr;
-    let tx_id = deposit(&w.wallet, &w.secret, addr, amt, vec![]).await?;
+    let escrow_addr = e.public(e2e_address_prefix).addr;
+    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2 * amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
@@ -109,48 +111,47 @@ async fn demo() -> Result<()> {
 
     let user_addr = w.account().receive_address()?;
 
-    let details = WithdrawalDetails {
-        message_id: H256::random(),
-        recipient: user_addr.clone(),
-        amount_sompi: amt,
-    };
-
-    let outpoint = TransactionOutpoint::new(tx_id, 0); // TODO:
+    let hl_msg = HyperlaneMessage::default();
 
     let pskt = build_withdrawal_pskt(
-        vec![details],
+        vec![WithdrawalDetails {
+            message_id: hl_msg.id(),
+            recipient: user_addr.clone(),
+            amount_sompi: amt,
+        }],
         &rpc,
         &e.public(e2e_address_prefix),
         &w.account(),
-        &outpoint,
+        &TransactionOutpoint::new(tx_id, 0),
         e2e_network_id,
     )
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    let hl_msg = HyperlaneMessage::default();
+    info!("Constructed withdrawal PSKT");
+
     let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]);
 
-    let pskt_unsigned = build_withdrawal_tx(
-        rpc.as_ref(),
-        &e.public(e2e_address_prefix),
-        user_addr.clone(),
-        &w.account(),
-        amt,
-        e2e_relayer_network_fee,
-    )
-    .await?;
+    let bundle_val = validator_sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
 
-    let bundle_val = sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
+    info!("Signed withdrawal PSKT");
 
-    let finalized = combine_bundles_with_fee(
+    let finalized = relayer_combine_bundles_and_pay_fee(
         vec![bundle_val],
         &fxg,
         e.m(),
-        e.public(e2e_address_prefix).pubs.clone(),
+        &e.public(e2e_address_prefix),
         &w,
     )
     .await?;
+
+    info!("Signed relayer fee and finalized withdrawal RPC TX");
+
+    finalized.iter().for_each(|tx| {
+        tx.outputs.iter().for_each(|o| {
+            info!("Output: {}", o.value);
+        });
+    });
 
     let res = rpc
         .submit_transaction(finalized.first().unwrap().clone(), false)
