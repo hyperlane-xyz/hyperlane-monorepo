@@ -267,8 +267,16 @@ impl InclusionStage {
                 let tx_shared_clone = tx_shared.clone();
                 async move {
                     let mut tx_guard = tx_shared_clone.lock().await;
-                    state.adapter.submit(&mut tx_guard).await?;
-                    Ok(tx_guard.clone())
+                    let submit_result = state.adapter.submit(&mut tx_guard).await;
+
+                    match submit_result {
+                        Ok(()) => Ok(tx_guard.clone()),
+                        Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
+                            warn!(?tx, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
+                            Ok(tx_guard.clone())
+                        }
+                        Err(err) => Err(err),
+                    }
                 }
             },
             "Submitting transaction",
