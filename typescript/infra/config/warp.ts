@@ -76,6 +76,7 @@ import {
   getRezStagingGnosisSafeBuilderStrategyConfig,
   getRezStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoREZStaging.js';
+import { getSubtensorUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSubtensorUSDCWarpConfig.js';
 import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
@@ -146,6 +147,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   // Not present in the registry
   // [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
+  [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

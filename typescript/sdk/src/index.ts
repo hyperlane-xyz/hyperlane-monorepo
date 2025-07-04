@@ -630,6 +630,7 @@ export {
   CollateralTokenConfig,
   CollateralTokenConfigSchema,
   HypTokenConfig,
+  MovableTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
