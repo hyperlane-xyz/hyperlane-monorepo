@@ -1,4 +1,7 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import {
+  GatewayApiClient,
+  TransactionStatusResponse,
+} from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   ManifestBuilder,
@@ -14,13 +17,20 @@ import {
   TransactionHash,
   TransactionHeader,
   TransactionManifest,
+  ValueKind,
+  address,
+  array,
+  blob,
   decimal,
   enumeration,
   expression,
   generateRandomNonce,
   u32,
+  u64,
 } from '@radixdlt/radix-engine-toolkit';
 import { getRandomValues } from 'crypto';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 const networkId = NetworkId.Stokenet; // For mainnet, use NetworkId.Mainnet
 const applicationName = 'Hyperlane Test';
@@ -44,6 +54,12 @@ export class RadixSDK {
       applicationName,
       networkId,
     });
+  }
+
+  public async getXrdAddress() {
+    const knownAddresses =
+      await LTSRadixEngineToolkit.Derive.knownAddresses(networkId);
+    return knownAddresses.resources.xrdResource;
   }
 
   private static async generateNewEd25519VirtualAccount(
@@ -106,39 +122,25 @@ export class RadixSDK {
     return intentHashTransactionId;
   }
 
-  public async createMailbox(domainId: number) {
-    const transactionManifest: TransactionManifest = new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(5000)],
-      )
-      .callFunction(
-        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
-        'Mailbox',
-        'mailbox_instantiate',
-        [u32(domainId)],
-      )
-      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
-        expression('EntireWorktop'),
-        enumeration(0),
-      ])
-      .build();
-
-    const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
-
+  private async getNewComponent(transaction: TransactionHash): Promise<string> {
     const transactionReceipt =
-      await this.gateway.transaction.getCommittedDetails(
-        intentHashTransactionId.id,
-      );
-    const mailbox = (
-      transactionReceipt.transaction.receipt?.state_updates as any
-    ).new_global_entities.find(
-      (entity: any) => entity.entity_type === 'GlobalGenericComponent',
-    ).entity_address;
+      await this.gateway.transaction.getCommittedDetails(transaction.id);
 
-    return mailbox as string;
+    const receipt = transactionReceipt.transaction.receipt;
+    assert(receipt, `found no receipt on transaction: ${transaction.id}`);
+
+    const newGlobalGenericComponent = (
+      receipt.state_updates as any
+    ).new_global_entities.find(
+      (entity: { entity_type: string }) =>
+        entity.entity_type === 'GlobalGenericComponent',
+    );
+    assert(
+      newGlobalGenericComponent,
+      `found no newly created component on transaction: ${transaction.id}`,
+    );
+
+    return newGlobalGenericComponent.entity_address;
   }
 
   private static async generateSecureRandomBytes(
@@ -205,10 +207,21 @@ export class RadixSDK {
     const pollDelayMs = 5000;
 
     for (let i = 0; i < pollAttempts; i++) {
-      const statusOutput =
-        await this.gateway.transaction.innerClient.transactionStatus({
-          transactionStatusRequest: { intent_hash: intentHashTransactionId },
-        });
+      let statusOutput: TransactionStatusResponse;
+
+      try {
+        statusOutput =
+          await this.gateway.transaction.innerClient.transactionStatus({
+            transactionStatusRequest: { intent_hash: intentHashTransactionId },
+          });
+      } catch (err) {
+        console.log(
+          `error getting transaction status of ${intentHashTransactionId} - retrying in ${pollDelayMs}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+        continue;
+      }
+
       switch (statusOutput.intent_status) {
         case 'CommittedSuccess':
           console.info(
@@ -243,14 +256,248 @@ export class RadixSDK {
       }
     }
   }
+
+  public async createMailbox(domainId: number) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'Mailbox',
+        'mailbox_instantiate',
+        [u32(domainId)],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  public async createMerkleTreeHook(mailbox: string) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'MerkleTreeHook',
+        'instantiate',
+        [address(mailbox)],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  // TODO: fix ethereum address
+  public async createMerkleRootMultisigIsm(
+    validators: string[],
+    threshold: number,
+  ) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'MerkleRootMultisigIsm',
+        'instantiate',
+        [
+          array(ValueKind.Blob, ...validators.map((v) => blob(v))),
+          u64(threshold),
+        ],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  // TODO: fix ethereum address
+  public async createMessageIdMultisig(
+    validators: string[],
+    threshold: number,
+  ) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'MessageIdMultisigIsm',
+        'instantiate',
+        [
+          array(ValueKind.Blob, ...validators.map((v) => blob(v))),
+          u64(threshold),
+        ],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  public async createNoopIsm() {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'NoopIsm',
+        'instantiate',
+        [],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  public async createIgp(denom: string) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callFunction(
+        'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+        'InterchainGasPaymaster',
+        'instantiate',
+        [address(denom)],
+      )
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
+  public async setRequiredHook(mailbox: string, hook: string) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callMethod(mailbox, 'set_required_hook', [address(hook)])
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    await this.submitTransaction(transactionManifest);
+  }
+
+  public async setDefaultHook(mailbox: string, hook: string) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callMethod(mailbox, 'set_default_hook', [address(hook)])
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    await this.submitTransaction(transactionManifest);
+  }
+
+  public async setDefaultIsm(mailbox: string, ism: string) {
+    const transactionManifest: TransactionManifest = new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(5000)],
+      )
+      .callMethod(mailbox, 'set_default_ism', [address(ism)])
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    await this.submitTransaction(transactionManifest);
+  }
 }
 
 const main = async () => {
   const sdk = await RadixSDK.fromRandomPrivateKey();
   await sdk.getTestnetXrd();
-  console.log('creating mailbox');
-  const mailboxId = await sdk.createMailbox(75898670);
-  console.log('created mailbox with id', mailboxId);
+
+  const mailbox = await sdk.createMailbox(75898670);
+  console.log('created mailbox with id', mailbox, '\n');
+
+  const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
+  console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
+
+  const noopIsm = await sdk.createNoopIsm();
+  console.log('created noopIsm with id', noopIsm, '\n');
+
+  const xrd = await sdk.getXrdAddress();
+  const igp = await sdk.createIgp(xrd);
+  console.log('created igp with id', igp);
+
+  await sdk.setRequiredHook(mailbox, merkleTreeHook);
+  console.log('set required hook\n');
+
+  await sdk.setDefaultHook(mailbox, igp);
+  console.log('set default hook\n');
+
+  await sdk.setDefaultIsm(mailbox, noopIsm);
+  console.log('set default ism\n');
 };
 
 // @ts-ignore
