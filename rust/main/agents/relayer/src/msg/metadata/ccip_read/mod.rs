@@ -176,7 +176,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let res = ism_build(self, ism_address, message, params).await;
+        let res = metadata_build(self, ism_address, message, params).await;
 
         // update metrics
         let ism_build_metrics_params = IsmBuildMetricsParams {
@@ -192,7 +192,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     }
 }
 
-async fn ism_build(
+async fn metadata_build(
     ism_builder: &CcipReadIsmMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,

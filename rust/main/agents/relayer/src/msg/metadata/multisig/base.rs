@@ -172,7 +172,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let res = multisig_ism_build(self, ism_address, message, params).await;
+        let res = metadata_build(self, ism_address, message, params).await;
 
         // update metrics
         let ism_build_metrics_params = IsmBuildMetricsParams {
@@ -189,7 +189,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
     }
 }
 
-async fn multisig_ism_build<T: MultisigIsmMetadataBuilder>(
+async fn metadata_build<T: MultisigIsmMetadataBuilder>(
     ism_builder: &T,
     ism_address: H256,
     message: &HyperlaneMessage,
