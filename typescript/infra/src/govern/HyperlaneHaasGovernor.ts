@@ -195,11 +195,21 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         const baseCallRemoteArgs = groupedCalls[0].callRemoteArgs!;
 
         // Combine all innerCalls from the grouped calls
-        const combinedInnerCalls = groupedCalls.map((call) => ({
-          to: call.to,
-          data: call.data,
-          value: call.value?.toString() || '0',
-        }));
+        // We need to preserve the original innerCalls from each call's callRemoteArgs
+        // because call.to is the ICA router address, not the destination address
+        const combinedInnerCalls = groupedCalls.flatMap((call) => {
+          if (!call.callRemoteArgs?.innerCalls) {
+            // If there are no innerCalls, use the call's to/data/value as a fallback
+            return [
+              {
+                to: call.to,
+                data: call.data,
+                value: call.value?.toString() || '0',
+              },
+            ];
+          }
+          return call.callRemoteArgs.innerCalls;
+        });
 
         // Create the combined callRemoteArgs
         const combinedCallRemoteArgs = {
