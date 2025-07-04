@@ -23,6 +23,9 @@ export const owners: ChainMap<OwnableConfig> = {
   sonicsvmtestnet: {
     owner: 'n/a - SVM not supported here',
   },
+  celestiatestnet: {
+    owner: 'n/a - CSDK not supported here',
+  },
   kyvetestnet: {
     owner: 'n/a - CSDK not supported here',
   },

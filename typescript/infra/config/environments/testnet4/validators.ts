@@ -54,6 +54,13 @@ export const validatorChainConfig = (
         'basesepolia',
       ),
     },
+    celestiatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celestiatestnet'),
+      validators: [
+        /* TODO fill validator once created */
+      ],
+    },
     ecotestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ecotestnet'),
