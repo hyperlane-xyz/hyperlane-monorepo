@@ -198,7 +198,10 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         // We need to preserve the original innerCalls from each call's callRemoteArgs
         // because call.to is the ICA router address, not the destination address
         const combinedInnerCalls = groupedCalls.flatMap((call) => {
-          if (!call.callRemoteArgs?.innerCalls) {
+          if (
+            !call.callRemoteArgs?.innerCalls ||
+            call.callRemoteArgs.innerCalls.length === 0
+          ) {
             // If there are no innerCalls, use the call's to/data/value as a fallback
             return [
               {
