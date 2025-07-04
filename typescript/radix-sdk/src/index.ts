@@ -395,6 +395,20 @@ export class RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async createValidatorAnnounce(mailbox: string) {
+    const transactionManifest = this.createCallFunctionManifest(
+      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      'ValidatorAnnounce',
+      'instantiate',
+      [address(mailbox)],
+    );
+
+    const intentHashTransactionId =
+      await this.submitTransaction(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public async setRequiredHook(mailbox: string, hook: string) {
     const transactionManifest = this.createCallMethodManifest(
       mailbox,
