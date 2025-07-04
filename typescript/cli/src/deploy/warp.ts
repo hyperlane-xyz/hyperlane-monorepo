@@ -57,6 +57,7 @@ import {
 import {
   ProtocolType,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -483,23 +484,44 @@ export async function extendWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
-  const {
-    existingConfigs,
-    initialExtendedConfigs,
-    extendedChains,
-    warpCoreConfigByChain,
-  } = getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
+  const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
+    getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  const filteredExtendedConfigs = Object.fromEntries(
-    Object.entries(initialExtendedConfigs).filter(
-      ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) ===
-        ProtocolType.Ethereum,
-    ),
+  const filteredExtendedConfigs = objFilter(
+    initialExtendedConfigs,
+    (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
   );
 
+  const filteredExistingConfigs = objFilter(
+    existingConfigs,
+    (chainName, _): _ is (typeof existingConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
+  );
+
+  const filteredWarpCoreConfigByChain = objFilter(
+    warpCoreConfigByChain,
+    (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
+  );
+
+  // Get the non EVM chains that should not be unenrolled/removed after the extension
+  // otherwise the update will generate unenroll transactions
+  const nonEvmWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
+    warpCoreConfigByChain,
+  )
+    .filter(
+      ([chainName]) =>
+        context.multiProtocolProvider.getProtocol(chainName) !==
+          ProtocolType.Ethereum && !!warpDeployConfig[chainName],
+    )
+    .map(([_, config]) => config);
+
   const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
-  if (extendedChains.length === 0) {
+  if (filteredExtendedChains.length === 0) {
     return warpCoreConfig;
   }
 
@@ -510,10 +532,14 @@ export async function extendWarpRoute(
     await deployWarpExtensionContracts(
       params,
       apiKeys,
-      existingConfigs,
+      filteredExistingConfigs,
       filteredExtendedConfigs,
-      warpCoreConfigByChain,
+      filteredWarpCoreConfigByChain,
     );
+
+  // Readd the non EVM chains to the warp core config so that expanding the config
+  // to get the proper remote routers and gas config works as expected
+  updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
