@@ -17,7 +17,8 @@ use hyperlane_test::mocks::MockMailboxContract;
 
 use crate::{
     msg::metadata::{
-        BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+        BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier, IsmBuildMetricsParams,
+        IsmCachePolicyClassifier,
     },
     settings::matching_list::{Filter, ListElement, MatchingList},
 };
