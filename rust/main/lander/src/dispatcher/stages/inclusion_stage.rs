@@ -6,6 +6,7 @@ use std::time::Duration;
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
+use futures_util::try_join;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -76,7 +77,7 @@ impl InclusionStage {
         }
     }
 
-    async fn receive_txs(
+    pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
         state: DispatcherState,
@@ -87,10 +88,12 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                // the lock is held until the metric is updated, to prevent race conditions
-                let mut pool_lock = pool.lock().await;
-                let pool_len = pool_lock.len();
-                pool_lock.insert(tx.uuid.clone(), tx.clone());
+                let pool_len = {
+                    let mut pool_lock = pool.lock().await;
+                    let pool_len = pool_lock.len();
+                    pool_lock.insert(tx.uuid.clone(), tx.clone());
+                    pool_len
+                };
                 info!(?tx, "Received transaction");
                 state
                     .metrics
@@ -108,16 +111,11 @@ impl InclusionStage {
         state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
-        let estimated_block_time = state.adapter.estimated_block_time();
-        let mut sleep_duration = *estimated_block_time;
         loop {
             // evaluate the pool every block
-            sleep(sleep_duration).await;
+            sleep(Duration::from_millis(10)).await;
 
-            let before_processing = std::time::Instant::now();
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
-            let elapsed = before_processing.elapsed();
-            sleep_duration = estimated_block_time.saturating_sub(elapsed);
         }
     }
 
@@ -132,7 +130,8 @@ impl InclusionStage {
             .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
 
         let pool_snapshot = {
-            let pool_snapshot = pool.lock().await.clone();
+            let pool_snapshot = pool.lock().await;
+            let pool_snapshot = pool_snapshot.clone();
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
                 pool_snapshot.len() as u64,
@@ -140,6 +139,9 @@ impl InclusionStage {
             );
             pool_snapshot
         };
+        if pool_snapshot.is_empty() {
+            return Ok(());
+        }
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
         for (_, mut tx) in pool_snapshot {
             if let Err(err) =
