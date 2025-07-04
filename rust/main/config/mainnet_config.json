@@ -80,7 +80,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 3,
+        "estimateBlockTime": 0.25,
         "reorgPeriod": 5
       },
       "chainId": 42161,
@@ -2109,7 +2109,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 3,
+        "estimateBlockTime": 2,
         "reorgPeriod": 10
       },
       "chainId": 10,

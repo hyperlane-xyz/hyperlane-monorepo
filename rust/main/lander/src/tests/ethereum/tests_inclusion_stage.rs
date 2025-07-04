@@ -1,8 +1,9 @@
 use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
+use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{TransactionReceipt, H160, H256 as EthersH256, U256 as EthersU256};
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
@@ -822,6 +823,57 @@ async fn test_inclusion_stage_nonce_too_low_error_does_not_drop_tx() {
     assert!(
         maybe_tx.is_none(),
         "No transaction should be sent to finality stage"
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_ready_for_resubmission() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+
+    let signer = H160::random();
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+
+    let mut created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let mut tx = created_txs.remove(0);
+    let duration_since_epoch = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    #[allow(deprecated)]
+    let mock_last_submission_attempt = Utc.timestamp(
+        duration_since_epoch.as_secs() as i64,
+        duration_since_epoch.subsec_nanos(),
+    );
+    tx.last_submission_attempt = Some(mock_last_submission_attempt);
+
+    // Ensure the transaction is not ready for resubmission immediately
+    assert!(
+        !dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
+    );
+
+    // Simulate sufficient time passing
+    tokio::time::sleep(block_time * 2).await;
+
+    // Ensure the transaction is now ready for resubmission
+    assert!(
+        dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
     );
 }
 
