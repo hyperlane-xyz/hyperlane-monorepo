@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 
+import { Router } from '@hyperlane-xyz/core';
 import {
   AddressBytes32,
   addressToBytes32,
@@ -10,8 +11,9 @@ import {
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { DerivedIsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -20,6 +22,7 @@ import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
+  MissingEnrolledRouterViolation,
   MissingRouterViolation,
   RouterConfig,
   RouterViolation,
@@ -51,11 +54,11 @@ export class HyperlaneRouterChecker<
     );
   }
 
-  async checkMailboxClient(chain: ChainName): Promise<void> {
-    const router = this.app.router(this.app.getContracts(chain));
-
-    const config = this.configMap[chain];
-
+  protected async checkMailbox(
+    chain: ChainName,
+    router: Router,
+    config: RouterConfig,
+  ): Promise<void> {
     const mailboxAddr = await router.mailbox();
     if (!eqAddress(mailboxAddr, config.mailbox)) {
       this.addViolation({
@@ -79,9 +82,18 @@ export class HyperlaneRouterChecker<
         });
       }
     }
+  }
 
+  protected async checkMailboxIsm(
+    chain: ChainName,
+    router: Router,
+    config: RouterConfig,
+  ): Promise<void> {
+    const mailboxAddr = await router.mailbox();
     const actualIsmAddress = await router.interchainSecurityModule();
 
+    // If the router is its own ism (e.g. the ICA router, skip checking configs)
+    if (eqAddress(actualIsmAddress, router.address)) return;
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
@@ -95,7 +107,7 @@ export class HyperlaneRouterChecker<
       const ismReader = new EvmIsmReader(this.multiProvider, chain);
       let actualConfig: string | DerivedIsmConfig =
         ethers.constants.AddressZero;
-      if (actualIsmAddress !== ethers.constants.AddressZero) {
+      if (!isZeroishAddress(actualIsmAddress)) {
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
 
@@ -124,13 +136,33 @@ export class HyperlaneRouterChecker<
     }
   }
 
-  async checkEnrolledRouters(chain: ChainName): Promise<void> {
+  async checkMailboxClient(chain: ChainName): Promise<void> {
+    const router = this.app.router(this.app.getContracts(chain));
+    const config = this.configMap[chain];
+    await this.checkMailbox(chain, router, config);
+    await this.checkMailboxIsm(chain, router, config);
+  }
+
+  async checkEnrolledRouters(
+    chain: ChainName,
+    expectedRemoteChains: ChainName[] = [],
+  ): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const actualRemoteChains = await this.app.remoteChains(chain);
+
+    // If expectedRemoteChains is provided, only check those specific chains
+    // Otherwise, check all currently enrolled chains
+    const chainsToCheck =
+      expectedRemoteChains.length > 0
+        ? expectedRemoteChains.filter((c) => actualRemoteChains.includes(c))
+        : actualRemoteChains;
 
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
 
+    const missingRemoteChains = expectedRemoteChains
+      .filter((chn) => !actualRemoteChains.includes(chn))
+      .sort();
     const misconfiguredRouterDiff: ChainMap<{
       actual: AddressBytes32;
       expected: AddressBytes32;
@@ -138,7 +170,7 @@ export class HyperlaneRouterChecker<
     const missingRouterDomains: ChainName[] = [];
 
     await Promise.all(
-      actualRemoteChains.map(async (remoteChain) => {
+      chainsToCheck.map(async (remoteChain) => {
         let remoteRouterAddress: string;
         try {
           remoteRouterAddress = this.app.routerAddress(remoteChain);
@@ -163,9 +195,22 @@ export class HyperlaneRouterChecker<
       }),
     );
 
-    const expectedRouterChains = actualRemoteChains.filter(
+    const expectedRouterChains = chainsToCheck.filter(
       (chain) => !missingRouterDomains.includes(chain),
     );
+
+    if (missingRemoteChains.length > 0) {
+      const violation: MissingEnrolledRouterViolation = {
+        chain,
+        type: RouterViolationType.MissingEnrolledRouter,
+        contract: router,
+        actual: actualRemoteChains.join(', '),
+        expected: expectedRemoteChains.join(),
+        missingChains: missingRemoteChains,
+        description: `Routers for some domains are missing from the router`,
+      };
+      this.addViolation(violation);
+    }
 
     if (Object.keys(misconfiguredRouterDiff).length > 0) {
       const violation: RouterViolation = {

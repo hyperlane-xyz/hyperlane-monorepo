@@ -69,6 +69,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         HypERC4626Collateral implementation = new HypERC4626Collateral(
             vault,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -85,11 +86,13 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         remoteToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(remoteMailbox),
             localToken.localDomain()
         );
         peerToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(peerMailbox),
             localToken.localDomain()
         );
@@ -275,8 +278,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
             "Allowance should be zero after transfer"
         );
     }
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
 
     function testTransferEvent() public {
         _performRemoteTransferWithoutExpectation(0, transferAmount);
@@ -539,6 +540,33 @@ contract HypERC4626CollateralTest is HypTokenTest {
             1e14,
             0
         ); // asserting that the exchange rate is set finally by the collateral variant
+    }
+
+    function test_rebasingERC20() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION, bytes(""), address(0)); // yield is added
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 balance = remoteToken.balanceOf(BOB);
+        assertApproxEqRelDecimal(
+            balance,
+            transferAmount + _discountedYield(),
+            1e14,
+            0
+        );
+
+        vm.prank(BOB);
+        remoteToken.approve(ALICE, balance);
+
+        vm.prank(ALICE);
+        remoteToken.transferFrom(BOB, CAROL, balance);
+
+        assertEq(remoteToken.allowance(BOB, ALICE), 0);
+        assertEq(remoteToken.balanceOf(BOB), 0);
+        assertEq(remoteToken.balanceOf(CAROL), balance);
     }
 
     function test_cyclicTransfers() public {

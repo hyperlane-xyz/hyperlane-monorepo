@@ -46,6 +46,7 @@ abstract contract HypTokenTest is Test {
     uint32 internal constant ORIGIN = 11;
     uint32 internal constant DESTINATION = 12;
     uint8 internal constant DECIMALS = 18;
+    uint256 internal constant SCALE = 1;
     uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
     uint256 internal REQUIRED_VALUE; // initialized in setUp
     uint256 internal constant GAS_LIMIT = 10_000;
@@ -72,6 +73,8 @@ abstract contract HypTokenTest is Test {
         uint256 amount
     );
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     event ReceivedTransferRemote(
         uint32 indexed origin,
         bytes32 indexed recipient,
@@ -96,6 +99,7 @@ abstract contract HypTokenTest is Test {
 
         HypERC20 implementation = new HypERC20(
             DECIMALS,
+            SCALE,
             address(remoteMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -296,7 +300,11 @@ contract HypERC20Test is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        HypERC20 implementation = new HypERC20(DECIMALS, address(localMailbox));
+        HypERC20 implementation = new HypERC20(
+            DECIMALS,
+            SCALE,
+            address(localMailbox)
+        );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
@@ -391,6 +399,7 @@ contract HypERC20CollateralTest is HypTokenTest {
 
         localToken = new HypERC20Collateral(
             address(primaryToken),
+            SCALE,
             address(localMailbox)
         );
         erc20Collateral = HypERC20Collateral(address(localToken));
@@ -408,7 +417,7 @@ contract HypERC20CollateralTest is HypTokenTest {
 
     function test_constructor_revert_ifInvalidToken() public {
         vm.expectRevert("HypERC20Collateral: invalid token");
-        new HypERC20Collateral(address(0), address(localMailbox));
+        new HypERC20Collateral(address(0), SCALE, address(localMailbox));
     }
 
     function testInitialize_revert_ifAlreadyInitialized() public {}
@@ -456,6 +465,7 @@ contract HypXERC20Test is HypTokenTest {
 
         localToken = new HypXERC20(
             address(primaryToken),
+            SCALE,
             address(localMailbox)
         );
         xerc20Collateral = HypXERC20(address(localToken));
@@ -511,6 +521,7 @@ contract HypXERC20LockboxTest is HypTokenTest {
 
         localToken = new HypXERC20Lockbox(
             address(lockbox),
+            SCALE,
             address(localMailbox)
         );
         xerc20Lockbox = HypXERC20Lockbox(address(localToken));
@@ -580,6 +591,7 @@ contract HypFiatTokenTest is HypTokenTest {
 
         localToken = new HypFiatToken(
             address(primaryToken),
+            SCALE,
             address(localMailbox)
         );
         fiatToken = HypFiatToken(address(localToken));
@@ -631,7 +643,7 @@ contract HypNativeTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypNative(address(localMailbox));
+        localToken = new HypNative(SCALE, address(localMailbox));
         nativeToken = HypNative(payable(address(localToken)));
 
         nativeToken.enrollRemoteRouter(
@@ -714,5 +726,71 @@ contract HypNativeTest is HypTokenTest {
             bytes(""),
             address(0)
         );
+    }
+}
+
+contract HypERC20ScaledTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypERC20 internal erc20Token;
+
+    uint256 constant EFFECTIVE_SCALE = 1e2;
+
+    function setUp() public override {
+        super.setUp();
+
+        HypERC20 implementation = new HypERC20(
+            DECIMALS,
+            EFFECTIVE_SCALE,
+            address(localMailbox)
+        );
+
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(address(noopHook)),
+                address(igp),
+                address(this)
+            )
+        );
+        localToken = HypERC20(address(proxy));
+        erc20Token = HypERC20(address(proxy));
+        erc20Token.transfer(ALICE, TRANSFER_AMT);
+
+        _enrollLocalTokenRouter();
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        vm.expectEmit(true, true, false, true);
+        emit Transfer(ALICE, address(0x0), TRANSFER_AMT);
+
+        vm.expectEmit(true, true, false, true);
+        emit SentTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT * EFFECTIVE_SCALE
+        );
+
+        _performRemoteTransferAndGas(REQUIRED_VALUE, TRANSFER_AMT, 0);
+    }
+
+    function testHandle() public {
+        vm.expectEmit(true, true, false, true);
+        emit Transfer(address(0x0), ALICE, TRANSFER_AMT / EFFECTIVE_SCALE);
+
+        vm.expectEmit(true, true, false, true);
+        emit ReceivedTransferRemote(
+            DESTINATION,
+            ALICE.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        _handleLocalTransfer(TRANSFER_AMT);
     }
 }

@@ -12,6 +12,7 @@ use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, get_ts_infra_path, get_workspace_path, AgentHandles, TaskHandle};
 
+pub mod ethereum_termination_invariants;
 mod multicall;
 
 #[apply(as_task)]

@@ -10,15 +10,17 @@ import {
 import {
   ProtocolType,
   assert,
+  errorToString,
   isAddress,
   isPrivateKeyEvm,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
+  isFile,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
@@ -34,6 +36,28 @@ export async function readChainSubmissionStrategyConfig(
   const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
   const parseResult = ChainSubmissionStrategySchema.parse(strategyConfig);
   return parseResult;
+}
+
+/**
+ * Safely reads chain submission strategy config, returns empty object if any errors occur
+ */
+export async function safeReadChainSubmissionStrategyConfig(
+  filePath: string,
+): Promise<ChainSubmissionStrategy> {
+  try {
+    const trimmedFilePath = filePath.trim();
+    if (!isFile(trimmedFilePath)) {
+      logBlue(`File ${trimmedFilePath} does not exist, returning empty config`);
+      return {};
+    }
+    return await readChainSubmissionStrategyConfig(trimmedFilePath);
+  } catch (error) {
+    logRed(
+      `Failed to read strategy config, defaulting to empty config:`,
+      errorToString(error),
+    );
+    return {};
+  }
 }
 
 export async function createStrategyConfig({

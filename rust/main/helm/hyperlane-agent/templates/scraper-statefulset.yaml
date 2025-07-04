@@ -11,7 +11,7 @@ spec:
     matchLabels:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: scraper3
-  replicas: 1 
+  replicas: 1
   serviceName: {{ include "agent-common.fullname" . }}-scraper3
   template:
     metadata:
@@ -60,7 +60,7 @@ spec:
         {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config) | nindent 8 }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
-        ports: 
+        ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
       {{- with .Values.nodeSelector }}
@@ -71,8 +71,9 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
       tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        - key: "dedicated"
+          operator: "Equal"
+          value: "scraper"
+          effect: "NoSchedule"
 {{- end }}

@@ -1,3 +1,4 @@
 /target
 environments/**/deploy-logs.txt
+environments/local-e2e/igp/*
 **/**/keys

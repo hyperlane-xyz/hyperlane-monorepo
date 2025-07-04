@@ -2,8 +2,11 @@ import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AmountRoutingHook,
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
+  CCIPHook,
+  CCIPHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -29,12 +32,16 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
+  assert,
   deepEquals,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { CCIPContractCache } from '../ccip/utils.js';
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -58,12 +65,16 @@ import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
+  CCIPHookConfig,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
   HookConfigSchema,
   HookType,
+  HookTypeToContractNameMap,
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
   OpStackHookConfig,
@@ -110,6 +121,7 @@ export class EvmHookModule extends HyperlaneModule<
       HookConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
     >,
+    ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = HookConfigSchema.parse(params.config);
@@ -119,6 +131,8 @@ export class EvmHookModule extends HyperlaneModule<
     this.hookFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [this.args.chain]: params.addresses },
       multiProvider,
+      ccipContractCache,
+      contractVerifier,
     );
     this.deployer = new HookDeployer(multiProvider, hookFactories);
 
@@ -129,7 +143,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.txOverrides = multiProvider.getTransactionOverrides(this.chain);
   }
 
-  public async read(): Promise<HookConfig> {
+  public async read(): Promise<DerivedHookConfig | string> {
     return typeof this.args.config === 'string'
       ? this.args.addresses.deployedHook
       : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
@@ -138,29 +152,42 @@ export class EvmHookModule extends HyperlaneModule<
   public async update(
     targetConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    targetConfig = HookConfigSchema.parse(targetConfig);
-
-    // Do not support updating to a custom Hook address
-    if (typeof targetConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
-      );
+    // Nothing to do if its the default hook
+    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+      return [];
     }
 
-    // Update the config
-    this.args.config = targetConfig;
-
     // We need to normalize the current and target configs to compare.
-    const normalizedCurrentConfig = normalizeConfig(await this.read());
-    const normalizedTargetConfig = normalizeConfig(targetConfig);
+    const normalizedTargetConfig: DerivedHookConfig = normalizeConfig(
+      await this.reader.deriveHookConfig(targetConfig),
+    );
+    const normalizedCurrentConfig: DerivedHookConfig | string = normalizeConfig(
+      await this.read(),
+    );
 
     // If configs match, no updates needed
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
 
+    // Update the module config to the target one as we are sure now that an update will be needed
+    this.args.config = normalizedTargetConfig;
+
+    // if the new config is an address just point the module to the new address
+    if (typeof normalizedTargetConfig === 'string') {
+      this.args.addresses.deployedHook = normalizedTargetConfig;
+
+      return [];
+    }
+
+    // Conditions for deploying a new hook:
+    // - If updating from an address/custom config to a proper hook config.
+    // - If updating a proper hook config whose types are different.
+    // - If it is not a mutable Hook.
     if (
-      this.shouldDeployNewHook(normalizedCurrentConfig, normalizedTargetConfig)
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
+      !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
     ) {
       const contract = await this.deploy({
         config: normalizedTargetConfig,
@@ -170,70 +197,11 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    const updateTxs: AnnotatedEV5Transaction[] = [];
-
-    // obtain the update txs for each hook type
-    switch (targetConfig.type) {
-      case HookType.INTERCHAIN_GAS_PAYMASTER:
-        updateTxs.push(
-          ...(await this.updateIgpHook({
-            currentConfig: normalizedCurrentConfig,
-            targetConfig: normalizedTargetConfig,
-          })),
-        );
-        break;
-      case HookType.PROTOCOL_FEE:
-        updateTxs.push(
-          ...(await this.updateProtocolFeeHook({
-            currentConfig: normalizedCurrentConfig,
-            targetConfig: normalizedTargetConfig,
-          })),
-        );
-        break;
-      case HookType.PAUSABLE:
-        updateTxs.push(
-          ...(await this.updatePausableHook({
-            currentConfig: normalizedCurrentConfig,
-            targetConfig: normalizedTargetConfig,
-          })),
-        );
-        break;
-      case HookType.ROUTING:
-      case HookType.FALLBACK_ROUTING:
-        updateTxs.push(
-          ...(await this.updateRoutingHook({
-            currentConfig: normalizedCurrentConfig,
-            targetConfig: normalizedTargetConfig,
-          })),
-        );
-        break;
-      default:
-        // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before the switch
-        throw new Error(
-          `Unsupported hook type: ${normalizedTargetConfig.type}`,
-        );
-    }
-
-    // Lastly, check if the resolved owner is different from the current owner
-    const owner = await Ownable__factory.connect(
-      this.args.addresses.deployedHook,
-      this.multiProvider.getProvider(this.chain),
-    ).owner();
-
-    // Return an ownership transfer transaction if required
-    if (!eqAddress(normalizedTargetConfig.owner, owner)) {
-      updateTxs.push({
-        annotation: 'Transferring ownership of ownable Hook...',
-        chainId: this.chainId,
-        to: this.args.addresses.deployedHook,
-        data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
-          [normalizedTargetConfig.owner],
-        ),
-      });
-    }
-
-    return updateTxs;
+    // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before this call
+    return this.updateMutableHook({
+      current: normalizedCurrentConfig,
+      target: normalizedTargetConfig,
+    });
   }
 
   // manually write static create function
@@ -243,6 +211,7 @@ export class EvmHookModule extends HyperlaneModule<
     proxyFactoryFactories,
     coreAddresses,
     multiProvider,
+    ccipContractCache,
     contractVerifier,
   }: {
     chain: ChainNameOrId;
@@ -250,6 +219,7 @@ export class EvmHookModule extends HyperlaneModule<
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
     const module = new EvmHookModule(
@@ -263,6 +233,7 @@ export class EvmHookModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 
@@ -305,6 +276,81 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return routingHookUpdates;
+  }
+
+  protected async updateMutableHook(configs: {
+    current: Exclude<HookConfig, string>;
+    target: Exclude<HookConfig, string>;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const { current, target } = configs;
+    let updateTxs: AnnotatedEV5Transaction[];
+
+    assert(
+      current.type === target.type,
+      `Mutable hook update requires both hook configs to be of the same type. Expected ${current.type}, got ${target.type}`,
+    );
+    assert(
+      MUTABLE_HOOK_TYPE.includes(current.type),
+      'Expected update config to be of mutable hook type',
+    );
+    // Checking both objects type fields to help typescript narrow the type down correctly
+    if (
+      current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      target.type === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      updateTxs = await this.updateIgpHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      current.type === HookType.PROTOCOL_FEE &&
+      target.type === HookType.PROTOCOL_FEE
+    ) {
+      updateTxs = await this.updateProtocolFeeHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      current.type === HookType.PAUSABLE &&
+      target.type === HookType.PAUSABLE
+    ) {
+      updateTxs = await this.updatePausableHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else if (
+      (current.type === HookType.ROUTING && target.type === HookType.ROUTING) ||
+      (current.type === HookType.FALLBACK_ROUTING &&
+        target.type === HookType.FALLBACK_ROUTING)
+    ) {
+      updateTxs = await this.updateRoutingHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else {
+      throw new Error(`Unsupported hook type: ${target.type}`);
+    }
+
+    // Lastly, check if the resolved owner is different from the current owner
+    const owner = await Ownable__factory.connect(
+      this.args.addresses.deployedHook,
+      this.multiProvider.getProvider(this.chain),
+    ).owner();
+
+    // Return an ownership transfer transaction if required
+    if (!eqAddress(target.owner, owner)) {
+      updateTxs.push({
+        annotation: 'Transferring ownership of ownable Hook...',
+        chainId: this.chainId,
+        to: this.args.addresses.deployedHook,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [target.owner],
+        ),
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async updatePausableHook({
@@ -640,7 +686,8 @@ export class EvmHookModule extends HyperlaneModule<
 
     switch (config.type) {
       case HookType.MERKLE_TREE:
-        return this.deployer.deployContract(this.chain, HookType.MERKLE_TREE, [
+      case HookType.MAILBOX_DEFAULT:
+        return this.deployer.deployContract(this.chain, config.type, [
           this.args.addresses.mailbox,
         ]);
       case HookType.INTERCHAIN_GAS_PAYMASTER:
@@ -656,9 +703,12 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.ROUTING:
       case HookType.FALLBACK_ROUTING:
         return this.deployRoutingHook({ config });
-      case HookType.PAUSABLE: {
+      case HookType.PAUSABLE:
         return this.deployPausableHook({ config });
-      }
+      case HookType.AMOUNT_ROUTING:
+        return this.deployAmountRoutingHook({ config });
+      case HookType.CCIP:
+        return this.deployCCIPHook({ config });
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -798,9 +848,7 @@ export class EvmHookModule extends HyperlaneModule<
         opstackIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
@@ -921,6 +969,29 @@ export class EvmHookModule extends HyperlaneModule<
     return hook;
   }
 
+  protected async deployCCIPHook({
+    config,
+  }: {
+    config: CCIPHookConfig;
+  }): Promise<CCIPHook> {
+    const hook = this.hookFactory.ccipContractCache.getHook(
+      this.chain,
+      config.destinationChain,
+    );
+    if (!hook) {
+      this.logger.error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
+      );
+      throw new Error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
+      );
+    }
+    return CCIPHook__factory.connect(
+      hook,
+      this.multiProvider.getSigner(this.chain),
+    );
+  }
+
   protected async deployRoutingHook({
     config,
   }: {
@@ -936,9 +1007,10 @@ export class EvmHookModule extends HyperlaneModule<
       // deploy fallback hook
       const fallbackHook = await this.deploy({ config: config.fallback });
       // deploy routing hook with fallback
-      routingHook = await this.deployer.deployContract(
+      routingHook = await this.deployer.deployContractWithName(
         this.chain,
         HookType.FALLBACK_ROUTING,
+        HookTypeToContractNameMap[HookType.FALLBACK_ROUTING],
         [this.args.addresses.mailbox, deployerAddress, fallbackHook.address],
       );
     } else {
@@ -1036,6 +1108,29 @@ export class EvmHookModule extends HyperlaneModule<
     return igp;
   }
 
+  protected async deployAmountRoutingHook({
+    config,
+  }: {
+    config: AmountRoutingHookConfig;
+  }): Promise<AmountRoutingHook> {
+    const hooks = [];
+    for (const hookConfig of [config.lowerHook, config.upperHook]) {
+      const { address } = await this.deploy({ config: hookConfig });
+      hooks.push(address);
+    }
+
+    const [lowerHook, upperHook] = hooks;
+
+    // deploy routing hook
+    const routingHook = await this.deployer.deployContract(
+      this.chain,
+      HookType.AMOUNT_ROUTING,
+      [lowerHook, upperHook, config.threshold],
+    );
+
+    return routingHook;
+  }
+
   protected async deployStorageGasOracle({
     config,
   }: {
@@ -1068,28 +1163,5 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     return gasOracle;
-  }
-
-  /**
-   * Determines if a new hook should be deployed based on the current and target configurations.
-   *
-   * @param currentConfig - The current hook configuration.
-   * @param targetConfig - The target hook configuration. Must not be a string.
-   * @returns {boolean} - Returns true if a new hook should be deployed, otherwise false.
-   *
-   * Conditions for deploying a new hook:
-   * - If updating from an address/custom config to a proper hook config.
-   * - If updating a proper hook config whose types are different.
-   * - If it is not a mutable Hook.
-   */
-  private shouldDeployNewHook(
-    currentConfig: HookConfig,
-    targetConfig: Exclude<HookConfig, string>,
-  ): boolean {
-    return (
-      typeof currentConfig === 'string' ||
-      currentConfig.type !== targetConfig.type ||
-      !MUTABLE_HOOK_TYPE.includes(targetConfig.type)
-    );
   }
 }

@@ -72,6 +72,7 @@ function getCheckWarpDeployHelmValues(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       chains: agentConfig.environmentChainNames,
+      registryCommit: config.registryCommit,
     },
     infra: {
       prometheusPushGateway: config.prometheusPushGateway,

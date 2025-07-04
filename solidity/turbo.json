@@ -1,0 +1,14 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": [
+        "artifacts/**",
+        "cache/**",
+        "core-utils/**",
+        "dist/**",
+        "types/**"
+      ]
+    }
+  }
+}

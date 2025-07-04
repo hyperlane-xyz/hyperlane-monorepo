@@ -3,12 +3,12 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   AnnotatedEV5Transaction,
   SubmissionStrategy,
+  getSubmitterBuilder,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, errorToString } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -37,6 +37,7 @@ export async function runSubmit({
   const submitterBuilder = await getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
+    registry: context.registry,
   });
 
   try {

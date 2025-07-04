@@ -110,7 +110,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
-    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
@@ -125,7 +124,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
 
         // for updating metrics even if there's no indexable events available
         let max_sequence = onchain_sequence_count.saturating_sub(1) as i64;
-        self.update_metrics(max_sequence).await;
+        self.update_metrics(max_sequence);
 
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
@@ -216,6 +215,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
     async fn skip_indexed(&mut self) -> Result<()> {
+        let prev_indexed_snapshot = self.last_indexed_snapshot.clone();
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
         while let Some(block_number) = self
@@ -228,11 +228,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             };
 
             self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
-
+        }
+        if prev_indexed_snapshot != self.last_indexed_snapshot {
             debug!(
-                last_indexed_snapshot=?self.last_indexed_snapshot,
+                last_indexed_snapshot=?prev_indexed_snapshot,
                 current_indexing_snapshot=?self.current_indexing_snapshot,
-                "Fast forwarded current sequence"
+                "Fast forwarded current sequence to"
             );
         }
 
@@ -425,7 +426,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     }
 
     // Updates the cursor metrics.
-    async fn update_metrics(&self, max_sequence: i64) {
+    fn update_metrics(&self, max_sequence: i64) {
         let mut labels = hashmap! {
             "event_type" => T::name(),
             "chain" => self.domain.name(),

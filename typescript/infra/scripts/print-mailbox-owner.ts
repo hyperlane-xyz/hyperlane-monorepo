@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -8,15 +6,14 @@ import {
   HyperlaneCore,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  eqAddressEvm,
   objFilter,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
-import { DeployEnvironment } from '../src/config/environment.js';
+import { Owner, determineGovernanceType } from '../src/governance.js';
 import { Role } from '../src/roles.js';
 import {
   filterRemoteDomainMetadata,
@@ -32,19 +29,6 @@ import {
   withContext,
 } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
-
-const DEPLOYERS: Record<DeployEnvironment, Address> = {
-  mainnet3: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  testnet4: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
-  test: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-};
-
-export enum Owner {
-  ICA = 'ICA',
-  SAFE = 'SAFE',
-  DEPLOYER = 'DEPLOYER KEY',
-  UNKNOWN = 'UNKNOWN',
-}
 
 async function main() {
   const {
@@ -80,47 +64,32 @@ async function main() {
       isEthereumProtocolChain(chain),
   );
 
-  const deployer = DEPLOYERS[environment];
-
   const mailboxOwners = await promiseObjAll(
     objMap(
       evmContractsMap,
       async (chain: string, contracts: HyperlaneContracts<CoreFactories>) => {
-        // get possible owners from config
-        const ownerConfig = envConfig.owners[chain];
-        const safeAddress =
-          ownerConfig.ownerOverrides?._safeAddress ??
-          ethers.constants.AddressZero;
-        const icaAddress =
-          ownerConfig.ownerOverrides?._icaAddress ??
-          ethers.constants.AddressZero;
-
         // get actual onchain owner
         const ownerAddress = await contracts.mailbox.owner();
-
-        // determine owner type
-        let ownerType = Owner.UNKNOWN;
-        if (eqAddressEvm(ownerAddress, deployer)) {
-          ownerType = Owner.DEPLOYER;
-        } else if (eqAddressEvm(ownerAddress, safeAddress)) {
-          ownerType = Owner.SAFE;
-        } else if (eqAddressEvm(ownerAddress, icaAddress)) {
-          ownerType = Owner.ICA;
-        }
-
+        const { ownerType, governanceType } = await determineGovernanceType(
+          chain,
+          ownerAddress,
+        );
         return {
           owner: ownerAddress,
           type: ownerType,
+          governance: governanceType,
         };
       },
     ),
   );
 
+  // eslint-disable-next-line no-console
   console.table(mailboxOwners);
 
   const totalChains = Object.keys(mailboxOwners).length;
-  console.log(`\nTotal chains: ${totalChains}`);
+  rootLogger.info(`\nTotal chains: ${totalChains}`);
 
+  // eslint-disable-next-line no-console
   console.table(
     Object.values(Owner).map((ownerType) => ({
       'Owner Type': ownerType,
@@ -134,6 +103,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    rootLogger.error(e);
     process.exit(1);
   });

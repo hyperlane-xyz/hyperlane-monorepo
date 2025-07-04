@@ -1,4 +1,4 @@
-import { Contract, constants } from 'ethers';
+import { constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -11,10 +11,10 @@ import {
   objFilter,
   objMap,
   pick,
-  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -189,6 +189,7 @@ export function attachContractsMapAndGetForeignDeployments<
           throw new Error('Ethereum chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
+        case ProtocolType.CosmosNative:
           return router;
 
         case ProtocolType.Sealevel:
@@ -239,21 +240,13 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-export async function filterOwnableContracts(
-  contracts: HyperlaneContracts<any>,
-): Promise<{ [key: string]: Ownable }> {
-  const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
-    try {
-      await contract.owner();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  };
-  const isOwnableContracts = await promiseObjAll(objMap(contracts, isOwnable));
+// NOTE: does not perform any onchain checks
+export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
+  [key: string]: Ownable;
+} {
   return objFilter(
     contracts,
-    (name, contract): contract is Ownable => isOwnableContracts[name],
+    (_, contract): contract is Ownable => 'owner' in contract.functions,
   );
 }
 
@@ -312,4 +305,16 @@ export function transferOwnershipTransactions(
       ),
     },
   ];
+}
+
+export async function isAddressActive(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const [code, txnCount] = await Promise.all([
+    provider.getCode(address),
+    provider.getTransactionCount(address),
+  ]);
+
+  return code !== '0x' || txnCount > 0;
 }

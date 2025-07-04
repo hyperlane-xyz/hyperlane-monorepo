@@ -16,7 +16,11 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 
-import { ProtocolAgnositicGasOracleConfig } from './oracle/types.js';
+import {
+  IgpCostData,
+  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+} from './oracle/types.js';
 
 export interface GasPriceConfig {
   amount: string;
@@ -47,7 +51,8 @@ export async function getGasPrice(
         decimals: 9,
       };
     }
-    case ProtocolType.Cosmos: {
+    case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative: {
       const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
         amount,
@@ -74,11 +79,27 @@ export async function getCosmosChainGasPrice(
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }
-  if (metadata.protocol !== ProtocolType.Cosmos) {
+  if (
+    metadata.protocol !== ProtocolType.Cosmos &&
+    metadata.protocol !== ProtocolType.CosmosNative
+  ) {
     throw new Error(`Chain ${chain} is not a Cosmos chain`);
   }
 
-  const cosmosRegistryChain = await getCosmosRegistryChain(chain);
+  // Use the cosmos registry gas price first.
+  let cosmosRegistryChain;
+  try {
+    cosmosRegistryChain = await getCosmosRegistryChain(chain);
+  } catch {
+    // Fallback to our registry gas price from the metadata.
+    if (metadata.gasPrice) {
+      return metadata.gasPrice;
+    }
+    throw new Error(
+      `No gas price found for Cosmos chain ${chain} in the registry or metadata`,
+    );
+  }
+
   const nativeToken = metadata.nativeToken;
   if (!nativeToken) {
     throw new Error(`No native token found for Cosmos chain ${chain}`);
@@ -163,6 +184,7 @@ export function getLocalStorageGasOracleConfig({
   gasOracleParams,
   exchangeRateMarginPct,
   gasPriceModifier,
+  typicalCostGetter,
 }: {
   local: ChainName;
   localProtocolType: ProtocolType;
@@ -173,6 +195,11 @@ export function getLocalStorageGasOracleConfig({
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ) => BigNumberJs.Value;
+  typicalCostGetter?: (
+    local: ChainName,
+    remote: ChainName,
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ) => IgpCostData;
 }): ChainMap<ProtocolAgnositicGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -222,11 +249,8 @@ export function getLocalStorageGasOracleConfig({
 
     // Get a prospective gasOracleConfig, adjusting the gas price and exchange rate
     // as needed to account for precision loss (e.g. if the gas price is super small).
-    let gasOracleConfig = adjustForPrecisionLoss(
-      gasPrice,
-      exchangeRate,
-      remoteDecimals,
-    );
+    let gasOracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost =
+      adjustForPrecisionLoss(gasPrice, exchangeRate, remoteDecimals, remote);
 
     // Apply the modifier if provided.
     if (gasPriceModifier) {
@@ -235,9 +259,17 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+        remote,
       );
     }
 
+    if (typicalCostGetter) {
+      gasOracleConfig.typicalCost = typicalCostGetter(
+        local,
+        remote,
+        gasOracleConfig,
+      );
+    }
     return {
       ...agg,
       [remote]: gasOracleConfig,
@@ -249,6 +281,7 @@ function adjustForPrecisionLoss(
   gasPrice: BigNumberJs.Value,
   exchangeRate: BigNumber,
   remoteDecimals: number,
+  remote?: ChainName,
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
@@ -267,7 +300,9 @@ function adjustForPrecisionLoss(
       gasPriceScalingFactor,
     );
     if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
-      throw new Error('Too much underflow when downscaling exchange rate');
+      throw new Error(
+        `Too much underflow when downscaling exchange rate for remote chain ${remote}`,
+      );
     }
 
     newGasPrice = newGasPrice.times(gasPriceScalingFactor);

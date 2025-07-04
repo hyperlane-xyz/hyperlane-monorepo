@@ -1,7 +1,7 @@
 import {
   ChainMap,
   ChainName,
-  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -21,7 +21,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 // so they can easily be copied into the Sealevel tooling. :'(
 
 interface GasOracleConfigWithOverhead {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
+  oracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost;
   overhead?: number;
 }
 
@@ -48,7 +48,7 @@ async function main() {
     if (!connectedChainsSet) {
       return undefined;
     }
-    const connectedChains = [...connectedChainsSet];
+    const connectedChains = [...connectedChainsSet].sort();
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
@@ -57,6 +57,9 @@ async function main() {
           `Token decimals not defined for ${origin} -> ${destination}`,
         );
       }
+      // Strip out the typical cost that may or may not be defined
+      delete oracleConfig.typicalCost;
+
       agg[destination] = {
         oracleConfig,
         overhead: igpConfig?.overhead?.[destination],
@@ -100,9 +103,29 @@ function getChainConnections(
     connectedChains = [
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
-      // Some branch-fu going on with the SMOL warp route,
-      // ultimately this can be removed once the SMOL PR is merged.
-      ['solanamainnet', 'treasure'],
+      ['solanamainnet', 'everclear'],
+      ['solanamainnet', 'infinityvmmainnet'],
+      ['solanamainnet', 'sophon'],
+      ['solanamainnet', 'abstract'],
+      ['solanamainnet', 'apechain'],
+      ['solanamainnet', 'subtensor'],
+      // For Starknet / Paradex
+      ['solanamainnet', 'starknet'],
+      ['solanamainnet', 'paradex'],
+      // for svmBNB routes solana<>bsc<>svmbnb<>soon
+      ['solanamainnet', 'bsc'],
+      ['svmbnb', 'solanamainnet'],
+      ['svmbnb', 'bsc'],
+      ['svmbnb', 'soon'],
+      ['soon', 'solanamainnet'],
+      ['soon', 'bsc'],
+      // for eclipse routes
+      ['eclipsemainnet', 'sonicsvm'],
+      ['eclipsemainnet', 'soon'],
+      ['eclipsemainnet', 'katana'],
+      // for solaxy routes
+      ['solaxy', 'solanamainnet'],
+      ['solaxy', 'ethereum'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -111,26 +134,32 @@ function getChainConnections(
       // As testnet warp routes are not tracked well, hardcode the connected chains.
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
+      ['solanatestnet', 'connextsepolia'],
+      ['solanatestnet', 'infinityvmmonza'],
+      ['solanatestnet', 'basesepolia'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);
   }
 
-  return connectedChains.reduce((agg, chains) => {
-    // Make sure each chain is connected to every other chain
-    chains.forEach((chainA) => {
-      chains.forEach((chainB) => {
-        if (chainA === chainB) {
-          return;
-        }
-        if (agg[chainA] === undefined) {
-          agg[chainA] = new Set();
-        }
-        agg[chainA].add(chainB as ChainName);
+  return connectedChains.reduce(
+    (agg, chains) => {
+      // Make sure each chain is connected to every other chain
+      chains.forEach((chainA) => {
+        chains.forEach((chainB) => {
+          if (chainA === chainB) {
+            return;
+          }
+          if (agg[chainA] === undefined) {
+            agg[chainA] = new Set();
+          }
+          agg[chainA].add(chainB as ChainName);
+        });
       });
-    });
-    return agg;
-  }, {} as ChainMap<Set<ChainName>>);
+      return agg;
+    },
+    {} as ChainMap<Set<ChainName>>,
+  );
 }
 
 main().catch((err) => {

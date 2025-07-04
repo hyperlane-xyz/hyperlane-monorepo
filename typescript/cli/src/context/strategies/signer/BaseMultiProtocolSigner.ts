@@ -1,7 +1,10 @@
 import { Signer } from 'ethers';
 
+import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainName, ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
+
+export type TypedSigner = Signer | SigningHyperlaneModuleClient;
 
 export interface SignerConfig {
   privateKey: string;
@@ -11,12 +14,12 @@ export interface SignerConfig {
 
 export interface IMultiProtocolSigner {
   getSignerConfig(chain: ChainName): Promise<SignerConfig> | SignerConfig;
-  getSigner(config: SignerConfig): Signer;
+  getSigner(config: SignerConfig): Promise<TypedSigner>;
 }
 
 export abstract class BaseMultiProtocolSigner implements IMultiProtocolSigner {
   constructor(protected config: ChainSubmissionStrategy) {}
 
   abstract getSignerConfig(chain: ChainName): Promise<SignerConfig>;
-  abstract getSigner(config: SignerConfig): Signer;
+  abstract getSigner(config: SignerConfig): Promise<TypedSigner>;
 }

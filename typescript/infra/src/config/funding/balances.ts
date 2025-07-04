@@ -1,5 +1,11 @@
+import { join } from 'path';
+
+import { ChainMap } from '@hyperlane-xyz/sdk';
+
+import { getInfraPath } from '../../utils/utils.js';
+
 export enum BalanceThresholdType {
-  RelayerBalance = 'relayerBalance',
+  DesiredRelayerBalance = 'desiredRelayerBalances',
   LowUrgencyKeyFunderBalance = 'lowUrgencyKeyFunderBalance',
   LowUrgencyEngKeyFunderBalance = 'lowUrgencyEngKeyFunderBalance',
   HighUrgencyRelayerBalance = 'highUrgencyRelayerBalance',
@@ -11,9 +17,12 @@ interface BalanceThresholdConfig {
   choiceLabel: string;
 }
 
-export const THRESHOLD_CONFIG_PATH = './config/environments/mainnet3/balances';
+export const THRESHOLD_CONFIG_PATH = join(
+  getInfraPath(),
+  'config/environments/mainnet3/balances',
+);
 
-const RELAYER_BALANCE_TARGET_DAYS = 8;
+export const RELAYER_BALANCE_TARGET_DAYS = 8;
 const RELAYER_MIN_DOLLAR_BALANCE_TARGET = 25;
 export const RELAYER_MIN_DOLLAR_BALANCE_PER_DAY =
   RELAYER_MIN_DOLLAR_BALANCE_TARGET / RELAYER_BALANCE_TARGET_DAYS;
@@ -22,8 +31,8 @@ export const balanceThresholdConfigMapping: Record<
   BalanceThresholdType,
   BalanceThresholdConfig
 > = {
-  [BalanceThresholdType.RelayerBalance]: {
-    configFileName: 'desiredRelayerBalances.json',
+  [BalanceThresholdType.DesiredRelayerBalance]: {
+    configFileName: `${BalanceThresholdType.DesiredRelayerBalance}.json`,
     dailyRelayerBurnMultiplier: RELAYER_BALANCE_TARGET_DAYS,
     choiceLabel: 'Desired Relayer Balance',
   },
@@ -43,3 +52,5 @@ export const balanceThresholdConfigMapping: Record<
     choiceLabel: 'High Urgency Relayer Balance',
   },
 };
+
+export type ThresholdsData = Record<BalanceThresholdType, ChainMap<number>>;

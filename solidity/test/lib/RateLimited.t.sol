@@ -4,14 +4,24 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
+contract TestRateLimited is RateLimited {
+    constructor(uint256 _maxCapacity) RateLimited(_maxCapacity) {}
+
+    function validateAndConsumeFilledLevel(
+        uint256 _amount
+    ) public returns (uint256) {
+        return _validateAndConsumeFilledLevel(_amount);
+    }
+}
+
 contract RateLimitLibTest is Test {
-    RateLimited rateLimited;
+    TestRateLimited rateLimited;
     uint256 constant MAX_CAPACITY = 1 ether;
     uint256 constant ONE_PERCENT = 0.01 ether; // Used for assertApproxEqRel
     address HOOK = makeAddr("HOOK");
 
     function setUp() public {
-        rateLimited = new RateLimited(MAX_CAPACITY);
+        rateLimited = new TestRateLimited(MAX_CAPACITY);
     }
 
     function testConstructor_revertsWhen_lowCapacity() public {

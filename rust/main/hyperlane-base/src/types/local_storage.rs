@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use crate::traits::CheckpointSyncer;
-use crate::AgentMetadata;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
@@ -99,10 +98,9 @@ impl CheckpointSyncer for LocalStorage {
         Ok(())
     }
 
-    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
-        let serialized_metadata = serde_json::to_string_pretty(metadata)?;
+    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
         let path = self.metadata_file_path();
-        tokio::fs::write(&path, &serialized_metadata)
+        tokio::fs::write(&path, serialized_metadata)
             .await
             .with_context(|| format!("Writing agent metadata to {path:?}"))?;
         Ok(())

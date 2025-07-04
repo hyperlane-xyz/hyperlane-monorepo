@@ -10,4 +10,5 @@ export const checkWarpDeployConfig: CheckWarpDeployConfig = {
   cronSchedule: '0 15 * * *', // set to 3pm utc every day
   prometheusPushGateway:
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+  registryCommit: 'main', // This will always use the latest version from the main branch
 };

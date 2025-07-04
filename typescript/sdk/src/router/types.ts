@@ -6,14 +6,15 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
+import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
-import { HookConfigSchema } from '../hook/types.js';
-import { IsmConfigSchema } from '../ism/types.js';
+import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
 export type RouterAddress = {
@@ -21,7 +22,15 @@ export type RouterAddress = {
 };
 
 export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
+
+export type DerivedMailboxClientConfig = MailboxClientConfig & {
+  hook: DerivedHookConfig | Address;
+  interchainSecurityModule: DerivedIsmConfig | Address;
+};
+
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
+export type DerivedRouterConfig = RouterConfig & DerivedMailboxClientConfig;
+
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
 
 export type ProxiedRouterConfig = RouterConfig & Partial<UpgradeConfig>;
@@ -49,6 +58,7 @@ export interface ClientViolation extends CheckerViolation {
 
 export enum RouterViolationType {
   MisconfiguredEnrolledRouter = 'MisconfiguredEnrolledRouter',
+  MissingEnrolledRouter = 'MissingEnrolledRouter',
   MissingRouter = 'MissingRouter',
 }
 
@@ -59,6 +69,13 @@ export interface RouterViolation extends CheckerViolation {
     actual: AddressBytes32;
     expected: AddressBytes32;
   }>;
+  description?: string;
+}
+
+export interface MissingEnrolledRouterViolation extends CheckerViolation {
+  type: RouterViolationType.MissingEnrolledRouter;
+  contract: Router;
+  missingChains: string[];
   description?: string;
 }
 
@@ -81,12 +98,32 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
-export const RemoteRouterDomain = z.string();
+export const RemoteRouterDomainOrChainNameSchema = z.string().or(z.number());
+export type RemoteRouterDomainOrChainName = z.infer<
+  typeof RemoteRouterDomainOrChainNameSchema
+>;
+
+export function resolveRouterMapConfig<T>(
+  multiProvider: MultiProvider,
+  routerMap: Record<RemoteRouterDomainOrChainName, T>,
+): Record<number, T> {
+  return Object.fromEntries(
+    Object.entries(routerMap).map(([domainIdOrChainName, value]) => {
+      if (isNumeric(domainIdOrChainName)) {
+        return [parseInt(domainIdOrChainName), value];
+      }
+
+      const meta = multiProvider.getChainMetadata(domainIdOrChainName);
+      return [meta.domainId, value];
+    }),
+  );
+}
+
 export const RemoteRouterRouter = z.object({
   address: z.string().startsWith('0x'),
 });
 export const RemoteRoutersSchema = z.record(
-  RemoteRouterDomain,
+  RemoteRouterDomainOrChainNameSchema,
   RemoteRouterRouter,
 );
 
@@ -99,10 +136,9 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   }),
 );
 
-const DestinationGasDomain = z.string();
 const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
 export const DestinationGasSchema = z.record(
-  DestinationGasDomain,
+  RemoteRouterDomainOrChainNameSchema,
   DestinationGasAmount,
 );
 export const GasRouterConfigSchema = RouterConfigSchema.extend({

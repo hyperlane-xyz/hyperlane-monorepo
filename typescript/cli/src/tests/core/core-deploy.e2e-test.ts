@@ -25,7 +25,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
-  SETUP_CHAIN_SIGNERS_MANUALLY_STEPS,
+  SETUP_CHAIN_SIGNER_MANUALLY_STEP,
   TestPromptAction,
   handlePrompts,
 } from '../commands/helpers.js';
@@ -52,7 +52,6 @@ describe('hyperlane core deploy e2e tests', async function () {
   describe('hyperlane core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
-        ...SETUP_CHAIN_SIGNERS_MANUALLY_STEPS,
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         {
           check: (currentOutput: string) =>
@@ -60,6 +59,7 @@ describe('hyperlane core deploy e2e tests', async function () {
           // Scroll down through the mainnet chains list and select anvil2
           input: `${KeyBoardKeys.ARROW_DOWN.repeat(2)}}${KeyBoardKeys.ENTER}`,
         },
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP,
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts
           check: (currentOutput) =>
@@ -100,7 +100,7 @@ describe('hyperlane core deploy e2e tests', async function () {
 
   describe('hyperlane core deploy --yes', () => {
     it('should fail if the --chain flag is not provided but the --yes flag is', async () => {
-      const steps: TestPromptAction[] = [...SETUP_CHAIN_SIGNERS_MANUALLY_STEPS];
+      const steps: TestPromptAction[] = [SETUP_CHAIN_SIGNER_MANUALLY_STEP];
 
       const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, undefined, true)
         .nothrow()

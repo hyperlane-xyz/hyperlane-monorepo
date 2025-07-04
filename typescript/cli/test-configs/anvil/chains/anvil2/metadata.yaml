@@ -15,7 +15,7 @@ blockExplorers: # Array: List of BlockExplorer configs
     apiUrl: https://mychain.com/api # String: Base URL for the explorer API
     # Optional fields:
     apiKey: myapikey # String: API key for the explorer (optional)
-    family: etherscan # ExplorerFamily: See ExplorerFamily for valid values
+    family: other # ExplorerFamily: See ExplorerFamily for valid values
 nativeToken:
   name: Ether
   symbol: ETH

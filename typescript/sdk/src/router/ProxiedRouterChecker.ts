@@ -13,10 +13,16 @@ export abstract class ProxiedRouterChecker<
   getOwnableOverrides(chain: ChainName): AddressesMap | undefined {
     const config = this.configMap[chain];
     let ownableOverrides = config?.ownerOverrides;
+    // timelock and proxyAdmin are mutally exclusive
     if (config?.timelock) {
       ownableOverrides = {
         ...ownableOverrides,
         proxyAdmin: this.app.getAddresses(chain).timelockController,
+      };
+    } else if (config?.proxyAdmin) {
+      ownableOverrides = {
+        ...ownableOverrides,
+        proxyAdmin: config.proxyAdmin.owner,
       };
     }
     return ownableOverrides;
@@ -38,9 +44,12 @@ export abstract class ProxiedRouterChecker<
     );
   }
 
-  async checkChain(chain: ChainName): Promise<void> {
+  async checkChain(
+    chain: ChainName,
+    expectedChains?: ChainName[],
+  ): Promise<void> {
     await super.checkMailboxClient(chain);
-    await super.checkEnrolledRouters(chain);
+    await super.checkEnrolledRouters(chain, expectedChains);
     await this.checkProxiedContracts(chain);
     await this.checkOwnership(chain);
   }

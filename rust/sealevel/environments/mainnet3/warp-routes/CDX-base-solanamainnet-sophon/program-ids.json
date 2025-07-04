@@ -1,0 +1,14 @@
+{
+  "sophon": {
+    "hex": "0x0000000000000000000000006ce50f6536fe864952d5ab9abaa3a52e4a7a125f",
+    "base58": "1111111111112WzUuLDSNP37G4KFTRS64WXFojJE"
+  },
+  "base": {
+    "hex": "0x00000000000000000000000022fd11f93f0303346c9b9070cc67c4bc7ab2dabb",
+    "base58": "111111111111VGnE2fqhvnn7b54X4ZEzKE9v28S"
+  },
+  "solanamainnet": {
+    "hex": "0xbf628e576bb2c600fb6934812c6a630c420e22625ad60b635b28fc867877d344",
+    "base58": "Dt62xRfWf7h6cURDsr19tqGWhjHMdobNVQ25cfHtZXg7"
+  }
+}

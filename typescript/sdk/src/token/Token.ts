@@ -12,6 +12,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';
+import { isStarknetFeeToken } from '../utils/starknet.js';
 
 import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
@@ -34,6 +35,10 @@ import {
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
 import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
+import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
@@ -42,7 +47,9 @@ import {
   EvmHypCollateralAdapter,
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
+  EvmHypRebaseCollateralAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypSyntheticRebaseAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
@@ -59,6 +66,12 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
+import {
+  StarknetHypCollateralAdapter,
+  StarknetHypFeeAdapter,
+  StarknetHypNativeAdapter,
+  StarknetHypSyntheticAdapter,
+} from './adapters/StarknetTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
@@ -114,20 +127,13 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.EvmNative) {
       return new EvmNativeTokenAdapter(chainName, multiProvider, {});
-    } else if (standard === TokenStandard.SealevelSpl) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        false,
-      );
-    } else if (standard === TokenStandard.SealevelSpl2022) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        true,
-      );
+    } else if (
+      standard === TokenStandard.SealevelSpl ||
+      standard === TokenStandard.SealevelSpl2022
+    ) {
+      return new SealevelTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (standard === TokenStandard.SealevelNative) {
       return new SealevelNativeTokenAdapter(chainName, multiProvider, {});
     } else if (standard === TokenStandard.CosmosIcs20) {
@@ -197,74 +203,71 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral ||
-      standard === TokenStandard.EvmHypRebaseCollateral
+      standard === TokenStandard.EvmHypOwnerCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
+      return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypCollateralFiat) {
       return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (
-      standard === TokenStandard.EvmHypSynthetic ||
-      standard === TokenStandard.EvmHypSyntheticRebase
-    ) {
+    } else if (standard === TokenStandard.EvmHypSynthetic) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypXERC20) {
+    } else if (standard === TokenStandard.EvmHypSyntheticRebase) {
+      return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (
+      standard === TokenStandard.EvmHypXERC20 ||
+      standard === TokenStandard.EvmHypVSXERC20
+    ) {
       return new EvmHypXERC20Adapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypXERC20Lockbox) {
+    } else if (
+      standard === TokenStandard.EvmHypXERC20Lockbox ||
+      standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
       return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.SealevelHypNative) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      return new SealevelHypNativeAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+      return new SealevelHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.SealevelHypCollateral) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
         collateralAddressOrDenom,
         `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
       );
-      return new SealevelHypCollateralAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+
+      return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.SealevelHypSynthetic) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
         collateralAddressOrDenom,
-        `collateralAddressOrDenom required for Sealevel hyp synthetic tokens`,
+        `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
       );
-      return new SealevelHypSyntheticAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+
+      return new SealevelHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.CwHypNative) {
       return new CwHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
@@ -292,6 +295,30 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.CosmNativeHypCollateral) {
+      return new CosmNativeHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
+      return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (isStarknetFeeToken(chainName, addressOrDenom)) {
+      return new StarknetHypFeeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypNative) {
+      return new StarknetHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypSynthetic) {
+      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypCollateral) {
+      return new StarknetHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }

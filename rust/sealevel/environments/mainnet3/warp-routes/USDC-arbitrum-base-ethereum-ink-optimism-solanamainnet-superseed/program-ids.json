@@ -1,0 +1,30 @@
+{
+  "arbitrum": {
+    "hex": "0x0000000000000000000000002cb0e5abe11346679749063d3fbfc1f390e6e70a",
+    "base58": "111111111111d7VntWLpumxhUMKzgA6YnRnrWHX"
+  },
+  "solanamainnet": {
+    "hex": "0x61b0f49524859cacc107760c20951e9ea2672eb910386d43313e09526a8dc358",
+    "base58": "7aM3itqXToHXhdR97EwJjZc7fay6uBszhUs1rzJm3tto"
+  },
+  "ink": {
+    "hex": "0x00000000000000000000000039d3c2cf646447ee302178edbe5a15e13b6f33ac",
+    "base58": "111111111111oj95L715h4qpoBVXcf6GaNiqdxw"
+  },
+  "optimism": {
+    "hex": "0x000000000000000000000000741b077c69fa219cedb11364706a3880a792423e",
+    "base58": "1111111111112cpRcvAvnm7ix3kGc4GRDLWLddiu"
+  },
+  "superseed": {
+    "hex": "0x000000000000000000000000a7d6042eef06e81168e640b5c41632ee5295227d",
+    "base58": "1111111111113LcqDNi1qu1Yq24iM4WVmu5oshxx"
+  },
+  "base": {
+    "hex": "0x000000000000000000000000955132016f9b6376b1392aa7bff50538d21ababc",
+    "base58": "11111111111135evcsayEkvFQdxp7BG4J3bpKpPd"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000c927767cf7bddc5e8b996a0f957e5f22250a2f67",
+    "base58": "1111111111113oYKszbsQyoDV21uve5A5BWRLNdt"
+  }
+}

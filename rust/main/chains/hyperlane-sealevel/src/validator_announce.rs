@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -9,30 +11,25 @@ use hyperlane_sealevel_validator_announce::{
 use solana_sdk::pubkey::Pubkey;
 use tracing::{info, instrument, warn};
 
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
+use crate::SealevelProvider;
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelValidatorAnnounce {
+    provider: Arc<SealevelProvider>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: SealevelProvider,
 }
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+    pub fn new(provider: Arc<SealevelProvider>, locator: &ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,
             domain: locator.domain.clone(),
             provider,
         }
-    }
-
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
     }
 }
 
@@ -48,7 +45,7 @@ impl HyperlaneChain for SealevelValidatorAnnounce {
     }
 
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -76,7 +73,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // Get all validator storage location accounts.
         // If an account doesn't exist, it will be returned as None.
         let accounts = self
-            .rpc()
+            .provider
+            .rpc_client()
             .get_multiple_accounts_with_finalized_commitment(&account_pubkeys)
             .await?;
 
@@ -107,6 +105,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
+        _chain_signer: H256,
     ) -> Option<U256> {
         Some(U256::zero())
     }

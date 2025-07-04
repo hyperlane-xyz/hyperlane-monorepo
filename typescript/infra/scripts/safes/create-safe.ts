@@ -1,35 +1,42 @@
-import { EthersAdapter, SafeFactory } from '@safe-global/protocol-kit';
-import { SafeAccountConfig } from '@safe-global/protocol-kit';
+import {
+  EthersAdapter,
+  SafeAccountConfig,
+  SafeFactory,
+} from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { Contexts } from '../../config/contexts.js';
-import { getChain } from '../../config/registry.js';
+import { getGovernanceSigners } from '../../config/environments/mainnet3/governance/utils.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
-import { readJSONAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
-  getKeyForRole,
   withChainRequired,
   withSafeHomeUrlRequired,
   withThreshold,
 } from '../agent-utils.js';
-
-const OWNERS_FILE_PATH = 'config/environments/mainnet3/safe/safeSigners.json';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
-  const { chain, safeHomeUrl, threshold } = await withThreshold(
-    withSafeHomeUrlRequired(withChainRequired(getArgs())),
-  ).argv;
+  const { chain, safeHomeUrl, threshold, governanceType } =
+    await withGovernanceType(
+      withThreshold(withSafeHomeUrlRequired(withChainRequired(getArgs()))),
+    ).argv;
 
-  const chainMetadata = await getChain(chain);
-  const rpcUrls = chainMetadata.rpcUrls;
-  const deployerPrivateKey = await getDeployerPrivateKey();
+  const envConfig = getEnvironmentConfig('mainnet3');
+  const multiProvider = await envConfig.getMultiProvider(
+    Contexts.Hyperlane,
+    Role.Deployer,
+    true,
+    [chain],
+  );
 
-  // Create ethers signer with deployer key
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrls[0].http);
+  const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({
     ethers,
-    signerOrProvider: new ethers.Wallet(deployerPrivateKey, provider),
+    signerOrProvider: signer,
   });
 
   let safeFactory;
@@ -38,31 +45,30 @@ async function main() {
       ethAdapter,
     });
   } catch (e) {
-    console.error(`Error initializing SafeFactory: ${e}`);
+    rootLogger.error(`Error initializing SafeFactory: ${e}`);
     process.exit(1);
   }
 
-  const ownersConfig = readJSONAtPath(OWNERS_FILE_PATH);
-  const owners = ownersConfig.signers;
-
+  const { signers, threshold: defaultThreshold } =
+    getGovernanceSigners(governanceType);
   const safeAccountConfig: SafeAccountConfig = {
-    owners,
-    threshold,
+    owners: signers,
+    threshold: threshold ?? defaultThreshold,
   };
 
   let safe;
   try {
     safe = await safeFactory.deploySafe({ safeAccountConfig });
   } catch (e) {
-    console.error(`Error deploying Safe: ${e}`);
+    rootLogger.error(`Error deploying Safe: ${e}`);
     process.exit(1);
   }
 
   const safeAddress = await safe.getAddress();
 
-  console.log(`Safe address: ${safeAddress}`);
-  console.log(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);
-  console.log('url may not be correct, please check by following the link');
+  rootLogger.info(`Safe address: ${safeAddress}`);
+  rootLogger.info(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);
+  rootLogger.info('url may not be correct, please check by following the link');
 
   try {
     // TODO: check https://app.safe.global for officially supported chains, filter by chain id
@@ -70,31 +76,24 @@ async function main() {
       'https://',
       'https://gateway.',
     )}/v1/chains`;
-    console.log(`Fetching chain data from ${chainsUrl}`);
+    rootLogger.info(`Fetching chain data from ${chainsUrl}`);
     const response = await fetch(chainsUrl);
 
     const resultsJson = await response.json();
 
     const transactionService = resultsJson.results[0].transactionService;
-    console.log(`Chains: ${JSON.stringify(transactionService)}`);
-    console.log(
+    rootLogger.info(`Chains: ${JSON.stringify(transactionService)}`);
+    rootLogger.info(
       `Add the transaction service url ${transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
     );
   } catch (e) {
-    console.error(`Could not fetch safe tx service url: ${e}`);
+    rootLogger.error(`Could not fetch safe tx service url: ${e}`);
   }
 }
-
-const getDeployerPrivateKey = async () => {
-  const key = getKeyForRole('mainnet3', Contexts.Hyperlane, Role.Deployer);
-  await key.fetch();
-
-  return key.privateKey;
-};
 
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    rootLogger.error(e);
     process.exit(1);
   });

@@ -72,6 +72,13 @@ export class CwNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(
     _params: TransferParams,
   ): Promise<ExecuteInstruction> {
@@ -141,13 +148,9 @@ export class CwTokenAdapter
   }
 
   async getMetadata(): Promise<CW20Metadata> {
-    const resp = await this.queryToken<TokenInfoResponse>({
+    return this.queryToken<TokenInfoResponse>({
       token_info: {},
     });
-    return {
-      ...resp,
-      totalSupply: resp.total_supply,
-    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -155,6 +158,13 @@ export class CwTokenAdapter
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -463,5 +473,12 @@ export class CwHypCollateralAdapter
     public readonly addresses: { warpRouter: Address; token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
   }
 }

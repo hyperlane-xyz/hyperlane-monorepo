@@ -1,5 +1,7 @@
 import { JsonRpcSigner } from '@ethersproject/providers';
-import SafeApiKit from '@safe-global/api-kit';
+import SafeApiKit, {
+  SafeMultisigTransactionListResponse,
+} from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
@@ -10,6 +12,7 @@ import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
+  AnnotatedEV5Transaction,
   ChainNameOrId,
   MultiProvider,
   getSafe,
@@ -23,21 +26,23 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
+
+const TX_FETCH_RETRIES = 5;
+const TX_FETCH_RETRY_DELAY = 5000;
 
 export async function getSafeAndService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   const safeSdk: Safe.default = await retryAsync(
     () => getSafe(chain, multiProvider, safeAddress),
     5,
     1000,
   );
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
@@ -101,12 +106,13 @@ export async function createSafeTransaction(
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
   onlyCalls?: boolean,
+  nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
     onlyCalls,
-    options: { nonce: nextNonce },
+    options: { nonce: nonce ?? nextNonce },
   });
 }
 
@@ -119,7 +125,7 @@ export async function proposeSafeTransaction(
   signer: ethers.Signer,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+  const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
 
   await safeService.proposeTransaction({
@@ -177,21 +183,33 @@ export async function getSafeTx(
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
-  // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
 
-  if (!txDetailsResponse.ok) {
+  try {
+    return await retryAsync(
+      async () => {
+        const txDetailsResponse = await fetch(txDetailsUrl, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!txDetailsResponse.ok) {
+          throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+        }
+
+        return txDetailsResponse.json();
+      },
+      TX_FETCH_RETRIES,
+      TX_FETCH_RETRY_DELAY,
+    );
+  } catch (error) {
     rootLogger.error(
-      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+      chalk.red(
+        `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+      ),
     );
     return;
   }
-
-  return txDetailsResponse.json();
 }
 
 export async function deleteSafeTx(
@@ -307,17 +325,41 @@ export async function deleteSafeTx(
   }
 }
 
-export async function updateSafeOwner(
-  safeSdk: Safe.default,
-): Promise<AnnotatedCallData[]> {
-  const threshold = await safeSdk.getThreshold();
-  const owners = await safeSdk.getOwners();
-  const newOwners = safeSigners.signers;
-  const ownersToRemove = owners.filter(
-    (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
+export async function getOwnerChanges(
+  currentOwners: Address[],
+  expectedOwners: Address[],
+): Promise<{
+  ownersToRemove: Address[];
+  ownersToAdd: Address[];
+}> {
+  const ownersToRemove = currentOwners.filter(
+    (owner) => !expectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
   );
-  const ownersToAdd = newOwners.filter(
-    (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
+  const ownersToAdd = expectedOwners.filter(
+    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
+  );
+
+  return { ownersToRemove, ownersToAdd };
+}
+
+export async function updateSafeOwner({
+  safeSdk,
+  owners,
+  threshold,
+}: {
+  safeSdk: Safe.default;
+  owners?: Address[];
+  threshold?: number;
+}): Promise<AnnotatedCallData[]> {
+  const currentThreshold = await safeSdk.getThreshold();
+  const newThreshold = threshold ?? currentThreshold;
+
+  const currentOwners = await safeSdk.getOwners();
+  const expectedOwners = owners ?? currentOwners;
+
+  const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+    currentOwners,
+    expectedOwners,
   );
 
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
@@ -328,7 +370,7 @@ export async function updateSafeOwner(
   for (const ownerToRemove of ownersToRemove) {
     const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
       ownerAddress: ownerToRemove,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: removeTxData.to,
@@ -341,13 +383,33 @@ export async function updateSafeOwner(
   for (const ownerToAdd of ownersToAdd) {
     const { data: addTxData } = await safeSdk.createAddOwnerTx({
       ownerAddress: ownerToAdd,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: addTxData.to,
       data: addTxData.data,
       value: BigNumber.from(addTxData.value),
       description: `Add safe owner ${ownerToAdd}`,
+    });
+  }
+
+  if (
+    ownersToRemove.length === 0 &&
+    ownersToAdd.length === 0 &&
+    currentThreshold !== newThreshold
+  ) {
+    rootLogger.info(
+      chalk.magentaBright(
+        `Threshold change ${currentThreshold} => ${newThreshold}`,
+      ),
+    );
+    const { data: thresholdTxData } =
+      await safeSdk.createChangeThresholdTx(newThreshold);
+    transactions.push({
+      to: thresholdTxData.to,
+      data: thresholdTxData.data,
+      value: BigNumber.from(thresholdTxData.value),
+      description: `Change safe threshold to ${newThreshold}`,
     });
   }
 
@@ -395,7 +457,8 @@ export async function getPendingTxsForChains(
         return;
       }
 
-      let safeSdk, safeService;
+      let safeSdk: Safe.default;
+      let safeService: SafeApiKit.default;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
@@ -412,8 +475,34 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
-      if (pendingTxs.results.length === 0) {
+
+      let pendingTxs: SafeMultisigTransactionListResponse;
+      rootLogger.info(
+        chalk.gray.italic(
+          `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+        ),
+      );
+      try {
+        pendingTxs = await retryAsync(
+          () => safeService.getPendingTransactions(safes[chain]),
+          TX_FETCH_RETRIES,
+          TX_FETCH_RETRY_DELAY,
+        );
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+          ),
+        );
+        return;
+      }
+
+      if (!pendingTxs || pendingTxs.results.length === 0) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `No pending transactions found for safe ${safes[chain]} on ${chain}`,
+          ),
+        );
         return;
       }
 
@@ -428,10 +517,10 @@ export async function getPendingTxsForChains(
             confs >= threshold
               ? SafeTxStatus.READY_TO_EXECUTE
               : confs === 0
-              ? SafeTxStatus.NO_CONFIRMATIONS
-              : threshold - confs
-              ? SafeTxStatus.ONE_AWAY
-              : SafeTxStatus.PENDING;
+                ? SafeTxStatus.NO_CONFIRMATIONS
+                : threshold - confs
+                  ? SafeTxStatus.ONE_AWAY
+                  : SafeTxStatus.PENDING;
 
           txs.push({
             chain,
@@ -453,4 +542,30 @@ export async function getPendingTxsForChains(
   return txs.sort(
     (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
   );
+}
+
+export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+  const safeInterface = new ethers.utils.Interface([
+    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+    'function approveHash(bytes32 hashToApprove)',
+    'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+    'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+    'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
+    'function changeThreshold(uint256 _threshold)',
+    'function enableModule(address module)',
+    'function disableModule(address prevModule, address module)',
+    'function setGuard(address guard)',
+    'function setFallbackHandler(address handler)',
+    'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
+    'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
+    'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
+    'function simulateAndRevert(address targetContract, bytes calldataPayload)',
+  ]);
+
+  const decoded = safeInterface.parseTransaction({
+    data: tx.data ?? '0x',
+    value: tx.value,
+  });
+
+  return decoded;
 }

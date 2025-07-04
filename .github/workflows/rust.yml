@@ -2,21 +2,12 @@ name: rust
 
 on:
   # Triggers the workflow on pushes to main branch
-  # only if rust/** or .github/workflows/rust.yml is changed
   push:
     branches: [main]
-    paths:
-      - 'rust/main/**'
-      - 'rust/sealevel/**'
-      - .github/workflows/rust.yml
-  # Triggers the workflow on pull requests
-  # only if rust/** or .github/workflows/rust.yml is changed
+  # Triggers on pull requests
   pull_request:
-    branches: [main]
-    paths:
-      - 'rust/main/**'
-      - 'rust/sealevel/**'
-      - .github/workflows/rust.yml
+    branches:
+      - '*'
   merge_group:
   workflow_dispatch:
 
@@ -27,31 +18,73 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  MIN_LANDERCOVERAGE_PERCENTAGE: 1
+  RUSTC_WRAPPER: sccache
 
 jobs:
-  test-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+  lander-coverage:
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v3'
-          shared-key: 'rust'
-          cache-provider: 'buildjet'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ./rust/sealevel
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.8
+
+      - name: Install cargo-llvm-cov
+        run: |
+          cargo install cargo-llvm-cov@0.5.39 --locked
+          rustup component add llvm-tools-preview
+
+      - name: Generate coverage for lander package
+        run: cargo llvm-cov --package lander --json --output-path coverage.json
+        working-directory: ./rust/main
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(cat coverage.json | jq -r '.data[0].totals.lines.percent')
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE * 100 < $MIN_LANDERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Code coverage is below minimum threshold of $MIN_LANDERCOVERAGE_PERCENTAGE percent"
+            exit 1
+          fi
+        working-directory: ./rust/main
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.json
+          flags: ./rust/main/lander
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-rs:
+    runs-on: depot-ubuntu-24.04-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.8
       - name: Run tests for main workspace
         run: cargo test
         working-directory: ./rust/main
@@ -60,7 +93,7 @@ jobs:
         working-directory: ./rust/sealevel
 
   lint-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,22 +102,14 @@ jobs:
         with:
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v3'
-          shared-key: 'rust'
-          cache-provider: 'buildjet'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ./rust/sealevel
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.8
       - name: Check for main workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/main

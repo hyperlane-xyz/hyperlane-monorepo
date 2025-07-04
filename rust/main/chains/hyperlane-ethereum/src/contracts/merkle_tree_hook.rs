@@ -4,14 +4,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
+use ethers_contract::builders::ContractCall;
+use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod,
-    SequenceAwareIndexer, H256, H512,
+    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -117,7 +119,6 @@ where
     M: Middleware + 'static,
 {
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -143,7 +144,6 @@ where
         Ok(logs)
     }
 
-    #[instrument(level = "debug", err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         get_finalized_block_number(&self.provider, &self.reorg_period).await
@@ -250,7 +250,10 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
         let call = call_with_reorg_period(
             self.contract.latest_checkpoint(),
             &self.provider,
@@ -258,22 +261,53 @@ where
         )
         .await?;
 
+        let block_height = Self::block_height(&call);
+
         let (root, index) = call.call().await?;
-        Ok(Checkpoint {
+        let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height,
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let call = self
+            .contract
+            .latest_checkpoint()
+            .block(BlockId::Number(BlockNumber::Number(height.into())));
+
+        let (root, index) = call.call().await?;
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address: self.address(),
+            mailbox_domain: self.domain.id(),
+            root: root.into(),
+            index,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: Some(height),
         })
     }
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let call =
             call_with_reorg_period(self.contract.tree(), &self.provider, reorg_period).await?;
+        let tree = call.call().await?;
+        let block_height = Self::block_height(&call);
 
-        Ok(call.call().await?.into())
+        Ok(IncrementalMerkleAtBlock {
+            tree: tree.into(),
+            block_height,
+        })
     }
 
     #[instrument(skip(self))]
@@ -282,5 +316,17 @@ where
             call_with_reorg_period(self.contract.count(), &self.provider, reorg_period).await?;
         let count = call.call().await?;
         Ok(count)
+    }
+}
+
+impl<M> EthereumMerkleTreeHook<M>
+where
+    M: 'static + Middleware,
+{
+    fn block_height<D>(call: &ContractCall<M, D>) -> Option<u64> {
+        if let Some(BlockId::Number(BlockNumber::Number(n))) = call.block {
+            return Some(n.as_u64());
+        }
+        None
     }
 }

@@ -4,9 +4,13 @@ export default [
   ...MonorepoDefaults,
   {
     ignores: [
-      './test/**/*',
-      './dist/**/*',
+      '**/lib/**/*',
+      '**/test/**/*',
+      '**/dist/**/*',
+      '**/lib/**/*',
+      '**/typechain/**/*',
       '.solcover.js',
+      'generate-artifact-exports.mjs',
     ],
   },
 ];

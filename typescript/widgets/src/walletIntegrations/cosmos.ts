@@ -4,9 +4,11 @@ import type {
   ExecuteResult,
   IndexedTx,
 } from '@cosmjs/cosmwasm-stargate';
+import { GasPrice } from '@cosmjs/stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
+import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -95,7 +97,7 @@ export function useCosmosActiveChain(
   _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
   // Cosmoskit doesn't have the concept of an active chain
-  return useMemo(() => ({} as ActiveChainInfo), []);
+  return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
 export function useCosmosTransactionFns(
@@ -134,8 +136,12 @@ export function useCosmosTransactionFns(
         await onSwitchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const { getSigningCosmWasmClient, getSigningStargateClient } =
-        chainContext;
+      const {
+        getSigningCosmWasmClient,
+        getSigningStargateClient,
+        getOfflineSigner,
+        chain,
+      } = chainContext;
       let result: ExecuteResult | DeliverTxResponse;
       let txDetails: IndexedTx | null;
       if (tx.type === ProviderType.CosmJsWasm) {
@@ -158,6 +164,24 @@ export function useCosmosTransactionFns(
           2,
         );
         txDetails = await client.getTx(result.transactionHash);
+      } else if (tx.type === ProviderType.CosmJsNative) {
+        const signer = getOfflineSigner();
+        const client = await SigningHyperlaneModuleClient.connectWithSigner(
+          chain.apis!.rpc![0].address,
+          signer,
+          {
+            // set zero gas price here so it does not error. actual gas price
+            // will be injected from the wallet registry like Keplr or Leap
+            gasPrice: GasPrice.fromString('0token'),
+          },
+        );
+
+        result = await client.signAndBroadcast(
+          chainContext.address,
+          [tx.transaction],
+          2,
+        );
+        txDetails = await client.getTx(result.transactionHash);
       } else {
         throw new Error(`Invalid cosmos provider type ${tx.type}`);
       }
@@ -174,7 +198,26 @@ export function useCosmosTransactionFns(
     [onSwitchNetwork, chainToContext],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on Cosmos');
+    },
+    [onSwitchNetwork, multiProvider],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork: onSwitchNetwork,
+  };
 }
 
 function getCosmosChains(
@@ -182,6 +225,7 @@ function getCosmosChains(
 ): ChainMetadata[] {
   return [
     ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
+    ...getChainsForProtocol(multiProvider, ProtocolType.CosmosNative),
     cosmoshub,
   ];
 }

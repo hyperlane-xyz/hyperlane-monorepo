@@ -19,8 +19,6 @@ derive-new = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 http = { workspace = true }
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-hyperlane-cosmwasm-interface.workspace = true
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 ibc-proto = { workspace = true }
@@ -28,6 +26,7 @@ injective-protobuf = { workspace = true }
 injective-std = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
+pin-project.workspace = true
 protobuf = { workspace = true }
 ripemd = { workspace = true }
 serde = { workspace = true }
@@ -45,6 +44,13 @@ tonic = { workspace = true, features = [
     "tls-roots",
     "tls-native-roots",
 ] }
+tower.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
+
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-cosmwasm-interface.workspace = true
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }

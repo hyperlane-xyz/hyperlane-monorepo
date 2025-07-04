@@ -39,9 +39,9 @@ pub enum ProverError {
     #[allow(dead_code)]
     VerificationFailed {
         /// The expected root (this tree's current root)
-        expected: H256,
+        expected: Box<H256>,
         /// The root produced by branch evaluation
-        actual: H256,
+        actual: Box<H256>,
     },
 }
 
@@ -103,7 +103,10 @@ impl Prover {
         if expected == actual {
             Ok(())
         } else {
-            Err(ProverError::VerificationFailed { expected, actual })
+            Err(ProverError::VerificationFailed {
+                expected: Box::new(expected),
+                actual: Box::new(actual),
+            })
         }
     }
 }

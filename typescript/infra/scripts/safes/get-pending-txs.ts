@@ -10,7 +10,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { safes } from '../../config/environments/mainnet3/owners.js';
+import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
 import {
   SafeTxStatus,
@@ -21,11 +22,10 @@ import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
-  const safeChains = Object.keys(safes);
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { chains, fullTxHash } = await withChains(
-    yargs(process.argv.slice(2)),
-    safeChains,
+
+  const { chains, fullTxHash, governanceType } = await withGovernanceType(
+    withChains(yargs(process.argv.slice(2))),
   )
     .describe(
       'fullTxHash',
@@ -33,6 +33,9 @@ async function main() {
     )
     .boolean('fullTxHash')
     .default('fullTxHash', false).argv;
+
+  const safes = getGovernanceSafes(governanceType);
+  const safeChains = Object.keys(safes);
 
   const chainsToCheck = chains || safeChains;
   if (chainsToCheck.length === 0) {
