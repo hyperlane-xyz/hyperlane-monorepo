@@ -102,18 +102,14 @@ export const getSubtensorUSDCWarpConfig = async (
           ];
         }
 
+        const cctpBridge = cctpBridges[currentChain];
         const allowedRebalancingBridges = Object.fromEntries(
-          Object.entries(cctpBridges)
+          deploymentChains
             .filter(
-              ([chainName, _]) =>
-                // Get only chains included in this deployment config and exclude the current one
-                deploymentChains.includes(chainName as DeploymentChain) &&
-                chainName !== currentChain,
+              (remoteChain) =>
+                remoteChain !== currentChain && remoteChain !== 'solanamainnet',
             )
-            .map(([chainName, bridgeAddress]) => [
-              chainName,
-              [{ bridge: bridgeAddress }],
-            ]),
+            .map((remoteChain) => [remoteChain, [{ bridge: cctpBridge }]]),
         );
 
         return [
