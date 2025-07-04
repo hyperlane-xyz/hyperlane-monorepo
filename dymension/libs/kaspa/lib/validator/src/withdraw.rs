@@ -21,6 +21,7 @@ pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
 }
 
 // Mimic a parallel multi-validator signing process
+// used by multisig demo only
 pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
     let signed: Vec<PSKT<Signer>> = e
         .keys
@@ -43,6 +44,25 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
     }
 
     Ok(combined)
+}
+
+pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle> {
+    let mut signed = Vec::new();
+    // Iterate over (PSKT; associated HL messages) pairs
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+        let pskt = PSKT::<Signer>::from(pskt.clone());
+
+        let payload_msg_ids = MessageIDs::from(messages)
+            .to_bytes()
+            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+        let signed_pskt = sign_pskt(kp, pskt, payload_msg_ids)?;
+
+        signed.push(signed_pskt);
+    }
+    info!("Validator: signed pskts");
+    let bundle = Bundle::from(signed);
+    Ok(bundle)
 }
 
 // TODO: use wallet instead of raw keypair

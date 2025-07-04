@@ -20,7 +20,7 @@
 #### 0. Setup escrow
 
 # in libs/kaspa/demo/user
-cargo run validator
+cargo run validator-with-escrow
 # THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below. Do NOT unescape json quotes
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
@@ -151,7 +151,7 @@ cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcs
 
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 80808082
-dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
+dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 50 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
 ###############################################################
 ###############################################################

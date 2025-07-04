@@ -52,9 +52,8 @@ impl TryFrom<Bytes> for WithdrawFXG {
     type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        bincode::deserialize(&bytes).map_err(|e| {
-            eyre::Report::new(e).wrap_err("Failed to deserialize WithdrawFXG from bytes")
-        })
+        let wire = WireWithdrawFXG::try_from(bytes)?;
+        WithdrawFXG::try_from(wire)
     }
 }
 
@@ -62,8 +61,76 @@ impl TryFrom<&WithdrawFXG> for Bytes {
     type Error = EyreError;
 
     fn try_from(x: &WithdrawFXG) -> Result<Self, Self::Error> {
-        Ok(Bytes::from(bincode::serialize(x).map_err(|e| {
-            eyre::Report::new(e).wrap_err("Failed to serialize WithdrawFXG into bytes")
-        })?))
+        let wire: WireWithdrawFXG = WireWithdrawFXG::try_from(x)?;
+        Bytes::try_from(&wire)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WireWithdrawFXG {
+    pub bundle: String,
+    pub messages: Vec<Vec<HyperlaneMessage>>,
+}
+
+impl TryFrom<WireWithdrawFXG> for WithdrawFXG {
+    type Error = EyreError;
+
+    fn try_from(wire: WireWithdrawFXG) -> Result<Self, Self::Error> {
+        let bundle = Bundle::deserialize(&wire.bundle)
+            .map_err(|e| eyre::eyre!("bundle deserialize: {e}"))?;
+        Ok(WithdrawFXG {
+            bundle,
+            messages: wire.messages,
+        })
+    }
+}
+
+impl TryFrom<&WithdrawFXG> for WireWithdrawFXG {
+    type Error = EyreError;
+
+    fn try_from(fxg: &WithdrawFXG) -> Result<Self, Self::Error> {
+        let bundle = fxg
+            .bundle
+            .serialize()
+            .map_err(|e| eyre::eyre!("bundle serialize: {e}"))?;
+        Ok(WireWithdrawFXG {
+            bundle,
+            messages: fxg.messages.clone(),
+        })
+    }
+}
+
+impl TryFrom<Bytes> for WireWithdrawFXG {
+    type Error = EyreError;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        postcard::from_bytes(&bytes).map_err(|e| eyre::eyre!("wirewithdrawfxg deserialize: {e}"))
+    }
+}
+
+impl TryFrom<&WireWithdrawFXG> for Bytes {
+    type Error = EyreError;
+
+    fn try_from(x: &WireWithdrawFXG) -> Result<Self, Self::Error> {
+        let bytes_vec =
+            postcard::to_allocvec(x).map_err(|e| eyre::eyre!("wirewithdrawfxg serialize: {e}"))?;
+        Ok(Bytes::from(bytes_vec))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+
+    #[test]
+    fn test_withdrawfxg_bytes_roundtrip() {
+        let msg = HyperlaneMessage::default();
+        let messages = vec![vec![msg]];
+        let bundle = Bundle::new();
+        let fxg = WithdrawFXG::new(bundle, messages);
+
+        let bytes = Bytes::try_from(&fxg).unwrap();
+        let fxg2 = WithdrawFXG::try_from(bytes).unwrap();
     }
 }

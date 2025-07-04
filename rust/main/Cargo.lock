@@ -2604,6 +2604,7 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
+ "postcard",
  "reqwest 0.12.15",
  "reqwest-middleware",
  "reqwest-ratelimit",

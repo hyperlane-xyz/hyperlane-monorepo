@@ -1,18 +1,27 @@
 #![allow(unused)] // TODO: remove
+use eyre::{eyre, Result};
 
 mod x;
 
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
+use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::wallet::*;
-use hardcode::e2e::*;
-use relayer::withdraw::*;
+use hardcode::e2e::{
+    get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
+    DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
+    RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+};
+use relayer::withdraw::demo::*;
+use relayer::withdraw::hub_to_kaspa::*;
 use validator::withdraw::*;
 use x::args::Args;
 
 use std::sync::Arc;
 
+use corelib::withdraw::WithdrawFXG;
+use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -40,6 +49,7 @@ use kaspa_txscript::{
 use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
+use relayer::withdraw::messages::WithdrawalDetails;
 use workflow_core::abortable::Abortable;
 
 /*
@@ -65,60 +75,93 @@ We will test against testnet 10. The wallet has 200'000 KAS available.
 
 
  */
-async fn demo() -> Result<(), Error> {
+async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
     let args = Args::parse();
 
-    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
-    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
+    let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+        wallet_secret: args.wallet_secret.unwrap(),
+        rpc_url: e2e_url.to_string(),
+        network: Network::KaspaTest10,
+    })
+    .await?;
 
-    let rpc = w.rpc_api();
+    let rpc = w.api();
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
 
-    let e = Escrow::new(2);
-    info!("Created escrow address: {}", e.public(ADDRESS_PREFIX).addr);
+    let e = Escrow::new(1);
+    info!(
+        "Created escrow address: {}",
+        e.public(e2e_address_prefix).addr
+    );
 
-    let amt = DEPOSIT_AMOUNT;
-    let tx_id = deposit(&w, &s, &e, amt, ADDRESS_PREFIX).await?;
+    let amt = e2e_deposit_amount;
+    let addr = e.public(e2e_address_prefix).addr;
+    let tx_id = deposit(&w.wallet, &w.secret, addr, amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    let user_addr = w.account()?.receive_address()?;
+    let user_addr = w.account().receive_address()?;
+
+    let details = WithdrawalDetails {
+        message_id: H256::random(),
+        recipient: user_addr.clone(),
+        amount_sompi: amt,
+    };
+
+    let outpoint = TransactionOutpoint::new(tx_id, 0); // TODO:
+
+    let pskt = build_withdrawal_pskt(
+        vec![details],
+        &rpc,
+        &e.public(e2e_address_prefix),
+        &w.account(),
+        &outpoint,
+        e2e_network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    let hl_msg = HyperlaneMessage::default();
+    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]);
 
     let pskt_unsigned = build_withdrawal_tx(
         rpc.as_ref(),
-        &e.public(ADDRESS_PREFIX),
-        user_addr,
-        &w.account()?,
+        &e.public(e2e_address_prefix),
+        user_addr.clone(),
+        &w.account(),
         amt,
-        RELAYER_NETWORK_FEE,
+        e2e_relayer_network_fee,
     )
     .await?;
 
-    let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
+    let bundle_val = sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
 
-    let tx_id = send_tx(
-        rpc.as_ref(),
-        pskt_signed_vals,
-        pskt_unsigned,
-        &e.public(ADDRESS_PREFIX),
+    let finalized = combine_bundles_with_fee(
+        vec![bundle_val],
+        &fxg,
+        e.m(),
+        e.public(e2e_address_prefix).pubs.clone(),
         &w,
-        &s,
     )
     .await?;
+
+    let res = rpc
+        .submit_transaction(finalized.first().unwrap().clone(), false)
+        .await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    w.stop().await?;
+    w.wallet.stop().await?;
     Ok(())
 }
 

@@ -1,8 +1,13 @@
-use anyhow::Result;
+use eyre::Result;
+
+use kaspa_consensus_core::hashing::sighash::{
+    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
+};
+use kaspa_wallet_core::derivation::build_derivate_paths;
+
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
-use corelib::wallet::NetworkInfo;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -21,25 +26,27 @@ use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
 use kaspa_hashes;
-use kaspa_rpc_core::{RpcUtxoEntry, RpcUtxosByAddressesEntry};
-use kaspa_txscript;
+use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
+use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
+use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use std::collections::BTreeMap;
+use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
-/// Details of a withdrawal extracted from HyperlaneMessage
-#[derive(Debug, Clone)]
-pub(crate) struct WithdrawalDetails {
-    pub message_id: H256,
-    pub recipient: kaspa_addresses::Address,
-    pub amount_sompi: u64,
-}
+use super::messages::WithdrawalDetails;
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
+use eyre::eyre;
+use kaspa_addresses::Prefix;
+use kaspa_rpc_core::model::RpcTransactionId;
+use kaspa_wallet_pskt::prelude::Bundle;
+use tracing::info;
 
 /// Builds a single withdrawal PSKT.
 ///
@@ -94,7 +101,7 @@ pub async fn build_withdrawal_pskt(
         u.outpoint.transaction_id == current_anchor.transaction_id
             && u.outpoint.index == current_anchor.index
     }) {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "No UTXOs found for current anchor: {:?}",
             current_anchor
         ));
@@ -128,7 +135,7 @@ pub async fn build_withdrawal_pskt(
         .fold(0, |acc, w| acc + w.amount_sompi);
 
     if escrow_balance < withdrawal_balance {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Insufficient funds in escrow: {} < {}",
             escrow_balance,
             withdrawal_balance
@@ -201,7 +208,7 @@ pub async fn build_withdrawal_pskt(
     let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Insufficient relayer funds to cover tx fee: {} < {}",
             relayer_balance,
             tx_fee
@@ -225,7 +232,7 @@ pub async fn build_withdrawal_pskt(
                     .unwrap(),
             )
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt input for escrow: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
 
         pskt = pskt.input(pskt_input);
     }
@@ -241,7 +248,7 @@ pub async fn build_withdrawal_pskt(
                     .unwrap(),
             )
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt input for relayer: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
 
         pskt = pskt.input(pskt_input);
     }
@@ -252,7 +259,7 @@ pub async fn build_withdrawal_pskt(
             .amount(output.value)
             .script_public_key(output.script_public_key)
             .build()
-            .map_err(|e| anyhow::anyhow!("Build pskt output for withdrawal: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
         pskt = pskt.output(pskt_output);
     }
@@ -262,7 +269,7 @@ pub async fn build_withdrawal_pskt(
         .amount(escrow_balance - withdrawal_balance)
         .script_public_key(escrow.p2sh.clone())
         .build()
-        .map_err(|e| anyhow::anyhow!("Build pskt output for escrow change: {}", e))?;
+        .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
     // relayer_balance - tx_fee as checked above
     let relayer_change = OutputBuilder::default()
@@ -271,7 +278,7 @@ pub async fn build_withdrawal_pskt(
             &relayer.change_address()?,
         )))
         .build()
-        .map_err(|e| anyhow::anyhow!("Build pskt output for relayer change: {}", e))?;
+        .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
     // escrow_change should always be present even if it's dust
     pskt = pskt.output(escrow_change);
@@ -291,12 +298,12 @@ async fn get_utxo_to_spend(
     let mut utxos = kaspa_rpc
         .get_utxos_by_addresses(vec![addr.clone()])
         .await
-        .map_err(|e| anyhow::anyhow!("Get escrow UTXOs: {}", e))?;
+        .map_err(|e| eyre::eyre!("Get escrow UTXOs: {}", e))?;
 
     let block = kaspa_rpc
         .get_block_dag_info()
         .await
-        .map_err(|e| anyhow::anyhow!("Get block DAG info: {}", e))?;
+        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
     let current_daa_score = block.virtual_daa_score;
 
     // Descending order – older UTXOs first
@@ -376,64 +383,262 @@ fn estimate_fee(
     mass
 }
 
-pub(crate) async fn get_pending_withdrawals(
-    withdrawals: Vec<HyperlaneMessage>,
-    cosmos: &CosmosGrpcClient,
-    height: Option<u32>,
-) -> Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
-    // A list of withdrawal IDs to request their statuses from the Hub
-    let withdrawal_ids: Vec<_> = withdrawals
+pub async fn combine_bundles_with_fee(
+    bundles_validators: Vec<Bundle>,
+    fxg: &WithdrawFXG,
+    multisig_threshold: usize,
+    pub_keys: Vec<PublicKey>,
+    easy_wallet: &EasyKaspaWallet,
+) -> Result<Vec<RpcTransaction>> {
+    info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
+
+    let mut bundles_validators = bundles_validators;
+
+    let all_bundles = {
+        info!("Kaspa provider, got validator bundles, now signing relayer fee");
+        if bundles_validators.len() < multisig_threshold {
+            return Err(eyre!(
+                "Not enough validator bundles, required: {}, got: {}",
+                multisig_threshold,
+                bundles_validators.len()
+            ));
+        }
+
+        let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
+        info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
+        bundles_validators.push(bundle_relayer);
+        bundles_validators
+    };
+    let txs_signed = combine_all_bundles(all_bundles)?;
+    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), pub_keys)?;
+    Ok(finalized)
+}
+
+/// returns bundle of Signer
+async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+    let wallet = easy_wallet.wallet.clone();
+    let secret = easy_wallet.secret.clone();
+
+    let mut signed = Vec::new();
+    // Iterate over (PSKT; associated HL messages) pairs
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+        let pskt = PSKT::<Signer>::from(pskt.clone());
+
+        let payload_msg_ids = MessageIDs::from(messages)
+            .to_bytes()
+            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
+    }
+    Ok(Bundle::from(signed))
+}
+
+/// accepts bundle of signer
+fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
+    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
+    // therefore index i of each vector corresponds to the same TX i
+
+    // make a list of lists, each top level element is a vector of pskt from a different actor
+    let actor_pskts = bundles
         .iter()
-        .map(|m| WithdrawalId {
-            message_id: m.id().encode_hex(),
+        .map(|b| {
+            b.iter()
+                .map(|inner| PSKT::<Signer>::from(inner.clone()))
+                .collect::<Vec<PSKT<Signer>>>()
         })
-        .collect();
+        .collect::<Vec<Vec<PSKT<Signer>>>>();
 
-    // Request withdrawal statuses from the Hub
-    let resp = cosmos
-        .withdrawal_status(withdrawal_ids, height)
-        .await
-        .map_err(|e| anyhow::anyhow!("Query outpoint from x/kas: {}", e))?;
+    let n_txs = actor_pskts.first().unwrap().len();
 
-    let outpoint_data = resp
-        .outpoint
-        .ok_or_else(|| anyhow::anyhow!("No outpoint data in response"))?;
-
-    if outpoint_data.transaction_id.len() != 32 {
-        return Err(anyhow::anyhow!(
-            "Invalid transaction ID length: expected 32 bytes, got {}",
-            outpoint_data.transaction_id.len()
-        ));
+    // need to walk across each tx, and for each tx walk across each actor, and combine all for that tx, so all the sigs
+    // for each tx are grouped together in one vector
+    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
+    for tx_i in 0..n_txs {
+        let mut all_sigs_for_tx = Vec::new();
+        for tx_sigs_from_actor_j in actor_pskts.iter() {
+            all_sigs_for_tx.push(tx_sigs_from_actor_j[tx_i].clone());
+        }
+        tx_sigs.push(all_sigs_for_tx);
     }
 
-    // Convert the transaction ID to kaspa transaction ID
-    let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(
-        outpoint_data
-            .transaction_id
-            .as_slice()
-            .try_into()
-            .map_err(|e| anyhow::anyhow!("Convert tx ID to Kaspa tx ID: {:}", e))?,
-    );
+    // walk across each tx and combine all the sigs for that tx into one combiner
+    let mut ret = Vec::new();
+    for all_actor_sigs_for_tx in tx_sigs.iter() {
+        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
+        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
+            combiner = (combiner + tx_sig.clone())?;
+        }
+        ret.push(combiner);
+    }
+    Ok(ret)
+}
 
-    // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
-    // then the respective element of withdrawals is Unprocessed.
-    let pending_withdrawals: Vec<_> = resp
-        .status
+fn finalize_txs(
+    txs_sigs: Vec<PSKT<Combiner>>,
+    messages: Vec<Vec<HyperlaneMessage>>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<Vec<RpcTransaction>> {
+    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
-        .enumerate()
-        .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
-            _ => None, // Ignore other statuses
+        .zip(messages.into_iter())
+        .map(|(tx, messages)| {
+            let msg_ids_bytes = MessageIDs::from(messages)
+                .to_bytes()
+                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
         })
         .collect();
 
-    Ok((
-        TransactionOutpoint {
-            transaction_id: kaspa_tx_id,
-            index: outpoint_data.index,
-        },
-        pending_withdrawals,
-    ))
+    let transactions: Vec<RpcTransaction> = transactions_result?;
+
+    Ok(transactions)
+}
+
+// used by multisig demo AND real code
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    payload: Vec<u8>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<RpcTransaction, Error> {
+    let finalized_pskt = c
+        .finalizer()
+        .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+            Ok(inner
+                .inputs
+                .iter()
+                .enumerate()
+                .map(|(i, input)| -> Vec<u8> {
+                    match input.sig_op_count {
+                        Some(n) => {
+                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
+                                // relayer UTXO
+
+                                let sig = input
+                                    .partial_sigs
+                                    .iter()
+                                    .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
+                                    .next()
+                                    .unwrap()
+                                    .1
+                                    .into_bytes();
+
+                                std::iter::once(65u8)
+                                    .chain(sig)
+                                    .chain([input.sighash_type.to_u8()])
+                                    .collect()
+                            } else {
+                                // escrow UTXO
+
+                                // Return the full script
+
+                                // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                                // ORIGINAL COMMENT: considering xpubs sorted order
+
+                                // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                                let sigs: Vec<_> = escrow_pubs
+                                    .iter()
+                                    .flat_map(|kp| {
+                                        let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                        std::iter::once(OpData65)
+                                            .chain(sig)
+                                            .chain([input.sighash_type.to_u8()])
+                                    })
+                                    .collect();
+
+                                // Then add the multisig redeem script to the end
+                                sigs.into_iter()
+                                    .chain(
+                                        ScriptBuilder::new()
+                                            .add_data(
+                                                input.redeem_script.as_ref().unwrap().as_slice(),
+                                            )
+                                            .unwrap()
+                                            .drain()
+                                            .iter()
+                                            .cloned(),
+                                    )
+                                    .collect()
+                            };
+                        }
+                        None => vec![], // Should not happen
+                    }
+                })
+                .collect())
+        })
+        .unwrap();
+
+    let mass = 10_000; // TODO: why? is it okay to keep this value?
+    let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
+
+    // Inject the expected payload
+    tx.payload = payload;
+
+    let rpc_tx = (&tx).into();
+    Ok(rpc_tx)
+}
+
+pub async fn sign_pay_fee(
+    pskt: PSKT<Signer>,
+    w: &Arc<Wallet>,
+    s: &Secret,
+    payload: Vec<u8>,
+) -> Result<PSKT<Signer>> {
+    // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
+    // It's a hack allowing to sign PSKT with a custom payload.
+    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
+
+    // Get the active account from the wallet and its address
+    let acc = w.account()?;
+
+    // Get private and public keys for the active account
+    let keydata = acc.prv_key_data(s.clone()).await?;
+    let xprv = keydata.get_xprv(Some(s))?;
+    let key_fingerprint = xprv.public_key().fingerprint();
+
+    // Create keypair from the private key
+    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
+    let pk = kp.public_key();
+
+    // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
+    // Use receive one as it is used in `Account.pskb_sign`.
+    let derivation = acc.as_derivation_capable()?;
+    let (derivation_path, _) = build_derivate_paths(
+        &derivation.account_kind(),
+        derivation.account_index(),
+        derivation.cosigner_index(),
+    )?;
+
+    // reused_values is something copied from the `pskb_signer_for_address` funciton
+    let reused_values = SigHashReusedValuesUnsync::new();
+
+    pskt.pass_signature_sync(|tx, sighash| {
+        // Sign tx as if it had a payload
+        let mut tx_payload = tx.clone();
+        tx_payload.tx.payload = payload;
+        let tx_verifiable = tx_payload.as_verifiable();
+
+        tx_payload
+            .tx
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(idx, _input)| {
+                let hash =
+                    calc_schnorr_signature_hash(&tx_verifiable, idx, sighash[idx], &reused_values);
+                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
+                    .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
+                Ok(SignInputOk {
+                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
+                    pub_key: pk,
+                    key_source: Some(KeySource {
+                        key_fingerprint,
+                        derivation_path: derivation_path.clone(),
+                    }),
+                })
+            })
+            .collect()
+    })
 }
 
 #[cfg(test)]
@@ -512,7 +717,7 @@ mod tests {
 
         // Step 4: Create WithdrawFXG using Bundle::from(pskt)
         let bundle = Bundle::from(pskt_signer);
-        let withdraw_fxg = WithdrawFXG::new(bundle);
+        let withdraw_fxg = WithdrawFXG::new(bundle, vec![]);
 
         // Step 5: Convert WithdrawFXG to Bytes
         let serialized_bytes =

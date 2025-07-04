@@ -1,4 +1,4 @@
-use corelib::user::deposit::deposit_impl;
+use corelib::user::deposit::deposit_with_payload;
 use corelib::wallet::get_wallet;
 use eyre::Result;
 use kaspa_addresses::Address;
@@ -22,7 +22,7 @@ pub async fn do_deposit(args: DepositArgs) -> Result<()> {
     // TODO: check amt and payload
     let payload = hex::decode(&args.payload)?;
 
-    let res = deposit_impl(&w, &s, a, amt, payload);
+    let res = deposit_with_payload(&w, &s, a, amt, payload);
 
     println!("Deposit sent: {:?}", res.await);
 

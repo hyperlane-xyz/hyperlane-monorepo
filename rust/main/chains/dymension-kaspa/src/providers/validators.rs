@@ -152,10 +152,10 @@ impl ValidatorsClient {
                         );
                     }
                 },
-                Err(_e) => {
+                Err(e) => {
                     error!(
-                        "Dymension, got withdrawal sig response Err, validator: {:?}",
-                        h
+                        "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
+                        h, e
                     );
                 }
             }
