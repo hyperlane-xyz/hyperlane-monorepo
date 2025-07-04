@@ -46,11 +46,11 @@ export const legacyIcaChainRouters: Record<
     interchainAccountIsm: '0x8BdD5bf519714515083801448A99F84882A8F61E',
     interchainAccountRouter: '0x718f11e349374481Be8c8B7589eC4B4316ddDCc2',
   },
-  // special case for arcadia as it's currently under maintenance.
-  // will update this separately in the next batch.
-  arcadia: {
-    interchainAccountIsm: '0xc261Bd2BD995d3D0026e918cBFD44b0Cc5416a57',
-    interchainAccountRouter: '0xf4035357EB3e3B48E498FA6e1207892f615A2c2f',
+  // special case for bouncebit as there are RPC issues currently
+  // will update this separately in the next batch
+  bouncebit: {
+    interchainAccountIsm: '0xcDD89f19b2d00DCB9510BB3fBd5eCeCa761fe5Ab',
+    interchainAccountRouter: '0x7947b7Fe737B4bd1D3387153f32148974066E591',
   },
 };
 export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
@@ -74,9 +74,9 @@ export const chainsToSkip: ChainName[] = [
   // Oct 16 batch
   'lumia',
 
-  // special case for arcadia as it's currently under maintenance.
-  // will update this separately in the next batch.
-  'arcadia',
+  // special case for bouncebit as there are RPC issues currently
+  // will update this separately in the next batch
+  'bouncebit',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
