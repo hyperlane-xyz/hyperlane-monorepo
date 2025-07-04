@@ -61,7 +61,7 @@ impl PendingOperation for MockQueueOperation {
     async fn confirm(&mut self) -> PendingOperationResult {
         unimplemented!()
     }
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         _submission_outcome: TxOutcome,
         _submission_estimated_cost: U256,

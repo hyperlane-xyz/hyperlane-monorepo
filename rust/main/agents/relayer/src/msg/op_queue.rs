@@ -354,7 +354,7 @@ pub mod test {
             todo!()
         }
 
-        fn set_operation_outcome(
+        async fn set_operation_outcome(
             &mut self,
             _submission_outcome: TxOutcome,
             _submission_estimated_cost: U256,
