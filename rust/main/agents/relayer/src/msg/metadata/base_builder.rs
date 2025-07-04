@@ -7,6 +7,7 @@ use derive_new::new;
 use eyre::Context;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
+use maplit::hashmap;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -28,6 +29,15 @@ use crate::msg::metadata::base_builder::validator_announced_storages::fetch_stor
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 mod validator_announced_storages;
+
+#[derive(Clone, Debug)]
+pub struct IsmBuildMetricsParams {
+    pub app_context: Option<String>,
+    pub origin: HyperlaneDomain,
+    pub destination: HyperlaneDomain,
+    pub ism_type: String,
+    pub success: bool,
+}
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -66,6 +76,8 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
     fn get_signer(&self) -> Option<&Signers>;
 
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams);
+
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
@@ -102,6 +114,17 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
 
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
         &self.cache
+    }
+
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams) {
+        let labels = hashmap! {
+            "app_context" => params.app_context.as_deref().unwrap_or("Unknown"),
+            "origin" => params.origin.name(),
+            "remote" => params.destination.name(),
+            "ism_type" => params.ism_type.as_str(),
+            "status" => if params.success { "success" } else { "failure" },
+        };
+        self.metrics.ism_build_count().with(&labels).inc();
     }
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
