@@ -16,10 +16,12 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
-    Signable, H160, H256,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, ModuleType,
+    RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
+
+use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
@@ -167,85 +169,109 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message, _params))]
+    #[instrument(err, skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        _params: MessageMetadataBuildParams,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let ism = self
-            .base
-            .base_builder()
-            .build_ccip_read_ism(ism_address)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        let res = ism_build(self, ism_address, message, params).await;
 
-        let info = self.call_get_offchain_verify_info(ism, message).await?;
+        // update metrics
+        let ism_build_metrics_params = IsmBuildMetricsParams {
+            app_context: self.base.app_context.clone(),
+            success: res.is_ok(),
+            origin: self.base_builder().origin_domain().clone(),
+            destination: self.base_builder().destination_domain().clone(),
+            ism_type: ModuleType::CcipRead.as_str().to_string(),
+        };
+        self.base_builder()
+            .update_ism_metric(ism_build_metrics_params);
+        res
+    }
+}
 
-        let ccip_url_regex = create_ccip_url_regex();
+async fn ism_build(
+    ism_builder: &CcipReadIsmMetadataBuilder,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+    _params: MessageMetadataBuildParams,
+) -> Result<Metadata, MetadataBuildError> {
+    let ism = ism_builder
+        .base
+        .base_builder()
+        .build_ccip_read_ism(ism_address)
+        .await
+        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-        for url in info.urls.iter() {
-            if ccip_url_regex.is_match(url) {
-                tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
-                continue;
-            }
+    let info = ism_builder
+        .call_get_offchain_verify_info(ism, message)
+        .await?;
 
-            // Compute relayer authentication signature via EIP-191
-            let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
-                Some(Self::generate_signature_hex(signer, &info, url).await?)
-            } else {
-                None
-            };
+    let ccip_url_regex = create_ccip_url_regex();
 
-            // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
-            // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
-            // the full address)
-            let sender_as_bytes = &bytes_to_hex(info.sender.as_bytes());
-            let data_as_bytes = &info.call_data.to_string();
-            let interpolated_url = url
-                .replace("{sender}", sender_as_bytes)
-                .replace("{data}", data_as_bytes);
-            let res = if !url.contains("{data}") {
-                let mut body = json!({
-                    "sender": sender_as_bytes,
-                    "data": data_as_bytes
-                });
-                if let Some(signature_hex) = &maybe_signature_hex {
-                    body["signature"] = json!(signature_hex);
-                }
-                Client::new()
-                    .post(interpolated_url)
-                    .header(CONTENT_TYPE, "application/json")
-                    .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-            } else {
-                reqwest::get(interpolated_url)
-                    .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-            };
-
-            let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
-
-            match json {
-                Ok(result) => {
-                    // remove leading 0x which hex_decode doesn't like
-                    let metadata = hex_decode(&result.data[2..])
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                    return Ok(Metadata::new(metadata));
-                }
-                Err(_err) => {
-                    // try the next URL
-                }
-            }
+    for url in info.urls.iter() {
+        if ccip_url_regex.is_match(url) {
+            tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
+            continue;
         }
 
-        // No metadata endpoints or endpoints down
-        Err(MetadataBuildError::CouldNotFetch)
+        // Compute relayer authentication signature via EIP-191
+        let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer()
+        {
+            Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, &info, url).await?)
+        } else {
+            None
+        };
+
+        // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
+        // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
+        // the full address)
+        let sender_as_bytes = &bytes_to_hex(info.sender.as_bytes());
+        let data_as_bytes = &info.call_data.to_string();
+        let interpolated_url = url
+            .replace("{sender}", sender_as_bytes)
+            .replace("{data}", data_as_bytes);
+        let res = if !url.contains("{data}") {
+            let mut body = json!({
+                "sender": sender_as_bytes,
+                "data": data_as_bytes
+            });
+            if let Some(signature_hex) = &maybe_signature_hex {
+                body["signature"] = json!(signature_hex);
+            }
+            Client::new()
+                .post(interpolated_url)
+                .header(CONTENT_TYPE, "application/json")
+                .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+                .json(&body)
+                .send()
+                .await
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+        } else {
+            reqwest::get(interpolated_url)
+                .await
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+        };
+
+        let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
+
+        match json {
+            Ok(result) => {
+                // remove leading 0x which hex_decode doesn't like
+                let metadata = hex_decode(&result.data[2..])
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                return Ok(Metadata::new(metadata));
+            }
+            Err(_err) => {
+                // try the next URL
+            }
+        }
     }
+
+    // No metadata endpoints or endpoints down
+    Err(MetadataBuildError::CouldNotFetch)
 }
 
 fn create_ccip_url_regex() -> RegexSet {
