@@ -5,14 +5,23 @@
     "remoteDecimals": 18,
     "name": "Solaxy",
     "symbol": "SOLX",
+    "interchainSecurityModule":"CByGdnzmr9Gt3RNPXx9ZiM1RzEvrMnBsLTEWUbw1yT6v",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f50f80c269077c9ff184b1ba22d1c72618bbd80a/deployments/warp_routes/SOLX/metadata.json",
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "owner": "BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ"
+    "owner": "8MnEQtXQvpNkQGW5QHZYS5m621FubwGyK3qDphcZqmay",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
   },
   "ethereum": {
     "type": "collateral",
     "decimals": 18,
     "foreignDeployment": "0x261a172eB72D8D32837D123E8AcC4d2e44117195",
     "token": "0xe0B7AD7F8F26e2b00C8b47b5Df370f15F90fCF48"
+  },
+  "solaxy": {
+    "type": "native",
+    "decimals": 6,
+    "remoteDecimals": 18,
+    "interchainGasPaymaster": "7z1QjgLLxowA9RA9QBuiC72Tc6aC1XjtA5zdH9LJHm1a",
+    "owner": "9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf",
+    "foreignDeployment": "7HZ5A89rQyd3gpSLCFCsAzpap4SZJx3eC2AUMXKJBnfh"
   }
 }
