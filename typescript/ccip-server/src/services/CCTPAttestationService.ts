@@ -114,6 +114,7 @@ class CCTPAttestationService {
             ...context,
             status: resp.status,
             statusText: resp.statusText,
+            url,
           },
           'CCTP attestation request failed',
         );
@@ -125,6 +126,9 @@ class CCTPAttestationService {
         logger.info(
           {
             ...context,
+            status: resp.status,
+            statusText: resp.statusText,
+            url,
           },
           'CCTP attestation not found',
         );
@@ -137,6 +141,7 @@ class CCTPAttestationService {
           ...context,
           status: resp.status,
           statusText: resp.statusText,
+          url,
         },
         'CCTP attestation request failed: unknown error',
       );

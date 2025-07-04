@@ -116,32 +116,15 @@ export class CallCommitmentsService extends BaseService {
       return res.status(400).json({ error: error.message });
     }
 
-    // Check if commitment already exists before attempting insert
+    // Attempt to insert the commitment. Using upsert for idempotency.
     try {
-      const existingRecord = await prisma.commitment.findUnique({
-        where: { revealMessageId },
-        select: { commitment: true }, // Only need to check existence
-      });
-
-      if (existingRecord) {
-        logger.info(
-          {
-            commitmentDispatchTx: data.commitmentDispatchTx,
-            originDomain: data.originDomain,
-            revealMessageId,
-          },
-          'Commitment already exists - returning success',
-        );
-        return res.sendStatus(200); // Idempotent operation
-      }
-
-      // No existing record, proceed with insert
-      await this.insertCommitmentToDB(
+      await this.upsertCommitmentInDB(
         commitment,
         { ...data, ica, revealMessageId },
         logger,
       );
     } catch (error: any) {
+      // Any database error is unexpected.
       logger.error(
         {
           commitmentDispatchTx: data.commitmentDispatchTx,
@@ -152,7 +135,6 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error during commitment processing',
       );
-
       PrometheusMetrics.logUnhandledError(this.config.serviceName);
       return res.status(500).json({ error: 'Internal server error' });
     }
@@ -290,9 +272,9 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Insert a new commitment record into the database.
+   * Upsert a commitment record into the database.
    */
-  private async insertCommitmentToDB(
+  private async upsertCommitmentInDB(
     commitment: string,
     data: PostCallsType & {
       ica: string;
@@ -310,8 +292,10 @@ export class CallCommitmentsService extends BaseService {
       originDomain,
     } = data;
 
-    await prisma.commitment.create({
-      data: {
+    await prisma.commitment.upsert({
+      where: { revealMessageId },
+      update: {}, // Do nothing if it already exists.
+      create: {
         commitment,
         revealMessageId,
         calls,
@@ -330,7 +314,7 @@ export class CallCommitmentsService extends BaseService {
         callsCount: calls.length,
         originDomain,
       },
-      'Stored commitment to database',
+      'Upserted commitment to database',
     );
   }
 

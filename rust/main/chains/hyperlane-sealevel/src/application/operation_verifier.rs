@@ -29,6 +29,7 @@ lazy_static! {
             hex_or_base58_to_h256("7KD647mgysBeEt6PSrv2XYktkSNLzear124oaMENp8SY").unwrap(),
             hex_or_base58_to_h256("GPFwRQ5Cw6dTWnmappUKJt76DD8yawxPx28QugfCaGaA").unwrap(),
             hex_or_base58_to_h256("4CMbJtieJ7EboZZGSbXTQjW5i2sL638jFvE3dWTYG3SK").unwrap(),
+            hex_or_base58_to_h256("EfSiyLayPpfZ7uGetjmjxYh6r3LjoJjmHkkxRJmDpgaT").unwrap(),
         ])
     };
 }

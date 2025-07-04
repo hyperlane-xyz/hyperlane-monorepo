@@ -696,7 +696,14 @@ export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
+  targetNetworks?: ChainName[],
 ) {
+  if (targetNetworks && targetNetworks.length > 0) {
+    addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
+      return targetNetworks.includes(chain as ChainName);
+    });
+  }
+
   addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
