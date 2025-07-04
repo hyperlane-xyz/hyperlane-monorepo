@@ -54,11 +54,7 @@ contract DomainRoutingIsm is
         IInterchainSecurityModule[] calldata __modules
     ) public initializer {
         __Ownable_init();
-        require(_domains.length == __modules.length, "length mismatch");
-        uint256 _length = _domains.length;
-        for (uint256 i = 0; i < _length; ++i) {
-            _set(_domains[i], address(__modules[i]));
-        }
+        _set(_domains, __modules);
         _transferOwnership(_owner);
     }
 
@@ -72,6 +68,37 @@ contract DomainRoutingIsm is
         IInterchainSecurityModule _module
     ) external onlyOwner {
         _set(_domain, address(_module));
+    }
+
+    function set(
+        uint32[] calldata _domains,
+        IInterchainSecurityModule[] calldata __modules
+    ) external onlyOwner {
+        _set(_domains, __modules);
+    }
+
+    /**
+     * @notice Adds the specified origin domain
+     * @dev Reverts if the domain already exists
+     * @dev Behavior similar to set but useful for distinguishing by selector
+     * @param _domain The origin domain
+     * @param _module The ISM to use to verify messages
+     */
+    function add(
+        uint32 _domain,
+        IInterchainSecurityModule _module
+    ) external onlyOwner {
+        _add(_domain, address(_module));
+    }
+
+    function add(
+        uint32[] calldata _domains,
+        IInterchainSecurityModule[] calldata __modules
+    ) external onlyOwner {
+        require(_domains.length == __modules.length, "length mismatch");
+        for (uint256 i = 0; i < _domains.length; ++i) {
+            _add(_domains[i], address(__modules[i]));
+        }
     }
 
     /**
@@ -123,6 +150,22 @@ contract DomainRoutingIsm is
         uint32 _origin
     ) internal pure returns (string memory) {
         return string.concat("No ISM found for origin: ", _origin.toString());
+    }
+
+    function _set(
+        uint32[] calldata _domains,
+        IInterchainSecurityModule[] calldata __modules
+    ) internal {
+        require(_domains.length == __modules.length, "length mismatch");
+        uint256 _length = _domains.length;
+        for (uint256 i = 0; i < _length; ++i) {
+            _set(_domains[i], address(__modules[i]));
+        }
+    }
+
+    function _add(uint32 _domain, address _module) internal {
+        require(!_modules.contains(_domain), "Domain already exists");
+        _set(_domain, _module);
     }
 
     /**
