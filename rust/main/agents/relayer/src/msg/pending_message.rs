@@ -204,6 +204,10 @@ impl PendingOperation for PendingMessage {
         &self.message.recipient
     }
 
+    fn body(&self) -> &[u8] {
+        &self.message.body
+    }
+
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
         match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
             Ok(status) => status,

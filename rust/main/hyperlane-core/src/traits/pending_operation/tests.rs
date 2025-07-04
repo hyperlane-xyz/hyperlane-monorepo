@@ -37,6 +37,9 @@ impl PendingOperation for MockQueueOperation {
     fn recipient_address(&self) -> &H256 {
         unimplemented!()
     }
+    fn body(&self) -> &[u8] {
+        unimplemented!()
+    }
     fn app_context(&self) -> Option<String> {
         None
     }
