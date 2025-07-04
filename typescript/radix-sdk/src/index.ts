@@ -21,7 +21,6 @@ import {
   ValueKind,
   address,
   array,
-  blob,
   decimal,
   enumeration,
   expression,
@@ -32,6 +31,8 @@ import {
 import { getRandomValues } from 'crypto';
 
 import { assert } from '@hyperlane-xyz/utils';
+
+import { bytes } from './utils.js';
 
 const networkId = NetworkId.Stokenet; // For mainnet, use NetworkId.Mainnet
 const applicationName = 'Hyperlane Test';
@@ -325,7 +326,6 @@ export class RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  // TODO: fix ethereum address
   public async createMerkleRootMultisigIsm(
     validators: string[],
     threshold: number,
@@ -335,7 +335,7 @@ export class RadixSDK {
       'MerkleRootMultisigIsm',
       'instantiate',
       [
-        array(ValueKind.Blob, ...validators.map((v) => blob(v))),
+        array(ValueKind.Array, ...validators.map((v) => bytes(v))),
         u64(threshold),
       ],
     );
@@ -346,7 +346,6 @@ export class RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  // TODO: fix ethereum address
   public async createMessageIdMultisig(
     validators: string[],
     threshold: number,
@@ -356,7 +355,7 @@ export class RadixSDK {
       'MessageIdMultisigIsm',
       'instantiate',
       [
-        array(ValueKind.Blob, ...validators.map((v) => blob(v))),
+        array(ValueKind.Blob, ...validators.map((v) => bytes(v))),
         u64(threshold),
       ],
     );
@@ -438,6 +437,12 @@ export class RadixSDK {
 
     await this.submitTransaction(transactionManifest);
   }
+
+  public async getMailboxLocalDomain(mailbox: string) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
+    console.log(JSON.stringify((details.details as any).state.fields));
+  }
 }
 
 const main = async () => {
@@ -447,15 +452,24 @@ const main = async () => {
   const mailbox = await sdk.createMailbox(75898670);
   console.log('created mailbox with id', mailbox, '\n');
 
+  await sdk.getMailboxLocalDomain(mailbox);
+
   const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
   console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
 
-  const noopIsm = await sdk.createNoopIsm();
-  console.log('created noopIsm with id', noopIsm, '\n');
+  const merkleRootMultisigIsm = await sdk.createMerkleRootMultisigIsm(
+    ['0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
+    1,
+  );
+  console.log(
+    'created merkleRootMultisigIsm with id',
+    merkleRootMultisigIsm,
+    '\n',
+  );
 
   const xrd = await sdk.getXrdAddress();
   const igp = await sdk.createIgp(xrd);
-  console.log('created igp with id', igp);
+  console.log('created igp with id', igp, '\n');
 
   await sdk.setRequiredHook(mailbox, merkleTreeHook);
   console.log('set required hook\n');
@@ -463,30 +477,8 @@ const main = async () => {
   await sdk.setDefaultHook(mailbox, igp);
   console.log('set default hook\n');
 
-  await sdk.setDefaultIsm(mailbox, noopIsm);
+  await sdk.setDefaultIsm(mailbox, merkleRootMultisigIsm);
   console.log('set default ism\n');
 };
 
-// @ts-ignore
-const getMailboxState = async () => {
-  const gateway = GatewayApiClient.initialize({
-    applicationName,
-    networkId,
-  });
-
-  const transactionReceipt = await gateway.state.innerClient.stateEntityDetails(
-    {
-      stateEntityDetailsRequest: {
-        addresses: [
-          'component_tdx_2_1cr4cc66g9prezvyw9vhznsx4wm0admw6a2q4mxewfvpzx09mp049wc',
-        ],
-      },
-    },
-  );
-
-  console.log((transactionReceipt.items[0].details as any).state.fields);
-};
-
 main();
-// getTransactionDetails();
-// getMailboxState();
