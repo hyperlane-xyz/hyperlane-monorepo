@@ -9,6 +9,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageID;
 use corelib::payload::MessageIDs;
+use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -208,7 +209,23 @@ pub async fn build_withdrawal_pskt(
 
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
+
+    let payload = MessageIDs::new(
+        withdrawal_details
+            .iter()
+            .map(|w| MessageID(w.message_id))
+            .collect::<Vec<_>>(),
+    )
+    .to_bytes()
+    .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+    let tx_fee = estimate_fee(
+        combined_inputs,
+        outputs.clone(),
+        payload.clone(),
+        network_id,
+    ) * 11
+        / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -268,15 +285,34 @@ pub async fn build_withdrawal_pskt(
     }
 
     // escrow_balance - withdrawal_balance > 0 as checked above
+    let escrow_change_amt = escrow_balance - withdrawal_balance;
+    if escrow_change_amt < DUST_AMOUNT {
+        return Err(eyre::eyre!(
+            "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
+            escrow_balance,
+            withdrawal_balance,
+            escrow_change_amt
+        ));
+    }
+
     let escrow_change = OutputBuilder::default()
-        .amount(escrow_balance - withdrawal_balance)
+        .amount(escrow_change_amt)
         .script_public_key(escrow.p2sh.clone())
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
-    // relayer_balance - tx_fee as checked above
+    let relayer_change_amt = relayer_balance - tx_fee;
+    if relayer_change_amt < DUST_AMOUNT {
+        return Err(eyre::eyre!(
+            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
+            relayer_balance,
+            tx_fee,
+            relayer_change_amt
+        ));
+    }
+
     let relayer_change = OutputBuilder::default()
-        .amount(relayer_balance - tx_fee)
+        .amount(relayer_change_amt)
         .script_public_key(ScriptPublicKey::from(pay_to_address_script(
             &relayer.change_address()?,
         )))
@@ -289,14 +325,6 @@ pub async fn build_withdrawal_pskt(
     // if !is_transaction_output_dust(&relayer_change) {
     pskt = pskt.output(relayer_change);
     // }
-    let payload = MessageIDs::new(
-        withdrawal_details
-            .iter()
-            .map(|w| MessageID(w.message_id))
-            .collect::<Vec<_>>(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
     Ok(pskt
         .no_more_inputs()
@@ -631,6 +659,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use corelib::withdraw::WithdrawFXG;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_kaspa_address_conversion() {

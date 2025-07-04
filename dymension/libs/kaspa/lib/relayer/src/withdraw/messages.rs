@@ -1,50 +1,23 @@
 use eyre::Result;
 
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
-use kaspa_wallet_core::derivation::build_derivate_paths;
-
-use corelib::consts::KEY_MESSAGE_IDS;
+use super::hub_to_kaspa::build_withdrawal_pskt;
+use base64;
 use corelib::escrow::EscrowPublic;
-use corelib::payload::{MessageID, MessageIDs};
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
+use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_consensus_core::config::params::Params;
-use kaspa_consensus_core::constants::TX_VERSION;
-use kaspa_consensus_core::hashing::sighash_type::{
-    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
-};
-use kaspa_consensus_core::mass;
-use kaspa_consensus_core::network::NetworkId;
-use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry};
-use kaspa_consensus_core::tx::{
-    Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
-};
-use kaspa_hashes;
-use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
-use kaspa_txscript::standard::pay_to_address_script;
-use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
-use kaspa_wallet_core::account::Account;
-use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use secp256k1::PublicKey;
-use std::io::Cursor;
-use std::sync::Arc;
-
-use super::hub_to_kaspa::build_withdrawal_pskt;
-use corelib::wallet::EasyKaspaWallet;
-use corelib::withdraw::WithdrawFXG;
 use kaspa_addresses::Prefix;
+use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_hashes;
+use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_wallet_pskt::prelude::*;
+use std::io::Cursor;
 use tracing::info;
 
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
@@ -73,11 +46,18 @@ pub async fn on_new_withdrawals(
 
     let withdrawal_details: Vec<_> = pending_messages
         .iter()
-        .filter_map(|m| {
-            match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
+        .filter_map(
+            |m| match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
                 Ok(msg) => {
                     let kaspa_recipient =
                         get_recipient_address(m.recipient, relayer.network_info.address_prefix);
+
+                    if msg.amount().as_u64() < DUST_AMOUNT {
+                        info!(
+                            "Kaspa relayer, withdrawal amount is less than dust amount, skipping"
+                        );
+                        return None;
+                    }
 
                     Some(WithdrawalDetails {
                         message_id: m.id(),
@@ -85,9 +65,12 @@ pub async fn on_new_withdrawals(
                         amount_sompi: msg.amount().as_u64(),
                     })
                 }
-                Err(e) => None, // TODO: log?
-            }
-        })
+                Err(e) => {
+                    info!("Kaspa relayer, failed to read TokenMessage: {}", e);
+                    None
+                }
+            },
+        )
         .collect();
 
     if withdrawal_details.is_empty() {
@@ -183,4 +166,21 @@ pub(crate) async fn get_pending_withdrawals(
         },
         pending_withdrawals,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use kaspa_hashes::Hash;
+
+    #[test]
+    fn test_transaction_id_conversion() {
+        // Test with valid 32-byte transaction ID
+        let b64 = "Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=";
+        let bytes = STANDARD.decode(b64).unwrap();
+        let bz = bytes.as_slice().try_into().unwrap();
+        let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(bz);
+        println!("kaspa_tx_id: {:?}", kaspa_tx_id);
+    }
 }
