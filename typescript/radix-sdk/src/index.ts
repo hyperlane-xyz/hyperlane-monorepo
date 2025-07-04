@@ -34,7 +34,6 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { bytes } from './utils.js';
 
-const networkId = NetworkId.Stokenet; // For mainnet, use NetworkId.Mainnet
 const applicationName = 'Hyperlane Test';
 const dashboardBase = 'https://stokenet-dashboard.radixdlt.com'; // For mainnet, use "https://dashboard.radixdlt.com"
 
@@ -45,27 +44,40 @@ type Account = {
   dashboardLink: string;
 };
 
+export interface RadixSDKOptions {
+  networkId?: number;
+  gasAmount?: number;
+}
+
 export class RadixSDK {
+  private networkId: number;
+  private gasAmount: number;
+
   private gateway: GatewayApiClient;
   private account: Account;
 
-  constructor(account: Account) {
+  constructor(account: Account, options?: RadixSDKOptions) {
     this.account = account;
+
+    this.networkId = options?.networkId ?? NetworkId.Mainnet;
+    this.gasAmount = options?.gasAmount ?? 5000;
 
     this.gateway = GatewayApiClient.initialize({
       applicationName,
-      networkId,
+      networkId: this.networkId,
     });
   }
 
   public async getXrdAddress() {
-    const knownAddresses =
-      await LTSRadixEngineToolkit.Derive.knownAddresses(networkId);
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
     return knownAddresses.resources.xrdResource;
   }
 
   private static async generateNewEd25519VirtualAccount(
     privateKey: string,
+    networkId: number,
   ): Promise<Account> {
     const pk = new PrivateKey.Ed25519(
       new Uint8Array(Buffer.from(privateKey, 'hex')),
@@ -83,16 +95,25 @@ export class RadixSDK {
     };
   }
 
-  public static async fromRandomPrivateKey() {
+  public static async fromRandomPrivateKey(options?: RadixSDKOptions) {
     const privateKey = Buffer.from(
       await this.generateSecureRandomBytes(32),
     ).toString('hex');
-    const account = await this.generateNewEd25519VirtualAccount(privateKey);
-    return new RadixSDK(account);
+    const account = await this.generateNewEd25519VirtualAccount(
+      privateKey,
+      options?.networkId ?? NetworkId.Mainnet,
+    );
+    return new RadixSDK(account, options);
   }
 
-  public static async fromPrivateKey(privateKey: string) {
-    const account = await this.generateNewEd25519VirtualAccount(privateKey);
+  public static async fromPrivateKey(
+    privateKey: string,
+    options?: RadixSDKOptions,
+  ) {
+    const account = await this.generateNewEd25519VirtualAccount(
+      privateKey,
+      options?.networkId ?? NetworkId.Mainnet,
+    );
     return new RadixSDK(account);
   }
 
@@ -102,7 +123,7 @@ export class RadixSDK {
 
     const freeXrdForAccountTransaction =
       await SimpleTransactionBuilder.freeXrdFromFaucet({
-        networkId,
+        networkId: this.networkId,
         toAccount: this.account.address,
         validFromEpoch: constructionMetadata.ledger_state.epoch,
       });
@@ -171,7 +192,7 @@ export class RadixSDK {
       .callMethod(
         'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
         'lock_fee',
-        [decimal(5000)],
+        [decimal(this.gasAmount)],
       )
       .callFunction(packageAddress, blueprintName, functionName, args)
       .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
@@ -190,7 +211,7 @@ export class RadixSDK {
       .callMethod(
         'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
         'lock_fee',
-        [decimal(5000)],
+        [decimal(this.gasAmount)],
       )
       .callMethod(address, methodName, args)
       .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
@@ -207,7 +228,7 @@ export class RadixSDK {
       await this.gateway.transaction.innerClient.transactionConstruction();
 
     const transactionHeader: TransactionHeader = {
-      networkId,
+      networkId: this.networkId,
       startEpochInclusive: constructionMetadata.ledger_state.epoch,
       endEpochExclusive: constructionMetadata.ledger_state.epoch + 2,
       nonce: generateRandomNonce(),
@@ -494,7 +515,9 @@ export class RadixSDK {
 }
 
 const main = async () => {
-  const sdk = await RadixSDK.fromRandomPrivateKey();
+  const sdk = await RadixSDK.fromRandomPrivateKey({
+    networkId: NetworkId.Stokenet,
+  });
   await sdk.getTestnetXrd();
 
   const mailbox = await sdk.createMailbox(75898670);
