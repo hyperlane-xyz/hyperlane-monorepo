@@ -59,10 +59,17 @@ impl InclusionStage {
             state,
             domain,
         } = self;
-        if let Err(err) = try_join!(
-            Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone()),
-            Self::process_txs(pool, finality_stage_sender, state, domain)
-        ) {
+        let futures = vec![
+            tokio::spawn(
+                Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
+                    .instrument(info_span!("receive_txs")),
+            ),
+            tokio::spawn(
+                Self::process_txs(pool, finality_stage_sender, state, domain)
+                    .instrument(info_span!("process_txs")),
+            ),
+        ];
+        if let Err(err) = try_join_all(futures).await {
             error!(
                 error=?err,
                 "Inclusion stage future panicked"
@@ -70,7 +77,7 @@ impl InclusionStage {
         }
     }
 
-    async fn receive_txs(
+    pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
         state: DispatcherState,
