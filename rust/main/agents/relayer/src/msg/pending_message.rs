@@ -32,7 +32,7 @@ use crate::{
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataAndMessageBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -989,9 +989,34 @@ impl PendingMessage {
         let params = MessageMetadataBuildParams::default();
 
         let build_metadata_start = Instant::now();
-        let metadata_res = message_metadata_builder
-            .build(ism_address, &self.message, params)
-            .await;
+
+        // Always use the enhanced metadata and message builder
+        // It handles FSR ISMs with message body replacement and non-FSR ISMs without replacement
+        let metadata_res = match <MessageMetadataBuilder as MetadataAndMessageBuilder>::build(
+            &message_metadata_builder,
+            ism_address,
+            &self.message,
+            params,
+        )
+        .await
+        {
+            Ok(result) => {
+                // Handle potential message transformation for FSR ISMs
+                if let Some(transformed_message) = result.transformed_message {
+                    tracing::info!(
+                        message_id = ?self.message.id(),
+                        original_origin = self.message.origin,
+                        new_origin = transformed_message.origin,
+                        "Message transformed by ISM"
+                    );
+
+                    // Replace the entire message with the transformed message
+                    self.message = transformed_message;
+                }
+                Ok(result.metadata)
+            }
+            Err(err) => Err(err),
+        };
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
 

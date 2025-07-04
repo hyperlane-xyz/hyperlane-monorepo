@@ -12,6 +12,7 @@
     "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@polymerdao/prover-contracts": "^0.0.24",
     "fx-portal": "^1.0.3"
   },
   "devDependencies": {

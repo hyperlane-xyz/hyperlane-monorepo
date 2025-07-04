@@ -65,7 +65,7 @@ impl Signable for HyperlaneAuthenticatedOffchainLookup {
 
 impl CcipReadIsmMetadataBuilder {
     /// Generate a relayer authentication signature (EIP-191) over call_data and sender and the url template
-    async fn generate_signature_hex(
+    pub async fn generate_signature_hex(
         signer: &Signers,
         info: &OffchainLookup,
         url: &str,
@@ -94,7 +94,7 @@ impl CcipReadIsmMetadataBuilder {
     ///
     /// Implicit contract in this method: function name `get_offchain_verify_info` matches
     /// the name of the method `get_offchain_verify_info`.
-    async fn call_get_offchain_verify_info(
+    pub async fn call_get_offchain_verify_info(
         &self,
         ism: Box<dyn CcipReadIsm>,
         message: &HyperlaneMessage,
@@ -248,7 +248,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     }
 }
 
-fn create_ccip_url_regex() -> RegexSet {
+pub fn create_ccip_url_regex() -> RegexSet {
     RegexSetBuilder::new([
         r#"^(https?:\/\/)localhost"#,
         r#"^(https?:\/\/)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
