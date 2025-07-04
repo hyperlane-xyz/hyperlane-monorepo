@@ -21,7 +21,7 @@ use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
 
 #[derive(Debug)]
-struct KaspaHttpClient {
+pub struct KaspaHttpClient {
     pub client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
@@ -136,15 +136,15 @@ impl RestProvider {
     }
 
     /// dococo
-    pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
+    pub async fn get_deposits(&self, start_time: i64) -> ChainResult<Vec<Deposit>> {
         // TODO: need to do appropriate filtering down
         let address = self.conf.kaspa_escrow_addr.clone();
-        let res = self.client.client.get_deposits(&address).await;
+        let res = self.client.client.get_deposits(start_time,&address).await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| {
                 deposits
                     .into_iter()
-                    .filter(|d| d.payload.is_some())
+                    .filter(|d: &Deposit| d.payload.is_some())
                     .collect()
             })
     }

@@ -19,6 +19,7 @@ use eyre::Result;
 use hyperlane_core::U256;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use kaspa_core::time::unix_now;
 
 pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
     Ok(true)

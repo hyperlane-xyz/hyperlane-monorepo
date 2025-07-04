@@ -96,7 +96,7 @@ where
         info!("Dymension, starting deposit loop");
         loop {
             time::sleep(Duration::from_secs(10)).await;
-            let deposits_res = self.provider.rest().get_deposits().await;
+            let deposits_res = self.provider.rest().get_deposits(unix_now()).await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
@@ -390,7 +390,7 @@ where
     }
 }
 
-struct DepositCache {
+pub struct DepositCache {
     seen: Mutex<HashSet<Deposit>>,
 }
 

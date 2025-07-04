@@ -82,10 +82,10 @@ impl HttpClient {
         Self { url, client: c }
     }
 
-    pub async fn get_deposits(&self, address: &str) -> Result<Vec<Deposit>> {
+    pub async fn get_deposits(&self,start_time: i64,address: &str) -> Result<Vec<Deposit>> {
         let limit = 20;
         let lower_bound = Some(0i64);
-        let upper_bound = Some(0i64);
+        let upper_bound = Some(start_time);
         let field = None;
         let resolve_previous_outpoints = None;
         let acceptance = None;
@@ -109,6 +109,11 @@ impl HttpClient {
 
         Ok(res
             .into_iter()
+            .filter(|tx| {
+                tx.is_accepted.expect("accepted not found in tx")
+                && is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
+                && tx.payload.is_some()
+            })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
     }
@@ -120,8 +125,23 @@ impl HttpClient {
     }
 }
 
+fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
+    if let Some(output) = &tx.outputs {
+        for utxo in output {
+            if let Some(dest) = utxo.script_public_key_address.as_ref() {
+                if dest == address {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
+    use kaspa_core::time::unix_now;
+
     use super::*;
 
     #[tokio::test]
@@ -130,7 +150,7 @@ mod tests {
         let client = HttpClient::new("https://api-tn10.kaspa.org".to_string());
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
-        let deposits = client.get_deposits(address).await;
+        let deposits = client.get_deposits(1751299515650,address).await;
 
         match deposits {
             Ok(deposits) => {

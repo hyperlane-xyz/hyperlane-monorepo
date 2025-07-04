@@ -6394,6 +6394,7 @@ dependencies = [
  "hyperlane-test",
  "itertools 0.13.0",
  "kaspa-consensus-core",
+ "kaspa-core",
  "kaspa-hashes",
  "maplit",
  "mockall",
