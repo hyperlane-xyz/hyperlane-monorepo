@@ -11,7 +11,6 @@ export const testnet4SupportedChainNames = [
   'bepolia',
   'bsctestnet',
   'carrchaintestnet',
-  'celestiatestnet',
   'chronicleyellowstone',
   'citreatestnet',
   'connextsepolia',
