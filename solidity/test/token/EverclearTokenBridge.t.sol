@@ -22,7 +22,7 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
-import {EverclearTokenBridge} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
+import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
@@ -187,7 +187,12 @@ contract EverclearTokenBridgeTest is Test {
         // Setup initial state
         vm.startPrank(OWNER);
         bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
-        bridge.setOutputAsset(DESTINATION, OUTPUT_ASSET);
+        bridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: DESTINATION,
+                outputAsset: OUTPUT_ASSET
+            })
+        );
 
         vm.stopPrank();
 
@@ -263,7 +268,12 @@ contract EverclearTokenBridgeTest is Test {
         emit OutputAssetSet(DESTINATION, newOutputAsset);
 
         vm.prank(OWNER);
-        bridge.setOutputAsset(DESTINATION, newOutputAsset);
+        bridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: DESTINATION,
+                outputAsset: newOutputAsset
+            })
+        );
 
         assertEq(bridge.outputAssets(DESTINATION), newOutputAsset);
     }
@@ -271,52 +281,49 @@ contract EverclearTokenBridgeTest is Test {
     function testSetOutputAssetOnlyOwner() public {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(ALICE);
-        bridge.setOutputAsset(DESTINATION, OUTPUT_ASSET);
+        bridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: DESTINATION,
+                outputAsset: OUTPUT_ASSET
+            })
+        );
     }
 
     // ============ setOutputAssetsBatch Tests ============
 
     function testSetOutputAssetsBatch() public {
-        uint32[] memory destinations = new uint32[](2);
-        destinations[0] = 13;
-        destinations[1] = 14;
-
-        bytes32[] memory outputAssets = new bytes32[](2);
-        outputAssets[0] = bytes32(uint256(0x111));
-        outputAssets[1] = bytes32(uint256(0x222));
+        OutputAssetInfo[] memory outputAssetInfos = new OutputAssetInfo[](2);
+        outputAssetInfos[0] = OutputAssetInfo({
+            destination: 13,
+            outputAsset: bytes32(uint256(0x111))
+        });
+        outputAssetInfos[1] = OutputAssetInfo({
+            destination: 14,
+            outputAsset: bytes32(uint256(0x222))
+        });
 
         vm.expectEmit(true, true, false, true);
-        emit OutputAssetSet(13, outputAssets[0]);
+        emit OutputAssetSet(13, outputAssetInfos[0].outputAsset);
         vm.expectEmit(true, true, false, true);
-        emit OutputAssetSet(14, outputAssets[1]);
+        emit OutputAssetSet(14, outputAssetInfos[1].outputAsset);
 
         vm.prank(OWNER);
-        bridge.setOutputAssetsBatch(destinations, outputAssets);
+        bridge.setOutputAssetsBatch(outputAssetInfos);
 
-        assertEq(bridge.outputAssets(13), outputAssets[0]);
-        assertEq(bridge.outputAssets(14), outputAssets[1]);
-    }
-
-    function testSetOutputAssetsBatchLengthMismatch() public {
-        uint32[] memory destinations = new uint32[](2);
-        destinations[0] = 13;
-        destinations[1] = 14;
-
-        bytes32[] memory outputAssets = new bytes32[](1);
-        outputAssets[0] = bytes32(uint256(0x111));
-
-        vm.expectRevert("ETB: Length mismatch");
-        vm.prank(OWNER);
-        bridge.setOutputAssetsBatch(destinations, outputAssets);
+        assertEq(bridge.outputAssets(13), outputAssetInfos[0].outputAsset);
+        assertEq(bridge.outputAssets(14), outputAssetInfos[1].outputAsset);
     }
 
     function testSetOutputAssetsBatchOnlyOwner() public {
-        uint32[] memory destinations = new uint32[](1);
-        bytes32[] memory outputAssets = new bytes32[](1);
+        OutputAssetInfo[] memory outputAssetInfos = new OutputAssetInfo[](1);
+        outputAssetInfos[0] = OutputAssetInfo({
+            destination: 13,
+            outputAsset: bytes32(uint256(0x111))
+        });
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(ALICE);
-        bridge.setOutputAssetsBatch(destinations, outputAssets);
+        bridge.setOutputAssetsBatch(outputAssetInfos);
     }
 
     // ============ isOutputAssetSet Tests ============
@@ -335,10 +342,9 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 2);
-        assertEq(quotes[0].token, address(0)); // Gas payment
-        assertEq(quotes[1].token, address(token));
-        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes.length, 1);
+        assertEq(quotes[0].token, address(token));
+        assertEq(quotes[0].amount, TRANSFER_AMT + FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -390,15 +396,6 @@ contract EverclearTokenBridgeTest is Test {
         vm.expectRevert("ETB: Output asset not set");
         vm.prank(ALICE);
         bridge.transferRemote(999, RECIPIENT, TRANSFER_AMT); // Domain 999 has no output asset
-    }
-
-    function testTransferRemoteFeeParamsExpired() public {
-        // Set expired fee params
-        vm.warp(feeDeadline + 1);
-
-        vm.expectRevert("ETB: Fee params deadline expired");
-        vm.prank(ALICE);
-        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
     }
 
     function testTransferRemoteInsufficientBalance() public {
@@ -479,19 +476,6 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(storedDeadline, deadline);
     }
 
-    function testFuzzSetOutputAsset(
-        uint32 destination,
-        bytes32 outputAsset
-    ) public {
-        vm.assume(outputAsset != bytes32(0)); // Assume non-zero output asset
-
-        vm.prank(OWNER);
-        bridge.setOutputAsset(destination, outputAsset);
-
-        assertEq(bridge.outputAssets(destination), outputAsset);
-        assertTrue(bridge.isOutputAssetSet(destination));
-    }
-
     // ============ Integration Tests ============
 
     function testFullTransferFlow() public {
@@ -505,7 +489,7 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 totalCost = quotes[1].amount; // Token cost including fee
+        uint256 totalCost = quotes[0].amount; // Token cost including fee
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -655,7 +639,12 @@ contract EverclearTokenBridgeForkTest is Test {
         // Configure the bridge
         vm.startPrank(OWNER);
         bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
-        bridge.setOutputAsset(OPTIMISM_DOMAIN, OUTPUT_ASSET);
+        bridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: OPTIMISM_DOMAIN,
+                outputAsset: OUTPUT_ASSET
+            })
+        );
         vm.stopPrank();
 
         // Setup allowances

@@ -9,6 +9,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
+ * @notice Information about an output asset for a destination domain
+ * @param destination The destination domain ID
+ * @param outputAsset The output asset address on the destination chain
+ */
+struct OutputAssetInfo {
+    uint32 destination;
+    bytes32 outputAsset;
+}
+
+/**
  * @title EverclearTokenBridge
  * @author Hyperlane Team
  * @notice A token bridge that integrates with Everclear's intent-based architecture
@@ -85,43 +95,39 @@ contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
         emit FeeParamsUpdated(_fee, _deadline);
     }
 
+    function _setOutputAsset(
+        OutputAssetInfo calldata _outputAssetInfo
+    ) internal {
+        uint32 destination = _outputAssetInfo.destination;
+        bytes32 outputAsset = _outputAssetInfo.outputAsset;
+        outputAssets[destination] = outputAsset;
+        emit OutputAssetSet(destination, outputAsset);
+    }
+
     /**
      * @notice Sets the output asset address for a destination domain
      * @dev Only callable by the contract owner
-     * @param _destination The destination domain ID
-     * @param _outputAsset The output asset address on the destination chain (as bytes32)
+     * @param _outputAssetInfo The output asset information for the destination domain
      */
     function setOutputAsset(
-        uint32 _destination,
-        bytes32 _outputAsset
+        OutputAssetInfo calldata _outputAssetInfo
     ) external onlyOwner {
-        outputAssets[_destination] = _outputAsset;
-        emit OutputAssetSet(_destination, _outputAsset);
+        _setOutputAsset(_outputAssetInfo);
     }
 
     /**
      * @notice Sets multiple output assets in a single transaction for gas efficiency
      * @dev Only callable by the contract owner. Arrays must be the same length
-     * @param _destinations Array of destination domain IDs
-     * @param _outputAssets Array of output asset addresses on destination chains
+     * @param _outputAssetInfos Array of output asset information for the destination domains
      */
     function setOutputAssetsBatch(
-        uint32[] calldata _destinations,
-        bytes32[] calldata _outputAssets
+        OutputAssetInfo[] calldata _outputAssetInfos
     ) external onlyOwner {
-        require(
-            _destinations.length == _outputAssets.length,
-            "ETB: Length mismatch"
-        );
+        uint256 len = _outputAssetInfos.length;
 
-        uint256 len = _destinations.length;
-
-        for (uint256 i = 0; i < len; ) {
-            outputAssets[_destinations[i]] = _outputAssets[i];
-            emit OutputAssetSet(_destinations[i], _outputAssets[i]);
-            unchecked {
-                ++i;
-            }
+        for (uint256 i = 0; i < len; ++i) {
+            OutputAssetInfo calldata _outputAssetInfo = _outputAssetInfos[i];
+            _setOutputAsset(_outputAssetInfo);
         }
     }
 
@@ -151,10 +157,9 @@ contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
     ) public view override returns (Quote[] memory quotes) {
         _destination; // Keep this to avoid solc's documentation warning (3881)
         _recipient;
-        quotes = new Quote[](2);
-        quotes[0] = Quote({token: address(0), amount: 0});
 
-        quotes[1] = Quote({
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
             token: address(token),
             amount: _amount + feeParams.fee
         });
@@ -206,13 +211,6 @@ contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
     ) internal {
         bytes32 outputAsset = outputAssets[_destination];
         require(outputAsset != bytes32(0), "ETB: Output asset not set");
-
-        // Check that the fee params are still valid
-        // This will also revert if the feeParams are not set
-        require(
-            _feeParams.deadline > block.timestamp,
-            "ETB: Fee params deadline expired"
-        );
 
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);

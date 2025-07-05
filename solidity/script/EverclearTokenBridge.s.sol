@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.22;
 
-import {EverclearTokenBridge, IEverclearAdapter} from "contracts/token/bridge/EverclearTokenBridge.sol";
+import {EverclearTokenBridge, IEverclearAdapter, OutputAssetInfo} from "contracts/token/bridge/EverclearTokenBridge.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -27,8 +27,11 @@ contract EverclearTokenBridgeScript is Script {
         // Set the output asset for the bridge.
         // This is optimism weth
         bridge.setOutputAsset(
-            10,
-            (0x4200000000000000000000000000000000000006).addressToBytes32()
+            OutputAssetInfo({
+                destination: 10,
+                outputAsset: (0x4200000000000000000000000000000000000006)
+                    .addressToBytes32()
+            })
         );
 
         // Set the fee params for the bridge.
