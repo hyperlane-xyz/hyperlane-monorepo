@@ -757,6 +757,7 @@ export {
   getStarknetMailboxContract,
   getStarknetEtherContract,
 } from './utils/starknet.js';
+export { SvmSplTokenWarpRouteReader } from './token/sealevel/SvmSplTokenWarpReader.js';
 export {
   EventAssertion,
   EventAssertionSchema,
