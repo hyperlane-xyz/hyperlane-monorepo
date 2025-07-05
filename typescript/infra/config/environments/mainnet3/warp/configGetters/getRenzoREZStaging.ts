@@ -5,7 +5,6 @@ import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import {
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 import { rezEthChainsToDeploy } from './getRenzoREZBaseEthereum.js';
 
@@ -23,10 +22,17 @@ const rezStagingAddresses = {
   base: '0x19c5C2316171A2cff8773435a9A5F3f0e3eaB14B',
   unichain: '0x19c5C2316171A2cff8773435a9A5F3f0e3eaB14B',
 };
-
+const rezStagingExistingProtocolFeeAddresses = {
+  base: '0xe588d064639C6F68ECF947E8C1f94A6e744437bD',
+  ethereum: '0x017D657a95661EcBC7C23A59D65Da94f3660B685',
+  unichain: '0x98996dD4CFb5b989D264D17887AA53B165ad3A8b',
+};
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
 const rezEthSafes = pick(rezStagingSafes, rezEthChainsToDeploy);
-const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
+const rezExistingProtocolFee = pick(
+  rezStagingExistingProtocolFeeAddresses,
+  rezEthChainsToDeploy,
+);
 
 export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
@@ -34,7 +40,7 @@ export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   safes: rezEthSafes,
   xERC20Addresses: rezStagingAddresses,
   xERC20Lockbox: rezStagingLockbox,
-  tokenPrices: rezEthTokenPrices,
+  existingProtocolFee: rezExistingProtocolFee,
 });
 
 export const getRezStagingGnosisSafeBuilderStrategyConfig =
