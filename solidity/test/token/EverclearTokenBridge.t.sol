@@ -665,11 +665,14 @@ contract EverclearTokenBridgeForkTest is Test {
 
         // Test the transfer - it may succeed or fail depending on adapter state
         vm.prank(ALICE);
-        vm.expectEmit(false, true, true, true); // We don't want to check _intentId, it's not used and we don't want to re-derive it
-        // The intent queue is internal, so not super easy to inspect, but we could theoretically used forge-std to inspect it
-        // See https://github.com/everclearorg/monorepo/blob/2c256760f338ded02dc58c4dee128135aff1d0e9/packages/contracts/src/contracts/common/QueueLib.sol#L21
+        // We don't want to check _intentId, as it's not used
+        // It can be found by getting the fetching the spoke from the adapter with `IEverclearAdapter.spoke`,
+        // fetching the intent queue with `SpokeStorage.intentQueue`
+        // (see https://github.com/everclearorg/monorepo/blob/2c256760f338ded02dc58c4dee128135aff1d0e9/packages/contracts/src/contracts/intent/SpokeStorage.sol#L81)
+        // and then calling `intentQueue.queue(intentQueue.last())`.
+        vm.expectEmit(false, true, true, true);
         emit IEverclearAdapter.IntentWithFeesAdded({
-            _intentId: bytes32(0), // We don't need to check the id, so the first param in expectEmit is false
+            _intentId: bytes32(0),
             _initiator: address(bridge).addressToBytes32(),
             _tokenFee: FEE_AMOUNT,
             _nativeFee: 0
