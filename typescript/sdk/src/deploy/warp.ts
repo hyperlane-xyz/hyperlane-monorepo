@@ -1,6 +1,5 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   Address,
   objMap,
@@ -27,6 +26,8 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import { ExplorerLicenseType } from './verify/types.js';
+
+type ChainAddresses = Record<string, string>;
 
 export async function executeWarpDeploy(
   multiProvider: MultiProvider,
