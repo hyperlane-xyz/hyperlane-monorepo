@@ -849,11 +849,28 @@ export class GovernTransactionReader {
       );
     } else if (
       decoded.functionFragment.name ===
+      icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
+    ) {
+      prettyArgs = await this.formatRouterEnrollments(
+        chain,
+        'interchainAccountRouter',
+        args,
+      );
+    } else if (
+      decoded.functionFragment.name ===
       icaInterface.functions[
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
       ].name
     ) {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -926,6 +943,14 @@ export class GovernTransactionReader {
       mailboxInterface.functions['setDefaultIsm(address)'].name
     ) {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
