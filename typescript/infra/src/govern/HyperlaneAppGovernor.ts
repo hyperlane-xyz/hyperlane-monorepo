@@ -198,7 +198,7 @@ export abstract class HyperlaneAppGovernor<
           );
           try {
             // Process calls in batches up to max size of 100
-            const maxBatchSize = 100;
+            const maxBatchSize = 120;
             for (
               let i = 0;
               i < callsForSubmissionType.length;
