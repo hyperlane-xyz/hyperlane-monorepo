@@ -149,6 +149,8 @@ contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
         bytes32 _recipient,
         uint256 _amount
     ) public view override returns (Quote[] memory quotes) {
+        _destination; // Keep this to avoid solc's documentation warning (3881)
+        _recipient;
         quotes = new Quote[](2);
         quotes[0] = Quote({token: address(0), amount: 0});
 

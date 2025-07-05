@@ -15,6 +15,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -24,7 +25,9 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {EverclearTokenBridge} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+import {IWETH} from "contracts/token/interfaces/IWETH.sol";
 
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 /**
  * @notice Mock implementation of IEverclearAdapter for testing
  */
@@ -100,6 +103,18 @@ contract MockEverclearAdapter is IEverclearAdapter {
 
         return (lastIntentId, lastIntent);
     }
+
+    function feeSigner() external view returns (address) {
+        return address(0x222);
+    }
+
+    function owner() external view returns (address) {
+        return address(0x1);
+    }
+
+    function updateFeeSigner(address _feeSigner) external {
+        // Do nothing
+    }
 }
 
 contract EverclearTokenBridgeTest is Test {
@@ -118,7 +133,7 @@ contract EverclearTokenBridgeTest is Test {
     string internal constant SYMBOL = "TT";
 
     // Test addresses
-    address internal constant ALICE = address(0x1);
+    address internal ALICE = makeAddr("alice");
     address internal constant BOB = address(0x2);
     address internal constant OWNER = address(0x3);
     address internal constant PROXY_ADMIN = address(0x37);
@@ -539,5 +554,143 @@ contract EverclearTokenBridgeTest is Test {
         // Log gas usage for analysis (adjust threshold as needed)
         emit log_named_uint("Gas used for transferRemote", gasUsed);
         assertTrue(gasUsed < 600000); // Reasonable gas limit (adjusted based on actual usage)
+    }
+}
+
+/**
+ * @notice Fork test contract for EverclearTokenBridge on Arbitrum
+ * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
+ * @dev We're running the cancun evm version, to avoid `NotActivated` errors
+ * forge-config: default.evm_version = "cancun"
+ */
+contract EverclearTokenBridgeForkTest is Test {
+    using TypeCasts for address;
+
+    // Arbitrum mainnet constants
+    uint32 internal constant ARBITRUM_DOMAIN = 42161;
+    uint32 internal constant OPTIMISM_DOMAIN = 10; // Optimism destination
+
+    // Real Arbitrum addresses
+    address internal constant ARBITRUM_WETH =
+        0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+    address internal constant EVERCLEAR_ADAPTER =
+        0x15a7cA97D1ed168fB34a4055CEFa2E2f9Bdb6C75;
+
+    // Optimism WETH address (for output asset)
+    address internal constant OPTIMISM_WETH =
+        0x4200000000000000000000000000000000000006;
+
+    // Test constants
+    uint256 internal constant FEE_AMOUNT = 1e16; // 0.01 WETH fee
+
+    // Test addresses
+    address internal ALICE = makeAddr("alice");
+    address internal constant BOB = address(0x2);
+    address internal constant OWNER = address(0x3);
+    address internal constant PROXY_ADMIN = address(0x37);
+
+    // Contracts
+    IWETH internal weth;
+    IEverclearAdapter internal everclearAdapter;
+    EverclearTokenBridge internal bridge;
+
+    // Test data
+    bytes32 internal constant OUTPUT_ASSET =
+        bytes32(uint256(uint160(OPTIMISM_WETH)));
+    bytes32 internal constant RECIPIENT = bytes32(uint256(uint160(BOB)));
+    uint256 internal feeDeadline;
+    address internal feeSigner;
+    bytes internal feeSignature = hex"123f"; // We will create a real signature in setUp
+
+    function setUp() public {
+        // Fork Arbitrum at the latest block
+        vm.createSelectFork("arbitrum");
+
+        weth = IWETH(ARBITRUM_WETH);
+        // Get real Everclear adapter
+        everclearAdapter = IEverclearAdapter(EVERCLEAR_ADAPTER);
+
+        // Set fee deadline to future
+        feeDeadline = block.timestamp + 3600; // 1 hour from now
+
+        // Deploy bridge implementation
+        EverclearTokenBridge implementation = new EverclearTokenBridge(
+            weth,
+            everclearAdapter
+        );
+
+        // Deploy proxy
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                EverclearTokenBridge.initialize.selector,
+                OWNER
+            )
+        );
+
+        bridge = EverclearTokenBridge(address(proxy));
+
+        // It would be great if we could mock the ecrecover function to always return the fee signer for the adapter
+        // but we can't do that with forge. So we're going to sign the fee params with the fee signer private key
+        // and set the fee signature to the signed message.
+        // This is a bit of a hack, but it's the best we can do for now.
+        // Change the fee signer on the Everclear adapter
+        vm.prank(everclearAdapter.owner());
+        (address _feeSigner, uint256 _feeSignerPrivateKey) = makeAddrAndKey(
+            "feeSigner"
+        );
+        feeSigner = _feeSigner;
+        everclearAdapter.updateFeeSigner(feeSigner);
+
+        bytes32 _hash = keccak256(abi.encode(FEE_AMOUNT, 0, weth, feeDeadline));
+        bytes32 _digest = ECDSA.toEthSignedMessageHash(_hash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            _feeSignerPrivateKey,
+            _digest
+        );
+        feeSignature = abi.encodePacked(r, s, v);
+
+        // Configure the bridge
+        vm.startPrank(OWNER);
+        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setOutputAsset(OPTIMISM_DOMAIN, OUTPUT_ASSET);
+        vm.stopPrank();
+
+        // Setup allowances
+        vm.prank(ALICE);
+        weth.approve(address(bridge), type(uint256).max);
+    }
+
+    function testFuzz_ForkTransferRemote(uint256 amount) public {
+        // Fund Alice with WETH by wrapping ETH
+        amount = bound(amount, 1, 100e6 ether);
+        uint depositAmount = amount + FEE_AMOUNT;
+        vm.deal(ALICE, depositAmount);
+        vm.prank(ALICE);
+        weth.deposit{value: depositAmount}();
+
+        uint256 initialBalance = weth.balanceOf(ALICE);
+        uint256 initialBridgeBalance = weth.balanceOf(address(bridge));
+
+        // Test the transfer - it may succeed or fail depending on adapter state
+        vm.prank(ALICE);
+        vm.expectEmit(false, true, true, true); // We don't want to check _intentId, it's not used and we don't want to re-derive it
+        // The intent queue is internal, so not super easy to inspect, but we could theoretically used forge-std to inspect it
+        // See https://github.com/everclearorg/monorepo/blob/2c256760f338ded02dc58c4dee128135aff1d0e9/packages/contracts/src/contracts/common/QueueLib.sol#L21
+        emit IEverclearAdapter.IntentWithFeesAdded({
+            _intentId: bytes32(0), // We don't need to check the id, so the first param in expectEmit is false
+            _initiator: address(bridge).addressToBytes32(),
+            _tokenFee: FEE_AMOUNT,
+            _nativeFee: 0
+        });
+        bridge.transferRemote(OPTIMISM_DOMAIN, RECIPIENT, amount);
+
+        // Verify the balance changes
+        // Alice should have lost the transfer amount and the fee
+        assertEq(weth.balanceOf(ALICE), initialBalance - amount - FEE_AMOUNT);
+        // The bridge forwards all weth to the adapter, so the bridge balance should be the same
+        assertEq(weth.balanceOf(address(bridge)), initialBridgeBalance);
     }
 }

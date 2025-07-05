@@ -39,6 +39,19 @@ interface IEverclearAdapter {
         uint256 deadline;
         bytes sig;
     }
+    /**
+     * @notice Emitted when a new intent is created with fees
+     * @param _intentId The ID of the created intent
+     * @param _initiator The address of the user who initiated the intent
+     * @param _tokenFee The amount of token fees paid
+     * @param _nativeFee The amount of native token fees paid
+     */
+    event IntentWithFeesAdded(
+        bytes32 indexed _intentId,
+        bytes32 indexed _initiator,
+        uint256 _tokenFee,
+        uint256 _nativeFee
+    );
 
     /**
      * @notice Creates a new intent with fees
@@ -65,4 +78,19 @@ interface IEverclearAdapter {
         bytes calldata _data,
         FeeParams calldata _feeParams
     ) external payable returns (bytes32, IEverclear.Intent memory);
+
+    /**
+     * @notice Returns the current fee signer address
+     * @return The address whos signature is verified
+     */
+    function feeSigner() external view returns (address);
+
+    /**
+     * @notice Updates the fee signer address
+     * @dev Can only be called by the owner of the contract
+     * @param _feeSigner The new address that will sign for fees
+     */
+    function updateFeeSigner(address _feeSigner) external;
+
+    function owner() external view returns (address);
 }
