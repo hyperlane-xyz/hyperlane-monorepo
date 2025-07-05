@@ -43,6 +43,10 @@
     "amount": "1000.0",
     "decimals": 9
   },
+  "celestiatestnet": {
+    "amount": "0.001",
+    "decimals": 1
+  },
   "chronicleyellowstone": {
     "amount": "0.01",
     "decimals": 9

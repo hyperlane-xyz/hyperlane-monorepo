@@ -203,6 +203,7 @@ pub enum KnownHyperlaneDomain {
     Alfajores = 44787,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
+    CelestiaTestnet = 1297040200,
     Chiado = 10200,
     ConnextSepolia = 6398,
     Holesky = 17000,
@@ -337,7 +338,7 @@ impl KnownHyperlaneDomain {
                 Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
             ],
             Testnet: [
-                Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
+                Alfajores, BinanceSmartChainTestnet, CelestiaTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
                 PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, PragmaDevnet
             ],
             LocalTestChain: [
@@ -379,7 +380,8 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::CosmosNative: [
                 CosmosTestNative1,
                 CosmosTestNative2,
-                KyveAlpha
+                KyveAlpha,
+                CelestiaTestnet,
             ]
         })
     }
@@ -419,7 +421,7 @@ impl KnownHyperlaneDomain {
                 CosmosTestNative1, CosmosTestNative2,
 
                 // Test chains
-                Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
+                Alfajores, BinanceSmartChainTestnet, CelestiaTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
                 Sepolia, KyveAlpha
            ],
         })
