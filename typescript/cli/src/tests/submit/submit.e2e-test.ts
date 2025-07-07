@@ -1,8 +1,13 @@
-import { hyperlaneSubmit } from '../commands/submit.js';
+import { hyperlaneSubmit } from '../commands/helpers.js';
 
-describe('hyperlane submit', function () {
+describe.only('hyperlane submit', function () {
+  const strategyPath =
+    './examples/submit/strategy/impersonated-account-chain-strategy.yaml';
+  const transactionsPath =
+    './examples/submit/transactions/anvil-transactions.yaml';
+  // );
   it('should execute transactions', async function () {
-    hyperlaneSubmit();
+    await hyperlaneSubmit({ strategyPath, transactionsPath });
   });
   xit('should output receipts', function () {});
 });

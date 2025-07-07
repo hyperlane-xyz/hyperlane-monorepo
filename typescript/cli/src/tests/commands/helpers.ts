@@ -610,6 +610,26 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --yes`;
 }
 
+export async function hyperlaneSubmit({
+  transactionsPath,
+  strategyPath,
+  hypKey,
+}: {
+  transactionsPath: string;
+  strategyPath?: string;
+  hypKey?: string;
+}) {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane submit \
+        --registry ${REGISTRY_PATH} \
+        --transactions ${transactionsPath} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        ${strategyPath ? ['--strategy', strategyPath] : []} \
+        --yes`;
+}
+
 export function createSnapshot(rpcUrl: string) {
   return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
 }

@@ -2,9 +2,11 @@ import {
   SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
+import { readChainSubmissionStrategy } from '../deploy/warp.js';
 import { logBlue, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
@@ -38,15 +40,19 @@ export const submitCommand: CommandModuleWithWriteContext<{
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
-    const submissionStrategy = readSubmissionStrategy(strategyUrl);
-    await runSubmit({
-      context,
-      transactionsFilepath: transactions,
-      receiptsFilepath: receipts,
-      submissionStrategy,
-    });
+    const chainSubmissionStrategy = readChainSubmissionStrategy(strategyUrl);
+    await promiseObjAll(
+      objMap(chainSubmissionStrategy, async (chain, submissionStrategy) => {
+        await runSubmit({
+          context,
+          transactionsFilepath: transactions,
+          receiptsFilepath: receipts,
+          submissionStrategy,
+        });
+        logBlue(`✅ Submission complete for chain ${chain}`);
+      }),
+    );
 
-    logBlue(`✅ Submission complete`);
     process.exit(0);
   },
 };
