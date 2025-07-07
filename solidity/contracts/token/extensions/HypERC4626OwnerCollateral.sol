@@ -18,20 +18,15 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 // ============ External Imports ============
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {HypERC4626Collateral} from "./HypERC4626Collateral.sol";
 
 /**
- * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault, the yield goes to the owner
- * @author ltyu
+ * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault, the yield goes to the owner
+ * @author Abacus Works
  */
-contract HypERC4626OwnerCollateral is HypERC20Collateral {
-    // Address of the ERC4626 compatible vault
-    ERC4626 public immutable vault;
-    // standby precision for exchange rate
-    uint256 public constant PRECISION = 1e10;
+contract HypERC4626OwnerCollateral is HypERC4626Collateral {
     // Internal balance of total asset deposited
     uint256 public assetDeposited;
-    // Nonce for the rate update, to ensure sequential updates (not necessary for Owner variant but for compatibility with HypERC4626)
-    uint32 public rateUpdateNonce;
 
     event ExcessSharesSwept(uint256 amount, uint256 assetsRedeemed);
 
@@ -39,40 +34,14 @@ contract HypERC4626OwnerCollateral is HypERC20Collateral {
         ERC4626 _vault,
         uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_vault.asset(), _scale, _mailbox) {
-        vault = _vault;
-    }
+    ) HypERC4626Collateral(_vault, _scale, _mailbox) {}
 
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) public override initializer {
-        wrappedToken.approve(address(vault), type(uint256).max);
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-    }
-
-    /**
-     * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract, and deposit into vault
-     * @inheritdoc HypERC20Collateral
-     */
-    function _transferFromSender(
+    function _depositIntoVault(
         uint256 _amount
-    ) internal override returns (bytes memory metadata) {
-        super._transferFromSender(_amount);
-        _depositIntoVault(_amount);
-        rateUpdateNonce++;
-
-        return abi.encode(PRECISION, rateUpdateNonce);
-    }
-
-    /**
-     * @dev Deposits into the vault and increment assetDeposited
-     * @param _amount amount to deposit into vault
-     */
-    function _depositIntoVault(uint256 _amount) internal {
+    ) internal virtual override returns (uint256) {
         assetDeposited += _amount;
         vault.deposit(_amount, address(this));
+        return _amount;
     }
 
     /**
@@ -81,18 +50,8 @@ contract HypERC4626OwnerCollateral is HypERC20Collateral {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata
+        uint256 _amount
     ) internal virtual override {
-        _withdrawFromVault(_amount, _recipient);
-    }
-
-    /**
-     * @dev Withdraws from the vault and decrement assetDeposited
-     * @param _amount amount to withdraw from vault
-     * @param _recipient address to deposit withdrawn underlying to
-     */
-    function _withdrawFromVault(uint256 _amount, address _recipient) internal {
         assetDeposited -= _amount;
         vault.withdraw(_amount, _recipient, address(this));
     }

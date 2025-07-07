@@ -21,11 +21,11 @@ import {
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  ITokenBridge__factory,
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
-  ValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -404,7 +404,7 @@ export class EvmHypCollateralAdapter
       ];
     }
 
-    const bridgeContract = ValueTransferBridge__factory.connect(
+    const bridgeContract = ITokenBridge__factory.connect(
       bridge,
       this.getProvider(),
     );

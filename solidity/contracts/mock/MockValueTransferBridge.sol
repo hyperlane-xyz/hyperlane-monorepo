@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ValueTransferBridge, Quote} from "../token/interfaces/ValueTransferBridge.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 
-contract MockValueTransferBridge is ValueTransferBridge {
+contract MockValueTransferBridge is ITokenBridge {
     event SentTransferRemote(
         uint32 indexed origin,
         uint32 indexed destination,
