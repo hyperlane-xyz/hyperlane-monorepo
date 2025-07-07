@@ -67,6 +67,19 @@ contract HypERC20Collateral is MovableCollateralRouter {
         return address(wrappedToken);
     }
 
+    function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
+        MovableCollateralRouter._addBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
+    }
+
+    function _removeBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) internal override {
+        MovableCollateralRouter._removeBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), 0);
+    }
+
     /**
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
@@ -84,20 +97,5 @@ contract HypERC20Collateral is MovableCollateralRouter {
         uint256 _amount
     ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
-    }
-
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ITokenBridge bridge
-    ) internal override {
-        wrappedToken.safeApprove({spender: address(bridge), value: amount});
-        MovableCollateralRouter._rebalance({
-            domain: domain,
-            recipient: recipient,
-            amount: amount,
-            bridge: bridge
-        });
     }
 }
