@@ -152,7 +152,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     }
 
     function _nativeRebalanceValue(
-        uint256 amount
+        uint256 /*amount*/
     ) internal virtual returns (uint256 nativeValue) {
         return msg.value;
     }
