@@ -23,6 +23,14 @@ import {
   useEthereumWalletDetails,
 } from './ethereum.js';
 import {
+  useRadixAccount,
+  useRadixActiveChain,
+  useRadixConnectFn,
+  useRadixDisconnectFn,
+  useRadixTransactionFns,
+  useRadixWalletDetails,
+} from './radix.js';
+import {
   useSolanaAccount,
   useSolanaActiveChain,
   useSolanaConnectFn,
@@ -60,6 +68,7 @@ export function useAccounts(
   const solAccountInfo = useSolanaAccount(multiProvider);
   const cosmAccountInfo = useCosmosAccount(multiProvider);
   const starknetAccountInfo = useStarknetAccount(multiProvider);
+  const radixAccountInfo = useRadixAccount(multiProvider);
   // Filtered ready accounts
   const readyAccounts = useMemo(
     () =>
@@ -68,8 +77,15 @@ export function useAccounts(
         solAccountInfo,
         cosmAccountInfo,
         starknetAccountInfo,
+        radixAccountInfo,
       ].filter((a) => a.isReady),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo, starknetAccountInfo],
+    [
+      evmAccountInfo,
+      solAccountInfo,
+      cosmAccountInfo,
+      starknetAccountInfo,
+      radixAccountInfo,
+    ],
   );
 
   // Check if any of the ready accounts are blacklisted
@@ -89,7 +105,7 @@ export function useAccounts(
         [ProtocolType.Cosmos]: cosmAccountInfo,
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
-        [ProtocolType.Radix]: starknetAccountInfo, // TODO: RADIX
+        [ProtocolType.Radix]: radixAccountInfo,
       },
       readyAccounts,
     }),
@@ -98,6 +114,7 @@ export function useAccounts(
       solAccountInfo,
       cosmAccountInfo,
       starknetAccountInfo,
+      radixAccountInfo,
       readyAccounts,
     ],
   );
@@ -191,6 +208,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
   const starknetWallet = useStarknetWalletDetails();
+  const radixWallet = useRadixWalletDetails();
 
   return useMemo(
     () => ({
@@ -199,9 +217,9 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Cosmos]: cosmosWallet,
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
-      [ProtocolType.Radix]: starknetWallet, // TODO: RADIX
+      [ProtocolType.Radix]: radixWallet,
     }),
-    [evmWallet, solWallet, cosmosWallet, starknetWallet],
+    [evmWallet, solWallet, cosmosWallet, starknetWallet, radixWallet],
   );
 }
 
@@ -210,6 +228,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
   const onConnectStarknet = useStarknetConnectFn();
+  const onConnectRadix = useRadixConnectFn();
 
   return useMemo(
     () => ({
@@ -218,9 +237,15 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Cosmos]: onConnectCosmos,
       [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
-      [ProtocolType.Radix]: onConnectStarknet, // TODO: RADIX
+      [ProtocolType.Radix]: onConnectRadix,
     }),
-    [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
+    [
+      onConnectEthereum,
+      onConnectSolana,
+      onConnectCosmos,
+      onConnectStarknet,
+      onConnectRadix,
+    ],
   );
 }
 
@@ -229,6 +254,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
   const disconnectStarknet = useStarknetDisconnectFn();
+  const disconnectRadix = useRadixDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -265,10 +291,16 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
       ),
       [ProtocolType.Radix]: onClickDisconnect(
         ProtocolType.Radix,
-        disconnectStarknet,
-      ), // TODO: RADIX
+        disconnectRadix,
+      ),
     }),
-    [disconnectEvm, disconnectSol, disconnectCosmos, disconnectStarknet],
+    [
+      disconnectEvm,
+      disconnectSol,
+      disconnectCosmos,
+      disconnectStarknet,
+      disconnectRadix,
+    ],
   );
 }
 
@@ -280,13 +312,14 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
   const solChain = useSolanaActiveChain(multiProvider);
   const cosmChain = useCosmosActiveChain(multiProvider);
   const starknetChain = useStarknetActiveChain(multiProvider);
+  const radixChain = useRadixActiveChain(multiProvider);
 
   const readyChains = useMemo(
     () =>
-      [evmChain, solChain, cosmChain, starknetChain].filter(
+      [evmChain, solChain, cosmChain, starknetChain, radixChain].filter(
         (c) => !!c.chainDisplayName,
       ),
-    [evmChain, solChain, cosmChain, starknetChain],
+    [evmChain, solChain, cosmChain, starknetChain, radixChain],
   );
 
   return useMemo(
@@ -297,11 +330,11 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Cosmos]: cosmChain,
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
-        [ProtocolType.Radix]: starknetChain, // TODO: RADIX
+        [ProtocolType.Radix]: radixChain,
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, readyChains, starknetChain],
+    [evmChain, solChain, cosmChain, readyChains, starknetChain, radixChain],
   );
 }
 
@@ -328,6 +361,11 @@ export function useTransactionFns(
     sendTransaction: onSendStarknetTx,
     sendMultiTransaction: onSendMultiStarknetTx,
   } = useStarknetTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchRadixNetwork,
+    sendTransaction: onSendRadixTx,
+    sendMultiTransaction: onSendMultiRadixTx,
+  } = useRadixTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
@@ -357,10 +395,10 @@ export function useTransactionFns(
         switchNetwork: onSwitchStarknetNetwork,
       },
       [ProtocolType.Radix]: {
-        sendTransaction: onSendStarknetTx,
-        sendMultiTransaction: onSendMultiStarknetTx,
-        switchNetwork: onSwitchStarknetNetwork,
-      }, // TODO: RADIX
+        sendTransaction: onSendRadixTx,
+        sendMultiTransaction: onSendMultiRadixTx,
+        switchNetwork: onSwitchRadixNetwork,
+      },
     }),
     [
       onSendEvmTx,
@@ -371,6 +409,8 @@ export function useTransactionFns(
       onSwitchCosmNetwork,
       onSendStarknetTx,
       onSwitchStarknetNetwork,
+      onSendRadixTx,
+      onSwitchRadixNetwork,
     ],
   );
 }
