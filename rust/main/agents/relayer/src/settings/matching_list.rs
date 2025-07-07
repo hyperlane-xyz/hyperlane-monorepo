@@ -30,52 +30,6 @@ use serde::{
 #[derive(Debug, Default, Clone)]
 pub struct MatchingList(pub Option<Vec<ListElement>>);
 
-impl MatchingList {
-    pub fn with_message_id(message_id: H256) -> Self {
-        Self(Some(vec![ListElement {
-            message_id: Filter::Enumerated(vec![message_id]),
-            origin_domain: Default::default(),
-            sender_address: Default::default(),
-            destination_domain: Default::default(),
-            recipient_address: Default::default(),
-            body: Default::default(),
-        }]))
-    }
-
-    pub fn with_destination_domain(destination_domain: u32) -> Self {
-        Self(Some(vec![ListElement {
-            message_id: Default::default(),
-            origin_domain: Default::default(),
-            sender_address: Default::default(),
-            destination_domain: Filter::Enumerated(vec![destination_domain]),
-            recipient_address: Default::default(),
-            body: Default::default(),
-        }]))
-    }
-
-    /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the matching list is empty.
-    pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
-        self.matches(msg.into(), default)
-    }
-
-    /// Check if queue operation matches any of the rules.
-    /// If the matching list is empty, we assume the queue operation does not match.
-    pub fn op_matches(&self, op: &QueueOperation) -> bool {
-        self.matches(op.into(), false)
-    }
-
-    /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the matching list is empty.
-    fn matches(&self, info: MatchInfo, default: bool) -> bool {
-        if let Some(rules) = &self.0 {
-            matches_any_rule(rules.iter(), info)
-        } else {
-            default
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Filter<T> {
     Wildcard,
@@ -363,6 +317,52 @@ impl<'a> From<&'a QueueOperation> for MatchInfo<'a> {
             dst_domain: op.destination_domain().id(),
             dst_addr: op.recipient_address(),
             body: hex::encode(op.body()),
+        }
+    }
+}
+
+impl MatchingList {
+    pub fn with_message_id(message_id: H256) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Filter::Enumerated(vec![message_id]),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Default::default(),
+            recipient_address: Default::default(),
+            body: Default::default(),
+        }]))
+    }
+
+    pub fn with_destination_domain(destination_domain: u32) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Default::default(),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Filter::Enumerated(vec![destination_domain]),
+            recipient_address: Default::default(),
+            body: Default::default(),
+        }]))
+    }
+
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the matching list is empty.
+    pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
+        self.matches(msg.into(), default)
+    }
+
+    /// Check if queue operation matches any of the rules.
+    /// If the matching list is empty, we assume the queue operation does not match.
+    pub fn op_matches(&self, op: &QueueOperation) -> bool {
+        self.matches(op.into(), false)
+    }
+
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the matching list is empty.
+    fn matches(&self, info: MatchInfo, default: bool) -> bool {
+        if let Some(rules) = &self.0 {
+            matches_any_rule(rules.iter(), info)
+        } else {
+            default
         }
     }
 }
