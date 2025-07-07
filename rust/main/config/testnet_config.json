@@ -3342,7 +3342,7 @@
       },
       "grpcUrls": [
         {
-          "http": "https://public-celestia-mocha4-consensus.numia.xyz:9090"
+          "http": "https://grpc-celestia-testnet.mzonder.com:443"
         }
       ],
       "index": {
