@@ -106,6 +106,12 @@ contract DomainRoutingIsm is
         _remove(_domain);
     }
 
+    function remove(DomainModule[] calldata _domainModules) external onlyOwner {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _remove(_domainModules[i].domain);
+        }
+    }
+
     function domains() external view returns (uint256[] memory) {
         return _modules.keys();
     }

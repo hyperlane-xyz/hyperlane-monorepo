@@ -123,6 +123,26 @@ contract DomainRoutingIsmTest is Test {
         ism.remove(domain);
     }
 
+    function testRemoveBatch(uint32 domain, uint8 count) public {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        DomainRoutingIsm.DomainModule[]
+            memory domainModules = new DomainRoutingIsm.DomainModule[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            domainModules[i] = DomainRoutingIsm.DomainModule({
+                domain: domains[i],
+                module: modules[i]
+            });
+        }
+        ism.add(domainModules);
+        ism.remove(domainModules);
+        for (uint256 i = 0; i < count; ++i) {
+            vm.expectRevert();
+            ism.module(domains[i]);
+        }
+    }
+
     function testFactoryDeploy(uint8 count, uint32 domain) public {
         vm.assume(count > 0);
         vm.assume(domain > count);
