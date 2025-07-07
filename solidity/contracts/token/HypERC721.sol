@@ -54,12 +54,9 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
      * @dev Asserts `msg.sender` is owner and burns `_tokenId`.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _tokenId
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _tokenId) internal virtual override {
         require(ownerOf(_tokenId) == msg.sender, "!owner");
         _burn(_tokenId);
-        return bytes(""); // no metadata
     }
 
     /**
@@ -68,8 +65,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _tokenId,
-        bytes calldata // no metadata
+        uint256 _tokenId
     ) internal virtual override {
         _safeMint(_recipient, _tokenId);
     }

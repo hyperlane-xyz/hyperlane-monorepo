@@ -15,7 +15,7 @@
     "@google-cloud/pino-logging-gcp-config": "^1.0.0",
     "@google-cloud/secret-manager": "^5.5.0",
     "@hyperlane-xyz/helloworld": "13.3.0",
-    "@hyperlane-xyz/registry": "16.0.0",
+    "@hyperlane-xyz/registry": "17.8.2",
     "@hyperlane-xyz/sdk": "13.3.0",
     "@hyperlane-xyz/utils": "13.3.0",
     "@inquirer/prompts": "3.3.2",

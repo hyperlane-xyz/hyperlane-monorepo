@@ -3,9 +3,11 @@ pragma solidity ^0.8.13;
 
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {HypNative} from "contracts/token/HypNative.sol";
+import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 
 import "forge-std/Test.sol";
 
@@ -86,5 +88,33 @@ contract HypNativeMovableTest is Test {
         router.addBridge(destinationDomain, vtb);
         vm.expectRevert("Native: rebalance amount exceeds balance");
         router.rebalance(destinationDomain, 1 ether, vtb);
+    }
+
+    function test_rebalance_cannotUndercollateralize(
+        uint96 fee,
+        uint96 collateralAmount
+    ) public {
+        vm.assume(fee > 0);
+        vm.assume(collateralAmount > 1);
+
+        vtb.setFeeRecipient(
+            address(
+                new LinearFee(
+                    address(0),
+                    fee,
+                    collateralAmount / 2,
+                    address(this)
+                )
+            )
+        );
+
+        router.addRebalancer(address(this));
+        router.addBridge(destinationDomain, vtb);
+
+        deal(address(router), collateralAmount);
+        deal(address(this), fee);
+
+        router.rebalance{value: fee}(destinationDomain, collateralAmount, vtb);
+        assertEq(address(vtb).balance, collateralAmount);
     }
 }

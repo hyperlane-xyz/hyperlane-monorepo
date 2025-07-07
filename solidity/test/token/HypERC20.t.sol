@@ -901,7 +901,7 @@ contract HypERC20ScaledTest is HypTokenTest {
         emit SentTransferRemote(
             DESTINATION,
             BOB.addressToBytes32(),
-            TRANSFER_AMT * EFFECTIVE_SCALE
+            TRANSFER_AMT
         );
 
         vm.prank(ALICE);
@@ -914,14 +914,14 @@ contract HypERC20ScaledTest is HypTokenTest {
 
     function testHandle() public {
         vm.expectEmit(true, true, false, true);
-        emit Transfer(address(0x0), ALICE, TRANSFER_AMT / EFFECTIVE_SCALE);
-
-        vm.expectEmit(true, true, false, true);
         emit ReceivedTransferRemote(
             DESTINATION,
             ALICE.addressToBytes32(),
             TRANSFER_AMT
         );
+
+        vm.expectEmit(true, true, false, true);
+        emit Transfer(address(0x0), ALICE, TRANSFER_AMT / EFFECTIVE_SCALE);
 
         _handleLocalTransfer(TRANSFER_AMT);
     }

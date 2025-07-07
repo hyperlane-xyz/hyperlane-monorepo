@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Router} from "contracts/client/Router.sol";
+import {Router} from "../../client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -80,6 +80,13 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint32 domain,
         ITokenBridge bridge
     ) external onlyOwner {
+        _removeBridge(domain, bridge);
+    }
+
+    function _removeBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) internal virtual {
         _allowedBridges[domain].remove(address(bridge));
     }
 
@@ -125,17 +132,18 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
             amount
         );
 
-        uint256 collateralFee = 0;
-        for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == token()) {
-                collateralFee += quotes[i].amount;
-            }
-        }
+        if (quotes.length > 0) {
+            require(
+                quotes[quotes.length - 1].token == token(),
+                "MCR: collateral token mismatch"
+            );
+            uint256 collateralFee = quotes[quotes.length - 1].amount;
 
-        // charge the rebalancer any bridging fees denominated in the collateral
-        // token to avoid undercollateralization
-        if (collateralFee > amount) {
-            _transferFromSender(collateralFee - amount);
+            // charge the rebalancer any bridging fees denominated in the collateral
+            // token to avoid undercollateralization
+            if (collateralFee > amount) {
+                _transferFromSender(collateralFee - amount);
+            }
         }
 
         uint256 nativeValue = _nativeRebalanceValue(amount);
@@ -144,7 +152,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
     }
 
     function _nativeRebalanceValue(
-        uint256 amount
+        uint256 /*amount*/
     ) internal virtual returns (uint256 nativeValue) {
         return msg.value;
     }

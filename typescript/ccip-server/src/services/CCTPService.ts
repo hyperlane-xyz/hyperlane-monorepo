@@ -1,38 +1,67 @@
 import { ethers } from 'ethers';
+import { Router } from 'express';
+import { z } from 'zod';
 
-import { IMessageTransmitter__factory } from '@hyperlane-xyz/core';
+import {
+  CctpService__factory,
+  IMessageTransmitter__factory,
+} from '@hyperlane-xyz/core';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { parseMessage } from '@hyperlane-xyz/utils';
 
+import { createAbiHandler } from '../utils/abiHandler.js';
+
+import { BaseService, REGISTRY_URI_SCHEMA } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
-import { RPCService } from './RPCService.js';
 
-type RPCConfig = {
-  readonly url: string;
-  readonly chainId: string;
-};
+const EnvSchema = z.object({
+  HYPERLANE_EXPLORER_URL: z.string().url(),
+  CCTP_ATTESTATION_URL: z.string().url(),
+  REGISTRY_URI: REGISTRY_URI_SCHEMA,
+});
 
-type HyperlaneConfig = {
-  readonly url: string;
-};
-
-type CCTPConfig = {
-  readonly url: string;
-};
-
-class CCTPService {
+class CCTPService extends BaseService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
-  rpcService: RPCService;
+  public readonly router: Router;
 
-  constructor(
-    hyperlaneConfig: Required<HyperlaneConfig>,
-    cctpConfig: Required<CCTPConfig>,
-    rpcConfig: Required<RPCConfig>,
-  ) {
-    this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
-    this.cctpAttestationService = new CCTPAttestationService(cctpConfig.url);
-    this.rpcService = new RPCService(rpcConfig.url);
+  static async initialize(): Promise<BaseService> {
+    const env = EnvSchema.parse(process.env);
+    const multiProvider = await this.getMultiProvider(env.REGISTRY_URI);
+    return Promise.resolve(new CCTPService(multiProvider));
+  }
+
+  constructor(private multiProvider: MultiProvider) {
+    super();
+    const env = EnvSchema.parse(process.env);
+    this.hyperlaneService = new HyperlaneService(env.HYPERLANE_EXPLORER_URL);
+    this.cctpAttestationService = new CCTPAttestationService(
+      env.CCTP_ATTESTATION_URL,
+    );
+
+    this.router = Router();
+
+    // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
+    this.router.get(
+      '/getCctpAttestation/:sender/:callData.json',
+      createAbiHandler(
+        CctpService__factory,
+        'getCCTPAttestation',
+        this.getCCTPAttestation.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getCctpAttestation
+    this.router.post(
+      '/getCctpAttestation',
+      createAbiHandler(
+        CctpService__factory,
+        'getCCTPAttestation',
+        this.getCCTPAttestation.bind(this),
+      ),
+    );
   }
 
   async getCCTPMessageFromReceipt(
@@ -47,7 +76,7 @@ class CCTPService {
         if (parsedLog.name === event.name) {
           return parsedLog.args.message;
         }
-      } catch {
+      } catch (_err) {
         // This log is not from the events in our ABI
         continue;
       }
@@ -56,7 +85,7 @@ class CCTPService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation([message]: ethers.utils.Result) {
+  async getCCTPAttestation(message: string) {
     const messageId: string = ethers.utils.keccak256(message);
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
@@ -67,18 +96,23 @@ class CCTPService {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    console.info('Found tx @', txHash);
+    const parsedMessage = parseMessage(message);
 
-    const receipt =
-      await this.rpcService.provider.getTransactionReceipt(txHash);
+    if (this.multiProvider == undefined) {
+      throw new Error('MultiProvider not initialized yet');
+    }
 
+    const receipt = await this.multiProvider
+      .getProvider(parsedMessage.origin)
+      .getTransactionReceipt(txHash);
     const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
     const [relayedCctpMessage, attestation] =
       await this.cctpAttestationService.getAttestation(cctpMessage, txHash);
 
-    console.log('cctpMessage', relayedCctpMessage);
-    console.log('attestation', attestation);
+    console.info(
+      `Fetched attestation. messageId=${messageId}, attestation=${attestation}`,
+    );
     return [relayedCctpMessage, attestation];
   }
 }

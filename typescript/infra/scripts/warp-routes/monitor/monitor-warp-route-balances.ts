@@ -63,7 +63,8 @@ async function main() {
     .number('checkFrequency')
     .parse();
 
-  const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
+  const warpRouteId =
+    warpRouteIdArg || (await getWarpRouteIdInteractive(environment));
 
   setLoggerBindings({
     warp_route: warpRouteId,

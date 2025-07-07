@@ -68,15 +68,20 @@ contract HypERC20Collateral is LpCollateralRouter {
         IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
     }
 
+    function _removeBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) internal override {
+        MovableCollateralRouter._removeBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), 0);
+    }
+
     /**
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _amount) internal virtual override {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-        return bytes(""); // no metadata
     }
 
     /**
@@ -85,8 +90,7 @@ contract HypERC20Collateral is LpCollateralRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
+        uint256 _amount
     ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
     }

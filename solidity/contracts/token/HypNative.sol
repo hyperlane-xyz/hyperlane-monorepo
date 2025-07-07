@@ -56,36 +56,11 @@ contract HypNative is LpCollateralRouter {
         return address(0);
     }
 
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        // include for legible error instead of underflow
-        _transferFromSender(_amount);
-
-        return
-            super._transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value - _amount,
-                _hookMetadata,
-                _hook
-            );
-    }
-
     /**
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _amount) internal virtual override {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        return bytes(""); // no metadata
     }
 
     function _nativeRebalanceValue(
@@ -104,10 +79,22 @@ contract HypNative is LpCollateralRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
+        uint256 _amount
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
+    }
+
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256 dispatchValue) {
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        _transferFromSender(_amount + fee);
+        dispatchValue = msg.value - (_amount + fee);
+        if (fee > 0) {
+            _transferTo(feeRecipient(), fee);
+        }
     }
 
     receive() external payable {

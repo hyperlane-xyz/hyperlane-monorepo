@@ -18,7 +18,7 @@ import {HypERC20} from "../HypERC20.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
-import {Router} from "contracts/client/Router.sol";
+import {Router} from "../../client/Router.sol";
 import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
@@ -93,10 +93,8 @@ contract HypERC4626 is HypERC20 {
 
     // @inheritdoc HypERC20
     // @dev Amount specified by the user is in assets, but the internal accounting is in shares
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        return HypERC20._transferFromSender(assetsToShares(_amount));
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        HypERC20._transferFromSender(assetsToShares(_amount));
     }
 
     // @inheritdoc FungibleTokenRouter

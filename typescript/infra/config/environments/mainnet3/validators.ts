@@ -1811,5 +1811,16 @@ export const validatorChainConfig = (
         'katana',
       ),
     },
+
+    solaxy: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solaxy'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5'],
+        },
+        'solaxy',
+      ),
+    },
   };
 };

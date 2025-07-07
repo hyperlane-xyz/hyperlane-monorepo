@@ -108,7 +108,7 @@ pub trait EvmProviderForLander: Send + Sync {
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError>;
+    ) -> ChainResult<U256>;
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
@@ -178,7 +178,7 @@ where
         &self,
         tx: &TypedTransaction,
         function: &Function,
-    ) -> Result<U256, ChainCommunicationError> {
+    ) -> ChainResult<U256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
