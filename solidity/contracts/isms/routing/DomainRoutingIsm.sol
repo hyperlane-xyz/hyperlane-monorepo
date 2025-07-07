@@ -32,6 +32,12 @@ contract DomainRoutingIsm is
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
+    // ============ Structs ============
+    struct DomainModule {
+        uint32 domain;
+        IInterchainSecurityModule module;
+    }
+
     // ============ External Functions ============
 
     /**
@@ -45,16 +51,14 @@ contract DomainRoutingIsm is
     /**
      * @notice Sets the ISMs to be used for the specified origin domains
      * @param _owner The owner of the contract.
-     * @param _domains The origin domains
-     * @param __modules The ISMs to use to verify messages
+     * @param _domainModules Array of DomainModule structs
      */
     function initialize(
         address _owner,
-        uint32[] calldata _domains,
-        IInterchainSecurityModule[] calldata __modules
+        DomainModule[] calldata _domainModules
     ) public initializer {
         __Ownable_init();
-        _set(_domains, __modules);
+        _set(_domainModules);
         _transferOwnership(_owner);
     }
 
@@ -70,11 +74,8 @@ contract DomainRoutingIsm is
         _set(_domain, address(_module));
     }
 
-    function set(
-        uint32[] calldata _domains,
-        IInterchainSecurityModule[] calldata __modules
-    ) external onlyOwner {
-        _set(_domains, __modules);
+    function set(DomainModule[] calldata _domainModules) external onlyOwner {
+        _set(_domainModules);
     }
 
     /**
@@ -91,13 +92,9 @@ contract DomainRoutingIsm is
         _add(_domain, address(_module));
     }
 
-    function add(
-        uint32[] calldata _domains,
-        IInterchainSecurityModule[] calldata __modules
-    ) external onlyOwner {
-        require(_domains.length == __modules.length, "length mismatch");
-        for (uint256 i = 0; i < _domains.length; ++i) {
-            _add(_domains[i], address(__modules[i]));
+    function add(DomainModule[] calldata _domainModules) external onlyOwner {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _add(_domainModules[i].domain, address(_domainModules[i].module));
         }
     }
 
@@ -152,14 +149,9 @@ contract DomainRoutingIsm is
         return string.concat("No ISM found for origin: ", _origin.toString());
     }
 
-    function _set(
-        uint32[] calldata _domains,
-        IInterchainSecurityModule[] calldata __modules
-    ) internal {
-        require(_domains.length == __modules.length, "length mismatch");
-        uint256 _length = _domains.length;
-        for (uint256 i = 0; i < _length; ++i) {
-            _set(_domains[i], address(__modules[i]));
+    function _set(DomainModule[] calldata _domainModules) internal {
+        for (uint256 i = 0; i < _domainModules.length; ++i) {
+            _set(_domainModules[i].domain, address(_domainModules[i].module));
         }
     }
 
