@@ -14,12 +14,12 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {MailboxClient} from "contracts/client/MailboxClient.sol";
-import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {Message} from "contracts/libs/Message.sol";
-import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
-import {RateLimited} from "contracts/libs/RateLimited.sol";
-import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {Message} from "../../libs/Message.sol";
+import {TokenMessage} from "../../token/libs/TokenMessage.sol";
+import {RateLimited} from "../../libs/RateLimited.sol";
+import {AbstractPostDispatchHook} from "../../hooks/libs/AbstractPostDispatchHook.sol";
 
 /*
  * @title RateLimitedHook

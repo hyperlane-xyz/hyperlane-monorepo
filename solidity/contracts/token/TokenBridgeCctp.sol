@@ -155,9 +155,6 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
 
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
 
-        bytes32 sourceSender = originalMsg._sender();
-        require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
-
         bytes29 burnMessage = originalMsg._messageBody();
         require(
             TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
@@ -168,6 +165,9 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
                 burnMessage._getMintRecipient(),
             "Invalid recipient"
         );
+
+        bytes32 sourceSender = burnMessage._getMessageSender();
+        require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
 
         uint32 sourceDomain = originalMsg._sourceDomain();
         require(
