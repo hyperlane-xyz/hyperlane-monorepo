@@ -133,7 +133,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @return message The message to the router on the destination chain.
      */
     function _beforeDispatch(
-        uint32 /*_destination*/,
+        uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
     ) internal virtual returns (uint256 dispatchValue, bytes memory message) {
