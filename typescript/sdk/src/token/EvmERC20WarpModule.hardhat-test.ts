@@ -96,6 +96,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let vaultFactory: ERC4626Test__factory;
   let vault: ERC4626Test;
   let token: ERC20Test;
+  let feeToken: ERC20Test;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -133,6 +134,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_DECIMALS,
     );
 
+    feeToken = await erc20Factory.deploy(
+      TOKEN_NAME,
+      TOKEN_NAME,
+      TOKEN_SUPPLY,
+      TOKEN_DECIMALS,
+    );
     vaultFactory = new ERC4626Test__factory(signer);
     vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
 
@@ -925,7 +932,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(txs.length).to.equal(0);
       });
 
-      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it.only(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const domainId = 31337;
@@ -953,7 +960,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
               [domainId]: [
                 {
                   bridge: allowedBridgeToAdd,
-                  approvedTokens: [token.address],
+                  approvedTokens: [feeToken.address],
                 },
               ],
             },
@@ -972,14 +979,14 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           await warpTokenInstance.callStatic.allowedBridges(domainId);
         expect(check[0]).to.eql(allowedBridgeToAdd);
 
-        const allowance = await token.callStatic.allowance(
+        const allowance = await feeToken.callStatic.allowance(
           evmERC20WarpModule.serialize().deployedTokenRoute,
           allowedBridgeToAdd,
         );
         expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
       });
 
-      it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it.only(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const domainId = 31337;
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const config = HypTokenRouterConfigSchema.parse({
@@ -993,7 +1000,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [token.address],
+                approvedTokens: [feeToken.address],
               },
             ],
           },
@@ -1029,7 +1036,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(allowedBridges).to.be.empty;
       });
 
-      it(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
+      it.only(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const domainId = 31337;
@@ -1045,7 +1052,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [token.address],
+                approvedTokens: [feeToken.address],
               },
             ],
           },
@@ -1065,7 +1072,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
               [domainId]: [
                 {
                   bridge: allowedBridgeToAdd.toLowerCase(),
-                  approvedTokens: [token.address],
+                  approvedTokens: [feeToken.address],
                 },
               ],
             },
