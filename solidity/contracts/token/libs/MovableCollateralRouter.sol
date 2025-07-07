@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Router} from "../../client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
-import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
+import {ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -158,10 +158,6 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint256 amount,
         ITokenBridge bridge
     ) internal virtual {
-        bridge.transferRemote{value: msg.value}({
-            _destination: domain,
-            _recipient: recipient,
-            _amount: amount
-        });
+        bridge.transferRemote{value: msg.value}(domain, recipient, amount);
     }
 }
