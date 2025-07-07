@@ -26,8 +26,8 @@ contract LinearFee is BaseFee {
         address _token,
         uint256 _maxFee,
         uint256 _halfAmount,
-        address beneficiary
-    ) BaseFee(_token, _maxFee, _halfAmount, beneficiary) {}
+        address _owner
+    ) BaseFee(_token, _maxFee, _halfAmount, _owner) {}
 
     function _quoteTransfer(
         uint256 amount
