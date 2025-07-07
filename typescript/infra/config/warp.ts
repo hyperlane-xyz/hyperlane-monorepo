@@ -58,6 +58,7 @@ import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
+import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
@@ -148,6 +149,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   // Not present in the registry
   // [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
   [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
+  [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
