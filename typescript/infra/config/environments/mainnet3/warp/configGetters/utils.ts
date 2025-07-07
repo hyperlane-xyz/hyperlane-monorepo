@@ -1,24 +1,30 @@
 import assert from 'assert';
 
-import { ChainName, MovableTokenConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, MovableTokenConfig } from '@hyperlane-xyz/sdk';
+import { arrayToObject, objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../../../registry.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
+type RebalancingConfig = Required<
+  Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
+>;
+
 export function getRebalancingBridgesConfigFor(
-  currentChain: ChainName,
   deploymentChains: readonly ChainName[],
   chainsToExclude: readonly ChainName[] = [],
-): Required<
-  Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
-> {
+): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
   const mainnetCCTP = registry.getWarpRoute('USDC/mainnet-cctp');
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
-  const cctpBridges = Object.fromEntries(
+  const rebalanceableChains = deploymentChains.filter(
+    (chain) => !chainsToExclude.includes(chain),
+  );
+
+  const cctpBridgesByChain = Object.fromEntries(
     mainnetCCTP.tokens.map(
       ({ chainName, addressOrDenom }): [string, string] => {
         assert(
@@ -31,21 +37,22 @@ export function getRebalancingBridgesConfigFor(
     ),
   );
 
-  const cctpBridge = cctpBridges[currentChain];
-  assert(cctpBridge, `No cctp bridge found for chain ${currentChain}`);
+  return objMap(
+    arrayToObject(rebalanceableChains),
+    (currentChain): RebalancingConfig => {
+      const cctpBridge = cctpBridgesByChain[currentChain];
+      assert(cctpBridge, `No cctp bridge found for chain ${currentChain}`);
 
-  const allowedRebalancingBridges = Object.fromEntries(
-    deploymentChains
-      .filter(
-        (remoteChain) =>
-          remoteChain !== currentChain &&
-          !chainsToExclude.includes(remoteChain),
-      )
-      .map((remoteChain) => [remoteChain, [{ bridge: cctpBridge }]]),
+      const allowedRebalancingBridges = Object.fromEntries(
+        deploymentChains
+          .filter((remoteChain) => remoteChain !== currentChain)
+          .map((remoteChain) => [remoteChain, [{ bridge: cctpBridge }]]),
+      );
+
+      return {
+        allowedRebalancers: [REBALANCER],
+        allowedRebalancingBridges,
+      };
+    },
   );
-
-  return {
-    allowedRebalancers: [REBALANCER],
-    allowedRebalancingBridges,
-  };
 }

@@ -44,6 +44,11 @@ const usdcTokenAddresses: Record<DeploymentChain, string> = {
 export const getSubtensorUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+    deploymentChains,
+    [syntheticChain, 'solanamainnet'],
+  );
+
   return Object.fromEntries(
     deploymentChains.map(
       (currentChain): [DeploymentChain, HypTokenRouterConfig] => {
@@ -83,8 +88,14 @@ export const getSubtensorUSDCWarpConfig = async (
           ];
         }
 
+        const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+        assert(
+          currentRebalancingConfig,
+          `Rebalancing config not found for chain ${currentChain}`,
+        );
+
         const { allowedRebalancers, allowedRebalancingBridges } =
-          getRebalancingBridgesConfigFor(currentChain, deploymentChains);
+          currentRebalancingConfig;
 
         return [
           currentChain,
