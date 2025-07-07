@@ -2,22 +2,22 @@ use dym_kas_core::confirmation::ConfirmationFXG;
 use std::sync::Mutex;
 
 #[derive(Debug)]
-pub struct ConfirmationQueue {
-    mutex: Mutex<Vec<ConfirmationFXG>>,
+pub struct PendingConfirmation {
+    mutex: Mutex<Option<ConfirmationFXG>>,
 }
 
-impl ConfirmationQueue {
+impl PendingConfirmation {
     pub fn new() -> Self {
         Self {
-            mutex: Mutex::new(Vec::new()),
+            mutex: Mutex::new(None),
         }
     }
-    pub fn consume(&self) -> Vec<ConfirmationFXG> {
+    pub fn consume(&self) -> Option<ConfirmationFXG> {
         let mut guard = self.mutex.lock().unwrap();
         std::mem::take(&mut *guard)
     }
     pub fn push(&self, fxg: ConfirmationFXG) {
         let mut guard = self.mutex.lock().unwrap();
-        guard.push(fxg);
+        *guard = Some(fxg);
     }
 }

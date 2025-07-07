@@ -6,6 +6,7 @@ use hyperlane_core::{
 };
 
 use bytes::Bytes;
+use eyre::eyre;
 use eyre::Result;
 use reqwest::StatusCode;
 use tracing::{error, info};
@@ -15,6 +16,7 @@ use crate::ConnectionConf;
 use crate::endpoints::*;
 use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
+use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;
 
 #[derive(Debug, Clone)]
@@ -42,44 +44,47 @@ impl ValidatorsClient {
     ) -> ChainResult<Self> {
         Ok(ValidatorsClient { conf })
     }
-
     /// this runs on relayer
     pub async fn get_deposit_sigs(
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-        // TODO: in parallel
         info!(
             "Dymension, asking validators for deposit sigs, number of validators: {:?}",
             self.conf.validator_hosts.len()
         );
-        let mut results = Vec::new();
-        for host in self.conf.validator_hosts.clone().into_iter() {
-            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let h = host.to_string();
-            let res = request_validate_new_deposits(host, fxg).await;
-            match res {
-                Ok(r) => match r {
-                    Some(sig) => {
-                        results.push(sig);
+
+        let futures = self.conf.validator_hosts.clone().into_iter().map(|host| {
+            let fxg_clone = fxg.clone();
+            async move {
+                let h = host.to_string();
+                match request_validate_new_deposits(host, &fxg_clone).await {
+                    Ok(Some(sig)) => {
                         info!("Dymension, got deposit sig response ok, validator: {:?}", h);
+                        Ok(sig)
                     }
-                    None => {
+                    Ok(None) => {
                         error!(
                             "Dymension, got deposit sig response None, validator: {:?}",
                             h
                         );
+                        Err(eyre!("No signature received"))
                     }
-                },
-                Err(e) => {
-                    error!(
-                        "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
-                        h, e
-                    );
+                    Err(e) => {
+                        error!(
+                            "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
+                            h, e
+                        );
+                        Err(e.into())
+                    }
                 }
             }
-        }
-        Ok(results)
+        });
+
+        let results = join_all(futures).await;
+        let successful_sigs: Vec<SignedCheckpointWithMessageId> =
+            results.into_iter().filter_map(Result::ok).collect();
+        Ok(successful_sigs)
     }
 
     /// this runs on relayer
@@ -87,80 +92,73 @@ impl ValidatorsClient {
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<Signature>> {
-        // map validator addr to sig(s)
-        // TODO: in parallel
-        let mut results = Vec::new();
-        for host in self.conf.validator_hosts.clone().into_iter() {
-            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let h = host.to_string();
-            let res = request_validate_new_confirmation(host, fxg).await;
-            match res {
-                Ok(r) => match r {
-                    Some(sig) => {
-                        results.push(sig);
-                        info!(
-                            "Dymension, got confirmation sig response ok, validator: {:?}",
-                            h
-                        );
+        let futures = self
+        .conf
+        .validator_hosts
+        .clone()
+        .into_iter()
+        .map(|host| {
+            let fxg_clone = fxg.clone();
+            async move {
+                let h = host.to_string();
+                match request_validate_new_confirmation(host, &fxg_clone).await {
+                    Ok(Some(sig)) => {
+                        info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
+                        Ok(sig)
                     }
-                    None => {
-                        error!(
-                            "Dymension, got confirmation sig response None, validator: {:?}",
-                            h
-                        );
+                    Ok(None) => {
+                        error!("Dymension, got confirmation sig response None, validator: {:?}", h);
+                        Err(eyre!("No signature received"))
                     }
-                },
-                Err(_e) => {
-                    error!(
-                        "Dymension, got confirmation sig response Err, validator: {:?}",
-                        h
-                    );
+                    Err(e) => {
+                        error!("Dymension, got confirmation sig response Err, validator: {:?}, error: {:?}", h, e);
+                        Err(e.into())
+                    }
                 }
             }
-        }
-        Ok(results)
+        });
+
+        let results = join_all(futures).await;
+        let successful_sigs: Vec<Signature> = results.into_iter().filter_map(Result::ok).collect();
+        Ok(successful_sigs)
     }
 
     /// this runs on relayer
     pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
-        // returns bundle of signer
-        // map validator addr to sig(s)
-        // TODO: in parallel
-        let mut results = Vec::new();
         info!(
             "Dymension, getting withdrawal sigs, number of validators: {:?}",
             self.conf.validator_hosts.len()
         );
-        for host in self.conf.validator_hosts.clone().into_iter() {
-            //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let h = host.to_string();
-            let res = request_sign_withdrawal_bundle(host, fxg).await;
-            // TODO: should also check that each validator signed either all or none of the bundle
-            match res {
-                Ok(r) => match r {
-                    Some(sig) => {
-                        results.push(sig);
-                        info!(
-                            "Dymension, got withdrawal sig response ok, validator: {:?}",
-                            h
-                        );
+
+        let futures = self
+        .conf
+        .validator_hosts
+        .clone()
+        .into_iter()
+        .map(|host| {
+            let fxg_clone = fxg.clone();
+            async move {
+                let h = host.to_string();
+                match request_sign_withdrawal_bundle(host, &fxg_clone).await {
+                    Ok(Some(bundle)) => {
+                        info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
+                        Ok(bundle)
                     }
-                    None => {
-                        error!(
-                            "Dymension, got withdrawal sig response None, validator: {:?}",
-                            h
-                        );
+                    Ok(None) => {
+                        error!("Dymension, got withdrawal sig response None, validator: {:?}", h);
+                        Err(eyre!("No bundle received"))
                     }
-                },
-                Err(e) => {
-                    error!(
-                        "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
-                        h, e
-                    );
+                    Err(e) => {
+                        error!("Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}", h, e);
+                        Err(e.into())
+                    }
                 }
             }
-        }
-        Ok(results)
+        });
+
+        let results = join_all(futures).await;
+        let successful_bundles: Vec<Bundle> = results.into_iter().filter_map(Result::ok).collect();
+        Ok(successful_bundles)
     }
 
     pub fn multisig_threshold_hub_ism(&self) -> usize {

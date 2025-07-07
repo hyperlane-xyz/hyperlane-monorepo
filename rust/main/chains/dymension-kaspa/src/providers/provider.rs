@@ -27,7 +27,7 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use super::confirmation_queue::ConfirmationQueue;
+use super::confirmation_queue::PendingConfirmation;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
@@ -58,11 +58,9 @@ pub struct KaspaProvider {
     */
     kas_key: Option<KaspaSecpKeypair>,
 
-    // Queue stores confirmations that need to be sent on the Hub eventually.
-    // It stores two values: prev_outpoint and next_outpoint, respectively.
-    // Note that IndicateProgress tx and Outpoint query create a race condition over
-    // the last outpoint stored on the Hub.
-    queue: Arc<ConfirmationQueue>,
+    /// Optimistically give a hint for the next confirmation needed to be done on the Hub
+    /// If this value is out of date, the relayer can still manually poll Kaspa to figure out how to get synced
+    pending_confirmation: Arc<PendingConfirmation>,
 }
 
 impl KaspaProvider {
@@ -97,13 +95,13 @@ impl KaspaProvider {
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
-            queue: Arc::new(ConfirmationQueue::new()),
+            pending_confirmation: Arc::new(PendingConfirmation::new()),
         })
     }
 
     /// dococo
-    pub fn consume_confirmation_queue(&self) -> Vec<ConfirmationFXG> {
-        self.queue.consume()
+    pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
+        self.pending_confirmation.consume()
     }
 
     /// dococo
@@ -200,14 +198,15 @@ impl KaspaProvider {
             index: (output_idx as u32).into(),
         };
 
-        self.queue.push(ConfirmationFXG::from_msgs_outpoints(
-            fxg.ids().clone(),
-            vec![
-                prev_outpoint.clone(),
-                // TODO: it also needs to include any outpoints in-between
-                next_outpoint.clone(),
-            ],
-        ));
+        self.pending_confirmation
+            .push(ConfirmationFXG::from_msgs_outpoints(
+                fxg.ids().clone(),
+                vec![
+                    prev_outpoint.clone(),
+                    // TODO: it also needs to include any outpoints in-between
+                    next_outpoint.clone(),
+                ],
+            ));
         info!("Kaspa provider, added to progress indication work queue");
 
         Ok(())

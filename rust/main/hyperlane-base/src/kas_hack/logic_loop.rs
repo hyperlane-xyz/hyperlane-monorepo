@@ -163,10 +163,9 @@ where
             // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
-            let confirmations = self.provider.consume_confirmation_queue();
+            let confirmation = self.provider.consume_pending_confirmation();
 
-            match confirmations.last() {
-                None => {}
+            match confirmation {
                 Some(confirmation) => {
                     let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
                     match res {
@@ -178,6 +177,7 @@ where
                         }
                     }
                 }
+                None => {}
             }
 
             time::sleep(Duration::from_secs(10)).await;

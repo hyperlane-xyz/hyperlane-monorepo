@@ -71,22 +71,6 @@ impl ConfirmationFXG {
         Self::new(progress_indication, ConfirmationFXGCache { outpoints })
     }
 
-    pub fn merge(&self, other: &Self) -> Self {
-        /*
-        Take all the points of self and all but the first of other
-        Take all the message ids of both
-        Use the first of self and the last of other as the new outpoints
-         */
-
-        let mut outpoints = self.cache.outpoints.clone();
-        outpoints.extend(other.cache.outpoints[1..].to_vec());
-
-        let mut msgs = self.msgs();
-        msgs.extend(other.msgs());
-
-        Self::from_msgs_outpoints(msgs, outpoints)
-    }
-
     pub fn msgs(&self) -> Vec<MessageID> {
         self.progress_indication
             .processed_withdrawals
