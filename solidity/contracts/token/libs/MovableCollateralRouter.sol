@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Router} from "contracts/client/Router.sol";
+import {Router} from "../../client/Router.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -80,6 +80,13 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         uint32 domain,
         ITokenBridge bridge
     ) external onlyOwner {
+        _removeBridge(domain, bridge);
+    }
+
+    function _removeBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) internal virtual {
         _allowedBridges[domain].remove(address(bridge));
     }
 

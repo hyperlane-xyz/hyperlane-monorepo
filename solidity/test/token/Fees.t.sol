@@ -8,6 +8,8 @@ import {BaseFee, FeeType} from "../../contracts/token/fees/BaseFee.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {ProgressiveFee} from "../../contracts/token/fees/ProgressiveFee.sol";
 import {RegressiveFee} from "../../contracts/token/fees/RegressiveFee.sol";
+import {RoutingFee} from "../../contracts/token/fees/RoutingFee.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
 // --- Base Test ---
 
@@ -27,7 +29,7 @@ abstract contract BaseFeeTest is Test {
         vm.label(BENEFICIARY, "Beneficiary");
     }
 
-    function test_Claim() public {
+    function test_Claim() public virtual {
         // Test claiming ERC20 tokens
         uint256 erc20Amount = 100 * 10 ** 18;
         token.mintTo(address(feeContract), erc20Amount);
@@ -221,6 +223,96 @@ contract RegressiveFeeTest is BaseFeeTest {
             .quoteTransferRemote(destination, recipient, amount)[0].amount,
             expectedFee,
             "Regressive fee mismatch"
+        );
+    }
+}
+
+// --- RoutingFee Tests ---
+
+contract RoutingFeeTest is BaseFeeTest {
+    RoutingFee public routingFee;
+    LinearFee public linearFee1;
+    uint32 internal constant DEST1 = 100;
+    uint256 internal constant MAX_FEE1 = 500;
+    uint256 internal constant HALF_AMOUNT1 = 1000;
+
+    function setUp() public override {
+        super.setUp();
+        routingFee = new RoutingFee(address(token), OWNER);
+        feeContract = routingFee; // for claim test
+        linearFee1 = new LinearFee(
+            address(token),
+            MAX_FEE1,
+            HALF_AMOUNT1,
+            OWNER
+        );
+    }
+
+    function test_RoutingFee_Type() public {
+        assertEq(uint(routingFee.feeType()), uint(FeeType.ROUTING));
+    }
+
+    function test_Quote_NoFeeContract() public {
+        // Use a destination that is not configured
+        Quote[] memory quotes = routingFee.quoteTransferRemote(
+            DEST1 + 1,
+            recipient,
+            1000
+        );
+        assertEq(
+            quotes.length,
+            0,
+            "Should return empty if no fee contract set"
+        );
+    }
+
+    function test_Quote_DelegatesToFeeContract() public {
+        vm.prank(OWNER);
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        uint256 amount = 2000;
+        Quote[] memory quotes = routingFee.quoteTransferRemote(
+            DEST1,
+            recipient,
+            amount
+        );
+        uint256 expected = (amount * MAX_FEE1) / (2 * HALF_AMOUNT1);
+        if (expected > MAX_FEE1) expected = MAX_FEE1;
+        assertEq(quotes.length, 1, "Should return one quote");
+        assertEq(quotes[0].token, address(token), "Token address mismatch");
+        assertEq(quotes[0].amount, expected, "Fee mismatch");
+    }
+
+    function test_SetFeeContract_EmitsEvent() public {
+        vm.prank(OWNER);
+        vm.expectEmit(true, true, false, true, address(routingFee));
+        emit RoutingFee.FeeContractSet(DEST1, address(linearFee1));
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        assertEq(routingFee.feeContracts(DEST1), address(linearFee1));
+    }
+
+    function test_RevertIf_NonOwnerSetsFeeContract() public {
+        vm.prank(address(0x999));
+        vm.expectRevert("Ownable: caller is not the owner");
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+    }
+
+    function test_Claim() public override {
+        // Test claiming ERC20 tokens from RoutingFee
+        uint256 erc20Amount = 100 * 10 ** 18;
+        token.mintTo(address(routingFee), erc20Amount);
+        uint256 beneficiaryErc20BalanceBefore = token.balanceOf(BENEFICIARY);
+        vm.prank(OWNER);
+        routingFee.claim(BENEFICIARY);
+        uint256 beneficiaryErc20BalanceAfter = token.balanceOf(BENEFICIARY);
+        assertEq(
+            beneficiaryErc20BalanceAfter - beneficiaryErc20BalanceBefore,
+            erc20Amount,
+            "ERC20 claim failed"
+        );
+        assertEq(
+            token.balanceOf(address(routingFee)),
+            0,
+            "ERC20 balance not zero after claim"
         );
     }
 }

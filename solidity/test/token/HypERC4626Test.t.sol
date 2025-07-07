@@ -645,13 +645,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
     }
 
-    function testTransfer_withHookSpecified(
-        uint256,
-        bytes calldata
-    ) public override {
-        // skip
-    }
-
     function testBenchmark_overheadGasUsage() public override {
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);

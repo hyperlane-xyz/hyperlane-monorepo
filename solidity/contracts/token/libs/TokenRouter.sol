@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
@@ -20,24 +20,24 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens sent in to the remote recipient.
+     * @param amountOrId The amount or ID of tokens sent in to the remote recipient.
      */
     event SentTransferRemote(
         uint32 indexed destination,
         bytes32 indexed recipient,
-        uint256 amount
+        uint256 amountOrId
     );
 
     /**
      * @dev Emitted on `_handle` when a transfer message is processed.
      * @param origin The identifier of the origin chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens received from the remote sender.
+     * @param amountOrId The amount or ID of tokens received from the remote sender.
      */
     event ReceivedTransferRemote(
         uint32 indexed origin,
         bytes32 indexed recipient,
-        uint256 amount
+        uint256 amountOrId
     );
 
     constructor(address _mailbox) GasRouter(_mailbox) {}
@@ -57,7 +57,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                _GasRouter_hookMetadata(_destination),
+                address(hook)
+            );
     }
 
     /**
@@ -84,7 +90,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 _recipient,
                 _amountOrId,
-                msg.value,
                 _hookMetadata,
                 _hook
             );
@@ -94,95 +99,55 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
-        uint256 _value
-    ) internal returns (bytes32 messageId) {
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _value,
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
-    }
-
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId,
-        uint256 _value,
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual returns (bytes32 messageId) {
-        bytes memory _tokenMetadata = _chargeSender(
+        // checks
+        (uint256 _dispatchValue, bytes memory _tokenMessage) = _beforeDispatch(
             _destination,
             _recipient,
             _amountOrId
         );
 
-        uint256 outboundAmount = _outboundAmount(_amountOrId);
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            outboundAmount,
-            _tokenMetadata
-        );
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amountOrId);
 
+        // interactions
         messageId = _Router_dispatch(
             _destination,
-            _value,
+            _dispatchValue,
             _tokenMessage,
             _hookMetadata,
             _hook
         );
-
-        emit SentTransferRemote(_destination, _recipient, outboundAmount);
     }
 
     /**
-     * @dev Should charge `_amountOrId` of tokens from `msg.sender`.
-     * @dev May charge fees specified by the corresponding `quoteTransferRemote` call.
      * @dev Called by `transferRemote` before message dispatch.
-     * @dev Optionally returns `metadata` associated with the transfer to be passed in message.
+     * @dev Can be overriden to add metadata to the message.
+     * @dev Can be overriden to change the value forwarded to the mailbox.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @return dispatchValue The value to be forwarded to the mailbox.
+     * @return message The message to the router on the destination chain.
      */
-    function _chargeSender(
-        uint32 /*_destination*/,
-        bytes32 /*_recipient*/,
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amountOrId
-    ) internal virtual returns (bytes memory metadata) {
-        return _transferFromSender(_amountOrId);
-    }
+    ) internal virtual returns (uint256 dispatchValue, bytes memory message) {
+        _transferFromSender(_amountOrId);
 
-    /**
-     * @dev Should return the amount of tokens to be encoded in the message amount (eg for scaling `_localAmount`).
-     * @param _localAmount The amount of tokens transferred on this chain in local denomination.
-     * @return _messageAmount The amount of tokens to be encoded in the message body.
-     */
-    function _outboundAmount(
-        uint256 _localAmount
-    ) internal view virtual returns (uint256 _messageAmount) {
-        _messageAmount = _localAmount;
-    }
-
-    /**
-     * @dev Should return the amount of tokens to be decoded from the message amount.
-     * @param _messageAmount The amount of tokens received in the message body.
-     * @return _localAmount The amount of tokens to be transferred on this chain in local denomination.
-     */
-    function _inboundAmount(
-        uint256 _messageAmount
-    ) internal view virtual returns (uint256 _localAmount) {
-        _localAmount = _messageAmount;
+        dispatchValue = msg.value;
+        message = TokenMessage.format(_recipient, _amountOrId);
     }
 
     /**
      * @dev Should transfer `_amountOrId` of tokens from `msg.sender` to this token router.
      * @dev Called by `transferRemote` before message dispatch.
-     * @dev Optionally returns `metadata` associated with the transfer to be passed in message.
      */
-    function _transferFromSender(
-        uint256 _amountOrId
-    ) internal virtual returns (bytes memory metadata);
+    function _transferFromSender(uint256 _amountOrId) internal virtual;
 
     /**
      * @notice Returns the balance of `account` on this token router.
@@ -251,30 +216,20 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     ) internal virtual override {
         bytes32 recipient = _message.recipient();
         uint256 amount = _message.amount();
-        bytes calldata metadata = _message.metadata();
-        _transferTo(
-            recipient.bytes32ToAddress(),
-            _inboundAmount(amount),
-            metadata
-        );
+
+        // effects
         emit ReceivedTransferRemote(_origin, recipient, amount);
+
+        // interactions
+        _transferTo(recipient.bytes32ToAddress(), amount);
     }
 
     /**
      * @dev Should transfer `_amountOrId` of tokens from this token router to `_recipient`.
      * @dev Called by `handle` after message decoding.
-     * @dev Optionally handles `metadata` associated with transfer passed in message.
      */
     function _transferTo(
         address _recipient,
-        uint256 _amountOrId,
-        bytes calldata metadata
-    ) internal virtual;
-
-    function _transferTo(
-        address _recipient,
         uint256 _amountOrId
-    ) internal virtual {
-        _transferTo(_recipient, _amountOrId, msg.data[0:0]);
-    }
+    ) internal virtual;
 }

@@ -12,7 +12,8 @@ enum FeeType {
     ZERO,
     LINEAR,
     REGRESSIVE,
-    PROGRESSIVE
+    PROGRESSIVE,
+    ROUTING
 }
 
 abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
@@ -65,16 +66,20 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
         uint32 /*_destination*/,
         bytes32 /*_recipient*/,
         uint256 _amount
-    ) external view override returns (Quote[] memory quotes) {
+    ) external view virtual override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(address(token), _quoteTransfer(_amount));
     }
 
     function _quoteTransfer(
-        uint256 _amount
-    ) internal view virtual returns (uint256 fee);
+        uint256 /*_amount*/
+    ) internal view virtual returns (uint256 fee) {
+        return 0;
+    }
 
     function feeType() external view virtual returns (FeeType);
 
-    receive() external payable {}
+    receive() external payable {
+        require(address(token) == address(0), "Not native token");
+    }
 }
