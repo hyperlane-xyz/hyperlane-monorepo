@@ -183,7 +183,7 @@ contract ProtocolFeeTest is Test {
 
         fees.setProtocolFee(feeRequired);
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, true, true);
         emit ProtocolFee.ProtocolFeePaid(alice, feeRequired);
         fees.postDispatch{value: feeSent}("", testMessage);
     }
