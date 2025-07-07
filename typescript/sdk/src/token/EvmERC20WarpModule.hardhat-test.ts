@@ -932,7 +932,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(txs.length).to.equal(0);
       });
 
-      it.only(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const domainId = 31337;
@@ -986,7 +986,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
       });
 
-      it.only(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
+      it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const domainId = 31337;
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const config = HypTokenRouterConfigSchema.parse({
@@ -1036,7 +1036,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(allowedBridges).to.be.empty;
       });
 
-      it.only(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
+      it(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
         const domainId = 31337;
