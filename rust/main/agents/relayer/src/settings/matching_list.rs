@@ -576,7 +576,7 @@ mod test {
 
     #[test]
     fn test_matching_list_regex() {
-        let list: MatchingList = serde_json::from_str(r#"[{"regex": "abcd"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"regex": "0x([0-9]*)$"}]"#).unwrap();
         assert!(list.matches(
             MatchInfo {
                 src_msg_id: H256::default(),
@@ -590,7 +590,7 @@ mod test {
                     .parse::<H160>()
                     .unwrap()
                     .into(),
-                body: "abcd".into(),
+                body: "0x123456789".into(),
             },
             false
         ));
@@ -605,7 +605,7 @@ mod test {
                     .into(),
                 dst_domain: 5456,
                 dst_addr: &H256::default(),
-                body: "defg".into(),
+                body: "0xdefg".into(),
             },
             false
         ));
