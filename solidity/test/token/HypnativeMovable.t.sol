@@ -7,6 +7,7 @@ import {MockITokenBridge} from "./MovableCollateralRouter.t.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
+import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 
 import "forge-std/Test.sol";
 
@@ -32,21 +33,27 @@ contract MockITokenBridgeEth is ITokenBridge {
 
 contract HypNativeMovableTest is Test {
     HypNative internal router;
-    MockITokenBridgeEth internal vtb;
+    HypNative internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
     address internal constant alice = address(1);
 
     function setUp() public {
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
-        router = new HypNative(1e18, address(new MockMailbox(uint32(1))));
+        address mailbox = address(new MockMailbox(uint32(1)));
+        MockMailbox(mailbox).addRemoteMailbox(
+            destinationDomain,
+            MockMailbox(mailbox)
+        );
+        router = new HypNative(1, mailbox);
         // Initialize the router -> we are the admin
         router.initialize(address(0), address(0), address(this));
         router.enrollRemoteRouter(
             destinationDomain,
             bytes32(uint256(uint160(0)))
         );
-        vtb = new MockITokenBridgeEth();
+        vtb = new HypNative(1, mailbox);
+        vtb.enrollRemoteRouter(destinationDomain, bytes32(uint256(uint160(0))));
     }
 
     function testMovingCollateral() public {
@@ -81,5 +88,33 @@ contract HypNativeMovableTest is Test {
         router.addBridge(destinationDomain, vtb);
         vm.expectRevert("Native: rebalance amount exceeds balance");
         router.rebalance(destinationDomain, 1 ether, vtb);
+    }
+
+    function test_rebalance_cannotUndercollateralize(
+        uint96 fee,
+        uint96 collateralAmount
+    ) public {
+        vm.assume(fee > 0);
+        vm.assume(collateralAmount > 1);
+
+        vtb.setFeeRecipient(
+            address(
+                new LinearFee(
+                    address(0),
+                    fee,
+                    collateralAmount / 2,
+                    address(this)
+                )
+            )
+        );
+
+        router.addRebalancer(address(this));
+        router.addBridge(destinationDomain, vtb);
+
+        deal(address(router), collateralAmount);
+        deal(address(this), fee);
+
+        router.rebalance{value: fee}(destinationDomain, collateralAmount, vtb);
+        assertEq(address(vtb).balance, collateralAmount);
     }
 }
