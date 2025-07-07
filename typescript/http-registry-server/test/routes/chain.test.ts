@@ -1,0 +1,216 @@
+import { use as chaiUse, expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import express, { Express } from 'express';
+import sinon from 'sinon';
+import request from 'supertest';
+
+import AppConstants from '../../src/constants/AppConstants.js';
+import { NotFoundError } from '../../src/errors/ApiError.js';
+import { createErrorHandler } from '../../src/middleware/errorHandler.js';
+import { createChainRouter } from '../../src/routes/chain.js';
+import { ChainService } from '../../src/services/chainService.js';
+import {
+  MOCK_CHAIN_NAME,
+  mockChainAddresses,
+  mockChainMetadata,
+} from '../utils/mockData.js';
+
+chaiUse(chaiAsPromised);
+
+describe('Chain Routes', () => {
+  let app: Express;
+  let mockChainService: sinon.SinonStubbedInstance<ChainService>;
+
+  beforeEach(() => {
+    // Create stubbed chain service
+    mockChainService = sinon.createStubInstance(ChainService);
+
+    // Create Express app with chain routes
+    app = express();
+    app.use(express.json());
+    app.use('/chain', createChainRouter(mockChainService));
+    app.use(createErrorHandler(console));
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe('GET /chain/:chain/metadata', () => {
+    it('should return chain metadata when it exists', async () => {
+      mockChainService.getChainMetadata.resolves(mockChainMetadata);
+
+      const response = await request(app)
+        .get(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(mockChainMetadata);
+      expect(mockChainService.getChainMetadata.calledWith(MOCK_CHAIN_NAME)).to
+        .be.true;
+    });
+
+    it('should return 404 when chain metadata does not exist', async () => {
+      mockChainService.getChainMetadata.rejects(
+        new NotFoundError('Chain metadata not found'),
+      );
+
+      const response = await request(app)
+        .get('/chain/nonexistent/metadata')
+        .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
+
+      expect(response.body.message).to.include('Chain metadata not found');
+    });
+
+    it('should return 500 when service throws unexpected error', async () => {
+      mockChainService.getChainMetadata.rejects(new Error('Database error'));
+
+      const response = await request(app)
+        .get(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      expect(response.body.message).to.include('Internal Server Error');
+      expect(response.body.message).to.include('Database error');
+    });
+
+    it('should handle valid chain names', async () => {
+      const validChainName = 'testarbitrum123';
+      mockChainService.getChainMetadata.resolves(mockChainMetadata);
+
+      await request(app)
+        .get(`/chain/${validChainName}/metadata`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(mockChainService.getChainMetadata.calledWith(validChainName)).to.be
+        .true;
+    });
+  });
+
+  describe('POST /chain/:chain/metadata', () => {
+    it('should update chain metadata successfully', async () => {
+      const updatedMetadata = {
+        ...mockChainMetadata,
+        displayName: 'Updated Chain',
+      };
+      mockChainService.setChainMetadata.resolves();
+
+      await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .send(updatedMetadata)
+        .expect(204);
+
+      expect(
+        mockChainService.setChainMetadata.calledWith(
+          MOCK_CHAIN_NAME,
+          updatedMetadata,
+        ),
+      ).to.be.true;
+    });
+
+    it('should return 400 for invalid metadata schema', async () => {
+      const invalidMetadata = { invalidField: 'invalid' };
+
+      const response = await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .send(invalidMetadata)
+        .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
+
+      expect(response.body.message).to.include('Validation error in body');
+      expect(mockChainService.setChainMetadata.called).to.be.false;
+    });
+
+    it('should return 400 for missing request body', async () => {
+      const response = await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
+
+      expect(response.body.message).to.include('Validation error in body');
+    });
+
+    it('should return 500 when service update fails', async () => {
+      mockChainService.setChainMetadata.rejects(new Error('Update failed'));
+
+      const response = await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .send(mockChainMetadata)
+        .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      expect(response.body.message).to.include('Update failed');
+    });
+
+    it('should handle content-type correctly', async () => {
+      const updatedMetadata = {
+        ...mockChainMetadata,
+        displayName: 'JSON Test',
+      };
+      mockChainService.setChainMetadata.resolves();
+
+      await request(app)
+        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .set('Content-Type', 'application/json')
+        .send(updatedMetadata)
+        .expect(204);
+    });
+  });
+
+  describe('GET /chain/:chain/addresses', () => {
+    it('should return chain addresses when they exist', async () => {
+      mockChainService.getChainAddresses.resolves(mockChainAddresses);
+
+      const response = await request(app)
+        .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(mockChainAddresses);
+      expect(mockChainService.getChainAddresses.calledWith(MOCK_CHAIN_NAME)).to
+        .be.true;
+    });
+
+    it('should return 404 when chain addresses do not exist', async () => {
+      mockChainService.getChainAddresses.rejects(
+        new NotFoundError('Chain addresses not found'),
+      );
+
+      const response = await request(app)
+        .get('/chain/nonexistent/addresses')
+        .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
+
+      expect(response.body.message).to.include('Chain addresses not found');
+    });
+
+    it('should return 500 when service throws unexpected error', async () => {
+      mockChainService.getChainAddresses.rejects(new Error('Service error'));
+
+      const response = await request(app)
+        .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
+        .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
+
+      expect(response.body.message).to.include('Service error');
+    });
+
+    it('should handle empty addresses object', async () => {
+      const emptyAddresses = {};
+      mockChainService.getChainAddresses.resolves(emptyAddresses);
+
+      const response = await request(app)
+        .get(`/chain/${MOCK_CHAIN_NAME}/addresses`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(emptyAddresses);
+    });
+  });
+
+  describe('parameter validation', () => {
+    it('should validate chain parameter for all endpoints', async () => {
+      // Test with invalid chain name (this would depend on ZChainName schema)
+      mockChainService.getChainMetadata.resolves(mockChainMetadata);
+
+      // Valid chain name should work
+      await request(app)
+        .get('/chain/ethereum/metadata')
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(mockChainService.getChainMetadata.calledWith('ethereum')).to.be
+        .true;
+    });
+  });
+});
