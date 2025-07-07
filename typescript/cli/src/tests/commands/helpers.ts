@@ -57,6 +57,7 @@ export const EXAMPLES_PATH = './examples';
 export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml`;
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+export const CORE_READ_CONFIG_PATH_3 = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
 export const CHAIN_4_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_4}/metadata.yaml`;
@@ -81,6 +82,10 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
 
 export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
 
+export const WARP_DEPLOY_CONFIG_CHAIN_2 = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+export const WARP_DEPLOY_CONFIG_CHAIN_3 = `${TEMP_PATH}/warp-route-deployment-3.yaml`;
+
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],

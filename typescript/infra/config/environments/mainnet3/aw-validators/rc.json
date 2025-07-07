@@ -103,9 +103,6 @@
   "injective": {
     "validators": ["0xca024623ee6fe281639aee91c4390b0c4e053918"]
   },
-  "kroma": {
-    "validators": ["0x9b3142f04dd67585c9287f1aee42ff9754a955d3"]
-  },
   "linea": {
     "validators": ["0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"]
   },
