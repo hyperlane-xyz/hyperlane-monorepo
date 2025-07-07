@@ -8,9 +8,13 @@ use corelib::deposit::*;
 use corelib::escrow::*;
 use corelib::user::deposit::{deposit_with_default_hl_Message as do_deposit, deposit_with_payload};
 use corelib::wallet::*;
+use dymension_kaspa::KaspaHttpClient;
 use hardcode::e2e::*;
 use hex;
+use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::ChainResult;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
+use hyperlane_metric::prometheus_metric::ClientConnectionType;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
@@ -23,6 +27,7 @@ use kaspa_consensus_core::{
     },
 };
 use kaspa_core::info;
+use kaspa_core::time::unix_now;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
@@ -30,8 +35,12 @@ use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
 use relayer::deposit::handle_new_deposit;
 use relayer::withdraw::*;
+use std::collections::HashSet;
 use std::error::Error;
+use std::os::unix;
 use std::sync::Arc;
+use std::time::Duration;
+use url::Url;
 use validator::deposit::validate_deposit;
 use validator::withdraw::*;
 
@@ -44,8 +53,33 @@ use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get,
     GetTransactionTransactionsTransactionIdGetParams,
 };
+use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use kaspa_rpc_core::api::rpc::RpcApi;
+use tokio::{sync::Mutex, task::JoinHandle, time};
+use tracing::error;
 use workflow_core::abortable::Abortable;
+
+pub struct DepositCache {
+    seen: Mutex<HashSet<Deposit>>,
+}
+
+impl DepositCache {
+    pub fn new() -> Self {
+        Self {
+            seen: Mutex::new(HashSet::new()),
+        }
+    }
+
+    async fn has_seen(&self, deposit: &Deposit) -> bool {
+        let seen_guard = self.seen.lock().await;
+        seen_guard.contains(deposit)
+    }
+
+    async fn mark_as_seen(&self, deposit: Deposit) {
+        let mut seen_guard = self.seen.lock().await;
+        seen_guard.insert(deposit);
+    }
+}
 
 pub struct DemoArgs {
     pub amt: u64,
@@ -67,8 +101,60 @@ impl Default for DemoArgs {
     }
 }
 
+pub async fn get_deposits(
+    lower_bound_unix_time: i64,
+    client: &KaspaHttpClient,
+    address: &str,
+) -> ChainResult<Vec<Deposit>> {
+    let res = client
+        .client
+        .get_deposits_by_address(Some(lower_bound_unix_time), address)
+        .await;
+    res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
+        .map(|deposits| deposits.into_iter().collect())
+}
+
+async fn deposit_loop(
+    cache: &DepositCache,
+    client: &KaspaHttpClient,
+    address: String,
+    tx: TransactionId,
+) -> ChainResult<Deposit> {
+    info!("Dymension, starting deposit detection loop");
+    let mut start_relay_time = unix_now() as i64;
+
+    loop {
+        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> =
+            get_deposits(start_relay_time, client, &address).await;
+        let deposits = match deposits_res {
+            Ok(deposits) => deposits,
+            Err(e) => {
+                error!("Query new Kaspa deposits: {:?}", e);
+                continue;
+            }
+        };
+        let mut deposits_new = Vec::new();
+        for d in deposits.into_iter() {
+            if !cache.has_seen(&d).await {
+                if d.time > start_relay_time {
+                    start_relay_time = d.time
+                }
+                if d.id == tx {
+                    return Ok(d);
+                }
+                cache.mark_as_seen(d.clone()).await;
+                deposits_new.push(d);
+            }
+        }
+
+        time::sleep(Duration::from_secs(10)).await;
+    }
+}
+
 pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
+
+    let now: i64 = unix_now() as i64;
 
     let s = Secret::from(args.wallet_secret);
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
@@ -95,29 +181,27 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    // wait (it may take some time that the deposit is available to indexer-archive rpc service)
-    workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
+    let url = Url::parse("https://api-tn10.kaspa.org/").unwrap();
+    let metrics_config = PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, None);
+    let metrics: PrometheusClientMetrics = PrometheusClientMetrics::default();
+    let url = "https://api-tn10.kaspa.org/";
+    let client: KaspaHttpClient =
+        KaspaHttpClient::from_url(url.to_string(), metrics, metrics_config)?;
 
-    // rpc config
-    let config = hardcode::e2e::get_tn10_config();
+    let deposit_cache = DepositCache::new();
+    let address = escrow_address.clone();
 
-    // api request
-    let get_params = GetTransactionTransactionsTransactionIdGetParams {
-        transaction_id: tx_id.to_string(),
-        block_hash: None,
-        inputs: None,
-        outputs: None,
-        resolve_previous_outpoints: None,
-    };
+    let handle: JoinHandle<Deposit> = tokio::spawn(async move {
+        return deposit_loop(&deposit_cache, &client, address.address_to_string(), tx_id)
+            .await
+            .expect("deposit loop");
+    });
 
-    // get transaction info using Kaspa API
-    let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
+    let result: Deposit = handle.await?;
 
-    // build deposit from api response
-    let d = Deposit::try_from(res)?;
-
+    let escrow = escrow_address.clone();
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&escrow_address.to_string(), &d).await?;
+    let deposit_fxg = handle_new_deposit(&escrow.address_to_string(), &result).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
@@ -134,7 +218,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let validation_result = validate_deposit(
         &w.rpc_api(),
         &deposit_recv,
-        &escrow_address.to_string(),
+        &escrow_address.clone().to_string(),
         NetworkParams::from(w.network_id()?),
     )
     .await?;

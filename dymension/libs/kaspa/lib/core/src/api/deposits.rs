@@ -8,6 +8,7 @@ use eyre::{Error, Result};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::hash::{BuildHasher, Hash, Hasher, RandomState};
 use std::str::FromStr;
+use std::time::Duration;
 
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_hashes::Hash as KaspaHash;
@@ -26,7 +27,8 @@ pub struct Deposit {
     pub payload: Option<String>,
     // #[serde(with = "serde_bytes_fixed_ref")] // TODO: need?
     pub id: TransactionId,
-    accepted: bool,
+    pub time: i64,
+    pub accepted: bool,
     pub outputs: Vec<TxOutput>,
     pub block_hash: Vec<String>,
 }
@@ -59,12 +61,14 @@ impl TryFrom<TxModel> for Deposit {
         let tx_hash = KaspaHash::from_str(&tx_id)?;
         let outputs = tx.outputs.ok_or(eyre::eyre!("Outputs are missing"))?; // TODO: outputs may be missing!
         let block_hash = tx.block_hash.ok_or(eyre::eyre!("Block hash is missing"))?;
+        let time = tx.block_time.ok_or(eyre::eyre!("Block time not set"))?;
 
         Ok(Deposit {
             id: tx_hash,
             payload: tx.payload,
             accepted: accepted,
             outputs: outputs,
+            time: time,
             block_hash: block_hash,
         })
     }
@@ -82,33 +86,58 @@ impl HttpClient {
         Self { url, client: c }
     }
 
-    pub async fn get_deposits(&self, address: &str) -> Result<Vec<Deposit>> {
-        let limit = 20;
-        let lower_bound = Some(0i64);
-        let upper_bound = Some(0i64);
-        let field = None;
-        let resolve_previous_outpoints = None;
-        let acceptance = None;
+    pub async fn get_deposits_by_address(
+        &self,
+        lower_bound_unix_time: Option<i64>,
+        address: &str,
+    ) -> Result<Vec<Deposit>> {
+        let n: i64 = 500;
+        let mut lower_bound_t = lower_bound_unix_time.unwrap_or(0);
+        let upper_bound_t = std::time::SystemTime::now()
+            .checked_sub(Duration::from_secs(10))
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
-        let res = transactions_page(
-            &c,
-            args {
-                kaspa_address: address.to_string(),
-                limit: Some(limit),
-                before: lower_bound,
-                after: upper_bound,
-                fields: field,
-                resolve_previous_outpoints: resolve_previous_outpoints,
-                acceptance: acceptance,
-            },
-        )
-        .await?;
+        let mut txs: Vec<TxModel> = Vec::new();
 
-        Ok(res
+        while lower_bound_t < upper_bound_t {
+            let mut res = transactions_page(
+                &c,
+                args {
+                    kaspa_address: address.to_string(),
+                    limit: Some(n),
+                    after: Some(lower_bound_t),
+                    before: Some(upper_bound_t),
+                    fields: None,
+                    resolve_previous_outpoints: None,
+                    acceptance: None,
+                },
+            )
+            .await?;
+            txs.append(&mut res);
+            if res.len() < n as usize {
+                break;
+            }
+            // txs should be in descendent order, so we save last returned tx time and we continue from there
+            if let Some(last_val) = res.last() {
+                if let Some(t) = last_val.block_time {
+                    lower_bound_t = t + 1;
+                }
+            }
+        }
+
+        // return txs filtered by txs that include utxos with destination escrow address and including a payload
+        Ok(txs
             .into_iter()
+            .filter(|tx| {
+                is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
+                    && tx.payload.is_some()
+            })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
     }
@@ -120,17 +149,32 @@ impl HttpClient {
     }
 }
 
+fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
+    if let Some(output) = &tx.outputs {
+        for utxo in output {
+            if let Some(dest) = utxo.script_public_key_address.as_ref() {
+                if dest == address {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
+    use kaspa_core::time::unix_now;
+
     use super::*;
 
     #[tokio::test]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
-        let client = HttpClient::new("https://api-tn10.kaspa.org".to_string());
+        let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
-        let deposits = client.get_deposits(address).await;
+        let deposits = client.get_deposits_by_address(1751299515650, address).await;
 
         match deposits {
             Ok(deposits) => {

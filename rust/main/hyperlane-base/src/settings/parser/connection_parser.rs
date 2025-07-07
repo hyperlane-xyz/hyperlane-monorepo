@@ -11,6 +11,7 @@ use hyperlane_core::{
     config::ConfigParsingError, utils::hex_or_base58_to_h256, HyperlaneDomainProtocol, NativeToken,
     H256,
 };
+use kaspa_core::time::unix_now;
 
 use hyperlane_starknet as h_starknet;
 
@@ -395,6 +396,12 @@ pub fn build_kaspa_connection_conf(
     let grpcs =
         parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
+    let offset_relay_time_hours = chain
+        .chain(err)
+        .get_opt_key("depositLookBackMins")
+        .parse_u64()
+        .end();
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -407,6 +414,7 @@ pub fn build_kaspa_connection_conf(
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
+            offset_relay_time_hours,
             String::new(), // TODO: fill hub_mailbox_id
         ),
     ))

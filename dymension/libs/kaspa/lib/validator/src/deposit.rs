@@ -70,7 +70,6 @@ pub async fn validate_deposit(
         .ok_or("transaction not found in block")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
-    println!("tx index {}", tx_index);
     // get utxo in the tx from index in deposit.
     let utxo: &RpcTransactionOutput = block.transactions[tx_index]
         .outputs

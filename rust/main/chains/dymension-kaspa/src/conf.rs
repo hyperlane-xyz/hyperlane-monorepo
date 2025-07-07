@@ -23,6 +23,7 @@ pub struct ConnectionConf {
 
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/c5d733804d3713e8566d6b23366f7eed4917ee2a/rust/main/chains/hyperlane-cosmos-native/src/providers/grpc.rs#L77
     pub hub_grpc_urls: Vec<Url>,
+    pub deposit_look_back_mins: Option<u64>,
     pub hub_mailbox_id: String, // TODO: populate it
 }
 
@@ -40,6 +41,7 @@ impl ConnectionConf {
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
+        deposit_look_back_mins: Option<u64>,
         hub_mailbox_id: String,
     ) -> Self {
         Self {
@@ -53,6 +55,7 @@ impl ConnectionConf {
             multisig_threshold_hub_ism,
             multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
             hub_grpc_urls,
+            deposit_look_back_mins,
             hub_mailbox_id,
         }
     }
