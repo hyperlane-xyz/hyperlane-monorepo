@@ -22,7 +22,8 @@ pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessa
 pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage> {
     // decode token message inside  Hyperlane message
     let mut reader = Cursor::new(m.body.as_slice());
-    let token_message = TokenMessage::read_from(&mut reader)?;
+    let token_message = TokenMessage::read_from(&mut reader)
+        .map_err(|e| eyre::eyre!("Failed to parse token message: {}", e))?;
 
     Ok(token_message)
 }

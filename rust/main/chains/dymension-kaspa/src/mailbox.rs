@@ -96,7 +96,7 @@ impl Mailbox for KaspaMailbox {
     // not a precise answer since actually depends on subsequent confirmation step
     // so may often return false negative
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        info!("Kaspa mailbox, checkin if message is delivered already (querying hub), id: {id:?}");
+        info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
             message_id: bytes_to_hex(&id.as_ref()),
         };

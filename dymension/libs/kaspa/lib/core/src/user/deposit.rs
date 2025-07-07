@@ -1,6 +1,6 @@
 #![allow(unused)] // TODO: remove
 
-use crate::api::deposits::Deposit;
+use crate::api::client::Deposit;
 use crate::balance::*;
 use crate::deposit::*;
 use crate::escrow::*;

@@ -578,7 +578,6 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
             if is_kas(origin) && self.dymension_kaspa_args.is_some() {
-                // TODO: panic if no args
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,

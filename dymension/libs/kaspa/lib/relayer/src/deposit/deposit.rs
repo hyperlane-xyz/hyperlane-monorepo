@@ -1,4 +1,4 @@
-use corelib::api::deposits::Deposit;
+use corelib::api::client::Deposit;
 use corelib::deposit::DepositFXG;
 use eyre::Result;
 
@@ -53,8 +53,7 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
             U256::from(utxo.amount) >= token_message.amount()
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
-        .ok_or("no utxo found")
-        .map_err(|e| eyre::eyre!(e))?;
+        .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
 
     let output = TransactionOutpoint {
         transaction_id: deposit.id,

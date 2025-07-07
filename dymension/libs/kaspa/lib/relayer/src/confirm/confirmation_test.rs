@@ -11,7 +11,7 @@ use kaspa_addresses::Address;
 
 use api_rs::models::{TxInput, TxModel, TxOutput};
 
-use crate::confirmation::get_previous_utxo_in_lineage;
+use super::get_previous_utxo_in_lineage;
 
 #[cfg(test)]
 mod tests {

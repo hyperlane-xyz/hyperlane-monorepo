@@ -97,6 +97,7 @@ curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjje
 OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
 # need to convert outpoint to base64 when passing to hub
 echo "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a" | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
+# note, reverse id echo $base64 | base64 -D | xxd -p
 
 dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
   --from hub-user \

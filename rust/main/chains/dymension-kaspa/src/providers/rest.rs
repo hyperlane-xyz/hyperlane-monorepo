@@ -16,8 +16,8 @@ use url::Url;
 
 use dym_kas_api::apis::configuration::Configuration;
 use dym_kas_api::models::TxModel;
-pub use dym_kas_core::api::client::get_config;
-pub use dym_kas_core::api::deposits::*;
+pub use dym_kas_core::api::base::get_config;
+pub use dym_kas_core::api::client::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
@@ -31,7 +31,7 @@ pub struct KaspaHttpClient {
 
 #[derive(Debug, Clone)]
 pub struct RestProvider {
-    client: KaspaHttpClient,
+    pub client: KaspaHttpClient,
     pub conf: ConnectionConf,
     signer: Option<Signer>,
 }

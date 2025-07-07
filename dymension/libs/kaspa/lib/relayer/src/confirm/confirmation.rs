@@ -1,16 +1,10 @@
-use anyhow::Result;
-use corelib::confirmation::ConfirmationFXGCache;
-use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
-    ProgressIndication, QueryOutpointRequest, WithdrawalId,
-};
+use eyre::eyre;
+use eyre::Result;
+use tracing::info;
 
 use api_rs::models::TxModel;
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
-use kaspa_rpc_core::api::rpc::RpcApi;
-use kaspa_rpc_core::RpcTransaction;
+use kaspa_consensus_core::tx::TransactionOutpoint;
 
-use kaspa_addresses::Address;
 use kaspa_wallet_core::error::Error;
 
 use api_rs::apis::{
@@ -20,6 +14,8 @@ use api_rs::apis::{
         GetTransactionTransactionsTransactionIdGetParams,
     },
 };
+
+use corelib::api::client::HttpClient;
 
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
@@ -49,11 +45,11 @@ use hex;
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
 pub async fn expensive_trace_transactions(
-    config: &Configuration,
+    client: &HttpClient,
     new_out: TransactionOutpoint,
     old_out: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
-    println!(
+    info!(
         "Starting transaction trace from {:?} to {:?}",
         new_out, old_out
     );
@@ -67,42 +63,27 @@ pub async fn expensive_trace_transactions(
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
-            return Err(anyhow::anyhow!(
+            return Err(eyre::eyre!(
                 "Exceeded maximum number of steps in transaction trace"
             ));
         }
 
-        println!("Processing step {}: UTXO {:?}", step, curr_out);
+        info!("Processing step {}: UTXO {:?}", step, curr_out);
 
-        let transaction = get_transaction_transactions_transaction_id_get(
-            config,
-            GetTransactionTransactionsTransactionIdGetParams {
-                transaction_id: curr_out.transaction_id.to_string(),
-                block_hash: None,
-                inputs: Some(true),
-                outputs: Some(true),
-                resolve_previous_outpoints: Some("light".to_string()),
-            },
-        )
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to get transaction {}: {}",
-                curr_out.transaction_id,
-                e
-            )
-        })?;
+        let transaction = client
+            .get_tx_by_id(&curr_out.transaction_id.to_string())
+            .await?;
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {
             // Deserialize the payload bytes into MessageIDs
             let message_ids = corelib::payload::MessageIDs::from_bytes(payload.as_bytes())
-                .map_err(|e| anyhow::anyhow!("Failed to deserialize MessageIDs: {}", e))?;
+                .map_err(|e| eyre::eyre!("Failed to deserialize MessageIDs: {}", e))?;
 
             // Convert each message ID into a WithdrawalId and add to the list
             processed_withdrawals.extend(message_ids.0);
         } else {
-            return Err(anyhow::anyhow!("No payload found in transaction"));
+            return Err(eyre::eyre!("No payload found in transaction"));
         }
 
         // get the lineage address of the current utxo
@@ -129,11 +110,11 @@ pub async fn expensive_trace_transactions(
         match get_previous_utxo_in_lineage(&transaction, &lineage_address, old_out) {
             Ok(Some(next_out)) => curr_out = next_out,
             Ok(None) => break, // Reached the break point
-            Err(e) => return Err(anyhow::anyhow!(e)),
+            Err(e) => return Err(eyre::eyre!(e)),
         }
     }
 
-    println!(
+    info!(
         "Trace completed. Found {} transactions with payloads in {} steps",
         processed_withdrawals.len(),
         step
@@ -198,5 +179,5 @@ pub fn get_previous_utxo_in_lineage(
         }
     }
 
-    Err(anyhow::anyhow!("No previous UTXO found in transaction"))
+    Err(eyre::eyre!("No previous UTXO found in transaction"))
 }

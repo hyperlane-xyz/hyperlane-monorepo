@@ -1,5 +1,4 @@
-use anyhow::Result;
-use eyre::Result as EyreResult;
+use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
@@ -259,6 +258,7 @@ where
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
+        info!("Checking if hub is out of sync with Kaspa escrow account.");
         // get anchor utxo from hub
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
         let old_anchor = resp
@@ -269,39 +269,59 @@ where
                 ),
                 index: o.index,
             })
-            .ok_or_else(|| anyhow::anyhow!("No outpoint found"))?;
+            .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
+
+        info!("Dymension, current anchor: {:?}", old_anchor);
 
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address]) // TODO: probably doesnt work because utxos are not spent..
+            .get_utxos_by_addresses(vec![escrow_address])
             .await?;
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
         let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
-            utxo.outpoint.transaction_id == old_anchor.transaction_id
-                && utxo.outpoint.index == old_anchor.index
+            let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
+                && utxo.outpoint.index == old_anchor.index;
+            if ok {
+                info!("Dymension, found utxo matching current anchor: {:?}", utxo);
+            }
+            ok
         });
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
 
+            let mut good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
-                let fxg =
-                    expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
-                if fxg.is_ok() {
-                    // TODO: better error handling?
-                    self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
-                    break;
+                let fxg = expensive_trace_transactions(
+                    &self.provider.rest().client.client,
+                    candidate_new_anchor,
+                    old_anchor,
+                )
+                .await;
+                if !fxg.is_ok() {
+                    error!(
+                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
+                        fxg.err()
+                    );
+                    continue;
                 }
+                info!("Traced sequence of kaspa withdrawals for syncing");
+                self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
+                good = true;
+                break;
+            }
+            if !good {
+                return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
             }
         }
-        info!("System is synced, proceeding with other tasks");
+        info!("Dymension hub is synced, proceeding with other tasks");
         Ok(())
     }
 
@@ -316,16 +336,27 @@ where
             .get_confirmation_sigs(&fxg)
             .await?;
 
+        info!("Dymension, got confirmation sigs: {:?}", sigs);
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox
+        info!(
+            "Dymension, formatted confirmation sigs: {:?}",
+            formatted_sigs
+        );
+
+        let outcome = self
+            .hub_mailbox
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
-            .map(|_| ())
-            .map_err(|e| anyhow::anyhow!("Indicate progress failed: {}", e))?;
+            .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
+
+        info!(
+            "Dymension, indicated progress on hub: {:?}, outcome: {:?}",
+            fxg.progress_indication, outcome
+        );
 
         Ok(())
     }
@@ -415,5 +446,5 @@ impl DepositCache {
 }
 
 pub trait MetadataConstructor {
-    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>>;
 }

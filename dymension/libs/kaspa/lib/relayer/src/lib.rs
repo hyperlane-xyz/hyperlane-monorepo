@@ -9,7 +9,7 @@ use prost::Message;
 pub use withdraw::messages::on_new_withdrawals;
 
 use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
-use corelib::{api::deposits::Deposit, deposit::DepositFXG};
+use corelib::{api::client::Deposit, deposit::DepositFXG};
 use eyre::Result;
 use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
