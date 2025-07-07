@@ -9669,7 +9669,7 @@
       "gasCurrencyCoinGeckoId": "solaxy",
       "name": "solaxy",
       "nativeToken": {
-        "decimals": 9,
+        "decimals": 6,
         "name": "Solaxy",
         "symbol": "SOLX"
       },
