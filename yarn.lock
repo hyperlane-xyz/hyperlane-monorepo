@@ -8161,7 +8161,6 @@ __metadata:
     eslint: "npm:^9.15.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.8.0"
-    fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
     hardhat-ignore-warnings: "npm:^0.2.11"
@@ -10578,13 +10577,6 @@ __metadata:
   version: 4.9.3
   resolution: "@openzeppelin/contracts@npm:4.9.3"
   checksum: 10/ce0a16a56a39b62d72370ac702bce1917096492442ff05de88521beda2c3f3935b93ee2b9a184614dd543a6181f2f0be10243f5a629be87aab284ade68c18320
-  languageName: node
-  linkType: hard
-
-"@openzeppelin/contracts@npm:^4.2.0":
-  version: 4.9.6
-  resolution: "@openzeppelin/contracts@npm:4.9.6"
-  checksum: 10/71f45ad42e68c0559be4ba502115462a01c76fc805c08d3005c10b5550a093f1a2b00b2d7e9d6d1f331e147c50fd4ad832f71c4470ec5b34f5a2d0751cd19a47
   languageName: node
   linkType: hard
 
@@ -25347,15 +25339,6 @@ __metadata:
   version: 1.2.3
   resolution: "functions-have-names@npm:1.2.3"
   checksum: 10/0ddfd3ed1066a55984aaecebf5419fbd9344a5c38dd120ffb0739fac4496758dcf371297440528b115e4367fc46e3abc86a2cc0ff44612181b175ae967a11a05
-  languageName: node
-  linkType: hard
-
-"fx-portal@npm:^1.0.3":
-  version: 1.0.3
-  resolution: "fx-portal@npm:1.0.3"
-  dependencies:
-    "@openzeppelin/contracts": "npm:^4.2.0"
-  checksum: 10/89309e03da57238d153b41fd9fd492d582d41a90da51fc18b4cdd939a8713736572ed1ba034210888ad1b2e81596a860f157785f6911e6d265e2fd0730aa94c2
   languageName: node
   linkType: hard
 
