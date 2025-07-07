@@ -326,13 +326,6 @@ contract EverclearTokenBridgeTest is Test {
         bridge.setOutputAssetsBatch(outputAssetInfos);
     }
 
-    // ============ isOutputAssetSet Tests ============
-
-    function testIsOutputAssetSet() public {
-        assertTrue(bridge.isOutputAssetSet(DESTINATION));
-        assertFalse(bridge.isOutputAssetSet(999));
-    }
-
     // ============ quoteTransferRemote Tests ============
 
     function testQuoteTransferRemote() public {

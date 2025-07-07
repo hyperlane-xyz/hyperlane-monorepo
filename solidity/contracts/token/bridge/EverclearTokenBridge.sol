@@ -132,17 +132,6 @@ contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
     }
 
     /**
-     * @notice Checks if an output asset is configured for a destination
-     * @param _destination The destination domain ID to check
-     * @return True if output asset is set for the destination, false otherwise
-     */
-    function isOutputAssetSet(
-        uint32 _destination
-    ) external view returns (bool) {
-        return outputAssets[_destination] != bytes32(0);
-    }
-
-    /**
      * @notice Provides a quote for transferring tokens to a remote chain
      * @dev Returns the gas payment quote and the total token amount needed (including fees)
      * @param _destination The destination domain ID
