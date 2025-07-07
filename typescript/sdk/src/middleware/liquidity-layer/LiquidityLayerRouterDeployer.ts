@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import {
   CircleBridgeAdapter,
   LiquidityLayerRouter,
-  PortalAdapter,
   Router,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
@@ -25,7 +24,6 @@ import {
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
-  Portal = 'Portal',
 }
 
 export interface CircleBridgeAdapterConfig {
@@ -39,18 +37,8 @@ export interface CircleBridgeAdapterConfig {
   }[];
 }
 
-export interface PortalAdapterConfig {
-  type: BridgeAdapterType.Portal;
-  portalBridgeAddress: string;
-  wormholeDomainMapping: {
-    hyperlaneDomain: number;
-    wormholeDomain: number;
-  }[];
-}
-
 export type BridgeAdapterConfig = {
   circle?: CircleBridgeAdapterConfig;
-  portal?: PortalAdapterConfig;
 };
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
@@ -130,23 +118,6 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       configMap,
       foreignRouters,
     );
-
-    this.logger.debug(`Enroll PortalAdapters with each other`);
-    // Hack to allow use of super.enrollRemoteRouters
-    await super.enrollRemoteRouters(
-      objMap(
-        objFilter(
-          contractsMap,
-          (_, c): c is HyperlaneContracts<LiquidityLayerFactories> =>
-            !!c.portalAdapter,
-        ),
-        (_, contracts) => ({
-          liquidityLayerRouter: contracts.portalAdapter,
-        }),
-      ) as unknown as HyperlaneContractsMap<LiquidityLayerFactories>,
-      configMap,
-      foreignRouters,
-    );
   }
 
   // Custom contract deployment logic can go here
@@ -172,73 +143,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         routerContracts.liquidityLayerRouter,
       );
     }
-    if (config.portal) {
-      bridgeAdapters.portalAdapter = await this.deployPortalAdapter(
-        chain,
-        config.portal,
-        deployer,
-        routerContracts.liquidityLayerRouter,
-      );
-    }
 
     return {
       ...routerContracts,
       ...bridgeAdapters,
     };
-  }
-
-  async deployPortalAdapter(
-    chain: ChainName,
-    adapterConfig: PortalAdapterConfig,
-    owner: string,
-    router: LiquidityLayerRouter,
-  ): Promise<PortalAdapter> {
-    const mailbox = await router.mailbox();
-    const portalAdapter = await this.deployContract(
-      chain,
-      'portalAdapter',
-      [mailbox],
-      [owner, adapterConfig.portalBridgeAddress, router.address],
-    );
-
-    for (const {
-      wormholeDomain,
-      hyperlaneDomain,
-    } of adapterConfig.wormholeDomainMapping) {
-      const expectedCircleDomain =
-        await portalAdapter.hyperlaneDomainToWormholeDomain(hyperlaneDomain);
-      if (expectedCircleDomain === wormholeDomain) continue;
-
-      this.logger.debug(
-        `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
-      );
-      await this.runIfOwner(chain, portalAdapter, () =>
-        this.multiProvider.handleTx(
-          chain,
-          portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
-        ),
-      );
-    }
-
-    if (
-      !eqAddress(
-        await router.liquidityLayerAdapters('Portal'),
-        portalAdapter.address,
-      )
-    ) {
-      this.logger.debug('Set Portal as LiquidityLayerAdapter on Router');
-      await this.runIfOwner(chain, portalAdapter, () =>
-        this.multiProvider.handleTx(
-          chain,
-          router.setLiquidityLayerAdapter(
-            adapterConfig.type,
-            portalAdapter.address,
-          ),
-        ),
-      );
-    }
-
-    return portalAdapter;
   }
 
   async deployCircleBridgeAdapter(

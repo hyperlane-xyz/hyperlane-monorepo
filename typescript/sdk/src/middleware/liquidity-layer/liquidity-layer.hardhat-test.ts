@@ -8,8 +8,6 @@ import {
   MockCircleMessageTransmitter__factory,
   MockCircleTokenMessenger,
   MockCircleTokenMessenger__factory,
-  MockPortalBridge,
-  MockPortalBridge__factory,
   MockToken,
   MockToken__factory,
   TestLiquidityLayerMessageRecipient__factory,
@@ -30,7 +28,6 @@ import {
   CircleBridgeAdapterConfig,
   LiquidityLayerConfig,
   LiquidityLayerDeployer,
-  PortalAdapterConfig,
 } from './LiquidityLayerRouterDeployer.js';
 
 // eslint-disable-next-line jest/no-disabled-tests
@@ -49,7 +46,6 @@ describe.skip('LiquidityLayerRouter', async () => {
   let config: ChainMap<LiquidityLayerConfig>;
   let mockToken: MockToken;
   let circleTokenMessenger: MockCircleTokenMessenger;
-  let portalBridge: MockPortalBridge;
   let messageTransmitter: MockCircleMessageTransmitter;
 
   before(async () => {
@@ -65,12 +61,10 @@ describe.skip('LiquidityLayerRouter', async () => {
 
     const mockTokenF = new MockToken__factory(signer);
     mockToken = await mockTokenF.deploy();
-    const portalBridgeF = new MockPortalBridge__factory(signer);
     const circleTokenMessengerF = new MockCircleTokenMessenger__factory(signer);
     circleTokenMessenger = await circleTokenMessengerF.deploy(
       mockToken.address,
     );
-    portalBridge = await portalBridgeF.deploy(mockToken.address);
     const messageTransmitterF = new MockCircleMessageTransmitter__factory(
       signer,
     );
@@ -95,20 +89,6 @@ describe.skip('LiquidityLayerRouter', async () => {
             },
           ],
         } as CircleBridgeAdapterConfig,
-        portal: {
-          type: BridgeAdapterType.Portal,
-          portalBridgeAddress: portalBridge.address,
-          wormholeDomainMapping: [
-            {
-              hyperlaneDomain: localDomain,
-              wormholeDomain: localDomain,
-            },
-            {
-              hyperlaneDomain: remoteDomain,
-              wormholeDomain: remoteDomain,
-            },
-          ],
-        } as PortalAdapterConfig,
       };
     });
   });
@@ -148,40 +128,6 @@ describe.skip('LiquidityLayerRouter', async () => {
       nonceId,
       liquidityLayerApp.getContracts(remoteChain).circleBridgeAdapter!.address,
       amount,
-    );
-    await coreApp.processMessages();
-
-    expect((await mockToken.balanceOf(recipient.address)).toNumber()).to.eql(
-      amount,
-    );
-  });
-
-  it('can transfer tokens via Portal', async () => {
-    const recipientF = new TestLiquidityLayerMessageRecipient__factory(signer);
-    const recipient = await recipientF.deploy();
-
-    const amount = 1000;
-    await mockToken.mint(signer.address, amount);
-    await mockToken.approve(local.address, amount);
-    await local.dispatchWithTokens(
-      remoteDomain,
-      addressToBytes32(recipient.address),
-      mockToken.address,
-      amount,
-      BridgeAdapterType.Portal,
-      '0x01',
-    );
-
-    const originAdapter =
-      liquidityLayerApp.getContracts(localChain).portalAdapter!;
-    const destinationAdapter =
-      liquidityLayerApp.getContracts(remoteChain).portalAdapter!;
-    await destinationAdapter.completeTransfer(
-      await portalBridge.mockPortalVaa(
-        localDomain,
-        await originAdapter.nonce(),
-        amount,
-      ),
     );
     await coreApp.processMessages();
 

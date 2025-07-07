@@ -328,7 +328,6 @@ export {
   CircleBridgeAdapterConfig,
   LiquidityLayerConfig,
   LiquidityLayerDeployer,
-  PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer.js';
 export { interchainQueryFactories } from './middleware/query/contracts.js';
 export { InterchainQuery } from './middleware/query/InterchainQuery.js';
