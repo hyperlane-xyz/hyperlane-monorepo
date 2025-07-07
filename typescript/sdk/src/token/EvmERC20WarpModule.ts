@@ -1,10 +1,11 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish } from 'ethers';
+import { BigNumberish, ethers } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
+  FungibleTokenRouter__factory,
   GasRouter__factory,
   IERC20__factory,
   MailboxClient__factory,
@@ -57,6 +58,7 @@ import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
+  FeeCurve,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
@@ -148,14 +150,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     /**
      * @remark
      * The order of operations matter
-     * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 1. upgradeWarpRouteImplementationTx() must always be FIRST because subsequent updates may depend on the latest implementation
+     * 2. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
+     * 3. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
         actualConfig,
         expectedConfig,
       )),
+      ...(await this.createFeeRecipientUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
@@ -1016,5 +1020,43 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     return warpModule;
+  }
+
+  protected async createFeeRecipientUpdateTxs(
+    actual: DerivedTokenRouterConfig,
+    expected: HypTokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (deepEquals(actual.tokenFee, expected.tokenFee)) {
+      return [];
+    }
+
+    let feeRecipient: Address;
+    if (expected.tokenFee && expected.tokenFee.type !== FeeCurve.ZERO) {
+      const deployer = new HypERC20Deployer(this.multiProvider);
+      const router = FungibleTokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.chainId),
+      );
+      const token = await router.token();
+      feeRecipient = await deployer.deployFeeRecipient(
+        this.chainName,
+        expected.tokenFee,
+        token,
+      );
+    } else {
+      feeRecipient = ethers.constants.AddressZero;
+    }
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Setting fee recipient to ${feeRecipient}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+          'setFeeRecipient',
+          [feeRecipient],
+        ),
+      },
+    ];
   }
 }

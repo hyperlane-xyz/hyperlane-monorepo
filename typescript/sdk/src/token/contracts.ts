@@ -12,12 +12,16 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  LinearFee__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  ProgressiveFee__factory,
+  RegressiveFee__factory,
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
+import { FeeCurve } from './types.js';
 
 export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
@@ -56,6 +60,13 @@ export const hypERC20factories = {
   [TokenType.nativeScaled]: new HypNative__factory(),
 } as const;
 export type HypERC20Factories = typeof hypERC20factories;
+
+export const feeFactories = {
+  [FeeCurve.LINEAR]: new LinearFee__factory(),
+  [FeeCurve.REGRESSIVE]: new RegressiveFee__factory(),
+  [FeeCurve.PROGRESSIVE]: new ProgressiveFee__factory(),
+} as const;
+export type FeeFactories = typeof feeFactories;
 
 export const hypERC721contracts = {
   [TokenType.collateralUri]: 'HypERC721URICollateral',
