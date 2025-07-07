@@ -539,7 +539,7 @@ export async function extendWarpRoute(
       filteredWarpCoreConfigByChain,
     );
 
-  // Re-add the non-EVM chains to the warp core config so that expanding the config
+  // Re-add the non EVM chains to the warp core config so that expanding the config
   // to get the proper remote routers and gas config works as expected
   updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
 
