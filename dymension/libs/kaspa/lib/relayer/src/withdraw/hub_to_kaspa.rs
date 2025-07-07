@@ -48,6 +48,7 @@ use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use kaspa_addresses::Prefix;
 use kaspa_rpc_core::model::RpcTransactionId;
+use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
 
@@ -235,9 +236,62 @@ pub async fn build_withdrawal_pskt(
         ));
     }
 
+    ////////////////
+    //   Change   //
+    ////////////////
+
+    // escrow_balance - withdrawal_balance > 0 as checked above
+    let escrow_change_amt = escrow_balance - withdrawal_balance;
+    // check if relayer_change is dust
+    let escrow_change = TransactionOutput {
+        value: escrow_change_amt,
+        script_public_key: escrow.p2sh.clone(),
+    };
+    if is_transaction_output_dust(&escrow_change) {
+        return Err(eyre::eyre!(
+            "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
+            escrow_balance,
+            withdrawal_balance,
+            escrow_change_amt
+        ));
+    }
+
+    let relayer_change_amt = relayer_balance - tx_fee;
+    // check if relayer_change is dust
+    let relayer_change = TransactionOutput {
+        value: relayer_change_amt,
+        script_public_key: ScriptPublicKey::from(pay_to_address_script(&relayer.change_address()?)),
+    };
+    if is_transaction_output_dust(&relayer_change) {
+        return Err(eyre::eyre!(
+            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
+            relayer_balance,
+            tx_fee,
+            relayer_change_amt
+        ));
+    }
+
     //////////////////
     //     PSKT     //
     //////////////////
+    create_withdrawal_pskt(
+        populated_inputs_escrow,
+        populated_inputs_relayer,
+        outputs,
+        escrow_change,
+        relayer_change,
+        payload,
+    )
+}
+
+fn create_withdrawal_pskt(
+    populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)>,
+    populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)>,
+    outputs: Vec<TransactionOutput>,
+    escrow_change: TransactionOutput,
+    relayer_change: TransactionOutput,
+    payload: Vec<u8>,
+) -> Result<PSKT<Signer>> {
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
@@ -284,47 +338,20 @@ pub async fn build_withdrawal_pskt(
         pskt = pskt.output(pskt_output);
     }
 
-    // escrow_balance - withdrawal_balance > 0 as checked above
-    let escrow_change_amt = escrow_balance - withdrawal_balance;
-    if escrow_change_amt < DUST_AMOUNT {
-        return Err(eyre::eyre!(
-            "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
-            escrow_balance,
-            withdrawal_balance,
-            escrow_change_amt
-        ));
-    }
-
-    let escrow_change = OutputBuilder::default()
-        .amount(escrow_change_amt)
-        .script_public_key(escrow.p2sh.clone())
+    let ec = OutputBuilder::default()
+        .amount(escrow_change.value)
+        .script_public_key(escrow_change.script_public_key)
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
-    let relayer_change_amt = relayer_balance - tx_fee;
-    if relayer_change_amt < DUST_AMOUNT {
-        return Err(eyre::eyre!(
-            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
-            relayer_balance,
-            tx_fee,
-            relayer_change_amt
-        ));
-    }
-
-    let relayer_change = OutputBuilder::default()
-        .amount(relayer_change_amt)
-        .script_public_key(ScriptPublicKey::from(pay_to_address_script(
-            &relayer.change_address()?,
-        )))
+    let rc = OutputBuilder::default()
+        .amount(relayer_change.value)
+        .script_public_key(relayer_change.script_public_key)
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
-    // escrow_change should always be present even if it's dust
-    pskt = pskt.output(escrow_change);
-
-    // if !is_transaction_output_dust(&relayer_change) {
-    pskt = pskt.output(relayer_change);
-    // }
+    pskt = pskt.output(ec);
+    pskt = pskt.output(rc);
 
     Ok(pskt
         .no_more_inputs()

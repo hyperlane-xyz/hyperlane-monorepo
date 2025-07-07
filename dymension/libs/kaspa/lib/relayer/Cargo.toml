@@ -38,4 +38,5 @@ prost = { version = "0.13", default-features = false }
 hyperlane-cosmos-rs = { workspace = true }
 reqwest-middleware = "0.4"
 
+
 bincode = "1.3"

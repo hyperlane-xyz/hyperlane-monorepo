@@ -135,6 +135,10 @@ impl KaspaProvider {
         &self.easy_wallet
     }
 
+    pub fn hub_mailbox_id(&self) -> String {
+        self.conf.hub_mailbox_id.clone()
+    }
+
     /// dococo
     /// Returns next outpoint
     pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<()> {
@@ -146,7 +150,7 @@ impl KaspaProvider {
             None,
         )
         .await?;
-        info!("Kaspa mailbox, constructed withdrawal TXs");
+        info!("Kaspa provider, constructed withdrawal TXs");
 
         if res.is_none() {
             info!("On new withdrawals decided not to handle withdrawal messages");
@@ -223,7 +227,7 @@ impl KaspaProvider {
         Ok(ret)
     }
 
-    fn escrow(&self) -> EscrowPublic {
+    pub fn escrow(&self) -> EscrowPublic {
         EscrowPublic::from_strs(
             self.conf.validator_pub_keys.clone(),
             self.easy_wallet.address_prefix(),

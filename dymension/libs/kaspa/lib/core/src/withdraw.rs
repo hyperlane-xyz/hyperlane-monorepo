@@ -1,8 +1,12 @@
 use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
+use hex::ToHex;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +29,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
-    pub messages: Vec<Vec<HyperlaneMessage>>, // TODO: not used any more, should remove
+    pub messages: Vec<Vec<HyperlaneMessage>>, // used in validation
+                                              // TODO: add new/old anchors?
 }
 
 impl WithdrawFXG {
@@ -116,6 +121,66 @@ impl TryFrom<&WireWithdrawFXG> for Bytes {
             postcard::to_allocvec(x).map_err(|e| eyre::eyre!("wirewithdrawfxg serialize: {e}"))?;
         Ok(Bytes::from(bytes_vec))
     }
+}
+
+pub async fn filter_pending_withdrawals(
+    withdrawals: Vec<HyperlaneMessage>,
+    cosmos: &CosmosGrpcClient,
+    height: Option<u32>,
+) -> eyre::Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
+    // A list of withdrawal IDs to request their statuses from the Hub
+    let withdrawal_ids: Vec<_> = withdrawals
+        .iter()
+        .map(|m| WithdrawalId {
+            message_id: m.id().encode_hex(),
+        })
+        .collect();
+
+    // Request withdrawal statuses from the Hub
+    let resp = cosmos
+        .withdrawal_status(withdrawal_ids, height)
+        .await
+        .map_err(|e| eyre::eyre!("Query outpoint from x/kas: {}", e))?;
+
+    let outpoint_data = resp
+        .outpoint
+        .ok_or_else(|| eyre::eyre!("No outpoint data in response"))?;
+
+    if outpoint_data.transaction_id.len() != 32 {
+        return Err(eyre::eyre!(
+            "Invalid transaction ID length: expected 32 bytes, got {}",
+            outpoint_data.transaction_id.len()
+        ));
+    }
+
+    // Convert the transaction ID to kaspa transaction ID
+    let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(
+        outpoint_data
+            .transaction_id
+            .as_slice()
+            .try_into()
+            .map_err(|e| eyre::eyre!("Convert tx ID to Kaspa tx ID: {:}", e))?,
+    );
+
+    // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
+    // then the respective element of withdrawals is Unprocessed.
+    let pending_withdrawals: Vec<_> = resp
+        .status
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, status)| match status.try_into() {
+            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
+            _ => None, // Ignore other statuses
+        })
+        .collect();
+
+    Ok((
+        TransactionOutpoint {
+            transaction_id: kaspa_tx_id,
+            index: outpoint_data.index,
+        },
+        pending_withdrawals,
+    ))
 }
 
 #[cfg(test)]

@@ -20,6 +20,7 @@ pub struct Escrow {
     required_signatures: u8,
 }
 
+#[derive(Clone)]
 pub struct EscrowPublic {
     pub pubs: Vec<PublicKey>,
     required_signatures: u8,

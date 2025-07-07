@@ -407,6 +407,7 @@ pub fn build_kaspa_connection_conf(
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
+            String::new(), // TODO: fill hub_mailbox_id
         ),
     ))
 }

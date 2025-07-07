@@ -9,18 +9,21 @@ use axum::{
     Router,
 };
 use dym_kas_core::deposit::DepositFXG;
+use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::payload::MessageIDs;
+use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::sign_withdrawal_fxg;
 use dym_kas_validator::withdraw::validate_withdrawals;
+use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
-use eyre::eyre;
+use eyre::{eyre, Report};
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
 };
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
@@ -77,6 +80,11 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     fn must_api(&self) -> Arc<DynRpcApi> {
         self.kas_provider.as_ref().unwrap().wallet().api()
     }
+
+    fn must_escrow(&self) -> EscrowPublic {
+        self.kas_provider.as_ref().unwrap().escrow()
+    }
+
     fn must_escrow_address(&self) -> String {
         self.kas_provider
             .as_ref()
@@ -86,7 +94,19 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 
     fn must_network_params(&self) -> &NetworkParams {
-        return NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id());
+        NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id())
+    }
+
+    fn must_wallet(&self) -> &EasyKaspaWallet {
+        self.kas_provider.as_ref().unwrap().wallet()
+    }
+
+    fn must_hub_rpc(&self) -> &CosmosGrpcClient {
+        self.kas_provider.as_ref().unwrap().hub_rpc()
+    }
+
+    pub fn must_hub_mailbox_id(&self) -> String {
+        self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
     pub fn default() -> Self {
@@ -182,9 +202,16 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
-        return Err(AppError(eyre::eyre!("Invalid confirmation")));
-    }
+    validate_withdrawal_batch(
+        &fxg,
+        resources.must_hub_rpc(),
+        resources.must_hub_mailbox_id(),
+        &resources.must_wallet().network_info,
+        resources.must_escrow(),
+    )
+    .await
+    .map_err(|e| AppError(Report::from(e)))?;
+
     info!("Validator: pskts are valid");
 
     let bundle = sign_withdrawal_fxg(&fxg, &resources.must_kas_key()).map_err(|e| AppError(e))?;
@@ -268,10 +295,11 @@ struct AppError(eyre::Report);
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        eprintln!("Error: {:?}", self.0);
+        let err = "Error: ".to_string() + &self.0.to_string();
+        eprintln!("{}", err);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "An internal error occurred".to_string(),
+            "An internal error occurred: ".to_string() + err.as_str(),
         )
             .into_response()
     }
