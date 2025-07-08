@@ -20,17 +20,6 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
 
     constructor(address _mailbox) HypERC721(_mailbox) {}
 
-    function balanceOf(
-        address account
-    )
-        public
-        view
-        override(HypERC721, ERC721Upgradeable, IERC721Upgradeable)
-        returns (uint256)
-    {
-        return HypERC721.balanceOf(account);
-    }
-
     function _beforeDispatch(
         uint32 _destination,
         bytes32 _recipient,
