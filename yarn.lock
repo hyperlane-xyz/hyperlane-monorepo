@@ -8206,28 +8206,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:8.1.0":
-  version: 8.1.0
-  resolution: "@hyperlane-xyz/core@npm:8.1.0"
-  dependencies:
-    "@arbitrum/nitro-contracts": "npm:^1.2.1"
-    "@chainlink/contracts-ccip": "npm:^1.5.0"
-    "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:14.1.0"
-    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
-    "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
-    "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
-    "@openzeppelin/contracts": "npm:^4.9.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
-    fx-portal: "npm:^1.0.3"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-    "@types/sinon-chai": "*"
-  checksum: 10/b361d8f3b51f82f698fe863e67f0f4650f210e8e111ea044d7acfc9f1c8202c74f13bfc484689649457c67ce8eb3739c0cc7946199114bd43e25c75034acc1d4
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/core@npm:8.1.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
@@ -8276,16 +8254,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:14.1.0":
-  version: 14.1.0
-  resolution: "@hyperlane-xyz/cosmos-sdk@npm:14.1.0"
-  dependencies:
-    "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/cosmos-types": "npm:14.1.0"
-  checksum: 10/4690aefb476d67e527c5d3f5246c8f73aba1e097651e801b55df4b14098ac4293837c16fe38f70d86e8c6ff9d75c74f5cb4ade5090a1038e3aaef50533edc043
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/cosmos-sdk@npm:14.2.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
@@ -8308,16 +8276,6 @@ __metadata:
     typescript-eslint: "npm:^8.23.0"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/cosmos-types@npm:14.1.0":
-  version: 14.1.0
-  resolution: "@hyperlane-xyz/cosmos-types@npm:14.1.0"
-  dependencies:
-    long: "npm:^5.2.4"
-    protobufjs: "npm:^7.4.0"
-  checksum: 10/8fe6d45fbe7749746bee4ac55e6e29c10eca3792c2547ceefab4cff6593fad20e3d402fd724b8ceba1ce7a40163468eb3c1e583d7ce233f5ed01cf0a025c1eca
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/cosmos-types@npm:14.2.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
@@ -8402,24 +8360,24 @@ __metadata:
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:
     "@hyperlane-xyz/registry": "npm:17.8.2"
-    "@hyperlane-xyz/sdk": "npm:14.1.0"
+    "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:14.1.0"
-    "@types/chai": "npm:^4.3.4"
-    "@types/chai-as-promised": "npm:^7.1.5"
+    "@hyperlane-xyz/utils": "npm:14.2.0"
+    "@types/chai": "npm:^4.2.21"
+    "@types/chai-as-promised": "npm:^8"
     "@types/express": "npm:^4.17.17"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
-    "@types/sinon": "npm:^10.0.13"
+    "@types/sinon": "npm:^17.0.1"
     "@types/supertest": "npm:^2.0.12"
-    chai: "npm:^4.3.7"
-    chai-as-promised: "npm:^7.1.1"
+    chai: "npm:^4.5.0"
+    chai-as-promised: "npm:^8.0.1"
     eslint: "npm:^9.15.0"
     express: "npm:^4.18.2"
     mocha: "npm:^11.5.0"
-    pino: "npm:^8.15.0"
+    pino: "npm:^8.19.0"
     prettier: "npm:^3.5.3"
-    sinon: "npm:^15.0.1"
+    sinon: "npm:^13.0.2"
     supertest: "npm:^6.3.3"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -8523,42 +8481,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:14.1.0":
-  version: 14.1.0
-  resolution: "@hyperlane-xyz/sdk@npm:14.1.0"
-  dependencies:
-    "@arbitrum/sdk": "npm:^4.0.0"
-    "@aws-sdk/client-s3": "npm:^3.577.0"
-    "@chain-registry/types": "npm:^0.50.122"
-    "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
-    "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/core": "npm:8.1.0"
-    "@hyperlane-xyz/cosmos-sdk": "npm:14.1.0"
-    "@hyperlane-xyz/starknet-core": "npm:14.1.0"
-    "@hyperlane-xyz/utils": "npm:14.1.0"
-    "@safe-global/api-kit": "npm:1.3.0"
-    "@safe-global/protocol-kit": "npm:1.3.0"
-    "@safe-global/safe-core-sdk-types": "npm:2.3.0"
-    "@safe-global/safe-deployments": "npm:1.37.32"
-    "@solana/spl-token": "npm:^0.4.9"
-    "@solana/web3.js": "npm:^1.95.4"
-    bignumber.js: "npm:^9.1.1"
-    compare-versions: "npm:^6.1.1"
-    cosmjs-types: "npm:^0.9.0"
-    cross-fetch: "npm:^3.1.5"
-    ethers: "npm:^5.8.0"
-    pino: "npm:^8.19.0"
-    starknet: "npm:^7.4.0"
-    viem: "npm:^2.21.45"
-    zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-  checksum: 10/9349cd944908e002823960d6de93b1bdf098282f829d60a8b5a794ebdea4a1ac91c2bfd68245982596a170d071aee99b3431ac35a2ae6377ae6c44e591582fbf
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/sdk@npm:14.2.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
@@ -8622,15 +8544,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:14.1.0":
-  version: 14.1.0
-  resolution: "@hyperlane-xyz/starknet-core@npm:14.1.0"
-  dependencies:
-    starknet: "npm:^7.4.0"
-  checksum: 10/a02df677a38687fe41f172fe738a8dbd1b00b8e2d0336bbd45fdd1ff6359f5f400ffdc5ed2af6d5be9a0f04481b22a9468f1f43d6d3ad1a71e2d4e51f67dc677
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/starknet-core@npm:14.2.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
@@ -8656,22 +8569,6 @@ __metadata:
   resolution: "@hyperlane-xyz/tsconfig@workspace:typescript/tsconfig"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/utils@npm:14.1.0":
-  version: 14.1.0
-  resolution: "@hyperlane-xyz/utils@npm:14.1.0"
-  dependencies:
-    "@cosmjs/encoding": "npm:^0.32.4"
-    "@solana/web3.js": "npm:^1.95.4"
-    bignumber.js: "npm:^9.1.1"
-    ethers: "npm:^5.8.0"
-    lodash-es: "npm:^4.17.21"
-    pino: "npm:^8.19.0"
-    starknet: "npm:^7.4.0"
-    yaml: "npm:2.4.5"
-  checksum: 10/0406130b11ac7dc068de554587788e846d69278eea295873e62c0a14c0a56b551887c61e70bb83c538062907b074aed00276dd3f54356b5599e529d4f050706d
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/utils@npm:14.2.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
@@ -14449,21 +14346,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sinonjs/fake-timers@npm:^10.0.2, @sinonjs/fake-timers@npm:^10.3.0":
+"@sinonjs/fake-timers@npm:^10.0.2":
   version: 10.3.0
   resolution: "@sinonjs/fake-timers@npm:10.3.0"
   dependencies:
     "@sinonjs/commons": "npm:^3.0.0"
   checksum: 10/78155c7bd866a85df85e22028e046b8d46cf3e840f72260954f5e3ed5bd97d66c595524305a6841ffb3f681a08f6e5cef572a2cce5442a8a232dc29fb409b83e
-  languageName: node
-  linkType: hard
-
-"@sinonjs/fake-timers@npm:^11.2.2":
-  version: 11.3.1
-  resolution: "@sinonjs/fake-timers@npm:11.3.1"
-  dependencies:
-    "@sinonjs/commons": "npm:^3.0.1"
-  checksum: 10/f8684eba6ae6f207dd415c360222aff3761dea31dd98ccfd8b10205b264eb8141c592174e91060a77a53479632c3070cc8050c461e2532ef15547caa019f6aa8
   languageName: node
   linkType: hard
 
@@ -14505,7 +14393,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sinonjs/text-encoding@npm:^0.7.2, @sinonjs/text-encoding@npm:^0.7.3":
+"@sinonjs/text-encoding@npm:^0.7.3":
   version: 0.7.3
   resolution: "@sinonjs/text-encoding@npm:0.7.3"
   checksum: 10/f0cc89bae36e7ce159187dece7800b78831288f1913e9ae8cf8a878da5388232d2049740f6f4a43ec4b43b8ad1beb55f919f45eb9a577adb4a2a6eacb27b25fc
@@ -16903,15 +16791,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/chai-as-promised@npm:^7.1.5":
-  version: 7.1.8
-  resolution: "@types/chai-as-promised@npm:7.1.8"
-  dependencies:
-    "@types/chai": "npm:*"
-  checksum: 10/88e2d42f14d1de19ba1c7b5c35f263fef37d3ad241c71f5eb59b10763706f3902f4131b93854c9c6ed520081c7e36be555849f202418357f905bea71178b7d02
-  languageName: node
-  linkType: hard
-
 "@types/chai-as-promised@npm:^8":
   version: 8.0.0
   resolution: "@types/chai-as-promised@npm:8.0.0"
@@ -16932,13 +16811,6 @@ __metadata:
   version: 4.3.16
   resolution: "@types/chai@npm:4.3.16"
   checksum: 10/f84a9049a7f13284f7237236872ed4afce5045dd6ea3926c8b0ac995490f5a524b247b2e70fcd3ebc85832201349a8f026bd0c336b90b5baca9eed0c7a4dbd3f
-  languageName: node
-  linkType: hard
-
-"@types/chai@npm:^4.3.4":
-  version: 4.3.20
-  resolution: "@types/chai@npm:4.3.20"
-  checksum: 10/94fd87036fb63f62c79caf58ccaec88e23cc109e4d41607d83adc609acd6b24eabc345feb7850095a53f76f99c470888251da9bd1b90849c8b2b5a813296bb19
   languageName: node
   linkType: hard
 
@@ -17747,15 +17619,6 @@ __metadata:
   dependencies:
     "@types/sinonjs__fake-timers": "npm:*"
   checksum: 10/a92db2988562397523a92b95b8ce996f954040999d706e7b8f27d0f1adb1d5da87dc3ac0044c9560b3689c2136a58bc4fb7665ce4ec3e4176ae2927e4fcf0eb6
-  languageName: node
-  linkType: hard
-
-"@types/sinon@npm:^10.0.13":
-  version: 10.0.20
-  resolution: "@types/sinon@npm:10.0.20"
-  dependencies:
-    "@types/sinonjs__fake-timers": "npm:*"
-  checksum: 10/4c62cb8e45298ac8311e312f54e8afe9b170e79a6c1b10459e1216cc58ab66c90c9654d984e96de114003cfc62ddedb94f7e25b571e7da9b08800c9e8d864b0d
   languageName: node
   linkType: hard
 
@@ -21307,17 +21170,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chai-as-promised@npm:^7.1.1":
-  version: 7.1.2
-  resolution: "chai-as-promised@npm:7.1.2"
-  dependencies:
-    check-error: "npm:^1.0.2"
-  peerDependencies:
-    chai: ">= 2.1.2 < 6"
-  checksum: 10/be372540dad92ef85cde3954bc0e9b0b33e4e6454f3740b17bfb16e36eda638911619089c05a4e4f2bf6722563bf893bb78c2af59b318c23abb2199e5c20ca1f
-  languageName: node
-  linkType: hard
-
 "chai-as-promised@npm:^8.0.1":
   version: 8.0.1
   resolution: "chai-as-promised@npm:8.0.1"
@@ -23141,7 +22993,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"diff@npm:^5.1.0, diff@npm:^5.2.0":
+"diff@npm:^5.2.0":
   version: 5.2.0
   resolution: "diff@npm:5.2.0"
   checksum: 10/01b7b440f83a997350a988e9d2f558366c0f90f15be19f4aa7f1bb3109a4e153dfc3b9fbf78e14ea725717017407eeaa2271e3896374a0181e8f52445740846d
@@ -32029,19 +31881,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nise@npm:^5.1.4":
-  version: 5.1.9
-  resolution: "nise@npm:5.1.9"
-  dependencies:
-    "@sinonjs/commons": "npm:^3.0.0"
-    "@sinonjs/fake-timers": "npm:^11.2.2"
-    "@sinonjs/text-encoding": "npm:^0.7.2"
-    just-extend: "npm:^6.2.0"
-    path-to-regexp: "npm:^6.2.1"
-  checksum: 10/971caf7638d42a0e106eadd63f05adac1217f864b0a7e4519546aea82a0dbfac68586e7ff430704d54a01ff5dbf6cad58f5f67c067e21112a7deacd7789c2172
-  languageName: node
-  linkType: hard
-
 "nise@npm:^6.0.0":
   version: 6.1.1
   resolution: "nise@npm:6.1.1"
@@ -33278,13 +33117,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"path-to-regexp@npm:^6.2.1":
-  version: 6.3.0
-  resolution: "path-to-regexp@npm:6.3.0"
-  checksum: 10/6822f686f01556d99538b350722ef761541ec0ce95ca40ce4c29e20a5b492fe8361961f57993c71b2418de12e604478dcf7c430de34b2c31a688363a7a944d9c
-  languageName: node
-  linkType: hard
-
 "path-to-regexp@npm:^8.1.0":
   version: 8.2.0
   resolution: "path-to-regexp@npm:8.2.0"
@@ -33430,16 +33262,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pino-abstract-transport@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "pino-abstract-transport@npm:1.2.0"
-  dependencies:
-    readable-stream: "npm:^4.0.0"
-    split2: "npm:^4.0.0"
-  checksum: 10/6ec1d19a7ff3347fd21576f744c31c3e38ca4463ae638818408f43698c936f96be6a0bc750af5f7c1ae81873183bfcb062b7a0d12dc159a1813ea900c388c693
-  languageName: node
-  linkType: hard
-
 "pino-abstract-transport@npm:^2.0.0":
   version: 2.0.0
   resolution: "pino-abstract-transport@npm:2.0.0"
@@ -33543,27 +33365,6 @@ __metadata:
   bin:
     pino: bin.js
   checksum: 10/1c7b4b52fea76e0bc5d8b1190a0fee24279cb16d76fdb5833b32b64256fd8a94d641574b850faba5be72514f04045206b6d902a9a3f5ceae2a4296687088e073
-  languageName: node
-  linkType: hard
-
-"pino@npm:^8.15.0":
-  version: 8.21.0
-  resolution: "pino@npm:8.21.0"
-  dependencies:
-    atomic-sleep: "npm:^1.0.0"
-    fast-redact: "npm:^3.1.1"
-    on-exit-leak-free: "npm:^2.1.0"
-    pino-abstract-transport: "npm:^1.2.0"
-    pino-std-serializers: "npm:^6.0.0"
-    process-warning: "npm:^3.0.0"
-    quick-format-unescaped: "npm:^4.0.3"
-    real-require: "npm:^0.2.0"
-    safe-stable-stringify: "npm:^2.3.1"
-    sonic-boom: "npm:^3.7.0"
-    thread-stream: "npm:^2.6.0"
-  bin:
-    pino: bin.js
-  checksum: 10/5a054eab533ab91b20f63497b86070f0a6b40e4688cde9de66d23e03d6046c4e95d69c3f526dea9f30bcbc5874c7fbf0f91660cded4753946fd02261ca8ac340
   languageName: node
   linkType: hard
 
@@ -36710,20 +36511,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sinon@npm:^15.0.1":
-  version: 15.2.0
-  resolution: "sinon@npm:15.2.0"
-  dependencies:
-    "@sinonjs/commons": "npm:^3.0.0"
-    "@sinonjs/fake-timers": "npm:^10.3.0"
-    "@sinonjs/samsam": "npm:^8.0.0"
-    diff: "npm:^5.1.0"
-    nise: "npm:^5.1.4"
-    supports-color: "npm:^7.2.0"
-  checksum: 10/faa2d12aaa8944df5c4b23dfdc9987cafbcba5ba6ad50fcf90e09a448e50fd617a0b53364027984721fe4f4b11be2c394c85bd9cc03db187d4fdb8f9580a9203
-  languageName: node
-  linkType: hard
-
 "sinon@npm:^18.0.0":
   version: 18.0.1
   resolution: "sinon@npm:18.0.1"
@@ -38498,15 +38285,6 @@ __metadata:
   dependencies:
     real-require: "npm:^0.2.0"
   checksum: 10/baac5bf555912f216a2494bf3f66377733a843306cddd233b1c5ad63084307266f61af35d6122e3936c657836d5db4a14da34300cd25930e013943b807a29c9b
-  languageName: node
-  linkType: hard
-
-"thread-stream@npm:^2.6.0":
-  version: 2.7.0
-  resolution: "thread-stream@npm:2.7.0"
-  dependencies:
-    real-require: "npm:^0.2.0"
-  checksum: 10/03e743a2ccb2af5fa695d2e4369113336ee9b9f09c4453d50a222cbb4ae3af321bff658e0e5bf8bfbce9d7f5a7bf6262d12a2a365e160f4e76380ec624d32e7b
   languageName: node
   linkType: hard
 
