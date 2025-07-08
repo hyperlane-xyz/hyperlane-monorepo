@@ -42,6 +42,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     constructor(address _mailbox) GasRouter(_mailbox) {}
 
+    /**
+     * @notice Returns the address of the token managed by this router.
+     * @dev This function must be implemented by derived contracts to specify the token address.
+     * @return The address of the token contract.
+     */
     function token() public view virtual returns (address);
 
     /**
