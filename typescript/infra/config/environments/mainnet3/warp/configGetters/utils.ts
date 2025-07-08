@@ -4,6 +4,7 @@ import { ChainMap, ChainName, MovableTokenConfig } from '@hyperlane-xyz/sdk';
 import { arrayToObject, objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../../../registry.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
@@ -16,7 +17,7 @@ export function getRebalancingBridgesConfigFor(
   chainsToExclude: readonly ChainName[] = [],
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute('USDC/mainnet-cctp');
+  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
