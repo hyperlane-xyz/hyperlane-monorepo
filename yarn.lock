@@ -8440,7 +8440,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
+"@hyperlane-xyz/radix-sdk@npm:1.0.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk"
   dependencies:
@@ -8488,6 +8488,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:8.1.1"
     "@hyperlane-xyz/cosmos-sdk": "npm:14.2.0"
+    "@hyperlane-xyz/radix-sdk": "npm:1.0.0"
     "@hyperlane-xyz/starknet-core": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:14.2.0"

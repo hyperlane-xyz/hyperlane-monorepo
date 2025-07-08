@@ -34,7 +34,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { bytes } from './utils.js';
 
-const applicationName = 'Hyperlane Test';
+const applicationName = 'hyperlane';
 const dashboardBase = 'https://stokenet-dashboard.radixdlt.com'; // For mainnet, use "https://dashboard.radixdlt.com"
 
 type Account = {
@@ -44,28 +44,176 @@ type Account = {
   dashboardLink: string;
 };
 
+export { NetworkId };
+
 export interface RadixSDKOptions {
   networkId?: number;
+}
+
+export interface RadixSDKSigningOptions extends RadixSDKOptions {
   gasAmount?: number;
 }
 
 export class RadixSDK {
-  private networkId: number;
-  private gasAmount: number;
+  protected networkId: number;
+  protected gateway: GatewayApiClient;
 
-  private gateway: GatewayApiClient;
-  private account: Account;
-
-  constructor(account: Account, options?: RadixSDKOptions) {
-    this.account = account;
-
+  constructor(options?: RadixSDKOptions) {
     this.networkId = options?.networkId ?? NetworkId.Mainnet;
-    this.gasAmount = options?.gasAmount ?? 5000;
 
     this.gateway = GatewayApiClient.initialize({
       applicationName,
       networkId: this.networkId,
     });
+  }
+
+  public async queryMailbox(mailbox: string): Promise<{
+    address: string;
+    owner: string;
+    localDomain: number;
+    nonce: number;
+    defaultIsm: string;
+    defaultHook: string;
+    requiredHook: string;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
+    const fields = (details.details as any).state.fields;
+
+    const result = {
+      address: mailbox,
+      owner: '',
+      localDomain: parseInt(
+        fields.find((f: any) => f.field_name === 'local_domain').value,
+      ),
+      nonce: parseInt(fields.find((f: any) => f.field_name === 'nonce').value),
+      defaultIsm: fields.find((f: any) => f.field_name === 'default_ism')
+        .fields[0].value,
+      defaultHook: fields.find((f: any) => f.field_name === 'default_hook')
+        .fields[0].value,
+      requiredHook: fields.find((f: any) => f.field_name === 'required_hook')
+        .fields[0].value,
+    };
+
+    return result;
+  }
+
+  public async queryIsm(ism: string): Promise<{
+    address: string;
+    type: 'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'NoopIsm';
+    validators: string[];
+    threshold: number;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    const fields = (details.details as any).state.fields;
+
+    const result = {
+      address: ism,
+      type: (details.details as any).blueprint_name,
+      validators: (
+        fields.find((f: any) => f.field_name === 'validators')?.elements ?? []
+      ).map((v: any) => v.hex),
+      threshold: parseInt(
+        fields.find((f: any) => f.field_name === 'threshold')?.value ?? '0',
+      ),
+    };
+
+    return result;
+  }
+
+  public async queryIgpHook(hook: string): Promise<{
+    address: string;
+    owner: string;
+    destinationGasConfigs: {
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
+        };
+        gasOverhead: string;
+      };
+    };
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(hook);
+
+    assert(
+      (details.details as any).blueprint_name === 'InterchainGasPaymaster',
+      `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as any).blueprint_name}`,
+    );
+
+    const fields = (details.details as any).state.fields;
+    const destinationGasConfigs = {};
+
+    const entries: any[] =
+      fields.find((f: any) => f.field_name === 'destination_gas_configs')
+        ?.entries ?? [];
+
+    for (const entry of entries) {
+      const domainId = entry.key.value;
+
+      const gasOverhead =
+        entry.value.fields.find((f: any) => f.field_name === 'gas_overhead')
+          ?.value ?? '0';
+
+      const gasOracle =
+        entry.value.fields.find((f: any) => f.field_name === 'gas_oracle')
+          ?.fields ?? [];
+
+      const tokenExchangeRate =
+        gasOracle.find((f: any) => f.field_name === 'token_exchange_rate')
+          ?.value ?? '0';
+
+      const gasPrice =
+        gasOracle.find((f: any) => f.field_name === 'gas_price')?.value ?? '0';
+
+      Object.assign(destinationGasConfigs, {
+        [domainId]: {
+          gasOracle: {
+            tokenExchangeRate,
+            gasPrice,
+          },
+          gasOverhead,
+        },
+      });
+    }
+
+    return {
+      address: hook,
+      owner: '',
+      destinationGasConfigs,
+    };
+  }
+
+  public async queryMerkleTreeHook(hook: string): Promise<{
+    address: string;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(hook);
+
+    assert(
+      (details.details as any).blueprint_name === 'MerkleTreeHook',
+      `Expected contract at address ${hook} to be "MerkleTreeHook" but got ${(details.details as any).blueprint_name}`,
+    );
+
+    return {
+      address: hook,
+    };
+  }
+}
+
+export class RadixSigningSDK extends RadixSDK {
+  private gasAmount: number;
+
+  private account: Account;
+
+  constructor(account: Account, options?: RadixSDKSigningOptions) {
+    super(options);
+
+    this.account = account;
+    this.gasAmount = options?.gasAmount ?? 5000;
   }
 
   public async getXrdAddress() {
@@ -103,7 +251,7 @@ export class RadixSDK {
       privateKey,
       options?.networkId ?? NetworkId.Mainnet,
     );
-    return new RadixSDK(account, options);
+    return new RadixSigningSDK(account, options);
   }
 
   public static async fromPrivateKey(
@@ -114,7 +262,7 @@ export class RadixSDK {
       privateKey,
       options?.networkId ?? NetworkId.Mainnet,
     );
-    return new RadixSDK(account);
+    return new RadixSigningSDK(account);
   }
 
   public async getTestnetXrd() {
@@ -137,10 +285,6 @@ export class RadixSDK {
       },
     });
     await this.pollForCommit(intentHashTransactionId);
-
-    console.log(
-      `Account ${this.account.address} has been topped up with 10000 Testnet XRD: ${dashboardBase}/transaction/${intentHashTransactionId}`,
-    );
 
     return intentHashTransactionId;
   }
@@ -277,18 +421,12 @@ export class RadixSDK {
             transactionStatusRequest: { intent_hash: intentHashTransactionId },
           });
       } catch (err) {
-        console.log(
-          `error getting transaction status of ${intentHashTransactionId} - retrying in ${pollDelayMs}ms`,
-        );
         await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
         continue;
       }
 
       switch (statusOutput.intent_status) {
         case 'CommittedSuccess':
-          console.info(
-            `Transaction ${intentHashTransactionId} was committed successfully: ${dashboardBase}/transaction/${intentHashTransactionId}`,
-          );
           return;
         case 'CommittedFailure':
           // You will typically wish to build a new transaction and try again.
@@ -298,13 +436,6 @@ export class RadixSDK {
         case 'CommitPendingOutcomeUnknown':
           // We keep polling
           if (i < pollAttempts) {
-            console.debug(
-              `Transaction ${intentHashTransactionId} [status poll ${
-                i + 1
-              }/${pollAttempts} - retrying in ${pollDelayMs}ms] - STATUS: ${
-                statusOutput.intent_status
-              } DESCRIPTION: ${statusOutput.intent_status_description}`,
-            );
             await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
           } else {
             throw new Error(
@@ -458,104 +589,56 @@ export class RadixSDK {
 
     await this.submitTransaction(transactionManifest);
   }
-
-  public async queryMailbox(mailbox: string): Promise<{
-    address: string;
-    localDomain: number;
-    nonce: number;
-    defaultIsm: string;
-    defaultHook: string;
-    requiredHook: string;
-  }> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
-    const fields = (details.details as any).state.fields;
-
-    const result = {
-      address: mailbox,
-      localDomain: parseInt(
-        fields.find((f: any) => f.field_name === 'local_domain').value,
-      ),
-      nonce: parseInt(fields.find((f: any) => f.field_name === 'nonce').value),
-      defaultIsm: fields.find((f: any) => f.field_name === 'default_ism')
-        .fields[0].value,
-      defaultHook: fields.find((f: any) => f.field_name === 'default_hook')
-        .fields[0].value,
-      requiredHook: fields.find((f: any) => f.field_name === 'required_hook')
-        .fields[0].value,
-    };
-
-    return result;
-  }
-
-  public async queryIsm(ism: string): Promise<{
-    address: string;
-    ism: 'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'NoopIsm';
-    validators: string[];
-    threshold: number;
-  }> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
-
-    const fields = (details.details as any).state.fields;
-
-    const result = {
-      address: ism,
-      ism: (details.details as any).blueprint_name,
-      validators: (
-        fields.find((f: any) => f.field_name === 'validators')?.elements ?? []
-      ).map((v: any) => v.hex),
-      threshold: parseInt(
-        fields.find((f: any) => f.field_name === 'threshold')?.value ?? '0',
-      ),
-    };
-
-    return result;
-  }
 }
 
-const main = async () => {
-  const sdk = await RadixSDK.fromRandomPrivateKey({
-    networkId: NetworkId.Stokenet,
-  });
-  await sdk.getTestnetXrd();
+// TODO: RADIX
+// const main = async () => {
+//   const sdk = new RadixSDK({
+//     networkId: NetworkId.Stokenet,
+//   });
+// await sdk.getTestnetXrd();
 
-  const mailbox = await sdk.createMailbox(75898670);
-  console.log('created mailbox with id', mailbox, '\n');
+// const mailbox = await sdk.createMailbox(75898670);
+// console.log('created mailbox with id', mailbox, '\n');
 
-  const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
-  console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
+// const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
+// console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
 
-  const merkleRootMultisigIsm = await sdk.createMerkleRootMultisigIsm(
-    ['0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
-    1,
-  );
-  console.log(
-    'created merkleRootMultisigIsm with id',
-    merkleRootMultisigIsm,
-    '\n',
-  );
+// const merkleRootMultisigIsm = await sdk.createMerkleRootMultisigIsm(
+//   ['0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
+//   1,
+// );
+// console.log(
+//   'created merkleRootMultisigIsm with id',
+//   merkleRootMultisigIsm,
+//   '\n',
+// );
 
-  const xrd = await sdk.getXrdAddress();
-  const igp = await sdk.createIgp(xrd);
-  console.log('created igp with id', igp, '\n');
+// const xrd = await sdk.getXrdAddress();
+// const igp = await sdk.createIgp(xrd);
+// console.log('created igp with id', igp, '\n');
 
-  await sdk.setRequiredHook(mailbox, merkleTreeHook);
-  console.log('set required hook\n');
+// await sdk.setRequiredHook(mailbox, merkleTreeHook);
+// console.log('set required hook\n');
 
-  await sdk.setDefaultHook(mailbox, igp);
-  console.log('set default hook\n');
+// await sdk.setDefaultHook(mailbox, igp);
+// console.log('set default hook\n');
 
-  await sdk.setDefaultIsm(mailbox, merkleRootMultisigIsm);
-  console.log('set default ism\n');
+// await sdk.setDefaultIsm(mailbox, merkleRootMultisigIsm);
+// console.log('set default ism\n');
 
-  const m = await sdk.queryMailbox(
-    'component_tdx_2_1cqaet9grt80sn9k07hqjtugfg974x2pzmc7k3kcndqqv7895a6v8ux',
-  );
-  console.log('mailbox state', m, '\n');
+// const m = await sdk.queryMailbox(
+//   'component_tdx_2_1cqaet9grt80sn9k07hqjtugfg974x2pzmc7k3kcndqqv7895a6v8ux',
+// );
+// console.log('mailbox state', m, '\n');
 
-  const i = await sdk.queryIsm(merkleRootMultisigIsm);
-  console.log('ism state', i, '\n');
-};
+// const i = await sdk.queryIsm(merkleRootMultisigIsm);
+// console.log('ism state', i, '\n');
 
-main();
+//   const h = await sdk.queryIgpHook(
+//     'component_tdx_2_1crrt89w8hd5jvvh49jcqgl9wmvmauw0k0wf7yafzahfc276xzu3ak2',
+//   );
+//   console.log('igp hook state', JSON.stringify(h), '\n');
+// };
+
+// main();

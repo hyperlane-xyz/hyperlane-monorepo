@@ -5,10 +5,7 @@ import type {
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
-import {
-  GatewayApiClient,
-  TransactionStatusResponse,
-} from '@radixdlt/babylon-gateway-api-sdk';
+import { TransactionStatusResponse } from '@radixdlt/babylon-gateway-api-sdk';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -38,6 +35,7 @@ import {
 } from 'zksync-ethers';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -177,9 +175,9 @@ export interface StarknetJsProvider
   provider: StarknetProvider;
 }
 
-export interface RadixProvider extends TypedProviderBase<GatewayApiClient> {
+export interface RadixProvider extends TypedProviderBase<RadixSDK> {
   type: ProviderType.Radix;
-  provider: GatewayApiClient;
+  provider: RadixSDK;
 }
 
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {

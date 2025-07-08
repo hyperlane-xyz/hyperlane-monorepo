@@ -1,6 +1,5 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
@@ -8,6 +7,7 @@ import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -151,8 +151,7 @@ export function defaultRadixProviderBuilder(
   _rpcUrls: RpcUrl[],
   network: string | number,
 ): RadixProvider {
-  const provider = GatewayApiClient.initialize({
-    applicationName: 'hyperlane',
+  const provider = new RadixSDK({
     networkId: +network,
   });
   return { provider, type: ProviderType.Radix };
