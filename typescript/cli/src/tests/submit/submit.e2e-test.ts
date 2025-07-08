@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
 
 import { XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
@@ -21,7 +21,7 @@ async function getMintOnlyOwnerTransaction(
   address: Address,
   amount: number,
   chainId: number,
-) {
+): Promise<EV5Transaction> {
   const owner = await xerc20.owner();
   const iface = new ethers.utils.Interface(XERC20VSTest__factory.abi);
   const calldata = iface.encodeFunctionData('mintOnlyOwner', [address, amount]);
