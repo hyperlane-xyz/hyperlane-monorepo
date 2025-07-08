@@ -294,15 +294,17 @@ contract TokenBridgeCctp is
         );
     }
 
-    function _transferRemote(
+    function _beforeDispatch(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        HypERC20Collateral._transferFromSender(_amount);
+        uint256 _amount
+    )
+        internal
+        virtual
+        override
+        returns (uint256 dispatchValue, bytes memory message)
+    {
+        dispatchValue = _chargeSender(_destination, _recipient, _amount);
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint64 nonce = tokenMessenger.depositForBurn(
@@ -312,23 +314,12 @@ contract TokenBridgeCctp is
             address(wrappedToken)
         );
 
-        uint256 outboundAmount = _outboundAmount(_amount);
-        bytes memory _tokenMessage = TokenMessage.format(
+        message = TokenMessage.format(
             _recipient,
-            outboundAmount,
+            _outboundAmount(_amount),
             abi.encodePacked(nonce)
         );
-        _validateMessageLength(_tokenMessage);
-
-        messageId = _Router_dispatch(
-            _destination,
-            _value,
-            _tokenMessage,
-            _hookMetadata,
-            _hook
-        );
-
-        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+        _validateMessageLength(message);
     }
 
     function _offchainLookupCalldata(
@@ -339,8 +330,7 @@ contract TokenBridgeCctp is
 
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata metadata
+        uint256 _amount
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
     }
