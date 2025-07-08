@@ -16,13 +16,10 @@ contract TestLpCollateralRouter is LpCollateralRouter {
         return address(0);
     }
 
-    function _transferFromSender(
-        uint256 _amount
-    ) internal override returns (bytes memory) {}
+    function _transferFromSender(uint256 _amount) internal override {}
 
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata
+        uint256 _amount
     ) internal override {}
 }

@@ -19,12 +19,6 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
         return address(0);
     }
 
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return 0;
-    }
-
     function _transferFromSender(uint256 _amount) internal override {}
 
     function _transferTo(address _to, uint256 _amount) internal override {}
