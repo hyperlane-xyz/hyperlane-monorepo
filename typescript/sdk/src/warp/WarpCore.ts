@@ -584,6 +584,23 @@ export class WarpCore {
       destinationBalance.toString(),
     );
 
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount =
+        amount *
+        BigInt((originToken.scale * precisionFactor) / destinationToken.scale);
+
+      return (
+        BigInt(Number(destinationBalanceInOriginDecimals) * precisionFactor) >=
+        scaledAmount
+      );
+    }
+
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
