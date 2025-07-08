@@ -42,6 +42,8 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// FSR (Foreign State Read) ISM (reads state from foreign chains)
+    FsrRead,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over

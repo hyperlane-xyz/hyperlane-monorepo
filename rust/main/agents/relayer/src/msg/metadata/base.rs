@@ -66,6 +66,17 @@ pub trait MetadataBuilder: Send + Sync {
     ) -> Result<Metadata, MetadataBuildError>;
 }
 
+#[async_trait::async_trait]
+pub trait MetadataAndMessageBuilder: Send + Sync {
+    /// Given a message, build it's ISM metadata and optionally return a message body replacement
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> Result<IsmWithMetadataAndMessage, MetadataBuildError>;
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct MessageMetadataBuildParams {
     /// current ISM depth.
@@ -83,6 +94,14 @@ pub struct MessageMetadataBuildParams {
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
     pub metadata: Metadata,
+}
+
+/// Enhanced version that includes optional message transformation for FSR
+#[derive(Debug)]
+pub struct IsmWithMetadataAndMessage {
+    pub ism: Box<dyn InterchainSecurityModule>,
+    pub metadata: Metadata,
+    pub transformed_message: Option<HyperlaneMessage>,
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time

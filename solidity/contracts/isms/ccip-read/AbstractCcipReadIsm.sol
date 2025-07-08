@@ -25,9 +25,14 @@ abstract contract AbstractCcipReadIsm is
 {
     // ============ Constants ============
 
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.CCIP_READ);
+    /**
+     * @notice Returns the module type for this ISM.
+     * @dev Can be overridden by derived contracts
+     * @return uint8 The module type identifier
+     */
+    function moduleType() external pure virtual returns (uint8) {
+        return uint8(IInterchainSecurityModule.Types.CCIP_READ);
+    }
 
     string[] internal _urls;
 
