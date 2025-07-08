@@ -701,8 +701,4 @@ contract HypERC4626CollateralTest is HypTokenTest {
     function _discountedYield() internal view returns (uint256) {
         return YIELD - vault.getClaimableFees();
     }
-
-    function testRemoteTransfer_withFee() public override {
-        // skip for now
-    }
 }
