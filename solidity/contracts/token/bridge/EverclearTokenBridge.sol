@@ -7,6 +7,7 @@ import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -24,7 +25,11 @@ struct OutputAssetInfo {
  * @notice A token bridge that integrates with Everclear's intent-based architecture
  * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
-contract EverclearTokenBridge is ITokenBridge, OwnableUpgradeable {
+contract EverclearTokenBridge is
+    ITokenBridge,
+    OwnableUpgradeable,
+    PackageVersioned
+{
     using SafeERC20 for IERC20;
 
     /// @notice The output asset for a given destination domain
