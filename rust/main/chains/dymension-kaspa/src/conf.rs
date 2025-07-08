@@ -25,6 +25,7 @@ pub struct ConnectionConf {
     pub hub_grpc_urls: Vec<Url>,
     pub deposit_look_back_mins: Option<u64>,
     pub hub_mailbox_id: String, // TODO: populate it
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 impl ConnectionConf {
@@ -43,6 +44,7 @@ impl ConnectionConf {
         hub_grpc_urls: Vec<Url>,
         deposit_look_back_mins: Option<u64>,
         hub_mailbox_id: String,
+        op_submission_config: OpSubmissionConfig,
     ) -> Self {
         Self {
             wallet_secret,
@@ -57,6 +59,7 @@ impl ConnectionConf {
             hub_grpc_urls,
             deposit_look_back_mins,
             hub_mailbox_id,
+            op_submission_config,
         }
     }
 }

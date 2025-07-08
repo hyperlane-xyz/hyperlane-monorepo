@@ -1,29 +1,32 @@
 // see terminal output
 // cargo test -- --nocapture
 
-use super::base::get_config;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::api::client::HttpClient;
+
     use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
     use api_rs::apis::kaspa_transactions_api::*;
     use url::Url;
 
-    fn t_config() -> configuration::Configuration {
-        let url = "https://api-tn10.kaspa.org";
-        let c = reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build();
-        get_config(&url, c)
-    }
+    use crate::api::base::RateLimitConfig;
 
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
 
+    fn t_client() -> HttpClient {
+        HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        )
+    }
+
     #[tokio::test]
     #[ignore]
     async fn test_balance() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let addr = DAN_TESTNET_ADDR;
         let res = get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
             &config,
@@ -39,7 +42,8 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_txs() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let addr = DAN_TESTNET_ADDR;
         let limit = Some(10);
         let field = None;
@@ -103,9 +107,10 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_tx_by_id() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
         let tx = get_transaction_transactions_transaction_id_get(
             &config,
@@ -120,5 +125,39 @@ mod tests {
         .await
         .unwrap();
         println!("tx: {:?}", tx);
+    }
+
+    #[tokio::test]
+    #[ignore = "avoid api abuse"]
+    async fn test_get_deposits() {
+        // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
+        let client = t_client();
+        let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
+
+        let deposits = client
+            .get_deposits_by_address(Some(1751299515650), address)
+            .await;
+
+        match deposits {
+            Ok(deposits) => {
+                println!("Found deposits: n = {:?}", deposits.len());
+                for deposit in deposits {
+                    println!("Deposit: {:?}", deposit);
+                }
+            }
+            Err(e) => {
+                println!("Query deposits: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "avoid api abuse"]
+    async fn test_get_tx_by_id() {
+        let client = t_client();
+
+        let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
+        let tx = client.get_tx_by_id(tx_id).await;
+        println!("Tx: {:?}", tx);
     }
 }

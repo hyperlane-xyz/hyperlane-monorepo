@@ -69,6 +69,9 @@
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "maxBatchSize": 100,
+      "maxSubmitQueueLength": 100,
+      "bypassBatchSimulation": false,
       "rpcUrls": [
         {
           "http": "https://www.google.com"

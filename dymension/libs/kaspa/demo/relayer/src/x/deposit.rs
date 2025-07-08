@@ -2,7 +2,7 @@
 
 use api_rs::apis::configuration;
 use bytes::Bytes;
-use corelib::api::deposits::Deposit;
+use corelib::api::client::Deposit;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;

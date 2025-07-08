@@ -44,9 +44,9 @@ pub enum HyperlaneKaspaError {
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
-    /// Protobuf error
-    #[error("{0}")]
-    Protobuf(#[from] protobuf::ProtobufError),
+    /// Protobuf error TODO: why did this randomly break..
+    // #[error("{0}")]
+    // Protobuf(#[from] protobuf::ProtobufError),
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneKaspaError>),

@@ -402,6 +402,13 @@ pub fn build_kaspa_connection_conf(
         .parse_u64()
         .end();
 
+    let hub_mailbox_id = chain
+        .chain(err)
+        .get_opt_key("hubMailboxId")
+        .parse_string()
+        .end()
+        .unwrap();
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -415,7 +422,8 @@ pub fn build_kaspa_connection_conf(
             threshold_escrow as usize,
             grpcs,
             offset_relay_time_hours,
-            String::new(), // TODO: fill hub_mailbox_id
+            hub_mailbox_id.to_owned(),
+            operation_batch,
         ),
     ))
 }

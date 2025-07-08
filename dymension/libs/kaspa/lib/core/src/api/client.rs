@@ -5,6 +5,7 @@ use url::Url;
 
 use eyre::{Error, Result};
 
+use super::base::RateLimitConfig;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::hash::{BuildHasher, Hash, Hasher, RandomState};
 use std::str::FromStr;
@@ -85,8 +86,8 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    pub fn new(url: String) -> Self {
-        let c = get_client();
+    pub fn new(url: String, config: RateLimitConfig) -> Self {
+        let c = get_client(config);
         Self { url, client: c }
     }
 
@@ -197,6 +198,15 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
+fn is_retryable(e: &Error) -> bool {
+    if let Some(reqwest_error) = e.downcast_ref::<reqwest::Error>() {
+        if reqwest_error.is_connect() {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use kaspa_core::time::unix_now;
@@ -207,7 +217,10 @@ mod tests {
     #[ignore = "avoid api abuse"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
-        let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
+        let client = HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        );
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
         let deposits = client
@@ -229,7 +242,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tx_by_id() {
-        let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
+        let client = HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        );
         let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
         let tx = client.get_tx_by_id(tx_id).await;
         println!("Tx: {:?}", tx);

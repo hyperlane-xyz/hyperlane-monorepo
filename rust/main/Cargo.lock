@@ -2609,6 +2609,7 @@ dependencies = [
  "reqwest 0.12.15",
  "reqwest-middleware",
  "reqwest-ratelimit",
+ "reqwest-retry",
  "secp256k1 0.29.1",
  "serde",
  "serde-value",
@@ -11010,6 +11011,37 @@ dependencies = [
  "http 1.2.0",
  "reqwest 0.12.15",
  "reqwest-middleware",
+]
+
+[[package]]
+name = "reqwest-retry"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29c73e4195a6bfbcb174b790d9b3407ab90646976c55de58a6515da25d851178"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "getrandom 0.2.15",
+ "http 1.2.0",
+ "hyper 1.6.0",
+ "parking_lot 0.11.2",
+ "reqwest 0.12.15",
+ "reqwest-middleware",
+ "retry-policies",
+ "thiserror 1.0.63",
+ "tokio",
+ "tracing",
+ "wasm-timer",
+]
+
+[[package]]
+name = "retry-policies"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5875471e6cab2871bc150ecb8c727db5113c9338cc3354dc5ee3425b6aa40a1c"
+dependencies = [
+ "rand 0.8.5",
 ]
 
 [[package]]

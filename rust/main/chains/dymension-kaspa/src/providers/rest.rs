@@ -16,7 +16,7 @@ use url::Url;
 
 use dym_kas_api::apis::configuration::Configuration;
 use dym_kas_api::models::TxModel;
-pub use dym_kas_core::api::base::get_config;
+pub use dym_kas_core::api::base::{get_config, RateLimitConfig};
 pub use dym_kas_core::api::client::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError};
@@ -55,7 +55,7 @@ impl KaspaHttpClient {
         metrics.increment_provider_instance(chain_name);
 
         Self {
-            client: HttpClient::new(url),
+            client: HttpClient::new(url, RateLimitConfig::default()),
             metrics,
             metrics_config,
         }
