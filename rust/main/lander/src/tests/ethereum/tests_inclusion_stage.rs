@@ -33,7 +33,7 @@ static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_happy_path() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let mock_evm_provider = mocked_evm_provider();
 
     let expected_tx_states = vec![
@@ -81,7 +81,7 @@ async fn test_inclusion_happy_path() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_spike() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash = H256::random(); // Mocked transaction hash
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -217,7 +217,7 @@ async fn test_inclusion_gas_spike() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_underpriced() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -310,7 +310,7 @@ async fn test_inclusion_gas_underpriced() {
 #[tokio::test]
 #[traced_test]
 async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash1 = H256::random();
     let hash2 = H256::random();
     let hash3 = H256::random();
@@ -447,7 +447,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_escalate_but_old_hash_finalized() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash1 = H256::random();
     let hash2 = H256::random();
 
@@ -540,7 +540,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
 #[tokio::test]
 #[traced_test]
 async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -636,7 +636,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
 
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
@@ -733,7 +733,7 @@ async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_stage_nonce_too_low_error_does_not_drop_tx() {
-    let block_time = Duration::from_millis(20);
+    let block_time = Duration::from_nanos(1);
     let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
