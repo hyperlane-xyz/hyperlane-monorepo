@@ -9,7 +9,7 @@ export function createWarpRouter(warpService: WarpService) {
 
   // get warp route
   router.get(
-    '/:id',
+    '/:id(.+)',
     validateRequestParam('id', z.string()),
     async (req: Request, res: Response) => {
       const warpRoute = await warpService.getWarpRoute(req.params.id);
