@@ -267,8 +267,8 @@ pub struct ListElement {
     destination_domain: Filter<u32>,
     #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
-    #[serde(default, rename = "regex")]
-    body: Option<RegexWrapper>,
+    #[serde(default, rename = "bodyregex")]
+    body_regex: Option<RegexWrapper>,
 }
 
 impl Display for ListElement {
@@ -329,7 +329,7 @@ impl MatchingList {
             sender_address: Default::default(),
             destination_domain: Default::default(),
             recipient_address: Default::default(),
-            body: Default::default(),
+            body_regex: Default::default(),
         }]))
     }
 
@@ -340,7 +340,7 @@ impl MatchingList {
             sender_address: Default::default(),
             destination_domain: Filter::Enumerated(vec![destination_domain]),
             recipient_address: Default::default(),
-            body: Default::default(),
+            body_regex: Default::default(),
         }]))
     }
 
@@ -375,7 +375,7 @@ fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: 
             && rule.destination_domain.matches(&info.dst_domain)
             && rule.recipient_address.matches(info.dst_addr)
             && rule
-                .body
+                .body_regex
                 .as_ref()
                 .map(|regex| regex.0.is_match(&info.body))
                 .unwrap_or(true)
@@ -576,7 +576,7 @@ mod test {
 
     #[test]
     fn test_matching_list_regex() {
-        let list: MatchingList = serde_json::from_str(r#"[{"regex": "0x([0-9]*)$"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"bodyregex": "0x([0-9]*)$"}]"#).unwrap();
         assert!(list.matches(
             MatchInfo {
                 src_msg_id: H256::default(),
