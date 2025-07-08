@@ -2,6 +2,7 @@ import { Signer } from 'ethers';
 import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
   ChainSubmissionStrategy,
@@ -55,7 +56,8 @@ export class MultiProtocolSignerManager {
     return this.chains.filter(
       (chain) =>
         this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.Radix,
     );
   }
 
@@ -126,7 +128,7 @@ export class MultiProtocolSignerManager {
 
     let config = await this.extractPrivateKey(chain);
 
-    // For Cosmos, we get additional params
+    // get additional params for chains
     if (protocol === ProtocolType.CosmosNative) {
       const provider =
         await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
@@ -136,6 +138,12 @@ export class MultiProtocolSignerManager {
       config = {
         ...config,
         extraParams: { provider, prefix: bech32Prefix, gasPrice },
+      };
+    } else if (protocol === ProtocolType.Radix) {
+      const { chainId } = this.multiProvider.getChainMetadata(chain);
+      config = {
+        ...config,
+        extraParams: { networkId: +chainId },
       };
     }
 
@@ -220,5 +228,14 @@ export class MultiProtocolSignerManager {
       `Chain ${chain} is not a Cosmos Native chain`,
     );
     return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
+  }
+
+  getRadixSigner(chain: ChainName): RadixSigningSDK {
+    const protocolType = this.multiProvider.getProtocol(chain);
+    assert(
+      protocolType === ProtocolType.Radix,
+      `Chain ${chain} is not a Radix chain`,
+    );
+    return this.getSpecificSigner<RadixSigningSDK>(chain);
   }
 }

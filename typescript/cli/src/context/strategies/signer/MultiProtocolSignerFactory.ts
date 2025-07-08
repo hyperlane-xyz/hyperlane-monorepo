@@ -8,6 +8,7 @@ import { Signer, Wallet, ethers } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
   ChainSubmissionStrategy,
@@ -38,6 +39,8 @@ export class MultiProtocolSignerFactory {
         return new EthereumSignerStrategy(strategyConfig);
       case ProtocolType.CosmosNative:
         return new CosmosNativeSignerStrategy(strategyConfig);
+      case ProtocolType.Radix:
+        return new RadixSignerStrategy(strategyConfig);
       default:
         throw new Error(`Unsupported protocol: ${protocol}`);
     }
@@ -134,6 +137,35 @@ class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
 
     return SigningHyperlaneModuleClient.createWithSigner(cometClient, wallet, {
       gasPrice,
+    });
+  }
+}
+
+class RadixSignerStrategy extends BaseMultiProtocolSigner {
+  async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
+    const submitter = this.config[chain]?.submitter as {
+      privateKey?: string;
+    };
+
+    const privateKey =
+      submitter?.privateKey ??
+      (await password({
+        message: `Please enter the private key for chain ${chain}`,
+      }));
+
+    return {
+      privateKey,
+    };
+  }
+
+  async getSigner({
+    privateKey,
+    extraParams,
+  }: SignerConfig): Promise<RadixSigningSDK> {
+    assert(extraParams?.networkId, 'Missing Radix Signer arguments');
+
+    return RadixSigningSDK.fromPrivateKey(privateKey, {
+      networkId: extraParams.networkId,
     });
   }
 }

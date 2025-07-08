@@ -10,6 +10,7 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  RadixCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -114,6 +115,25 @@ export async function runCoreDeploy(params: DeployParams) {
         });
 
         deployedAddresses = cosmosNativeCoreModule.serialize();
+      }
+      break;
+
+    case ProtocolType.Radix:
+      {
+        await multiProtocolSigner?.initSigner(chain);
+        const signer = multiProtocolSigner?.getRadixSigner(chain) ?? null;
+        assert(signer, 'Radix signer failed!');
+
+        logBlue('🚀 All systems ready, captain! Beginning deployment...');
+
+        const radixCoreModule = await RadixCoreModule.create({
+          chain,
+          config,
+          multiProvider,
+          signer,
+        });
+
+        deployedAddresses = radixCoreModule.serialize();
       }
       break;
 
