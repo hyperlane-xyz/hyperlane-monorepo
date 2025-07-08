@@ -19,8 +19,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160,
-    H256,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
 };
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
@@ -30,12 +30,12 @@ use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 mod validator_announced_storages;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IsmBuildMetricsParams {
     pub app_context: Option<String>,
     pub origin: HyperlaneDomain,
     pub destination: HyperlaneDomain,
-    pub ism_type: String,
+    pub ism_type: ModuleType,
     pub success: bool,
 }
 

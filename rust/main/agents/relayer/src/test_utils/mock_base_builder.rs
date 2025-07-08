@@ -24,6 +24,7 @@ use crate::{
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
+type RequestList<T> = Arc<Mutex<Vec<T>>>;
 
 #[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilderResponses {
@@ -97,14 +98,21 @@ impl MockBaseMetadataBuilderResponses {
 }
 
 #[derive(Debug, Default)]
+pub struct MockBaseMetadataBuilderRequests {
+    pub update_ism_metrics: RequestList<IsmBuildMetricsParams>,
+}
+
+#[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilder {
     pub responses: MockBaseMetadataBuilderResponses,
+    pub requests: MockBaseMetadataBuilderRequests,
 }
 
 impl MockBaseMetadataBuilder {
     pub fn new() -> Self {
         Self {
             responses: MockBaseMetadataBuilderResponses::default(),
+            requests: MockBaseMetadataBuilderRequests::default(),
         }
     }
 }
@@ -144,7 +152,13 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .as_ref()
             .expect("No mock cache response set")
     }
-    fn update_ism_metric(&self, _params: IsmBuildMetricsParams) {}
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams) {
+        self.requests
+            .update_ism_metrics
+            .lock()
+            .unwrap()
+            .push(params);
+    }
 
     async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {
         self.responses
@@ -258,7 +272,7 @@ pub fn build_mock_base_builder(
                 Filter::Wildcard,
                 Filter::Wildcard,
             )])),
-            "abcd".to_string(),
+            "test-app-context".to_string(),
         )],
     );
     base_builder.responses.app_context_classifier = Some(app_context_classifier);

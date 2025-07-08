@@ -180,7 +180,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             success: res.is_ok(),
             origin: self.as_ref().base_builder().origin_domain().clone(),
             destination: self.as_ref().base_builder().destination_domain().clone(),
-            ism_type: self.module_type().as_str().to_string(),
+            ism_type: self.module_type(),
         };
         self.as_ref()
             .base_builder()

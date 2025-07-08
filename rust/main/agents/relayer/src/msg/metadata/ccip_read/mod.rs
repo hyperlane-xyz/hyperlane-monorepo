@@ -184,7 +184,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             success: res.is_ok(),
             origin: self.base_builder().origin_domain().clone(),
             destination: self.base_builder().destination_domain().clone(),
-            ism_type: ModuleType::CcipRead.as_str().to_string(),
+            ism_type: ModuleType::CcipRead,
         };
         self.base_builder()
             .update_ism_metric(ism_build_metrics_params);
