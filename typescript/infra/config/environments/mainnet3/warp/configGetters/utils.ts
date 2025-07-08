@@ -12,17 +12,20 @@ type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
 >;
 
-export function getRebalancingBridgesConfigFor(
+export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
-  chainsToExclude: readonly ChainName[] = [],
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
   const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
-  const rebalanceableChains = deploymentChains.filter(
-    (chain) => !chainsToExclude.includes(chain),
+  const cctpBridgeChains = new Set(
+    mainnetCCTP.tokens.map(({ chainName }) => chainName),
+  );
+
+  const rebalanceableChains = deploymentChains.filter((chain) =>
+    cctpBridgeChains.has(chain),
   );
 
   const cctpBridgesByChain = Object.fromEntries(
@@ -45,7 +48,7 @@ export function getRebalancingBridgesConfigFor(
       assert(cctpBridge, `No cctp bridge found for chain ${currentChain}`);
 
       const allowedRebalancingBridges = Object.fromEntries(
-        deploymentChains
+        rebalanceableChains
           .filter((remoteChain) => remoteChain !== currentChain)
           .map((remoteChain) => [remoteChain, [{ bridge: cctpBridge }]]),
       );
