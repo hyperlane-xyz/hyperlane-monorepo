@@ -1,6 +1,8 @@
 export default class AppConstants {
   // HTTP Status Codes
   public static readonly HTTP_STATUS_OK = 200;
+  // 204 No Content
+  public static readonly HTTP_STATUS_NO_CONTENT = 204;
   // 400 Bad Request
   public static readonly HTTP_STATUS_BAD_REQUEST = 400;
   // 404 Not Found

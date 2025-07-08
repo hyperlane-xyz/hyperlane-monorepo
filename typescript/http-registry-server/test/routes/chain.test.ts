@@ -96,7 +96,7 @@ describe('Chain Routes', () => {
       await request(app)
         .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
         .send(updatedMetadata)
-        .expect(204);
+        .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
       expect(
         mockChainService.setChainMetadata.calledWith(
@@ -148,7 +148,7 @@ describe('Chain Routes', () => {
         .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
         .set('Content-Type', 'application/json')
         .send(updatedMetadata)
-        .expect(204);
+        .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
     });
   });
 

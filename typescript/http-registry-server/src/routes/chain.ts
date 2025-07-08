@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 
 import { ChainMetadataSchema, ZChainName } from '@hyperlane-xyz/sdk';
 
+import AppConstants from '../constants/AppConstants.js';
 import {
   validateBody,
   validateRequestParam,
@@ -26,7 +27,7 @@ export function createChainRouter(chainService: ChainService) {
     validateBody(ChainMetadataSchema),
     async (req: Request, res: Response) => {
       await chainService.setChainMetadata(req.params.chain, req.body);
-      res.sendStatus(204);
+      res.sendStatus(AppConstants.HTTP_STATUS_NO_CONTENT);
     },
   );
 
