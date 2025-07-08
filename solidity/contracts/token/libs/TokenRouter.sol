@@ -43,6 +43,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     constructor(address _mailbox) GasRouter(_mailbox) {}
 
     /**
+     * @notice Returns the address of the token managed by this router.
+     * @dev This function must be implemented by derived contracts to specify the token address.
+     * @return The address of the token contract.
+     */
+    function token() public view virtual returns (address);
+
+    /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * @dev Emits `SentTransferRemote` event on the origin chain.
@@ -148,13 +155,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @dev Called by `transferRemote` before message dispatch.
      */
     function _transferFromSender(uint256 _amountOrId) internal virtual;
-
-    /**
-     * @notice Returns the balance of `account` on this token router.
-     * @param account The address to query the balance of.
-     * @return The balance of `account`.
-     */
-    function balanceOf(address account) external virtual returns (uint256);
 
     /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
