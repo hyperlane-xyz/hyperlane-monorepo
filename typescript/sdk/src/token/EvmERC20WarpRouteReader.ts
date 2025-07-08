@@ -247,13 +247,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
+      [TokenType.collateralVault]: {
+        factory: HypERC4626OwnerCollateral__factory,
+        method: 'assetDeposited',
+      },
       [TokenType.collateralVaultRebase]: {
         factory: HypERC4626Collateral__factory,
         method: 'NULL_RECIPIENT',
-      },
-      [TokenType.collateralVault]: {
-        factory: HypERC4626OwnerCollateral__factory,
-        method: 'vault',
       },
       [TokenType.XERC20Lockbox]: {
         factory: HypXERC20Lockbox__factory,

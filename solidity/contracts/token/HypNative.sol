@@ -4,8 +4,7 @@ pragma solidity >=0.8.0;
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ITokenBridge} from "contracts/interfaces/ITokenBridge.sol";
-import {Quote} from "contracts/interfaces/ITokenBridge.sol";
+import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -44,6 +43,13 @@ contract HypNative is MovableCollateralRouter {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
+    function balanceOf(
+        address _account
+    ) external view override returns (uint256) {
+        return _account.balance;
+    }
+
+    // override for single unified quote
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -53,46 +59,30 @@ contract HypNative is MovableCollateralRouter {
         quotes[0] = Quote({
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount) +
+                _feeAmount(_destination, _recipient, _amount) +
                 _amount
         });
     }
 
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        // include for legible error instead of underflow
-        _transferFromSender(_amount);
-
-        return
-            super._transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value - _amount,
-                _hookMetadata,
-                _hook
-            );
-    }
-
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return _account.balance;
+    function token() public view virtual override returns (address) {
+        return address(0);
     }
 
     /**
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _amount) internal virtual override {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        return bytes(""); // no metadata
+    }
+
+    function _nativeRebalanceValue(
+        uint256 collateralAmount
+    ) internal override returns (uint256 nativeValue) {
+        nativeValue = msg.value + collateralAmount;
+        require(
+            address(this).balance >= nativeValue,
+            "Native: rebalance amount exceeds balance"
+        );
     }
 
     /**
@@ -101,36 +91,25 @@ contract HypNative is MovableCollateralRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
+        uint256 _amount
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
     }
 
-    receive() external payable {
-        emit Donation(msg.sender, msg.value);
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256 dispatchValue) {
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        _transferFromSender(_amount + fee);
+        dispatchValue = msg.value - (_amount + fee);
+        if (fee > 0) {
+            _transferTo(feeRecipient(), fee);
+        }
     }
 
-    /**
-     * @dev This function uses `msg.value` as payment for the bridge.
-     * User collateral is never used to make bridge payments!
-     * The rebalancer is to pay all fees for the bridge.
-     */
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ITokenBridge bridge
-    ) internal override {
-        uint fee = msg.value + amount;
-        require(
-            address(this).balance >= fee,
-            "Native: rebalance amount exceeds balance"
-        );
-        bridge.transferRemote{value: fee}({
-            _destination: domain,
-            _recipient: recipient,
-            _amount: amount
-        });
+    receive() external payable {
+        emit Donation(msg.sender, msg.value);
     }
 }
