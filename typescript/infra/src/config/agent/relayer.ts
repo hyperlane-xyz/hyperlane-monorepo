@@ -1,6 +1,6 @@
 import { BigNumberish } from 'ethers';
 import { Logger } from 'pino';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import {
   AgentConfig,

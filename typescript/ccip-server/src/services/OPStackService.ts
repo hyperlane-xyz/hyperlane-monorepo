@@ -3,7 +3,7 @@ import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
 
