@@ -99,8 +99,8 @@ export enum WarpRouteIds {
 
   SubtensorUSDC = 'USDC/subtensor',
 
-  // Not present in the registry
-  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  MainnetCCTP = 'USDC/mainnet-cctp',
+  TestnetCCTP = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

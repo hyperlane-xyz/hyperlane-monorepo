@@ -228,6 +228,7 @@ impl InclusionStage {
 
         // update tx submission attempts
         tx.submission_attempts += 1;
+        tx.last_submission_attempt = Some(chrono::Utc::now());
 
         // Simulating transaction if it has never been submitted before
         tx = Self::simulate_tx(tx, state).await?;

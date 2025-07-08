@@ -1,4 +1,3 @@
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -8,7 +7,7 @@ import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -44,10 +43,8 @@ const usdcTokenAddresses: Record<DeploymentChain, string> = {
 export const getSubtensorUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
-    deploymentChains,
-    [syntheticChain, 'solanamainnet'],
-  );
+  const rebalancingConfigByChain =
+    getUSDCRebalancingBridgesConfigFor(deploymentChains);
 
   return Object.fromEntries(
     deploymentChains.map(
@@ -107,7 +104,7 @@ export const getSubtensorUSDCWarpConfig = async (
             allowedRebalancers,
             allowedRebalancingBridges,
             contractVersion: existingChains.includes(currentChain)
-              ? CONTRACTS_PACKAGE_VERSION
+              ? '8.1.1'
               : undefined,
           },
         ];
