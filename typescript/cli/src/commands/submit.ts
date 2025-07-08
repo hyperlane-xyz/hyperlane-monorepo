@@ -1,12 +1,13 @@
+import { groupBy } from 'lodash-es';
+
 import {
   SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { runSubmit } from '../config/submit.js';
+import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
-import { readChainSubmissionStrategy } from '../deploy/warp.js';
 import { logBlue, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
@@ -33,21 +34,29 @@ export const submitCommand: CommandModuleWithWriteContext<{
   },
   handler: async ({
     context,
-    transactions,
-    strategy: strategyUrl,
-    receipts,
+    transactions: transactionsPath,
+    strategy: strategyPath,
+    receipts: receiptsFilepath,
   }) => {
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
-    const chainSubmissionStrategy = readChainSubmissionStrategy(strategyUrl);
+    // Note: transactions are grouped by chainId, but chainSubmissionStrategy is grouped by chainName
+    const chainTransactions = groupBy(
+      getTransactions(transactionsPath),
+      'chainId',
+    );
+
     await promiseObjAll(
-      objMap(chainSubmissionStrategy, async (chain, submissionStrategy) => {
+      objMap(chainTransactions, async (chainId, transactions) => {
+        const chain = context.multiProvider.getChainName(chainId);
+
         await runSubmit({
           context,
-          transactionsFilepath: transactions,
-          receiptsFilepath: receipts,
-          submissionStrategy,
+          chain,
+          transactions,
+          strategyPath,
+          receiptsFilepath,
         });
         logBlue(`✅ Submission complete for chain ${chain}`);
       }),
