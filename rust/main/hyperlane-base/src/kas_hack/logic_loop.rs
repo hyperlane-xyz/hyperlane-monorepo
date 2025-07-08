@@ -294,7 +294,6 @@ where
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
-            let conf = self.provider.rest().get_config();
 
             let mut good = false;
             for utxo in all_escrow_utxos {

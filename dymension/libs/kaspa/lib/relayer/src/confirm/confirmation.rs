@@ -50,7 +50,7 @@ pub async fn expensive_trace_transactions(
     old_out: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
     info!(
-        "Starting transaction trace from {:?} to {:?}",
+        "Starting transaction trace from candidate new anchor {:?} to old anchor {:?}",
         new_out, old_out
     );
 
@@ -68,7 +68,7 @@ pub async fn expensive_trace_transactions(
             ));
         }
 
-        info!("Processing step {}: UTXO {:?}", step, curr_out);
+        info!("Processing depth {}: outpoint {:?}", step, curr_out);
 
         let transaction = client
             .get_tx_by_id(&curr_out.transaction_id.to_string())
@@ -76,9 +76,17 @@ pub async fn expensive_trace_transactions(
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {
+            let unhexed_payload = hex::decode(&payload)
+                .map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
             // Deserialize the payload bytes into MessageIDs
-            let message_ids = corelib::payload::MessageIDs::from_bytes(payload.as_bytes())
-                .map_err(|e| eyre::eyre!("Failed to deserialize MessageIDs: {}", e))?;
+            let message_ids =
+                corelib::payload::MessageIDs::from_bytes(&unhexed_payload).map_err(|e| {
+                    eyre::eyre!(
+                        "Failed to deserialize MessageIDs: Payload: {} Err: {}",
+                        payload,
+                        e
+                    )
+                })?;
 
             // Convert each message ID into a WithdrawalId and add to the list
             processed_withdrawals.extend(message_ids.0);
@@ -141,13 +149,13 @@ pub fn get_previous_utxo_in_lineage(
         .ok_or(Error::Custom("Inputs not found".to_string()))?;
     // check if we reached the anchor transaction_id
     for input in inputs {
-        println!("Checking input: {:?}", input.index);
+        info!("Checking input: {:?}", input.index);
 
         // If this input's previous_outpoint_hash matches the anchor transaction_id, break
         if input.previous_outpoint_hash == anchor_utxo.transaction_id.to_string()
             && input.previous_outpoint_index == anchor_utxo.index.to_string()
         {
-            println!(
+            info!(
                 "Reached anchor transaction_id in input: {}",
                 input.previous_outpoint_hash
             );
@@ -174,7 +182,7 @@ pub fn get_previous_utxo_in_lineage(
                 ),
                 index: input.previous_outpoint_index.parse().unwrap(),
             };
-            println!("Found next lineage UTXO: {:?}", next_utxo);
+            info!("Found next lineage UTXO: {:?}", next_utxo);
             return Ok(Some(next_utxo));
         }
     }
