@@ -1,9 +1,9 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -147,22 +147,27 @@ export const ArbL2ToL1HookSchema = z.object({
       'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
     ),
   destinationChain: z.string(),
-  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
+  get childHook() {
+    return HookConfigSchema;
+  },
 });
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
   oracleKey: z.string(),
-  overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  overhead: z.record(z.string(), z.number()),
+  oracleConfig: z.record(
+    ZChainName,
+    ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+  ),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
   z.lazy(() =>
     OwnableSchema.extend({
       type: z.literal(HookType.ROUTING),
-      domains: z.record(HookConfigSchema),
+      domains: z.record(z.number().int(), HookConfigSchema),
     }),
   );
 
@@ -170,7 +175,7 @@ export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookCon
   z.lazy(() =>
     OwnableSchema.extend({
       type: z.literal(HookType.FALLBACK_ROUTING),
-      domains: z.record(HookConfigSchema),
+      domains: z.record(z.number().int(), HookConfigSchema),
       fallback: HookConfigSchema,
     }),
   );
@@ -220,5 +225,5 @@ export const HooksConfigSchema = z.object({
   required: HookConfigSchema,
 });
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
-export const HooksConfigMapSchema = z.record(HooksConfigSchema);
+export const HooksConfigMapSchema = z.record(ZChainName, HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;

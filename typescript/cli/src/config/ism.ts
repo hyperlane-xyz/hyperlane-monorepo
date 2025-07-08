@@ -1,5 +1,5 @@
 import { input, select } from '@inquirer/prompts';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import {
   AggregationIsmConfig,
@@ -10,6 +10,7 @@ import {
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
   TrustedRelayerIsmConfig,
+  ZChainName,
   isStaticIsm,
 } from '@hyperlane-xyz/sdk';
 
@@ -27,7 +28,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';
 
-const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
+const IsmConfigMapSchema = z.record(ZChainName, IsmConfigSchema).refine(
   (ismConfigMap) => {
     // check if any key in IsmConfigMap is found in its own RoutingIsmConfigSchema.domains
     for (const [key, config] of Object.entries(ismConfigMap)) {

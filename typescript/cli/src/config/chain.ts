@@ -36,7 +36,7 @@ export function readChainConfigs(filePath: string) {
     errorRed(
       `Chain config for ${filePath} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
     );
-    errorRed(JSON.stringify(parseResult.error.errors));
+    errorRed(JSON.stringify(parseResult.error.issues, null, 2));
     process.exit(1);
   }
   return chainMetadata;
@@ -143,7 +143,7 @@ export async function createChainConfig({
     errorRed(
       `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
     );
-    errorRed(JSON.stringify(parseResult.error.errors));
+    errorRed(JSON.stringify(parseResult.error.issues, null, 2));
     throw new Error('Invalid chain config');
   }
 }

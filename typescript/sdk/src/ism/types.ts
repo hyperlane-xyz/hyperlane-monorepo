@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import {
   AbstractCcipReadIsm,
@@ -22,7 +22,7 @@ import type {
   WithAddress,
 } from '@hyperlane-xyz/utils';
 
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainNameOrDomainId, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -190,7 +190,7 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 
 export const InterchainAccountRouterIsmSchema = OwnableSchema.extend({
   type: z.literal(IsmType.INTERCHAIN_ACCOUNT_ROUTING),
-  isms: z.record(ZHash),
+  isms: z.record(ZChainNameOrDomainId, ZHash),
 });
 export type InterchainAccountRouterIsm = z.infer<
   typeof InterchainAccountRouterIsmSchema
@@ -337,11 +337,11 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
       }),
       OwnableSchema.extend({
         type: z.literal(IsmType.ROUTING),
-        domains: z.record(IsmConfigSchema),
+        domains: z.record(ZChainNameOrDomainId, IsmConfigSchema),
       }),
       OwnableSchema.extend({
         type: z.literal(IsmType.FALLBACK_ROUTING),
-        domains: z.record(IsmConfigSchema),
+        domains: z.record(ZChainNameOrDomainId, IsmConfigSchema),
       }),
       InterchainAccountRouterIsmSchema,
     ]),

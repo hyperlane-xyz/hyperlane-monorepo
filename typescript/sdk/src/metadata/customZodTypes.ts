@@ -18,3 +18,5 @@ export const ZHash = z
   );
 /** Zod ChainName schema */
 export const ZChainName = z.string().regex(/^[a-z][a-z0-9]*$/);
+
+export const ZChainNameOrDomainId = ZChainName.or(ZNzUint);
