@@ -68,6 +68,12 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return IERC20(primaryToken).balanceOf(_account);
+    }
+
     function _transferRoundTripAndIncreaseYields(
         uint256 transferAmount,
         uint256 yieldAmount
@@ -123,10 +129,10 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(transferAmount, DUST_AMOUNT);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(transferAmount);
 
-        assertEq(localToken.balanceOf(ALICE), prevBalance + transferAmount);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + transferAmount);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
@@ -139,9 +145,9 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + TRANSFER_AMT);
 
         // Has leftover shares, but no assets deposited
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
