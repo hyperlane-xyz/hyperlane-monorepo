@@ -818,7 +818,7 @@ async function submitWarpApplyTransactions(
           async () => {
             const chain = chainIdToName[chainId];
             const isExtendedChain = extendedChains.includes(chain);
-            const { submitter, config } = await getWarpApplySubmitter({
+            const { submitter, config } = await getSubmitterByStrategy({
               chain,
               context: params.context,
               strategyUrl: params.strategyUrl,
@@ -877,7 +877,7 @@ async function submitWarpApplyTransactions(
  *
  * @returns the warp apply submitter
  */
-async function getWarpApplySubmitter<T extends ProtocolType>({
+export async function getSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
   strategyUrl,
