@@ -8370,6 +8370,7 @@ __metadata:
     "@types/node": "npm:^18.14.5"
     "@types/sinon": "npm:^17.0.1"
     "@types/supertest": "npm:^2.0.12"
+    "@types/yargs": "npm:^17.0.32"
     chai: "npm:^4.5.0"
     chai-as-promised: "npm:^8.0.1"
     eslint: "npm:^9.15.0"
@@ -8381,6 +8382,7 @@ __metadata:
     supertest: "npm:^6.3.3"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
+    yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
   languageName: unknown
   linkType: soft
@@ -17775,6 +17777,15 @@ __metadata:
   dependencies:
     "@types/yargs-parser": "npm:*"
   checksum: 10/03d9a985cb9331b2194a52d57a66aad88bf46aa32b3968a71cc6f39fb05c74f0709f0dd3aa9c0b29099cfe670343e3b1bd2ac6df2abfab596ede4453a616f63f
+  languageName: node
+  linkType: hard
+
+"@types/yargs@npm:^17.0.32":
+  version: 17.0.33
+  resolution: "@types/yargs@npm:17.0.33"
+  dependencies:
+    "@types/yargs-parser": "npm:*"
+  checksum: 10/16f6681bf4d99fb671bf56029141ed01db2862e3db9df7fc92d8bea494359ac96a1b4b1c35a836d1e95e665fb18ad753ab2015fc0db663454e8fd4e5d5e2ef91
   languageName: node
   linkType: hard
 
