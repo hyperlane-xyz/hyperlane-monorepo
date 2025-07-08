@@ -1,8 +1,9 @@
 use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
+use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{TransactionReceipt, H160, H256 as EthersH256, U256 as EthersU256};
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
@@ -24,6 +25,9 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 
+/// This is block time for unit tests which assume that we are ready to re-submit every time,
+/// so, it is set to 0 nanoseconds so that we can test the inclusion stage without waiting
+const TEST_BLOCK_TIME: Duration = Duration::from_nanos(0);
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
 static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
     apply_estimate_buffer_to_ethers(EthersU256::from(21000), &TEST_DOMAIN.into()).unwrap()
@@ -32,7 +36,7 @@ static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_happy_path() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let mock_evm_provider = mocked_evm_provider();
 
     let expected_tx_states = vec![
@@ -80,7 +84,7 @@ async fn test_inclusion_happy_path() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_spike() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let hash = H256::random(); // Mocked transaction hash
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -216,7 +220,7 @@ async fn test_inclusion_gas_spike() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_gas_underpriced() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -309,7 +313,7 @@ async fn test_inclusion_gas_underpriced() {
 #[tokio::test]
 #[traced_test]
 async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let hash1 = H256::random();
     let hash2 = H256::random();
     let hash3 = H256::random();
@@ -446,7 +450,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_escalate_but_old_hash_finalized() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let hash1 = H256::random();
     let hash2 = H256::random();
 
@@ -539,7 +543,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
 #[tokio::test]
 #[traced_test]
 async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
     let hash = H256::random();
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -635,7 +639,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
 #[tokio::test]
 #[traced_test]
 async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
-    let block_time = Duration::from_millis(20);
+    let block_time = TEST_BLOCK_TIME;
 
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
@@ -726,6 +730,153 @@ async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
     assert!(
         maybe_tx.is_none(),
         "No transaction should be sent to finality stage"
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_inclusion_stage_nonce_too_low_error_does_not_drop_tx() {
+    let block_time = TEST_BLOCK_TIME;
+    let hash = H256::random();
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+
+    // Simulate provider returning "nonce too low" error on send
+    let mut send_call_counter = 0;
+    mock_evm_provider.expect_send().returning(move |_, _| {
+        send_call_counter += 1;
+        if send_call_counter == 1 {
+            Err(ChainCommunicationError::CustomError(
+                "nonce too low".to_string(),
+            ))
+        } else {
+            Ok(hash)
+        }
+    });
+
+    // Simulate receipt: always returns None (not included yet)
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| Ok(None));
+
+    let signer = H160::random();
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let created_tx = created_txs[0].clone();
+    let mock_domain = TEST_DOMAIN.into();
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
+
+    // Run the inclusion stage step, which should NOT drop the tx due to "nonce too low" error
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+
+    // The result should be Ok, and the tx should still be in the pool
+    assert!(
+        result.is_ok(),
+        "Inclusion stage should not error on nonce too low"
+    );
+    let pool = inclusion_stage_pool.lock().await;
+    assert!(
+        pool.contains_key(&created_tx.uuid),
+        "Transaction should not be dropped from the pool on nonce too low error"
+    );
+
+    // The transaction should not be marked as Dropped in the DB
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        !matches!(retrieved_tx.status, TransactionStatus::Dropped(_)),
+        "Transaction should not be dropped in DB on nonce too low error"
+    );
+
+    // No transaction should be sent to the finality stage
+    let maybe_tx = tokio::time::timeout(Duration::from_millis(100), finality_stage_receiver.recv())
+        .await
+        .ok()
+        .flatten();
+    assert!(
+        maybe_tx.is_none(),
+        "No transaction should be sent to finality stage"
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_ready_for_resubmission() {
+    let block_time = Duration::from_millis(20);
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+
+    let signer = H160::random();
+    let dispatcher_state =
+        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+
+    let mut created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let mut tx = created_txs.remove(0);
+    let duration_since_epoch = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    #[allow(deprecated)]
+    let mock_last_submission_attempt = Utc.timestamp(
+        duration_since_epoch.as_secs() as i64,
+        duration_since_epoch.subsec_nanos(),
+    );
+    tx.last_submission_attempt = Some(mock_last_submission_attempt);
+
+    // Ensure the transaction is not ready for resubmission immediately
+    assert!(
+        !dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
+    );
+
+    // Simulate sufficient time passing
+    tokio::time::sleep(block_time * 2).await;
+
+    // Ensure the transaction is now ready for resubmission
+    assert!(
+        dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
     );
 }
 
