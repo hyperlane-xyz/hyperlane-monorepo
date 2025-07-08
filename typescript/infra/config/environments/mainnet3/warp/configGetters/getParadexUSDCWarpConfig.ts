@@ -3,15 +3,13 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
-import { awSafes } from '../../governance/safe/aw.js';
-import { DEPLOYER, chainOwners } from '../../owners.js';
+import { DEPLOYER } from '../../owners.js';
 import {
   SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   STARKNET_WARP_ROUTE_HANDLER_GAS_AMOUNT,
 } from '../consts.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -73,10 +71,8 @@ const ownersByChain: Record<DeploymentChain, string> = {
 export const getParadexUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
-    deploymentChains,
-    [syntheticChain, 'solanamainnet', 'paradex', 'starknet'],
-  );
+  const rebalancingConfigByChain =
+    getUSDCRebalancingBridgesConfigFor(deploymentChains);
 
   return Object.fromEntries(
     deploymentChains.map(
@@ -103,30 +99,31 @@ export const getParadexUSDCWarpConfig = async (
         const maybeNonRebalanceableChain =
           currentChain as NonRebalanceableChain;
         if (
-          nonRebalanceableCollateralChains.includes(maybeNonRebalanceableChain)
+          !nonRebalanceableCollateralChains.includes(maybeNonRebalanceableChain)
         ) {
+          const currentRebalancingConfig =
+            rebalancingConfigByChain[currentChain];
+          assert(
+            currentRebalancingConfig,
+            `Rebalancing config not found for chain ${currentChain}`,
+          );
+
+          const { allowedRebalancers, allowedRebalancingBridges } =
+            currentRebalancingConfig;
+
           return [
             currentChain,
             {
               type: TokenType.collateral,
               token: usdcTokenAddress,
               mailbox: routerConfig[currentChain].mailbox,
-              foreignDeployment:
-                foreignDeploymentByChain[maybeNonRebalanceableChain],
               owner,
-              gas: gasByChain[maybeNonRebalanceableChain],
+              allowedRebalancers,
+              allowedRebalancingBridges,
+              contractVersion: '8.1.1',
             },
           ];
         }
-
-        const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
-        assert(
-          currentRebalancingConfig,
-          `Rebalancing config not found for chain ${currentChain}`,
-        );
-
-        const { allowedRebalancers, allowedRebalancingBridges } =
-          currentRebalancingConfig;
 
         return [
           currentChain,
@@ -134,10 +131,10 @@ export const getParadexUSDCWarpConfig = async (
             type: TokenType.collateral,
             token: usdcTokenAddress,
             mailbox: routerConfig[currentChain].mailbox,
+            foreignDeployment:
+              foreignDeploymentByChain[maybeNonRebalanceableChain],
             owner,
-            allowedRebalancers,
-            allowedRebalancingBridges,
-            contractVersion: CONTRACTS_PACKAGE_VERSION,
+            gas: gasByChain[maybeNonRebalanceableChain],
           },
         ];
       },
