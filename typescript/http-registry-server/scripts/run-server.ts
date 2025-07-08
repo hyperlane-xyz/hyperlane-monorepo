@@ -1,20 +1,26 @@
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+
 import { type IRegistry } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 
 import { HttpServer } from '../HttpServer.js';
 
 const main = async () => {
-  const registryPath = process.argv[2];
+  const { registry } = await yargs(hideBin(process.argv))
+    .option('registry', {
+      alias: 'r',
+      type: 'string',
+      description: 'The path to the registry',
+      demandOption: true,
+    })
+    .parse();
 
-  if (!registryPath) {
-    throw new Error('Registry path is required');
-  }
-
-  console.log(`Using registry path: ${registryPath}`);
+  console.log(`Using registry path: ${registry}`);
 
   const getLocalRegistry = async (): Promise<IRegistry> => {
     return new FileSystemRegistry({
-      uri: registryPath,
+      uri: registry,
     });
   };
 
