@@ -22,5 +22,6 @@ export SETTLEMENT_LAYER="dymension" # when running a local hub or a public netwo
 export SKIP_EVM_BASE_FEE=true # optional, disables rollapp fees
 export HUB_FLAGS=(--from hub-user --fees 100000000000000adym --gas auto --gas-adjustment 3 -y)
 export RELAYER_ADDR="dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth" # relayer derives from HYP_KEY
-export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # arbitrary ethereum style key, used in HL agents
 export HUB_DOMAIN=1260813472 
+export KASTEST_DOMAIN=80808082
