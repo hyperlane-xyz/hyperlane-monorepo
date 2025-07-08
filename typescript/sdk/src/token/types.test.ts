@@ -16,9 +16,12 @@ const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,
   TokenType.collateralVault,
-];
+] as const;
 
-const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
+const NON_COLLATERAL_TYPES = [
+  TokenType.synthetic,
+  TokenType.syntheticUri,
+] as const;
 
 describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;

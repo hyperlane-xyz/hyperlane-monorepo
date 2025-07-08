@@ -197,6 +197,18 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export const EverclearTokenConfigSchema = TokenMetadataSchema.extend({
+  type: z.literal(TokenType.everclear),
+  outputAssets: z.record(z.number(), z.string()),
+  feeParams: z.object({
+    fee: z.number(),
+    deadline: z.number(),
+    signature: z.string(),
+  }),
+});
+export type EverclearTokenConfig = z.infer<typeof EverclearTokenConfigSchema>;
+export const isEverclearTokenConfig = isCompliant(EverclearTokenConfigSchema);
+
 export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
@@ -234,11 +246,21 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
+// Separate schema for router-based tokens
 export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema,
 ).and(HypTokenRouterVirtualConfigSchema.partial());
 
+// Union of router configs and bridge configs
+export const HypTokenRouterOrBridgeConfigSchema = z.union([
+  HypTokenRouterConfigSchema,
+  EverclearTokenConfigSchema,
+]);
+
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
+export type HypTokenRouterOrBridgeConfig = z.infer<
+  typeof HypTokenRouterOrBridgeConfigSchema
+>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
   z.infer<typeof GasRouterConfigSchema> &

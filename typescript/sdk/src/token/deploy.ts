@@ -72,7 +72,7 @@ const OP_L1_INITIALIZE_SIGNATURE = 'initialize(address,string[])';
 const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
-  contractName: HypERC20contracts[TokenType],
+  contractName: HypERC20contracts[keyof HypERC20contracts],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':

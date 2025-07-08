@@ -210,6 +210,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.everclear]: TokenStandard.EvmHypCollateral, // Everclear uses collateral-like behavior
 };
 
 // Starknet supported token types
