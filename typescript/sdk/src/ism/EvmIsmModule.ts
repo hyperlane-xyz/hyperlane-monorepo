@@ -258,10 +258,7 @@ export class EvmIsmModule extends HyperlaneModule<
       });
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction['set(uint32,address)'](
-        domainId,
-        ism.address,
-      );
+      const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,

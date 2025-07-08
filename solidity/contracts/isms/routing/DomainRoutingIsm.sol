@@ -51,14 +51,20 @@ contract DomainRoutingIsm is
     /**
      * @notice Sets the ISMs to be used for the specified origin domains
      * @param _owner The owner of the contract.
-     * @param _domainModules Array of DomainModule structs
+     * @param _domains The origin domains
+     * @param __modules The ISMs to use to verify messages
      */
     function initialize(
         address _owner,
-        DomainModule[] calldata _domainModules
+        uint32[] calldata _domains,
+        IInterchainSecurityModule[] calldata __modules
     ) public initializer {
         __Ownable_init();
-        _set(_domainModules);
+        require(_domains.length == __modules.length, "length mismatch");
+        uint256 _length = _domains.length;
+        for (uint256 i = 0; i < _length; ++i) {
+            _set(_domains[i], address(__modules[i]));
+        }
         _transferOwnership(_owner);
     }
 
@@ -74,7 +80,9 @@ contract DomainRoutingIsm is
         _set(_domain, address(_module));
     }
 
-    function set(DomainModule[] calldata _domainModules) external onlyOwner {
+    function setBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
         _set(_domainModules);
     }
 
@@ -92,7 +100,9 @@ contract DomainRoutingIsm is
         _add(_domain, address(_module));
     }
 
-    function add(DomainModule[] calldata _domainModules) external onlyOwner {
+    function addBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
         for (uint256 i = 0; i < _domainModules.length; ++i) {
             _add(_domainModules[i].domain, address(_domainModules[i].module));
         }
@@ -106,7 +116,9 @@ contract DomainRoutingIsm is
         _remove(_domain);
     }
 
-    function remove(DomainModule[] calldata _domainModules) external onlyOwner {
+    function removeBatch(
+        DomainModule[] calldata _domainModules
+    ) external onlyOwner {
         for (uint256 i = 0; i < _domainModules.length; ++i) {
             _remove(_domainModules[i].domain);
         }

@@ -27,34 +27,11 @@ abstract contract AbstractDomainRoutingIsmFactory is PackageVersioned {
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata _modules
     ) external returns (DomainRoutingIsm) {
-        DomainRoutingIsm.DomainModule[]
-            memory domainModules = new DomainRoutingIsm.DomainModule[](
-                _domains.length
-            );
-        require(_domains.length == _modules.length, "length mismatch");
-        for (uint256 i = 0; i < _domains.length; ++i) {
-            domainModules[i] = DomainRoutingIsm.DomainModule({
-                domain: _domains[i],
-                module: _modules[i]
-            });
-        }
-        return deploy(_owner, domainModules);
-    }
-
-    /**
-     * @notice Deploys and initializes a DomainRoutingIsm using a minimal proxy
-     * @param _owner The owner to set on the ISM
-     * @param _domainModules Array of DomainModule structs
-     */
-    function deploy(
-        address _owner,
-        DomainRoutingIsm.DomainModule[] memory _domainModules
-    ) public returns (DomainRoutingIsm) {
         DomainRoutingIsm _ism = DomainRoutingIsm(
             MinimalProxy.create(implementation())
         );
         emit ModuleDeployed(_ism);
-        _ism.initialize(_owner, _domainModules);
+        _ism.initialize(_owner, _domains, _modules);
         return _ism;
     }
 

@@ -503,7 +503,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           mailbox,
         });
         isms[originDomain] = ism.address;
-        const tx = await routingIsm['set(uint32,address)'](
+        const tx = await routingIsm.set(
           originDomain,
           isms[originDomain],
           overrides,
