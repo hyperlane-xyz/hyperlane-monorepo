@@ -22,6 +22,7 @@ import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openze
 import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
+import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
@@ -543,5 +544,191 @@ contract TokenBridgeCctpTest is Test {
     function test_parent_initialize_reverts() public {
         vm.expectRevert("Only TokenBridgeCctp.initialize() may be called");
         tbOrigin.initialize(address(0), address(0), address(0));
+    }
+
+    function test_postDispatch(bytes32 recipient, bytes calldata body) public {
+        // precompute message ID
+        bytes32 id = Message.id(
+            Message.formatMessage(
+                3,
+                0,
+                origin,
+                address(this).addressToBytes32(),
+                destination,
+                recipient,
+                body
+            )
+        );
+
+        vm.expectCall(
+            address(messageTransmitterOrigin),
+            abi.encodeCall(
+                MockCircleMessageTransmitter.sendMessageWithCaller,
+                (
+                    cctpDestination,
+                    address(tbDestination).addressToBytes32(),
+                    address(tbDestination).addressToBytes32(),
+                    abi.encode(id)
+                )
+            )
+        );
+        bytes32 actualId = mailboxOrigin.dispatch(
+            destination,
+            recipient,
+            body,
+            bytes(""),
+            tbOrigin
+        );
+        assertEq(actualId, id);
+    }
+
+    function test_postDispatch_revertsWhen_messageNotDispatched(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+        vm.expectRevert(bytes("Message not dispatched"));
+        tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_verify_hookMessage(bytes calldata body) public {
+        TestRecipient recipient = new TestRecipient();
+        recipient.setInterchainSecurityModule(address(tbDestination));
+
+        bytes32 id = mailboxOrigin.dispatch(
+            destination,
+            address(recipient).addressToBytes32(),
+            body,
+            bytes(""),
+            tbOrigin
+        );
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(id)
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+        mailboxDestination.addInboundMetadata(0, metadata);
+
+        mailboxDestination.processNextInboundMessage();
+
+        assertEq(recipient.lastData(), body);
+    }
+
+    function test_verify_revertsWhen_invalidSender(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes32 badSender = ~address(tbOrigin).addressToBytes32();
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            badSender,
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            message
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid circle sender"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidMessageId(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+        bytes32 badMessageId = ~Message.id(message);
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(badMessageId)
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid message id"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidRecipient(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        address badRecipient = address(~bytes20(address(tbDestination)));
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            badRecipient.addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(Message.id(message))
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid circle recipient"));
+        tbDestination.verify(metadata, message);
     }
 }

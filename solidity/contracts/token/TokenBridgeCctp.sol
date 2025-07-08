@@ -275,6 +275,7 @@ contract TokenBridgeCctp is
         uint64 circleNonce,
         bytes29 circleBody
     ) internal pure {
+        circleBody._validateBurnMessageFormat();
         _validateMessageLength(tokenMessage);
 
         require(

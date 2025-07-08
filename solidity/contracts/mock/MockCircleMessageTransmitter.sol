@@ -60,17 +60,18 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
     function sendMessage(
         uint32,
         bytes32,
-        bytes calldata
-    ) external returns (uint64) {
-        revert("Not implemented");
+        bytes calldata message
+    ) public returns (uint64) {
+        emit MessageSent(message);
+        return 0;
     }
 
     function sendMessageWithCaller(
         uint32,
         bytes32,
         bytes32,
-        bytes calldata
+        bytes calldata message
     ) external returns (uint64) {
-        revert("Not implemented");
+        return sendMessage(0, 0, message);
     }
 }
