@@ -3,13 +3,14 @@ import { ethers } from 'ethers';
 
 import { XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  DEFAULT_E2E_TEST_TIMEOUT,
   TEMP_PATH,
   deployXERC20VSToken,
   hyperlaneSubmit,
@@ -18,7 +19,7 @@ import {
 async function getMintOnlyOwnerTransaction(
   xerc20: XERC20VSTest,
   address: Address,
-  amount: string,
+  amount: number,
   chainId: number,
 ) {
   const owner = await xerc20.owner();
@@ -32,10 +33,26 @@ async function getMintOnlyOwnerTransaction(
   };
 }
 
-describe.only('hyperlane submit', function () {
-  const USER = randomAddress();
-  const ANVIL2_PORT = 31338;
-  const ANVIL3_PORT = 31347;
+async function expectUserBalances(
+  users: Address[],
+  xerc20Chains: XERC20VSTest[],
+  balances: number[],
+) {
+  for (const [i, user] of Object.entries(users)) {
+    const idx = Number(i);
+    const xerc20 = xerc20Chains[idx];
+    const balance = balances[idx];
+    const userBalance = await xerc20.balanceOf(user);
+    expect(userBalance).to.eql(ethers.BigNumber.from(balance));
+  }
+}
+
+describe('hyperlane submit', function () {
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+  const ALICE = randomAddress();
+  const BOB = randomAddress();
+  const ANVIL2_CHAIN_ID = 31338;
+  const ANVIL3_CHAIN_ID = 31347;
   let xerc20Chain2: XERC20VSTest;
   let xerc20Chain3: XERC20VSTest;
   before(async function () {
@@ -79,27 +96,64 @@ describe.only('hyperlane submit', function () {
     const strategyPath = `${TEMP_PATH}/impersonate-account-chain-strategy.yaml`;
     writeYamlOrJson(strategyPath, impersonateStrategy);
 
+    const chain2MintAmount = randomInt(1, 1000);
+    const chain3MintAmount = randomInt(1, 1000);
     const transactions = await Promise.all([
-      getMintOnlyOwnerTransaction(xerc20Chain2, USER, '1', ANVIL2_PORT),
-      getMintOnlyOwnerTransaction(xerc20Chain3, USER, '1', ANVIL3_PORT),
+      getMintOnlyOwnerTransaction(
+        xerc20Chain2,
+        ALICE,
+        chain2MintAmount,
+        ANVIL2_CHAIN_ID,
+      ),
+      getMintOnlyOwnerTransaction(
+        xerc20Chain3,
+        BOB,
+        chain3MintAmount,
+        ANVIL3_CHAIN_ID,
+      ),
     ]);
     const transactionsPath = `${TEMP_PATH}/strategy-test-transactions.yaml`;
     writeYamlOrJson(transactionsPath, transactions);
 
-    // Get prior balances
-    const [burnAddress2, burnAddress3] = await Promise.all([
-      xerc20Chain2.balanceOf(USER),
-      xerc20Chain3.balanceOf(USER),
-    ]);
-    expect(burnAddress2).to.eql(ethers.BigNumber.from(0));
-    expect(burnAddress3).to.eql(ethers.BigNumber.from(0));
+    const users = [ALICE, BOB];
+    const xerc20Chains = [xerc20Chain2, xerc20Chain3];
 
+    await expectUserBalances(users, xerc20Chains, [0, 0]);
     await hyperlaneSubmit({ strategyPath, transactionsPath });
-
-    // Check that the balances are now 1
-    expect(burnAddress2).to.eql(ethers.BigNumber.from(1));
-    expect(burnAddress3).to.eql(ethers.BigNumber.from(1));
+    await expectUserBalances(users, xerc20Chains, [
+      chain2MintAmount,
+      chain3MintAmount,
+    ]);
   });
 
-  it.only('should default to JSON RPC if no strategy is provided', function () {});
+  it('should default to JSON RPC strategy if no strategy is provided', async function () {
+    const chain2MintAmount = randomInt(1, 1000);
+    const chain3MintAmount = randomInt(1, 1000);
+    const transactions = await Promise.all([
+      getMintOnlyOwnerTransaction(
+        xerc20Chain2,
+        ALICE,
+        chain2MintAmount,
+        ANVIL2_CHAIN_ID,
+      ),
+      getMintOnlyOwnerTransaction(
+        xerc20Chain3,
+        BOB,
+        chain3MintAmount,
+        ANVIL3_CHAIN_ID,
+      ),
+    ]);
+    const transactionsPath = `${TEMP_PATH}/strategy-test-transactions.yaml`;
+    writeYamlOrJson(transactionsPath, transactions);
+
+    const users = [ALICE, BOB];
+    const xerc20Chains = [xerc20Chain2, xerc20Chain3];
+
+    await expectUserBalances(users, xerc20Chains, [0, 0]);
+    await hyperlaneSubmit({ transactionsPath });
+    await expectUserBalances(users, xerc20Chains, [
+      chain2MintAmount,
+      chain3MintAmount,
+    ]);
+  });
 });
