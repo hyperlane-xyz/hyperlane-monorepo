@@ -30,7 +30,7 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { getRandomValues } from 'crypto';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { bytes } from './utils.js';
 
@@ -114,7 +114,7 @@ export class RadixSDK {
       type: (details.details as any).blueprint_name,
       validators: (
         fields.find((f: any) => f.field_name === 'validators')?.elements ?? []
-      ).map((v: any) => v.hex),
+      ).map((v: any) => ensure0x(v.hex)),
       threshold: parseInt(
         fields.find((f: any) => f.field_name === 'threshold')?.value ?? '0',
       ),
@@ -262,7 +262,7 @@ export class RadixSigningSDK extends RadixSDK {
       privateKey,
       options?.networkId ?? NetworkId.Mainnet,
     );
-    return new RadixSigningSDK(account);
+    return new RadixSigningSDK(account, options);
   }
 
   public async getTestnetXrd() {
@@ -487,7 +487,7 @@ export class RadixSigningSDK extends RadixSDK {
       'MerkleRootMultisigIsm',
       'instantiate',
       [
-        array(ValueKind.Array, ...validators.map((v) => bytes(v))),
+        array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
         u64(threshold),
       ],
     );
@@ -507,7 +507,7 @@ export class RadixSigningSDK extends RadixSDK {
       'MessageIdMultisigIsm',
       'instantiate',
       [
-        array(ValueKind.Blob, ...validators.map((v) => bytes(v))),
+        array(ValueKind.Blob, ...validators.map((v) => bytes(strip0x(v)))),
         u64(threshold),
       ],
     );
@@ -605,7 +605,7 @@ export class RadixSigningSDK extends RadixSDK {
 // console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
 
 // const merkleRootMultisigIsm = await sdk.createMerkleRootMultisigIsm(
-//   ['0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
+//   ['0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
 //   1,
 // );
 // console.log(

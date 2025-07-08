@@ -154,7 +154,10 @@ export class RadixHookModule extends HyperlaneModule<
 
     const { nativeToken } = this.metadataManager.getChainMetadata(this.chain);
 
-    assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
+    assert(
+      nativeToken?.denom,
+      `found no native token denom for chain ${this.chain}`,
+    );
 
     // TODO: RADIX
     // set destination gas configs

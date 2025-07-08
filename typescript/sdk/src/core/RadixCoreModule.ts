@@ -152,8 +152,8 @@ export class RadixCoreModule extends HyperlaneModule<
 
     // 5. Update the configuration with the newly created hooks
     await signer.setDefaultIsm(mailbox, defaultIsm);
-    await signer.setDefaultHook(mailbox, defaultIsm);
-    await signer.setRequiredHook(mailbox, defaultIsm);
+    await signer.setDefaultHook(mailbox, defaultHook);
+    await signer.setRequiredHook(mailbox, requiredHook);
 
     // TODO: RADIX update owner
 
