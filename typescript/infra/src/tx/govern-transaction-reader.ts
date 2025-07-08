@@ -17,10 +17,10 @@ import {
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
-  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -716,7 +716,8 @@ export class GovernTransactionReader {
     }
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const tokenRouterInterface = TokenRouter__factory.createInterface();
+    const tokenRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
 
     const decoded = tokenRouterInterface.parseTransaction({
       data: tx.data,
@@ -730,6 +731,22 @@ export class GovernTransactionReader {
     ) {
       const [hookAddress] = decoded.args;
       insight = `Set hook to ${hookAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Add rebalancer ${rebalancer}`;
     }
 
     if (
