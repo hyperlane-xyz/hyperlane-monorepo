@@ -479,6 +479,8 @@ export {
 export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
+export { RadixHookModule } from './hook/RadixHookModule.js';
+export { RadixCoreModule } from './core/RadixCoreModule.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
 export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
@@ -491,6 +493,7 @@ export {
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
+export { RadixIsmModule } from './ism/RadixIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,

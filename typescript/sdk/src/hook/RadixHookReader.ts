@@ -1,4 +1,4 @@
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -18,7 +18,7 @@ export class RadixHookReader {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly sdk: RadixSDK,
+    protected readonly sdk: RadixSDK | RadixSigningSDK,
   ) {}
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {

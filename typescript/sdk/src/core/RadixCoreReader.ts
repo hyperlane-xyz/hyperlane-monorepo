@@ -1,4 +1,4 @@
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RadixHookReader } from '../hook/RadixHookReader.js';
@@ -16,7 +16,7 @@ export class RadixCoreReader {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly sdk: RadixSDK,
+    protected readonly sdk: RadixSDK | RadixSigningSDK,
   ) {
     this.ismReader = new RadixIsmReader(this.metadataManager, this.sdk);
     this.hookReader = new RadixHookReader(this.metadataManager, this.sdk);
