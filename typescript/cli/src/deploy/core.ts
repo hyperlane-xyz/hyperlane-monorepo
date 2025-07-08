@@ -184,6 +184,7 @@ export async function runCoreApply(params: ApplyParams) {
       }
       break;
     }
+
     case ProtocolType.CosmosNative: {
       await multiProtocolSigner?.initSigner(chain);
       const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
@@ -222,5 +223,37 @@ export async function runCoreApply(params: ApplyParams) {
       }
       break;
     }
+
+    case ProtocolType.Radix: {
+      await multiProtocolSigner?.initSigner(chain);
+      const signer = multiProtocolSigner?.getRadixSigner(chain) ?? null;
+      assert(signer, 'Radix signer failed!');
+
+      const radixCoreModule = new RadixCoreModule(multiProvider, signer, {
+        chain,
+        config,
+        addresses: deployedCoreAddresses,
+      });
+
+      const transactions = await radixCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+
+        for (const transaction of transactions) {
+          await signer.signAndBroadcast(transaction);
+        }
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
+      break;
+    }
+
+    default:
+      throw new Error('Chain protocol is not supported yet!');
   }
 }

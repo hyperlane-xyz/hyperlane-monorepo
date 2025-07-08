@@ -1,3 +1,4 @@
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import { zeroAddress } from 'viem';
 
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
@@ -67,7 +68,9 @@ export class RadixHookModule extends HyperlaneModule<
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(targetConfig: HookConfig): Promise<string[]> {
+  public async update(
+    targetConfig: HookConfig,
+  ): Promise<TransactionManifest[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }

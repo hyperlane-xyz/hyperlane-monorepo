@@ -1,3 +1,5 @@
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
+
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -5,6 +7,7 @@ import {
   Domain,
   ProtocolType,
   assert,
+  deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -15,6 +18,7 @@ import {
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { RadixIsmReader } from './RadixIsmReader.js';
 import {
@@ -22,6 +26,7 @@ import {
   IsmConfigSchema,
   IsmType,
   MultisigIsmConfig,
+  STATIC_ISM_TYPES,
 } from './types.js';
 
 type IsmModuleAddresses = {
@@ -66,7 +71,46 @@ export class RadixIsmModule extends HyperlaneModule<
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
-  public async update(_expectedConfig: IsmConfig): Promise<string[]> {
+  public async update(
+    expectedConfig: IsmConfig,
+  ): Promise<TransactionManifest[]> {
+    expectedConfig = IsmConfigSchema.parse(expectedConfig);
+
+    // Do not support updating to a custom ISM address
+    if (typeof expectedConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
+      );
+    }
+
+    // save current config for comparison
+    // normalize the config to ensure it's in a consistent format for comparison
+    const actualConfig = normalizeConfig(await this.read());
+    expectedConfig = normalizeConfig(expectedConfig);
+
+    assert(
+      typeof expectedConfig === 'object',
+      'normalized expectedConfig should be an object',
+    );
+
+    // Update the config
+    this.args.config = expectedConfig;
+
+    // If configs match, no updates needed
+    if (deepEquals(actualConfig, expectedConfig)) {
+      return [];
+    }
+
+    // if the ISM is a static ISM we can not update it, instead
+    // it needs to be recreated with the expected config
+    if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
+      this.args.addresses.deployedIsm = await this.deploy({
+        config: expectedConfig,
+      });
+
+      return [];
+    }
+
     return [];
   }
 
@@ -140,7 +184,7 @@ export class RadixIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    return this.signer.createMessageIdMultisig(
+    return this.signer.createMessageIdMultisigIsm(
       config.validators,
       config.threshold,
     );

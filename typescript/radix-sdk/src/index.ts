@@ -35,13 +35,11 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 import { bytes } from './utils.js';
 
 const applicationName = 'hyperlane';
-const dashboardBase = 'https://stokenet-dashboard.radixdlt.com'; // For mainnet, use "https://dashboard.radixdlt.com"
 
 type Account = {
   privateKey: PrivateKey;
   publicKey: PublicKey;
   address: string;
-  dashboardLink: string;
 };
 
 export { NetworkId };
@@ -239,7 +237,6 @@ export class RadixSigningSDK extends RadixSDK {
       privateKey: pk,
       publicKey,
       address,
-      dashboardLink: `${dashboardBase}/account/${address}`,
     };
   }
 
@@ -365,7 +362,7 @@ export class RadixSigningSDK extends RadixSDK {
       .build();
   }
 
-  private async submitTransaction(
+  public async signAndBroadcast(
     manifest: TransactionManifest,
   ): Promise<TransactionHash> {
     const constructionMetadata =
@@ -450,39 +447,47 @@ export class RadixSigningSDK extends RadixSDK {
     }
   }
 
-  public async createMailbox(domainId: number) {
-    const transactionManifest = this.createCallFunctionManifest(
+  public populateCreateMailbox(domainId: number) {
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'Mailbox',
       'mailbox_instantiate',
       [u32(domainId)],
     );
+  }
+
+  public async createMailbox(domainId: number) {
+    const transactionManifest = this.populateCreateMailbox(domainId);
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createMerkleTreeHook(mailbox: string) {
-    const transactionManifest = this.createCallFunctionManifest(
+  public populateCreateMerkleTreeHook(mailbox: string) {
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'MerkleTreeHook',
       'instantiate',
       [address(mailbox)],
     );
+  }
+
+  public async createMerkleTreeHook(mailbox: string) {
+    const transactionManifest = this.populateCreateMerkleTreeHook(mailbox);
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createMerkleRootMultisigIsm(
+  public populateCreateMerkleRootMultisigIsm(
     validators: string[],
     threshold: number,
   ) {
-    const transactionManifest = this.createCallFunctionManifest(
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'MerkleRootMultisigIsm',
       'instantiate',
@@ -491,103 +496,141 @@ export class RadixSigningSDK extends RadixSDK {
         u64(threshold),
       ],
     );
+  }
+
+  public async createMerkleRootMultisigIsm(
+    validators: string[],
+    threshold: number,
+  ) {
+    const transactionManifest = this.populateCreateMerkleRootMultisigIsm(
+      validators,
+      threshold,
+    );
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createMessageIdMultisig(
+  public populateCreateMessageIdMultisigIsm(
     validators: string[],
     threshold: number,
   ) {
-    const transactionManifest = this.createCallFunctionManifest(
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'MessageIdMultisigIsm',
       'instantiate',
       [
-        array(ValueKind.Blob, ...validators.map((v) => bytes(strip0x(v)))),
+        array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
         u64(threshold),
       ],
     );
+  }
+
+  public async createMessageIdMultisigIsm(
+    validators: string[],
+    threshold: number,
+  ) {
+    const transactionManifest = this.populateCreateMessageIdMultisigIsm(
+      validators,
+      threshold,
+    );
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createNoopIsm() {
-    const transactionManifest = this.createCallFunctionManifest(
+  public populateCreateNoopIsm() {
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'NoopIsm',
       'instantiate',
       [],
     );
+  }
+
+  public async createNoopIsm() {
+    const transactionManifest = this.populateCreateNoopIsm();
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createIgp(denom: string) {
-    const transactionManifest = this.createCallFunctionManifest(
+  public populateCreateIgp(denom: string) {
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'InterchainGasPaymaster',
       'instantiate',
       [address(denom)],
     );
+  }
+
+  public async createIgp(denom: string) {
+    const transactionManifest = this.populateCreateIgp(denom);
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async createValidatorAnnounce(mailbox: string) {
-    const transactionManifest = this.createCallFunctionManifest(
+  public populateCreateValidatorAnnounce(mailbox: string) {
+    return this.createCallFunctionManifest(
       'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
       'ValidatorAnnounce',
       'instantiate',
       [address(mailbox)],
     );
+  }
+
+  public async createValidatorAnnounce(mailbox: string) {
+    const transactionManifest = this.populateCreateValidatorAnnounce(mailbox);
 
     const intentHashTransactionId =
-      await this.submitTransaction(transactionManifest);
+      await this.signAndBroadcast(transactionManifest);
 
     return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public async setRequiredHook(mailbox: string, hook: string) {
-    const transactionManifest = this.createCallMethodManifest(
-      mailbox,
-      'set_required_hook',
-      [address(hook)],
-    );
+  public populateSetRequiredHook(mailbox: string, hook: string) {
+    return this.createCallMethodManifest(mailbox, 'set_required_hook', [
+      address(hook),
+    ]);
+  }
 
-    await this.submitTransaction(transactionManifest);
+  public async setRequiredHook(mailbox: string, hook: string) {
+    const transactionManifest = this.populateSetRequiredHook(mailbox, hook);
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public populateSetDefaultHook(mailbox: string, hook: string) {
+    return this.createCallMethodManifest(mailbox, 'set_default_hook', [
+      address(hook),
+    ]);
   }
 
   public async setDefaultHook(mailbox: string, hook: string) {
-    const transactionManifest = this.createCallMethodManifest(
-      mailbox,
-      'set_default_hook',
-      [address(hook)],
-    );
+    const transactionManifest = this.populateSetDefaultHook(mailbox, hook);
 
-    await this.submitTransaction(transactionManifest);
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public populateSetDefaultIsm(mailbox: string, ism: string) {
+    return this.createCallMethodManifest(mailbox, 'set_default_ism', [
+      address(ism),
+    ]);
   }
 
   public async setDefaultIsm(mailbox: string, ism: string) {
-    const transactionManifest = this.createCallMethodManifest(
-      mailbox,
-      'set_default_ism',
-      [address(ism)],
-    );
+    const transactionManifest = this.populateSetDefaultIsm(mailbox, ism);
 
-    await this.submitTransaction(transactionManifest);
+    await this.signAndBroadcast(transactionManifest);
   }
 }
 

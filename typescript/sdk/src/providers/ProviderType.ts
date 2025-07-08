@@ -6,6 +6,7 @@ import type {
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import { TransactionStatusResponse } from '@radixdlt/babylon-gateway-api-sdk';
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -274,7 +275,7 @@ export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
-export type AnnotatedRadixTransaction = Annotated<RadixTransaction>;
+export type AnnotatedRadixTransaction = Annotated<TransactionManifest>;
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
@@ -310,9 +311,10 @@ export interface StarknetJsTransaction
   transaction: StarknetInvocation;
 }
 
-export interface RadixTransaction extends TypedTransactionBase<string> {
+export interface RadixTransaction
+  extends TypedTransactionBase<TransactionManifest> {
   type: ProviderType.Radix;
-  transaction: string;
+  transaction: TransactionManifest;
 }
 
 export interface ZKSyncTransaction

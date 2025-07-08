@@ -29,8 +29,12 @@ export class RadixCoreReader {
       throw new Error(`Mailbox not found for address ${mailboxAddress}`);
     }
 
+    // TODO: RADIX
+    // get owner once implemented
+
     return {
-      owner: 'todo',
+      owner:
+        'account_rdx12xn9svm4mmvfs82c4kxhy4as8gafcdgce0r444a7hzsmttx9x02x4f',
       defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.defaultIsm),
       defaultHook: await this.hookReader.deriveHookConfig(mailbox.defaultHook),
       requiredHook: await this.hookReader.deriveHookConfig(

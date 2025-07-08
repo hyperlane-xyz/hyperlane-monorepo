@@ -14,6 +14,7 @@ import { RadixIsmModule } from '../ism/RadixIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedRadixTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -224,11 +225,13 @@ export class RadixCoreModule extends HyperlaneModule<
    * @param expectedConfig - The configuration for the core contracts to be updated.
    * @returns An array of Radix transactions that were executed to update the contract.
    */
-  public async update(expectedConfig: CoreConfig): Promise<string[]> {
+  public async update(
+    expectedConfig: CoreConfig,
+  ): Promise<AnnotatedRadixTransaction[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: string[] = [];
+    const transactions: AnnotatedRadixTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
@@ -242,7 +245,7 @@ export class RadixCoreModule extends HyperlaneModule<
   private createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): string[] {
+  ): AnnotatedRadixTransaction[] {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -262,8 +265,8 @@ export class RadixCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<string[]> {
-    const updateTransactions: string[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -279,17 +282,10 @@ export class RadixCoreModule extends HyperlaneModule<
 
     const newIsmDeployed = actualDefaultIsmConfig.address !== deployedIsm;
     if (newIsmDeployed) {
-      // TODO: RADIX
-      // const { mailbox } = this.serialize();
-      // updateTransactions.push({
-      //   annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
-      //   typeUrl: R.MsgSetMailbox.proto.type,
-      //   value: R.MsgSetMailbox.proto.converter.create({
-      //     owner: actualConfig.owner,
-      //     mailbox_id: mailbox,
-      //     default_ism: deployedIsm,
-      //   }),
-      // });
+      const { mailbox } = this.serialize();
+      updateTransactions.push(
+        this.signer.populateSetDefaultIsm(mailbox, deployedIsm),
+      );
     }
 
     return updateTransactions;
@@ -305,7 +301,7 @@ export class RadixCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: string[];
+    ismUpdateTxs: AnnotatedRadixTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
@@ -317,7 +313,7 @@ export class RadixCoreModule extends HyperlaneModule<
           deployedIsm: actualDefaultIsmConfig.address,
         },
         chain: this.chainName,
-        config: actualDefaultIsmConfig.address,
+        config: actualDefaultIsmConfig,
       },
       this.signer,
     );
@@ -340,8 +336,8 @@ export class RadixCoreModule extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<string[]> {
-    const updateTransactions: string[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -358,17 +354,10 @@ export class RadixCoreModule extends HyperlaneModule<
 
     const newHookDeployed = actualDefaultHookConfig.address !== deployedHook;
     if (newHookDeployed) {
-      // TODO: RADIX
-      // const { mailbox } = this.serialize();
-      // updateTransactions.push({
-      //   annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
-      //   typeUrl: R.MsgSetMailbox.proto.type,
-      //   value: R.MsgSetMailbox.proto.converter.create({
-      //     owner: actualConfig.owner,
-      //     mailbox_id: mailbox,
-      //     default_hook: deployedHook,
-      //   }),
-      // });
+      const { mailbox } = this.serialize();
+      updateTransactions.push(
+        this.signer.populateSetDefaultHook(mailbox, deployedHook),
+      );
     }
 
     return updateTransactions;
@@ -384,8 +373,8 @@ export class RadixCoreModule extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<string[]> {
-    const updateTransactions: string[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -402,17 +391,10 @@ export class RadixCoreModule extends HyperlaneModule<
 
     const newHookDeployed = actualRequiredHookConfig.address !== deployedHook;
     if (newHookDeployed) {
-      // TODO: RADIX
-      // const { mailbox } = this.serialize();
-      // updateTransactions.push({
-      //   annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
-      //   typeUrl: R.MsgSetMailbox.proto.type,
-      //   value: R.MsgSetMailbox.proto.converter.create({
-      //     owner: actualConfig.owner,
-      //     mailbox_id: mailbox,
-      //     required_hook: deployedHook,
-      //   }),
-      // });
+      const { mailbox } = this.serialize();
+      updateTransactions.push(
+        this.signer.populateSetRequiredHook(mailbox, deployedHook),
+      );
     }
 
     return updateTransactions;
@@ -428,7 +410,7 @@ export class RadixCoreModule extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: string[];
+    hookUpdateTxs: AnnotatedRadixTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
@@ -440,7 +422,7 @@ export class RadixCoreModule extends HyperlaneModule<
           deployedHook: actualHookConfig.address,
         },
         chain: this.chainName,
-        config: actualHookConfig.address,
+        config: actualHookConfig,
       },
       this.signer,
     );
