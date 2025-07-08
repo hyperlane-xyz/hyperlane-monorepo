@@ -140,14 +140,14 @@ contract TokenBridgeCctpTest is Test {
         vm.deal(user, 1 ether);
     }
 
-    function _encodeCctpMessage(
+    function _encodeCctpBurnMessage(
         uint64 nonce,
         uint32 sourceDomain,
         bytes32 recipient,
         uint256 amount
     ) internal view returns (bytes memory) {
         return
-            _encodeCctpMessage(
+            _encodeCctpBurnMessage(
                 nonce,
                 sourceDomain,
                 recipient,
@@ -156,7 +156,7 @@ contract TokenBridgeCctpTest is Test {
             );
     }
 
-    function _encodeCctpMessage(
+    function _encodeCctpBurnMessage(
         uint64 nonce,
         uint32 sourceDomain,
         bytes32 recipient,
@@ -177,7 +177,7 @@ contract TokenBridgeCctpTest is Test {
                 cctpDestination,
                 nonce,
                 address(tokenMessengerOrigin).addressToBytes32(),
-                address(tbDestination).addressToBytes32(),
+                address(tokenMessengerDestination).addressToBytes32(),
                 bytes32(0),
                 burnMessage
             );
@@ -272,7 +272,7 @@ contract TokenBridgeCctpTest is Test {
         _expectOffChainLookUpRevert(message);
         tbDestination.getOffchainVerifyInfo(message);
 
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -335,7 +335,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid nonce := nextNonce + 1
         uint64 badNonce = cctpNonce + 1;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             badNonce,
             cctpOrigin,
             recipient,
@@ -357,7 +357,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid source domain := destination
         uint32 badSourceDomain = cctpDestination;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             badSourceDomain,
             recipient,
@@ -379,7 +379,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid amount := amount + 1
         uint256 badAmount = amount + 1;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -388,7 +388,7 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid amount"));
+        vm.expectRevert(bytes("Invalid mint amount"));
         tbDestination.verify(metadata, message);
     }
 
@@ -397,7 +397,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid recipient := evil
         bytes32 badRecipient = evil.addressToBytes32();
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             badRecipient,
@@ -406,7 +406,7 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid recipient"));
+        vm.expectRevert(bytes("Invalid mint recipient"));
         tbDestination.verify(metadata, message);
     }
 
@@ -418,7 +418,7 @@ contract TokenBridgeCctpTest is Test {
         ) = _setupAndDispatch();
 
         // invalid sender := evil
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -428,7 +428,7 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid sender"));
+        vm.expectRevert(bytes("Invalid burn sender"));
         tbDestination.verify(metadata, message);
     }
 
@@ -439,7 +439,7 @@ contract TokenBridgeCctpTest is Test {
             bytes32 recipient
         ) = _setupAndDispatch();
 
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ICircleMessageTransmitter} from "../middleware/liquidity-layer/interfaces/circle/ICircleMessageTransmitter.sol";
+import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
+contract MockCircleMessageTransmitter is IMessageTransmitter {
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
     uint32 public version;
@@ -36,11 +36,41 @@ contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
         token.mint(_recipient, _amount);
     }
 
-    function usedNonces(bytes32 _nonceId) external view returns (bool) {
-        return processedNonces[_nonceId];
+    function usedNonces(bytes32 _nonceId) external view returns (uint256) {
+        return processedNonces[_nonceId] ? 1 : 0;
     }
 
     function setVersion(uint32 _version) external {
         version = _version;
+    }
+
+    function localDomain() external view returns (uint32) {
+        return 0;
+    }
+
+    function replaceMessage(
+        bytes calldata,
+        bytes calldata,
+        bytes calldata,
+        bytes32
+    ) external {
+        revert("Not implemented");
+    }
+
+    function sendMessage(
+        uint32,
+        bytes32,
+        bytes calldata
+    ) external returns (uint64) {
+        revert("Not implemented");
+    }
+
+    function sendMessageWithCaller(
+        uint32,
+        bytes32,
+        bytes32,
+        bytes calldata
+    ) external returns (uint64) {
+        revert("Not implemented");
     }
 }
