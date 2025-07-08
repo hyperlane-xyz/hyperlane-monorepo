@@ -1,4 +1,5 @@
 import {
+  EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
@@ -36,6 +37,7 @@ export const hypERC20contracts = {
   [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
+  [TokenType.everclear]: 'EverclearTokenBridge',
 } as const;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -54,6 +56,7 @@ export const hypERC20factories = {
   // assume V1 for now
   [TokenType.nativeOpL1]: new OpL1V1NativeTokenBridge__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
+  [TokenType.everclear]: new EverclearTokenBridge__factory(),
 } as const;
 export type HypERC20Factories = typeof hypERC20factories;
 

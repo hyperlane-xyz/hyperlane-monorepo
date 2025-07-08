@@ -6,6 +6,7 @@ import {
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
+  ITokenBridge,
   IXERC20Lockbox__factory,
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
@@ -515,7 +516,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): GasRouter {
+  router(contracts: HyperlaneContracts<HypERC20Factories>): ITokenBridge {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
         return contracts[key];

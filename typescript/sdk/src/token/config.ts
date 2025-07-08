@@ -15,6 +15,7 @@ export enum TokenType {
   nativeOpL1 = 'nativeOpL1',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  everclear = 'everclear',
 }
 
 // A token is defined movable collateral if its solidity contract implementation
@@ -35,6 +36,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.synthetic]: false,
   [TokenType.syntheticRebase]: false,
   [TokenType.syntheticUri]: false,
+  [TokenType.everclear]: false,
 } as const;
 
 export type MovableTokenType = {
@@ -53,6 +55,8 @@ export const gasOverhead = (tokenType: TokenType): number => {
       return 64_000;
     case TokenType.native:
       return 44_000;
+    case TokenType.everclear:
+      return 68_000;
     default:
       return 68_000;
   }

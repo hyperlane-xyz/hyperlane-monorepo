@@ -197,6 +197,28 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export const EverclearTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.literal(TokenType.everclear),
+  token: z.string().describe('The underlying ERC20 token address'),
+  everclearAdapter: z
+    .string()
+    .describe('The Everclear adapter contract address'),
+  outputAssets: z
+    .record(z.string(), z.string())
+    .describe('Mapping of destination domains to output asset addresses')
+    .optional(),
+  feeParams: z
+    .object({
+      fee: z.string(),
+      deadline: z.string(),
+      sig: z.string(),
+    })
+    .describe('Fee parameters for Everclear operations')
+    .optional(),
+});
+export type EverclearTokenConfig = z.infer<typeof EverclearTokenConfigSchema>;
+export const isEverclearTokenConfig = isCompliant(EverclearTokenConfigSchema);
+
 export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
@@ -231,6 +253,7 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  EverclearTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
@@ -278,7 +301,8 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
-          isNativeTokenConfig(config),
+          isNativeTokenConfig(config) ||
+          isEverclearTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
