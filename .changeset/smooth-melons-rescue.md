@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': minor
 ---
 
-Implement add on DomainRoutingISM
+Implement addBatch, setBatch, and removeBatch on DomainRoutingISM
