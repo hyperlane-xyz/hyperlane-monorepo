@@ -1,7 +1,8 @@
+import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import { XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
@@ -30,7 +31,11 @@ async function getMintOnlyOwnerTransaction(
     chainId,
   };
 }
+
 describe.only('hyperlane submit', function () {
+  const USER = randomAddress();
+  const ANVIL2_PORT = 31338;
+  const ANVIL3_PORT = 31347;
   let xerc20Chain2: XERC20VSTest;
   let xerc20Chain3: XERC20VSTest;
   before(async function () {
@@ -47,22 +52,26 @@ describe.only('hyperlane submit', function () {
       'TOKEN.E',
     );
   });
+
   it('should execute an impersonated account strategy for multiple chains', async function () {
-    const xerc20Chain2Owner = await xerc20Chain2.owner();
-    const xerc20Chain3Owner = await xerc20Chain3.owner();
+    const [xerc20Owner2, xerc20Owner3] = await Promise.all([
+      xerc20Chain2.owner(),
+      xerc20Chain3.owner(),
+    ]);
+
     const impersonateStrategy = {
       [CHAIN_NAME_2]: {
         submitter: {
           chain: CHAIN_NAME_2,
           type: TxSubmitterType.IMPERSONATED_ACCOUNT,
-          userAddress: xerc20Chain2Owner,
+          userAddress: xerc20Owner2,
         },
       },
       [CHAIN_NAME_3]: {
         submitter: {
           chain: CHAIN_NAME_3,
           type: TxSubmitterType.IMPERSONATED_ACCOUNT,
-          userAddress: xerc20Chain3Owner,
+          userAddress: xerc20Owner3,
         },
       },
     };
@@ -71,14 +80,26 @@ describe.only('hyperlane submit', function () {
     writeYamlOrJson(strategyPath, impersonateStrategy);
 
     const transactions = await Promise.all([
-      getMintOnlyOwnerTransaction(xerc20Chain2, xerc20Chain2Owner, '1', 31338),
-      getMintOnlyOwnerTransaction(xerc20Chain3, xerc20Chain3Owner, '1', 31347),
+      getMintOnlyOwnerTransaction(xerc20Chain2, USER, '1', ANVIL2_PORT),
+      getMintOnlyOwnerTransaction(xerc20Chain3, USER, '1', ANVIL3_PORT),
     ]);
     const transactionsPath = `${TEMP_PATH}/strategy-test-transactions.yaml`;
     writeYamlOrJson(transactionsPath, transactions);
+
+    // Get prior balances
+    const [burnAddress2, burnAddress3] = await Promise.all([
+      xerc20Chain2.balanceOf(USER),
+      xerc20Chain3.balanceOf(USER),
+    ]);
+    expect(burnAddress2).to.eql(ethers.BigNumber.from(0));
+    expect(burnAddress3).to.eql(ethers.BigNumber.from(0));
+
     await hyperlaneSubmit({ strategyPath, transactionsPath });
 
-    // Check that the balance is now 1
+    // Check that the balances are now 1
+    expect(burnAddress2).to.eql(ethers.BigNumber.from(1));
+    expect(burnAddress3).to.eql(ethers.BigNumber.from(1));
   });
-  xit('should output receipts', function () {});
+
+  it.only('should default to JSON RPC if no strategy is provided', function () {});
 });
