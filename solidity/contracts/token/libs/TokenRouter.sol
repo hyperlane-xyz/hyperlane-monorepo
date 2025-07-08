@@ -42,6 +42,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     constructor(address _mailbox) GasRouter(_mailbox) {}
 
+    function token() public view virtual returns (address);
+
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.

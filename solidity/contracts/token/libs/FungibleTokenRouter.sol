@@ -62,8 +62,6 @@ abstract contract FungibleTokenRouter is TokenRouter {
         return quotes;
     }
 
-    function token() public view virtual returns (address);
-
     function _feeAmount(
         uint32 _destination,
         bytes32 _recipient,

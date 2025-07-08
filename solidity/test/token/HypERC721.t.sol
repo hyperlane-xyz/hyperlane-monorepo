@@ -17,6 +17,7 @@ import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -141,7 +142,7 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
         );
 
         _processTransfers(BOB, _tokenId);
-        assertEq(remotePrimaryToken.balanceOf(BOB), 1);
+        assertEq(IERC721(remoteToken.token()).balanceOf(BOB), 1);
     }
 
     function testBenchmark_overheadGasUsage() public {
@@ -417,7 +418,7 @@ contract HypERC721CollateralURIStorageTest is HypTokenTest {
         );
 
         _processTransfers(BOB, 0);
-        assertEq(remotePrimaryToken.balanceOf(BOB), 1);
+        assertEq(IERC721(address(remoteToken)).balanceOf(BOB), 1);
         assertEq(
             localPrimaryToken.balanceOf(address(this)),
             INITIAL_SUPPLY * 2 - 2
