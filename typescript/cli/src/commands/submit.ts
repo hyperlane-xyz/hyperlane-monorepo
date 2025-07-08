@@ -41,7 +41,6 @@ export const submitCommand: CommandModuleWithWriteContext<{
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
-    // Note: transactions are grouped by chainId, but chainSubmissionStrategy is grouped by chainName
     const chainTransactions = groupBy(
       getTransactions(transactionsPath),
       'chainId',
