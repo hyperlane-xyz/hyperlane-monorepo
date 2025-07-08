@@ -50,7 +50,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.LAYER_ZERO_V1);
+        return uint8(IPostDispatchHook.HookTypes.LAYER_ZERO_V1);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

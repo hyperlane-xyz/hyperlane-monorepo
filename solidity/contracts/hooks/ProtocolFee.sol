@@ -66,7 +66,7 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.PROTOCOL_FEE);
+        return uint8(IPostDispatchHook.HookTypes.PROTOCOL_FEE);
     }
 
     /**
