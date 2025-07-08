@@ -199,6 +199,12 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
 
 export const EverclearTokenConfigSchema = TokenMetadataSchema.extend({
   type: z.literal(TokenType.everclear),
+  token: z
+    .string()
+    .describe('The ERC20 token address to be used as collateral'),
+  everclearAdapter: z
+    .string()
+    .describe('The Everclear adapter contract address'),
   outputAssets: z.record(z.number(), z.string()),
   feeParams: z.object({
     fee: z.number(),

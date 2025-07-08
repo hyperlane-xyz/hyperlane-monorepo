@@ -33,6 +33,7 @@ import {
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenMetadataMap,
+  TokenType,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -86,6 +87,75 @@ import {
   warpRouteIdFromFileName,
 } from './utils.js';
 
+/**
+ * Checks if a config contains any everclear token configurations
+ */
+function hasEverclearConfigs(config: any): boolean {
+  return Object.values(config).some(
+    (chainConfig: any) => chainConfig.type === TokenType.everclear,
+  );
+}
+
+/**
+ * Separates everclear configs from router configs
+ */
+function separateEverclearConfigs(config: any): {
+  routerConfigs: WarpRouteDeployConfigMailboxRequired;
+  everclearConfigs: Record<string, any>;
+} {
+  const routerConfigs: WarpRouteDeployConfigMailboxRequired = {};
+  const everclearConfigs: Record<string, any> = {};
+
+  for (const [chain, chainConfig] of Object.entries(config)) {
+    if ((chainConfig as any).type === TokenType.everclear) {
+      everclearConfigs[chain] = chainConfig;
+    } else {
+      routerConfigs[chain] = chainConfig as any;
+    }
+  }
+
+  return { routerConfigs, everclearConfigs };
+}
+
+/**
+ * Handles everclear token deployment with proper guidance
+ */
+async function handleEverclearTokens(
+  context: WriteCommandContext,
+  everclearConfigs: Record<string, any>,
+): Promise<void> {
+  log('🔧 Everclear Token Bridge configurations detected:');
+  log('Chains:', Object.keys(everclearConfigs).join(', '));
+  log('');
+
+  // For now, provide guidance on how to deploy everclear tokens
+  log(
+    '📋 To deploy these Everclear Token Bridges, use the EverclearTokenBridgeDeployer:',
+  );
+  log('');
+  log('```typescript');
+  log('import { EverclearTokenBridgeDeployer } from "@hyperlane-xyz/sdk";');
+  log('');
+  log('const deployer = new EverclearTokenBridgeDeployer(multiProvider);');
+  log('const deployedContracts = await deployer.deploy(everclearConfigs);');
+  log('```');
+  log('');
+  log('Configuration for your everclear tokens:');
+  log(indentYamlOrJson(yamlStringify(everclearConfigs, null, 2), 2));
+  log('');
+
+  // TODO: In the future, we can actually deploy here when the SDK export is fixed
+  // try {
+  //   const { EverclearTokenBridgeDeployer } = await import('@hyperlane-xyz/sdk');
+  //   const deployer = new EverclearTokenBridgeDeployer(context.multiProvider);
+  //   const deployedContracts = await deployer.deploy(everclearConfigs);
+  //   logGreen('✅ Everclear Token Bridge deployments complete');
+  // } catch (error) {
+  //   log('❌ Everclear deployment failed:', error);
+  //   throw error;
+  // }
+}
+
 interface DeployParams {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
@@ -110,6 +180,25 @@ export async function runWarpRouteDeploy({
   warpDeployConfigFileName?: string;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
+
+  // Check if this config contains everclear tokens
+  if (hasEverclearConfigs(warpDeployConfig)) {
+    const { routerConfigs, everclearConfigs } =
+      separateEverclearConfigs(warpDeployConfig);
+
+    // Handle everclear tokens
+    if (Object.keys(everclearConfigs).length > 0) {
+      await handleEverclearTokens(context, everclearConfigs);
+
+      if (Object.keys(routerConfigs).length === 0) {
+        log('✅ Everclear configuration processing complete.');
+        return;
+      }
+
+      log('📋 Continuing with router token deployment...');
+      warpDeployConfig = routerConfigs;
+    }
+  }
 
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
@@ -334,10 +423,40 @@ export async function runWarpRouteApply(
   const { warpDeployConfig, warpCoreConfig, context } = params;
   const { chainMetadata, skipConfirmation } = context;
 
-  WarpRouteDeployConfigSchema.parse(warpDeployConfig);
+  // Check if this config contains everclear tokens
+  if (hasEverclearConfigs(warpDeployConfig)) {
+    const { routerConfigs, everclearConfigs } =
+      separateEverclearConfigs(warpDeployConfig);
+
+    // If we have everclear configs, we need to handle them separately
+    if (Object.keys(everclearConfigs).length > 0) {
+      log('⚠️  Everclear token configurations detected!');
+      log(
+        'Everclear tokens are bridges, not routers, and cannot be updated via warp apply.',
+      );
+      log(
+        'Please use the EverclearTokenBridgeDeployer for everclear token management.',
+      );
+      log(
+        'Everclear configs found for chains:',
+        Object.keys(everclearConfigs).join(', '),
+      );
+
+      if (Object.keys(routerConfigs).length === 0) {
+        throw new Error(
+          'No router configurations found. Use EverclearTokenBridgeDeployer for everclear-only management.',
+        );
+      }
+
+      log('Proceeding with router token updates only...');
+      params.warpDeployConfig = routerConfigs;
+    }
+  }
+
+  WarpRouteDeployConfigSchema.parse(params.warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  const chains = Object.keys(warpDeployConfig);
+  const chains = Object.keys(params.warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -358,7 +477,7 @@ export async function runWarpRouteApply(
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
     params,
     apiKeys,
-    warpDeployConfig,
+    params.warpDeployConfig,
     updatedWarpCoreConfig,
   );
 

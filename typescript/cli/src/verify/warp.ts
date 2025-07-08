@@ -52,6 +52,15 @@ export async function runVerifyWarpRoute({
       logBlue(`Unsupported chain ${chainName}. Skipping.`);
       continue;
     }
+
+    // Skip everclear tokens as they are bridges, not routers
+    if (token.standard && token.standard.includes('everclear')) {
+      logBlue(
+        `Everclear token on ${chainName}. Skipping verification as it's a bridge, not a router.`,
+      );
+      continue;
+    }
+
     assert(token.addressOrDenom, 'Invalid addressOrDenom');
 
     const provider = multiProvider.getProvider(chainName);
@@ -121,13 +130,22 @@ async function getWarpRouteFactory(
   factory: ContractFactory;
   tokenType: Exclude<
     TokenType,
-    TokenType.syntheticUri | TokenType.collateralUri
+    TokenType.syntheticUri | TokenType.collateralUri | TokenType.everclear
   >;
 }> {
   const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chainName);
-  const tokenType = (await warpRouteReader.deriveTokenType(
-    warpRouteAddress,
-  )) as Exclude<TokenType, TokenType.syntheticUri | TokenType.collateralUri>;
+  const derivedTokenType =
+    await warpRouteReader.deriveTokenType(warpRouteAddress);
+
+  // Ensure we don't try to get factory for everclear tokens
+  if (derivedTokenType === TokenType.everclear) {
+    throw new Error('Everclear tokens are not supported for verification');
+  }
+
+  const tokenType = derivedTokenType as Exclude<
+    TokenType,
+    TokenType.syntheticUri | TokenType.collateralUri | TokenType.everclear
+  >;
 
   const factory = objFilter(
     hypERC20factories,

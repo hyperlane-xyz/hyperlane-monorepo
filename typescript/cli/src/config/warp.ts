@@ -13,7 +13,6 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
@@ -61,6 +60,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
   [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
+  [TokenType.everclear]:
+    "A token bridge that integrates with Everclear's intent-based architecture",
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',
@@ -181,7 +182,7 @@ export async function createWarpRouteDeployConfig({
     requiresConfirmation: !context.skipConfirmation,
   });
 
-  const result: WarpRouteDeployConfig = {};
+  const result: any = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
@@ -312,6 +313,41 @@ export async function createWarpRouteDeployConfig({
           proxyAdmin,
           interchainSecurityModule,
           isNft: false,
+        };
+        break;
+      case TokenType.everclear:
+        result[chain] = {
+          type,
+          token: await input({
+            message: `Enter the ERC20 token address on chain ${chain}`,
+          }),
+          everclearAdapter: await input({
+            message: `Enter the Everclear adapter address on chain ${chain}`,
+          }),
+          outputAssets: {
+            [await input({
+              message: `Enter the destination domain ID (e.g., 10 for Optimism)`,
+            })]: await input({
+              message: `Enter the output asset address on the destination chain`,
+            }),
+          },
+          feeParams: {
+            fee: parseInt(
+              await input({
+                message: `Enter the fee amount (in wei)`,
+              }),
+              10,
+            ),
+            deadline: parseInt(
+              await input({
+                message: `Enter the fee deadline (unix timestamp)`,
+              }),
+              10,
+            ),
+            signature: await input({
+              message: `Enter the fee signature`,
+            }),
+          },
         };
         break;
       default:
