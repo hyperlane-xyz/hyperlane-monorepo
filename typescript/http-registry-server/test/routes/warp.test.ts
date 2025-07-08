@@ -36,7 +36,7 @@ describe('Warp Routes', () => {
 
   describe('GET /warp-route/:id', () => {
     it('should return warp route when it exists', async () => {
-      const warpRouteId = 'test-warp-route';
+      const warpRouteId = 'test/warp-route';
       mockWarpService.getWarpRoute.resolves(mockWarpRoute);
 
       const response = await request(app)
@@ -48,7 +48,7 @@ describe('Warp Routes', () => {
     });
 
     it('should return 404 when warp route does not exist', async () => {
-      const warpRouteId = 'nonexistent-warp-route';
+      const warpRouteId = 'nonexistent/warp-route';
       mockWarpService.getWarpRoute.rejects(
         new NotFoundError('Warp route not found'),
       );
@@ -62,17 +62,15 @@ describe('Warp Routes', () => {
     });
 
     it('should return 500 when service throws unexpected error', async () => {
-      const warpRouteId = 'error-warp-route';
-      mockWarpService.getWarpRoute.rejects(
-        new Error('Database connection failed'),
-      );
+      const warpRouteId = 'error/warp-route';
+      mockWarpService.getWarpRoute.rejects(new Error('Unexpected error'));
 
       const response = await request(app)
         .get(`/warp-route/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       expect(response.body.message).to.include('Internal Server Error');
-      expect(response.body.message).to.include('Database connection failed');
+      expect(response.body.message).to.include('Unexpected error');
     });
 
     it('should return 400 for invalid warp route ID format', async () => {
@@ -81,7 +79,7 @@ describe('Warp Routes', () => {
     });
 
     it('should handle special characters in warp route ID', async () => {
-      const specialId = 'test-warp-route-with-special@chars!';
+      const specialId = 'test/warp-route-with-special@chars!';
       mockWarpService.getWarpRoute.resolves(mockWarpRoute);
 
       const response = await request(app)
@@ -93,7 +91,7 @@ describe('Warp Routes', () => {
     });
 
     it('should handle service returning null gracefully', async () => {
-      const warpRouteId = 'null-return';
+      const warpRouteId = 'null/return';
       // Service should throw NotFoundError, but test edge case
       mockWarpService.getWarpRoute.resolves(null as any);
 
@@ -105,7 +103,7 @@ describe('Warp Routes', () => {
     });
 
     it('should preserve response headers', async () => {
-      const warpRouteId = 'test-headers';
+      const warpRouteId = 'test-headers/warp-route';
       mockWarpService.getWarpRoute.resolves(mockWarpRoute);
 
       const response = await request(app)
