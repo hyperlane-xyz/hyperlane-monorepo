@@ -30,7 +30,7 @@ export function createErrorHandler(logger: Logger | Console) {
               AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR,
             );
 
-    logger.error('Error handling request:', err);
+    logger.error({ error: err }, 'Error handling request');
 
     res.status(apiError.status).json({
       message: apiError.message,

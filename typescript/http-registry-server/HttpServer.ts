@@ -47,6 +47,7 @@ export class HttpServer {
     if (isNaN(port)) {
       if (portInput) {
         this.logger.warn(
+          { port: portInput, defaultPort: ServerConstants.DEFAULT_PORT },
           `Invalid PORT value "${portInput}". Falling back to default ${ServerConstants.DEFAULT_PORT}.`,
         );
       }
@@ -57,6 +58,10 @@ export class HttpServer {
     if (isNaN(refreshInterval)) {
       if (refreshIntervalInput) {
         this.logger.warn(
+          {
+            refreshInterval: refreshIntervalInput,
+            defaultRefreshInterval: ServerConstants.DEFAULT_REFRESH_INTERVAL,
+          },
           `Invalid REFRESH_INTERVAL value "${refreshIntervalInput}". Falling back to default ${ServerConstants.DEFAULT_REFRESH_INTERVAL}.`,
         );
       }
@@ -99,13 +104,15 @@ export class HttpServer {
 
       const host = process.env.HOST || ServerConstants.DEFAULT_HOST;
       const server = this.app.listen(port, host, () =>
-        this.logger.info(`Server running on port ${port}`),
+        this.logger.info({ port }, 'Server running'),
       );
 
       server.on('request', (req, _res) =>
-        this.logger.info('Request:', req.url),
+        this.logger.info({ url: req.url }, 'Request received'),
       );
-      server.on('error', (error) => this.logger.error('Server error:', error));
+      server.on('error', (error) =>
+        this.logger.error({ error }, 'Server error'),
+      );
 
       // add shutdown handler
       const shutdown = () => {
@@ -115,7 +122,7 @@ export class HttpServer {
       process.on('SIGTERM', shutdown);
       process.on('SIGINT', shutdown);
     } catch (error) {
-      this.logger.error('Error starting server:', error);
+      this.logger.error({ error }, 'Error starting server');
       process.exit(1);
     }
   }
