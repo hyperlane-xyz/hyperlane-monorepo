@@ -38,10 +38,12 @@ export const ChainSubmissionStrategySchema = z.preprocess(
           destinationChain,
         } = strategy.submitter;
         const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
-          {
-            ...internalSubmitter,
-            chain: strategy.submitter.chain,
-          };
+          internalSubmitter.type === TxSubmitterType.FILE
+            ? internalSubmitter
+            : {
+                ...internalSubmitter,
+                chain: strategy.submitter.chain,
+              };
 
         // When the internal submitter of the interchain account is a Multisig, the owner address and the multisig address need to match
         if (

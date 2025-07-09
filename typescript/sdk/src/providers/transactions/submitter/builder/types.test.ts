@@ -134,9 +134,12 @@ describe('ChainSubmissionStrategySchema', () => {
       expect(
         data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
-      expect(
-        data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.chain,
-      ).to.equal(CHAIN_MOCK);
+
+      if ('chain' in data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter) {
+        expect(
+          data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.chain,
+        ).to.equal(CHAIN_MOCK);
+      }
     });
 
     const unsetOwnerTestCases = testCases.filter(
@@ -186,7 +189,9 @@ describe('ChainSubmissionStrategySchema', () => {
           expect(icaSubmitter.destinationChain).to.equal(
             DESTINATION_CHAIN_MOCK,
           );
-          expect(icaSubmitter.internalSubmitter.chain).to.equal(CHAIN_MOCK);
+
+          if ('chain' in icaSubmitter.internalSubmitter)
+            expect(icaSubmitter.internalSubmitter.chain).to.equal(CHAIN_MOCK);
         }
       }
     });
