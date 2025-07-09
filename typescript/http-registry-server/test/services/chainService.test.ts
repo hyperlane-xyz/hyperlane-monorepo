@@ -107,58 +107,58 @@ describe('ChainService', () => {
     });
   });
 
-  describe('setChainMetadata', () => {
-    it('should update chain metadata successfully', async () => {
-      const updatedMetadata = {
-        ...mockChainMetadata,
-        displayName: 'Updated Chain',
+  describe('updateChain', () => {
+    it('should update chain successfully', async () => {
+      const updateParams = {
+        chainName: MOCK_CHAIN_NAME,
+        metadata: {
+          ...mockChainMetadata,
+          displayName: 'Updated Chain',
+        },
       };
-      sinon.stub(mockRegistry, 'updateChain').resolves(updatedMetadata);
+      const updateChainStub = sinon
+        .stub(mockRegistry, 'updateChain')
+        .resolves();
 
-      const result = await chainService.setChainMetadata(
-        MOCK_CHAIN_NAME,
-        updatedMetadata,
-      );
+      await chainService.updateChain(updateParams);
 
-      expect(result).to.deep.equal(updatedMetadata);
+      expect(updateChainStub.calledWith(updateParams)).to.be.true;
       expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
     });
 
     it('should propagate update errors', async () => {
-      const updatedMetadata = {
-        ...mockChainMetadata,
-        displayName: 'Updated Chain',
+      const updateParams = {
+        chainName: MOCK_CHAIN_NAME,
+        metadata: {
+          ...mockChainMetadata,
+          displayName: 'Updated Chain',
+        },
       };
       sinon
         .stub(mockRegistry, 'updateChain')
         .rejects(new Error('Update failed'));
 
-      await expect(
-        chainService.setChainMetadata(MOCK_CHAIN_NAME, updatedMetadata),
-      ).to.be.rejectedWith('Update failed');
+      await expect(chainService.updateChain(updateParams)).to.be.rejectedWith(
+        'Update failed',
+      );
     });
 
     it('should call withRegistry with correct update operation', async () => {
-      const updatedMetadata = {
-        ...mockChainMetadata,
-        displayName: 'Updated Chain',
+      const updateParams = {
+        chainName: MOCK_CHAIN_NAME,
+        metadata: {
+          ...mockChainMetadata,
+          displayName: 'Updated Chain',
+        },
       };
-      // Add a stub directly to the existing mockRegistry instance for this test
       const updateChainStub = sinon
         .stub(mockRegistry, 'updateChain')
         .resolves();
 
-      await chainService.setChainMetadata(MOCK_CHAIN_NAME, updatedMetadata);
+      await chainService.updateChain(updateParams);
 
       expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
-
-      // Ensure the stub on our full mock registry was called correctly
-      expect(
-        updateChainStub.calledWith({
-          chainName: MOCK_CHAIN_NAME,
-          metadata: updatedMetadata,
-        }),
-      ).to.be.true;
+      expect(updateChainStub.calledWith(updateParams)).to.be.true;
     });
   });
 });

@@ -85,24 +85,26 @@ describe('Chain Routes', () => {
     });
   });
 
-  describe('POST /chain/:chain/metadata', () => {
-    it('should update chain metadata successfully', async () => {
-      const updatedMetadata = {
-        ...mockChainMetadata,
-        displayName: 'Updated Chain',
+  describe('POST /chain/:chain', () => {
+    it('should update chain successfully', async () => {
+      const updateParams = {
+        metadata: {
+          ...mockChainMetadata,
+          displayName: 'Updated Chain',
+        },
       };
-      mockChainService.setChainMetadata.resolves();
+      mockChainService.updateChain.resolves();
 
       await request(app)
-        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
-        .send(updatedMetadata)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
+        .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
 
       expect(
-        mockChainService.setChainMetadata.calledWith(
-          MOCK_CHAIN_NAME,
-          updatedMetadata,
-        ),
+        mockChainService.updateChain.calledWith({
+          chainName: MOCK_CHAIN_NAME,
+          ...updateParams,
+        }),
       ).to.be.true;
     });
 
@@ -110,44 +112,49 @@ describe('Chain Routes', () => {
       const invalidMetadata = { invalidField: 'invalid' };
 
       const response = await request(app)
-        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
         .send(invalidMetadata)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
       expect(response.body.message).to.include('Validation error in body');
-      expect(mockChainService.setChainMetadata.called).to.be.false;
+      expect(mockChainService.updateChain.called).to.be.false;
     });
 
     it('should return 400 for missing request body', async () => {
       const response = await request(app)
-        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
         .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
 
       expect(response.body.message).to.include('Validation error in body');
     });
 
     it('should return 500 when service update fails', async () => {
-      mockChainService.setChainMetadata.rejects(new Error('Update failed'));
+      const updateParams = {
+        metadata: mockChainMetadata,
+      };
+      mockChainService.updateChain.rejects(new Error('Update failed'));
 
       const response = await request(app)
-        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
-        .send(mockChainMetadata)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
+        .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       expect(response.body.message).to.include('Update failed');
     });
 
     it('should handle content-type correctly', async () => {
-      const updatedMetadata = {
-        ...mockChainMetadata,
-        displayName: 'JSON Test',
+      const updateParams = {
+        metadata: {
+          ...mockChainMetadata,
+          displayName: 'JSON Test',
+        },
       };
-      mockChainService.setChainMetadata.resolves();
+      mockChainService.updateChain.resolves();
 
       await request(app)
-        .post(`/chain/${MOCK_CHAIN_NAME}/metadata`)
+        .post(`/chain/${MOCK_CHAIN_NAME}`)
         .set('Content-Type', 'application/json')
-        .send(updatedMetadata)
+        .send(updateParams)
         .expect(AppConstants.HTTP_STATUS_NO_CONTENT);
     });
   });

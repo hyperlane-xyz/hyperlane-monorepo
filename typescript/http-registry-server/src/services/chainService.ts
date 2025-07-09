@@ -1,4 +1,4 @@
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ChainAddresses, UpdateChainParams } from '@hyperlane-xyz/registry';
 import { ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { NotFoundError } from '../errors/ApiError.js';
@@ -35,12 +35,9 @@ export class ChainService extends AbstractService {
     });
   }
 
-  async setChainMetadata(
-    chainName: ChainName,
-    metadata: ChainMetadata,
-  ): Promise<void> {
+  async updateChain(params: UpdateChainParams): Promise<void> {
     return this.withRegistry(async (registry) => {
-      return registry.updateChain({ chainName, metadata });
+      await registry.updateChain(params);
     });
   }
 }
