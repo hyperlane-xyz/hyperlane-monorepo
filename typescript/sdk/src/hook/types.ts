@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -129,24 +129,19 @@ export const MailboxDefaultHookSchema = z.object({
 
 export const OpStackHookSchema = OwnableSchema.extend({
   type: z.literal(HookType.OP_STACK),
-  nativeBridge: z.string(),
-  destinationChain: z.string(),
+  nativeBridge: ZHash,
+  destinationChain: ZChainName,
 });
 
 export const ArbL2ToL1HookSchema = z.object({
   type: z.literal(HookType.ARB_L2_TO_L1),
-  arbSys: z
-    .string()
-    .describe(
-      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
-    ),
-  bridge: z
-    .string()
-    .optional()
-    .describe(
-      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
-    ),
-  destinationChain: z.string(),
+  arbSys: ZHash.describe(
+    'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+  ),
+  bridge: ZHash.optional().describe(
+    'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+  ),
+  destinationChain: ZChainName,
   childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
 });
 
@@ -189,13 +184,13 @@ export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
   z.lazy(() =>
     z.object({
       type: z.literal(HookType.AGGREGATION),
-      hooks: z.array(HookConfigSchema),
+      hooks: z.array(HookConfigSchema).min(1),
     }),
   );
 
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
-  destinationChain: z.string(),
+  destinationChain: ZChainName,
 });
 
 export const HookConfigSchema = z.union([
