@@ -144,6 +144,19 @@ describe('customZodTypes', () => {
         input: '123456789ABCDEFGHJKLMNPQRSTUVWXYZa',
       },
       {
+        name: 'evm address',
+        input: '0x1234567890abcdef1234567890abcdef12345678',
+      },
+      {
+        name: 'solana address',
+        input: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+      },
+      {
+        name: 'starknet address',
+        input:
+          '0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8',
+      },
+      {
         name: 'bech32 address (bc1)',
         input: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
       },

@@ -59,15 +59,39 @@ contract FiatTokenTest is ERC20Test, IFiatToken {
 }
 
 contract XERC20Test is ERC20Test, Ownable, IXERC20 {
+    string private _proxyName;
+    string private _proxySymbol;
+
     constructor(
-        string memory name,
-        string memory symbol,
+        string memory _name,
+        string memory _symbol,
         uint256 totalSupply,
         uint8 __decimals
-    ) ERC20Test(name, symbol, totalSupply, __decimals) Ownable() {}
+    ) ERC20Test(_name, _symbol, totalSupply, __decimals) Ownable() {
+        _proxyName = _name;
+        _proxySymbol = _symbol;
+    }
 
-    function initialize() external {
+    function initialize(string memory _name, string memory _symbol) external {
         _transferOwnership(msg.sender);
+
+        _proxyName = _name;
+        _proxySymbol = _symbol;
+    }
+
+    /**
+     * @dev Returns the name of the token.
+     */
+    function name() public view override returns (string memory) {
+        return _proxyName;
+    }
+
+    /**
+     * @dev Returns the symbol of the token, usually a shorter version of the
+     * name.
+     */
+    function symbol() public view override returns (string memory) {
+        return _proxySymbol;
     }
 
     function mint(address account, uint256 amount) public override {
