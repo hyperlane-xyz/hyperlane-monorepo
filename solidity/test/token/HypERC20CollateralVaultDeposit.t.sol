@@ -23,7 +23,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
-import {HypERC4626OwnerCollateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
+import {HypERC4626OwnerCollateral, HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
 contract HypERC4626OwnerCollateralTest is HypTokenTest {
@@ -46,7 +46,7 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC4626OwnerCollateral.initialize.selector,
+                HypERC4626Collateral.initialize.selector,
                 address(address(noopHook)),
                 address(igp),
                 address(this)
@@ -66,6 +66,12 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         remoteMailbox.setRequiredHook(address(noopHook));
         primaryToken.transfer(ALICE, 1000e18);
         _enrollRemoteTokenRouter();
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return IERC20(primaryToken).balanceOf(_account);
     }
 
     function _transferRoundTripAndIncreaseYields(
@@ -123,10 +129,10 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(transferAmount, DUST_AMOUNT);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(transferAmount);
 
-        assertEq(localToken.balanceOf(ALICE), prevBalance + transferAmount);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + transferAmount);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
@@ -139,9 +145,9 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + TRANSFER_AMT);
 
         // Has leftover shares, but no assets deposited
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
