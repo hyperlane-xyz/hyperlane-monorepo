@@ -11,9 +11,8 @@ import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 
-// TokenMessage.metadata := uint8 cctpNonce
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
-    8;
+// TokenMessage.metadata := null
+uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET;
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -24,11 +23,9 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    // default to FAST
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
-    uint32 constant MIN_FINALITY_THRESHOLD = 1000;
-
-    uint256 constant MAX_FEE_BPS = 1;
+    uint32 public constant MIN_FINALITY_THRESHOLD = 1000;
+    uint256 public constant MAX_FEE_BPS = 1;
 
     constructor(
         address _erc20,
@@ -68,6 +65,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         return cctpMessage._getSourceDomain();
     }
 
+    function _validateTokenMessageLength(
+        bytes memory tokenMessage
+    ) internal pure {
+        require(
+            tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
+            "Invalid message length"
+        );
+    }
+
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
@@ -75,7 +81,14 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes29 burnMessage = cctpMessage._getMessageBody();
         burnMessage._validateBurnMessageFormat();
 
+        bytes32 circleBurnSender = burnMessage._getMessageSender();
+        require(
+            circleBurnSender == hyperlaneMessage.sender(),
+            "Invalid burn sender"
+        );
+
         bytes calldata tokenMessage = hyperlaneMessage.body();
+        _validateTokenMessageLength(tokenMessage);
 
         require(
             TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
@@ -144,6 +157,14 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
     }
 
+    function _feeAmount(
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount
+    ) internal view override returns (uint256 feeAmount) {
+        return (amount * MAX_FEE_BPS) / 10_000;
+    }
+
     function _beforeDispatch(
         uint32 destination,
         bytes32 recipient,
@@ -154,9 +175,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         override
         returns (uint256 dispatchValue, bytes memory message)
     {
-        // TODO: quote the fee
-        uint256 fastFee = (amount * MAX_FEE_BPS) / 10_000;
-        dispatchValue = _chargeSender(destination, recipient, amount + fastFee);
+        uint256 fastFee = _feeAmount(destination, recipient, amount);
+        _transferFromSender(amount + fastFee);
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
 
@@ -170,6 +190,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             MIN_FINALITY_THRESHOLD
         );
 
+        dispatchValue = msg.value;
         message = TokenMessage.format(recipient, _outboundAmount(amount));
+        _validateTokenMessageLength(message);
     }
 }

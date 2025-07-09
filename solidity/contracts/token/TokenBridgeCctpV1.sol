@@ -79,7 +79,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
-        _validateMessageLength(tokenMessage);
+        _validateTokenMessageLength(tokenMessage);
 
         require(
             uint64(bytes8(TokenMessage.metadata(tokenMessage))) ==
@@ -139,7 +139,9 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
     }
 
-    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
+    function _validateTokenMessageLength(
+        bytes memory _tokenMessage
+    ) internal pure {
         require(
             _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
             "Invalid message body length"
@@ -172,6 +174,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
             _outboundAmount(amount),
             abi.encodePacked(nonce)
         );
-        _validateMessageLength(message);
+        _validateTokenMessageLength(message);
     }
 }

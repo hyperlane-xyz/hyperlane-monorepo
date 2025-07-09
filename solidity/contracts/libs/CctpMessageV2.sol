@@ -87,7 +87,7 @@ library CctpMessageV2 {
         bytes32 _recipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes calldata _messageBody
+        bytes memory _messageBody
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
@@ -234,7 +234,7 @@ library BurnMessageV2 {
         uint256 _amount,
         bytes32 _messageSender,
         uint256 _maxFee,
-        bytes calldata _hookData
+        bytes memory _hookData
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(

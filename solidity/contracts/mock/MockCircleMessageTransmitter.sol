@@ -2,9 +2,13 @@
 pragma solidity ^0.8.13;
 
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
+import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleMessageTransmitter is IMessageTransmitter {
+contract MockCircleMessageTransmitter is
+    IMessageTransmitter,
+    IMessageTransmitterV2
+{
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
     uint32 public version;
@@ -58,8 +62,8 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
     }
 
     function sendMessage(
-        uint32,
-        bytes32,
+        uint32 destinationDomain,
+        bytes32 recipient,
         bytes calldata message
     ) public returns (uint64) {
         emit MessageSent(message);
@@ -67,11 +71,21 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
     }
 
     function sendMessageWithCaller(
-        uint32,
-        bytes32,
+        uint32 destinationDomain,
+        bytes32 recipient,
         bytes32,
         bytes calldata message
     ) external returns (uint64) {
         return sendMessage(0, 0, message);
+    }
+
+    function sendMessage(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes32,
+        uint32,
+        bytes calldata messageBody
+    ) external {
+        sendMessage(destinationDomain, recipient, messageBody);
     }
 }
