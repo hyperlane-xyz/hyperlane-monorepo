@@ -596,7 +596,7 @@ export class WarpCore {
         BigInt((originToken.scale * precisionFactor) / destinationToken.scale);
 
       return (
-        BigInt(Number(destinationBalanceInOriginDecimals) * precisionFactor) >=
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
         scaledAmount
       );
     }
