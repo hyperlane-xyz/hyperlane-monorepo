@@ -113,9 +113,13 @@ export function useStarknetTransactionFns(
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
-      await switchChainAsync({
-        chainId: chainId.toString(),
-      });
+      try {
+        await switchChainAsync({
+          chainId: chainId.toString(),
+        });
+      } catch {
+        logger.warn('Failed to switch chain');
+      }
     },
     [multiProvider, switchChainAsync],
   );
