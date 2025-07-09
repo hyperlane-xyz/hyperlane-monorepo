@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
-import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -158,7 +158,7 @@ export const IgpSchema = OwnableSchema.extend({
   oracleKey: z.string(),
   overhead: z.record(z.string(), z.number()),
   oracleConfig: z.record(
-    ZChainName,
+    z.string(),
     ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
   ),
 });
@@ -167,7 +167,7 @@ export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig>
   OwnableSchema.extend({
     type: z.literal(HookType.ROUTING),
     get domains() {
-      return z.record(ZChainName, HookConfigSchema);
+      return z.record(z.string(), HookConfigSchema);
     },
   });
 
@@ -175,7 +175,7 @@ export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookCon
   OwnableSchema.extend({
     type: z.literal(HookType.FALLBACK_ROUTING),
     get domains() {
-      return z.record(ZChainName, HookConfigSchema);
+      return z.record(z.string(), HookConfigSchema);
     },
     get fallback() {
       return HookConfigSchema;
@@ -229,5 +229,5 @@ export const HooksConfigSchema = z.object({
   required: HookConfigSchema,
 });
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
-export const HooksConfigMapSchema = z.record(ZChainName, HooksConfigSchema);
+export const HooksConfigMapSchema = z.record(z.string(), HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
