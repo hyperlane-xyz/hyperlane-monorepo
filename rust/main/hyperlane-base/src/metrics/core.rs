@@ -63,6 +63,9 @@ pub struct CoreMetrics {
     metadata_build_count: IntCounterVec,
     metadata_build_duration: CounterVec,
 
+    // ism building metrics
+    ism_build_count: IntCounterVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
@@ -269,7 +272,7 @@ impl CoreMetrics {
         let metadata_build_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("metadata_build_count"),
-                "Total number of times metadata was build",
+                "Total number of times metadata was built",
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
@@ -283,6 +286,16 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let ism_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("ism_build_count"),
+                "Total number of times ism was built",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "ism_type", "status"],
             registry
         )?;
 
@@ -316,6 +329,8 @@ impl CoreMetrics {
 
             metadata_build_count,
             metadata_build_duration,
+
+            ism_build_count,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -638,6 +653,19 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn metadata_build_duration(&self) -> CounterVec {
         self.metadata_build_duration.clone()
+    }
+
+    /// The number of ism built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `ism_type`: ISM type.
+    /// - `status`: success or failure
+    pub fn ism_build_count(&self) -> IntCounterVec {
+        self.ism_build_count.clone()
     }
 
     /// Counts of tracing (logging framework) span events.

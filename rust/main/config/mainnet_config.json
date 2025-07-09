@@ -8278,7 +8278,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 2,
+        "estimateBlockTime": 1,
         "reorgPeriod": 5
       },
       "chainId": 999,
@@ -9669,7 +9669,7 @@
       "gasCurrencyCoinGeckoId": "solaxy",
       "name": "solaxy",
       "nativeToken": {
-        "decimals": 9,
+        "decimals": 6,
         "name": "Solaxy",
         "symbol": "SOLX"
       },
