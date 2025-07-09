@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf ./dist",
-    "start": "node dist/index.js",
+    "start": "node dist/scripts/run-server.js",
+    "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/scripts/run-server.js",
     "dev": "tsc --watch",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./src ./test",
