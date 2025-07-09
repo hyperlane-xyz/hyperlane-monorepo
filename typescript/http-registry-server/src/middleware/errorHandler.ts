@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import type { Logger } from 'pino';
 
+import AppConstants from '../constants/AppConstants.js';
 import { ApiError } from '../errors/ApiError.js';
 
 export function createErrorHandler(logger: Logger | Console) {
@@ -21,10 +22,13 @@ export function createErrorHandler(logger: Logger | Console) {
         : err instanceof Error
           ? new ApiError(
               `Internal Server Error: ${err.message}`,
-              500,
+              AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR,
               err.stack,
             )
-          : new ApiError('Internal Server Error: unknown error', 500);
+          : new ApiError(
+              'Internal Server Error: unknown error',
+              AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            );
 
     logger.error('Error handling request:', err);
 
