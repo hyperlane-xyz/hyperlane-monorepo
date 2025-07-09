@@ -28,14 +28,29 @@ export class HttpServer {
   }
 
   async start(
-    port = parseInt(
-      process.env.PORT || ServerConstants.DEFAULT_PORT.toString(),
-    ),
-    refreshInterval = parseInt(
-      process.env.REFRESH_INTERVAL ||
-        ServerConstants.DEFAULT_REFRESH_INTERVAL.toString(),
-    ),
+    portInput = process.env.PORT,
+    refreshIntervalInput = process.env.REFRESH_INTERVAL,
   ) {
+    let port = parseInt(portInput || '', 10);
+    if (isNaN(port)) {
+      if (portInput) {
+        this.logger.warn(
+          `Invalid PORT value "${portInput}". Falling back to default ${ServerConstants.DEFAULT_PORT}.`,
+        );
+      }
+      port = ServerConstants.DEFAULT_PORT;
+    }
+
+    let refreshInterval = parseInt(refreshIntervalInput || '', 10);
+    if (isNaN(refreshInterval)) {
+      if (refreshIntervalInput) {
+        this.logger.warn(
+          `Invalid REFRESH_INTERVAL value "${refreshIntervalInput}". Falling back to default ${ServerConstants.DEFAULT_REFRESH_INTERVAL}.`,
+        );
+      }
+      refreshInterval = ServerConstants.DEFAULT_REFRESH_INTERVAL;
+    }
+
     try {
       const registryService = new RegistryService(
         this.getRegistry,
