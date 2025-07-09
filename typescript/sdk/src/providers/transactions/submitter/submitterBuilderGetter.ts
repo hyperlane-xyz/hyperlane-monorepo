@@ -1,6 +1,7 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { EV5FileSubmitter } from '../../../fs/index.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
@@ -62,6 +63,9 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
         multiProvider,
         registry,
       );
+    case TxSubmitterType.FILE:
+      return new EV5FileSubmitter(submitterMetadata);
+
     default:
       throw new Error(`Invalid TxSubmitterType.`);
   }
