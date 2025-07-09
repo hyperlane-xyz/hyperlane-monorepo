@@ -2,7 +2,8 @@
   "solanamainnet": {
     "type": "native",
     "decimals": 9,
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "71S39xUrJCKmZEG5xugLLVTtp37Jy1F8oyrv1fQ4PYJK"
   },
   "starknet": {
     "type": "synthetic",
