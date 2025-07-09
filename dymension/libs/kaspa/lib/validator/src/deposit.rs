@@ -2,6 +2,7 @@ use corelib::deposit::DepositFXG;
 
 use kaspa_wallet_core::prelude::DynRpcApi;
 
+use relayer::deposit::ParsedHL;
 use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
@@ -70,16 +71,34 @@ pub async fn validate_deposit(
         .ok_or("transaction not found in block")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
+    let deposit_tx = block.transactions[tx_index].clone();
+
     // get utxo in the tx from index in deposit.
-    let utxo: &RpcTransactionOutput = block.transactions[tx_index]
+    let utxo: &RpcTransactionOutput = deposit_tx
         .outputs
         .get(deposit.utxo_index)
         .ok_or("utxo not found by index")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
+    let original_hl_message = ParsedHL::parse_bytes(deposit_tx.payload)?.hl_message;
+
+    // validate the relayed hl message recipient corresponds to original hl message included in the transaction
+    if original_hl_message.recipient != deposit.payload.recipient {
+        error!("Original HL message recipient does not correspond to relayed message. Original Id: {}. Relayed Id: {}",original_hl_message.recipient,deposit.payload.recipient);
+        return Ok(false);
+    }
+
     // decode Hyperlane message
     let token_message = parse_hyperlane_metadata(&deposit.payload)?;
 
+    // decode original Hyperlane message
+    let original_token_message = parse_hyperlane_metadata(&original_hl_message)?;
+
+    // compare original token message values with relayed one
+    if original_token_message.amount() != token_message.amount() || original_token_message.recipient() != token_message.recipient(){
+        error!("Original token message does not correspond to relayed token message.");
+        return Ok(false);
+    }
     if U256::from(utxo.value) < token_message.amount() {
         let amt = U256::from(utxo.value);
         let token_amt = token_message.amount();

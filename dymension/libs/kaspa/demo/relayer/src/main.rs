@@ -13,7 +13,7 @@ async fn main() {
     let mut demo_args = DemoArgs::default();
     demo_args.payload = args.payload;
     demo_args.only_deposit = args.only_deposit;
-    demo_args.wallet_secret = args.wallet_secret.unwrap_or("".to_string());
+    demo_args.wallet_secret = args.wallet_secret.unwrap_or("L1cinda_14".to_string());
     let amt = args.amount.unwrap_or(DEPOSIT_AMOUNT);
     let escrow_address = if let Some(e) = args.escrow_address {
         Address::try_from(e).unwrap()

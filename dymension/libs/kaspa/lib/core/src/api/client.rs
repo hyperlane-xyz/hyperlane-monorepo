@@ -116,8 +116,8 @@ impl HttpClient {
                 args {
                     kaspa_address: address.to_string(),
                     limit: Some(n),
-                    after: Some(lower_bound_t),
-                    before: Some(upper_bound_t),
+                    after: Some(0i64),
+                    before: Some(0i64),
                     fields: None,
                     resolve_previous_outpoints: None,
                     acceptance: None,

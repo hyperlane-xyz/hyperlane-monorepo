@@ -15,15 +15,19 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
 
-struct ParsedHL {
-    hl_message: HyperlaneMessage,
-    token_message: TokenMessage,
+pub struct ParsedHL {
+    pub hl_message: HyperlaneMessage,
+    pub token_message: TokenMessage,
 }
 
 impl ParsedHL {
-    fn parse(payload: &str) -> Result<Self> {
+    pub fn parse_string(payload: &str) -> Result<Self> {
         let raw = hex::decode(payload)?;
-        let hl_message = parse_hyperlane_message(&raw)?;
+        Self::parse_bytes(raw)
+    }
+
+    pub fn parse_bytes(payload: Vec<u8>) -> Result<Self> {
+        let hl_message = parse_hyperlane_message(&payload)?;
         let token_message = parse_hyperlane_metadata(&hl_message)?;
         Ok(ParsedHL {
             hl_message,
@@ -36,7 +40,7 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
     // decode payload into Hyperlane message
 
     let payload = deposit.payload.clone().unwrap();
-    let parsed = ParsedHL::parse(&payload)?;
+    let parsed = ParsedHL::parse_string(&payload)?;
     info!(
         "Dymension, parsed new deposit HL message: {:?}",
         parsed.hl_message
