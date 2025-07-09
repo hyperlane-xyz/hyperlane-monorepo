@@ -24,7 +24,6 @@ import {
   WarpRouteDeployConfigSchemaErrors,
   XERC20LimitsTokenConfig,
   XERC20TokenConfigSchema,
-  isCollateralTokenConfig,
 } from './types.js';
 
 describe('token schemas', () => {
