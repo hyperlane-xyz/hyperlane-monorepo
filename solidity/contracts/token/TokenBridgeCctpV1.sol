@@ -59,6 +59,12 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         return sourceAndNonceHash;
     }
 
+    function _getCircleSource(
+        bytes29 cctpMessage
+    ) internal view override returns (uint32) {
+        return cctpMessage._sourceDomain();
+    }
+
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage

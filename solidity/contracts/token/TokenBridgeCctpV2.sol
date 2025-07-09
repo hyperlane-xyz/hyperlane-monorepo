@@ -62,6 +62,12 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         return cctpMessage._getNonce();
     }
 
+    function _getCircleSource(
+        bytes29 cctpMessage
+    ) internal view override returns (uint32) {
+        return cctpMessage._getSourceDomain();
+    }
+
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
@@ -103,7 +109,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 finalityThresholdExecuted,
         bytes calldata messageBody
     ) external returns (bool) {
-        revert("Not implemented");
+        return true;
     }
 
     /**
@@ -121,7 +127,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 finalityThresholdExecuted,
         bytes calldata messageBody
     ) external returns (bool) {
-        revert("Not implemented");
+        return true;
     }
 
     function _sendCircleMessage(

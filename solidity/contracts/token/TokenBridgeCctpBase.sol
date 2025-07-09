@@ -144,6 +144,9 @@ abstract contract TokenBridgeCctpBase is
     function _getCircleRecipient(
         bytes29 cctpMessage
     ) internal view virtual returns (address);
+    function _getCircleSource(
+        bytes29 cctpMessage
+    ) internal view virtual returns (uint32);
     function _getCircleNonce(
         bytes29 cctpMessage
     ) internal view virtual returns (bytes32);
@@ -173,8 +176,15 @@ abstract contract TokenBridgeCctpBase is
         );
 
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
-        address circleRecipient = _getCircleRecipient(originalMsg);
 
+        uint32 origin = _hyperlaneMessage.origin();
+        uint32 sourceDomain = _getCircleSource(originalMsg);
+        require(
+            sourceDomain == hyperlaneDomainToCircleDomain(origin),
+            "Invalid source domain"
+        );
+
+        address circleRecipient = _getCircleRecipient(originalMsg);
         if (circleRecipient == address(tokenMessenger)) {
             _validateTokenMessage(_hyperlaneMessage, originalMsg);
         } else if (circleRecipient == address(this)) {
@@ -219,12 +229,13 @@ abstract contract TokenBridgeCctpBase is
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable override {
-        require(_isLatestDispatched(message.id()), "Message not dispatched");
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "Message not dispatched");
 
         uint32 destination = message.destination();
         bytes32 ism = _mustHaveRemoteRouter(destination);
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
-        _sendCircleMessage(circleDestination, ism, abi.encode(message.id()));
+        _sendCircleMessage(circleDestination, ism, abi.encode(id));
     }
 
     function _offchainLookupCalldata(
