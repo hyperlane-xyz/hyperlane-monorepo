@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 import sinon from 'sinon';
 import { z } from 'zod';
 
-import AppConstants from '../../src/constants/AppConstants.js';
+import { AppConstants } from '../../src/constants/AppConstants.js';
 import { ApiError } from '../../src/errors/ApiError.js';
 import {
   validateBody,

@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 
-import AppConstants from '../constants/AppConstants.js';
+import { AppConstants } from '../constants/AppConstants.js';
 import { ApiError } from '../errors/ApiError.js';
 
 export function validateQueryParams<T extends z.ZodTypeAny>(schema: T) {

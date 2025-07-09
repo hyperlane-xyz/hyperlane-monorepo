@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { Request } from 'express';
 import sinon from 'sinon';
 
-import AppConstants from '../../src/constants/AppConstants.js';
+import { AppConstants } from '../../src/constants/AppConstants.js';
 import { ApiError, NotFoundError } from '../../src/errors/ApiError.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 

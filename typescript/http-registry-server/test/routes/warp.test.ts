@@ -4,7 +4,7 @@ import express, { Express } from 'express';
 import sinon from 'sinon';
 import request from 'supertest';
 
-import AppConstants from '../../src/constants/AppConstants.js';
+import { AppConstants } from '../../src/constants/AppConstants.js';
 import { NotFoundError } from '../../src/errors/ApiError.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createWarpRouter } from '../../src/routes/warp.js';

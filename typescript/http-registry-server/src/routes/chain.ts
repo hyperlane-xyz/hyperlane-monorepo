@@ -3,7 +3,7 @@ import { Request, Response, Router } from 'express';
 import { UpdateChainSchema } from '@hyperlane-xyz/registry';
 import { ZChainName } from '@hyperlane-xyz/sdk';
 
-import AppConstants from '../constants/AppConstants.js';
+import { AppConstants } from '../constants/AppConstants.js';
 import {
   validateBody,
   validateRequestParam,

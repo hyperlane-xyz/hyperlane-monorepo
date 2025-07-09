@@ -6,7 +6,7 @@ import request from 'supertest';
 
 import { WarpRouteFilterParams } from '@hyperlane-xyz/registry';
 
-import AppConstants from '../../src/constants/AppConstants.js';
+import { AppConstants } from '../../src/constants/AppConstants.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createRootRouter } from '../../src/routes/root.js';
 import { RootService } from '../../src/services/rootService.js';

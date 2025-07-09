@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import type { Logger } from 'pino';
 
-import AppConstants from '../constants/AppConstants.js';
+import { AppConstants } from '../constants/AppConstants.js';
 import { ApiError } from '../errors/ApiError.js';
 
 export function createErrorHandler(logger: Logger | Console) {

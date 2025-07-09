@@ -1,16 +1,12 @@
-import AppConstants from '../constants/AppConstants.js';
+import { AppConstants } from '../constants/AppConstants.js';
 
 export class ApiError extends Error {
   public status: number;
   public stack?: string;
 
-  constructor(
-    message: string,
-    status = AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR,
-    stack?: string,
-  ) {
+  constructor(message: string, status?: number, stack?: string) {
     super(message);
-    this.status = status;
+    this.status = status ?? AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR;
     this.stack = stack;
   }
 }
