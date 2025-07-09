@@ -744,76 +744,180 @@ describe('token schemas', () => {
     ];
     const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
 
-    let config: WarpRouteDeployConfig;
-    beforeEach(() => {
-      config = {
-        arbitrum: {
-          type: TokenType.collateral,
-          token: SOME_ADDRESS,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
+    const validTestCases: TestCase<WarpRouteDeployConfig>[] = [
+      {
+        name: 'basic collateral config',
+        input: {
+          arbitrum: {
+            type: TokenType.collateral,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
         },
-      };
+      },
+      {
+        name: 'config without mailbox address',
+        input: {
+          arbitrum: {
+            type: TokenType.collateral,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+          },
+        },
+      },
+      {
+        name: 'non-collateral type with metadata',
+        input: {
+          arbitrum: {
+            type: TokenType.synthetic,
+            name: 'name',
+            symbol: 'symbol',
+            owner: SOME_ADDRESS,
+          },
+        },
+      },
+      {
+        name: 'rebasing collateral with synthetic rebase',
+        input: {
+          arbitrum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          ethereum: {
+            type: TokenType.syntheticRebase,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+            collateralChainName: '',
+          },
+        },
+      },
+      {
+        name: 'multiple synthetic rebase with collateral chain derivation',
+        input: {
+          arbitrum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          ethereum: {
+            type: TokenType.syntheticRebase,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+            collateralChainName: '',
+          },
+          optimism: {
+            type: TokenType.syntheticRebase,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+            collateralChainName: '',
+          },
+        },
+      },
+    ];
+
+    validTestCases.forEach(({ name, input }) => {
+      it(`should accept ${name}`, () => {
+        expect(WarpRouteDeployConfigSchema.safeParse(input).success).to.be.true;
+      });
     });
 
-    it('should require token type', () => {
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
+    const invalidTestCases: TestCase<Partial<WarpRouteDeployConfig>>[] = [
+      {
+        name: 'config missing token type',
+        input: {
+          arbitrum: {
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          } as any,
+        },
+      },
+      {
+        name: 'collateral config missing token address',
+        input: {
+          arbitrum: {
+            type: TokenType.collateral,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          } as any,
+        },
+      },
+      {
+        name: 'non-collateral type missing symbol',
+        input: {
+          arbitrum: {
+            type: TokenType.synthetic,
+            name: 'name',
+            owner: SOME_ADDRESS,
+          },
+        },
+      },
+      {
+        name: 'rebasing collateral with non-synthetic rebase',
+        input: {
+          arbitrum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          ethereum: {
+            type: TokenType.collateralVault,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          optimism: {
+            type: TokenType.syntheticRebase,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+            collateralChainName: '',
+          },
+        },
+      },
+      {
+        name: 'only collateral vault rebase',
+        input: {
+          arbitrum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+        },
+      },
+      {
+        name: 'multiple collateral vault rebase',
+        input: {
+          arbitrum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          ethereum: {
+            type: TokenType.collateralVaultRebase,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+        },
+      },
+    ];
 
-      //@ts-ignore
-      delete config.arbitrum.type;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
-    });
-
-    it('should require token address', () => {
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-
-      //@ts-ignore
-      delete config.arbitrum.token;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
-    });
-
-    it('should not require mailbox address', () => {
-      //@ts-ignore
-      delete config.arbitrum.mailbox;
-      expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-    });
-
-    it('should throw if collateral type and token is empty', async () => {
-      for (const type of COLLATERAL_TYPES) {
-        config.arbitrum.type = type;
-        assert(isCollateralTokenConfig(config.arbitrum), 'must be collateral');
-
-        //@ts-ignore
-        config.arbitrum.token = undefined;
-        expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be
+    invalidTestCases.forEach(({ name, input }) => {
+      it(`should reject ${name}`, () => {
+        expect(WarpRouteDeployConfigSchema.safeParse(input).success).to.be
           .false;
-
-        // Set to some address
-        config.arbitrum.token = SOME_ADDRESS;
-        expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be
-          .true;
-      }
+      });
     });
 
-    it('should succeed if non-collateral type, token is empty, metadata is defined', async () => {
-      //@ts-ignore
-      delete config.arbitrum.token;
-      config.arbitrum.name = 'name';
-
-      for (const type of NON_COLLATERAL_TYPES) {
-        config.arbitrum.type = type;
-        config.arbitrum.symbol = undefined;
-        expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be
-          .false;
-
-        config.arbitrum.symbol = 'symbol';
-        expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be
-          .true;
-      }
-    });
-
-    it(`should throw if deploying rebasing collateral with anything other than ${TokenType.syntheticRebase}`, async () => {
-      config = {
+    it('should throw specific error for rebasing collateral with non-synthetic rebase', () => {
+      const config = {
         arbitrum: {
           type: TokenType.collateralVaultRebase,
           token: SOME_ADDRESS,
@@ -833,44 +937,15 @@ describe('token schemas', () => {
           collateralChainName: '',
         },
       };
-      let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      assert(!parseResults.success, 'must be false'); // Needed so 'message' shows up because parseResults is a discriminate union
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      assert(!parseResults.success, 'must be false');
       expect(parseResults.error.issues[0].message).to.equal(
         WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
       );
-
-      config.ethereum.type = TokenType.syntheticRebase;
-      //@ts-ignore
-      config.ethereum.collateralChainName = '';
-      parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      //@ts-ignore
-      expect(parseResults.success).to.be.true;
     });
 
-    it(`should throw if deploying only ${TokenType.collateralVaultRebase}`, async () => {
-      config = {
-        arbitrum: {
-          type: TokenType.collateralVaultRebase,
-          token: SOME_ADDRESS,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
-        },
-      };
-      let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      expect(parseResults.success).to.be.false;
-
-      config.ethereum = {
-        type: TokenType.collateralVaultRebase,
-        token: SOME_ADDRESS,
-        owner: SOME_ADDRESS,
-        mailbox: SOME_ADDRESS,
-      };
-      parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      expect(parseResults.success).to.be.false;
-    });
-
-    it(`should derive the collateral chain name for ${TokenType.syntheticRebase}`, async () => {
-      config = {
+    it('should derive collateral chain name for synthetic rebase', () => {
+      const config = {
         arbitrum: {
           type: TokenType.collateralVaultRebase,
           token: SOME_ADDRESS,
@@ -899,6 +974,59 @@ describe('token schemas', () => {
         'must be syntheticRebase',
       );
       expect(warpConfig.optimism.collateralChainName).to.equal('arbitrum');
+    });
+
+    it('should handle collateral types requiring token address', () => {
+      for (const type of COLLATERAL_TYPES) {
+        const configWithToken = {
+          arbitrum: {
+            type,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+        };
+        expect(WarpRouteDeployConfigSchema.safeParse(configWithToken).success)
+          .to.be.true;
+
+        const configWithoutToken = {
+          arbitrum: {
+            type,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+        };
+        expect(
+          WarpRouteDeployConfigSchema.safeParse(configWithoutToken).success,
+        ).to.be.false;
+      }
+    });
+
+    it('should handle non-collateral types requiring metadata', () => {
+      for (const type of NON_COLLATERAL_TYPES) {
+        const configWithMetadata = {
+          arbitrum: {
+            type,
+            name: 'name',
+            symbol: 'symbol',
+            owner: SOME_ADDRESS,
+          },
+        };
+        expect(
+          WarpRouteDeployConfigSchema.safeParse(configWithMetadata).success,
+        ).to.be.true;
+
+        const configWithoutSymbol = {
+          arbitrum: {
+            type,
+            name: 'name',
+            owner: SOME_ADDRESS,
+          },
+        };
+        expect(
+          WarpRouteDeployConfigSchema.safeParse(configWithoutSymbol).success,
+        ).to.be.false;
+      }
     });
   });
 

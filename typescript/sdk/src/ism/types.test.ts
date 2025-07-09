@@ -383,7 +383,7 @@ describe('ISM schemas', () => {
           owner: '',
         },
       },
-      // Type assert to cause validation errrors
+      // Type assert to cause validation errors
       {
         name: 'wrong type',
         input: {
