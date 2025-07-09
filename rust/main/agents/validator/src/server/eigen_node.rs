@@ -11,8 +11,8 @@
 //!  eg. response 200 - healthy, 206 - partially healthy, 503 - unhealthy
 //! - /node/services - List of Services
 //!  eg. response [{"id":"hyperlane-validator-indexer","name":"indexer","description":"indexes the messages from the origin chain mailbox","status":"up"},{"id":"hyperlane-validator-submitter","name":"submitter","description":"signs messages indexed from the indexer","status":"up"}]
-//! - /node/services/:service_id/health - Service Health
-//! eg. response 200 - healthy, 503 - unhealthy  
+//! - /node/services/{service_id}/health - Service Health
+//! eg. response 200 - healthy, 503 - unhealthy
 
 use axum::{
     http::StatusCode,
@@ -57,10 +57,6 @@ pub struct EigenNodeApi {
 }
 
 impl EigenNodeApi {
-    pub fn get_route(&self) -> (&'static str, Router) {
-        (EIGEN_NODE_API_BASE, self.router())
-    }
-
     pub fn router(&self) -> Router {
         let core_metrics_clone = self.core_metrics.clone();
         let origin_chain = self.origin_chain.clone();
@@ -70,16 +66,19 @@ impl EigenNodeApi {
         let health_route = get(move || {
             Self::node_health_handler(origin_chain.clone(), core_metrics_clone.clone())
         });
-        let services_route = Router::new()
-            .route("/", get(Self::node_services_handler))
-            .route("/:service_id/health", get(Self::service_health_handler));
 
-        let node_route = Router::new()
+        let router = Router::new()
             .route("/health", health_route)
-            .nest("/services", services_route)
+            .route("/services", get(Self::node_services_handler))
+            .route(
+                "/services/{service_id}/health",
+                get(Self::service_health_handler),
+            )
             .route("/", get(Self::node_info_handler));
 
-        Router::new().nest("/node", node_route)
+        let node_router = Router::new().nest("/node", router);
+
+        Router::new().nest(EIGEN_NODE_API_BASE, node_router)
     }
 
     pub async fn node_info_handler() -> impl IntoResponse {
@@ -144,16 +143,26 @@ impl EigenNodeApi {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
+    use crate::test_utils::request::parse_body_to_json;
 
     use super::*;
-    use axum::http::StatusCode;
+    use axum::{
+        body::Body,
+        http::{Method, Request, StatusCode},
+    };
     use prometheus::Registry;
+    use tower::ServiceExt;
 
     const PARTIALLY_HEALTHY_OBSERVED_CHECKPOINT: i64 = 34;
     const HEALTHY_OBSERVED_CHECKPOINT: i64 = 42;
 
-    async fn setup_test_server() -> (reqwest::Client, SocketAddr, Arc<CoreMetrics>) {
+    #[derive(Debug)]
+    struct TestServerSetup {
+        pub app: Router,
+        pub core_metrics: Arc<CoreMetrics>,
+    }
+
+    fn setup_test_server() -> TestServerSetup {
         let core_metrics =
             Arc::new(CoreMetrics::new("dummy_validator", 37582, Registry::new()).unwrap());
         // Initialize the Prometheus registry
@@ -168,29 +177,23 @@ mod tests {
         );
         let app = node_api.router();
 
-        // Running the app in the background using a test server
-        let server =
-            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
-        let addr = server.local_addr();
-        tokio::spawn(server);
-
-        // Create a client
-        let client = reqwest::Client::new();
-
-        (client, addr, core_metrics)
+        TestServerSetup { app, core_metrics }
     }
 
     #[tokio::test]
     async fn test_eigen_node_api() {
-        let (client, addr, _) = setup_test_server().await;
-        let res = client
-            .get(format!("http://{}/node", addr))
-            .send()
-            .await
-            .expect("Failed to send request");
+        let TestServerSetup { app, .. } = setup_test_server();
+
+        let api_url = format!("{EIGEN_NODE_API_BASE}/node");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app.oneshot(request).await.expect("Failed to send request");
 
         // Check that the response status is OK
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::OK);
 
         // what to expect when you're expecting
         let expected = NodeInfo {
@@ -200,52 +203,80 @@ mod tests {
         };
 
         // check the response body if needed
-        let json: NodeInfo = res.json().await.expect("Failed to parse json");
+        let json: NodeInfo = parse_body_to_json(response.into_body()).await;
         assert_eq!(json, expected);
     }
 
     #[tokio::test]
     async fn test_eigen_node_health_api() {
-        let (client, addr, core_metrics) = setup_test_server().await;
-        let res = client
-            .get(format!("http://{}/node/health", addr))
-            .send()
+        let TestServerSetup { app, core_metrics } = setup_test_server();
+
+        let api_url = format!("{EIGEN_NODE_API_BASE}/node/health");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
             .expect("Failed to send request");
-        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_processed", "ethereum"])
             .set(PARTIALLY_HEALTHY_OBSERVED_CHECKPOINT);
-        let res = client
-            .get(format!("http://{}/node/health", addr))
-            .send()
+
+        let api_url = format!("{EIGEN_NODE_API_BASE}/node/health");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
             .expect("Failed to send request");
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
 
         core_metrics
             .latest_checkpoint()
             .with_label_values(&["validator_processed", "ethereum"])
             .set(HEALTHY_OBSERVED_CHECKPOINT);
-        let res = client
-            .get(format!("http://{}/node/health", addr))
-            .send()
+
+        let api_url = format!("{EIGEN_NODE_API_BASE}/node/health");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
             .expect("Failed to send request");
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
     async fn test_eigen_node_services_handler() {
-        let (client, addr, _) = setup_test_server().await;
-        let res = client
-            .get(format!("http://{}/node/services", addr))
-            .send()
+        let TestServerSetup { app, .. } = setup_test_server();
+
+        let api_url = format!("{EIGEN_NODE_API_BASE}/node/services");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
             .expect("Failed to send request");
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::OK);
 
         let expected_services = vec![
             Service {
@@ -261,23 +292,27 @@ mod tests {
                 status: ServiceStatus::Up,
             },
         ];
-        let services: Vec<Service> = res.json().await.expect("Failed to parse json");
+        let services: Vec<Service> = parse_body_to_json(response.into_body()).await;
         assert_eq!(services, expected_services);
     }
 
     #[tokio::test]
     async fn test_service_health_handler() {
-        let (client, addr, _) = setup_test_server().await;
-        let res = client
-            .get(format!(
-                "http://{}/node/services/hyperlane-validator-indexer/health",
-                addr
-            ))
-            .send()
+        let TestServerSetup { app, .. } = setup_test_server();
+
+        let api_url =
+            format!("{EIGEN_NODE_API_BASE}/node/services/hyperlane-validator-indexer/health");
+        let request = Request::builder()
+            .uri(api_url)
+            .method(Method::GET)
+            .body(Body::empty())
+            .expect("Failed to build request");
+        let response = app
+            .clone()
+            .oneshot(request)
             .await
             .expect("Failed to send request");
-
         // Check that the response status is OK
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

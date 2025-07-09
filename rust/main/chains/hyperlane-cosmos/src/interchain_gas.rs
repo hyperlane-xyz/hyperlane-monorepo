@@ -48,18 +48,7 @@ impl InterchainGasPaymaster for CosmosInterchainGasPaymaster {}
 
 impl CosmosInterchainGasPaymaster {
     /// create new Cosmos InterchainGasPaymaster agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
@@ -94,21 +83,10 @@ pub struct CosmosInterchainGasPaymasterIndexer {
 
 impl CosmosInterchainGasPaymasterIndexer {
     /// The interchain gas payment event type from the CW contract.
-    const INTERCHAIN_GAS_PAYMENT_EVENT_TYPE: &'static str = "igp-core-pay-for-gas";
+    pub const INTERCHAIN_GAS_PAYMENT_EVENT_TYPE: &'static str = "igp-core-pay-for-gas";
 
     /// create new Cosmos InterchainGasPaymasterIndexer agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        reorg_period: u32,
-    ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf,
-            locator,
-            Self::INTERCHAIN_GAS_PAYMENT_EVENT_TYPE.into(),
-            reorg_period,
-        )?;
-
+    pub fn new(provider: CosmosWasmRpcProvider) -> ChainResult<Self> {
         Ok(Self {
             provider: Box::new(provider),
         })
@@ -122,76 +100,85 @@ impl CosmosInterchainGasPaymasterIndexer {
         let mut gas_payment = IncompleteInterchainGasPayment::default();
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            gas_payment.message_id =
+                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            gas_payment.message_id = Some(H256::from_slice(
+                                hex::decode(String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?)?
+                                .as_slice(),
+                            ));
+                        }
+
+                        PAYMENT_ATTRIBUTE_KEY => {
+                            gas_payment.payment = Some(U256::from_dec_str(value)?);
+                        }
+                        v if *PAYMENT_ATTRIBUTE_KEY_BASE64 == v => {
+                            let dec_str = String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?;
+                            // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
+                            gas_payment.payment = Some(U256::from_dec_str(dec_str.as_str())?);
+                        }
+
+                        GAS_AMOUNT_ATTRIBUTE_KEY => {
+                            gas_payment.gas_amount = Some(U256::from_dec_str(value)?);
+                        }
+                        v if *GAS_AMOUNT_ATTRIBUTE_KEY_BASE64 == v => {
+                            let dec_str = String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?;
+                            // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
+                            gas_payment.gas_amount = Some(U256::from_dec_str(dec_str.as_str())?);
+                        }
+
+                        DESTINATION_ATTRIBUTE_KEY => {
+                            gas_payment.destination = Some(value.parse::<u32>()?);
+                        }
+                        v if *DESTINATION_ATTRIBUTE_KEY_BASE64 == v => {
+                            gas_payment.destination = Some(
+                                String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?
+                                .parse()?,
+                            );
+                        }
+
+                        _ => {}
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    gas_payment.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    gas_payment.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?)?
-                        .as_slice(),
-                    ));
-                }
-
-                PAYMENT_ATTRIBUTE_KEY => {
-                    gas_payment.payment = Some(U256::from_dec_str(value)?);
-                }
-                v if *PAYMENT_ATTRIBUTE_KEY_BASE64 == v => {
-                    let dec_str = String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?;
-                    // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
-                    gas_payment.payment = Some(U256::from_dec_str(dec_str.as_str())?);
-                }
-
-                GAS_AMOUNT_ATTRIBUTE_KEY => {
-                    gas_payment.gas_amount = Some(U256::from_dec_str(value)?);
-                }
-                v if *GAS_AMOUNT_ATTRIBUTE_KEY_BASE64 == v => {
-                    let dec_str = String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?;
-                    // U256's from_str assumes a radix of 16, so we explicitly use from_dec_str.
-                    gas_payment.gas_amount = Some(U256::from_dec_str(dec_str.as_str())?);
-                }
-
-                DESTINATION_ATTRIBUTE_KEY => {
-                    gas_payment.destination = Some(value.parse::<u32>()?);
-                }
-                v if *DESTINATION_ATTRIBUTE_KEY_BASE64 == v => {
-                    gas_payment.destination = Some(
-                        String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?
-                        .parse()?,
-                    );
-                }
-
-                _ => {}
             }
         }
 

@@ -39,8 +39,6 @@ async function main() {
     }
   }
 
-  console.warn;
-
   console.log(JSON.stringify(config, null, 2));
 }
 

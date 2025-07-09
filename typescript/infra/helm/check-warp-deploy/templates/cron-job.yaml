@@ -18,7 +18,7 @@ spec:
           - name: check-warp-deploy
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: Always
-            command:
+            args:
             - ./node_modules/.bin/tsx
             - ./typescript/infra/scripts/check/check-warp-deploy.ts
             - -e
@@ -27,6 +27,10 @@ spec:
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
+            {{- if .Values.hyperlane.registryCommit }}
+            - name: REGISTRY_COMMIT
+              value: {{ .Values.hyperlane.registryCommit }}
+            {{- end }}
             envFrom:
             - secretRef:
                 name: check-warp-deploy-env-var-secret

@@ -8,13 +8,47 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  inCIMode,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
+
+// Separate list of chains that we want to keep updated operationally but
+// skip in regular check-deploy as they require manual updates via
+// legacy ICAs.
+// V2 ICAs are not supported on these chains, due to the block gas limit being
+// lower than the amount required to deploy the new InterchainAccountRouter
+// implementation.
+export const legacyIcaChainRouters: Record<
+  ChainName,
+  {
+    interchainAccountIsm: Address;
+    interchainAccountRouter: Address;
+  }
+> = {
+  conflux: {
+    interchainAccountIsm: '0x93D41E41cA545a35A81d11b08D2eE8b852C768df',
+    interchainAccountRouter: '0xc2466492C451E1AE49d8C874bB9f89293Aaad59b',
+  },
+  viction: {
+    interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
+    interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
+  },
+  ontology: {
+    interchainAccountIsm: '0x8BdD5bf519714515083801448A99F84882A8F61E',
+    interchainAccountRouter: '0x718f11e349374481Be8c8B7589eC4B4316ddDCc2',
+  },
+};
+export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
+export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
@@ -25,11 +59,11 @@ export const chainsToSkip: ChainName[] = [
   'zksync',
   'zeronetwork',
   'zklink',
-  'treasure',
+  'abstract',
+  'sophon',
 
   // testnets
   'abstracttestnet',
-  'treasuretopaz',
 
   // Oct 16 batch
   'lumia',

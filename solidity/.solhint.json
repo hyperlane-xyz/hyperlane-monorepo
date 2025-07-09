@@ -2,16 +2,17 @@
   "extends": "solhint:recommended",
   "rules": {
     "compiler-version": ["error", ">=0.6.11"],
-    "func-visibility": ["warn", {"ignoreConstructors":true}],
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
     "not-rely-on-time": "off",
     "avoid-low-level-calls": "off",
     "no-inline-assembly": "off",
     "code-complexity": ["warn", 4],
     "var-name-mixedcase": "off",
     "func-name-mixedcase": "off",
-    "reason-string": ["warn",{"maxLength":64}],
+    "reason-string": ["warn", { "maxLength": 64 }],
     "prettier/prettier": "error",
-    "gas-custom-errors": "off"
+    "gas-custom-errors": "off",
+    "named-parameters-mapping": "error"
   },
   "plugins": ["prettier"]
 }

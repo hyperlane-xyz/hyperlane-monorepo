@@ -1,5 +1,7 @@
 import {
   AgentChainMetadata,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -85,7 +87,20 @@ export interface AgentContextConfig extends AgentEnvConfig {
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
   contextChainNames: AgentChainNames;
+  sealevel?: SealevelAgentConfig;
 }
+
+export interface SealevelAgentConfig {
+  priorityFeeOracleConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelPriorityFeeOracle;
+  transactionSubmitterConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelTransactionSubmitter;
+}
+
+// An ugly way to mark a URL as a the secret Helius URL when Helm templating
+export const HELIUS_SECRET_URL_MARKER = 'helius';
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
@@ -107,8 +122,16 @@ export type CosmosKeyConfig = {
   type: AgentSignerKeyType.Cosmos;
   prefix: string;
 };
-export type KeyConfig = AwsKeyConfig | HexKeyConfig | CosmosKeyConfig;
-
+// Starknet uses account abstraction, these contacts are either legacy or not.
+export type StarknetKeyConfig = {
+  type: AgentSignerKeyType.Starknet;
+  legacy: boolean;
+};
+export type KeyConfig =
+  | AwsKeyConfig
+  | HexKeyConfig
+  | CosmosKeyConfig
+  | StarknetKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -213,13 +236,18 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
 
   switch (metadata?.protocol) {
     case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
       if (metadata.bech32Prefix === undefined) {
         throw new Error(
           `Bech32 prefix for cosmos chain ${chainName} is undefined`,
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    // For Ethereum and Sealevel, use a hex key
+    // Use starknet key for starknet & paradexsepolia
+    case ProtocolType.Starknet: {
+      return { type: AgentSignerKeyType.Starknet, legacy: false };
+    }
+    // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

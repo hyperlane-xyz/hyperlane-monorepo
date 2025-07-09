@@ -19,12 +19,11 @@ export const statusCommand: CommandModuleWithWriteContext<
       description: 'Dispatch transaction hash',
     },
   },
-  handler: async ({ context, origin, destination, id, relay, dispatchTx }) => {
+  handler: async ({ context, origin, id, relay, dispatchTx }) => {
     await checkMessageStatus({
       context,
       dispatchTx,
       messageId: id,
-      destination,
       origin,
       selfRelay: relay,
     });

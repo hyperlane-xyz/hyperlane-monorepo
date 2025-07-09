@@ -1,5 +1,5 @@
 [codespell]
-skip = .git,node_modules,yarn.lock,Cargo.lock,./typescript/helloworld,./rust/main/config,./rust/sealevel/environments/mainnet3/chain-config.json
+skip = .git,node_modules,yarn.lock,Cargo.lock,./typescript/helloworld,./rust/main/config
 count =
 quiet-level = 3
 ignore-words = ./.codespell/ignore.txt

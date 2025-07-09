@@ -1,6 +1,7 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { chainMetadata } from '@hyperlane-xyz/registry';
+import { ChainDisabledReason, ChainStatus } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
@@ -82,5 +83,39 @@ export const WithOverrideChain = {
     },
     onChangeOverrideMetadata: () => {},
     showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithDisabledChains = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['alfajores', 'base']),
+    overrideChainMetadata: {
+      arbitrum: {
+        ...chainMetadata['arbitrum'],
+        availability: {
+          status: ChainStatus.Disabled,
+          reasons: [ChainDisabledReason.Deprecated],
+        },
+      },
+      ethereum: {
+        ...chainMetadata['ethereum'],
+        availability: {
+          status: ChainStatus.Disabled,
+        },
+      },
+    },
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    defaultSortField: 'custom',
+    shouldDisableChains: true,
+    customListItemField: {
+      header: 'Warp Routes',
+      data: {
+        alfajores: { display: '1 token', sortValue: 1 },
+        arbitrum: { display: '2 tokens', sortValue: 2 },
+        ethereum: { display: '1 token', sortValue: 1 },
+        base: { display: '2 tokens', sortValue: 2 },
+      },
+    },
   },
 } satisfies Story;

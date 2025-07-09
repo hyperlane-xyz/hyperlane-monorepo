@@ -8,9 +8,10 @@ use tracing::{debug, info, instrument};
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::grpc::WasmProvider;
@@ -35,22 +36,40 @@ pub struct CosmosMerkleTreeHook {
 
 impl CosmosMerkleTreeHook {
     /// create new Cosmos MerkleTreeHook agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             provider,
+        })
+    }
+
+    async fn get_checkpoint_at_block(&self, block_height: u64) -> ChainResult<CheckpointAtBlock> {
+        let payload = merkle_tree_hook::CheckPointRequest {
+            check_point: general::EmptyStruct {},
+        };
+
+        let data = self
+            .provider
+            .grpc()
+            .wasm_query(
+                merkle_tree_hook::MerkleTreeGenericRequest {
+                    merkle_hook: payload,
+                },
+                Some(block_height),
+            )
+            .await?;
+        let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
+
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address: self.address,
+            mailbox_domain: self.domain.id(),
+            root: response.root.parse()?,
+            index: response.count,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: Some(block_height),
         })
     }
 }
@@ -76,7 +95,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let payload = merkle_tree_hook::MerkleTreeRequest {
             tree: general::EmptyStruct {},
         };
@@ -91,7 +110,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                block_height,
+                Some(block_height),
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeResponse = serde_json::from_slice(&data)?;
@@ -107,7 +126,11 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             ChainCommunicationError::from_other_str("Failed to build merkle branch array")
         })?;
 
-        Ok(IncrementalMerkle::new(branch_res, response.count as usize))
+        let tree = IncrementalMerkle::new(branch_res, response.count as usize);
+        Ok(IncrementalMerkleAtBlock {
+            tree,
+            block_height: Some(block_height),
+        })
     }
 
     /// Gets the current leaf count of the merkle tree
@@ -124,38 +147,25 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let payload = merkle_tree_hook::CheckPointRequest {
-            check_point: general::EmptyStruct {},
-        };
-
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
         let block_height =
             get_block_height_for_reorg_period(self.provider.grpc(), reorg_period).await?;
+        self.get_checkpoint_at_block(block_height).await
+    }
 
-        let data = self
-            .provider
-            .grpc()
-            .wasm_query(
-                merkle_tree_hook::MerkleTreeGenericRequest {
-                    merkle_hook: payload,
-                },
-                block_height,
-            )
-            .await?;
-        let response: merkle_tree_hook::CheckPointResponse = serde_json::from_slice(&data)?;
-
-        Ok(Checkpoint {
-            merkle_tree_hook_address: self.address,
-            mailbox_domain: self.domain.id(),
-            root: response.root.parse()?,
-            index: response.count,
-        })
+    #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        self.get_checkpoint_at_block(height).await
     }
 }
 
 impl CosmosMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+    async fn count_at_block(&self, block_height: u64) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
         };
@@ -167,7 +177,7 @@ impl CosmosMerkleTreeHook {
                 merkle_tree_hook::MerkleTreeGenericRequest {
                     merkle_hook: payload,
                 },
-                block_height,
+                Some(block_height),
             )
             .await?;
         let response: merkle_tree_hook::MerkleTreeCountResponse = serde_json::from_slice(&data)?;
@@ -197,25 +207,17 @@ pub struct CosmosMerkleTreeHookIndexer {
 
 impl CosmosMerkleTreeHookIndexer {
     /// The message dispatch event type from the CW contract.
-    const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
+    pub const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
 
     /// create new Cosmos MerkleTreeHookIndexer agent
     pub fn new(
-        conf: ConnectionConf,
+        provider: CosmosProvider,
+        wasm_provider: CosmosWasmRpcProvider,
         locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf.clone(),
-            locator.clone(),
-            Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
-            reorg_period,
-        )?;
-
         Ok(Self {
-            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer)?,
-            provider: Box::new(provider),
+            merkle_tree_hook: CosmosMerkleTreeHook::new(provider, locator)?,
+            provider: Box::new(wasm_provider),
         })
     }
 
@@ -232,57 +234,66 @@ impl CosmosMerkleTreeHookIndexer {
         let mut insertion = IncompleteMerkleTreeInsertion::default();
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                    debug!(?contract_address, "parsed contract address from plain text");
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
-                    debug!(?contract_address, "parsed contract address from base64");
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                            debug!(?contract_address, "parsed contract address from plain text");
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                            debug!(?contract_address, "parsed contract address from base64");
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            insertion.message_id =
+                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.message_id = Some(H256::from_slice(
+                                hex::decode(String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?)?
+                                .as_slice(),
+                            ));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
+                        }
+
+                        INDEX_ATTRIBUTE_KEY => {
+                            insertion.leaf_index = Some(value.parse::<u32>()?);
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from plain text");
+                        }
+                        v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.leaf_index = Some(
+                                String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?
+                                .parse()?,
+                            );
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from base64");
+                        }
+
+                        unknown => {
+                            debug!(?unknown, "unknown attribute");
+                        }
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    insertion.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
-                    debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
-                }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?)?
-                        .as_slice(),
-                    ));
-                    debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
-                }
-
-                INDEX_ATTRIBUTE_KEY => {
-                    insertion.leaf_index = Some(value.parse::<u32>()?);
-                    debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from plain text");
-                }
-                v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.leaf_index = Some(
-                        String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?
-                        .parse()?,
-                    );
-                    debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from base64");
-                }
-
-                unknown => {
-                    debug!(?unknown, "unknown attribute");
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
             }
         }
@@ -345,10 +356,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
-        let sequence = self
-            .merkle_tree_hook
-            .count_at_block(Some(tip.into()))
-            .await?;
+        let sequence = self.merkle_tree_hook.count_at_block(tip.into()).await?;
 
         Ok((Some(sequence), tip))
     }

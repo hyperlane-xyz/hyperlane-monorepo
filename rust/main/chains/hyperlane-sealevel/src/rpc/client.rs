@@ -1,39 +1,50 @@
-use base64::Engine;
-use borsh::{BorshDeserialize, BorshSerialize};
-use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+use std::sync::Arc;
+
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
-    rpc_config::RpcProgramAccountsConfig, rpc_config::RpcTransactionConfig, rpc_response::Response,
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{
+        RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
+        RpcSimulateTransactionConfig, RpcTransactionConfig,
+    },
+    rpc_response::{Response, RpcSimulateTransactionResult},
 };
+use solana_program::clock::Slot;
 use solana_sdk::{
-    account::Account,
-    commitment_config::CommitmentConfig,
-    hash::Hash,
-    instruction::{AccountMeta, Instruction},
-    message::Message,
-    pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
-    transaction::Transaction,
+    account::Account, commitment_config::CommitmentConfig, hash::Hash, pubkey::Pubkey,
+    signature::Signature, transaction::Transaction,
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
-    UiReturnDataEncoding, UiTransactionEncoding, UiTransactionReturnData,
+    UiTransactionEncoding,
 };
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
+use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, U256};
 
 use crate::error::HyperlaneSealevelError;
 
-pub struct SealevelRpcClient(RpcClient);
+/// Wrapper struct around Solana's RpcClient
+#[derive(Clone)]
+pub struct SealevelRpcClient(Arc<RpcClient>);
 
 impl SealevelRpcClient {
+    /// constructor
     pub fn new(rpc_endpoint: String) -> Self {
-        Self(RpcClient::new_with_commitment(
-            rpc_endpoint,
-            CommitmentConfig::processed(),
-        ))
+        let rpc_client =
+            RpcClient::new_with_commitment(rpc_endpoint, CommitmentConfig::processed());
+        Self::from_rpc_client(Arc::new(rpc_client))
     }
 
+    /// constructor with an rpc client
+    pub fn from_rpc_client(rpc_client: Arc<RpcClient>) -> Self {
+        Self(rpc_client)
+    }
+
+    /// Get Url
+    pub fn url(&self) -> String {
+        self.0.url()
+    }
+
+    /// confirm transaction with given commitment
     pub async fn confirm_transaction_with_commitment(
         &self,
         signature: &Signature,
@@ -43,35 +54,12 @@ impl SealevelRpcClient {
             .confirm_transaction_with_commitment(signature, commitment)
             .await
             .map(|ctx| ctx.value)
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }
 
-    /// Simulates an Instruction that will return a list of AccountMetas.
-    pub async fn get_account_metas(
-        &self,
-        payer: &Keypair,
-        instruction: Instruction,
-    ) -> ChainResult<Vec<AccountMeta>> {
-        // If there's no data at all, default to an empty vec.
-        let account_metas = self
-            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
-                payer,
-                instruction,
-            )
-            .await?
-            .map(|serializable_account_metas| {
-                serializable_account_metas
-                    .return_data
-                    .into_iter()
-                    .map(|serializable_account_meta| serializable_account_meta.into())
-                    .collect()
-            })
-            .unwrap_or_else(Vec::new);
-
-        Ok(account_metas)
-    }
-
+    /// get account with finalized commitment
     pub async fn get_account_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -81,6 +69,7 @@ impl SealevelRpcClient {
             .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
     }
 
+    /// get account option with finalized commitment
     pub async fn get_account_option_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -94,30 +83,63 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
+    /// get balance
     pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
         let balance = self
             .0
             .get_balance(pubkey)
             .await
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneSealevelError>::into)
             .map_err(ChainCommunicationError::from)?;
 
         Ok(balance.into())
     }
 
-    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+    /// get block with commitment
+    pub async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
-            commitment: Some(CommitmentConfig::finalized()),
+            commitment: Some(commitment),
             max_supported_transaction_version: Some(0),
             ..Default::default()
         };
         self.0
             .get_block_with_config(slot, config)
             .await
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }
 
+    /// get block
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.get_block_with_commitment(slot, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// get block_height
+    pub async fn get_block_height(&self) -> ChainResult<u64> {
+        self.0
+            .get_block_height()
+            .await
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
+    }
+
+    /// get minimum balance for rent exemption
+    pub async fn get_minimum_balance_for_rent_exemption(&self, len: usize) -> ChainResult<u64> {
+        self.0
+            .get_minimum_balance_for_rent_exemption(len)
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    /// get multiple accounts with finalized commitment
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
         pubkeys: &[Pubkey],
@@ -132,6 +154,7 @@ impl SealevelRpcClient {
         Ok(accounts)
     }
 
+    /// get latest block hash with commitment
     pub async fn get_latest_blockhash_with_commitment(
         &self,
         commitment: CommitmentConfig,
@@ -143,6 +166,7 @@ impl SealevelRpcClient {
             .map(|(blockhash, _)| blockhash)
     }
 
+    /// get program accounts with config
     pub async fn get_program_accounts_with_config(
         &self,
         pubkey: &Pubkey,
@@ -154,6 +178,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get statuses based on signatures
     pub async fn get_signature_statuses(
         &self,
         signatures: &[Signature],
@@ -164,34 +189,54 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get slot
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self
-            .0
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
+            .get_slot_raw()
+            .await?
             .try_into()
             // FIXME solana block height is u64...
             .expect("sealevel block slot exceeds u32::MAX");
         Ok(slot)
     }
 
-    pub async fn get_transaction(
+    /// get slot
+    pub async fn get_slot_raw(&self) -> ChainResult<Slot> {
+        self.0
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    /// get transaction
+    pub async fn get_transaction_with_commitment(
         &self,
         signature: &Signature,
+        commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::JsonParsed),
-            commitment: Some(CommitmentConfig::finalized()),
-            ..Default::default()
+            commitment: Some(commitment),
+            max_supported_transaction_version: Some(0),
         };
         self.0
             .get_transaction_with_config(signature, config)
             .await
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }
 
+    /// get transaction
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// check if block hash is valid
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {
         self.0
             .is_blockhash_valid(hash, CommitmentConfig::processed())
@@ -199,71 +244,57 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn send_and_confirm_transaction(
+    /// send transaction
+    pub async fn send_transaction(
         &self,
         transaction: &Transaction,
+        skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.0
-            .send_and_confirm_transaction(transaction)
+            .send_transaction_with_config(
+                transaction,
+                RpcSendTransactionConfig {
+                    skip_preflight,
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// Simulates an instruction, and attempts to deserialize it into a T.
-    /// If no return data at all was returned, returns Ok(None).
-    /// If some return data was returned but deserialization was unsuccessful,
-    /// an Err is returned.
-    pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
-        &self,
-        payer: &Keypair,
-        instruction: Instruction,
-    ) -> ChainResult<Option<T>> {
-        let commitment = CommitmentConfig::finalized();
-        let recent_blockhash = self
-            .get_latest_blockhash_with_commitment(commitment)
-            .await?;
-        let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
-            Some(&payer.pubkey()),
-            &recent_blockhash,
-        ));
-        let return_data = self.simulate_transaction(&transaction).await?;
-
-        if let Some(return_data) = return_data {
-            let bytes = match return_data.data.1 {
-                UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
-                    .decode(return_data.data.0)
-                    .map_err(ChainCommunicationError::from_other)?,
-            };
-
-            let decoded_data =
-                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
-
-            return Ok(Some(decoded_data));
-        }
-
-        Ok(None)
-    }
-
-    async fn simulate_transaction(
+    /// simulate a transaction
+    pub async fn simulate_transaction(
         &self,
         transaction: &Transaction,
-    ) -> ChainResult<Option<UiTransactionReturnData>> {
-        let return_data = self
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        let result = self
             .0
-            .simulate_transaction(transaction)
+            .simulate_transaction_with_config(
+                transaction,
+                RpcSimulateTransactionConfig {
+                    sig_verify: false,
+                    replace_recent_blockhash: true,
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(ChainCommunicationError::from_other)?
-            .value
-            .return_data;
+            .value;
 
-        Ok(return_data)
+        Ok(result)
     }
 }
 
 impl std::fmt::Debug for SealevelRpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("RpcClient { ... }")
+        write!(f, "RpcClient {{ url: {} }}", self.0.url())
+    }
+}
+
+#[async_trait::async_trait]
+impl BlockNumberGetter for SealevelRpcClient {
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        self.get_block_height().await
     }
 }
 

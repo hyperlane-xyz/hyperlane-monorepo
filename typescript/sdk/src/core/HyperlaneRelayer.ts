@@ -15,11 +15,11 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { HookConfigSchema } from '../hook/types.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { IsmConfigSchema } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -205,6 +205,38 @@ export class HyperlaneRelayer {
     const destinationChain = this.core.getDestination(message);
     const ism = await this.core.getRecipientIsmAddress(message);
     return this.getIsmConfig(destinationChain, ism, message);
+  }
+
+  async relayAll(
+    dispatchTx: providers.TransactionReceipt,
+    messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
+  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+    const destinationMap: ChainMap<DispatchedMessage[]> = {};
+    messages.forEach((message) => {
+      destinationMap[message.parsed.destination] ??= [];
+      destinationMap[message.parsed.destination].push(message);
+    });
+
+    // parallelize relaying to different destinations
+    return promiseObjAll(
+      objMap(destinationMap, async (_destination, messages) => {
+        const receipts: ethers.ContractReceipt[] = [];
+        // serially relay messages to the same destination
+        for (const message of messages) {
+          try {
+            const receipt = await this.relayMessage(
+              dispatchTx,
+              undefined,
+              message,
+            );
+            receipts.push(receipt);
+          } catch (e) {
+            this.logger.error(`Failed to relay message ${message.id}, ${e}`);
+          }
+        }
+        return receipts;
+      }),
+    );
   }
 
   async relayMessage(

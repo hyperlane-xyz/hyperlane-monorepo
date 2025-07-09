@@ -3,8 +3,7 @@
     "type": "collateral",
     "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "token": "ezSoL6fY1PVdJcJsUpe5CM3xkfmy3zoVCABybm5WtiC",
-    "splTokenProgram": "token"
+    "token": "ezSoL6fY1PVdJcJsUpe5CM3xkfmy3zoVCABybm5WtiC"
   },
   "eclipsemainnet": {
     "type": "synthetic",

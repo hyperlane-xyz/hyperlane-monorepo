@@ -3,7 +3,15 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
-import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
+  Mailbox,
+  StorageGasOracle,
+  StorageGasOracle__factory,
+  TestSendReceiver,
+  TestSendReceiver__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
   HookType,
@@ -11,7 +19,7 @@ import {
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, formatMessage, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -45,6 +53,44 @@ async function setMailboxHook(
     }
   }
   console.log(`set the ${mailboxHookType} hook on ${local} to ${hook}`);
+}
+
+async function setIgpConfig(
+  remoteId: number,
+  signer: Wallet,
+  provider: Provider,
+  mailbox: Mailbox,
+  addresses: any,
+  local: ChainName,
+) {
+  const storageGasOracleF = new StorageGasOracle__factory(
+    signer.connect(provider),
+  );
+  const storageGasOracle = await storageGasOracleF.deploy();
+  await storageGasOracle.deployTransaction.wait();
+
+  const oracleConfigs: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+  oracleConfigs.push({
+    remoteDomain: remoteId,
+    tokenExchangeRate: '10000000000',
+    gasPrice: '1000000000',
+  });
+  await storageGasOracle.setRemoteGasDataConfigs(oracleConfigs);
+
+  const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+  gasParamsToSet.push({
+    remoteDomain: remoteId,
+    config: {
+      gasOracle: storageGasOracle.address,
+      gasOverhead: 1000000,
+    },
+  });
+
+  const igpHook = InterchainGasPaymaster__factory.connect(
+    addresses[local].interchainGasPaymaster,
+    signer.connect(provider),
+  );
+  await igpHook.setDestinationGasConfigs(gasParamsToSet);
 }
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
@@ -82,6 +128,29 @@ function getArgs() {
       default: false,
       describe: 'Mine forever after sending messages',
     })
+    .option('body', {
+      type: 'string',
+      default: '0x1234',
+      describe: 'send custom body',
+    })
+    .option('singleOrigin', {
+      type: 'string',
+      default: undefined,
+      describe: 'If specified, only sends from a single origin chain',
+      coerce: (arg) => {
+        if (arg) {
+          if (!Object.values(TestChainName).includes(arg)) {
+            throw new Error(
+              `Invalid chain name ${arg}. Must be one of ${Object.values(
+                TestChainName,
+              )}`,
+            );
+          }
+          return arg as TestChainName;
+        }
+        return undefined;
+      },
+    })
     .option(MailboxHookType.DEFAULT, {
       type: 'string',
       describe: 'Description for defaultHook',
@@ -98,7 +167,14 @@ function getArgs() {
 
 async function main() {
   const args = await getArgs();
-  const { timeout, defaultHook, requiredHook, mineforever } = args;
+  const {
+    timeout,
+    defaultHook,
+    requiredHook,
+    mineforever,
+    singleOrigin,
+    body,
+  } = args;
   let messages = args.messages;
 
   // Limit the test chains to a subset of the known chains
@@ -134,8 +210,14 @@ async function main() {
   //  Generate artificial traffic
   const run_forever = messages === 0;
   while (run_forever || messages-- > 0) {
-    // Round robin origin chain
-    const local = kathyTestChains[messages % kathyTestChains.length];
+    // By default, round robin origin chain
+    let local: TestChainName;
+    if (singleOrigin) {
+      local = singleOrigin;
+    } else {
+      local = kathyTestChains[messages % kathyTestChains.length];
+    }
+
     // Random remote chain
     const remote: ChainName = randomElement(
       kathyTestChains.filter((c) => c !== local),
@@ -157,15 +239,24 @@ async function main() {
       MailboxHookType.REQUIRED,
       requiredHook,
     );
+
+    if (
+      defaultHook === HookType.AGGREGATION ||
+      defaultHook === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      console.log('Setting IGP config for message ...');
+      await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
+    }
+
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      '0x1234',
+      body,
     );
-    await recipient['dispatchToSelf(address,uint32,bytes)'](
-      mailbox.address,
+    await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
-      '0x1234',
+      addressToBytes32(recipient.address),
+      body,
       {
         value: quote,
       },
@@ -173,7 +264,9 @@ async function main() {
     console.log(
       `send to ${recipient.address} on ${remote} via mailbox ${
         mailbox.address
-      } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
+      } on ${local} with nonce ${
+        (await mailbox.nonce()) - 1
+      } and quote ${quote.toString()}`,
     );
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));

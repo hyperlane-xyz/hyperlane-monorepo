@@ -106,6 +106,8 @@ hyperlane:
       prometheus.io/scrape: 'true'
     podLabels: {}
     storage:
+      name: 'state-premium'
+      storageClass: 'premium-immediate-rwo'
       size: 10Gi
       snapshot:
         enabled: false
@@ -120,6 +122,10 @@ hyperlane:
     # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
     # It affects chains whose signer type is hexKey.
     usingDefaultSignerKey: true
+    dbBootstrap:
+      enabled: false
+      bucket: ''
+      object_targz: ''
 
   relayerChains:
     - name: 'alfajores'

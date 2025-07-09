@@ -1,0 +1,187 @@
+{
+  "sierra_program": [],
+  "sierra_program_debug_info": {
+    "type_names": [],
+    "libfunc_names": [],
+    "user_func_names": []
+  },
+  "contract_class_version": "0.1.0",
+  "entry_points_by_type": {
+    "EXTERNAL": [
+      {
+        "selector": "0x1068cb7a4466c74282c7b53b6335949a97d400c172b52cc508c1bae4d7cfcb8",
+        "function_idx": 0
+      },
+      {
+        "selector": "0x27ea29384deca9928aa65088faae7fc2e5a99fd6512125ef320c18227e0f7d3",
+        "function_idx": 1
+      }
+    ],
+    "L1_HANDLER": [],
+    "CONSTRUCTOR": []
+  },
+  "abi": [
+    {
+      "type": "impl",
+      "name": "IMessageidMultisigIsmImpl",
+      "interface_name": "hyperlane_starknet::interfaces::IInterchainSecurityModule"
+    },
+    {
+      "type": "enum",
+      "name": "hyperlane_starknet::interfaces::ModuleType",
+      "variants": [
+        {
+          "name": "UNUSED",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "ROUTING",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "AGGREGATION",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "LEGACY_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "MERKLE_ROOT_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "MESSAGE_ID_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "NULL",
+          "type": "()"
+        },
+        {
+          "name": "CCIP_READ",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "alexandria_bytes::bytes::Bytes",
+      "members": [
+        {
+          "name": "size",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "data",
+          "type": "core::array::Array::<core::integer::u128>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::integer::u256",
+      "members": [
+        {
+          "name": "low",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "high",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "hyperlane_starknet::contracts::libs::message::Message",
+      "members": [
+        {
+          "name": "version",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "nonce",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "origin",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "sender",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "destination",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "recipient",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "body",
+          "type": "alexandria_bytes::bytes::Bytes"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::bool",
+      "variants": [
+        {
+          "name": "False",
+          "type": "()"
+        },
+        {
+          "name": "True",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "hyperlane_starknet::interfaces::IInterchainSecurityModule",
+      "items": [
+        {
+          "type": "function",
+          "name": "module_type",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "hyperlane_starknet::interfaces::ModuleType"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "verify",
+          "inputs": [
+            {
+              "name": "_metadata",
+              "type": "alexandria_bytes::bytes::Bytes"
+            },
+            {
+              "name": "_message",
+              "type": "hyperlane_starknet::contracts::libs::message::Message"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "hyperlane_starknet::contracts::mocks::ism::ism::Event",
+      "kind": "enum",
+      "variants": []
+    }
+  ]
+}

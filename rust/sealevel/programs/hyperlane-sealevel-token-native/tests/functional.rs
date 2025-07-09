@@ -31,7 +31,6 @@ use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
-    message::TokenMessage,
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
@@ -41,6 +40,7 @@ use hyperlane_test_utils::{
     assert_lamports, assert_transaction_error, igp_program_id, initialize_igp_accounts,
     initialize_mailbox, mailbox_id, new_funded_keypair, process, transfer_lamports, IgpAccounts,
 };
+use hyperlane_warp_route::TokenMessage;
 use solana_program_test::*;
 use solana_sdk::{
     commitment_config::CommitmentLevel,

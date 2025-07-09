@@ -9,7 +9,10 @@ use std::{
     process::{Command, Stdio},
 };
 
-use solana_client::{client_error::ClientError, rpc_client::RpcClient};
+use solana_client::{
+    client_error::{reqwest, ClientError},
+    rpc_client::RpcClient,
+};
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
 
@@ -18,7 +21,7 @@ use hyperlane_sealevel_connection_client::{
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{
-    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token_2022,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
@@ -32,12 +35,51 @@ use hyperlane_sealevel_token_lib::{
 use crate::{
     cmd_utils::account_exists,
     core::CoreProgramIds,
+    registry::ChainMetadata,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
-        RouterDeployer,
+        deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct SplTokenOffchainMetadata {
+    name: String,
+    symbol: String,
+    description: Option<String>,
+    image: Option<String>,
+    website: Option<String>,
+    // Array of key-value pairs
+    attributes: Option<Vec<(String, String)>>,
+}
+
+impl SplTokenOffchainMetadata {
+    fn validate(&self) {
+        assert!(!self.name.is_empty(), "Name must not be empty");
+        assert!(
+            !self.symbol.is_empty(),
+            "Symbol must not be empty for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.description.is_some(),
+            "Description must be provided for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.image.is_some(),
+            "Image must be provided for token with name: {}",
+            self.name
+        );
+        let image_url = self.image.as_ref().unwrap();
+        let image = reqwest::blocking::get(image_url).unwrap();
+        assert!(
+            image.status().is_success(),
+            "Image URL must return a successful status code, url: {}",
+            image_url,
+        );
+    }
+}
 
 /// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -87,26 +129,9 @@ struct TokenMetadata {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-enum SplTokenProgramType {
-    Token,
-    Token2022,
-}
-
-impl SplTokenProgramType {
-    fn program_id(&self) -> Pubkey {
-        match &self {
-            SplTokenProgramType::Token => spl_token::id(),
-            SplTokenProgramType::Token2022 => spl_token_2022::id(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
 struct CollateralInfo {
     #[serde(rename = "token")]
     mint: String,
-    spl_token_program: Option<SplTokenProgramType>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -129,7 +154,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 "warp-routes",
                 &deploy.warp_route_name,
                 deploy.token_config_file,
-                deploy.chain_config_file,
+                deploy.registry,
                 deploy.env_args.environments_dir,
                 &deploy.env_args.environment,
                 deploy.built_so_dir,
@@ -188,7 +213,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
@@ -214,7 +239,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             return;
         }
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id;
 
         // TODO: consider pulling the setting of defaults into router.rs,
         // and possibly have a more distinct connection client abstraction.
@@ -321,20 +346,24 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .unwrap(),
                 )
             }
-            TokenType::Collateral(collateral_info) => ctx.new_txn().add(
-                hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    init,
-                    collateral_info
-                        .spl_token_program
-                        .as_ref()
-                        .expect("Cannot initialize collateral warp route without SPL token program")
-                        .program_id(),
-                    collateral_info.mint.parse().expect("Invalid mint address"),
+            TokenType::Collateral(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                // The owner of the mint account is the SPL Token program responsible for it
+                // (either spl-token or spl-token-2022).
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            ),
+            }
         }
         .with_client(client)
         .send_with_payer();
@@ -408,35 +437,82 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         try_fund_ata_payer(ctx, client);
     }
 
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, TokenConfig>,
+        app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
+    ) {
+        // We only have validations for SVM tokens at the moment.
+        for (chain, config) in app_configs_to_deploy.iter() {
+            if let TokenType::Synthetic(synthetic) = &config.token_type {
+                // Verify that the metadata URI provided points to a valid JSON file.
+                let metadata_uri = match synthetic.uri.as_ref() {
+                    Some(uri) => uri,
+                    None => {
+                        if chain_metadatas
+                            .get(*chain)
+                            .unwrap()
+                            .is_testnet
+                            .unwrap_or(false)
+                        {
+                            // Skip validation for testnet chain
+                            println!(
+                                "Skipping metadata URI validation for testnet chain: {}",
+                                chain
+                            );
+                            continue;
+                        }
+                        panic!("URI not provided for token: {}", chain);
+                    }
+                };
+                println!("Validating metadata URI: {}", metadata_uri);
+                let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+                let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                    .json()
+                    .expect("Failed to parse metadata JSON");
+                metadata_contents.validate();
+
+                // Ensure that the metadata contents match the provided token config.
+                assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+                assert_eq!(
+                    metadata_contents.symbol, synthetic.symbol,
+                    "Symbol mismatch"
+                );
+            }
+        }
+    }
+
     /// Sets gas router configs on all deployable chains.
     fn post_deploy(
         &self,
         ctx: &mut Context,
         app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        chain_configs: &HashMap<String, ChainMetadata>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
         routers: &HashMap<u32, H256>,
     ) {
         // Set gas amounts for each destination chain
         for chain_name in app_configs_to_deploy.keys() {
-            let chain_config = chain_configs
+            let chain_metadata = chain_metadatas
                 .get(*chain_name)
                 .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-            let domain_id = chain_config.domain_id();
+            let domain_id = chain_metadata.domain_id;
             let program_id: Pubkey =
                 Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
             // And set destination gas
             let configured_destination_gas =
-                get_destination_gas(&chain_config.client(), &program_id).unwrap();
+                get_destination_gas(&chain_metadata.client(), &program_id).unwrap();
 
             let expected_destination_gas = app_configs
                 .iter()
                 // filter out local chain
                 .filter(|(dest_chain_name, _)| dest_chain_name != chain_name)
                 .map(|(dest_chain_name, app_config)| {
-                    let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
+                    let domain = chain_metadatas.get(dest_chain_name).unwrap().domain_id;
                     (
                         domain,
                         GasRouterConfig {
@@ -469,26 +545,31 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
 
-            if !destination_gas_configs.is_empty() {
-                let description = format!(
+            let owner = self.get_owner(&chain_metadata.client(), &program_id);
+
+            if let Some(owner) = owner {
+                if !destination_gas_configs.is_empty() {
+                    let description = format!(
                     "Setting destination gas amounts for chain: {}, program_id {}, destination gas: {:?}",
                     chain_name, program_id, destination_gas_configs,
                 );
-                ctx.new_txn()
-                    .add_with_description(
-                        set_destination_gas_configs(
-                            program_id,
-                            ctx.payer_pubkey,
-                            destination_gas_configs,
+                    ctx.new_txn()
+                        .add_with_description(
+                            set_destination_gas_configs(program_id, owner, destination_gas_configs)
+                                .unwrap(),
+                            description,
                         )
-                        .unwrap(),
-                        description,
-                    )
-                    .with_client(&chain_config.client())
-                    .send_with_payer();
+                        .with_client(&chain_metadata.client())
+                        .send_with_pubkey_signer(&owner);
+                } else {
+                    println!(
+                        "No destination gas amount changes for chain: {}, program_id {}",
+                        chain_name, program_id
+                    );
+                }
             } else {
                 println!(
-                    "No destination gas amount changes for chain: {}, program_id {}",
+                    "Cannot set destination gas amounts for chain: {}, program_id {} because owner is None",
                     chain_name, program_id
                 );
             }
@@ -670,7 +751,8 @@ pub fn install_spl_token_cli() {
             "--branch",
             "dan/create-token-for-mint",
             "--rev",
-            "ae4c8ac46",
+            "e101cca",
+            "--locked",
         ])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

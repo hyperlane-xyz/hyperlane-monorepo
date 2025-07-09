@@ -21,7 +21,7 @@ use crate::utils::{
 use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
 
 /// The message process event type from the CW contract.
-const MESSAGE_DELIVERY_EVENT_TYPE: &str = "mailbox_process_id";
+pub const MESSAGE_DELIVERY_EVENT_TYPE: &str = "mailbox_process_id";
 const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
 static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
@@ -34,21 +34,9 @@ pub struct CosmosMailboxDeliveryIndexer {
 impl CosmosMailboxDeliveryIndexer {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
-    ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf,
-            locator,
-            MESSAGE_DELIVERY_EVENT_TYPE.to_owned(),
-            reorg_period,
-        )?;
-
+    pub fn new(wasm_provider: CosmosWasmRpcProvider) -> ChainResult<Self> {
         Ok(Self {
-            provider: Box::new(provider),
+            provider: Box::new(wasm_provider),
         })
     }
 
@@ -60,34 +48,42 @@ impl CosmosMailboxDeliveryIndexer {
         let mut message_id: Option<Delivery> = None;
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            message_id = Some(value.parse::<H256>()?);
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            let hex = String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?;
+                            message_id = Some(hex.parse::<H256>()?);
+                        }
+
+                        _ => {}
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    message_id = Some(value.parse::<H256>()?);
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    let hex = String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?;
-                    message_id = Some(hex.parse::<H256>()?);
-                }
-
-                _ => {}
             }
         }
 

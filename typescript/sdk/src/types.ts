@@ -1,7 +1,7 @@
 import type { ethers } from 'ethers';
 import { z } from 'zod';
 
-import type { Domain } from '@hyperlane-xyz/utils';
+import type { Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
 
@@ -9,6 +9,8 @@ import { ZHash } from './metadata/customZodTypes.js';
 export type ChainName = string;
 // A map of chain names to a value type
 export type ChainMap<Value> = Record<ChainName, Value>;
+// A map of protocol types to a value type
+export type ProtocolMap<Value> = Record<ProtocolType, Value>;
 
 export type ChainNameOrId = ChainName | Domain;
 
@@ -18,6 +20,7 @@ export const OwnableSchema = z.object({
   owner: ZHash,
   ownerOverrides: z.record(ZHash).optional(),
 });
+
 export type OwnableConfig = z.infer<typeof OwnableSchema>;
 
 export const DeployedOwnableSchema = OwnableSchema.extend({

@@ -26,13 +26,14 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
     /// Note this could result in ambiguity between the Circle domain being
     /// Ethereum or unknown.
-    mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
+    mapping(uint32 hyperlaneDomain => uint32 circleDomain)
+        public hyperlaneDomainToCircleDomain;
 
     /// @notice Token symbol => address of token on local chain.
-    mapping(string => IERC20) public tokenSymbolToAddress;
+    mapping(string tokenSymbol => IERC20 token) public tokenSymbolToAddress;
 
     /// @notice Local chain token address => token symbol.
-    mapping(address => string) public tokenAddressToSymbol;
+    mapping(address token => string tokenSymbol) public tokenAddressToSymbol;
 
     /**
      * @notice Emits the nonce of the Circle message when a token is bridged.

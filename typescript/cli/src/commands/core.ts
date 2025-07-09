@@ -13,6 +13,7 @@ import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -35,7 +36,6 @@ import {
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
-  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -105,6 +105,7 @@ export const deploy: CommandModuleWithWriteContext<{
   config: string;
   dryRun: string;
   fromAddress: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }> = {
   command: 'deploy',
   describe: 'Deploy Hyperlane contracts',
@@ -117,9 +118,14 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
-    'skip-confirmation': skipConfirmationOption,
   },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    dryRun,
+    multiProtocolSigner,
+  }) => {
     logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
 
     try {
@@ -127,6 +133,7 @@ export const deploy: CommandModuleWithWriteContext<{
         context,
         chain,
         config: readYamlOrJson(configFilePath),
+        multiProtocolSigner,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

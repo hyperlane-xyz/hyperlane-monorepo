@@ -1,14 +1,15 @@
-pub use crate::metadata::AgentMetadata;
+pub use crate::metadata::{git_sha, AgentMetadata};
 
 use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::config::*;
+use serde::Serialize;
 use tracing::info;
 
 use crate::{
-    metrics::{AgentMetrics, CoreMetrics},
+    metrics::{AgentMetrics, CoreMetrics, RuntimeMetrics},
     settings::Settings,
     ChainMetrics,
 };
@@ -26,7 +27,13 @@ pub struct HyperlaneAgentCore {
 pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn load() -> ConfigResult<Self>;
+    fn load(agent_name: &str) -> ConfigResult<Self>;
+}
+
+/// Metadata of an agent defined from configuration
+pub trait MetadataFromSettings<T>: Serialize + Sized {
+    /// Create a new instance of the agent metadata from the settings
+    fn build_metadata(settings: &T) -> Self;
 }
 
 /// A fundamental agent which does not make any assumptions about the tools
@@ -39,13 +46,17 @@ pub trait BaseAgent: Send + Sync + Debug {
     /// The settings object for this agent
     type Settings: LoadableFromSettings;
 
+    /// The agents metadata type
+    type Metadata: MetadataFromSettings<Self::Settings>;
+
     /// Instantiate the agent from the standard settings object
     async fn from_settings(
-        agent_metadata: AgentMetadata,
+        agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        tokio_runtime_monitor: RuntimeMetrics,
         tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
@@ -75,26 +86,30 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
-    // Latest git commit hash at the time when agent was built.
-    // If .git was not present at the time of build,
-    // the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
-    let git_sha = env!("VERGEN_GIT_SHA").to_owned();
+    // Logging is not initialised at this point, so, using `println!`
+    println!(
+        "Agent {} starting up with version {}",
+        A::AGENT_NAME,
+        git_sha()
+    );
 
-    let agent_metadata = AgentMetadata::new(git_sha);
-
-    let settings = A::Settings::load()?;
+    let settings = A::Settings::load(A::AGENT_NAME)?;
+    let agent_metadata = A::Metadata::build_metadata(&settings);
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
+    let task_monitor = tokio_metrics::TaskMonitor::new();
     let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
     let agent_metrics = AgentMetrics::new(&metrics)?;
     let chain_metrics = ChainMetrics::new(&metrics)?;
+    let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor)?;
     let agent = A::from_settings(
         agent_metadata,
         settings,
         metrics.clone(),
         agent_metrics,
         chain_metrics,
+        runtime_metrics,
         tokio_server,
     )
     .await?;

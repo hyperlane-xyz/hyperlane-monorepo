@@ -47,6 +47,7 @@ describe('HyperlaneIgpDeployer', () => {
     testConfig[local].oracleConfig![remote] = {
       tokenExchangeRate: utils.parseUnits('2', 'gwei').toString(),
       gasPrice: utils.parseUnits('3', 'gwei').toString(),
+      tokenDecimals: 18,
     };
 
     const localContracts = await deployer.deployContracts(

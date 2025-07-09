@@ -1,4 +1,3 @@
-use std::num::NonZeroU64;
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -18,7 +17,7 @@ use crate::payloads::mailbox::{
 };
 use crate::types::tx_response_to_outcome;
 use crate::utils::get_block_height_for_reorg_period;
-use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider, Signer};
+use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider};
 
 #[derive(Clone, Debug)]
 /// A reference to a Mailbox contract on some Cosmos chain
@@ -33,17 +32,10 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
     pub fn new(
+        provider: CosmosProvider,
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
         Ok(Self {
             config: conf,
             domain: locator.domain.clone(),
@@ -206,14 +198,22 @@ impl Mailbox for CosmosMailbox {
         Ok(result)
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         todo!() // not required
+    }
+
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
     }
 }
 
 impl CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
-    pub(crate) async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+    pub(crate) async fn nonce_at_block(&self, block_height: u64) -> ChainResult<u32> {
         let payload = payloads::mailbox::NonceRequest {
             nonce: general::EmptyStruct {},
         };
@@ -221,7 +221,7 @@ impl CosmosMailbox {
         let data = self
             .provider
             .grpc()
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, Some(block_height))
             .await?;
 
         let response: payloads::mailbox::NonceResponse = serde_json::from_slice(&data)?;

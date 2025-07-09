@@ -6,7 +6,12 @@ import {
   MerkleTreeHook__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  isValidValidatorStorageLocation,
+} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -111,9 +116,8 @@ const getAvsOperators = async (
 
   if (operatorKey) {
     // If operator key is provided, only fetch the operator's validator info
-    const signingKey = await ecdsaStakeRegistry.getLastestOperatorSigningKey(
-      operatorKey,
-    );
+    const signingKey =
+      await ecdsaStakeRegistry.getLastestOperatorSigningKey(operatorKey);
     avsOperators[signingKey] = {
       operatorAddress: operatorKey,
       chains: {},
@@ -288,19 +292,18 @@ const setValidatorInfo = async (
       const storageLocation = validatorStorageLocations[i];
       const warnings: string[] = [];
 
-      // Skip if no storage location is found, address is not validating on this chain or if storage location string doesn't not start with s3://
-      if (
-        storageLocation.length === 0 ||
-        !storageLocation[0].startsWith('s3://')
-      ) {
+      const lastStorageLocation =
+        storageLocation.length > 0 ? storageLocation.slice(-1)[0] : '';
+
+      // Skip if no storage location is found, address is not validating on this chain or if not a valid storage location
+      if (!isValidValidatorStorageLocation(lastStorageLocation)) {
         continue;
       }
 
       const [latestValidatorCheckpointIndex, latestCheckpointUrl] =
-        (await getLatestValidatorCheckpointIndexAndUrl(storageLocation[0])) ?? [
-          undefined,
-          undefined,
-        ];
+        (await getLatestValidatorCheckpointIndexAndUrl(
+          lastStorageLocation,
+        )) ?? [undefined, undefined];
 
       if (!latestMerkleTreeCheckpointIndex) {
         warnings.push(
@@ -430,9 +433,7 @@ const getEcdsaStakeRegistryAddress = (
   try {
     return avsAddresses[chain]['ecdsaStakeRegistry'];
   } catch {
-    topLevelErrors.push(
-      `❗️ EcdsaStakeRegistry address not found for ${chain}`,
-    );
+    topLevelErrors.push(`❗️ EcdsaStakeRegistry address not found for ${chain}`);
     return undefined;
   }
 };

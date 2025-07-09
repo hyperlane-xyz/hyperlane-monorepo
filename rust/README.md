@@ -112,18 +112,25 @@ validator. By default, this test will run indefinitely, but can be stopped with 
 
 To run the tests for a specific VM, use the `--features` flag.
 
+##### Cosmos E2E Test
+
 ```bash
 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+```
+
+##### Sealevel E2E Test
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
 ```
 
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
-production environment.
+production environment. You should run this at the top level of the repo.
 
 ```bash
-cd rust
-./build.sh <image_tag>
+./rust/build.sh <image_tag>
 ```
 
 ### Deploy Procedure

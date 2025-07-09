@@ -1,0 +1,5 @@
+services:
+  proto-gen:
+    build: .
+    volumes:
+      - ./src/types:/app/types

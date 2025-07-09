@@ -7,3 +7,7 @@ export function safelyAccessEnvVar(name: string, toLowerCase = false) {
     return undefined;
   }
 }
+
+export function inCIMode() {
+  return process.env.CI === 'true';
+}

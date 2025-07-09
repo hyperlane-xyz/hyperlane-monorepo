@@ -1,0 +1,48 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/USDC/metadata.json",
+    "owner": "JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE"
+  },
+  "arbitrum": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x2cB0E5AbE11346679749063d3FBfC1f390e6e70A",
+    "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+  },
+  "base": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x955132016f9B6376B1392aA7BFF50538d21Ababc",
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0xc927767CF7bddc5e8b996A0f957e5F22250A2F67",
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  },
+  "ink": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC",
+    "token": "0xF1815bd50389c46847f0Bda824eC8da914045D14"
+  },
+  "optimism": {
+    "type": "collateral",
+    "decimals": 6,
+    "foreignDeployment": "0x741B077c69FA219CEdb11364706a3880A792423e",
+    "token": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
+  },
+  "superseed": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "foreignDeployment": "0xa7D6042eEf06E81168e640b5C41632eE5295227D",
+    "token": "0xc316c8252b5f2176d0135ebb0999e99296998f2e"
+  }
+}

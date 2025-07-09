@@ -1,4 +1,5 @@
 import { rootLogger } from './logging.js';
+import { assert } from './validation.js';
 
 /**
  * Return a promise that resolves in ms milliseconds.
@@ -159,6 +160,7 @@ export async function concurrentMap<A, B>(
   mapFn: (val: A, idx: number) => Promise<B>,
 ): Promise<B[]> {
   let res: B[] = [];
+  assert(concurrency > 0, 'concurrency must be greater than 0');
   for (let i = 0; i < xs.length; i += concurrency) {
     const remaining = xs.length - i;
     const sliceSize = Math.min(remaining, concurrency);

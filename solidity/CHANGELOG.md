@@ -1,5 +1,406 @@
 # @hyperlane-xyz/core
 
+## 8.1.1
+
+### Patch Changes
+
+- c177c4733: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+  - @hyperlane-xyz/utils@14.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Export CONTRACTS_PACKAGE_VERSION from core package.
+- 04fc563f4: Fix TokenBridgeCCTP.verify burn message sender enforcement
+  - @hyperlane-xyz/utils@14.1.0
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ec92f775]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+
+## 8.0.0
+
+### Major Changes
+
+- e61bd2f: Refactor MailboxClient and AbstractCCIPReadIsm
+- 4544120: Update ICA router event emission with salt and commitment
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+### Minor Changes
+
+- db19435: Add Rebalancing Multi-Collateral Warp Routes
+- b977a28: Add call commitments (shielded calls) to ICA Router
+
+  - Add `callRemoteCommitReveal`
+  - Add `MessageType` to `InterchainAccountMessage`
+  - Make ICA Router its own ISM, and route to ica included in message
+
+- 7a3165f: Allow users to pass salts in ICA derivation
+- b977a28: Add multiple TokenBridge contracts
+
+  - Add OP Stack TokenBridge
+  - Add CCTP TokenBridge
+
+- 88fe35f: Add Rebalancing Warp Route for Native Tokens
+- 3327a6e: Add MovableCollateralRouter, a router whose collateral can be removed to a remote chain
+
+### Patch Changes
+
+- fd3bb39: Use SafeERC20.safeApprove instead of IERC20.approve in HypXERC20Lockbox.approveLockbox()
+  - @hyperlane-xyz/utils@13.3.0
+
+## 7.1.10
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+
+## 7.1.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@13.2.0
+
+## 7.1.8
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/utils@13.1.1
+
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+
+## 7.1.6
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+  - @hyperlane-xyz/utils@13.0.0
+
+## 7.1.5
+
+### Patch Changes
+
+- Updated dependencies [d182d7d]
+- Updated dependencies [b360802]
+  - @hyperlane-xyz/utils@12.6.0
+
+## 7.1.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.5.0
+
+## 7.1.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.4.0
+
+## 7.1.2
+
+### Patch Changes
+
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/utils@12.3.0
+
+## 7.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- e6f6d61a0: Refactor ZKsync artifact generation and validation logic
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.1.0
+
+## 7.0.0
+
+### Major Changes
+
+- 59a087ded: Remove unused FastTokenRouter
+- 59a087ded: ## Changes
+
+  Add immutable `scale` parameter to all warp route variants which scales outbound amounts **down** and inbound amounts **up**. This is useful when different chains of the route have different decimal places to unify semantics of amounts in messages.
+
+  Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
+
+  ## Migration
+
+  If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
+
+  ### `HypNativeScaled` Usage
+
+  ```diff
+  - HypNativeScaled(scale, mailbox)
+  + HypNative(scale, mailbox)
+  ```
+
+  ### `HypERC20` Usage
+
+  ```diff
+  - HypERC20(decimals, mailbox)
+  + HypERC20(decimals, scale, mailbox)
+  ```
+
+  ### `HypERC20Collateral` Usage
+
+  ```diff
+  - HypERC20Collateral(erc20, mailbox)
+  + HypERC20Collateral(erc20, scale, mailbox)
+  ```
+
+### Minor Changes
+
+- 07321f6f0: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+- 59a087ded: Fixed misuse of aggregation hook funds for relaying messages by making sure msg.value is adequate and refunding if excess.
+
+### Patch Changes
+
+- 59a087ded: Refactor TokenRouter internal amount accounting for use in scaling Warp Routes
+- 59a087ded: Fix yield route (`HypERC4626`/`HypERC4626Collateral`) decimal scaling by leveraging `FungibleTokenRouter`
+  - @hyperlane-xyz/utils@12.0.0
+
+## 6.1.0
+
+### Minor Changes
+
+- cd0424595: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+### Patch Changes
+
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/utils@11.0.0
+
+## 6.0.4
+
+### Patch Changes
+
+- fff9cbf57: pin zksync deps from ccip package
+- Updated dependencies [b8d95fc95]
+  - @hyperlane-xyz/utils@10.0.0
+
+## 6.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.2.1
+
+## 6.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.2.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.1.0
+
+## 6.0.0
+
+### Major Changes
+
+- 88970a78c: ## Changes
+
+  Add immutable `scale` parameter to all warp route variants which scales outbound amounts **down** and inbound amounts **up**. This is useful when different chains of the route have different decimal places to unify semantics of amounts in messages.
+
+  Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
+
+  ## Migration
+
+  If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
+
+  ### `HypNativeScaled` Usage
+
+  ```diff
+  - HypNativeScaled(scale, mailbox)
+  + HypNative(scale, mailbox)
+  ```
+
+  ### `HypERC20` Usage
+
+  ```diff
+  - HypERC20(decimals, mailbox)
+  + HypERC20(decimals, scale, mailbox)
+  ```
+
+  ### `HypERC20Collateral` Usage
+
+  ```diff
+  - HypERC20Collateral(erc20, mailbox)
+  + HypERC20Collateral(erc20, scale, mailbox)
+  ```
+
+### Minor Changes
+
+- 88970a78c: Fixed misuse of aggregation hook funds for relaying messages by making sure msg.value is adequate and refunding if excess.
+
+### Patch Changes
+
+- 88970a78c: Refactor TokenRouter internal amount accounting for use in scaling Warp Routes
+- Updated dependencies [4df37393f]
+  - @hyperlane-xyz/utils@9.0.0
+
+## 5.12.0
+
+### Minor Changes
+
+- 1a0eba65b: Implement warp route amount routing ISM
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 9a010dfc1: Implement CCIP hook and ISM with unordered execution
+- 1a0eba65b: Implement warp amount routing hook
+- f3c67a214: Implement mailbox.defaultHook redirect
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 27eadbfc3: Add internal refund logic to hooks
+- Updated dependencies [05f89650b]
+- Updated dependencies [3518f8901]
+  - @hyperlane-xyz/utils@8.9.0
+
+## 5.11.6
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+
+## 5.11.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+
+## 5.11.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.7.0
+
+## 5.11.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+
+## 5.11.2
+
+### Patch Changes
+
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+  - @hyperlane-xyz/utils@8.6.0
+
+## 5.11.1
+
+### Patch Changes
+
+- 044665692: Make `initialize` function public virtual
+  - @hyperlane-xyz/utils@8.5.0
+
+## 5.11.0
+
+### Minor Changes
+
+- 47ae33c6a: Revert zksync changes.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.4.0
+
+## 5.10.0
+
+### Minor Changes
+
+- db8c09011: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+### Patch Changes
+
+- 11cf66c5e: Export empty zksync buildArtifact to satisfy package.json exports
+  - @hyperlane-xyz/utils@8.3.0
+
+## 5.9.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+
+## 5.9.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.1.0
+
+## 5.9.0
+
+### Minor Changes
+
+- 0eb8d52a4: Made releaseValueToRecipient internal
+
+### Patch Changes
+
+- Updated dependencies [79f8197f3]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 5.8.3
 
 ### Patch Changes

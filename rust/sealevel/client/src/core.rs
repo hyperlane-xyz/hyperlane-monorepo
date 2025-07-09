@@ -3,22 +3,19 @@ use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
 use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
-use std::collections::HashMap;
 use std::{fs::File, path::Path};
 
 use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
 use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
-use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
@@ -89,7 +86,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
                 &core.built_so_dir,
-                core.use_existing_keys,
                 &key_dir,
                 core.local_domain,
             );
@@ -123,23 +119,18 @@ fn deploy_mailbox(
     default_ism: Pubkey,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_mailbox-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_mailbox",
         core.built_so_dir
             .join("hyperlane_sealevel_mailbox.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed Mailbox at program ID {}", program_id);
 
@@ -182,23 +173,18 @@ fn deploy_validator_announce(
     key_dir: &Path,
     mailbox_program_id: Pubkey,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_validator_announce-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_validator_announce",
         core.built_so_dir
             .join("hyperlane_sealevel_validator_announce.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
 
@@ -218,73 +204,21 @@ fn deploy_validator_announce(
     program_id
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Deploys the IGP program and initializes the zero salt IGP and overhead IGP accounts.
+/// Configuration of gas oracles is expected to be done separately.
 fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, Pubkey, Pubkey) {
-    use hyperlane_sealevel_igp::{
-        accounts::{GasOracle, RemoteGasData},
-        instruction::{GasOracleConfig, GasOverheadConfig},
-    };
-
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_igp-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    let mut gas_oracle_configs = core
-        .gas_oracle_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open oracle config file");
-            serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
-                .expect("Failed to parse oracle config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.domain != core.local_domain)
-        .map(|c| (c.domain, c))
-        .collect::<HashMap<_, _>>();
-    for &remote in &core.remote_domains {
-        gas_oracle_configs
-            .entry(remote)
-            .or_insert_with(|| GasOracleConfig {
-                domain: remote,
-                gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
-                    token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
-                    gas_price: 1,
-                    token_decimals: SOL_DECIMALS,
-                })),
-            });
-    }
-    let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
-
-    let overhead_configs = core
-        .overhead_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open overhead config file");
-            serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
-                .expect("Failed to parse overhead config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.destination_domain != core.local_domain)
-        .map(|c| (c.destination_domain, c))
-        .collect::<HashMap<_, _>>() // dedup
-        .into_values()
-        .collect::<Vec<_>>();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_igp",
         core.built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed IGP at program ID {}", program_id);
 
@@ -335,47 +269,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     );
 
     println!("Initialized overhead IGP account {}", overhead_igp_account);
-
-    if !gas_oracle_configs.is_empty() {
-        let domains = gas_oracle_configs
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-            program_id,
-            igp_account,
-            ctx.payer_pubkey,
-            gas_oracle_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas oracle for remote domains {domains:?}",);
-    } else {
-        println!("Skipping settings gas oracle config");
-    }
-
-    if !overhead_configs.is_empty() {
-        let domains = overhead_configs
-            .iter()
-            .map(|c| c.destination_domain)
-            .collect::<Vec<_>>();
-
-        let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-            program_id,
-            overhead_igp_account,
-            ctx.payer_pubkey,
-            overhead_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas overheads for remote domains {domains:?}",)
-    } else {
-        println!("Skipping setting gas overheads");
-    }
 
     (program_id, overhead_igp_account, igp_account)
 }
