@@ -61,7 +61,8 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./fs": "./dist/fs/index.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
