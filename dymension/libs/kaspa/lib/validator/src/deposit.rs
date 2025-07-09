@@ -6,10 +6,12 @@ use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
 
-use corelib::escrow::is_utxo_escrow_address;
 use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata, ParsedHL};
 use std::str::FromStr;
 
+use corelib::escrow::EscrowPublic;
+use corelib::wallet::NetworkInfo;
+use kaspa_addresses::Address;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
@@ -17,19 +19,9 @@ use std::sync::Arc;
 
 use eyre::Result;
 use hyperlane_core::U256;
+use kaspa_txscript::extract_script_pub_key_address;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
-
-pub async fn validate_new_deposit(
-    client: &Arc<DynRpcApi>,
-    deposit: &DepositFXG,
-    escrow_address: &str,
-    network_params: &NetworkParams,
-) -> Result<bool> {
-    let validation_result =
-        validate_deposit(client, deposit, escrow_address, network_params).await?;
-    Ok(validation_result)
-}
 
 async fn validate_maturity(
     client: &Arc<DynRpcApi>,
@@ -56,11 +48,11 @@ async fn validate_maturity(
 ///
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
-pub async fn validate_deposit(
+pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
-    escrow_address: &str,
-    network_params: &NetworkParams,
+    net: &NetworkInfo,
+    escrow_address: &Address,
 ) -> Result<bool> {
     // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
@@ -117,18 +109,17 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    // validation of the Kaspa tx destination is actually transferring funds to escrow address
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)?;
-    if !is_escrow {
+    let utxo_addr = extract_script_pub_key_address(&utxo.script_public_key, net.address_prefix)?;
+    if utxo_addr != *escrow_address {
         error!(
-            "Deposit is not to escrow address,escrow: {:?}",
-            escrow_address
+            "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
+            escrow_address, utxo.script_public_key
         );
         return Ok(false);
     }
 
     // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result = validate_maturity(client, &block, network_params).await?;
+    let maturity_result = validate_maturity(client, &block, net.network_params()).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",

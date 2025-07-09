@@ -6,6 +6,7 @@ use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_core::info;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 use secp256k1::Keypair as KaspaSecpKeypair;
@@ -56,7 +57,7 @@ pub async fn get_wallet(
 pub struct EasyKaspaWallet {
     pub wallet: Arc<Wallet>,
     pub secret: Secret,
-    pub network_info: NetworkInfo,
+    pub net: NetworkInfo,
 }
 
 // Implement Debug for your wrapper
@@ -69,35 +70,19 @@ impl fmt::Debug for EasyKaspaWallet {
 pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
     pub rpc_url: String,       // .e.g localhost:16210
-    pub network: Network,
+    pub net: Network,
 }
 
 impl EasyKaspaWallet {
     pub async fn try_new(args: EasyKaspaWalletArgs) -> Result<Self> {
         let s = Secret::from(args.wallet_secret);
-        let info = NetworkInfo::new(args.network, args.rpc_url);
+        let info = NetworkInfo::new(args.net, args.rpc_url);
         let w = get_wallet(&s, info.clone().network_id, info.clone().rpc_url).await?;
         Ok(Self {
             wallet: w,
             secret: s,
-            network_info: info,
+            net: info,
         })
-    }
-
-    pub fn network(&self) -> NetworkType {
-        self.network_info.network_type
-    }
-
-    pub fn network_id(&self) -> NetworkId {
-        self.network_info.network_id
-    }
-
-    pub fn address_prefix(&self) -> Prefix {
-        self.network_info.address_prefix
-    }
-
-    pub fn address_version(&self) -> Version {
-        self.network_info.address_version
     }
 
     pub fn api(&self) -> Arc<DynRpcApi> {
@@ -116,6 +101,12 @@ pub struct NetworkInfo {
     pub address_prefix: Prefix,
     pub address_version: Version,
     pub rpc_url: String,
+}
+
+impl NetworkInfo {
+    pub fn network_params(&self) -> &NetworkParams {
+        NetworkParams::from(self.network_id)
+    }
 }
 
 pub enum Network {

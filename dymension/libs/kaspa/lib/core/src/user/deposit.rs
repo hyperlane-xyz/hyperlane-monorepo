@@ -41,25 +41,6 @@ use api_rs::apis::kaspa_transactions_api::{
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
 
-// TODO: move to demo/call site, because not reusable
-pub async fn deposit_with_default_hl_Message(
-    w: &Arc<Wallet>,
-    secret: &Secret,
-    address: Address,
-    amt: u64,
-) -> Result<TransactionId, KaspaError> {
-    let mut hl_message = HyperlaneMessage::default();
-    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
-
-    let encoded_bytes = token_message.to_vec();
-
-    hl_message.body = encoded_bytes;
-
-    let payload = hl_message.to_vec();
-
-    deposit_with_payload(w, secret, address.clone(), amt, payload.clone()).await
-}
-
 pub async fn deposit_with_payload(
     w: &Arc<Wallet>,
     secret: &Secret,

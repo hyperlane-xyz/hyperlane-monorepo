@@ -196,7 +196,7 @@ impl KaspaProvider {
     pub fn escrow(&self) -> EscrowPublic {
         EscrowPublic::from_strs(
             self.conf.validator_pub_keys.clone(),
-            self.easy_wallet.address_prefix(),
+            self.easy_wallet.net.address_prefix,
             self.conf.multisig_threshold_kaspa as u8,
         )
     }
@@ -254,7 +254,7 @@ async fn get_easy_wallet(
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        network: match domain {
+        net: match domain {
             HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
             _ => todo!("only tn10 supported"),
         },

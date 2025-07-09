@@ -86,7 +86,7 @@ async fn demo() -> Result<()> {
     let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
         wallet_secret: args.wallet_secret.unwrap(),
         rpc_url: e2e_url.to_string(),
-        network: Network::KaspaTest10,
+        net: Network::KaspaTest10,
     })
     .await?;
 

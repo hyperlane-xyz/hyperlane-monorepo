@@ -6,7 +6,7 @@ use corelib::api::client::Deposit;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
-use corelib::user::deposit::{deposit_with_default_hl_Message as do_deposit, deposit_with_payload};
+use corelib::user::deposit::deposit_with_payload;
 use corelib::wallet::*;
 use dymension_kaspa::KaspaHttpClient;
 use hardcode::e2e::*;
@@ -41,7 +41,7 @@ use std::os::unix;
 use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
-use validator::deposit::validate_deposit;
+use validator::deposit::validate_new_deposit;
 use validator::withdraw::*;
 
 use kaspa_wallet_core::prelude::*;
@@ -156,11 +156,15 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     let now: i64 = unix_now() as i64;
 
-    let s = Secret::from(args.wallet_secret);
-    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
+    let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+        wallet_secret: args.wallet_secret,
+        rpc_url: URL.to_string(),
+        net: Network::KaspaTest10,
+    })
+    .await?;
 
-    println!("address {}", &w.account()?.receive_address()?);
-    println!("balance {}", &w.account()?.get_list_string()?);
+    println!("address {}", &w.account().receive_address()?);
+    println!("balance {}", &w.account().get_list_string()?);
 
     // deposit to escrow address
     let amt = args.amt;
@@ -170,9 +174,9 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         info!("Dymension, sending deposit with payload: {:?}", payload);
         // deposit_impl(&w, &s, escrow_address.clone(), amt, payload.as_bytes().to_vec()).await?
         let bz = hex::decode(payload).unwrap();
-        deposit_with_payload(&w, &s, escrow_address.clone(), amt, bz).await?
+        deposit_with_payload(&w.wallet, &w.secret, escrow_address.clone(), amt, bz).await?
     } else {
-        do_deposit(&w, &s, escrow_address.clone(), amt).await?
+        do_deposit(&w.wallet, &w.secret, escrow_address.clone(), amt).await?
     };
 
     info!("Sent deposit transaction: {}", tx_id);
@@ -215,13 +219,8 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(
-        &w.rpc_api(),
-        &deposit_recv,
-        &escrow_address.clone().to_string(),
-        NetworkParams::from(w.network_id()?),
-    )
-    .await?;
+    let validation_result =
+        validate_new_deposit(&w.api(), &deposit_recv, &w.net, &escrow_address).await?;
 
     if validation_result {
         println!("Deposit validated");
@@ -229,6 +228,23 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         println!("Failed to validate deposit");
     }
 
-    w.stop().await?;
     Ok(())
+}
+
+pub async fn do_deposit(
+    w: &Arc<Wallet>,
+    secret: &Secret,
+    address: Address,
+    amt: u64,
+) -> Result<TransactionId, KaspaError> {
+    let mut hl_message = HyperlaneMessage::default();
+    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
+
+    let encoded_bytes = token_message.to_vec();
+
+    hl_message.body = encoded_bytes;
+
+    let payload = hl_message.to_vec();
+
+    deposit_with_payload(w, secret, address.clone(), amt, payload.clone()).await
 }

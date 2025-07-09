@@ -77,23 +77,11 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().must_kas_key()
     }
     fn must_api(&self) -> Arc<DynRpcApi> {
-        self.kas_provider.as_ref().unwrap().wallet().api()
+        self.must_wallet().api()
     }
 
     fn must_escrow(&self) -> EscrowPublic {
         self.kas_provider.as_ref().unwrap().escrow()
-    }
-
-    fn must_escrow_address(&self) -> String {
-        self.kas_provider
-            .as_ref()
-            .unwrap()
-            .escrow_address()
-            .to_string()
-    }
-
-    fn must_network_params(&self) -> &NetworkParams {
-        NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id())
     }
 
     fn must_wallet(&self) -> &EasyKaspaWallet {
@@ -126,8 +114,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     if !validate_new_deposit(
         &resources.must_api(),
         &deposits,
-        &resources.must_escrow_address(),
-        &resources.must_network_params(),
+        &resources.must_wallet().net,
+        &resources.must_escrow().addr,
     )
     .await
     .map_err(|e| AppError(e))?
@@ -208,7 +196,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         &fxg,
         resources.must_hub_rpc(),
         resources.must_hub_mailbox_id(),
-        resources.must_wallet().address_prefix(),
+        resources.must_wallet().net.address_prefix,
         resources.must_escrow(),
     )
     .await

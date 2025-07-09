@@ -39,7 +39,7 @@ pub async fn on_new_withdrawals(
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     info!("Kaspa relayer, got pending withdrawals");
 
-    let (valid_msgs, outputs) = filter_outputs_from_msgs(pending_msgs, relayer.address_prefix());
+    let (valid_msgs, outputs) = filter_outputs_from_msgs(pending_msgs, relayer.net.address_prefix);
 
     if outputs.is_empty() {
         info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
@@ -57,7 +57,7 @@ pub async fn on_new_withdrawals(
         &escrow_public,
         &relayer_address,
         &current_anchor,
-        relayer.network_id(),
+        relayer.net.network_id,
     )
     .await
     .map_err(|e| eyre::eyre!("Fetch input UTXOs: {}", e))?;
@@ -72,7 +72,7 @@ pub async fn on_new_withdrawals(
         payload,
         &escrow_public,
         &relayer_address,
-        relayer.network_id(),
+        relayer.net.network_id,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
