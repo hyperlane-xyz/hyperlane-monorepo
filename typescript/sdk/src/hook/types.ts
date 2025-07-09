@@ -164,39 +164,43 @@ export const IgpSchema = OwnableSchema.extend({
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.ROUTING),
-      domains: z.record(z.number().int(), HookConfigSchema),
-    }),
-  );
+  OwnableSchema.extend({
+    type: z.literal(HookType.ROUTING),
+    get domains() {
+      return z.record(ZChainName, HookConfigSchema);
+    },
+  });
 
 export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.FALLBACK_ROUTING),
-      domains: z.record(z.number().int(), HookConfigSchema),
-      fallback: HookConfigSchema,
-    }),
-  );
+  OwnableSchema.extend({
+    type: z.literal(HookType.FALLBACK_ROUTING),
+    get domains() {
+      return z.record(ZChainName, HookConfigSchema);
+    },
+    get fallback() {
+      return HookConfigSchema;
+    },
+  });
 
 export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AMOUNT_ROUTING),
-      threshold: z.number(),
-      lowerHook: HookConfigSchema,
-      upperHook: HookConfigSchema,
-    }),
-  );
+  z.object({
+    type: z.literal(HookType.AMOUNT_ROUTING),
+    threshold: z.number(),
+    get lowerHook() {
+      return HookConfigSchema;
+    },
+    get upperHook() {
+      return HookConfigSchema;
+    },
+  });
 
 export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AGGREGATION),
-      hooks: z.array(HookConfigSchema),
-    }),
-  );
+  z.object({
+    type: z.literal(HookType.AGGREGATION),
+    get hooks() {
+      return z.array(HookConfigSchema);
+    },
+  });
 
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
