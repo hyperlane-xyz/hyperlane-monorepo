@@ -22,7 +22,7 @@ import type {
   WithAddress,
 } from '@hyperlane-xyz/utils';
 
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -253,7 +253,7 @@ export type RoutingIsmDelta = {
 
 const ValidatorInfoSchema = z.object({
   signingAddress: ZHash,
-  weight: z.number(),
+  weight: z.number().int().positive(),
 });
 
 export const TestIsmConfigSchema = z.object({
@@ -261,28 +261,28 @@ export const TestIsmConfigSchema = z.object({
 });
 
 export const MultisigConfigSchema = z.object({
-  validators: z.array(ZHash),
-  threshold: z.number(),
+  validators: z.array(ZHash).min(1),
+  threshold: z.number().int().positive(),
 });
 
 export const WeightedMultisigConfigSchema = z.object({
-  validators: z.array(ValidatorInfoSchema),
-  thresholdWeight: z.number(),
+  validators: z.array(ValidatorInfoSchema).min(1),
+  thresholdWeight: z.number().int().positive(),
 });
 
 export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
-  relayer: z.string(),
+  relayer: ZHash,
 });
 
 export const CCIPIsmConfigSchema = z.object({
   type: z.literal(IsmType.CCIP),
-  originChain: z.string(),
+  originChain: ZChainName,
 });
 
 export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
-  urls: z.array(z.string()),
+  urls: z.array(z.string()).min(1),
 });
 
 export const isOffchainLookupIsmConfig = isCompliant(
@@ -291,13 +291,13 @@ export const isOffchainLookupIsmConfig = isCompliant(
 
 export const OpStackIsmConfigSchema = z.object({
   type: z.literal(IsmType.OP_STACK),
-  origin: z.string(),
-  nativeBridge: z.string(),
+  origin: ZChainName,
+  nativeBridge: ZHash,
 });
 
 export const ArbL2ToL1IsmConfigSchema = z.object({
   type: z.literal(IsmType.ARB_L2_TO_L1),
-  bridge: z.string(),
+  bridge: ZHash,
 });
 
 export const PausableIsmConfigSchema = PausableSchema.and(
@@ -352,7 +352,7 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     z.object({
       type: z.literal(IsmType.AGGREGATION),
       modules: z.array(IsmConfigSchema),
-      threshold: z.number(),
+      threshold: z.number().int().positive(),
     }),
   )
   .refine((data) => data.threshold <= data.modules.length, {
