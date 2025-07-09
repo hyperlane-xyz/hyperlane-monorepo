@@ -6,12 +6,12 @@ import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 
 import { HttpServer } from '../HttpServer.js';
 
-const main = async () => {
+async function main() {
   const { registry } = await yargs(hideBin(process.argv))
     .option('registry', {
       alias: 'r',
+      describe: 'The path to the registry',
       type: 'string',
-      description: 'The path to the registry',
       demandOption: true,
     })
     .parse();
@@ -24,15 +24,9 @@ const main = async () => {
     });
   };
 
-  const server = new HttpServer(getLocalRegistry);
-
-  try {
-    await server.start();
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
+  const server = await HttpServer.create(getLocalRegistry);
+  await server.start();
+}
 
 main().catch((error) => {
   console.error('Unhandled critical error in server execution script:', error);

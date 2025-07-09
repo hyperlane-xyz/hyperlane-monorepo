@@ -2,7 +2,9 @@ import express, { Express, Request, Response } from 'express';
 import type { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
+import { createServiceLogger } from '@hyperlane-xyz/utils';
 
+import packageJson from './package.json' with { type: 'json' };
 import { AppConstants, ServerConstants } from './src/constants/index.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
 import { createChainRouter } from './src/routes/chain.js';
@@ -15,16 +17,26 @@ import { WarpService } from './src/services/warpService.js';
 
 export class HttpServer {
   app: Express;
-  protected logger: Logger | Console;
+  protected readonly logger: Logger;
 
-  constructor(
+  private constructor(
     protected getRegistry: () => Promise<IRegistry>,
-    logger?: Logger,
+    logger: Logger,
   ) {
-    this.logger = logger || console;
+    this.logger = logger;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use(express.json());
+  }
+
+  static async create(
+    getRegistry: () => Promise<IRegistry>,
+  ): Promise<HttpServer> {
+    const logger = await createServiceLogger({
+      service: 'http-registry-server',
+      version: packageJson.version,
+    });
+    return new HttpServer(getRegistry, logger);
   }
 
   async start(
