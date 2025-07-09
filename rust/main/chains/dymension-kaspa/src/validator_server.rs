@@ -15,7 +15,6 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::validate_withdrawals;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::{eyre, Report};
@@ -206,7 +205,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         &fxg,
         resources.must_hub_rpc(),
         resources.must_hub_mailbox_id(),
-        &resources.must_wallet().network_info,
+        resources.must_wallet().address_prefix(),
         resources.must_escrow(),
     )
     .await

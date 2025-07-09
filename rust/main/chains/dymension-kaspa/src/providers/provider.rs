@@ -155,7 +155,7 @@ impl KaspaProvider {
             return Ok(());
         }
 
-        let (fxg, prev_outpoint) = res.unwrap();
+        let fxg = res.unwrap();
 
         info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
         let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
@@ -169,44 +169,11 @@ impl KaspaProvider {
         )
         .await?;
 
-        let res_tx_ids = self.submit_txs(finalized.clone()).await?;
+        let _ = self.submit_txs(finalized.clone()).await?;
         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
-        // to indicate progress on the Hub, we need to know:
-        // - the first outpoint preceding the withdrawal and
-        // - the last outpoint of the withdrawal batch
-
-        // assumption: all transaction details live on respective vector indices,
-        // i.e. len(txs_signed) == len(finalized) == len(res_tx_ids)
-        // and index IDX corresponds to the same transaction in each vector.
-        let last_idx = finalized.len() - 1;
-
-        let last_tx = finalized.get(last_idx).unwrap();
-
-        // find the index of anchor.
-        // its recipient must be the escrow address.
-        let output_idx = last_tx
-            .outputs
-            .iter()
-            .position(|o| o.script_public_key == self.escrow().p2sh.clone().into())
-            .unwrap_or_else(|| 0);
-
-        let tx_id = res_tx_ids.get(last_idx).unwrap();
-
-        let next_outpoint = TransactionOutpoint {
-            transaction_id: (*tx_id).into(),
-            index: (output_idx as u32).into(),
-        };
-
         self.pending_confirmation
-            .push(ConfirmationFXG::from_msgs_outpoints(
-                fxg.ids().clone(),
-                vec![
-                    prev_outpoint.clone(),
-                    // TODO: it also needs to include any outpoints in-between
-                    next_outpoint.clone(),
-                ],
-            ));
+            .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
         info!("Kaspa provider, added to progress indication work queue");
 
         Ok(())

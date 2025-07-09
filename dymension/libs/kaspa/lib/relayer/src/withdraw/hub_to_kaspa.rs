@@ -42,15 +42,69 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use super::messages::WithdrawalDetails;
+use corelib::util::get_recipient_script_pubkey;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
-use kaspa_addresses::Prefix;
+use kaspa_addresses::{AddressError, Prefix};
 use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
+
+/// Fetches escrow and relayer balances and a combined list of all inputs
+pub async fn fetch_input_utxos(
+    kaspa_rpc: &Arc<DynRpcApi>,
+    escrow: &EscrowPublic,
+    relayer_address: &kaspa_addresses::Address,
+    current_anchor: &TransactionOutpoint,
+    network_id: NetworkId,
+) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
+    // Get all available UTXOs for multisig
+    let escrow_utxos = get_utxo_to_spend(&escrow.addr, kaspa_rpc, network_id).await?;
+
+    // Check if the current anchor is withing the list of multisig UTXOs
+    if !escrow_utxos.iter().any(|u| {
+        u.outpoint.transaction_id == current_anchor.transaction_id
+            && u.outpoint.index == current_anchor.index
+    }) {
+        return Err(eyre::eyre!(
+            "No UTXOs found for current anchor: {:?}",
+            current_anchor
+        ));
+    }
+
+    // Get all available UTXOs for relayer
+    let relayer_utxos = get_utxo_to_spend(relayer_address, kaspa_rpc, network_id).await?;
+
+    // Iterate through escrow and relayer UTXO – they are the transaction inputs.
+    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
+    Ok(escrow_utxos
+        .into_iter()
+        .map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    escrow.redeem_script.clone(),
+                    0, // sequence does not matter
+                    escrow.n() as u8,
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        })
+        .chain(relayer_utxos.into_iter().map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    vec![],
+                    0,                                     // sequence does not matter
+                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        }))
+        .collect())
+}
 
 /// Builds a single withdrawal PSKT.
 ///
@@ -85,40 +139,17 @@ use tracing::info;
 /// Pros: Simple to handle.
 /// Cons: Potentially bigger fee because of the increased number of inputs. However, it's in
 /// relayer's interest to pay min fees and thus keep its account with as few UTXOs as possible.
-pub async fn build_withdrawal_pskt(
-    withdrawal_details: Vec<WithdrawalDetails>,
-    kaspa_rpc: &Arc<DynRpcApi>,
+///
+/// CONTRACT:
+/// Escrow change is always the last output.
+pub fn build_withdrawal_pskt(
+    inputs: Vec<(TransactionInput, UtxoEntry)>,
+    mut outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
     escrow: &EscrowPublic,
-    relayer: &Arc<dyn Account>,
-    current_anchor: &TransactionOutpoint,
+    relayer_addr: &kaspa_addresses::Address,
     network_id: NetworkId,
 ) -> Result<PSKT<Signer>> {
-    //////////////////
-    //     UTXO     //
-    //////////////////
-
-    // Get all available UTXOs from multisig
-    let escrow_utxos = get_utxo_to_spend(escrow.addr.clone(), kaspa_rpc, network_id).await?;
-
-    // Check if the current anchor is withing the list of multisig UTXOs
-    if !escrow_utxos.iter().any(|u| {
-        u.outpoint.transaction_id == current_anchor.transaction_id
-            && u.outpoint.index == current_anchor.index
-    }) {
-        return Err(eyre::eyre!(
-            "No UTXOs found for current anchor: {:?}",
-            current_anchor
-        ));
-    }
-
-    let relayer_utxos = get_utxo_to_spend(
-        // TODO: receive_address or change_address??
-        relayer.change_address()?.clone(),
-        kaspa_rpc,
-        network_id,
-    )
-    .await?;
-
     //////////////////
     //   Balances   //
     //////////////////
@@ -130,13 +161,18 @@ pub async fn build_withdrawal_pskt(
     // Given that 1 KAS = $10^-2, the max balance is $1B, but this might change
     // in case of hyperinflation
 
-    let escrow_balance = escrow_utxos
-        .iter()
-        .fold(0, |acc, u| acc + u.utxo_entry.amount);
+    let (escrow_balance, relayer_balance) =
+        inputs.iter().fold((0, 0), |mut acc, (input, entry)| {
+            if input.signature_script.is_empty() {
+                // relayer has empty signature script
+                acc.1 += entry.amount;
+            } else {
+                acc.0 += entry.amount;
+            }
+            acc
+        });
 
-    let withdrawal_balance = withdrawal_details
-        .iter()
-        .fold(0, |acc, w| acc + w.amount_sompi);
+    let withdrawal_balance: u64 = outputs.iter().map(|w| w.value).sum();
 
     if escrow_balance < withdrawal_balance {
         return Err(eyre::eyre!(
@@ -146,87 +182,14 @@ pub async fn build_withdrawal_pskt(
         ));
     }
 
-    let relayer_balance = relayer_utxos
-        .iter()
-        .fold(0, |acc, u| acc + u.utxo_entry.amount);
-
-    ////////////////////
-    // Input & Output //
-    ////////////////////
-
-    // Iterate through escrow and relayer UTXO – they would be transaction inputs.
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-
-    let populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    escrow.redeem_script.clone(),
-                    0, // sequence does not matter
-                    escrow.n() as u8,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)> = relayer_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![],
-                    0,                                     // sequence does not matter
-                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let outputs: Vec<TransactionOutput> = withdrawal_details
-        .clone()
-        .into_iter()
-        .map(|w| {
-            TransactionOutput::new(
-                w.amount_sompi,
-                ScriptPublicKey::from(pay_to_address_script(&w.recipient)),
-            )
-        })
-        .collect();
-
     //////////////////
     //     Fee      //
     //////////////////
 
-    let combined_inputs: Vec<(TransactionInput, UtxoEntry)> = populated_inputs_escrow
-        .iter()
-        .cloned()
-        .chain(populated_inputs_relayer.iter().cloned())
-        .collect();
-
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-
-    let payload = MessageIDs::new(
-        withdrawal_details
-            .iter()
-            .map(|w| MessageID(w.message_id))
-            .collect::<Vec<_>>(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-
-    let tx_fee = estimate_fee(
-        combined_inputs,
-        outputs.clone(),
-        payload.clone(),
-        network_id,
-    ) * 11
-        / 10;
+    let tx_fee =
+        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -239,6 +202,21 @@ pub async fn build_withdrawal_pskt(
     ////////////////
     //   Change   //
     ////////////////
+
+    let relayer_change_amt = relayer_balance - tx_fee;
+    // check if relayer_change is dust
+    let relayer_change = TransactionOutput {
+        value: relayer_change_amt,
+        script_public_key: ScriptPublicKey::from(pay_to_address_script(relayer_addr)),
+    };
+    if is_transaction_output_dust(&relayer_change) {
+        return Err(eyre::eyre!(
+            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
+            relayer_balance,
+            tx_fee,
+            relayer_change_amt
+        ));
+    }
 
     // escrow_balance - withdrawal_balance > 0 as checked above
     let escrow_change_amt = escrow_balance - withdrawal_balance;
@@ -256,79 +234,48 @@ pub async fn build_withdrawal_pskt(
         ));
     }
 
-    let relayer_change_amt = relayer_balance - tx_fee;
-    // check if relayer_change is dust
-    let relayer_change = TransactionOutput {
-        value: relayer_change_amt,
-        script_public_key: ScriptPublicKey::from(pay_to_address_script(&relayer.change_address()?)),
-    };
-    if is_transaction_output_dust(&relayer_change) {
-        return Err(eyre::eyre!(
-            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
-            relayer_balance,
-            tx_fee,
-            relayer_change_amt
-        ));
-    }
+    // Escrow change (new anchor) is always the last element
+    outputs.extend(vec![relayer_change, escrow_change]);
 
-    //////////////////
-    //     PSKT     //
-    //////////////////
-    create_withdrawal_pskt(
-        populated_inputs_escrow,
-        populated_inputs_relayer,
-        outputs,
-        escrow_change,
-        relayer_change,
-        payload,
-    )
+    create_withdrawal_pskt(inputs, outputs, payload)
 }
 
+/// CONTRACT:
+/// Escrow change is always the last output.
 fn create_withdrawal_pskt(
-    populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)>,
-    populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)>,
+    inputs: Vec<(TransactionInput, UtxoEntry)>,
     outputs: Vec<TransactionOutput>,
-    escrow_change: TransactionOutput,
-    relayer_change: TransactionOutput,
     payload: Vec<u8>,
 ) -> Result<PSKT<Signer>> {
     let mut pskt = PSKT::<Creator>::default().constructor();
 
-    // Add escrow inputs
-    for (input, entry) in populated_inputs_escrow {
-        let pskt_input = InputBuilder::default()
+    // Add inputs
+    for (input, entry) in inputs.into_iter() {
+        let mut builer = InputBuilder::default();
+
+        builer
             .utxo_entry(entry)
             .previous_outpoint(input.previous_outpoint)
             .sig_op_count(input.sig_op_count)
-            .redeem_script(input.signature_script)
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
                     .unwrap(),
-            )
-            .build()
-            .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
+            );
 
-        pskt = pskt.input(pskt_input);
-    }
+        if !input.signature_script.is_empty() {
+            // escrow inputs need redeem_script
+            builer.redeem_script(input.signature_script);
+        }
 
-    // Add relayer inputs
-    for (input, entry) in populated_inputs_relayer {
-        let pskt_input = InputBuilder::default()
-            .utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
-            .sig_op_count(1) // TODO: needed if using p2pk?
-            .sighash_type(
-                SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
-                    .unwrap(),
-            )
-            .build()
-            .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
-
-        pskt = pskt.input(pskt_input);
+        pskt = pskt.input(
+            builer
+                .build()
+                .map_err(|e| eyre::eyre!("Build pskt input: {}", e))?,
+        );
     }
 
     // Add outputs
-    for output in outputs {
+    for output in outputs.into_iter() {
         let pskt_output = OutputBuilder::default()
             .amount(output.value)
             .script_public_key(output.script_public_key)
@@ -338,21 +285,6 @@ fn create_withdrawal_pskt(
         pskt = pskt.output(pskt_output);
     }
 
-    let ec = OutputBuilder::default()
-        .amount(escrow_change.value)
-        .script_public_key(escrow_change.script_public_key)
-        .build()
-        .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
-
-    let rc = OutputBuilder::default()
-        .amount(relayer_change.value)
-        .script_public_key(relayer_change.script_public_key)
-        .build()
-        .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
-
-    pskt = pskt.output(ec);
-    pskt = pskt.output(rc);
-
     Ok(pskt
         .no_more_inputs()
         .no_more_outputs()
@@ -360,8 +292,41 @@ fn create_withdrawal_pskt(
         .signer())
 }
 
+pub fn filter_outputs_from_msgs(
+    messages: Vec<HyperlaneMessage>,
+    prefix: Prefix,
+) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
+    let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
+    let mut outputs: Vec<TransactionOutput> = Vec::new();
+    for m in messages {
+        let tm = match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
+            Ok(tm) => tm,
+            Err(e) => {
+                info!(
+                    "Kaspa relayer, can't get TokenMessage from HyperlaneMessage body, skipping: {}",
+                    e
+                );
+                continue;
+            }
+        };
+
+        let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
+
+        let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
+
+        if is_transaction_output_dust(&o) {
+            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping");
+            continue;
+        }
+
+        outputs.push(o);
+        hl_msgs.push(m);
+    }
+    (hl_msgs, outputs)
+}
+
 async fn get_utxo_to_spend(
-    addr: kaspa_addresses::Address,
+    addr: &kaspa_addresses::Address,
     kaspa_rpc: &Arc<DynRpcApi>,
     network_id: NetworkId,
 ) -> Result<Vec<RpcUtxosByAddressesEntry>> {
@@ -758,7 +723,14 @@ mod tests {
 
         // Step 4: Create WithdrawFXG using Bundle::from(pskt)
         let bundle = Bundle::from(pskt_signer);
-        let withdraw_fxg = WithdrawFXG::new(bundle, vec![]);
+        let withdraw_fxg = WithdrawFXG::new(
+            bundle,
+            vec![],
+            vec![
+                TransactionOutpoint::default(),
+                TransactionOutpoint::default(),
+            ],
+        );
 
         // Step 5: Convert WithdrawFXG to Bytes
         let serialized_bytes =

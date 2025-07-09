@@ -16,6 +16,7 @@ use hardcode::e2e::{
 use relayer::withdraw::demo::*;
 use relayer::withdraw::hub_to_kaspa::{
     build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
+    fetch_input_utxos,
 };
 use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
@@ -50,10 +51,10 @@ use kaspa_txscript::{
 
 use secp256k1::{rand::thread_rng, Keypair};
 
+use corelib::payload::MessageIDs;
+use corelib::util::get_recipient_script_pubkey_address;
 use kaspa_rpc_core::api::rpc::RpcApi;
-use relayer::withdraw::messages::WithdrawalDetails;
 use workflow_core::abortable::Abortable;
-
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -113,24 +114,42 @@ async fn demo() -> Result<()> {
 
     let hl_msg = HyperlaneMessage::default();
 
-    let pskt = build_withdrawal_pskt(
-        vec![WithdrawalDetails {
-            message_id: hl_msg.id(),
-            recipient: user_addr.clone(),
-            amount_sompi: amt,
-        }],
+    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
+
+    let current_anchor = TransactionOutpoint::new(tx_id, 0);
+
+    let inputs = fetch_input_utxos(
         &rpc,
         &e.public(e2e_address_prefix),
-        &w.account(),
-        &TransactionOutpoint::new(tx_id, 0),
+        &w.account().change_address().unwrap(),
+        &current_anchor,
         e2e_network_id,
     )
     .await
+    .map_err(|e| eyre::eyre!("Fetch input utxos: {}", e))?;
+
+    let pskt = build_withdrawal_pskt(
+        inputs,
+        vec![TransactionOutput::new(
+            amt,
+            get_recipient_script_pubkey_address(&user_addr),
+        )],
+        payload,
+        &e.public(e2e_address_prefix),
+        &w.account().change_address().unwrap(),
+        e2e_network_id,
+    )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     info!("Constructed withdrawal PSKT");
 
-    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]);
+    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
+
+    let fxg = WithdrawFXG::new(
+        Bundle::from(pskt),
+        vec![vec![hl_msg]],
+        vec![current_anchor, new_anchor],
+    );
 
     let bundle_val = validator_sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
 

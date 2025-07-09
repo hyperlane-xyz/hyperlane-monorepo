@@ -26,22 +26,46 @@ use serde::{Deserialize, Serialize};
 ///   /  \     /  \
 ///  /    \   /    \
 /// M1    M2 M3    M4
+///
+/// Also, PSKT inside the bundle and output anchor should live on respective indices.
+/// Anchor(N) is an input for PSKT(N+1)
+///
+///      Bundle
+///        /\
+///       /  \
+///      /    \
+///  PSKT1    PSKT2
+///    |        |
+///    |        |
+///    |        |
+/// Anchor1  Anchor2
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
-    pub messages: Vec<Vec<HyperlaneMessage>>, // used in validation
-                                              // TODO: add new/old anchors?
+    pub messages: Vec<Vec<HyperlaneMessage>>,
+    // the first element – the very first anchor (old hub)
+    // the last eleemnt – the very new anchor (new hub)
+    pub anchors: Vec<TransactionOutpoint>,
 }
 
 impl WithdrawFXG {
-    pub fn new(bundle: Bundle, messages: Vec<Vec<HyperlaneMessage>>) -> Self {
-        Self { bundle, messages }
+    pub fn new(
+        bundle: Bundle,
+        messages: Vec<Vec<HyperlaneMessage>>,
+        anchors: Vec<TransactionOutpoint>,
+    ) -> Self {
+        Self {
+            bundle,
+            messages,
+            anchors,
+        }
     }
 
     pub fn default() -> Self {
         Self {
             bundle: Bundle::new(),
             messages: vec![],
+            anchors: vec![],
         }
     }
 
@@ -75,6 +99,7 @@ impl TryFrom<&WithdrawFXG> for Bytes {
 struct WireWithdrawFXG {
     pub bundle: String,
     pub messages: Vec<Vec<HyperlaneMessage>>,
+    pub anchors: Vec<TransactionOutpoint>,
 }
 
 impl TryFrom<WireWithdrawFXG> for WithdrawFXG {
@@ -86,6 +111,7 @@ impl TryFrom<WireWithdrawFXG> for WithdrawFXG {
         Ok(WithdrawFXG {
             bundle,
             messages: wire.messages,
+            anchors: wire.anchors,
         })
     }
 }
@@ -101,6 +127,7 @@ impl TryFrom<&WithdrawFXG> for WireWithdrawFXG {
         Ok(WireWithdrawFXG {
             bundle,
             messages: fxg.messages.clone(),
+            anchors: fxg.anchors.clone(),
         })
     }
 }
@@ -193,9 +220,14 @@ mod tests {
         let msg = HyperlaneMessage::default();
         let messages = vec![vec![msg]];
         let bundle = Bundle::new();
-        let fxg = WithdrawFXG::new(bundle, messages);
+        let old = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 10);
+        let new = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 20);
+        let fxg = WithdrawFXG::new(bundle, messages, vec![old, new]);
 
         let bytes = Bytes::try_from(&fxg).unwrap();
         let fxg2 = WithdrawFXG::try_from(bytes).unwrap();
+
+        assert_eq!(fxg.messages, fxg2.messages);
+        assert_eq!(fxg.anchors, fxg2.anchors);
     }
 }
