@@ -113,7 +113,7 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         loop {
             // evaluate the pool every block
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(100)).await;
 
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
         }
