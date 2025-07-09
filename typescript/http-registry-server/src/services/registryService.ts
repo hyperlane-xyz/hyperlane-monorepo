@@ -5,6 +5,7 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
+  private refreshPromise: Promise<IRegistry> | null = null;
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -19,9 +20,18 @@ export class RegistryService {
   async getCurrentRegistry(): Promise<IRegistry> {
     const now = Date.now();
     if (now - this.lastRefresh > this.refreshInterval || !this.registry) {
+      if (this.refreshPromise) {
+        return this.refreshPromise;
+      }
+
       this.logger.info('Refreshing registry cache...');
-      this.registry = await this.getRegistry();
-      this.lastRefresh = now;
+      this.refreshPromise = this.getRegistry();
+      try {
+        this.registry = await this.refreshPromise;
+        this.lastRefresh = now;
+      } finally {
+        this.refreshPromise = null;
+      }
     }
 
     return this.registry;
