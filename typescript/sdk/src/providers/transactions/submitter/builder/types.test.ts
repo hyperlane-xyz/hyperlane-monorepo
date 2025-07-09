@@ -135,7 +135,10 @@ describe('ChainSubmissionStrategySchema', () => {
         data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
 
-      if ('chain' in data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter) {
+      if (
+        data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.type !==
+        TxSubmitterType.FILE
+      ) {
         expect(
           data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.chain,
         ).to.equal(CHAIN_MOCK);
@@ -190,7 +193,7 @@ describe('ChainSubmissionStrategySchema', () => {
             DESTINATION_CHAIN_MOCK,
           );
 
-          if ('chain' in icaSubmitter.internalSubmitter)
+          if (icaSubmitter.internalSubmitter.type !== TxSubmitterType.FILE)
             expect(icaSubmitter.internalSubmitter.chain).to.equal(CHAIN_MOCK);
         }
       }
