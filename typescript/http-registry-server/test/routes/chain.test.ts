@@ -1,6 +1,7 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import express, { Express } from 'express';
+import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
 
@@ -24,12 +25,13 @@ describe('Chain Routes', () => {
   beforeEach(() => {
     // Create stubbed chain service
     mockChainService = sinon.createStubInstance(ChainService);
+    const mockLogger = pino({ level: 'silent' });
 
     // Create Express app with chain routes
     app = express();
     app.use(express.json());
     app.use('/chain', createChainRouter(mockChainService));
-    app.use(createErrorHandler(console));
+    app.use(createErrorHandler(mockLogger));
   });
 
   afterEach(() => {

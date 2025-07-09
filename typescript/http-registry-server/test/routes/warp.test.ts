@@ -1,6 +1,7 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import express, { Express } from 'express';
+import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
 
@@ -22,12 +23,13 @@ describe('Warp Routes', () => {
   beforeEach(() => {
     // Create stubbed warp service
     mockWarpService = sinon.createStubInstance(WarpService);
+    const mockLogger = pino({ level: 'silent' });
 
     // Create Express app with warp routes
     app = express();
     app.use(express.json());
     app.use('/warp-route', createWarpRouter(mockWarpService));
-    app.use(createErrorHandler(console));
+    app.use(createErrorHandler(mockLogger));
   });
 
   afterEach(() => {

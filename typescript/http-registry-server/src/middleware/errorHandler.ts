@@ -4,7 +4,7 @@ import type { Logger } from 'pino';
 import { AppConstants } from '../constants/AppConstants.js';
 import { ApiError } from '../errors/ApiError.js';
 
-export function createErrorHandler(logger: Logger | Console) {
+export function createErrorHandler(logger: Logger) {
   return function errorHandler(
     err: any,
     _req: Request,

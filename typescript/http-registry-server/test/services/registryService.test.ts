@@ -1,5 +1,6 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { type Logger, pino } from 'pino';
 import sinon from 'sinon';
 
 import { IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
@@ -13,7 +14,7 @@ describe('RegistryService', () => {
   let registryService: RegistryService;
   let mockRegistry: IRegistry;
   let getRegistryStub: sinon.SinonStub;
-  let consoleLogStub: sinon.SinonStub;
+  let mockLogger: Logger;
   let clock: sinon.SinonFakeTimers;
 
   const REFRESH_INTERVAL = 1000; // 1 second for testing
@@ -45,12 +46,12 @@ describe('RegistryService', () => {
     });
 
     getRegistryStub = sinon.stub().resolves(mockRegistry);
-    consoleLogStub = sinon.stub(console, 'info');
+    mockLogger = pino({ level: 'silent' });
 
     registryService = new RegistryService(
       getRegistryStub,
       REFRESH_INTERVAL,
-      console,
+      mockLogger,
     );
   });
 
@@ -94,8 +95,6 @@ describe('RegistryService', () => {
       await registryService.getCurrentRegistry();
 
       expect(getRegistryStub.calledOnce).to.be.true;
-      expect(consoleLogStub.calledWith('Refreshing registry cache...')).to.be
-        .true;
     });
 
     it('should refresh registry if no cached registry exists', async () => {

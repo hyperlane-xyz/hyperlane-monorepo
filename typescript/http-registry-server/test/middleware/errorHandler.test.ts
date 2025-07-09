@@ -48,8 +48,8 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith('Error handling request:', error)).to
-        .be.true;
+      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
+        .to.be.true;
       expect(res.status.calledWith(AppConstants.HTTP_STATUS_BAD_REQUEST)).to.be
         .true;
       expect(
@@ -67,8 +67,8 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith('Error handling request:', error)).to
-        .be.true;
+      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
+        .to.be.true;
       expect(res.status.calledWith(AppConstants.HTTP_STATUS_NOT_FOUND)).to.be
         .true;
       expect(
@@ -85,8 +85,8 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith('Error handling request:', error)).to
-        .be.true;
+      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
+        .to.be.true;
       expect(
         res.status.calledWith(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR),
       ).to.be.true;
@@ -104,8 +104,8 @@ describe('errorHandler middleware', () => {
 
       errorHandler(error, req as Request, res as any, next);
 
-      expect(mockLogger.error.calledWith('Error handling request:', error)).to
-        .be.true;
+      expect(mockLogger.error.calledWith({ error }, 'Error handling request'))
+        .to.be.true;
       expect(
         res.status.calledWith(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR),
       ).to.be.true;
@@ -143,20 +143,6 @@ describe('errorHandler middleware', () => {
       expect(next.calledWith(error)).to.be.true;
       expect(res.status.called).to.be.false;
       expect(res.json.called).to.be.false;
-    });
-
-    it('should work with console logger', () => {
-      const consoleErrorStub = sinon.stub(console, 'error');
-      const error = new ApiError('Console logger test');
-      const errorHandler = createErrorHandler(console);
-
-      errorHandler(error, req as Request, res as any, next);
-
-      expect(consoleErrorStub.calledWith('Error handling request:', error)).to
-        .be.true;
-      expect(
-        res.status.calledWith(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR),
-      ).to.be.true;
     });
 
     it('should handle Error with stack trace correctly', () => {

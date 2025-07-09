@@ -9,7 +9,7 @@ export class RegistryService {
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
     private readonly refreshInterval: number,
-    private readonly logger: Logger | Console,
+    private readonly logger: Logger,
   ) {}
 
   async initialize() {
