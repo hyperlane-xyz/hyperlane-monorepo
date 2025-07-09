@@ -25,31 +25,19 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-// TokenMessage.metadata := uint8 cctpNonce
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
-    8;
-
-// @dev Supports only CCTP V1
-contract TokenBridgeCctp is
+abstract contract TokenBridgeCctpBase is
     HypERC20Collateral,
     AbstractCcipReadIsm,
-    IPostDispatchHook,
-    IMessageHandler
+    IPostDispatchHook
 {
-    using CctpMessage for bytes29;
-    using BurnMessage for bytes29;
-    using TypedMemView for bytes29;
-
     using Message for bytes;
     using TypeCasts for bytes32;
 
-    uint32 internal constant CCTP_VERSION = 0;
-
     // @notice CCTP message transmitter contract
-    IMessageTransmitter public immutable messageTransmitter;
+    address public immutable messageTransmitter;
 
     // @notice CCTP token messenger contract
-    ITokenMessenger public immutable tokenMessenger;
+    address public immutable tokenMessenger;
 
     struct Domain {
         uint32 hyperlane;
@@ -71,17 +59,19 @@ contract TokenBridgeCctp is
         address _erc20,
         uint256 _scale,
         address _mailbox,
-        IMessageTransmitter _messageTransmitter,
-        ITokenMessenger _tokenMessenger
+        address _messageTransmitter,
+        address _tokenMessenger
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         require(
-            _messageTransmitter.version() == CCTP_VERSION,
+            IMessageTransmitter(_messageTransmitter).version() ==
+                _getCCTPVersion(),
             "Invalid messageTransmitter CCTP version"
         );
         messageTransmitter = _messageTransmitter;
 
         require(
-            _tokenMessenger.messageBodyVersion() == CCTP_VERSION,
+            ITokenMessenger(_tokenMessenger).messageBodyVersion() ==
+                _getCCTPVersion(),
             "Invalid TokenMessenger CCTP version"
         );
         tokenMessenger = _tokenMessenger;
@@ -150,6 +140,27 @@ contract TokenBridgeCctp is
         return domain.circle;
     }
 
+    function _getCCTPVersion() internal pure virtual returns (uint32);
+    function _getCircleRecipient(
+        bytes29 cctpMessage
+    ) internal view virtual returns (address);
+    function _getCircleNonce(
+        bytes29 cctpMessage
+    ) internal view virtual returns (bytes32);
+    function _validateTokenMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal view virtual;
+    function _validateHookMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal view virtual;
+    function _sendCircleMessage(
+        uint32 destinationDomain,
+        bytes32 recipientAndCaller,
+        bytes memory messageBody
+    ) internal virtual;
+
     // @dev Enforces that the CCTP message source domain and nonce matches the Hyperlane message origin and nonce.
     function verify(
         bytes calldata _metadata,
@@ -162,52 +173,22 @@ contract TokenBridgeCctp is
         );
 
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
+        address circleRecipient = _getCircleRecipient(originalMsg);
 
-        uint32 origin = _hyperlaneMessage.origin();
-        uint32 sourceDomain = originalMsg._sourceDomain();
-        require(
-            sourceDomain == hyperlaneDomainToCircleDomain(origin),
-            "Invalid source domain"
-        );
-
-        uint64 sourceNonce = originalMsg._nonce();
-
-        address circleRecipient = originalMsg._recipient().bytes32ToAddress();
         if (circleRecipient == address(tokenMessenger)) {
-            bytes29 burnMessage = originalMsg._messageBody();
-            bytes32 circleBurnSender = burnMessage._getMessageSender();
-            require(
-                circleBurnSender == _hyperlaneMessage.sender(),
-                "Invalid burn sender"
-            );
-
-            _validateTokenMessage(
-                _hyperlaneMessage.body(),
-                sourceNonce,
-                burnMessage
-            );
+            _validateTokenMessage(_hyperlaneMessage, originalMsg);
         } else if (circleRecipient == address(this)) {
-            bytes32 circleSender = originalMsg._sender();
-            require(
-                circleSender == _mustHaveRemoteRouter(origin),
-                "Invalid circle sender"
-            );
-
-            bytes32 circleMessageId = originalMsg._messageBody().index(0, 32);
-            require(
-                circleMessageId == _hyperlaneMessage.id(),
-                "Invalid message id"
-            );
+            _validateHookMessage(_hyperlaneMessage, originalMsg);
         } else {
             revert("Invalid circle recipient");
         }
 
-        // Receive only if the nonce hasn't been used before
-        bytes32 sourceAndNonceHash = keccak256(
-            abi.encodePacked(sourceDomain, sourceNonce)
-        );
-        if (messageTransmitter.usedNonces(sourceAndNonceHash) == 0) {
-            messageTransmitter.receiveMessage(cctpMessage, attestation);
+        bytes32 nonce = _getCircleNonce(originalMsg);
+        if (IMessageTransmitter(messageTransmitter).usedNonces(nonce) == 0) {
+            IMessageTransmitter(messageTransmitter).receiveMessage(
+                cctpMessage,
+                attestation
+            );
         }
 
         return true;
@@ -243,86 +224,7 @@ contract TokenBridgeCctp is
         uint32 destination = message.destination();
         bytes32 ism = _mustHaveRemoteRouter(destination);
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
-        messageTransmitter.sendMessageWithCaller({
-            destinationDomain: circleDestination,
-            recipient: ism,
-            // enforces that only the enrolled ISM's verify() can deliver the CCTP message
-            destinationCaller: ism,
-            messageBody: abi.encode(message.id())
-        });
-    }
-
-    /// @inheritdoc IMessageHandler
-    function handleReceiveMessage(
-        uint32 /*sourceDomain*/,
-        bytes32 /*sender*/,
-        bytes calldata /*body*/
-    ) external override returns (bool) {
-        require(
-            msg.sender == address(messageTransmitter),
-            "Invalid message transmitter"
-        );
-        return true;
-    }
-
-    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
-        require(
-            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message body length"
-        );
-    }
-
-    function _validateTokenMessage(
-        bytes calldata tokenMessage,
-        uint64 circleNonce,
-        bytes29 circleBody
-    ) internal pure {
-        circleBody._validateBurnMessageFormat();
-        _validateMessageLength(tokenMessage);
-
-        require(
-            uint64(bytes8(TokenMessage.metadata(tokenMessage))) == circleNonce,
-            "Invalid nonce"
-        );
-
-        require(
-            TokenMessage.amount(tokenMessage) == circleBody._getAmount(),
-            "Invalid mint amount"
-        );
-
-        require(
-            TokenMessage.recipient(tokenMessage) ==
-                circleBody._getMintRecipient(),
-            "Invalid mint recipient"
-        );
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        dispatchValue = _chargeSender(_destination, _recipient, _amount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-        uint64 nonce = tokenMessenger.depositForBurn(
-            _amount,
-            circleDomain,
-            _recipient,
-            address(wrappedToken)
-        );
-
-        message = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount),
-            abi.encodePacked(nonce)
-        );
-        _validateMessageLength(message);
+        _sendCircleMessage(circleDestination, ism, abi.encode(message.id()));
     }
 
     function _offchainLookupCalldata(
