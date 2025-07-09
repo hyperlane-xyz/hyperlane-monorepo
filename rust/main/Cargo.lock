@@ -2606,6 +2606,7 @@ dependencies = [
  "log",
  "openapi",
  "postcard",
+ "prost 0.13.4",
  "reqwest 0.12.15",
  "reqwest-middleware",
  "reqwest-ratelimit",

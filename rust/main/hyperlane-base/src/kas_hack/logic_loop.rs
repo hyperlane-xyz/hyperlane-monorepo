@@ -216,7 +216,7 @@ where
         )?;
 
         self.hub_mailbox
-            .process(&fxg.payload, &formatted_sigs, None)
+            .process(&fxg.hl_message, &formatted_sigs, None)
             .await
     }
 

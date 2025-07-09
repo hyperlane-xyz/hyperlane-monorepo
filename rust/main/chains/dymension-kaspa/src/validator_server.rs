@@ -135,10 +135,13 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         // TODO: return reasons and use them
         return Err(AppError(eyre::eyre!("Validator G() function rejected")));
     }
-    info!("Validator: deposit is valid: id = {:?}", deposits.msg_id);
+    info!(
+        "Validator: deposit is valid: id = {:?}",
+        deposits.hl_message.id()
+    );
 
-    let message_id = deposits.msg_id;
-    let domain = deposits.payload.origin;
+    let message_id = deposits.hl_message.id();
+    let domain = deposits.hl_message.origin;
 
     let zero_array = [0u8; 32];
     let to_sign: CheckpointWithMessageId = CheckpointWithMessageId {
