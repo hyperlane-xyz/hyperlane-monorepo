@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
+import { fromZodError } from 'zod-validation-error';
 
-import { AppConstants } from '../constants/AppConstants.js';
+import { AppConstants } from '../constants/index.js';
 import { ApiError } from '../errors/ApiError.js';
 
 export function validateQueryParams<T extends z.ZodTypeAny>(schema: T) {
@@ -11,12 +12,10 @@ export function validateQueryParams<T extends z.ZodTypeAny>(schema: T) {
       Object.assign(req.query, parsed.data);
       next();
     } else {
-      const errorMessage = parsed.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
+      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in query parameters: ${errorMessage}`,
+          `Validation error in query parameters: ${validationError.message}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -34,12 +33,10 @@ export function validateRequestParam<T extends z.ZodTypeAny>(
       req.params[name] = parsed.data;
       next();
     } else {
-      const errorMessage = parsed.error.errors
-        .map((err) => `${err.path.join('.') || name}: ${err.message}`)
-        .join(', ');
+      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error for param '${name}': ${errorMessage}`,
+          `Validation error for param '${name}': ${validationError.message}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -54,12 +51,10 @@ export function validateBody<T extends z.ZodTypeAny>(schema: T) {
       req.body = parsed.data; // Assign the parsed (and potentially transformed) body back
       next();
     } else {
-      const errorMessage = parsed.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
+      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in body: ${errorMessage}`,
+          `Validation error in body: ${validationError.message}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
@@ -77,12 +72,10 @@ export function validateQueryParam<T extends z.ZodTypeAny>(
       req.query[name] = parsed.data;
       next();
     } else {
-      const errorMessage = parsed.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ');
+      const validationError = fromZodError(parsed.error);
       next(
         new ApiError(
-          `Validation error in query: ${errorMessage}`,
+          `Validation error in query: ${validationError.message}`,
           AppConstants.HTTP_STATUS_BAD_REQUEST,
         ),
       );
