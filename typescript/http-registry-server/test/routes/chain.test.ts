@@ -209,17 +209,29 @@ describe('Chain Routes', () => {
   });
 
   describe('parameter validation', () => {
-    it('should validate chain parameter for all endpoints', async () => {
-      // Test with invalid chain name (this would depend on ZChainName schema)
+    it('should accept valid chain names', async () => {
+      // Test with a valid chain name
       mockChainService.getChainMetadata.resolves(mockChainMetadata);
 
-      // Valid chain name should work
+      // A valid chain name should work
       await request(app)
         .get('/chain/ethereum/metadata')
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(mockChainService.getChainMetadata.calledWith('ethereum')).to.be
         .true;
+    });
+
+    it('should reject invalid chain names', async () => {
+      const invalidChainName = 'invalid-chain-name!';
+      const response = await request(app)
+        .get(`/chain/${invalidChainName}/metadata`)
+        .expect(AppConstants.HTTP_STATUS_BAD_REQUEST);
+
+      expect(response.body.message).to.include(
+        "Validation error for param 'chain'",
+      );
+      expect(mockChainService.getChainMetadata.called).to.be.false;
     });
   });
 });
