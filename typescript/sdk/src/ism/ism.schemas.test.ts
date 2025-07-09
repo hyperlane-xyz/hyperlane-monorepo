@@ -6,6 +6,7 @@ import {
   ArbL2ToL1IsmConfigSchema,
   CCIPIsmConfig,
   CCIPIsmConfigSchema,
+  InterchainAccountRouterIsm,
   InterchainAccountRouterIsmSchema,
   IsmConfig,
   IsmConfigSchema,
@@ -14,9 +15,11 @@ import {
   MultisigIsmConfigSchema,
   OffchainLookupIsmConfig,
   OffchainLookupIsmConfigSchema,
+  OpStackIsmConfig,
   OpStackIsmConfigSchema,
   PausableIsmConfig,
   PausableIsmConfigSchema,
+  TestIsmConfig,
   TestIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
@@ -31,9 +34,7 @@ describe('ISM schemas', () => {
   };
 
   describe('TestIsmConfigSchema', () => {
-    const validTestCases: TestCase<{
-      type: IsmType.TEST_ISM;
-    }>[] = [
+    const validTestCases: TestCase<TestIsmConfig>[] = [
       {
         name: 'minimal test ISM',
         input: {
@@ -48,7 +49,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<TestIsmConfig>>[] = [
       {
         name: 'missing type',
         input: {},
@@ -56,13 +57,13 @@ describe('ISM schemas', () => {
       {
         name: 'wrong type',
         input: {
-          type: IsmType.MERKLE_ROOT_MULTISIG,
+          type: IsmType.MERKLE_ROOT_MULTISIG as IsmType.TEST_ISM,
         },
       },
       {
         name: 'invalid type value',
         input: {
-          type: 'invalidType',
+          type: 'invalidType' as IsmType.TEST_ISM,
         },
       },
     ];
@@ -126,7 +127,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<MultisigIsmConfig>>[] = [
       {
         name: 'missing validators',
         input: {
@@ -152,7 +153,7 @@ describe('ISM schemas', () => {
       {
         name: 'wrong type',
         input: {
-          type: IsmType.TEST_ISM,
+          type: IsmType.TEST_ISM as IsmType.MERKLE_ROOT_MULTISIG,
           validators: ['0x1234567890123456789012345678901234567890'],
           threshold: 1,
         },
@@ -162,7 +163,7 @@ describe('ISM schemas', () => {
         input: {
           type: IsmType.MERKLE_ROOT_MULTISIG,
           validators: ['0x1234567890123456789012345678901234567890'],
-          threshold: '1',
+          threshold: '1' as unknown as number,
         },
       },
       {
@@ -191,13 +192,7 @@ describe('ISM schemas', () => {
   });
 
   describe('WeightedMultisigIsmConfigSchema', () => {
-    const validTestCases: TestCase<{
-      type:
-        | IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
-        | IsmType.WEIGHTED_MESSAGE_ID_MULTISIG;
-      validators: Array<{ signingAddress: string; weight: number }>;
-      thresholdWeight: number;
-    }>[] = [
+    const validTestCases: TestCase<WeightedMultisigIsmConfig>[] = [
       {
         name: 'weighted merkle root multisig ISM',
         input: {
@@ -374,7 +369,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<PausableIsmConfig>>[] = [
       {
         name: 'missing owner',
         input: {
@@ -382,9 +377,17 @@ describe('ISM schemas', () => {
         },
       },
       {
+        name: 'empty owner',
+        input: {
+          type: IsmType.PAUSABLE,
+          owner: '',
+        },
+      },
+      // Type assert to cause validation errrors
+      {
         name: 'wrong type',
         input: {
-          type: IsmType.TEST_ISM,
+          type: IsmType.TEST_ISM as IsmType.PAUSABLE,
           owner: '0x1234567890123456789012345678901234567890',
         },
       },
@@ -393,14 +396,7 @@ describe('ISM schemas', () => {
         input: {
           type: IsmType.PAUSABLE,
           owner: '0x1234567890123456789012345678901234567890',
-          paused: 'true',
-        },
-      },
-      {
-        name: 'empty owner',
-        input: {
-          type: IsmType.PAUSABLE,
-          owner: '',
+          paused: 'true' as any,
         },
       },
     ];
@@ -430,18 +426,11 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<TrustedRelayerIsmConfig>>[] = [
       {
         name: 'missing relayer',
         input: {
           type: IsmType.TRUSTED_RELAYER,
-        },
-      },
-      {
-        name: 'wrong type',
-        input: {
-          type: IsmType.TEST_ISM,
-          relayer: '0x1234567890123456789012345678901234567890',
         },
       },
       {
@@ -451,11 +440,19 @@ describe('ISM schemas', () => {
           relayer: '',
         },
       },
+      // Type asserting to cause validation errors
+      {
+        name: 'wrong type',
+        input: {
+          type: IsmType.TEST_ISM as IsmType.TRUSTED_RELAYER,
+          relayer: '0x1234567890123456789012345678901234567890',
+        },
+      },
       {
         name: 'non-string relayer',
         input: {
           type: IsmType.TRUSTED_RELAYER,
-          relayer: 123,
+          relayer: 123 as any,
         },
       },
     ];
@@ -492,18 +489,11 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<CCIPIsmConfig>>[] = [
       {
         name: 'missing originChain',
         input: {
           type: IsmType.CCIP,
-        },
-      },
-      {
-        name: 'wrong type',
-        input: {
-          type: IsmType.TEST_ISM,
-          originChain: 'ethereum',
         },
       },
       {
@@ -513,11 +503,19 @@ describe('ISM schemas', () => {
           originChain: '',
         },
       },
+      // Type asserting to cause validation errors
+      {
+        name: 'wrong type',
+        input: {
+          type: IsmType.TEST_ISM as IsmType.CCIP,
+          originChain: 'ethereum',
+        },
+      },
       {
         name: 'non-string originChain',
         input: {
           type: IsmType.CCIP,
-          originChain: 123,
+          originChain: 123 as any,
         },
       },
     ];
@@ -530,11 +528,7 @@ describe('ISM schemas', () => {
   });
 
   describe('OpStackIsmConfigSchema', () => {
-    const validTestCases: TestCase<{
-      type: IsmType.OP_STACK;
-      origin: string;
-      nativeBridge: string;
-    }>[] = [
+    const validTestCases: TestCase<OpStackIsmConfig>[] = [
       {
         name: 'OP Stack ISM',
         input: {
@@ -559,7 +553,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<OpStackIsmConfig>>[] = [
       {
         name: 'missing origin',
         input: {
@@ -577,7 +571,7 @@ describe('ISM schemas', () => {
       {
         name: 'wrong type',
         input: {
-          type: IsmType.TEST_ISM,
+          type: IsmType.TEST_ISM as any,
           origin: 'ethereum',
           nativeBridge: '0x1234567890123456789012345678901234567890',
         },
@@ -691,7 +685,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<OffchainLookupIsmConfig>>[] = [
       {
         name: 'missing owner',
         input: {
@@ -717,7 +711,7 @@ describe('ISM schemas', () => {
       {
         name: 'wrong type',
         input: {
-          type: IsmType.TEST_ISM,
+          type: IsmType.TEST_ISM as any,
           owner: '0x1234567890123456789012345678901234567890',
           urls: ['https://example.com'],
         },
@@ -741,11 +735,7 @@ describe('ISM schemas', () => {
   });
 
   describe('InterchainAccountRouterIsmSchema', () => {
-    const validTestCases: TestCase<{
-      type: IsmType.INTERCHAIN_ACCOUNT_ROUTING;
-      owner: string;
-      isms: Record<string, string>;
-    }>[] = [
+    const validTestCases: TestCase<InterchainAccountRouterIsm>[] = [
       {
         name: 'interchain account router ISM',
         input: {
@@ -777,7 +767,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<InterchainAccountRouterIsm>>[] = [
       {
         name: 'missing owner',
         input: {
@@ -797,7 +787,7 @@ describe('ISM schemas', () => {
       {
         name: 'wrong type',
         input: {
-          type: IsmType.TEST_ISM,
+          type: IsmType.TEST_ISM as any,
           owner: '0x1234567890123456789012345678901234567890',
           isms: {
             ethereum: '0x1234567890123456789012345678901234567890',
@@ -880,7 +870,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<AggregationIsmConfig>>[] = [
       {
         name: 'missing modules',
         input: {
@@ -1000,7 +990,7 @@ describe('ISM schemas', () => {
       });
     });
 
-    const invalidTestCases: TestCase<unknown>[] = [
+    const invalidTestCases: TestCase<Partial<IsmConfig>>[] = [
       {
         name: 'invalid address',
         input: 'not-an-address',
@@ -1008,7 +998,7 @@ describe('ISM schemas', () => {
       {
         name: 'invalid type',
         input: {
-          type: 'invalidType',
+          type: 'invalidType' as any,
         },
       },
       {
@@ -1021,7 +1011,7 @@ describe('ISM schemas', () => {
       },
       {
         name: 'number instead of config',
-        input: 123,
+        input: 123 as any,
       },
       {
         name: 'boolean instead of config',
