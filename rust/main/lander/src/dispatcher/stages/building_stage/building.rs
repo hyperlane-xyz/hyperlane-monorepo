@@ -38,7 +38,7 @@ impl BuildingStage {
                 .await;
             if payloads.is_empty() {
                 // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
                 continue;
             }
             // note: this will set the queue length metric to `length - payloads.len()`,
