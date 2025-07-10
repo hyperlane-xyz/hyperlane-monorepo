@@ -23,6 +23,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
+import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
 import {IEverclearAdapter, IEverclear} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
@@ -579,7 +580,7 @@ contract EverclearTokenBridgeForkTest is Test {
     address internal feeSigner;
     bytes internal feeSignature = hex"123f"; // We will create a real signature in setUp
 
-    function setUp() public {
+    function setUp() public virtual {
         // Fork Arbitrum at the latest block
         vm.createSelectFork("arbitrum");
 
@@ -677,5 +678,198 @@ contract EverclearTokenBridgeForkTest is Test {
         assertEq(weth.balanceOf(ALICE), initialBalance - amount - FEE_AMOUNT);
         // The bridge forwards all weth to the adapter, so the bridge balance should be the same
         assertEq(weth.balanceOf(address(bridge)), initialBridgeBalance);
+    }
+}
+
+/**
+ * @notice Fork test contract for EverclearEthBridge on Arbitrum
+ * @dev Tests the ETH bridge using real Arbitrum state and contracts with ETH transfers to Optimism
+ * @dev Inherits from EverclearTokenBridgeForkTest to reuse setup logic
+ * @dev We're running the cancun evm version, to avoid `NotActivated` errors
+ * forge-config: default.evm_version = "cancun"
+ */
+contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
+    using TypeCasts for address;
+    // Placeholder address for Everclear spoke - needs to be updated with real address
+    address internal constant EVERCLEAR_SPOKE =
+        0x1234567890123456789012345678901234567890;
+
+    // ETH bridge contract
+    EverclearEthBridge internal ethBridge;
+
+    function setUp() public override {
+        // Call parent setUp to initialize fork and all base contracts
+        super.setUp();
+
+        // Deploy ETH bridge implementation
+        EverclearEthBridge implementation = new EverclearEthBridge(
+            weth,
+            everclearAdapter,
+            EVERCLEAR_SPOKE
+        );
+
+        // Deploy proxy
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                EverclearTokenBridge.initialize.selector,
+                OWNER
+            )
+        );
+
+        ethBridge = EverclearEthBridge(payable(address(proxy)));
+
+        // Configure the ETH bridge using existing fee params and signature
+        vm.startPrank(OWNER);
+        ethBridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        ethBridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: OPTIMISM_DOMAIN,
+                outputAsset: OUTPUT_ASSET
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function testFuzz_EthBridgeTransferRemote(uint256 amount) public {
+        // Bound the amount to reasonable values
+        amount = bound(amount, 1e15, 10e18); // 0.001 ETH to 10 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+
+        // Give Alice enough ETH
+        vm.deal(ALICE, totalAmount);
+
+        uint256 initialAliceBalance = ALICE.balance;
+        uint256 initialBridgeBalance = weth.balanceOf(address(ethBridge));
+
+        // Test the transfer - expect IntentWithFeesAdded event
+        vm.prank(ALICE);
+        vm.expectEmit(false, true, true, true);
+        emit IEverclearAdapter.IntentWithFeesAdded({
+            _intentId: bytes32(0),
+            _initiator: address(ethBridge).addressToBytes32(),
+            _tokenFee: FEE_AMOUNT,
+            _nativeFee: 0
+        });
+        ethBridge.transferRemote{value: totalAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        // Verify the balance changes
+        // Alice should have lost the total ETH amount (amount + fee)
+        assertEq(ALICE.balance, initialAliceBalance - totalAmount);
+        // The bridge should not hold any WETH (it forwards to adapter)
+        assertEq(weth.balanceOf(address(ethBridge)), initialBridgeBalance);
+    }
+
+    function testEthBridgeTransferRemoteInsufficientETH() public {
+        uint256 amount = 1e18; // 1 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+
+        // Give Alice less ETH than needed
+        vm.deal(ALICE, totalAmount - 1);
+
+        vm.prank(ALICE);
+        vm.expectRevert("EEB: ETH amount mismatch");
+        ethBridge.transferRemote{value: totalAmount - 1}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+    }
+
+    function testEthBridgeTransferRemoteWithExcessETH() public {
+        uint256 amount = 1e18; // 1 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+        uint256 excessAmount = totalAmount + 1e17; // Extra 0.1 ETH
+
+        // Give Alice excess ETH
+        vm.deal(ALICE, excessAmount);
+
+        vm.prank(ALICE);
+        vm.expectRevert("EEB: ETH amount mismatch");
+        ethBridge.transferRemote{value: excessAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+    }
+
+    function testEthBridgeUnwrapAndSend() public {
+        uint256 amount = 1e18; // 1 ETH
+
+        // Give the bridge some WETH
+        vm.deal(address(ethBridge), amount);
+        vm.prank(address(ethBridge));
+        weth.deposit{value: amount}();
+
+        // Mock the everclear spoke calling unwrapAndSend
+        vm.prank(EVERCLEAR_SPOKE);
+
+        uint256 initialBobBalance = BOB.balance;
+        ethBridge.unwrapAndSend(RECIPIENT, amount);
+
+        // Verify Bob received the ETH
+        assertEq(BOB.balance, initialBobBalance + amount);
+        // Verify the bridge no longer has WETH
+        assertEq(weth.balanceOf(address(ethBridge)), 0);
+    }
+
+    function testEthBridgeUnwrapAndSendOnlyEverclearSpoke() public {
+        uint256 amount = 1e18; // 1 ETH
+
+        // Give the bridge some WETH
+        vm.deal(address(ethBridge), amount);
+        vm.prank(address(ethBridge));
+        weth.deposit{value: amount}();
+
+        // Try to call unwrapAndSend from a different address
+        vm.prank(ALICE);
+        vm.expectRevert("EEB: Only callable by EverclearSpoke");
+        ethBridge.unwrapAndSend(RECIPIENT, amount);
+    }
+
+    function testEthBridgeQuoteTransferRemote() public {
+        uint256 amount = 1e18; // 1 ETH
+
+        Quote[] memory quotes = ethBridge.quoteTransferRemote(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        assertEq(quotes.length, 1);
+        assertEq(quotes[0].token, address(weth));
+        assertEq(quotes[0].amount, amount + FEE_AMOUNT);
+    }
+
+    function testEthBridgeReceiveFunction() public {
+        uint256 amount = 1e18; // 1 ETH
+
+        // Test that the bridge can receive ETH
+        vm.deal(ALICE, amount);
+        vm.prank(ALICE);
+        (bool success, ) = address(ethBridge).call{value: amount}("");
+        assertTrue(success);
+        assertEq(address(ethBridge).balance, amount);
+    }
+
+    function testEthBridgeConstructor() public {
+        EverclearEthBridge newBridge = new EverclearEthBridge(
+            weth,
+            everclearAdapter,
+            EVERCLEAR_SPOKE
+        );
+
+        assertEq(address(newBridge.weth()), address(weth));
+        assertEq(
+            address(newBridge.everclearAdapter()),
+            address(everclearAdapter)
+        );
+        assertEq(newBridge.everclearSpoke(), EVERCLEAR_SPOKE);
+        assertEq(address(newBridge.token()), address(weth));
     }
 }

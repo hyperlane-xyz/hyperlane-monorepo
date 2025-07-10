@@ -55,7 +55,6 @@ contract EverclearEthBridge is EverclearTokenBridge {
         // For user transfers, deposit ETH to WETH first
         require(msg.value == _amount, "EEB: ETH amount mismatch");
         weth.deposit{value: _amount}();
-        EverclearTokenBridge._transferFrom(_from, _to, _amount);
     }
 
     /**
