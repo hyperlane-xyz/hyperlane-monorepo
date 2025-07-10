@@ -22,6 +22,7 @@ use hyperlane_core::U256;
 use kaspa_txscript::extract_script_pub_key_address;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 
 async fn validate_maturity(
     client: &Arc<DynRpcApi>,
@@ -60,6 +61,22 @@ pub async fn validate_new_deposit(
 
     // get block from Kaspa node
     let block: RpcBlock = client.get_block(block_hash, true).await?;
+
+    // validation of the Kaspa tx maturity (old enough to be accepted)
+    let maturity_result = validate_maturity(client, &block, net.network_params()).await?;
+    if !maturity_result {
+        error!(
+            "Deposit is not mature, block daa score: {:?}",
+            block.header.daa_score
+        );
+        return Ok(false);
+    }
+
+    // check that the HL message version is allowed
+    if deposit.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
+        error!("HL message version is not allowed");
+        return Ok(false);
+    }
 
     // find the relayed Kaspa Tx in block (id included in the deposit)
     let tx_index = block
@@ -118,14 +135,5 @@ pub async fn validate_new_deposit(
         return Ok(false);
     }
 
-    // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result = validate_maturity(client, &block, net.network_params()).await?;
-    if !maturity_result {
-        error!(
-            "Deposit is not mature, block daa score: {:?}",
-            block.header.daa_score
-        );
-        return Ok(false);
-    }
     Ok(true)
 }

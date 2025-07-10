@@ -15247,6 +15247,7 @@ dependencies = [
  "core",
  "ethers 2.0.14",
  "eyre",
+ "hardcode",
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",

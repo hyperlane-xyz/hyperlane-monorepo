@@ -1,0 +1,1 @@
+pub const ALLOWED_HL_MESSAGE_VERSION: u8 = 3;
