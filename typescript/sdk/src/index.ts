@@ -389,6 +389,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  ProtocolTypedTransaction,
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,
