@@ -1,6 +1,8 @@
 warpRouteId: USDC/lumia
+
 strategy:
   rebalanceStrategy: weighted
+  # this config aims to maintain 80% of the total USDC on ethereum
   chains:
     base:
       weighted:
