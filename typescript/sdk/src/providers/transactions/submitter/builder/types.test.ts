@@ -134,7 +134,6 @@ describe('ChainSubmissionStrategySchema', () => {
       expect(
         data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
-
       expect(
         data[DESTINATION_CHAIN_MOCK].submitter.internalSubmitter.chain,
       ).to.equal(CHAIN_MOCK);
@@ -187,7 +186,6 @@ describe('ChainSubmissionStrategySchema', () => {
           expect(icaSubmitter.destinationChain).to.equal(
             DESTINATION_CHAIN_MOCK,
           );
-
           expect(icaSubmitter.internalSubmitter.chain).to.equal(CHAIN_MOCK);
         }
       }
