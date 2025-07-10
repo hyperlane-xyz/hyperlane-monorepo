@@ -1,4 +1,9 @@
 import { DataRequestBuilder } from '@radixdlt/radix-dapp-toolkit';
+import {
+  NetworkId,
+  RadixEngineToolkit,
+  TransactionManifest,
+} from '@radixdlt/radix-engine-toolkit';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -11,6 +16,7 @@ import {
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { useAccount } from './radix/AccountContext.js';
+import { usePopup } from './radix/WalletPopupProvider.js';
 import { useGatewayApi } from './radix/hooks/useGatewayApi.js';
 import { useRdt } from './radix/hooks/useRdt.js';
 import {
@@ -52,16 +58,19 @@ export function useRadixConnectFn(): () => void {
   const rdt = useRdt();
   assert(rdt, `radix dapp toolkit not defined`);
 
+  const popUp = usePopup();
   const { setAccounts } = useAccount();
 
   const connect = async () => {
-    console.log('connect called');
+    console.log('connect called', 'popup', popUp);
+    popUp?.setShowPopUp(true);
     rdt.walletApi.setRequestData(DataRequestBuilder.accounts().reset());
     console.log('setRequestData');
     const result = await rdt.walletApi.sendRequest();
     if (result.isOk()) {
       setAccounts(result.value.accounts);
     }
+    popUp?.setShowPopUp(false);
   };
 
   return connect;
@@ -115,8 +124,18 @@ export function useRadixTransactionFns(
       assert(rdt, `radix dapp toolkit is not defined`);
       assert(gatewayApi, `gateway api is not defined`);
 
+      // TODO: RADIX
+      // network id
+      const transactionManifest = (
+        await RadixEngineToolkit.Instructions.convert(
+          (tx.transaction as never as TransactionManifest).instructions,
+          NetworkId.Mainnet,
+          'String',
+        )
+      ).value as string;
+
       const transactionResult = await rdt.walletApi.sendTransaction({
-        transactionManifest: `todo`,
+        transactionManifest,
         version: 1,
       });
 
