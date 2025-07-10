@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ITokenMessenger} from "../middleware/liquidity-layer/interfaces/circle/ITokenMessenger.sol";
+import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {MockToken} from "./MockToken.sol";
 
