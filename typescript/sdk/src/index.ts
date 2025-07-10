@@ -437,7 +437,7 @@ export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmi
 export {
   SubmitterBuilderSettings,
   getSubmitterBuilder,
-  getSubmitter
+  getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export {
