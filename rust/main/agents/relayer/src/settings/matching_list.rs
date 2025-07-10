@@ -254,7 +254,7 @@ impl<'de> Deserialize<'de> for RegexWrapper {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, new)]
+#[derive(Debug, Deserialize, Clone, PartialEq, new)]
 #[serde(tag = "type")]
 pub struct ListElement {
     #[serde(default, rename = "messageid")]
