@@ -158,6 +158,7 @@ mod tests {
                         Filter::Wildcard,
                         Filter::Enumerated(vec![100]),
                         Filter::Wildcard,
+                        None,
                     )]
                 );
             }
@@ -217,6 +218,7 @@ mod tests {
                         Filter::Wildcard,
                         Filter::Enumerated(vec![100]),
                         Filter::Wildcard,
+                        None,
                     )]
                 );
             }
@@ -235,6 +237,7 @@ mod tests {
                         Filter::Wildcard,
                         Filter::Wildcard,
                         Filter::Wildcard,
+                        None,
                     )]
                 );
             }

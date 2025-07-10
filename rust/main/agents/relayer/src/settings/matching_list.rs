@@ -242,6 +242,7 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
+/// Wrapper around Regex so we can impl traits for it
 #[derive(Clone, Debug)]
 pub struct RegexWrapper(pub Regex);
 
@@ -251,6 +252,12 @@ impl<'de> Deserialize<'de> for RegexWrapper {
         D: Deserializer<'de>,
     {
         d.deserialize_any(FilterVisitor::<RegexWrapper>(Default::default()))
+    }
+}
+
+impl PartialEq for RegexWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
     }
 }
 
