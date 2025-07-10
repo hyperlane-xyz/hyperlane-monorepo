@@ -738,6 +738,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
+  // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
