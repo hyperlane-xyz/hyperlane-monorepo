@@ -43,6 +43,9 @@ export const usdcTokenAddresses = {
   unichain: '0x078D782b760474a361dDA0AF3839290b0EF57AD6',
   zksync: '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4',
   solanamainnet: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  starknet:
+    '0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8',
+  paradex: '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
 } as const;
 
 export type UsdcChainId = keyof typeof usdcTokenAddresses;
