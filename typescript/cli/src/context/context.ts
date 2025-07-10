@@ -13,9 +13,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand, isValidKey } from '../commands/signCommands.js';
-import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -72,9 +71,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
   if (!requiresKey) return argv;
 
-  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
-    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
-  );
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
 
   /**
    * Intercepts Hyperlane command to determine chains.
