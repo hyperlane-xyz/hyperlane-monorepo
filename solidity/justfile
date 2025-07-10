@@ -2,6 +2,8 @@ rpc_endpoint_b3 := "https://sepolia.b3.fun/http"
 rpc_endpoint_ape := "https://curtis.rpc.caldera.xyz/http"
 rpc_endpoint_everclear_staging := "https://rpc.everclear.raas.gelato.cloud"
 rpc_endpoint_base := "https://mainnet.base.org"
+rpc_endpoint_ethereum := "https://eth.llamarpc.com"
+chain_id_ethereum := "1"
 chain_id_b3 := "1993"
 chain_id_ape := "33111"
 chain_id_everclear_staging := "25327"
@@ -16,13 +18,16 @@ mailbox_contract_addr_everclear_staging := "0xd84ab43d7f2f99339657e4bfae3c955be8
 mailbox_contract_addr_base := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 mailbox_contract_addr_tron_nile := "0x77D2287AFF6124AC5E01F417AD97CD39F2C31DF7"
 mailbox_contract_addr_tron_mainnet := "0x5b34081e9d453fc2ba925d893583d89d1b7175dd"
+mailbox_contract_addr_ethereum := "0xE4412AEa45a7121042c33b65291d11F71F4d0363"
 polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
 polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
 polymer_ism_addr_everclear_staging := "0x593ca6a919b9946aa8a9abfd7c499f3fee8d7a9e"
+polymer_ism_addr_everclear_for_ethereum:= "0xD99A49304227d3fE2c27A1F12Ef66A95b95837b6"
 polymer_ism_addr_base := "0x568638bde8a0d48f291d516fcf05d70f019ebb7e"
 polymer_ism_addr_everclear_staging_for_tron := "0xA967466F5A06955ae77CF48520002A4CC678149a"
 polymer_ism_addr_everclear_staging_for_tron_testnet_sigs := "0xc8B8cB15C3a45FeE5A1669C3a4A57F835A6a1d32"
 polymer_ism_addr_everclear_staging_for_tron_mainnet := "0x62f83F42a4AA0d06A0cae9426bed3F066D4CD323"
+polymer_ism_addr_ethereum := "0x007A4E80001a87be296A6714A0Ba14c8eF56e557"
 default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53c46"
 default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
 default_fallback_routing_ism_addr_everclear_staging := "0xC2dA87C431086Be8925dFd14c595B3E9c7e9efAf"
@@ -41,6 +46,7 @@ simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 simple_sender_receiver_addr_everclear_staging := "0x02b6ece368d5de946edb4710c7579f7fd9e6244e"
 simple_sender_receiver_addr_everclear_staging_for_tron_testnet_sigs := "0x95b3640F88DECe1b14E813C03F80dfe0BdE23dc0"
 simple_sender_receiver_addr_base := "0xc81686396C44dD0f39A76de2BeC5CCE2eE3d4548"
+simple_sender_receiver_addr_ethereum :="0x442942a885d6cE479BDfee1481E0Dc438878EA4a"
 
 deploy-mailbox-b3:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
@@ -70,6 +76,13 @@ deploy-mailbox-everclear-staging:
         --broadcast \
         -vvvv
 
+deploy-mailbox-ethereum:
+    export HYPERLANE_DOMAIN_ID="{{ chain_id_ethereum }}" && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{ rpc_endpoint_ethereum }}" \
+        --broadcast \
+        -vvvv
+
 deploy-polymer-ism-b3:
     export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
     export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
@@ -94,9 +107,26 @@ deploy-polymer-ism-base:
         --broadcast \
         -vvvv
 
-deploy-polymer-ism-everclear-staging:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
+deploy-polymer-ism-ethereum-everclearstaging:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_ethereum }}" \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-everclearstaging-eth:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ethereum }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+
+deploy-polymer-ism-everclear-staging:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
@@ -242,6 +272,14 @@ deploy-simple-app-base:
         --broadcast \
         -vvvv
 
+deploy-simple-app-ethereum:
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ethereum }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_ethereum }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_ethereum }}" \
+        --broadcast \
+        -vvvv
+
 deploy-simple-app-everclear-staging:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
@@ -293,6 +331,26 @@ send-message-everclear-staging-to-base:
     export DESTINATION_DOMAIN="{{ chain_id_base }}" && \
     export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_base }}" && \
     export MESSAGE_CONTENT="Hello from Everclear Staging to Base!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+send-message-ethereum-to-everclear-staging:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ethereum }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_everclear_staging }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear_staging }}" && \
+    export MESSAGE_CONTENT="Hello from Ethereum to Everclear Staging!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_ethereum }}" \
+        --broadcast \
+        -vvvv
+
+send-message-everclear-to-ethereum-staging:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_ethereum }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ethereum }}" && \
+    export MESSAGE_CONTENT="Hello from Everclear Staging to Ethereum !" && \
     forge script script/SendMessage.s.sol:SendMessage \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
