@@ -70,7 +70,7 @@ The rebalancer container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
-  - name: INSTALL_GCP_LOGGER
+  - name: INSTALL_GCP_LOGGER_CLI
     value: "true"
   - name: LOG_FORMAT
     value: json
