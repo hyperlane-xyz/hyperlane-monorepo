@@ -8379,6 +8379,7 @@ __metadata:
     express: "npm:^5.1.0"
     mocha: "npm:^11.5.0"
     pino: "npm:^8.19.0"
+    pino-pretty: "npm:^13.0.0"
     prettier: "npm:^3.5.3"
     sinon: "npm:^13.0.2"
     supertest: "npm:^6.3.3"
@@ -8606,8 +8607,11 @@ __metadata:
     yaml: "npm:2.4.5"
   peerDependencies:
     "@google-cloud/pino-logging-gcp-config": ^1.0.6
+    pino-pretty: ">=10.0.0"
   peerDependenciesMeta:
     "@google-cloud/pino-logging-gcp-config":
+      optional: true
+    pino-pretty:
       optional: true
   languageName: unknown
   linkType: soft

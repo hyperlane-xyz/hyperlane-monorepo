@@ -47,6 +47,7 @@
     "chai-as-promised": "^8.0.1",
     "eslint": "^9.15.0",
     "mocha": "^11.5.0",
+    "pino-pretty": "^13.0.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
     "supertest": "^6.3.3",
