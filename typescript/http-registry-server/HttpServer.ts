@@ -43,29 +43,29 @@ export class HttpServer {
     portInput = process.env.PORT,
     refreshIntervalInput = process.env.REFRESH_INTERVAL,
   ) {
-    let port = parseInt(portInput || '', 10);
-    if (isNaN(port)) {
-      if (portInput) {
-        this.logger.warn(
-          { port: portInput, defaultPort: ServerConstants.DEFAULT_PORT },
-          `Invalid PORT value "${portInput}". Falling back to default ${ServerConstants.DEFAULT_PORT}.`,
-        );
-      }
-      port = ServerConstants.DEFAULT_PORT;
+    const parsedPort = parseInt(portInput || '', 10);
+    const isPortInvalid = isNaN(parsedPort);
+    const port = isPortInvalid ? ServerConstants.DEFAULT_PORT : parsedPort;
+    if (isPortInvalid && portInput) {
+      this.logger.warn(
+        { port: portInput, defaultPort: ServerConstants.DEFAULT_PORT },
+        `Invalid PORT value "${portInput}". Falling back to default ${ServerConstants.DEFAULT_PORT}.`,
+      );
     }
 
-    let refreshInterval = parseInt(refreshIntervalInput || '', 10);
-    if (isNaN(refreshInterval)) {
-      if (refreshIntervalInput) {
-        this.logger.warn(
-          {
-            refreshInterval: refreshIntervalInput,
-            defaultRefreshInterval: ServerConstants.DEFAULT_REFRESH_INTERVAL,
-          },
-          `Invalid REFRESH_INTERVAL value "${refreshIntervalInput}". Falling back to default ${ServerConstants.DEFAULT_REFRESH_INTERVAL}.`,
-        );
-      }
-      refreshInterval = ServerConstants.DEFAULT_REFRESH_INTERVAL;
+    const parsedRefreshInterval = parseInt(refreshIntervalInput || '', 10);
+    const isRefreshIntervalInvalid = isNaN(parsedRefreshInterval);
+    const refreshInterval = isRefreshIntervalInvalid
+      ? ServerConstants.DEFAULT_REFRESH_INTERVAL
+      : parsedRefreshInterval;
+    if (isRefreshIntervalInvalid && refreshIntervalInput) {
+      this.logger.warn(
+        {
+          refreshInterval: refreshIntervalInput,
+          defaultRefreshInterval: ServerConstants.DEFAULT_REFRESH_INTERVAL,
+        },
+        `Invalid REFRESH_INTERVAL value "${refreshIntervalInput}". Falling back to default ${ServerConstants.DEFAULT_REFRESH_INTERVAL}.`,
+      );
     }
 
     try {
