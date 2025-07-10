@@ -165,6 +165,7 @@ mod tests {
                         Filter::Wildcard,
                         Filter::Wildcard,
                         Filter::Wildcard,
+                        None,
                     )]
                 );
             }

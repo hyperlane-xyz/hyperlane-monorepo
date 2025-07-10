@@ -435,10 +435,10 @@ export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethers
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {
-  getSubmitterBuilder,
   SubmitterBuilderSettings,
+  getSubmitterBuilder,
+  getSubmitter
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
-
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export {
   CCIPContractCache,

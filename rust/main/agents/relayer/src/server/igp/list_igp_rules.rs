@@ -168,7 +168,8 @@ mod tests {
                         Filter::Wildcard,
                         Filter::Wildcard,
                         Filter::Enumerated(vec![100]),
-                        Filter::Wildcard
+                        Filter::Wildcard,
+                        None,
                     )
                 )],
             },
@@ -183,7 +184,8 @@ mod tests {
                         Filter::Enumerated(vec![100]),
                         Filter::Wildcard,
                         Filter::Wildcard,
-                        Filter::Wildcard
+                        Filter::Wildcard,
+                        None,
                     )
                 )],
             },
