@@ -66,8 +66,4 @@ export const EvmSubmitterMetadataSchema = z.discriminatedUnion('type', [
     type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
     ...EV5GnosisSafeTxBuilderPropsSchema.shape,
   }),
-  z.object({
-    type: z.literal(TxSubmitterType.FILE),
-    ...EV5FileTxSubmitterPropsSchema.shape,
-  }),
 ]);

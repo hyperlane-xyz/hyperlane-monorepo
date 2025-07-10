@@ -4,5 +4,4 @@ export enum TxSubmitterType {
   GNOSIS_SAFE = 'gnosisSafe',
   GNOSIS_TX_BUILDER = 'gnosisSafeTxBuilder',
   INTERCHAIN_ACCOUNT = 'interchainAccount',
-  FILE = 'file',
 }
