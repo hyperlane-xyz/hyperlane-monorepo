@@ -40,7 +40,7 @@ type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   registry: IRegistry,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
 
-const submitterRegistry: Record<string, SubmitterFactory> = {
+const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
   [TxSubmitterType.JSON_RPC]: (multiProvider, metadata) => {
     // Used to type narrow metadata
     assert(
@@ -79,24 +79,30 @@ const submitterRegistry: Record<string, SubmitterFactory> = {
   },
 };
 
-export function registerSubmitter(
-  type: string,
-  factory: SubmitterFactory,
-): void {
-  if (Object.keys(submitterRegistry).includes(type)) {
-    throw new Error(
-      `Submitter factory for type ${type} is already registered.`,
-    );
-  }
-  submitterRegistry[type] = factory;
-}
-
+/**
+ * Retrieves a transaction submitter instance based on the provided metadata.
+ * This function acts as a factory, using a registry of submitter builders
+ * to construct the appropriate submitter for the given protocol and submission strategy.
+ * It allows for extending the default registry with custom submitter types.
+ *
+ * @param multiProvider - The MultiProvider instance
+ * @param submitterMetadata - The metadata defining the type and configuration of the submitter.
+ * @param registry - The IRegistry instance for looking up chain-specific details.
+ * @param additionalSubmitterFactories optional extension to extend the default registry. Can override if specifying the the same key.
+ * @returns A promise that resolves to an instance of a TxSubmitterInterface.
+ * @throws If no submitter factory is registered for the type specified in the metadata.
+ */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
   submitterMetadata: SubmitterMetadata,
   registry: IRegistry,
+  additionalSubmitterFactories: Record<string, SubmitterFactory> = {},
 ): Promise<TxSubmitterInterface<TProtocol>> {
-  const factory = submitterRegistry[submitterMetadata.type];
+  const mergedSubmitterRegistry = {
+    ...defaultSubmitterFactories,
+    ...additionalSubmitterFactories,
+  };
+  const factory = mergedSubmitterRegistry[submitterMetadata.type];
   if (!factory) {
     throw new Error(
       `No submitter factory registered for type ${submitterMetadata.type}`,
