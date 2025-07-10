@@ -371,7 +371,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidAmount() public {
+    function test_verify_revertsWhen_invalidMintAmount() public {
         (
             bytes memory message,
             uint64 cctpNonce,
@@ -393,7 +393,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidRecipient() public {
+    function test_verify_revertsWhen_invalidMintRecipient() public {
         (bytes memory message, uint64 cctpNonce, ) = _setupAndDispatch();
 
         // invalid recipient := evil
@@ -411,7 +411,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidSender() public {
+    function test_verify_revertsWhen_invalidBurnSender() public {
         (
             bytes memory message,
             uint64 cctpNonce,
@@ -631,7 +631,7 @@ contract TokenBridgeCctpTest is Test {
         assertEq(recipient.lastData(), body);
     }
 
-    function test_verify_revertsWhen_invalidSender(
+    function test_verify_revertsWhen_invalidMessageSender(
         bytes32 recipient,
         bytes calldata body
     ) public {
@@ -698,7 +698,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidRecipient(
+    function test_verify_revertsWhen_invalidMessageRecipient(
         bytes32 recipient,
         bytes calldata body
     ) public {

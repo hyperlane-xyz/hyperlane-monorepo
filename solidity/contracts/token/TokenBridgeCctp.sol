@@ -198,6 +198,8 @@ contract TokenBridgeCctp is
                 circleMessageId == _hyperlaneMessage.id(),
                 "Invalid message id"
             );
+        } else {
+            revert("Invalid circle recipient");
         }
 
         // Receive only if the nonce hasn't been used before
