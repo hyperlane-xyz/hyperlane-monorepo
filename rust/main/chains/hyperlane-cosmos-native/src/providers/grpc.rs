@@ -303,4 +303,16 @@ impl GrpcProvider {
             })
             .await
     }
+
+    /// bit of a hack, we can see if the hub x/kas is bootstrapped by doing an empty withdrawal query
+    /// https://github.com/dymensionxyz/dymension/blob/55468f6494cc233d7478a658964881c465c46555/x/kas/keeper/grpc_query.go#L30
+    pub async fn hub_bootstrapped(&self) -> ChainResult<bool> {
+        let ws_res = self.withdrawal_status(vec![], None).await;
+        match ws_res {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
 }

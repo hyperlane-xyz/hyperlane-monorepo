@@ -41,7 +41,7 @@ use std::os::unix;
 use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
-use validator::deposit::validate_new_deposit;
+use validator::deposit::{validate_new_deposit, validate_new_deposit_inner};
 use validator::withdraw::*;
 
 use kaspa_wallet_core::prelude::*;
@@ -220,7 +220,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     // validate deposit using kaspa rpc (validator operation)
     let validation_result =
-        validate_new_deposit(&w.api(), &deposit_recv, &w.net, &escrow_address).await?;
+        validate_new_deposit_inner(&w.api(), &deposit_recv, &w.net, &escrow_address, true).await?;
 
     if validation_result {
         println!("Deposit validated");

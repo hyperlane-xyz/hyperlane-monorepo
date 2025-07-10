@@ -23,6 +23,7 @@ use kaspa_txscript::extract_script_pub_key_address;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 
 async fn validate_maturity(
     client: &Arc<DynRpcApi>,
@@ -54,7 +55,34 @@ pub async fn validate_new_deposit(
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
+    hub_client: &CosmosGrpcClient,
 ) -> Result<bool> {
+    let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
+    validate_new_deposit_inner(client, deposit, net, escrow_address, hub_bootstrapped).await
+}
+
+/// Deposit validation process
+/// Executed by validators to check the deposit info relayed is equivalent to the original Kaspa tx to the escrow address
+/// It validates that:
+///  * The original escrow transaction exists in Kaspa network
+///  * The HL message relayed is equivalent to the HL message included in the original Kaspa Tx (after recreating metadata injection to token message)
+///  * The Kaspa transaction utxo destination is the escrowed address and the utxo value is enough to cover the tx.
+///  * The utxo is mature
+///
+/// Note: If the utxo value is higher of the amount the deposit is also accepted
+///
+pub async fn validate_new_deposit_inner(
+    client: &Arc<DynRpcApi>,
+    deposit: &DepositFXG,
+    net: &NetworkInfo,
+    escrow_address: &Address,
+    hub_bootstrapped: bool,
+) -> Result<bool> {
+    if !hub_bootstrapped {
+        error!("Hub is not bootstrapped, cannot validate deposit");
+        return Ok(false);
+    }
+
     // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
