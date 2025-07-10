@@ -5,6 +5,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
@@ -21,24 +22,7 @@ const deploymentChains = [
 
 type DeploymentChain = (typeof deploymentChains)[number];
 
-const existingChains: DeploymentChain[] = [
-  'base',
-  'ethereum',
-  'solanamainnet',
-  'subtensor',
-];
-
 const syntheticChain: DeploymentChain = 'subtensor';
-
-const usdcTokenAddresses: Record<DeploymentChain, string> = {
-  arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
-  base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-  ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-  unichain: '0x078D782b760474a361dDA0AF3839290b0EF57AD6',
-  solanamainnet: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-  subtensor: '',
-};
 
 export const getSubtensorUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -103,9 +87,7 @@ export const getSubtensorUSDCWarpConfig = async (
             owner,
             allowedRebalancers,
             allowedRebalancingBridges,
-            contractVersion: existingChains.includes(currentChain)
-              ? '8.1.1'
-              : undefined,
+            contractVersion: '8.1.1',
           },
         ];
       },

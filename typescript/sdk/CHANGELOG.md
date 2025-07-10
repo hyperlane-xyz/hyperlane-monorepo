@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 14.3.0
+
+### Minor Changes
+
+- 9cc7ef6fd: Add `scale` to Token Schema and account for scaling in `WarpCore.isDestinationCollateralSufficient`
+- ae0771d9e: Minor refactoring to deduplicate ism/router overrides passed into the InterchainAccount app.
+
+### Patch Changes
+
+- ae0771d9e: InterchainAccount.getCallRemote now respects the localRouter override if passed in.
+  - @hyperlane-xyz/starknet-core@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+  - @hyperlane-xyz/core@8.1.2
+
 ## 14.2.0
 
 ### Minor Changes
