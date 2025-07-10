@@ -278,7 +278,7 @@ where
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address])
+            .get_utxos_by_addresses(vec![escrow_address.clone()])
             .await?;
 
         // check if the anchor utxo is in the utxos.
@@ -300,6 +300,7 @@ where
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
+                    &escrow_address.to_string(),
                     candidate_new_anchor,
                     old_anchor,
                 )

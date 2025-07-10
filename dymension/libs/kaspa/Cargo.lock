@@ -8869,6 +8869,7 @@ dependencies = [
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
  "log",
+ "openapi",
  "relayer",
  "secp256k1",
  "serde",

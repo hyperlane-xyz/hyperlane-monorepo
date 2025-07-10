@@ -33,6 +33,7 @@ use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
+use crate::ValidationConf;
 use dym_kas_core::payload::MessageIDs;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
@@ -135,6 +136,10 @@ impl KaspaProvider {
 
     pub fn hub_mailbox_id(&self) -> String {
         self.conf.hub_mailbox_id.clone()
+    }
+
+    pub fn val_conf(&self) -> ValidationConf {
+        self.conf.validations.clone()
     }
 
     /// dococo

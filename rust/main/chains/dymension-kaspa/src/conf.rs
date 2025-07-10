@@ -26,6 +26,24 @@ pub struct ConnectionConf {
     pub deposit_look_back_mins: Option<u64>,
     pub hub_mailbox_id: String, // TODO: populate it
     pub op_submission_config: OpSubmissionConfig,
+    pub validations: ValidationConf, // only relevant for validator
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidationConf {
+    pub deposit_enabled: bool,
+    pub withdrawal_enabled: bool,
+    pub withdrawal_confirmation_enabled: bool,
+}
+
+impl ValidationConf {
+    pub fn default() -> Self {
+        Self {
+            deposit_enabled: true,
+            withdrawal_enabled: true,
+            withdrawal_confirmation_enabled: true,
+        }
+    }
 }
 
 impl ConnectionConf {
@@ -45,6 +63,7 @@ impl ConnectionConf {
         deposit_look_back_mins: Option<u64>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
+        validation_conf: ValidationConf,
     ) -> Self {
         Self {
             wallet_secret,
@@ -60,6 +79,7 @@ impl ConnectionConf {
             deposit_look_back_mins,
             hub_mailbox_id,
             op_submission_config,
+            validations: validation_conf,
         }
     }
 }

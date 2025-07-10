@@ -23,6 +23,13 @@ impl MessageIDs {
         bincode::deserialize(bytes)
     }
 
+    // Parse the payload string to extract the message ID
+    pub fn from_tx_payload(payload: &str) -> Result<Self, eyre::Error> {
+        let unhexed_payload =
+            hex::decode(&payload).map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
+        Ok(Self::from_bytes(&unhexed_payload)?)
+    }
+
     pub fn into_value(self) -> Result<serde_value::Value, serde_value::SerializerError> {
         serde_value::to_value(self)
     }

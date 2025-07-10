@@ -1,3 +1,4 @@
+use super::conf::ValidationConf;
 use super::endpoints::*;
 use super::providers::KaspaProvider;
 use axum::{
@@ -8,16 +9,16 @@ use axum::{
     routing::post,
     Router,
 };
+use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::payload::MessageIDs;
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
-use eyre::{eyre, Report};
+use eyre::Report;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
@@ -96,6 +97,14 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
+    fn must_rest_client(&self) -> &HttpClient {
+        &self.kas_provider.as_ref().unwrap().rest().client.client
+    }
+
+    fn must_val_conf(&self) -> ValidationConf {
+        self.kas_provider.as_ref().unwrap().val_conf()
+    }
+
     pub fn default() -> Self {
         Self {
             ism_signer: None,
@@ -111,14 +120,15 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     // Call to validator.G()
-    if !validate_new_deposit(
-        &resources.must_api(),
-        &deposits,
-        &resources.must_wallet().net,
-        &resources.must_escrow().addr,
-    )
-    .await
-    .map_err(|e| AppError(e))?
+    if resources.must_val_conf().deposit_enabled
+        && !validate_new_deposit(
+            &resources.must_api(),
+            &deposits,
+            &resources.must_wallet().net,
+            &resources.must_escrow().addr,
+        )
+        .await
+        .map_err(|e| AppError(e))?
     {
         // TODO: return reasons and use them
         return Err(AppError(eyre::eyre!("Validator G() function rejected")));
@@ -160,12 +170,11 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    // Call to validator.G()
-    if !validate_confirmed_withdrawals(&confirmation_fxg)
-        .await
-        .map_err(|e| AppError(e))?
-    {
-        return Err(AppError(eyre::eyre!("Invalid confirmation")));
+    // Call to validator
+    if resources.must_val_conf().withdrawal_confirmation_enabled {
+        validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
+            .await
+            .map_err(|e| AppError(Report::from(e)))?;
     }
     info!("Validator: confirmed withdrawal is valid");
 
@@ -192,15 +201,17 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    validate_withdrawal_batch(
-        &fxg,
-        resources.must_hub_rpc(),
-        resources.must_hub_mailbox_id(),
-        resources.must_wallet().net.address_prefix,
-        resources.must_escrow(),
-    )
-    .await
-    .map_err(|e| AppError(Report::from(e)))?;
+    if resources.must_val_conf().withdrawal_enabled {
+        validate_withdrawal_batch(
+            &fxg,
+            resources.must_hub_rpc(),
+            resources.must_hub_mailbox_id(),
+            resources.must_wallet().net.address_prefix,
+            resources.must_escrow(),
+        )
+        .await
+        .map_err(|e| AppError(Report::from(e)))?;
+    }
 
     info!("Validator: pskts are valid");
 

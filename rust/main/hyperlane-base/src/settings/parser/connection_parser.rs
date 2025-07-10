@@ -365,7 +365,7 @@ pub fn build_kaspa_connection_conf(
     // TODO: can technically be derived from pub keys
     let escrow_address = chain
         .chain(err)
-        .get_opt_key("escrowAddress")
+        .get_key("escrowAddress")
         .parse_string()
         .end();
 
@@ -404,10 +404,33 @@ pub fn build_kaspa_connection_conf(
 
     let hub_mailbox_id = chain
         .chain(err)
-        .get_opt_key("hubMailboxId")
+        .get_key("hubMailboxId")
         .parse_string()
         .end()
         .unwrap();
+
+    let validation_conf = {
+        let mut conf = dymension_kaspa::ValidationConf::default();
+        conf.deposit_enabled = chain
+            .chain(err)
+            .get_opt_key("validateDeposit")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.deposit_enabled);
+        conf.withdrawal_enabled = chain
+            .chain(err)
+            .get_opt_key("validateWithdrawal")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.withdrawal_enabled);
+        conf.withdrawal_confirmation_enabled = chain
+            .chain(err)
+            .get_opt_key("validateWithdrawalConfirmation")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.withdrawal_confirmation_enabled);
+        conf
+    };
 
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
@@ -424,6 +447,7 @@ pub fn build_kaspa_connection_conf(
             offset_relay_time_hours,
             hub_mailbox_id.to_owned(),
             operation_batch,
+            validation_conf,
         ),
     ))
 }

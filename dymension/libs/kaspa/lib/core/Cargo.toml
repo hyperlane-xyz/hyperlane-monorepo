@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 hardcode = { path = "../hardcode" }
-hex = "0.4"
+hex = { workspace = true }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-grpc-client = { workspace = true }
