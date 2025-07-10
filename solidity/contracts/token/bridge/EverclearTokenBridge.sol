@@ -161,32 +161,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         });
     }
 
-    /**
-     * @notice Transfers tokens to a remote chain via Everclear's intent system
-     * @dev Creates an Everclear intent for cross-chain transfer. The actual Hyperlane message is sent by Everclear
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer
-     * @return bytes32(0) as the transfer ID (actual ID is managed by Everclear)
-     */
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable override returns (bytes32) {
-        IEverclearAdapter.FeeParams memory _feeParams = feeParams;
-
-        // Charge sender the stored fee
-        _transferFrom(msg.sender, address(this), _amount + _feeParams.fee);
-
-        // Create everclear intent
-        _createIntent(_destination, _recipient, _amount);
-
-        // A hyperlane message will be sent by everclear internally
-        // in a separate transaction. See `EverclearSpokeV3.processIntentQueue`.
-        return bytes32(0);
-    }
-
     function _transferFrom(
         address _from,
         address _to,
