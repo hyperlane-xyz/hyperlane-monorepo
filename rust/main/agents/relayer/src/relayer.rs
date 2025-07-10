@@ -1255,7 +1255,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
     ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
         settings
-            .build_application_operation_verifiers(settings.origin_chains.iter(), core_metrics)
+            .build_application_operation_verifiers(settings.destination_chains.iter(), core_metrics)
             .await
             .into_iter()
             .filter_map(
