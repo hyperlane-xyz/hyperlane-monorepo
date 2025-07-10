@@ -674,6 +674,7 @@ export {
   DerivedTokenRouterConfig,
   DerivedWarpRouteDeployConfig,
   HypTokenConfig,
+  MovableTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigMailboxOptional,
