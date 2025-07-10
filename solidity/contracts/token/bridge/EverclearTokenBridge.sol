@@ -223,12 +223,15 @@ contract EverclearTokenBridge is
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: _getIntentCalldata(),
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: _feeParams
         });
     }
 
-    function _getIntentCalldata() internal pure returns (bytes memory) {
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view virtual returns (bytes memory) {
         return "";
     }
 }
