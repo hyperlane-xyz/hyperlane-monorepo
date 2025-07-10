@@ -447,6 +447,8 @@ export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethe
 export {
   SubmitterBuilderSettings,
   getSubmitterBuilder,
+  registerSubmitter,
+  getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
