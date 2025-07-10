@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -175,11 +176,7 @@ contract EverclearTokenBridge is
         IEverclearAdapter.FeeParams memory _feeParams = feeParams;
 
         // Charge sender the stored fee
-        token.safeTransferFrom({
-            from: msg.sender,
-            to: address(this),
-            value: _amount + _feeParams.fee
-        });
+        _transferFrom(msg.sender, address(this), _amount + _feeParams.fee);
 
         // Create everclear intent
         _createIntent(_destination, _recipient, _amount, _feeParams);
@@ -187,6 +184,14 @@ contract EverclearTokenBridge is
         // A hyperlane message will be sent by everclear internally
         // in a separate transaction. See `EverclearSpokeV3.processIntentQueue`.
         return bytes32(0);
+    }
+
+    function _transferFrom(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) internal virtual {
+        token.safeTransferFrom({from: _from, to: _to, value: _amount});
     }
 
     /**
@@ -218,8 +223,12 @@ contract EverclearTokenBridge is
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
+            _data: _getIntentCalldata(),
             _feeParams: _feeParams
         });
+    }
+
+    function _getIntentCalldata() internal pure returns (bytes memory) {
+        return "";
     }
 }
