@@ -5,7 +5,7 @@ import type {
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
-import { TransactionStatusResponse } from '@radixdlt/babylon-gateway-api-sdk';
+import { TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
 import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import type {
   Connection,
@@ -393,9 +393,9 @@ export interface ZKSyncTransactionReceipt
 }
 
 export interface RadixTransactionReceipt
-  extends TypedTransactionReceiptBase<TransactionStatusResponse> {
+  extends TypedTransactionReceiptBase<TransactionCommittedDetailsResponse> {
   type: ProviderType.Radix;
-  receipt: TransactionStatusResponse;
+  receipt: TransactionCommittedDetailsResponse & { transactionHash: string };
 }
 
 export type TypedTransactionReceipt =

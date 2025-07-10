@@ -133,16 +133,20 @@ function StarknetWalletProvider({ children }: PropsWithChildren<unknown>) {
 
 function RadixWalletProvider({ children }: PropsWithChildren<unknown>) {
   // TODO: RADIX
-  const rdt = RadixDappToolkit({
-    networkId: RadixNetwork.Mainnet,
-    applicationVersion: '1.0.0',
-    applicationName: 'Radix Web3 dApp',
-    applicationDappDefinitionAddress:
-      'account_rdx12y7md4spfq5qy7e3mfjpa52937uvkxf0nmydsu5wydkkxw3qx6nghn',
-    logger: Logger(1),
-  });
+  const [rdt] = useState(
+    RadixDappToolkit({
+      networkId: RadixNetwork.Mainnet,
+      applicationVersion: '1.0.0',
+      applicationName: 'Radix Web3 dApp',
+      applicationDappDefinitionAddress:
+        'account_rdx12y7md4spfq5qy7e3mfjpa52937uvkxf0nmydsu5wydkkxw3qx6nghn',
+      logger: Logger(1),
+    }),
+  );
 
-  const gatewayApi = GatewayApiClient.initialize(rdt.gatewayApi.clientConfig);
+  const [gatewayApi] = useState(
+    GatewayApiClient.initialize(rdt.gatewayApi.clientConfig),
+  );
 
   return (
     <RdtProvider value={rdt}>
