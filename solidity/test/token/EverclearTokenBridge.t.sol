@@ -170,7 +170,9 @@ contract EverclearTokenBridgeTest is Test {
 
         // Deploy bridge implementation
         EverclearTokenBridge implementation = new EverclearTokenBridge(
-            token,
+            address(token),
+            1,
+            address(mailbox),
             everclearAdapter
         );
 
@@ -178,10 +180,7 @@ contract EverclearTokenBridgeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeWithSelector(
-                EverclearTokenBridge.initialize.selector,
-                OWNER
-            )
+            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
@@ -209,7 +208,9 @@ contract EverclearTokenBridgeTest is Test {
 
     function testConstructor() public {
         EverclearTokenBridge newBridge = new EverclearTokenBridge(
-            token,
+            address(token),
+            1,
+            address(mailbox),
             everclearAdapter
         );
 
@@ -232,7 +233,7 @@ contract EverclearTokenBridgeTest is Test {
 
     function testInitializeCannotBeCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        bridge.initialize(OWNER);
+        bridge.initialize(address(0), OWNER);
     }
 
     // ============ setFeeParams Tests ============
@@ -593,7 +594,9 @@ contract EverclearTokenBridgeForkTest is Test {
 
         // Deploy bridge implementation
         EverclearTokenBridge implementation = new EverclearTokenBridge(
-            weth,
+            address(weth),
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter
         );
 
@@ -601,10 +604,7 @@ contract EverclearTokenBridgeForkTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeWithSelector(
-                EverclearTokenBridge.initialize.selector,
-                OWNER
-            )
+            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
@@ -703,7 +703,9 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
 
         // Deploy ETH bridge implementation
         EverclearEthBridge implementation = new EverclearEthBridge(
-            weth,
+            IWETH(ARBITRUM_WETH),
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter,
             EVERCLEAR_SPOKE
         );
@@ -712,10 +714,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeWithSelector(
-                EverclearTokenBridge.initialize.selector,
-                OWNER
-            )
+            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
         );
 
         ethBridge = EverclearEthBridge(payable(address(proxy)));
@@ -859,7 +858,9 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
 
     function testEthBridgeConstructor() public {
         EverclearEthBridge newBridge = new EverclearEthBridge(
-            weth,
+            IWETH(ARBITRUM_WETH),
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter,
             EVERCLEAR_SPOKE
         );

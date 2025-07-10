@@ -9,6 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
+import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -26,11 +27,7 @@ struct OutputAssetInfo {
  * @notice A token bridge that integrates with Everclear's intent-based architecture
  * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
-contract EverclearTokenBridge is
-    ITokenBridge,
-    OwnableUpgradeable,
-    PackageVersioned
-{
+contract EverclearTokenBridge is HypERC20Collateral {
     using SafeERC20 for IERC20;
 
     /// @notice The output asset for a given destination domain
@@ -59,15 +56,16 @@ contract EverclearTokenBridge is
      */
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
 
-    IERC20 public immutable token;
-
     /**
      * @notice Constructor to initialize the Everclear token bridge
-     * @param _erc20 The address of the ERC20 token to be used as collateral
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
-    constructor(IERC20 _erc20, IEverclearAdapter _everclearAdapter) {
-        token = _erc20;
+    constructor(
+        address _erc20,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         everclearAdapter = _everclearAdapter;
     }
 
@@ -75,10 +73,9 @@ contract EverclearTokenBridge is
      * @notice Initializes the proxy contract.
      * @dev Approves the Everclear adapter to spend tokens
      */
-    function initialize(address _owner) public initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
-        token.approve(address(everclearAdapter), type(uint256).max);
+    function initialize(address _hook, address _owner) public initializer {
+        _HypERC20_initialize(_hook, address(0), _owner);
+        wrappedToken.approve(address(everclearAdapter), type(uint256).max);
     }
 
     /**
@@ -155,7 +152,7 @@ contract EverclearTokenBridge is
 
         quotes = new Quote[](1);
         quotes[0] = Quote({
-            token: address(token),
+            token: address(wrappedToken),
             amount: _amount + feeParams.fee
         });
     }
@@ -191,7 +188,7 @@ contract EverclearTokenBridge is
         address _to,
         uint256 _amount
     ) internal virtual {
-        token.safeTransferFrom({from: _from, to: _to, value: _amount});
+        wrappedToken.safeTransferFrom({from: _from, to: _to, value: _amount});
     }
 
     /**
@@ -218,7 +215,7 @@ contract EverclearTokenBridge is
         everclearAdapter.newIntent({
             _destinations: destinations,
             _receiver: _recipient,
-            _inputAsset: address(token),
+            _inputAsset: address(wrappedToken),
             _outputAsset: outputAsset,
             _amount: _amount,
             _maxFee: 0,
