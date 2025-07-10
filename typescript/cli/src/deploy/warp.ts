@@ -487,6 +487,8 @@ export async function extendWarpRoute(
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
     getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
+  // Remove all the non-EVM chains from the extended configuration to avoid
+  // having the extension crash
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>

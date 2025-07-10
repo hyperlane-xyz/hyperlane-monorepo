@@ -447,6 +447,7 @@ export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethe
 export {
   SubmitterBuilderSettings,
   getSubmitterBuilder,
+  getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
@@ -630,6 +631,7 @@ export {
   CollateralTokenConfig,
   CollateralTokenConfigSchema,
   HypTokenConfig,
+  MovableTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
