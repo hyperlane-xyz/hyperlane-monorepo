@@ -47,7 +47,7 @@ const foreignDeploymentByChain: Record<NonRebalanceableChain, string> = {
 
 const syntheticChain: DeploymentChain = 'mode';
 
-// Waiting on the addresses for the final onwership config
+// Waiting on the addresses for the final ownership config
 const ownersByChain: Record<DeploymentChain, string> = {
   arbitrum: DEPLOYER,
   base: DEPLOYER,
