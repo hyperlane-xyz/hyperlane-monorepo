@@ -19,7 +19,7 @@ import {
   WarpTypedTransaction,
   chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -113,9 +113,15 @@ export function useStarknetTransactionFns(
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
-      await switchChainAsync({
-        chainId: chainId.toString(),
-      });
+      try {
+        await switchChainAsync({
+          chainId: chainId.toString(),
+        });
+        // Some wallets seem to require a brief pause after switch
+        await sleep(2000);
+      } catch {
+        logger.warn('Failed to switch chain');
+      }
     },
     [multiProvider, switchChainAsync],
   );
