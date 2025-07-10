@@ -86,6 +86,11 @@
       "kaspaEscrowPrivateKey": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
       "kaspaMultisigThresholdHubIsm": 1,
       "kaspaMultisigThresholdEscrow": 1,
+      "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "depositLookBackMins": 3,
+      "validateDeposit": true,
+      "validateWithdrawal": true,
+      "validateWithdrawalConfirmation": false,
       "grpcUrls": [
         {
           "http": "http://127.0.0.1:8090"
@@ -95,9 +100,11 @@
   },
   "defaultRpcConsensusType": "fallback",
   "origin_chains": [
-    "kaspatest10","dymension"
+    "kaspatest10",
+    "dymension"
   ],
   "destination_chains": [
-    "kaspatest10","dymension"
+    "kaspatest10",
+    "dymension"
   ]
 }
