@@ -1,20 +1,23 @@
-// eslint-disable-next-line
 import fs from 'fs';
-// eslint-disable-next-line
 import path from 'path';
 import { Logger } from 'pino';
+import { z } from 'zod';
 
+import { TxSubmitterInterface, TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { Annotated, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ProtocolTypedTransaction } from '../../providers/ProviderType.js';
-import { TxSubmitterInterface } from '../../providers/transactions/submitter/TxSubmitterInterface.js';
-import { TxSubmitterType } from '../../providers/transactions/submitter/TxSubmitterTypes.js';
-import { EV5FileTxSubmitterProps } from '../../providers/transactions/submitter/ethersV5/types.js';
+export const EV5FileTxSubmitterPropsSchema = z.object({
+  filepath: z.string(),
+});
+
+export type EV5FileTxSubmitterProps = z.infer<
+  typeof EV5FileTxSubmitterPropsSchema
+>;
 
 export class EV5FileSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
 {
-  txSubmitterType: TxSubmitterType = TxSubmitterType.FILE;
+  txSubmitterType: TxSubmitterType = 'file' as TxSubmitterType;
   protected readonly logger: Logger = rootLogger.child({
     module: 'file-submitter',
   });
