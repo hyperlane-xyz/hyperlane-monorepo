@@ -32,6 +32,19 @@ interface IEverclear {
         uint32[] destinations;
         bytes data;
     }
+
+    enum IntentStatus {
+        NONE, // 0
+        ADDED, // 1
+        DEPOSIT_PROCESSED, // 2
+        FILLED, // 3
+        ADDED_AND_FILLED, // 4
+        INVOICED, // 5
+        SETTLED, // 6
+        SETTLED_AND_MANUALLY_EXECUTED, // 7
+        UNSUPPORTED, // 8
+        UNSUPPORTED_RETURNED // 9
+    }
 }
 interface IEverclearAdapter {
     struct FeeParams {
@@ -93,4 +106,17 @@ interface IEverclearAdapter {
     function updateFeeSigner(address _feeSigner) external;
 
     function owner() external view returns (address);
+
+    function spoke() external view returns (IEverclearSpoke spoke);
+}
+
+interface IEverclearSpoke {
+    /**
+     * @notice returns the status of an intent
+     * @param _intentId The ID of the intent
+     * @return _status The status of the intent
+     */
+    function status(
+        bytes32 _intentId
+    ) external view returns (IEverclear.IntentStatus _status);
 }

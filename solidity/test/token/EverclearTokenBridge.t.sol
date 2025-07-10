@@ -24,7 +24,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
 import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
-import {IEverclearAdapter, IEverclear} from "../../contracts/interfaces/IEverclearAdapter.sol";
+import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
 
@@ -115,6 +115,10 @@ contract MockEverclearAdapter is IEverclearAdapter {
 
     function updateFeeSigner(address _feeSigner) external {
         // Do nothing
+    }
+
+    function spoke() external view returns (IEverclearSpoke) {
+        return IEverclearSpoke(address(0x333));
     }
 }
 

@@ -3,13 +3,15 @@ pragma solidity ^0.8.22;
 
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
+import {IEverclearAdapter, IEverclear} from "../../interfaces/IEverclearAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -28,6 +30,8 @@ struct OutputAssetInfo {
  * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
 contract EverclearTokenBridge is HypERC20Collateral {
+    using TokenMessage for bytes;
+    using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
     /// @notice The output asset for a given destination domain
@@ -176,7 +180,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         _transferFrom(msg.sender, address(this), _amount + _feeParams.fee);
 
         // Create everclear intent
-        _createIntent(_destination, _recipient, _amount, _feeParams);
+        _createIntent(_destination, _recipient, _amount);
 
         // A hyperlane message will be sent by everclear internally
         // in a separate transaction. See `EverclearSpokeV3.processIntentQueue`.
@@ -197,14 +201,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @param _destination The destination domain ID
      * @param _recipient The recipient address on the destination chain
      * @param _amount The amount of tokens to transfer
-     * @param _feeParams The fee parameters for the intent
      */
     function _createIntent(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        IEverclearAdapter.FeeParams memory _feeParams
-    ) internal {
+        uint256 _amount
+    ) internal returns (IEverclear.Intent memory) {
         bytes32 outputAsset = outputAssets[_destination];
         require(outputAsset != bytes32(0), "ETB: Output asset not set");
 
@@ -212,7 +214,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
 
-        everclearAdapter.newIntent({
+        (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
             _receiver: _recipient,
             _inputAsset: address(wrappedToken),
@@ -221,8 +223,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _maxFee: 0,
             _ttl: 0,
             _data: _getIntentCalldata(_recipient, _amount),
-            _feeParams: _feeParams
+            _feeParams: feeParams
         });
+
+        return intent;
     }
 
     function _getIntentCalldata(
@@ -230,5 +234,58 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint256 _amount
     ) internal view virtual returns (bytes memory) {
         return "";
+    }
+
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256, bytes memory) {
+        (uint256 _dispatchValue, bytes memory _msg) = super._beforeDispatch(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        IEverclearAdapter.FeeParams memory _feeParams = feeParams;
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        _msg = bytes.concat(_msg, abi.encode(intent));
+
+        return (_dispatchValue, _msg);
+    }
+
+    function _handle(
+        uint32 _origin,
+        bytes32,
+        bytes calldata _message
+    ) internal virtual override {
+        bytes32 recipient = _message.recipient();
+        uint256 amount = _message.amount();
+
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        IEverclear.Intent memory intent = abi.decode(
+            metadata,
+            (IEverclear.Intent)
+        );
+
+        // Check that intent is settled
+        bytes32 intentId = keccak256(abi.encode(intent));
+        require(
+            everclearAdapter.spoke().status(intentId) ==
+                IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent not settled"
+        );
+
+        // effects
+        emit ReceivedTransferRemote(_origin, recipient, amount);
+
+        // Send token to user (interactions)
+        _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
     }
 }
