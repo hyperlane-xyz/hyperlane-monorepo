@@ -98,42 +98,48 @@ impl HttpClient {
         address: &str,
     ) -> Result<Vec<Deposit>> {
         let n: i64 = 500;
-        let mut lower_bound_t = lower_bound_unix_time.unwrap_or(0);
-        let upper_bound_t = std::time::SystemTime::now()
-            .checked_sub(Duration::from_secs(10))
-            .unwrap()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let initial_lower_bound_t = lower_bound_unix_time.unwrap_or(0);
+        let mut upper_bound_t = 0i64;
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
         let mut txs: Vec<TxModel> = Vec::new();
 
-        while lower_bound_t < upper_bound_t {
+        let mut lower_bound_t = initial_lower_bound_t;
+        loop {
+            // only upper_bound_t or lower_bound_t can be used in the query, not both.
+            // so in case upper_bound_t is set (>0) it means we need to page and we use the last tx received timestamp as upper_bound_t
+            if upper_bound_t > 0 {
+                lower_bound_t = 0;
+            }
+
             let mut res = transactions_page(
                 &c,
                 args {
                     kaspa_address: address.to_string(),
                     limit: Some(n),
-                    after: Some(lower_bound_t),
                     before: Some(upper_bound_t),
+                    after: Some(lower_bound_t),
                     fields: None,
                     resolve_previous_outpoints: None,
                     acceptance: None,
                 },
             )
             .await?;
-            txs.append(&mut res);
-            if res.len() < n as usize {
-                break;
-            }
+
+            let txs_found = res.len();
             // txs should be in descendent order, so we save last returned tx time and we continue from there
             if let Some(last_val) = res.last() {
                 if let Some(t) = last_val.block_time {
-                    lower_bound_t = t + 1;
+                    upper_bound_t = t - 1;
                 }
+            }
+            txs.append(&mut res);
+
+            // if txs found are less than n, or we already did paging till the initial lower bound
+            if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
+                break;
             }
         }
 
