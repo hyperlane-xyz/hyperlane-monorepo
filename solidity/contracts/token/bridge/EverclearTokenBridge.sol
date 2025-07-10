@@ -214,9 +214,11 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
 
+        // Create intent
+        // We always send the funds to the remote router, which will then send them to the recipient in _handle
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _recipient,
+            _receiver: _mustHaveRemoteRouter(_destination),
             _inputAsset: address(wrappedToken),
             _outputAsset: outputAsset,
             _amount: _amount,
@@ -261,12 +263,9 @@ contract EverclearTokenBridge is HypERC20Collateral {
 
     function _handle(
         uint32 _origin,
-        bytes32,
+        bytes32 /* sender */,
         bytes calldata _message
     ) internal virtual override {
-        bytes32 recipient = _message.recipient();
-        uint256 amount = _message.amount();
-
         // Get intent from hyperlane message
         bytes memory metadata = _message.metadata();
         IEverclear.Intent memory intent = abi.decode(
@@ -281,6 +280,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
                 IEverclear.IntentStatus.SETTLED,
             "ETB: Intent not settled"
         );
+
+        // Get recipient and amount from intent
+        bytes32 recipient = intent.receiver;
+        uint256 amount = intent.amount;
 
         // effects
         emit ReceivedTransferRemote(_origin, recipient, amount);

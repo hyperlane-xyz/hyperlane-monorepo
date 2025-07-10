@@ -197,6 +197,7 @@ contract EverclearTokenBridgeTest is Test {
                 outputAsset: OUTPUT_ASSET
             })
         );
+        bridge.enrollRemoteRouter(DESTINATION, RECIPIENT);
 
         vm.stopPrank();
 
@@ -643,6 +644,7 @@ contract EverclearTokenBridgeForkTest is Test {
                 outputAsset: OUTPUT_ASSET
             })
         );
+        bridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
         vm.stopPrank();
 
         // Setup allowances
@@ -732,6 +734,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
                 outputAsset: OUTPUT_ASSET
             })
         );
+        ethBridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
         vm.stopPrank();
     }
 

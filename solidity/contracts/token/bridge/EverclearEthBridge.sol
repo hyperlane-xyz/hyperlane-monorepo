@@ -2,13 +2,14 @@
 pragma solidity ^0.8.22;
 
 import {EverclearTokenBridge} from "./EverclearTokenBridge.sol";
-import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
+import {IEverclearAdapter, IEverclear} from "../../interfaces/IEverclearAdapter.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
 
 /**
  * @title EverclearEthBridge
@@ -17,6 +18,7 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
  * @dev Extends EverclearTokenBridge to handle ETH by wrapping to WETH for transfers and unwrapping on destination
  */
 contract EverclearEthBridge is EverclearTokenBridge {
+    using TokenMessage for bytes;
     using SafeERC20 for IERC20;
     using Address for address payable;
     using TypeCasts for bytes32;
@@ -101,6 +103,43 @@ contract EverclearEthBridge is EverclearTokenBridge {
 
         // Send ETH to recipient
         payable(_recipient.bytes32ToAddress()).sendValue(_amount);
+    }
+
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (uint256, bytes memory) {
+        // deposit ETH to WETH first
+        require(msg.value == _amount, "EEB: ETH amount mismatch");
+        weth.deposit{value: _amount}();
+        return super._beforeDispatch(_destination, _recipient, _amount);
+    }
+
+    function _handle(
+        uint32 _origin,
+        bytes32 /* sender */,
+        bytes calldata _message
+    ) internal override {
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        IEverclear.Intent memory intent = abi.decode(
+            metadata,
+            (IEverclear.Intent)
+        );
+
+        // Validate the intent.
+        super._handle(_origin, bytes32(0), _message);
+
+        // Execute intentcalldata
+        everclearAdapter.spoke().executeIntentCalldata(intent);
+    }
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual override {
+        // No-op. ETH will be sent in spoke.executeIntentCalldata()
     }
 
     /**

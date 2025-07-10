@@ -119,4 +119,6 @@ interface IEverclearSpoke {
     function status(
         bytes32 _intentId
     ) external view returns (IEverclear.IntentStatus _status);
+
+    function executeIntentCalldata(IEverclear.Intent calldata _intent) external;
 }
