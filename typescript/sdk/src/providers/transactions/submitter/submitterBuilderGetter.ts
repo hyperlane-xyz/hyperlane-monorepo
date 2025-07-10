@@ -1,7 +1,6 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { EV5FileSubmitter } from '../../../fs/index.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
