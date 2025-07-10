@@ -154,10 +154,11 @@ impl BaseAgent for Relayer {
         Self::reset_critical_errors(&settings, &chain_metrics);
 
         let start = Instant::now();
-        let mut start_entity_init = Instant::now();
 
         let core = settings.build_hyperlane_core(core_metrics.clone());
-        let db = DB::from_path(&settings.db)?;
+
+        let mut start_entity_init = Instant::now();
+
         let cache_name = "relayer_cache";
         let inner_cache = if settings.allow_contract_call_caching {
             Some(MeteredCache::new(
@@ -171,6 +172,10 @@ impl BaseAgent for Relayer {
             None
         };
         let cache = OptionalCache::new(inner_cache);
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized cache", "Relayer startup duration measurement");
+
+        start_entity_init = Instant::now();
+        let db = DB::from_path(&settings.db)?;
         let dbs = settings
             .origin_chains
             .iter()
@@ -217,15 +222,12 @@ impl BaseAgent for Relayer {
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dipatchers", "Relayer startup duration measurement");
 
-        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-
         start_entity_init = Instant::now();
-
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
         let stores: HashMap<_, _> = dbs
             .iter()
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
-
         let message_syncs = Self::build_contract_syncs(
             &settings,
             &core_metrics,
@@ -235,7 +237,6 @@ impl BaseAgent for Relayer {
             "message",
         )
         .await;
-
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -321,11 +322,8 @@ impl BaseAgent for Relayer {
             .collect();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
-        let mut msg_ctxs = HashMap::new();
-
-        start_entity_init = Instant::now();
-
         // only iterate through destination chains that were successfully instantiated
+        start_entity_init = Instant::now();
         let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(mailboxes.len());
         for destination in mailboxes.keys() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
@@ -362,7 +360,10 @@ impl BaseAgent for Relayer {
             .await
             .into_iter()
             .collect::<HashMap<_, _>>();
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized ccip signers", "Relayer startup duration measurement");
 
+        start_entity_init = Instant::now();
+        let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
         for (destination, dest_mailbox) in mailboxes.iter() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
