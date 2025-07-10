@@ -52,7 +52,7 @@ pub fn get_client(config: RateLimitConfig) -> ClientWithMiddleware {
         .with(reqwest_retry::RetryTransientMiddleware::new_with_policy(
             ExponentialBackoff::builder()
                 .retry_bounds(Duration::from_millis(200), Duration::from_secs(10))
-                .build_with_max_retries(3),
+                .build_with_max_retries(10),
         ))
         .build();
     client

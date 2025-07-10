@@ -14,6 +14,7 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
+use crate::validator_server::SignableProgressIndication;
 use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use futures::future::join_all;
@@ -92,6 +93,12 @@ impl ValidatorsClient {
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<Signature>> {
+        info!(
+            "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
+            self.conf.validator_hosts.len(),
+            fxg
+        );
+
         let futures = self
         .conf
         .validator_hosts

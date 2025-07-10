@@ -88,6 +88,7 @@ pub struct HttpClient {
 impl HttpClient {
     pub fn new(url: String, config: RateLimitConfig) -> Self {
         let c = get_client(config);
+        info!("Created Kaspa REST API Client: {}", url);
         Self { url, client: c }
     }
 
@@ -154,22 +155,9 @@ impl HttpClient {
     }
 
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
+        info!("Querying kaspa tx by id: {:?}", tx_id);
         let c = self.get_config();
-        /*
-               TODO: handle intermittent
 
-
-          2025-07-07T17:26:49.306821Z ERROR hyperlane_base::kas_hack::logic_loop: Dymension, error tracing sequence of kaspa withdrawals for syncing: Some(error in reqwest-middleware: error sending request for url (https://api-tn10.kaspa.org/transactions/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1?inputs=true&outputs=true&resolve_previous_outpoints=light)
-
-        Caused by:
-           0: error sending request for url (https://api-tn10.kaspa.org/transactions/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1?inputs=true&outputs=true&resolve_previous_outpoints=light)
-           1: client error (Connect)
-           2: dns error: failed to lookup address information: nodename nor servname provided, or not known
-           3: failed to lookup address information: nodename nor servname provided, or not known
-
-        Location:
-            /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/lib/core/src/api/client.rs:157:18)
-                */
         let tx = get_tx_by_id(
             &c,
             get_tx_by_id_params {

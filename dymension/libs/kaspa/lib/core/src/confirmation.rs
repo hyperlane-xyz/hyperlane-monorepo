@@ -2,7 +2,7 @@ use super::payload::MessageID;
 use borsh::{
     from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
 };
-use bytes::Bytes;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::H256;
@@ -79,7 +79,17 @@ impl TryFrom<Bytes> for ConfirmationFXG {
     type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let progress_indication = ProgressIndication::decode(bytes.as_ref())?;
+        let mut bytes = bytes;
+        if bytes.len() < 4 {
+            return Err(eyre::eyre!("Invalid bytes length"));
+        }
+        let len = bytes.get_u32();
+        if bytes.len() < 4 + len as usize {
+            return Err(eyre::eyre!("Invalid bytes length"));
+        }
+        let indic_bz = bytes.split_to(len as usize);
+
+        let progress_indication = ProgressIndication::decode(indic_bz.as_ref())?;
         let cache: ConfirmationFXGCache = ConfirmationFXGCache::try_from(bytes)?;
         Ok(ConfirmationFXG {
             progress_indication,
@@ -90,12 +100,13 @@ impl TryFrom<Bytes> for ConfirmationFXG {
 
 impl From<&ConfirmationFXG> for Bytes {
     fn from(x: &ConfirmationFXG) -> Self {
-        let encoded = x.progress_indication.encode_to_vec();
+        let indic = x.progress_indication.encode_to_vec();
         let cache: Bytes = Bytes::from(&x.cache);
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&encoded);
-        bytes.extend_from_slice(&cache);
-        Bytes::from(bytes)
+        let mut bz = BytesMut::with_capacity(4 + indic.len() + cache.len());
+        bz.put_u32(indic.len() as u32);
+        bz.put_slice(&indic);
+        bz.put_slice(&cache);
+        bz.freeze()
     }
 }
 

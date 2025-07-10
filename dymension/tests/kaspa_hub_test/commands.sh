@@ -92,7 +92,7 @@ mkdir $AGENT_TMP/dbs
   --originChainName kaspatest10 \
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
-  --checkpointSyncer.path $SIGS_VAL \
+  --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
   --validator.key "0x${VALIDATOR_ISM_PRIV_KEY}" \
   --metrics-port 9090 \
   --log.level info 
@@ -201,3 +201,5 @@ dymd tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
 NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
 dymd tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $NOOP_HOOK "${HUB_FLAGS[@]}"
 dymd tx hyperlane mailbox set $MAILBOX --default-hook 0x726f757465725f706f73745f6469737061746368000000000000000000000002 --required-hook 0x726f757465725f706f73745f6469737061746368000000030000000000000000 "${HUB_FLAGS[@]}"
+
+dymd tx kas indicate-progress --metadata AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfx31wOGjRk5MCQZOZhentVmmOhLE0M+Yji+bn2KYNMmWbVrYnFkIl/tXjhAM6scXm71gg30+pd0tGiQ5LrC+TGzd6er/un6SCbmj57jPzFkAgA5k8RIRjYWzJmhG5cA37Dqo15p5cKj/rGLRzFIyxQkPkOsGAba6cAiTezd7gHwAb2WO4YySk+cU1Y1lufSWkoIZFFBXkIA2FReg7PAGYYLdMxDu2OcrbfdzEPzy6wqRtkQcklcGw46BRaSWrXanowhw= --payload /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/scratch/indication.json "${HUB_FLAGS[@]}"

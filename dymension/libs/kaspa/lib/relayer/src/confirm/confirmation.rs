@@ -62,6 +62,9 @@ pub async fn expensive_trace_transactions(
         lineage_utxos.len(),
         processed_withdrawals.len()
     );
+    for utxo in lineage_utxos.clone() {
+        info!("Lineage UTXO: {:?}", utxo);
+    }
 
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
@@ -90,6 +93,8 @@ pub async fn recursive_trace_transactions(
     let transaction = client
         .get_tx_by_id(&curr_utxo.transaction_id.to_string())
         .await?;
+
+    info!("Queried kaspa tx: {:?}", transaction);
 
     // get the inputs of the current transaction
     let inputs = transaction

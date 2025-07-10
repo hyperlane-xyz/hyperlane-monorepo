@@ -19,6 +19,7 @@ use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
+use hyperlane_core::Signature as HLCoreSignature;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
@@ -166,7 +167,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<SignedType<SignableProgressIndication>>> {
+) -> HandlerResult<Json<HLCoreSignature>> {
     info!("Validator: checking confirmed kaspa withdrawal");
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
@@ -176,8 +177,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
             .await
             .map_err(|e| AppError(Report::from(e)))?;
+        info!("Validator: confirmed withdrawal is valid");
     }
-    info!("Validator: confirmed withdrawal is valid");
 
     let progress_indication = &confirmation_fxg.progress_indication;
 
@@ -191,7 +192,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
 
     info!("Validator: signed confirmed withdrawal");
 
-    Ok(Json(sig))
+    Ok(Json(sig.signature))
 }
 
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
@@ -212,16 +213,15 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         )
         .await
         .map_err(|e| AppError(Report::from(e)))?;
+        info!("Validator: pskts are valid");
     }
-
-    info!("Validator: pskts are valid");
 
     let bundle = sign_withdrawal_fxg(&fxg, &resources.must_kas_key()).map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }
 
-struct SignableProgressIndication {
+pub struct SignableProgressIndication {
     progress_indication: ProgressIndication,
 }
 

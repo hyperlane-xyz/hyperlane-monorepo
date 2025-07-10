@@ -50,7 +50,10 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let c = "/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp/signatures"; // TODO: fix, actually it just has to match whatever the agent is launched, the value isn't actually 'used'
+        /*
+        This just has to match the value that was passed to the agent on the CLI on boot, it's not really used semantically
+         */
+        let c = "ARBITRARY_VALUE_FOOBAR";
         Ok(vec![vec![format!("file://{}", c)]])
     }
 
