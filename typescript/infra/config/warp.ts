@@ -80,6 +80,7 @@ import {
   getRezStagingGnosisSafeBuilderStrategyConfig,
   getRezStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoREZStaging.js';
+import { getSubtensorUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSubtensorUSDCWarpConfig.js';
 import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
@@ -148,6 +149,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
+  [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
 };
