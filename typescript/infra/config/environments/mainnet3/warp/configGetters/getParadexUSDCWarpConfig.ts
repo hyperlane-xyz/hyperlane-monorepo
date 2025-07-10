@@ -4,6 +4,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import {
   SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   STARKNET_WARP_ROUTE_HANDLER_GAS_AMOUNT,
@@ -46,17 +47,7 @@ const foreignDeploymentByChain: Record<NonRebalanceableChain, string> = {
 
 const syntheticChain: DeploymentChain = 'mode';
 
-const usdcTokenAddresses: Record<DeploymentChain, string> = {
-  arbitrum: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
-  base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-  ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  mode: '',
-  paradex: '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
-  solanamainnet: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-  starknet:
-    '0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8',
-};
-
+// Waiting on the for final onwership addys
 const ownersByChain: Record<DeploymentChain, string> = {
   arbitrum: DEPLOYER,
   base: DEPLOYER,
