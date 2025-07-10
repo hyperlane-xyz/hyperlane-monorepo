@@ -51,6 +51,7 @@ export const TokenConfigSchema = z.object({
     .string()
     .optional()
     .describe('The CoinGecko id of the token, used for price lookups'),
+  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
 });
 
 export type TokenArgs = Omit<
