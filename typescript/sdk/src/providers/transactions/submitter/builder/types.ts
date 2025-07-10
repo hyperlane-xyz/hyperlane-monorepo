@@ -5,7 +5,8 @@ import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 import { ZChainName } from '../../../../metadata/customZodTypes.js';
 import { ChainMap } from '../../../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps, SubmitterMetadataSchema } from '../types.js';
+import { EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
+import { SubmitterMetadataSchema } from '../types.js';
 
 export const SubmissionStrategySchema = z
   .object({
