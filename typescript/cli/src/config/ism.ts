@@ -1,4 +1,5 @@
 import { input, select } from '@inquirer/prompts';
+import { createErrorMap, fromZodError } from 'zod-validation-error/v4';
 import { z } from 'zod/v4';
 
 import {
@@ -61,7 +62,12 @@ export function readIsmConfig(filePath: string) {
   if (!result.success) {
     const firstIssue = result.error.issues[0];
     throw new Error(
-      `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,
+      `Invalid ISM config: ${firstIssue.path} => ${fromZodError(result.error, {
+        error: createErrorMap({
+          includePath: true,
+          issueSeparator: '\n',
+        }),
+      })}`,
     );
   }
   const parsedConfig = result.data;
