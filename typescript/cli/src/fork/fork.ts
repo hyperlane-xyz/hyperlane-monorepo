@@ -2,8 +2,8 @@ import { JsonRpcProvider, Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
 
+import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
-import { HttpServer } from '@hyperlane-xyz/registry/express';
 import {
   ChainMap,
   ChainName,
@@ -77,10 +77,16 @@ export async function runForkCommand({
       new PartialRegistry({ chainMetadata: chainMetadataOverrides }),
     ],
   });
-  const httpRegistryServer = new HttpServer(async () => mergedRegistry);
   const httpServerPort = basePort - 10;
-  assert(httpServerPort > 0, 'HTTP server port must be greater than 0');
-  await httpRegistryServer.start(httpServerPort);
+  assert(
+    httpServerPort > 0,
+    'HTTP server port too low, consider increasing --port',
+  );
+
+  const httpRegistryServer = await HttpServer.create(
+    async () => mergedRegistry,
+  );
+  await httpRegistryServer.start(httpServerPort.toString());
 }
 
 async function forkChain(
