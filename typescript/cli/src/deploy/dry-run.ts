@@ -33,7 +33,10 @@ export async function forkNetworkToMultiProvider(
 export async function verifyAnvil() {
   logGray('🔎 Verifying anvil node is running...');
 
-  const provider = getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT);
+  const provider = getLocalProvider({
+    anvilIPAddr: ENV.ANVIL_IP_ADDR,
+    anvilPort: ENV.ANVIL_PORT,
+  });
   try {
     await provider.send(ANVIL_RPC_METHODS.NODE_INFO, []);
   } catch (error: any) {

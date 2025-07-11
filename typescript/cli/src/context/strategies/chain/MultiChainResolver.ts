@@ -9,10 +9,8 @@ import {
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
-import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
-  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
@@ -48,8 +46,6 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
-      case ChainSelectionMode.STRATEGY:
-        return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.CORE_DEPLOY:
@@ -120,13 +116,6 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     return [argv.origin, ...argv.targets];
-  }
-
-  private async resolveStrategyChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
-    return extractChainsFromObj(strategy);
   }
 
   private async resolveRelayerChains(
