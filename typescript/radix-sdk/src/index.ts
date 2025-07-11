@@ -774,10 +774,7 @@ export class RadixSigningSDK extends RadixSDK {
     await this.signAndBroadcast(transactionManifest);
   }
 
-  public populateCreateHypCollateralToken(
-    mailbox: string,
-    originDenom: string,
-  ) {
+  public populateCreateCollateralToken(mailbox: string, originDenom: string) {
     return this.createCallFunctionManifest(
       packageAddress,
       'HypToken',
@@ -786,16 +783,19 @@ export class RadixSigningSDK extends RadixSDK {
     );
   }
 
-  public async createHypCollateraltoken(mailbox: string, originDenom: string) {
-    const transactionManifest = this.populateCreateHypCollateralToken(
+  public async createCollateralToken(mailbox: string, originDenom: string) {
+    const transactionManifest = this.populateCreateCollateralToken(
       mailbox,
       originDenom,
     );
 
-    await this.signAndBroadcast(transactionManifest);
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
   }
 
-  public populateCreateHypSyntheticToken(
+  public populateCreateSyntheticToken(
     mailbox: string,
     name: string,
     symbol: string,
@@ -816,14 +816,14 @@ export class RadixSigningSDK extends RadixSDK {
     );
   }
 
-  public async createHypSyntheticToken(
+  public async createSyntheticToken(
     mailbox: string,
     name: string,
     symbol: string,
     description: string,
     divisibility: number,
   ) {
-    const transactionManifest = this.populateCreateHypSyntheticToken(
+    const transactionManifest = this.populateCreateSyntheticToken(
       mailbox,
       name,
       symbol,
@@ -831,7 +831,10 @@ export class RadixSigningSDK extends RadixSDK {
       divisibility,
     );
 
-    await this.signAndBroadcast(transactionManifest);
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
   }
 }
 
