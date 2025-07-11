@@ -72,6 +72,33 @@ export class RadixSDK {
     });
   }
 
+  public async getXrdAddress() {
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
+    return knownAddresses.resources.xrdResource;
+  }
+
+  public async getBalance(address: string, resource: string) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(address);
+
+    const fungibleResource = details.fungible_resources.items.find(
+      (r) => r.resource_address === resource,
+    );
+
+    if (!fungibleResource || fungibleResource.vaults.items.length !== 1) {
+      return '0';
+    }
+
+    return fungibleResource.vaults.items[0].amount;
+  }
+
+  public async getXrdBalance(address: string) {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getBalance(address, xrdAddress);
+  }
+
   public async queryMailbox(mailbox: string): Promise<{
     address: string;
     owner: string;
@@ -249,13 +276,6 @@ export class RadixSigningSDK extends RadixSDK {
 
     this.account = account;
     this.gasAmount = options?.gasAmount ?? 5000;
-  }
-
-  public async getXrdAddress() {
-    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
-      this.networkId,
-    );
-    return knownAddresses.resources.xrdResource;
   }
 
   private static async generateNewEd25519VirtualAccount(
@@ -796,7 +816,7 @@ export class RadixSigningSDK extends RadixSDK {
     );
   }
 
-  public async createHypSynthetictoken(
+  public async createHypSyntheticToken(
     mailbox: string,
     name: string,
     symbol: string,
@@ -820,6 +840,10 @@ export class RadixSigningSDK extends RadixSDK {
 //   const sdk = new RadixSDK({
 //     networkId: NetworkId.Stokenet,
 //   });
+
+//   sdk.getXrdBalance(
+//     'account_tdx_2_128n2wu49mw3gl3edl73hsrrsty4xj7t2dvmz34ms5e2r7vl8snr8d5',
+//   );
 // await sdk.getTestnetXrd();
 
 // const mailbox = await sdk.createMailbox(75898670);
