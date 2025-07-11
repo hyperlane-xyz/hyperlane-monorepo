@@ -190,7 +190,6 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
   const starknetWallet = useStarknetWalletDetails();
-
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: evmWallet,
