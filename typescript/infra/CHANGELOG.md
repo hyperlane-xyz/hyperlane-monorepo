@@ -1,5 +1,14 @@
 # @hyperlane-xyz/infra
 
+## 14.4.0
+
+### Patch Changes
+
+- Updated dependencies [dce47e7b6]
+  - @hyperlane-xyz/sdk@14.4.0
+  - @hyperlane-xyz/helloworld@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
 ## 14.3.0
 
 ### Patch Changes
