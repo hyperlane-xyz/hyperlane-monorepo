@@ -33,7 +33,7 @@ use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
-use crate::ValidationConf;
+use crate::ValidatorStuff;
 use dym_kas_core::payload::MessageIDs;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
@@ -83,8 +83,11 @@ impl KaspaProvider {
         )
         .await?;
 
-        let kas_key = match &conf.kaspa_escrow_private_key {
-            Some(k) => Some(serde_json::from_str(k).unwrap()),
+        let kas_key = match &conf.validator_stuff {
+            Some(v) => {
+                let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
+                Some(kp)
+            }
             None => None,
         };
 
@@ -134,12 +137,8 @@ impl KaspaProvider {
         &self.easy_wallet
     }
 
-    pub fn hub_mailbox_id(&self) -> String {
-        self.conf.hub_mailbox_id.clone()
-    }
-
-    pub fn val_conf(&self) -> ValidationConf {
-        self.conf.validations.clone()
+    pub fn must_validator_stuff(&self) -> &ValidatorStuff {
+        self.conf.validator_stuff.as_ref().unwrap()
     }
 
     /// dococo

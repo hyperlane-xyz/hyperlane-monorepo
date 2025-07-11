@@ -2,11 +2,14 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
-    #[error("Message {message_id} is not delivered")]
+    #[error("Message is not dispatched: {message_id}")]
     MessageNotDispatched { message_id: String },
 
     #[error("The same message was relayed twice: {message_id}")]
     DoubleSpending { message_id: String },
+
+    #[error("Message is for another bridge: {message_id}")]
+    MessageWrongBridge { message_id: String },
 
     #[error("Some of the messages are not in the unprocessed status on the Hub")]
     MessagesNotUnprocessed,

@@ -38,6 +38,15 @@ impl BlockNumberGetter for ValidatorsClient {
 /// 2. Call validator.G() to get a signed batch of PSKT for withdrawal TX flow
 /// 2. Call validator.G() to see if validator is OK with a confirmation of withdrawal on Kaspa
 impl ValidatorsClient {
+    fn hosts(&self) -> Vec<String> {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .unwrap()
+            .validator_hosts
+            .clone()
+    }
+
     /// Returns a new Rpc Provider
     pub fn new(
         conf: ConnectionConf,
@@ -52,10 +61,10 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         info!(
             "Dymension, asking validators for deposit sigs, number of validators: {:?}",
-            self.conf.validator_hosts.len()
+            self.hosts().len()
         );
 
-        let futures = self.conf.validator_hosts.clone().into_iter().map(|host| {
+        let futures = self.hosts().into_iter().map(|host| {
             let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
@@ -95,14 +104,12 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<Signature>> {
         info!(
             "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
-            self.conf.validator_hosts.len(),
+            self.hosts().len(),
             fxg
         );
 
         let futures = self
-        .conf
-        .validator_hosts
-        .clone()
+        .hosts()
         .into_iter()
         .map(|host| {
             let fxg_clone = fxg.clone();
@@ -134,13 +141,11 @@ impl ValidatorsClient {
     pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
         info!(
             "Dymension, getting withdrawal sigs, number of validators: {:?}",
-            self.conf.validator_hosts.len()
+            self.hosts().len()
         );
 
         let futures = self
-        .conf
-        .validator_hosts
-        .clone()
+        .hosts()
         .into_iter()
         .map(|host| {
             let fxg_clone = fxg.clone();

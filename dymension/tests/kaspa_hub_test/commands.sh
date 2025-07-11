@@ -70,7 +70,7 @@ dymd start --log_level=debug
 REMOTE_ROUTER_ADDRESS="0x0000000000000000000000000000000000000000000000000000000000000000" # no smart contracts on kaspa 
 dymd q kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
-# popoulate agent-config.json with hub mailbox id
+# popoulate agent-config.json with hubMailboxId, and ALSO hubTokenId, kasTokenId remains zero
 
 ###################################
 #### Step 3. SETUP VALIDATOR

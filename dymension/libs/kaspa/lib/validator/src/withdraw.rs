@@ -34,6 +34,48 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, error, info, warn};
 
+#[derive(Clone)]
+pub struct MustMatch {
+    address_prefix: KaspaAddrPrefix,
+    escrow_public: EscrowPublic,
+    partial_message: HyperlaneMessage,
+    hub_mailbox_id: String,
+}
+
+impl MustMatch {
+    pub fn new(
+        address_prefix: KaspaAddrPrefix,
+        escrow_public: EscrowPublic,
+        hub_domain: u32,
+        hub_token_id: H256,
+        kas_domain: u32,
+        kas_token_placeholder: H256, // a fake value, since Kaspa does not have a 'token' smart contract. Howevert his value must be consistent with hub config.
+        hub_mailbox_id: String,
+    ) -> Self {
+        Self {
+            address_prefix,
+            escrow_public,
+            partial_message: HyperlaneMessage {
+                version: 0,
+                nonce: 0,
+                origin: hub_domain,
+                sender: hub_token_id,
+                destination: kas_domain,
+                recipient: kas_token_placeholder,
+                body: vec![],
+            },
+            hub_mailbox_id,
+        }
+    }
+
+    fn is_match(&self, other: &HyperlaneMessage) -> bool {
+        self.partial_message.origin == other.origin
+            && self.partial_message.sender == other.sender
+            && self.partial_message.destination == other.destination
+            && self.partial_message.recipient == other.recipient
+    }
+}
+
 /// Validate WithdrawFXG received from the relayer against Kaspa and Hub.
 /// It verifies that:
 /// (1)  No double spending allowed. All messages must be unique.
@@ -57,26 +99,32 @@ use tracing::{debug, error, info, warn};
 pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
-    mailbox_id: String,
-    address_prefix: KaspaAddrPrefix,
-    escrow_public: EscrowPublic,
+    must_match: MustMatch,
 ) -> Result<(), ValidationError> {
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
 
     debug!("Starting withdrawal validation for {} messages", num_msgs);
 
-    // Step 1: check double spending
+    // Step 1: check double spending, and that message is for relevant token
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
     if let Some(duplicate) = util::find_duplicate(&msg_ids) {
         let message_id = duplicate.encode_hex();
         return Err(ValidationError::DoubleSpending { message_id });
     }
 
+    for msg in messages.iter() {
+        if !must_match.is_match(&msg) {
+            return Err(ValidationError::MessageWrongBridge {
+                message_id: msg.id().encode_hex(),
+            });
+        }
+    }
+
     // Steps 2: Check that all messages are *dispatched* from the Hub.
     for id in msg_ids {
         let res = cosmos_client
-            .delivered(mailbox_id.clone(), id.encode_hex())
+            .delivered(must_match.hub_mailbox_id.clone(), id.encode_hex())
             .await
             .map_err(|e| ValidationError::SystemError(Report::from(e)))?;
 
@@ -100,7 +148,7 @@ pub async fn validate_withdrawal_batch(
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
-    validate_pskts(fxg, hub_anchor, address_prefix, escrow_public)
+    validate_pskts(fxg, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!(
@@ -114,8 +162,7 @@ pub async fn validate_withdrawal_batch(
 pub fn validate_pskts(
     fxg: &WithdrawFXG,
     hub_anchor: TransactionOutpoint,
-    address_prefix: KaspaAddrPrefix,
-    escrow_public: EscrowPublic,
+    must_match: MustMatch,
 ) -> Result<(), ValidationError> {
     // Step 4: Validate that the Hub anchor in WithdrawFXG is still the actual Hub anchor
 
@@ -152,8 +199,7 @@ pub fn validate_pskts(
             PSKT::<Signer>::from(pskt.clone()),
             prev_anchor,
             messages,
-            address_prefix,
-            escrow_public.clone(),
+            must_match.clone(),
         )
         .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
 
@@ -182,8 +228,7 @@ pub fn validate_pskt(
     pskt: PSKT<Signer>,
     prev_anchor: TransactionOutpoint,
     pending_messages: &Vec<HyperlaneMessage>,
-    address_prefix: KaspaAddrPrefix,
-    escrow_public: EscrowPublic,
+    must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
     // Step 5 continuing: Check that PSKT contains the previous anchor as input
     let prev_outpoint_found = pskt.inputs.iter().any(|input| {
@@ -231,7 +276,7 @@ pub fn validate_pskt(
     let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
-        return if rs == escrow_public.redeem_script {
+        return if rs == must_match.escrow_public.redeem_script {
             acc + i.utxo_entry.as_ref().unwrap().amount
         } else {
             acc
@@ -250,11 +295,11 @@ pub fn validate_pskt(
         let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
             .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
+        let recipient = get_recipient_script_pubkey(tm.recipient(), must_match.address_prefix);
 
         // Step 8: Check that there are no withdrawals where escrow is set
         // as recepient. It would drastically complicate the confirmation flow.
-        if recipient == escrow_public.p2sh {
+        if recipient == must_match.escrow_public.p2sh {
             let message_id = m.id().encode_hex();
             return Err(ValidationError::EscrowWithdrawalNotAllowed { message_id });
         }
@@ -281,7 +326,7 @@ pub fn validate_pskt(
         }
 
         // Check that output is an anchor
-        if output.script_public_key == escrow_public.p2sh {
+        if output.script_public_key == must_match.escrow_public.p2sh {
             // Step 9: Abort if there is more than one anchor candidate
             if next_anchor_idx.is_some() {
                 return Err(ValidationError::MultipleAnchors);

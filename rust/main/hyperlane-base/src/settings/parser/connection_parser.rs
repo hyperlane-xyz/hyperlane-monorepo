@@ -17,6 +17,7 @@ use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
+use std::str::FromStr;
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -432,6 +433,46 @@ pub fn build_kaspa_connection_conf(
         conf
     };
 
+    let hub_domain = chain
+        .chain(err)
+        .get_opt_key("hubDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(0);
+
+    let hub_token_id = match chain
+        .chain(err)
+        .get_opt_key("hubTokenId")
+        .parse_string()
+        .end()
+    {
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
+    };
+
+    let kas_domain = chain
+        .chain(err)
+        .get_opt_key("kasDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(0);
+
+    let kas_token_placeholder = match chain
+        .chain(err)
+        .get_opt_key("kasTokenId")
+        .parse_string()
+        .end()
+    {
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
+    };
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -448,6 +489,10 @@ pub fn build_kaspa_connection_conf(
             hub_mailbox_id.to_owned(),
             operation_batch,
             validation_conf,
+            hub_domain,
+            hub_token_id,
+            kas_domain,
+            kas_token_placeholder,
         ),
     ))
 }
