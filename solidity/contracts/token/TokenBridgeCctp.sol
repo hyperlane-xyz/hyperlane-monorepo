@@ -158,25 +158,27 @@ contract TokenBridgeCctp is
         bytes calldata _hyperlaneMessage
     ) external returns (bool) {
         // decode return type of CctpService.getCCTPAttestation
-        (bytes memory cctpMessage, bytes memory attestation) = abi.decode(
+        (bytes memory cctpMessageBytes, bytes memory attestation) = abi.decode(
             _metadata,
             (bytes, bytes)
         );
 
-        bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
+        bytes29 cctpMessage = TypedMemView.ref(cctpMessageBytes, 0);
 
         uint32 origin = _hyperlaneMessage.origin();
-        uint32 sourceDomain = originalMsg._sourceDomain();
+        uint32 sourceDomain = cctpMessage._sourceDomain();
         require(
             sourceDomain == hyperlaneDomainToCircleDomain(origin),
             "Invalid source domain"
         );
 
-        uint64 sourceNonce = originalMsg._nonce();
+        uint64 sourceNonce = cctpMessage._nonce();
 
-        address circleRecipient = originalMsg._recipient().bytes32ToAddress();
-        if (circleRecipient == address(tokenMessenger)) {
-            bytes29 burnMessage = originalMsg._messageBody();
+        address cctpMessageRecipient = cctpMessage
+            ._recipient()
+            .bytes32ToAddress();
+        if (cctpMessageRecipient == address(tokenMessenger)) {
+            bytes29 burnMessage = cctpMessage._messageBody();
             bytes32 circleBurnSender = burnMessage._getMessageSender();
             require(
                 circleBurnSender == _hyperlaneMessage.sender(),
@@ -188,14 +190,14 @@ contract TokenBridgeCctp is
                 sourceNonce,
                 burnMessage
             );
-        } else if (circleRecipient == address(this)) {
-            bytes32 circleSender = originalMsg._sender();
+        } else if (cctpMessageRecipient == address(this)) {
+            bytes32 cctpMessageSender = cctpMessage._sender();
             require(
-                circleSender == _mustHaveRemoteRouter(origin),
+                cctpMessageSender == _mustHaveRemoteRouter(origin),
                 "Invalid circle sender"
             );
 
-            bytes32 circleMessageId = originalMsg._messageBody().index(0, 32);
+            bytes32 circleMessageId = cctpMessage._messageBody().index(0, 32);
             require(
                 circleMessageId == _hyperlaneMessage.id(),
                 "Invalid message id"
@@ -209,7 +211,7 @@ contract TokenBridgeCctp is
             abi.encodePacked(sourceDomain, sourceNonce)
         );
         if (messageTransmitter.usedNonces(sourceAndNonceHash) == 0) {
-            messageTransmitter.receiveMessage(cctpMessage, attestation);
+            messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
         }
 
         return true;
