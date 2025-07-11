@@ -154,19 +154,26 @@ contract EverclearTokenBridge is HypERC20Collateral {
         _destination; // Keep this to avoid solc's documentation warning (3881)
         _recipient;
 
-        quotes = new Quote[](1);
+        quotes = new Quote[](2);
         quotes[0] = Quote({
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        });
+        quotes[1] = Quote({
             token: address(wrappedToken),
             amount: _amount + feeParams.fee
         });
     }
 
-    function _transferFrom(
-        address _from,
-        address _to,
+    /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+    /// and the amount from _feeAmount is sent to the fee recipient.
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
-    ) internal virtual {
-        wrappedToken.safeTransferFrom({from: _from, to: _to, value: _amount});
+    ) internal virtual override returns (uint256 dispatchValue) {
+        _amount += feeParams.fee;
+        return super._chargeSender(_destination, _recipient, _amount);
     }
 
     /**

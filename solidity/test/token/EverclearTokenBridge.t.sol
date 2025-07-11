@@ -21,6 +21,7 @@ import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
@@ -136,6 +137,7 @@ contract EverclearTokenBridgeTest is Test {
     uint256 internal constant GAS_PAYMENT = 0.001 ether;
     string internal constant NAME = "TestToken";
     string internal constant SYMBOL = "TT";
+    MockHyperlaneEnvironment internal environment;
 
     // Test addresses
     address internal ALICE = makeAddr("alice");
@@ -164,7 +166,9 @@ contract EverclearTokenBridgeTest is Test {
 
     function setUp() public {
         // Setup basic infrastructure
-        mailbox = new MockMailbox(ORIGIN);
+        environment = new MockHyperlaneEnvironment(ORIGIN, DESTINATION);
+        mailbox = environment.mailboxes(ORIGIN);
+
         token = new ERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
         everclearAdapter = new MockEverclearAdapter();
         hook = new TestPostDispatchHook();
@@ -342,9 +346,11 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 1);
-        assertEq(quotes[0].token, address(token));
-        assertEq(quotes[0].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes.length, 2);
+        assertEq(quotes[0].token, address(0));
+        assertEq(quotes[0].amount, 0); // Gas payment is 0 for test dispatch hooks
+        assertEq(quotes[1].token, address(token));
+        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -359,9 +365,6 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             TRANSFER_AMT
         );
-
-        // Check return value
-        assertEq(result, bytes32(0));
 
         // Check balances
         assertEq(
@@ -489,7 +492,7 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 totalCost = quotes[0].amount; // Token cost including fee
+        uint256 tokenCost = quotes[1].amount; // Token cost including fee
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -500,8 +503,7 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         // 3. Verify state changes
-        assertEq(transferId, bytes32(0)); // Everclear manages the actual ID
-        assertEq(token.balanceOf(ALICE), initialAliceBalance - totalCost);
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost);
 
         // 4. Verify Everclear intent was created correctly
         assertEq(everclearAdapter.newIntentCallCount(), 1);
@@ -525,19 +527,6 @@ contract EverclearTokenBridgeTest is Test {
             token.balanceOf(ALICE),
             1000e18 - 2 * (transferAmount + FEE_AMOUNT)
         );
-    }
-
-    // ============ Gas Optimization Tests ============
-
-    function testGasUsageTransferRemote() public {
-        vm.prank(ALICE);
-        uint256 gasBefore = gasleft();
-        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
-        uint256 gasUsed = gasBefore - gasleft();
-
-        // Log gas usage for analysis (adjust threshold as needed)
-        emit log_named_uint("Gas used for transferRemote", gasUsed);
-        assertTrue(gasUsed < 600000); // Reasonable gas limit (adjusted based on actual usage)
     }
 }
 

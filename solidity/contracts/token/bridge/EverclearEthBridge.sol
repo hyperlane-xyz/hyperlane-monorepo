@@ -53,19 +53,10 @@ contract EverclearEthBridge is EverclearTokenBridge {
     }
 
     /**
-     * @notice Transfers tokens from sender, wrapping ETH to WETH if necessary
-     * @dev Overrides parent to handle ETH wrapping via WETH.deposit
-     * @param _from The address to transfer from
-     * @param _to The address to transfer to
-     * @param _amount The amount to transfer
+     * @notice Transfers ETH from sender, wrapping to WETH
      */
-    function _transferFrom(
-        address _from,
-        address _to,
-        uint256 _amount
-    ) internal override {
-        // For user transfers, deposit ETH to WETH first
-        require(msg.value == _amount, "EEB: ETH amount mismatch");
+    function _transferFromSender(uint256 _amount) internal override {
+        require(msg.value >= _amount, "EEB: ETH amount mismatch");
         weth.deposit{value: _amount}();
     }
 
