@@ -1,34 +1,58 @@
-import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import yargs from 'yargs/yargs';
 
-import { type IRegistry } from '@hyperlane-xyz/registry';
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HttpServer } from '../HttpServer.js';
 
 async function main() {
-  const { registry } = await yargs(hideBin(process.argv))
+  const { registry, port, refreshInterval, authToken } = await yargs(
+    hideBin(process.argv),
+  )
     .option('registry', {
       alias: 'r',
-      describe: 'The path to the registry',
+      describe:
+        'The URI of the registry to serve. Can be a local path or a remote URL.',
       type: 'string',
       demandOption: true,
     })
+    .option('port', {
+      alias: 'p',
+      describe: 'The port to run the server on',
+      type: 'number',
+    })
+    .option('refreshInterval', {
+      alias: 'i',
+      describe: 'The interval in seconds to refresh the registry',
+      type: 'number',
+    })
+    .option('authToken', {
+      alias: 't',
+      describe: 'An optional authentication token for the registry',
+      type: 'string',
+    })
+    .help()
     .parse();
 
-  console.log(`Using registry path: ${registry}`);
+  rootLogger.info(`Starting server on port ${port} for registry ${registry}`);
 
-  const getLocalRegistry = async (): Promise<IRegistry> => {
-    return new FileSystemRegistry({
-      uri: registry,
+  const getRegistryInstance = async (): Promise<IRegistry> => {
+    return getRegistry({
+      registryUris: [registry],
+      enableProxy: true,
+      logger: rootLogger,
+      authToken,
     });
   };
 
-  const server = await HttpServer.create(getLocalRegistry);
-  await server.start();
+  const server = await HttpServer.create(getRegistryInstance);
+  await server.start(port?.toString(), refreshInterval?.toString());
 }
 
-main().catch((error) => {
-  console.error('Unhandled critical error in server execution script:', error);
-  process.exit(1);
-});
+main().catch((err) =>
+  rootLogger.error('Error in main execution', {
+    err,
+  }),
+);
