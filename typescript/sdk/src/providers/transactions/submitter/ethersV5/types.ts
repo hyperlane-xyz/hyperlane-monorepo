@@ -41,14 +41,6 @@ export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<
   typeof EV5ImpersonatedAccountTxSubmitterPropsSchema
 >;
 
-export const EV5FileTxSubmitterPropsSchema = z.object({
-  filepath: z.string(),
-});
-
-export type EV5FileTxSubmitterProps = z.infer<
-  typeof EV5FileTxSubmitterPropsSchema
->;
-
 export const EvmSubmitterMetadataSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal(TxSubmitterType.JSON_RPC),
