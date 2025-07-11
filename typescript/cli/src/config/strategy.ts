@@ -2,11 +2,7 @@ import { confirm, input, password, select } from '@inquirer/prompts';
 import { Wallet } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
-import {
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { ChainSubmissionStrategy, TxSubmitterType } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
@@ -16,6 +12,10 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import {
+  ExtendedChainSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+} from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
@@ -29,10 +29,11 @@ import { maskSensitiveData } from '../utils/output.js';
  */
 export async function readChainSubmissionStrategyConfig(
   filePath: string,
-): Promise<ChainSubmissionStrategy> {
+): Promise<ExtendedChainSubmissionStrategy> {
   log(`Reading submission strategy in ${filePath}`);
   const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
-  const parseResult = ChainSubmissionStrategySchema.parse(strategyConfig);
+  const parseResult =
+    ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
   return parseResult;
 }
 
@@ -43,10 +44,10 @@ export async function createStrategyConfig({
   context: CommandContext;
   outPath: string;
 }) {
-  let strategy: ChainSubmissionStrategy;
+  let strategy: ExtendedChainSubmissionStrategy;
   try {
     const strategyObj = await readYamlOrJson(outPath);
-    strategy = ChainSubmissionStrategySchema.parse(strategyObj);
+    strategy = ExtendedChainSubmissionStrategySchema.parse(strategyObj);
   } catch {
     strategy = writeYamlOrJson(outPath, {}, 'yaml');
   }
@@ -130,15 +131,17 @@ export async function createStrategyConfig({
       throw new Error(`Unsupported submitter type: ${submitterType}`);
   }
 
-  const strategyResult: ChainSubmissionStrategy = {
+  const strategyResult: ExtendedChainSubmissionStrategy = {
     ...strategy,
     [chain]: {
-      submitter: submitter as ChainSubmissionStrategy[string]['submitter'],
+      submitter:
+        submitter as ExtendedChainSubmissionStrategy[string]['submitter'],
     },
-  };
+  } as ExtendedChainSubmissionStrategy;
 
   try {
-    const strategyConfig = ChainSubmissionStrategySchema.parse(strategyResult);
+    const strategyConfig =
+      ExtendedChainSubmissionStrategySchema.parse(strategyResult);
     logBlue(`Strategy configuration is valid. Writing to file ${outPath}:\n`);
 
     const maskedConfig = maskSensitiveData(strategyConfig);

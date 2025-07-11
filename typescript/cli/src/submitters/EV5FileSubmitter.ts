@@ -1,23 +1,21 @@
-import fs from 'fs';
-import path from 'path';
 import { Logger } from 'pino';
-import { z } from 'zod';
 
-import { TxSubmitterInterface, TxSubmitterType } from '@hyperlane-xyz/sdk';
+import {
+  ProtocolTypedTransaction,
+  TxSubmitterInterface,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { Annotated, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-export const EV5FileTxSubmitterPropsSchema = z.object({
-  filepath: z.string(),
-});
+import { appendYamlOrJson } from '../utils/files.js';
 
-export type EV5FileTxSubmitterProps = z.infer<
-  typeof EV5FileTxSubmitterPropsSchema
->;
+import { CustomTxSubmitterType, EV5FileTxSubmitterProps } from './types.js';
 
 export class EV5FileSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
 {
-  txSubmitterType: TxSubmitterType = 'file' as TxSubmitterType;
+  txSubmitterType: TxSubmitterType =
+    CustomTxSubmitterType.FILE as TxSubmitterType;
   protected readonly logger: Logger = rootLogger.child({
     module: 'file-submitter',
   });
@@ -30,12 +28,7 @@ export class EV5FileSubmitter
   ): Promise<[]> {
     // Appends all transactions to a single file
     const filepath = this.props.filepath.trim();
-    const dirPath = path.dirname(filepath);
-    if (!fs.existsSync(dirPath))
-      fs.mkdirSync(dirPath, {
-        recursive: true,
-      });
-    fs.appendFileSync(filepath, JSON.stringify(txs, null, 2));
+    appendYamlOrJson(filepath, txs);
 
     this.logger.debug(`Transactions written to ${filepath}`);
     return [];
