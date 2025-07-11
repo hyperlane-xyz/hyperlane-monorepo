@@ -709,7 +709,10 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(
+                EverclearTokenBridge.initialize,
+                (address(new TestPostDispatchHook()), OWNER)
+            )
         );
 
         ethBridge = EverclearEthBridge(payable(address(proxy)));
@@ -776,23 +779,6 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         );
     }
 
-    function testEthBridgeTransferRemoteWithExcessETH() public {
-        uint256 amount = 1e18; // 1 ETH
-        uint256 totalAmount = amount + FEE_AMOUNT;
-        uint256 excessAmount = totalAmount + 1e17; // Extra 0.1 ETH
-
-        // Give Alice excess ETH
-        vm.deal(ALICE, excessAmount);
-
-        vm.prank(ALICE);
-        vm.expectRevert("EEB: ETH amount mismatch");
-        ethBridge.transferRemote{value: excessAmount}(
-            OPTIMISM_DOMAIN,
-            RECIPIENT,
-            amount
-        );
-    }
-
     function testEthBridgeUnwrapAndSend() public {
         uint256 amount = 1e18; // 1 ETH
 
@@ -837,7 +823,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         );
 
         assertEq(quotes.length, 1);
-        assertEq(quotes[0].token, address(weth));
+        assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, amount + FEE_AMOUNT);
     }
 

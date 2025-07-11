@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.22;
 
-import {EverclearTokenBridge} from "./EverclearTokenBridge.sol";
+import {EverclearTokenBridge, Quote} from "./EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear} from "../../interfaces/IEverclearAdapter.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,6 +10,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
+import "forge-std/console.sol";
 
 /**
  * @title EverclearEthBridge
@@ -52,12 +53,49 @@ contract EverclearEthBridge is EverclearTokenBridge {
         everclearSpoke = _everclearSpoke;
     }
 
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public view override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _amount +
+                feeParams.fee +
+                _quoteGasPayment(_destination, _recipient, _amount)
+        });
+    }
+
     /**
      * @notice Transfers ETH from sender, wrapping to WETH
      */
     function _transferFromSender(uint256 _amount) internal override {
+        // The `_amount` here will be amount + fee where amount is what the user wants to send,
+        // And `fee` is what is being payed to everclear.
+        // The user will also include the gas payment in the msg.value.
+        console.log("msg.value");
+        console.logUint(msg.value);
+        console.log("_amount");
+        console.logUint(_amount);
         require(msg.value >= _amount, "EEB: ETH amount mismatch");
         weth.deposit{value: _amount}();
+    }
+
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256 dispatchValue) {
+        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+
+        uint256 totalAmount = _amount + fee + feeParams.fee;
+        _transferFromSender(totalAmount);
+        dispatchValue = msg.value - totalAmount;
+        if (fee > 0) {
+            _transferTo(feeRecipient(), fee);
+        }
+        return dispatchValue;
     }
 
     /**
@@ -94,17 +132,6 @@ contract EverclearEthBridge is EverclearTokenBridge {
 
         // Send ETH to recipient
         payable(_recipient.bytes32ToAddress()).sendValue(_amount);
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal override returns (uint256, bytes memory) {
-        // deposit ETH to WETH first
-        require(msg.value == _amount, "EEB: ETH amount mismatch");
-        weth.deposit{value: _amount}();
-        return super._beforeDispatch(_destination, _recipient, _amount);
     }
 
     function _handle(

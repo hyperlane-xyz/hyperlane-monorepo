@@ -150,7 +150,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public view override returns (Quote[] memory quotes) {
+    ) public view virtual override returns (Quote[] memory quotes) {
         _destination; // Keep this to avoid solc's documentation warning (3881)
         _recipient;
 
@@ -172,8 +172,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 _recipient,
         uint256 _amount
     ) internal virtual override returns (uint256 dispatchValue) {
-        _amount += feeParams.fee;
-        return super._chargeSender(_destination, _recipient, _amount);
+        return
+            super._chargeSender(
+                _destination,
+                _recipient,
+                _amount + feeParams.fee
+            );
     }
 
     /**
@@ -230,7 +234,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount
         );
 
-        IEverclearAdapter.FeeParams memory _feeParams = feeParams;
         IEverclear.Intent memory intent = _createIntent(
             _destination,
             _recipient,
