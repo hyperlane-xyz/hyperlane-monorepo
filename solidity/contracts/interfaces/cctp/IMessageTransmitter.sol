@@ -55,4 +55,8 @@ interface IMessageTransmitter is IRelayer, IReceiver {
     function version() external view returns (uint32);
 
     function localDomain() external view returns (uint32);
+
+    function nextAvailableNonce() external view returns (uint64);
+
+    function signatureThreshold() external view returns (uint256);
 }

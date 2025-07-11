@@ -23,9 +23,12 @@ import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
+import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
+    using TypeCasts for bytes32;
     using Message for bytes;
 
     uint32 internal constant CCTP_VERSION_1 = 0;
@@ -292,6 +295,26 @@ contract TokenBridgeCctpTest is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
+    function _upgrade(TokenBridgeCctp bridge) internal {
+        TokenBridgeCctp newImplementation = new TokenBridgeCctp(
+            address(bridge.wrappedToken()),
+            bridge.scale(),
+            address(bridge.mailbox()),
+            bridge.messageTransmitter(),
+            bridge.tokenMessenger()
+        );
+
+        bytes32 adminBytes = vm.load(
+            address(bridge),
+            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
+        );
+        address admin = address(uint160(uint256(adminBytes)));
+        vm.prank(admin);
+        ITransparentUpgradeableProxy(address(bridge)).upgradeTo(
+            address(newImplementation)
+        );
+    }
+
     function testFork_verify() public {
         TokenBridgeCctp recipient = TokenBridgeCctp(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -306,24 +329,7 @@ contract TokenBridgeCctpTest is Test {
         vm.expectRevert();
         recipient.verify(metadata, message);
 
-        TokenBridgeCctp newImplementation = new TokenBridgeCctp(
-            address(recipient.wrappedToken()),
-            recipient.scale(),
-            address(recipient.mailbox()),
-            recipient.messageTransmitter(),
-            recipient.tokenMessenger()
-        );
-
-        bytes32 adminBytes = vm.load(
-            address(recipient),
-            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
-        );
-        address admin = address(uint160(uint256(adminBytes)));
-        vm.prank(admin);
-        ITransparentUpgradeableProxy(address(recipient)).upgradeTo(
-            address(newImplementation)
-        );
-
+        _upgrade(recipient);
         assertEq(recipient.verify(metadata, message), true);
     }
 
@@ -541,11 +547,6 @@ contract TokenBridgeCctpTest is Test {
         );
     }
 
-    function test_parent_initialize_reverts() public {
-        vm.expectRevert("Only TokenBridgeCctp.initialize() may be called");
-        tbOrigin.initialize(address(0), address(0), address(0));
-    }
-
     function test_postDispatch(bytes32 recipient, bytes calldata body) public {
         // precompute message ID
         bytes32 id = Message.id(
@@ -580,6 +581,63 @@ contract TokenBridgeCctpTest is Test {
             tbOrigin
         );
         assertEq(actualId, id);
+    }
+
+    function testFork_postDispatch(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctp hook = TokenBridgeCctp(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        _upgrade(hook);
+
+        IMailbox mailbox = hook.mailbox();
+        uint32 destination = 1; // ethereum
+        uint32 origin = mailbox.localDomain();
+        bytes32 router = hook.routers(destination);
+
+        // precompute message ID
+        bytes memory message = Message.formatMessage(
+            3,
+            mailbox.nonce(),
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            0,
+            hook.messageTransmitter().localDomain(),
+            hook.hyperlaneDomainToCircleDomain(destination),
+            hook.messageTransmitter().nextAvailableNonce(),
+            address(hook).addressToBytes32(),
+            router,
+            router,
+            abi.encode(Message.id(message))
+        );
+
+        vm.expectEmit(
+            true,
+            true,
+            true,
+            true,
+            address(hook.messageTransmitter())
+        );
+        emit IMessageTransmitter.MessageSent(cctpMessage);
+
+        mailbox.dispatch(destination, recipient, body, bytes(""), hook);
+    }
+
+    function testFork_verify() public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctp ism = TokenBridgeCctp(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        _upgrade(ism);
     }
 
     function test_postDispatch_revertsWhen_messageNotDispatched(
