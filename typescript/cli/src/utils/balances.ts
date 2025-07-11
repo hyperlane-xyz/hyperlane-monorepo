@@ -54,7 +54,7 @@ export async function nativeBalancesAreSufficient(
           (await provider.getBalance(address)).toString(),
         );
         balance = new BigNumber(
-          ethers.utils.formatEther(balanceSmallestUnit.toString()).toString(),
+          ethers.utils.formatEther(balanceSmallestUnit.toFixed()).toString(),
         );
         break;
       }
