@@ -73,6 +73,30 @@ export const EvmIcaTxSubmitterPropsSchema: z.ZodSchema<EvmIcaTxSubmitterProps> =
     }),
   );
 
+export type EvmTimelockControllerSubmitterProps = {
+  type: TxSubmitterType.TIMELOCK_CONTROLLER;
+  chain: ChainName;
+  timelockAddress: Address;
+  salt?: string;
+  delay?: bigint;
+  predecessor?: string;
+  proposerSubmitter: EvmSubmitterMetadata;
+};
+
+// @ts-expect-error same as the ICA
+export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockControllerSubmitterProps> =
+  z.lazy(() =>
+    z.object({
+      type: z.literal(TxSubmitterType.TIMELOCK_CONTROLLER),
+      chain: ZChainName,
+      timelockAddress: ZHash,
+      salt: z.string().optional(),
+      delay: z.bigint().optional(),
+      predecessor: z.string().optional(),
+      proposerSubmitter: EvmSubmitterMetadataSchema,
+    }),
+  );
+
 export const EvmSubmitterMetadataSchema = z.union([
   z.object({
     type: z.literal(TxSubmitterType.JSON_RPC),
@@ -91,6 +115,7 @@ export const EvmSubmitterMetadataSchema = z.union([
     ...EV5GnosisSafeTxBuilderPropsSchema.shape,
   }),
   EvmIcaTxSubmitterPropsSchema,
+  EvmTimelockControllerSubmitterPropsSchema,
 ]);
 
 export type EvmSubmitterMetadata = z.infer<typeof EvmSubmitterMetadataSchema>;

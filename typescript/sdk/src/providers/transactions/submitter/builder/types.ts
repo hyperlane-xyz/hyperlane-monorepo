@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../../../../metadata/customZodTypes.js';
-import { ChainMap } from '../../../../types.js';
+import { ChainMap, ChainName } from '../../../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
 import { SubmitterMetadataSchema } from '../types.js';
@@ -25,44 +25,15 @@ export const ChainSubmissionStrategySchema = z.preprocess(
     const parsedValue = objMap(
       castedValued,
       (chainName, strategy): SubmissionStrategy => {
-        if (strategy.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
-          return strategy;
-        }
-
-        // Setting the default internal submitter config for interchain accounts here
-        // instead of using zod's default() modifier because we require the chain property to be set
-        const {
-          internalSubmitter = {
-            type: TxSubmitterType.JSON_RPC,
-            chain: strategy.submitter.chain,
-          },
-          destinationChain,
-        } = strategy.submitter;
-        const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
-          {
-            ...internalSubmitter,
-            chain: strategy.submitter.chain,
-          };
-
-        // When the internal submitter of the interchain account is a Multisig, the owner address and the multisig address need to match
-        if (
-          formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
-          formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER
+        if (strategy.submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+          return formatIcaSubmitter(chainName, strategy);
+        } else if (
+          strategy.submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER
         ) {
-          strategy.submitter.owner =
-            strategy.submitter.owner ?? formattedInternalSubmitter.safeAddress;
+          return formatTimelockSubmitter(chainName, strategy);
         }
 
-        return {
-          ...strategy,
-          submitter: {
-            ...strategy.submitter,
-            // Setting the destinationChain here so that it can be omitted in the input config
-            // as its value should be the same as the key value in the mapping
-            destinationChain: destinationChain ?? chainName,
-            internalSubmitter: formattedInternalSubmitter,
-          },
-        };
+        return strategy;
       },
     );
 
@@ -88,6 +59,70 @@ export const ChainSubmissionStrategySchema = z.preprocess(
     });
   }),
 );
+
+const formatIcaSubmitter = (
+  chainName: ChainName,
+  strategy: SubmissionStrategy,
+): SubmissionStrategy => {
+  assert(strategy.submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT, '');
+
+  // Setting the default internal submitter config for interchain accounts here
+  // instead of using zod's default() modifier because we require the chain property to be set
+  const {
+    internalSubmitter = {
+      type: TxSubmitterType.JSON_RPC,
+      chain: strategy.submitter.chain,
+    },
+    destinationChain,
+  } = strategy.submitter;
+  const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
+    {
+      ...internalSubmitter,
+      chain: strategy.submitter.chain,
+    };
+
+  // When the internal submitter of the interchain account is a Multisig, the owner address and the multisig address need to match
+  if (
+    formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
+    formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER
+  ) {
+    strategy.submitter.owner =
+      strategy.submitter.owner ?? formattedInternalSubmitter.safeAddress;
+  }
+
+  return {
+    ...strategy,
+    submitter: {
+      ...strategy.submitter,
+      // Setting the destinationChain here so that it can be omitted in the input config
+      // as its value should be the same as the key value in the mapping
+      destinationChain: destinationChain ?? chainName,
+      internalSubmitter: formattedInternalSubmitter,
+    },
+  };
+};
+
+const formatTimelockSubmitter = (
+  chainName: ChainName,
+  strategy: SubmissionStrategy,
+): SubmissionStrategy => {
+  assert(strategy.submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER, '');
+
+  const {
+    proposerSubmitter = { type: TxSubmitterType.JSON_RPC, chain: chainName },
+  } = strategy.submitter;
+
+  return {
+    ...strategy,
+    submitter: {
+      ...strategy.submitter,
+      proposerSubmitter: {
+        ...proposerSubmitter,
+        chain: chainName,
+      },
+    },
+  };
+};
 
 export type ChainSubmissionStrategy = z.infer<
   typeof ChainSubmissionStrategySchema
