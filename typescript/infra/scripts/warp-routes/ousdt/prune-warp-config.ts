@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import yargs from 'yargs';
 
 import {
   TokenStandard,
@@ -9,10 +10,8 @@ import {
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
 import { getRegistry } from '../../../config/registry.js';
 
-const warpRouteId = WarpRouteIds.oUSDT;
 const collateralChains = ['celo', 'ethereum'];
 const chainsToPrune = [
-  'ink',
   'worldchain',
   'ronin',
   'bitlayer',
@@ -39,14 +38,23 @@ function pruneProdConfig({ tokens, options }: WarpCoreConfig): WarpCoreConfig {
 }
 
 async function main() {
+  const { environment } = await yargs(process.argv.slice(2))
+    .describe('environment', 'ousdt env')
+    .choices('environment', ['staging', 'prod'])
+    .demandOption('environment')
+    .alias('e', 'environment').argv;
+
+  const isStaging = environment === 'staging';
+
   const registry = getRegistry();
 
+  const warpRouteId = isStaging ? WarpRouteIds.oUSDTSTAGE : WarpRouteIds.oUSDT;
   const warpRoute = registry.getWarpRoute(warpRouteId);
   if (!warpRoute) {
     throw new Error(`Warp route ${warpRouteId} not found`);
   }
 
-  const prunedWarpRoute = pruneProdConfig(warpRoute);
+  const prunedWarpRoute = isStaging ? warpRoute : pruneProdConfig(warpRoute);
 
   // Ensure the token configs are set
   prunedWarpRoute.tokens.forEach((token) => {
@@ -55,12 +63,16 @@ async function main() {
       token.name = 'USDT';
       token.symbol = 'USD₮';
       token.standard = TokenStandard.EvmHypVSXERC20Lockbox;
-      token.logoURI = '/deployments/warp_routes/USDT/logo.svg';
+      token.logoURI = isStaging
+        ? undefined
+        : '/deployments/warp_routes/USDT/logo.svg';
     } else {
       token.name = 'OpenUSDT';
-      token.symbol = 'oUSDT';
+      token.symbol = isStaging ? 'oUSDTSTAGE' : 'oUSDT';
       token.standard = TokenStandard.EvmHypVSXERC20;
-      token.logoURI = '/deployments/warp_routes/oUSDT/logo.svg';
+      token.logoURI = isStaging
+        ? undefined
+        : '/deployments/warp_routes/oUSDT/logo.svg';
     }
   });
 

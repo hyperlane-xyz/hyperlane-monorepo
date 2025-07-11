@@ -82,7 +82,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -133,7 +132,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -184,7 +182,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -411,6 +408,12 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -450,6 +453,12 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -488,6 +497,12 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
