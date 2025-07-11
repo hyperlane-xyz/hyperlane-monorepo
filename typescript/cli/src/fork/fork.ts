@@ -6,6 +6,7 @@ import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   EventAssertion,
   EventAssertionType,
@@ -57,7 +58,9 @@ export async function runForkCommand({
     forkConfig,
     readYamlOrJson,
   );
-  const chainMetadataOverrides: ChainMap<{ rpcUrls: { http: string }[] }> = {};
+  const chainMetadataOverrides: ChainMap<{
+    rpcUrls: ChainMetadata['rpcUrls'];
+  }> = {};
   for (const chainName of filteredChainsToFork) {
     const endpoint = await forkChain(
       context.multiProvider,
