@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 14.4.0
+
+### Minor Changes
+
+- dce47e7b6: Update getSubmitter() to be return the default set of submitters, and also allow an extension to it.
+
+### Patch Changes
+
+- Updated dependencies [155f5a5e8]
+  - @hyperlane-xyz/core@9.0.0
+  - @hyperlane-xyz/starknet-core@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
 ## 14.3.0
 
 ### Minor Changes

@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { pino } from 'pino';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 
@@ -6,6 +7,8 @@ import {
   type BridgeConfigWithOverride,
   getBridgeConfig,
 } from './bridgeUtils.js';
+
+const testLogger = pino({ level: 'silent' });
 
 describe('bridgeConfig', () => {
   it('should return the base bridge config when no overrides exist', () => {
@@ -22,7 +25,7 @@ describe('bridgeConfig', () => {
       },
     };
 
-    const result = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const result = getBridgeConfig(bridges, 'chain1', 'chain2', testLogger);
 
     expect(result).to.deep.equal({
       bridge: '0x1234567890123456789012345678901234567890',
@@ -50,7 +53,7 @@ describe('bridgeConfig', () => {
       },
     };
 
-    const result = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const result = getBridgeConfig(bridges, 'chain1', 'chain2', testLogger);
 
     expect(result).to.deep.equal({
       bridge: '0x1234567890123456789012345678901234567890',
@@ -78,7 +81,7 @@ describe('bridgeConfig', () => {
       },
     };
 
-    const result = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const result = getBridgeConfig(bridges, 'chain1', 'chain2', testLogger);
 
     expect(result).to.deep.equal({
       bridge: '0xABCDEF0123456789ABCDEF0123456789ABCDEF01',

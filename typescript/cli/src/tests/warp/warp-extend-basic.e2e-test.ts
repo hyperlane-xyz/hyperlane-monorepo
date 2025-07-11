@@ -1,20 +1,16 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
   HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -41,25 +37,9 @@ import {
 describe('hyperlane warp apply basic extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: Signer;
   let chain3Addresses: ChainAddresses = {};
-  let initialOwnerAddress: Address;
-  let chain2DomainId: Domain;
-  let chain3DomainId: Domain;
 
   before(async function () {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-
-    const provider = new ethers.providers.JsonRpcProvider(
-      chain2Metadata.rpcUrls[0].http,
-    );
-    chain2DomainId = chain2Metadata.domainId;
-    chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(ANVIL_KEY);
-    signer = wallet.connect(provider);
-    initialOwnerAddress = await signer.getAddress();
-
     [, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
