@@ -21,20 +21,27 @@ import {
   ValueKind,
   address,
   array,
+  bucket,
   decimal,
   enumeration,
   expression,
   generateRandomNonce,
+  str,
+  tuple,
+  u8,
   u32,
   u64,
 } from '@radixdlt/radix-engine-toolkit';
 import { getRandomValues } from 'crypto';
+import { Decimal } from 'decimal.js';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { bytes } from './utils.js';
 
 const applicationName = 'hyperlane';
+const packageAddress =
+  'package_tdx_2_1p4faa3cx72v0gwguntycgewxnlun34kpkpezf7m7arqyh9crr0v3f3';
 
 type Account = {
   privateKey: PrivateKey;
@@ -78,9 +85,24 @@ export class RadixSDK {
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
     const fields = (details.details as any).state.fields;
 
+    const ownerResource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    const { items } =
+      await this.gateway.extensions.getResourceHolders(ownerResource);
+
+    const resourceHolders = [
+      ...new Set(items.map((item) => item.holder_address)),
+    ];
+
+    assert(
+      resourceHolders.length === 1,
+      `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
+    );
+
     const result = {
       address: mailbox,
-      owner: '',
+      owner: resourceHolders[0],
       localDomain: parseInt(
         fields.find((f: any) => f.field_name === 'local_domain').value,
       ),
@@ -142,6 +164,21 @@ export class RadixSDK {
       `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as any).blueprint_name}`,
     );
 
+    const ownerResource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    const { items } =
+      await this.gateway.extensions.getResourceHolders(ownerResource);
+
+    const resourceHolders = [
+      ...new Set(items.map((item) => item.holder_address)),
+    ];
+
+    assert(
+      resourceHolders.length === 1,
+      `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
+    );
+
     const fields = (details.details as any).state.fields;
     const destinationGasConfigs = {};
 
@@ -180,7 +217,7 @@ export class RadixSDK {
 
     return {
       address: hook,
-      owner: '',
+      owner: resourceHolders[0],
       destinationGasConfigs,
     };
   }
@@ -447,9 +484,52 @@ export class RadixSigningSDK extends RadixSDK {
     }
   }
 
+  public populateTransfer(
+    toAddress: string,
+    resourceAddress: string,
+    amount: string,
+  ) {
+    return new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(this.gasAmount)],
+      )
+      .callMethod(this.account.address, 'withdraw', [
+        address(resourceAddress),
+        decimal(amount),
+      ])
+      .takeFromWorktop(
+        resourceAddress,
+        new Decimal(amount),
+        (builder, bucketId) =>
+          builder.callMethod(toAddress, 'try_deposit_or_abort', [
+            bucket(bucketId),
+          ]),
+      )
+      .build();
+  }
+
+  public async transfer(
+    toAddress: string,
+    resourceAddress: string,
+    amount: string,
+  ) {
+    const transactionManifest = this.populateTransfer(
+      toAddress,
+      resourceAddress,
+      amount,
+    );
+
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public populateCreateMailbox(domainId: number) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'Mailbox',
       'mailbox_instantiate',
       [u32(domainId)],
@@ -465,9 +545,28 @@ export class RadixSigningSDK extends RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async populateSetIgpOwner(igp: string, newOwner: string) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(igp);
+
+    const resource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return this.populateTransfer(newOwner, resource, '1');
+  }
+
+  public async setIgpOwner(igp: string, newOwner: string) {
+    const transactionManifest = await this.populateSetIgpOwner(igp, newOwner);
+
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public populateCreateMerkleTreeHook(mailbox: string) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'MerkleTreeHook',
       'instantiate',
       [address(mailbox)],
@@ -488,7 +587,7 @@ export class RadixSigningSDK extends RadixSDK {
     threshold: number,
   ) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'MerkleRootMultisigIsm',
       'instantiate',
       [
@@ -518,7 +617,7 @@ export class RadixSigningSDK extends RadixSDK {
     threshold: number,
   ) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'MessageIdMultisigIsm',
       'instantiate',
       [
@@ -545,7 +644,7 @@ export class RadixSigningSDK extends RadixSDK {
 
   public populateCreateNoopIsm() {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'NoopIsm',
       'instantiate',
       [],
@@ -563,7 +662,7 @@ export class RadixSigningSDK extends RadixSDK {
 
   public populateCreateIgp(denom: string) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'InterchainGasPaymaster',
       'instantiate',
       [address(denom)],
@@ -579,9 +678,31 @@ export class RadixSigningSDK extends RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async populateSetMailboxOwner(mailbox: string, newOwner: string) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
+
+    const resource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return this.populateTransfer(newOwner, resource, '1');
+  }
+
+  public async setMailboxOwner(mailbox: string, newOwner: string) {
+    const transactionManifest = await this.populateSetMailboxOwner(
+      mailbox,
+      newOwner,
+    );
+
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public populateCreateValidatorAnnounce(mailbox: string) {
     return this.createCallFunctionManifest(
-      'package_tdx_2_1p5p5p5xsp0gde442jpyw4renphj7thkg0esulfsyl806nqc309gvp4',
+      packageAddress,
       'ValidatorAnnounce',
       'instantiate',
       [address(mailbox)],
@@ -629,6 +750,66 @@ export class RadixSigningSDK extends RadixSDK {
 
   public async setDefaultIsm(mailbox: string, ism: string) {
     const transactionManifest = this.populateSetDefaultIsm(mailbox, ism);
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public populateCreateHypCollateralToken(
+    mailbox: string,
+    originDenom: string,
+  ) {
+    return this.createCallFunctionManifest(
+      packageAddress,
+      'HypToken',
+      'instantiate',
+      [enumeration(0, address(originDenom)), address(mailbox)],
+    );
+  }
+
+  public async createHypCollateraltoken(mailbox: string, originDenom: string) {
+    const transactionManifest = this.populateCreateHypCollateralToken(
+      mailbox,
+      originDenom,
+    );
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public populateCreateHypSyntheticToken(
+    mailbox: string,
+    name: string,
+    symbol: string,
+    description: string,
+    divisibility: number,
+  ) {
+    return this.createCallFunctionManifest(
+      packageAddress,
+      'HypToken',
+      'instantiate',
+      [
+        enumeration(
+          1,
+          tuple(str(name), str(symbol), str(description), u8(divisibility)),
+        ),
+        address(mailbox),
+      ],
+    );
+  }
+
+  public async createHypSynthetictoken(
+    mailbox: string,
+    name: string,
+    symbol: string,
+    description: string,
+    divisibility: number,
+  ) {
+    const transactionManifest = this.populateCreateHypSyntheticToken(
+      mailbox,
+      name,
+      symbol,
+      description,
+      divisibility,
+    );
 
     await this.signAndBroadcast(transactionManifest);
   }

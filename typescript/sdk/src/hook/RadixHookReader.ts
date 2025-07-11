@@ -69,16 +69,13 @@ export class RadixHookReader {
     });
 
     // TODO: RADIX
-    // get owner once implemented
+    // get beneficiary and oracleKey once implemented
 
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
-      owner:
-        'account_rdx12xn9svm4mmvfs82c4kxhy4as8gafcdgce0r444a7hzsmttx9x02x4f',
-      beneficiary:
-        'account_rdx12xn9svm4mmvfs82c4kxhy4as8gafcdgce0r444a7hzsmttx9x02x4f',
-      oracleKey:
-        'account_rdx12xn9svm4mmvfs82c4kxhy4as8gafcdgce0r444a7hzsmttx9x02x4f',
+      owner: igp.owner,
+      beneficiary: igp.owner,
+      oracleKey: igp.owner,
       overhead,
       oracleConfig,
       address: igp.address,
