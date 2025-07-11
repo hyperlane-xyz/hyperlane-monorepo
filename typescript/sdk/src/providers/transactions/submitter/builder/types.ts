@@ -118,7 +118,8 @@ const formatTimelockSubmitter = (
       ...strategy.submitter,
       proposerSubmitter: {
         ...proposerSubmitter,
-        chain: chainName,
+        // Override the chain if it hasn't been set
+        chain: proposerSubmitter.chain ?? chainName,
       },
     },
   };

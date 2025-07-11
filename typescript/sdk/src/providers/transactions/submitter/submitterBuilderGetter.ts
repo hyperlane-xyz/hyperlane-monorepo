@@ -12,6 +12,7 @@ import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
+import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
@@ -58,6 +59,12 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
       });
     case TxSubmitterType.INTERCHAIN_ACCOUNT:
       return EvmIcaTxSubmitter.fromConfig(
+        submitterMetadata,
+        multiProvider,
+        registry,
+      );
+    case TxSubmitterType.TIMELOCK_CONTROLLER:
+      return EV5TimelockSubmitter.fromConfig(
         submitterMetadata,
         multiProvider,
         registry,
