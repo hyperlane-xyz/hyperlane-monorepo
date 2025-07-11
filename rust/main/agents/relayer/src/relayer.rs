@@ -70,10 +70,10 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
 
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
-    origin: u32,
-    destination: u32,
+    origin: HyperlaneDomain,
+    destination: HyperlaneDomain,
 }
 
 /// A relayer agent
@@ -154,10 +154,11 @@ impl BaseAgent for Relayer {
         Self::reset_critical_errors(&settings, &chain_metrics);
 
         let start = Instant::now();
-        let mut start_entity_init = Instant::now();
 
         let core = settings.build_hyperlane_core(core_metrics.clone());
-        let db = DB::from_path(&settings.db)?;
+
+        let mut start_entity_init = Instant::now();
+
         let cache_name = "relayer_cache";
         let inner_cache = if settings.allow_contract_call_caching {
             Some(MeteredCache::new(
@@ -171,6 +172,10 @@ impl BaseAgent for Relayer {
             None
         };
         let cache = OptionalCache::new(inner_cache);
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized cache", "Relayer startup duration measurement");
+
+        start_entity_init = Instant::now();
+        let db = DB::from_path(&settings.db)?;
         let dbs = settings
             .origin_chains
             .iter()
@@ -217,15 +222,12 @@ impl BaseAgent for Relayer {
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dipatchers", "Relayer startup duration measurement");
 
-        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-
         start_entity_init = Instant::now();
-
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
         let stores: HashMap<_, _> = dbs
             .iter()
             .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
             .collect();
-
         let message_syncs = Self::build_contract_syncs(
             &settings,
             &core_metrics,
@@ -235,7 +237,6 @@ impl BaseAgent for Relayer {
             "message",
         )
         .await;
-
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -307,10 +308,10 @@ impl BaseAgent for Relayer {
             .iter()
             .filter_map(|domain| match dbs.get(domain) {
                 Some(db) => {
-                    let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+                    let gas_payment_enforcer = Arc::new(RwLock::new(GasPaymentEnforcer::new(
                         settings.gas_payment_enforcement.clone(),
                         db.clone(),
-                    ));
+                    )));
                     Some((domain.clone(), gas_payment_enforcer))
                 }
                 None => {
@@ -321,11 +322,8 @@ impl BaseAgent for Relayer {
             .collect();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
-        let mut msg_ctxs = HashMap::new();
-
-        start_entity_init = Instant::now();
-
         // only iterate through destination chains that were successfully instantiated
+        start_entity_init = Instant::now();
         let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(mailboxes.len());
         for destination in mailboxes.keys() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
@@ -362,7 +360,10 @@ impl BaseAgent for Relayer {
             .await
             .into_iter()
             .collect::<HashMap<_, _>>();
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized ccip signers", "Relayer startup duration measurement");
 
+        start_entity_init = Instant::now();
+        let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
         for (destination, dest_mailbox) in mailboxes.iter() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
@@ -423,8 +424,8 @@ impl BaseAgent for Relayer {
 
                 msg_ctxs.insert(
                     ContextKey {
-                        origin: origin.id(),
-                        destination: destination.id(),
+                        origin: origin.clone(),
+                        destination: destination.clone(),
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
@@ -696,10 +697,17 @@ impl BaseAgent for Relayer {
         // create a db mapping for server handlers
         let dbs: HashMap<u32, HyperlaneRocksDB> =
             self.dbs.iter().map(|(k, v)| (k.id(), v.clone())).collect();
+
+        let gas_enforcers: HashMap<_, _> = self
+            .msg_ctxs
+            .iter()
+            .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
+            .collect();
         let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
+            .with_gas_enforcers(gas_enforcers)
             .router();
 
         let server = self
@@ -964,8 +972,8 @@ impl Relayer {
             .keys()
             .filter_map(|destination| {
                 let key = ContextKey {
-                    origin: origin.id(),
-                    destination: destination.id(),
+                    origin: origin.clone(),
+                    destination: destination.clone(),
                 };
                 let context = self
                     .msg_ctxs
@@ -1248,7 +1256,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
     ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
         settings
-            .build_application_operation_verifiers(settings.origin_chains.iter(), core_metrics)
+            .build_application_operation_verifiers(settings.destination_chains.iter(), core_metrics)
             .await
             .into_iter()
             .filter_map(

@@ -143,7 +143,7 @@ const requiredProxyAdminFunctionSelectors = [
   'upgrade(address,address)',
   'upgradeAndCall(address,address,bytes)',
   'changeProxyAdmin(address,address)',
-].map((func) => ethers.utils.id(func).substring(0, 10));
+].map((func) => ethers.utils.id(func).substring(2, 10));
 
 /**
  * Check if contract bytecode matches ProxyAdmin patterns
