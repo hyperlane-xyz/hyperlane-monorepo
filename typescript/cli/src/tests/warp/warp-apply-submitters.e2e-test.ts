@@ -34,6 +34,7 @@ import {
   CORE_READ_CONFIG_PATH_2,
   CORE_READ_CONFIG_PATH_3,
   DEFAULT_E2E_TEST_TIMEOUT,
+  JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
   JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
@@ -58,7 +59,7 @@ describe('hyperlane warp apply with submitters', async function () {
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
-  let warpConfig: WarpRouteDeployConfig;
+  let warpDeployConfig: WarpRouteDeployConfig;
   let timelockInstance: TimelockController;
   let chain3IcaAddress: Address;
   let WARP_DEPLOY_CONFIG_PATH: string;
@@ -149,7 +150,7 @@ describe('hyperlane warp apply with submitters', async function () {
 
   beforeEach(async function () {
     ownerAddress = new Wallet(ANVIL_KEY).address;
-    warpConfig = {
+    warpDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.native,
         mailbox: chain2Addresses.mailbox,
@@ -197,10 +198,10 @@ describe('hyperlane warp apply with submitters', async function () {
   async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
     // currently warp deploy is not writing the deploy config to the registry
     // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpConfig);
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
     await hyperlaneWarpDeploy(WARP_DEPLOY_CONFIG_PATH, WARP_ROUTE_ID);
 
-    return warpConfig;
+    return warpDeployConfig;
   }
 
   function getTimelockExecuteTxFile(logs: string): CallData {
@@ -222,14 +223,14 @@ describe('hyperlane warp apply with submitters', async function () {
 
   describe(TxSubmitterType.TIMELOCK_CONTROLLER, () => {
     it('should be able to propose transactions to a timelock contract and execute them', async () => {
-      warpConfig[CHAIN_NAME_3].owner = timelockInstance.address;
+      warpDeployConfig[CHAIN_NAME_3].owner = timelockInstance.address;
       await deployAndExportWarpRoute();
 
       const expectedUpdatedGasValue = '900';
-      warpConfig[CHAIN_NAME_3].destinationGas = {
+      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
         [chain2DomainId]: expectedUpdatedGasValue,
       };
-      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
 
       const res = await hyperlaneWarpApplyRaw({
         strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
@@ -237,20 +238,7 @@ describe('hyperlane warp apply with submitters', async function () {
       });
 
       // get the timelock output file from the logs
-      const maybeGeneratedTxFilePath = res
-        .text()
-        .match(
-          /\.\/generated\/transactions\/anvil3-timelockController-\d+-receipts\.json/,
-        );
-      assert(maybeGeneratedTxFilePath, 'expected the tx file output');
-
-      const [generatedTxFilePath] = maybeGeneratedTxFilePath;
-      const txFile: CallData[] = readYamlOrJson(generatedTxFilePath);
-      const executeTransaction = txFile.pop();
-      assert(
-        executeTransaction,
-        'expected the timelock execute tx to be at the end of the receipts array',
-      );
+      const executeTransaction = getTimelockExecuteTxFile(res.text());
 
       const tx = await chain3Signer.sendTransaction(executeTransaction);
       await tx.wait();
@@ -269,7 +257,7 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should be able to propose transactions to a timelock contract using an ICA', async () => {
-      warpConfig[CHAIN_NAME_3].owner = timelockInstance.address;
+      warpDeployConfig[CHAIN_NAME_3].owner = timelockInstance.address;
       await deployAndExportWarpRoute();
 
       // Set the timelock to use the ICA to propose txs
@@ -285,10 +273,10 @@ describe('hyperlane warp apply with submitters', async function () {
       });
 
       const expectedUpdatedGasValue = '900';
-      warpConfig[CHAIN_NAME_3].destinationGas = {
+      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
         [chain2DomainId]: expectedUpdatedGasValue,
       };
-      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
 
       const res = await hyperlaneWarpApplyRaw({
         strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
@@ -298,7 +286,6 @@ describe('hyperlane warp apply with submitters', async function () {
 
       // get the timelock output file from the logs
       const executeTransaction = getTimelockExecuteTxFile(res.text());
-      console.log(executeTransaction);
 
       const tx = await chain3Signer.sendTransaction(executeTransaction);
       await tx.wait();
@@ -314,6 +301,39 @@ describe('hyperlane warp apply with submitters', async function () {
           chain2DomainId
         ],
       ).to.equal(expectedUpdatedGasValue);
+    });
+  });
+
+  describe(TxSubmitterType.INTERCHAIN_ACCOUNT, () => {
+    it('should relay the ICA transaction to update the warp on the destination chain', async () => {
+      // Transfer ownership of the warp token on chain3 to the ICA account
+      warpDeployConfig[CHAIN_NAME_3].owner = chain3IcaAddress;
+      await deployAndExportWarpRoute();
+
+      // Update the remote gas for chain2 on chain3 and run warp apply with an ICA strategy
+      const expectedChain2Gas = '46000';
+      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
+        [chain2DomainId]: expectedChain2Gas,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      await hyperlaneWarpApplyRaw({
+        strategyUrl: JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
+        warpRouteId: WARP_ROUTE_ID,
+        relay: true,
+      });
+
+      const updatedWarpDeployConfig_3_2 = await readWarpConfig(
+        CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH,
+        WARP_DEPLOY_CONFIG_PATH,
+      );
+
+      expect(
+        updatedWarpDeployConfig_3_2[CHAIN_NAME_3].destinationGas![
+          chain2DomainId
+        ],
+      ).to.equal(expectedChain2Gas);
     });
   });
 });
