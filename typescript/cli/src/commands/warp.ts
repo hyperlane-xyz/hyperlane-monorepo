@@ -4,7 +4,6 @@ import { CommandModule } from 'yargs';
 
 import {
   ChainName,
-  ChainSubmissionStrategySchema,
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
@@ -34,6 +33,7 @@ import {
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
+import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
@@ -141,7 +141,7 @@ export const apply: CommandModuleWithWarpApplyContext<
     logCommandHeader('Hyperlane Warp Apply');
 
     if (strategyUrl)
-      ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
+      ExtendedChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
 
     await runWarpRouteApply({
       context,
