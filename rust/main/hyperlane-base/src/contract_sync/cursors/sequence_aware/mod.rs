@@ -285,7 +285,7 @@ mod tests {
 
         let store_arc: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<H256>> = Arc::new(store);
 
-        let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
+        let cursor = ForwardBackwardSequenceAwareSyncCursor::new(
             &domain,
             Arc::new(metrics),
             latest_sequence_querier,
@@ -297,12 +297,6 @@ mod tests {
         .await
         .expect("Failed to instantiate ForwardBackwardSequenceAwareSyncCursor");
 
-        let next_range = cursor
-            .backward
-            .get_next_range()
-            .await
-            .expect("Failed to get next range");
-
-        assert_eq!(next_range, Some(90..=99));
+        assert_eq!(cursor.backward.lowest_block_height_or_sequence, 90);
     }
 }
