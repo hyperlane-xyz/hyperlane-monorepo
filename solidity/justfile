@@ -1,39 +1,41 @@
-rpc_endpoint_b3 := "https://sepolia.b3.fun/http"
-rpc_endpoint_ape := "https://curtis.rpc.caldera.xyz/http"
 rpc_endpoint_everclear_staging := "https://rpc.everclear.raas.gelato.cloud"
 rpc_endpoint_base := "https://mainnet.base.org"
 rpc_endpoint_ethereum := "https://eth.llamarpc.com"
 chain_id_ethereum := "1"
-chain_id_b3 := "1993"
-chain_id_ape := "33111"
 chain_id_everclear_staging := "25327"
 chain_id_base := "8453"
 chain_id_tron_nile := "3448148188"
-polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
+
 polymer_prover_addr_mainnet := "0x95ccEAE71605c5d97A0AC0EA13013b058729d075"
-polymer_prover_addr_testnet_sigs := "0x796e7B16b8A8E7eA24Ca4E000E245bB4550627cB"
-mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
-mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
-mailbox_contract_addr_everclear_staging := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
+
+# Default mailboxes for each chain
 mailbox_contract_addr_base := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 mailbox_contract_addr_tron_nile := "0x77D2287AFF6124AC5E01F417AD97CD39F2C31DF7"
 mailbox_contract_addr_tron_mainnet := "0x5b34081e9d453fc2ba925d893583d89d1b7175dd"
+mailbox_contract_addr_everclear_staging := "0x7f50C5776722630a0024fAE05fDe8b47571D7B39" 
 mailbox_contract_addr_ethereum := "0xE4412AEa45a7121042c33b65291d11F71F4d0363"
-polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
-polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
-polymer_ism_addr_everclear_staging := "0x593ca6a919b9946aa8a9abfd7c499f3fee8d7a9e"
-polymer_ism_addr_everclear_for_ethereum:= "0xD99A49304227d3fE2c27A1F12Ef66A95b95837b6"
-polymer_ism_addr_base := "0x568638bde8a0d48f291d516fcf05d70f019ebb7e"
+
+
+# Polymer isms deployed on hub chain 
+# This default routing ism is what external dapps point to, and it is configured to route messages to polymer isms below 
+default_fallback_routing_ism_addr_everclear_staging := "0xC2dA87C431086Be8925dFd14c595B3E9c7e9efAf" 
+polymer_ism_addr_everclear_for_ethereum:= "0xDB963a2946ccef623fD84D653eA08A02D5Ba5E83"
 polymer_ism_addr_everclear_staging_for_tron := "0xA967466F5A06955ae77CF48520002A4CC678149a"
-polymer_ism_addr_everclear_staging_for_tron_testnet_sigs := "0xc8B8cB15C3a45FeE5A1669C3a4A57F835A6a1d32"
+polymer_ism_addr_everclear_staging_for_base := "0x5e5477B143cfC8Bf634097a96D60a5a563ae6c9C"
 polymer_ism_addr_everclear_staging_for_tron_mainnet := "0x62f83F42a4AA0d06A0cae9426bed3F066D4CD323"
-polymer_ism_addr_ethereum := "0x007A4E80001a87be296A6714A0Ba14c8eF56e557"
-default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53c46"
-default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
-default_fallback_routing_ism_addr_everclear_staging := "0xC2dA87C431086Be8925dFd14c595B3E9c7e9efAf"
-default_fallback_routing_ism_addr_base := "0x9946b5c0efb676c8fc9d928877d9eb578b73ec15"
-default_mailbox_contract_addr_everclear_staging := "0x7f50C5776722630a0024fAE05fDe8b47571D7B39"
-default_mailbox_contract_addr_base := "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+
+# Polymer isms deployed on spokes 
+polymer_ism_addr_base_for_everclear_staging := "0x1192D912a4587D92Fa6df3ade9088c96a99a175c"
+polymer_ism_addr_ethereum_for_everclear_staging := "0x5DF842c9e557A34431d43f48e77ac28125e4fCf8"
+
+# Domain routing mailboxes
+# Testing Dapps 
+simple_sender_receiver_addr_everclear_staging := "0x9e76B82AF2209D113beaa676113A7A8a0792e7B4"
+simple_sender_receiver_addr_base := "0xF022683a3dCeD60d21B44ADCF1856beEB64e6c96"
+simple_sender_receiver_addr_ethereum :="0xFF9aA19636c327a5c64941448462B07E103E7206"
+
+# Not sure what these are, keeping here in case they become relevant
+default_mailbox_contract_addr_everclear_staging := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 domain_routing_hook_addr_everclear_staging := "0x25e08Cab980ecA621dEc42aC781705DA107458B5"
@@ -41,26 +43,7 @@ fallback_domain_receipt_routing_hook_addr_everclear_staging := "0xf0093922afa203
 protocol_fee_hook_addr_everclear_staging := "0xC49aF4965264FA7BB6424CE37aA06773ad177224"
 mock_hook_addr_everclear_staging := "0x840E5AaDa7A7aaB5F06C5D3152512A246792183F"
 fallback_domain_routing_hook_addr_everclear_staging := "0x2198bF096FC8C3C05C4B5a53ACe8D9dA3E94ef95"
-simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
-simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
-simple_sender_receiver_addr_everclear_staging := "0x02b6ece368d5de946edb4710c7579f7fd9e6244e"
-simple_sender_receiver_addr_everclear_staging_for_tron_testnet_sigs := "0x95b3640F88DECe1b14E813C03F80dfe0BdE23dc0"
-simple_sender_receiver_addr_base := "0xc81686396C44dD0f39A76de2BeC5CCE2eE3d4548"
-simple_sender_receiver_addr_ethereum :="0x442942a885d6cE479BDfee1481E0Dc438878EA4a"
 
-deploy-mailbox-b3:
-    export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
-    forge script script/DeployMailbox.s.sol:DeployMailbox \
-        --rpc-url "{{ rpc_endpoint_b3 }}" \
-        --broadcast \
-        -vvvv
-
-deploy-mailbox-ape:
-    export HYPERLANE_DOMAIN_ID="{{ chain_id_ape }}" && \
-    forge script script/DeployMailbox.s.sol:DeployMailbox \
-        --rpc-url "{{ rpc_endpoint_ape }}" \
-        --broadcast \
-        -vvvv
 
 deploy-mailbox-base:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_base }}" && \
@@ -80,22 +63,6 @@ deploy-mailbox-ethereum:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_ethereum }}" && \
     forge script script/DeployMailbox.s.sol:DeployMailbox \
         --rpc-url "{{ rpc_endpoint_ethereum }}" \
-        --broadcast \
-        -vvvv
-
-deploy-polymer-ism-b3:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
-    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
-        --rpc-url "{{ rpc_endpoint_b3 }}" \
-        --broadcast \
-        -vvvv
-
-deploy-polymer-ism-ape:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
-    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
-        --rpc-url "{{ rpc_endpoint_ape }}" \
         --broadcast \
         -vvvv
 
@@ -123,10 +90,9 @@ deploy-polymer-ism-everclearstaging-eth:
         --broadcast \
         -vvvv
 
-
 deploy-polymer-ism-everclear-staging:
     export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
@@ -140,13 +106,14 @@ deploy-polymer-ism-everclear-staging-for-tron:
         --broadcast \
         -vvvv
 
-deploy-polymer-ism-everclear-staging-for-tron-testnet-sigs:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_tron_nile }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_testnet_sigs }}" && \
+deploy-polymer-ism-everclear-staging-for-base:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
+
 
 deploy-polymer-ism-everclear-staging-for-tron-mainnet:
     export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_tron_mainnet }}" && \
@@ -156,28 +123,10 @@ deploy-polymer-ism-everclear-staging-for-tron-mainnet:
         --broadcast \
         -vvvv
 
-deploy-default-fallback-routing-ism-b3:
-    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
-    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_ape }}" && \
-    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_b3 }}" && \
-    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
-        --rpc-url "{{ rpc_endpoint_b3 }}" \
-        --broadcast \
-        -vvvv
-
-deploy-default-fallback-routing-ism-ape:
-    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
-    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_b3 }}" && \
-    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_ape }}" && \
-    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
-        --rpc-url "{{ rpc_endpoint_ape }}" \
-        --broadcast \
-        -vvvv
-
 deploy-default-fallback-routing-ism-everclear-staging:
-    export LOCAL_MAILBOX_ADDRESS="{{ default_mailbox_contract_addr_everclear_staging }}" && \
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_base }}" && \
-    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_base }}" && \
     forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
@@ -186,21 +135,21 @@ deploy-default-fallback-routing-ism-everclear-staging:
 deploy-default-fallback-routing-ism-base:
     export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
     export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_everclear_staging }}" && \
-    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_base }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_base_for_everclear_staging }}" && \
     forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
         --rpc-url "{{ rpc_endpoint_base }}" \
         --broadcast \
         -vvvv
 
 deploy-domain-routing-mailbox-everclear-staging:
-    export DEFAULT_MAILBOX_ADDRESS="{{ default_mailbox_contract_addr_everclear_staging }}" && \
+    export DEFAULT_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
     forge script script/DeployDomainRoutingMailbox.s.sol:DeployDomainRoutingMailbox \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
 deploy-domain-routing-mailbox-base:
-    export DEFAULT_MAILBOX_ADDRESS="{{ default_mailbox_contract_addr_base }}" && \
+    export DEFAULT_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
     forge script script/DeployDomainRoutingMailbox.s.sol:DeployDomainRoutingMailbox \
         --rpc-url "{{ rpc_endpoint_base }}" \
         --broadcast \
@@ -248,25 +197,9 @@ deploy-domain-routing-hook-everclear-staging:
         --broadcast \
         -vvvv
 
-deploy-simple-app-b3:
-    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
-    export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_b3 }}" && \
-    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
-        --rpc-url "{{ rpc_endpoint_b3 }}" \
-        --broadcast \
-        -vvvv
-
-deploy-simple-app-ape:
-    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
-    export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_ape }}" && \
-    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
-        --rpc-url "{{ rpc_endpoint_ape }}" \
-        --broadcast \
-        -vvvv
-
 deploy-simple-app-base:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
-    export ISM_ADDRESS="{{ polymer_ism_addr_base }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_base_for_everclear_staging }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_base }}" \
         --broadcast \
@@ -274,7 +207,7 @@ deploy-simple-app-base:
 
 deploy-simple-app-ethereum:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ethereum }}" && \
-    export ISM_ADDRESS="{{ polymer_ism_addr_ethereum }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_ethereum_for_everclear_staging }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_ethereum }}" \
         --broadcast \
@@ -282,37 +215,9 @@ deploy-simple-app-ethereum:
 
 deploy-simple-app-everclear-staging:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
-    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
+    export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_everclear_staging }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
-        --broadcast \
-        -vvvv
-
-deploy-simple-app-everclear-staging-for-tron-testnet-sigs:
-    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
-    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_tron_testnet_sigs }}" && \
-    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
-        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
-        --broadcast \
-        -vvvv
-
-send-message-b3-to-ape:
-    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_b3 }}" && \
-    export DESTINATION_DOMAIN="{{ chain_id_ape }}" && \
-    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ape }}" && \
-    export MESSAGE_CONTENT="Hello from B3 to Ape!" && \
-    forge script script/SendMessage.s.sol:SendMessage \
-        --rpc-url "{{ rpc_endpoint_b3 }}" \
-        --broadcast \
-        -vvvv
-
-send-message-ape-to-b3:
-    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ape }}" && \
-    export DESTINATION_DOMAIN="{{ chain_id_b3 }}" && \
-    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_b3 }}" && \
-    export MESSAGE_CONTENT="Hello from Ape Curtis to B3 Sepolia!" && \
-    forge script script/SendMessage.s.sol:SendMessage \
-        --rpc-url "{{ rpc_endpoint_ape }}" \
         --broadcast \
         -vvvv
 
@@ -347,7 +252,7 @@ send-message-ethereum-to-everclear-staging:
         -vvvv
 
 send-message-everclear-to-ethereum-staging:
-    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear }}" && \
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear_staging }}" && \
     export DESTINATION_DOMAIN="{{ chain_id_ethereum }}" && \
     export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ethereum }}" && \
     export MESSAGE_CONTENT="Hello from Everclear Staging to Ethereum !" && \
@@ -356,19 +261,8 @@ send-message-everclear-to-ethereum-staging:
         --broadcast \
         -vvvv
 
-test-mailbox-contract-deployment-b3:
-    cast call "{{ mailbox_contract_addr_b3 }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_b3 }}"
-    cast call "{{ mailbox_contract_addr_b3 }}" "nonce()" --rpc-url "{{ rpc_endpoint_b3 }}"
-
-test-mailbox-contract-deployment-ape:
-    cast call "{{ mailbox_contract_addr_ape }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_ape }}"
-    cast call "{{ mailbox_contract_addr_ape }}" "nonce()" --rpc-url "{{ rpc_endpoint_ape }}"
-
 debug-mailbox-everclear-staging:
-    cast call "{{ default_mailbox_contract_addr_everclear_staging }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
-
-debug-hub-gateway-everclear-staging:
-    cast call "0xEc86D47d98EeeF824Ff79fAE2cFA3Fd57Ab87F9D" "mailbox()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
+    cast call "{{ mailbox_contract_addr_everclear_staging }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
 configure-mailbox-required-hook-everclear-staging:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
@@ -377,9 +271,6 @@ configure-mailbox-required-hook-everclear-staging:
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
-
-display-origin-mailbox-polymer-ism-everclear-staging:
-    cast call "{{ polymer_ism_addr_everclear_staging }}" "originMailbox()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
 debug-msg-sending-base-everclear-staging:
     forge test --match-path script/DebugSendingV2.sol --match-test test_do_fork -vvvv
@@ -417,19 +308,29 @@ configure-default-fallback-routing-ism-everclear-staging-for-tron:
         --broadcast \
         -vvvv
 
-configure-default-fallback-routing-ism-everclear-staging-for-tron-testnet-sigs:
+configure-default-fallback-routing-ism-everclear-staging-for-base:
     export DEFAULT_FALLBACK_ROUTING_ISM_ADDRESS="{{ default_fallback_routing_ism_addr_everclear_staging }}" && \
-    export ORIGIN_DOMAIN="{{ chain_id_tron_nile }}" && \
-    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_tron_testnet_sigs }}" && \
+    export ORIGIN_DOMAIN="{{ chain_id_base }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_base }}" && \
     forge script script/ConfigureDefaultFallbackRoutingIsm.s.sol:ConfigureDefaultFallbackRoutingIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
+
 configure-default-fallback-routing-ism-everclear-staging-for-tron-mainnet:
     export DEFAULT_FALLBACK_ROUTING_ISM_ADDRESS="{{ default_fallback_routing_ism_addr_everclear_staging }}" && \
     export ORIGIN_DOMAIN="728126428" && \
     export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging_for_tron_mainnet }}" && \
+    forge script script/ConfigureDefaultFallbackRoutingIsm.s.sol:ConfigureDefaultFallbackRoutingIsm \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+configure-default-fallback-routing-ism-everclear-staging-for-ethereum:
+    export DEFAULT_FALLBACK_ROUTING_ISM_ADDRESS="{{ default_fallback_routing_ism_addr_everclear_staging }}" && \
+    export ORIGIN_DOMAIN="{{ chain_id_ethereum }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_for_ethereum }}" && \
     forge script script/ConfigureDefaultFallbackRoutingIsm.s.sol:ConfigureDefaultFallbackRoutingIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
