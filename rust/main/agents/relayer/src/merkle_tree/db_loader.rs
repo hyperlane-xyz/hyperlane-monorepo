@@ -17,34 +17,34 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
 
-use crate::processor::ProcessorExt;
+use crate::db_loader::DbLoaderExt;
 
 use super::builder::MerkleTreeBuilder;
 
-const PREFIX: &str = "processor::merkle_tree";
+const PREFIX: &str = "db_loader::merkle_tree";
 
 /// Finds unprocessed merkle tree insertions and adds them to the prover sync
 #[derive(new)]
-pub struct MerkleTreeProcessor {
+pub struct MerkleTreeDbLoader {
     db: HyperlaneRocksDB,
-    metrics: MerkleTreeProcessorMetrics,
+    metrics: MerkleTreeDbLoaderMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     #[new(default)]
     leaf_index: u32,
 }
 
-impl Debug for MerkleTreeProcessor {
+impl Debug for MerkleTreeDbLoader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MerkleTreeProcessor {{ leaf_index: {:?} }}",
+            "MerkleTreeDbLoader {{ leaf_index: {:?} }}",
             self.leaf_index
         )
     }
 }
 
 #[async_trait]
-impl ProcessorExt for MerkleTreeProcessor {
+impl DbLoaderExt for MerkleTreeDbLoader {
     fn name(&self) -> String {
         format!("{}::{}", PREFIX, self.domain().name())
     }
@@ -82,7 +82,7 @@ impl ProcessorExt for MerkleTreeProcessor {
     }
 }
 
-impl MerkleTreeProcessor {
+impl MerkleTreeDbLoader {
     async fn next_unprocessed_leaf(&self) -> Result<Option<MerkleTreeInsertion>> {
         let begin = Instant::now();
         let leaf = if let Some(insertion) = self.retrieve().await? {
@@ -121,7 +121,7 @@ impl MerkleTreeProcessor {
 }
 
 #[derive(Debug, Clone)]
-pub struct MerkleTreeProcessorMetrics {
+pub struct MerkleTreeDbLoaderMetrics {
     latest_tree_insertion_index_gauge: IntGauge,
     merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounter,
     merkle_tree_retrieve_insertions_count: IntCounter,
@@ -129,7 +129,7 @@ pub struct MerkleTreeProcessorMetrics {
     merkle_tree_ingest_message_ids_count: IntCounter,
 }
 
-impl MerkleTreeProcessorMetrics {
+impl MerkleTreeDbLoaderMetrics {
     pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
             latest_tree_insertion_index_gauge: metrics

@@ -10,11 +10,11 @@ use tracing::{warn, Span};
 use tracing_futures::Instrument;
 
 #[async_trait]
-pub trait ProcessorExt: Send + Debug {
-    /// The name of this processor
+pub trait DbLoaderExt: Send + Debug {
+    /// The name of this db loader
     fn name(&self) -> String;
 
-    /// The domain this processor is getting messages from.
+    /// The domain this db loader is getting messages from.
     fn domain(&self) -> &HyperlaneDomain;
 
     /// One round of processing, extracted from infinite work loop for
@@ -23,12 +23,12 @@ pub trait ProcessorExt: Send + Debug {
 }
 
 #[derive(new)]
-pub struct Processor {
-    ticker: Box<dyn ProcessorExt>,
+pub struct DbLoader {
+    ticker: Box<dyn DbLoaderExt>,
     task_monitor: TaskMonitor,
 }
 
-impl Processor {
+impl DbLoader {
     pub fn spawn(self, span: Span) -> JoinHandle<()> {
         let task_monitor = self.task_monitor.clone();
         let name = self.ticker.name();
@@ -45,7 +45,7 @@ impl Processor {
     async fn main_loop(mut self) {
         loop {
             if let Err(err) = self.ticker.tick().await {
-                warn!(error=%err, "Error in processor tick");
+                warn!(error=%err, "Error in db_loader tick");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         }

@@ -83,7 +83,7 @@ pub struct MessageContext {
     pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
 }
 
-/// A message that the submitter can and should try to submit.
+/// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,

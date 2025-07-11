@@ -25,8 +25,7 @@ use crate::{
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
-/// A pending operation that will be run by the submitter and cause a
-/// transaction to be sent.
+/// A pending operation that will be processed by the MessageProcessor.
 ///
 /// There are three stages to the lifecycle of a pending operation:
 ///

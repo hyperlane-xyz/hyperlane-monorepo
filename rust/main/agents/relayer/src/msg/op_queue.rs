@@ -55,7 +55,7 @@ impl OpQueue {
             }
         }
 
-        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+        // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {
             debug!(

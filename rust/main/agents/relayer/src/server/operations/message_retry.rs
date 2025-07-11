@@ -3,7 +3,9 @@ use derive_new::new;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast::Sender, mpsc};
 
-use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
+use crate::{
+    msg::message_processor::MESSAGE_PROCESSOR_QUEUE_COUNT, settings::matching_list::MatchingList,
+};
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
@@ -55,11 +57,11 @@ async fn handler(
     tracing::debug!(?payload);
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
-    // Create a channel that can hold each chain's SerialSubmitter
+    // Create a channel that can hold each chain's MessageProcessor
     // message retry responses.
     // 3 queues for each chain (prepare, submit, confirm)
     let (transmitter, mut receiver) =
-        mpsc::channel(SUBMITTER_QUEUE_COUNT * state.destination_chains);
+        mpsc::channel(MESSAGE_PROCESSOR_QUEUE_COUNT * state.destination_chains);
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
