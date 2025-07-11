@@ -6,22 +6,19 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
-use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::Felt;
-use starknet::providers::AnyProvider;
-use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::routing_ism::RoutingIsm as StarknetRoutingIsmInternal;
+use crate::contracts::routing_ism::RoutingIsmReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
-use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
+use crate::{build_json_provider, ConnectionConf, JsonProvider, StarknetProvider};
 
 /// A reference to a RoutingISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetRoutingIsm {
-    contract: StarknetRoutingIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    contract: RoutingIsmReader<JsonProvider>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -29,29 +26,16 @@ pub struct StarknetRoutingIsm {
 impl StarknetRoutingIsm {
     /// Create a reference to a RoutingISM at a specific Starknet address on some
     /// chain
-    pub async fn new(
-        conn: &ConnectionConf,
-        locator: &ContractLocator<'_>,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let account = build_single_owner_account(&conn.url, signer).await?;
-
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+        let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
-
-        let contract = StarknetRoutingIsmInternal::new(ism_address, account);
+        let contract = RoutingIsmReader::new(ism_address, provider);
 
         Ok(Self {
             contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
-    }
-
-    #[allow(unused)]
-    pub fn contract(
-        &self,
-    ) -> &StarknetRoutingIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-        &self.contract
     }
 }
 

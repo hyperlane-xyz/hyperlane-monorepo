@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ZChainName, ZHash } from '../../../../metadata/customZodTypes.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
@@ -39,3 +40,22 @@ export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
 export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<
   typeof EV5ImpersonatedAccountTxSubmitterPropsSchema
 >;
+
+export const EvmSubmitterMetadataSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(TxSubmitterType.JSON_RPC),
+    ...EV5JsonRpcTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
+    ...EV5ImpersonatedAccountTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.GNOSIS_SAFE),
+    ...EV5GnosisSafeTxSubmitterPropsSchema.shape,
+  }),
+  z.object({
+    type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
+    ...EV5GnosisSafeTxBuilderPropsSchema.shape,
+  }),
+]);

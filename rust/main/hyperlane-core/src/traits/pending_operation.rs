@@ -72,6 +72,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// The recipient address of this operation.
     fn recipient_address(&self) -> &H256;
 
+    /// The message body of this operation.
+    fn body(&self) -> &[u8];
+
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
 
@@ -138,7 +141,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn confirm(&mut self) -> PendingOperationResult;
 
     /// Record the outcome of the operation
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,

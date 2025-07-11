@@ -16,10 +16,4 @@ export const rootHardhatConfig = {
     bail: true,
     import: 'tsx',
   },
-  warnings: {
-    // turn off all warnings for libs:
-    'fx-portal/**/*': {
-      default: 'off',
-    },
-  },
 };

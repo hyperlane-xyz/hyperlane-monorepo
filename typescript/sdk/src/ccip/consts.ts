@@ -291,26 +291,6 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  kroma: {
-    armProxy: {
-      address: '0x6E4d2dBBF8a1A943412aD451422FE11A25C781DE',
-      version: '1.0.0',
-    },
-    chainSelector: '3719320017875267166',
-    feeTokens: ['LINK', 'WETH'],
-    registryModule: {
-      address: '0xe87a456F364D1641F8123D4122Fc542282BFc0FA',
-      version: '1.5.0',
-    },
-    router: {
-      address: '0xE93E8B0d1b1CEB44350C8758ed1E2799CCee31aB',
-      version: '1.2.0',
-    },
-    tokenAdminRegistry: {
-      address: '0x447066676A5413682a881c63aed0F03f8ACf7E45',
-      version: '1.5.0',
-    },
-  },
   linea: {
     armProxy: {
       address: '0x1F8fbCf559f08FE7c4076f0d68DB861e1E27f95b',

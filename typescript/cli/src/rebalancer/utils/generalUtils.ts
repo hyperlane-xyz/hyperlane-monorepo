@@ -1,12 +1,13 @@
-import { monitorLogger } from './loggerUtils.js';
+import { Logger } from 'pino';
 
-export async function tryFn(fn: () => Promise<void>, context: string) {
+export async function tryFn(
+  fn: () => Promise<void>,
+  context: string,
+  logger: Logger,
+) {
   try {
     await fn();
   } catch (error) {
-    monitorLogger.error(
-      { context, err: error as Error },
-      `Error in ${context}`,
-    );
+    logger.error({ context, err: error as Error }, `Error in ${context}`);
   }
 }

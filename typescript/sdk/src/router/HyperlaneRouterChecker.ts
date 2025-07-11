@@ -150,6 +150,13 @@ export class HyperlaneRouterChecker<
     const router = this.app.router(this.app.getContracts(chain));
     const actualRemoteChains = await this.app.remoteChains(chain);
 
+    // If expectedRemoteChains is provided, only check those specific chains
+    // Otherwise, check all currently enrolled chains
+    const chainsToCheck =
+      expectedRemoteChains.length > 0
+        ? expectedRemoteChains.filter((c) => actualRemoteChains.includes(c))
+        : actualRemoteChains;
+
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
 
@@ -163,7 +170,7 @@ export class HyperlaneRouterChecker<
     const missingRouterDomains: ChainName[] = [];
 
     await Promise.all(
-      actualRemoteChains.map(async (remoteChain) => {
+      chainsToCheck.map(async (remoteChain) => {
         let remoteRouterAddress: string;
         try {
           remoteRouterAddress = this.app.routerAddress(remoteChain);
@@ -188,7 +195,7 @@ export class HyperlaneRouterChecker<
       }),
     );
 
-    const expectedRouterChains = actualRemoteChains.filter(
+    const expectedRouterChains = chainsToCheck.filter(
       (chain) => !missingRouterDomains.includes(chain),
     );
 

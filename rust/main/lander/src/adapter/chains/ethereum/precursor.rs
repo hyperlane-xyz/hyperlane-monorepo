@@ -54,9 +54,12 @@ impl EthereumTxPrecursor {
         EthereumTxPrecursor::new(tx, function)
     }
 
-    pub fn from_success_criteria(details: &PayloadDetails) -> Option<Self> {
+    pub fn from_success_criteria(details: &PayloadDetails, signer: H160) -> Option<Self> {
         use super::payload::parse_success_criteria;
 
-        parse_success_criteria(details).map(|(tx, function)| EthereumTxPrecursor::new(tx, function))
+        let (mut tx, function) = parse_success_criteria(details)?;
+        tx.set_from(signer);
+
+        Some(EthereumTxPrecursor::new(tx, function))
     }
 }

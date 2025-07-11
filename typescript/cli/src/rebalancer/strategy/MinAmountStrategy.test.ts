@@ -1,5 +1,6 @@
 import { AddressZero } from '@ethersproject/constants';
 import { expect } from 'chai';
+import { pino } from 'pino';
 
 import {
   type ChainMap,
@@ -12,6 +13,8 @@ import {
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
+
+const testLogger = pino({ level: 'silent' });
 
 describe('MinAmountStrategy', () => {
   let chain1: ChainName;
@@ -54,6 +57,7 @@ describe('MinAmountStrategy', () => {
             },
             tokensByChainName,
             totalCollateral,
+            testLogger,
           ),
       ).to.throw('At least two chains must be configured');
     });
@@ -82,6 +86,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
     });
 
@@ -109,6 +114,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
     });
 
@@ -138,6 +144,7 @@ describe('MinAmountStrategy', () => {
             },
             tokensByChainName,
             totalCollateral,
+            testLogger,
           ),
       ).to.throw('Minimum amount (-10) cannot be negative for chain chain2');
     });
@@ -168,6 +175,7 @@ describe('MinAmountStrategy', () => {
             },
             tokensByChainName,
             totalCollateral,
+            testLogger,
           ),
       ).to.throw(
         'Target (80) must be greater than or equal to min (100) for chain chain1',
@@ -200,6 +208,7 @@ describe('MinAmountStrategy', () => {
             },
             tokensByChainName,
             totalCollateral,
+            testLogger,
           ),
       ).to.throw(
         'Target (0.4) must be greater than or equal to min (0.5) for chain chain1',
@@ -231,6 +240,7 @@ describe('MinAmountStrategy', () => {
           },
           tokensByChainName,
           totalCollateral,
+          testLogger,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain2]: 200n,
@@ -264,6 +274,7 @@ describe('MinAmountStrategy', () => {
           },
           tokensByChainName,
           totalCollateral,
+          testLogger,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain3]: 300n,
@@ -296,6 +307,7 @@ describe('MinAmountStrategy', () => {
           },
           tokensByChainName,
           totalCollateral,
+          testLogger,
         ).getRebalancingRoutes({
           [chain1]: 100n,
           [chain2]: -2n,
@@ -329,6 +341,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances: RawBalances = {
@@ -365,6 +378,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances = {
@@ -416,6 +430,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances = {
@@ -466,6 +481,7 @@ describe('MinAmountStrategy', () => {
             },
             tokensByChainName,
             totalCollateral,
+            testLogger,
           ),
       ).to.throw(
         `Consider reducing the targets as the sum (340) is greater than sum of collaterals (300)`,
@@ -505,6 +521,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances = {
@@ -549,6 +566,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances = {
@@ -585,6 +603,7 @@ describe('MinAmountStrategy', () => {
         },
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
 
       const rawBalances: RawBalances = {

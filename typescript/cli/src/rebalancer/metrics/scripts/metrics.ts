@@ -1,9 +1,9 @@
+import { Logger } from 'pino';
 import { Counter, Gauge, Registry } from 'prom-client';
 
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { monitorLogger } from '../../utils/index.js';
 import {
   NativeWalletBalance,
   WarpRouteBalance,
@@ -128,6 +128,7 @@ export function updateTokenBalanceMetrics(
   token: Token,
   balanceInfo: WarpRouteBalance,
   warpRouteId: string,
+  logger: Logger,
 ) {
   const allChains = warpCore.getTokenChains().sort();
   const relatedChains = allChains.filter(
@@ -154,7 +155,7 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  monitorLogger.info(
+  logger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -165,7 +166,7 @@ export function updateTokenBalanceMetrics(
   if (balanceInfo.valueUSD) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    monitorLogger.info(
+    logger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -184,7 +185,7 @@ export function updateTokenBalanceMetrics(
       };
 
       warpRouteValueAtRisk.labels(labels).set(balanceInfo.valueUSD);
-      monitorLogger.info(
+      logger.info(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,
@@ -204,6 +205,7 @@ export function updateManagedLockboxBalanceMetrics(
   lockBoxAddress: string,
   balanceInfo: WarpRouteBalance,
   warpRouteId: string,
+  logger: Logger,
 ) {
   const metrics: WarpRouteMetricLabels = {
     chain_name: chainName,
@@ -220,7 +222,7 @@ export function updateManagedLockboxBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  monitorLogger.info(
+  logger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -230,7 +232,7 @@ export function updateManagedLockboxBalanceMetrics(
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    monitorLogger.info(
+    logger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -240,7 +242,10 @@ export function updateManagedLockboxBalanceMetrics(
   }
 }
 
-export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
+export function updateNativeWalletBalanceMetrics(
+  balance: NativeWalletBalance,
+  logger: Logger,
+) {
   walletBalanceGauge
     .labels({
       chain: balance.chain,
@@ -250,7 +255,7 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
       token_name: 'Native',
     })
     .set(balance.balance);
-  monitorLogger.info(
+  logger.info(
     {
       balanceInfo: balance,
     },
@@ -264,6 +269,7 @@ export function updateXERC20LimitsMetrics(
   bridgeAddress: Address,
   bridgeLabel: string,
   xERC20Address: Address,
+  logger: Logger,
 ) {
   const labels = {
     chain_name: token.chainName,
@@ -282,7 +288,7 @@ export function updateXERC20LimitsMetrics(
       .set(limit);
   }
 
-  monitorLogger.info(
+  logger.info(
     {
       ...labels,
       limits,

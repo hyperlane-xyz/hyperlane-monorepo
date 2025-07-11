@@ -1,0 +1,33 @@
+warpRouteId: USDC/lumia
+
+strategy:
+  rebalanceStrategy: weighted
+  # this config aims to maintain 80% of the total USDC on ethereum
+  chains:
+    base:
+      weighted:
+        weight: 1
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+
+    ethereum:
+      weighted:
+        weight: 12
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+
+    optimism:
+      weighted:
+        weight: 1
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE'
+
+    arbitrum:
+      weighted:
+        weight: 1
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'

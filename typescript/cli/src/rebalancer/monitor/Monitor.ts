@@ -1,4 +1,5 @@
 import EventEmitter from 'events';
+import { Logger } from 'pino';
 
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
@@ -10,7 +11,6 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import { monitorLogger } from '../utils/index.js';
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
@@ -27,6 +27,7 @@ export class Monitor implements IMonitor {
   constructor(
     private readonly checkFrequency: number,
     private readonly warpCore: WarpCore,
+    private readonly logger: Logger,
   ) {}
 
   // overloads from IMonitor
@@ -53,7 +54,7 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-      monitorLogger.debug(
+      this.logger.debug(
         { checkFrequency: this.checkFrequency },
         'Monitor started',
       );
@@ -61,13 +62,13 @@ export class Monitor implements IMonitor {
 
       while (this.isMonitorRunning) {
         try {
-          monitorLogger.debug('Polling cycle started');
+          this.logger.debug('Polling cycle started');
           const event: MonitorEvent = {
             tokensInfo: [],
           };
 
           for (const token of this.warpCore.tokens) {
-            monitorLogger.debug(
+            this.logger.debug(
               {
                 chain: token.chainName,
                 tokenSymbol: token.symbol,
@@ -85,7 +86,7 @@ export class Monitor implements IMonitor {
 
           // Emit the event warp routes info
           this.emitter.emit(MonitorEventType.TokenInfo, event);
-          monitorLogger.debug('Polling cycle completed');
+          this.logger.debug('Polling cycle completed');
         } catch (error) {
           this.emitter.emit(
             MonitorEventType.Error,
@@ -111,7 +112,7 @@ export class Monitor implements IMonitor {
 
     // After the loop has been gracefully terminated, we can clean up.
     this.emitter.removeAllListeners();
-    monitorLogger.info('Monitor stopped');
+    this.logger.info('Monitor stopped');
 
     // If stop() was called, resolve the promise to signal that we're done.
     if (this.resolveStop) {
@@ -125,7 +126,7 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      monitorLogger.warn(
+      this.logger.warn(
         {
           chain: token.chainName,
           tokenSymbol: token.symbol,
@@ -140,7 +141,7 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      monitorLogger.warn(
+      this.logger.warn(
         {
           chain: token.chainName,
           tokenSymbol: token.symbol,
@@ -159,7 +160,7 @@ export class Monitor implements IMonitor {
     // If stop is already in progress, return the existing promise
     if (this.stopPromise) return this.stopPromise;
 
-    monitorLogger.info('Stopping monitor...');
+    this.logger.info('Stopping monitor...');
     // Signal the while loop to terminate after its current iteration
     this.isMonitorRunning = false;
 

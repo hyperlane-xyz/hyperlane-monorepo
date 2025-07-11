@@ -1,4 +1,5 @@
 import { Contract, PopulatedTransaction } from 'ethers';
+import { Logger } from 'pino';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import {
@@ -19,7 +20,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { formatBigInt, monitorLogger, tryFn } from '../utils/index.js';
+import { formatBigInt, tryFn } from '../utils/index.js';
 
 import { PriceGetter } from './PriceGetter.js';
 import {
@@ -45,13 +46,16 @@ export class Metrics implements IMetrics {
     'function XERC20() view returns (address)',
     'function ERC20() view returns (address)',
   ] as const;
+  private readonly logger: Logger;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
     private readonly warpCore: WarpCore,
     private readonly warpRouteId: string,
+    logger: Logger,
   ) {
+    this.logger = logger.child({ class: Metrics.name });
     startMetricsServer(metricsRegister);
   }
 
@@ -91,9 +95,13 @@ export class Metrics implements IMetrics {
     token,
     bridgedSupply,
   }: MonitorEvent['tokensInfo'][number]) {
-    await tryFn(async () => {
-      await this.updateTokenMetrics(token, bridgedSupply);
-    }, 'Updating warp route metrics');
+    await tryFn(
+      async () => {
+        await this.updateTokenMetrics(token, bridgedSupply);
+      },
+      'Updating warp route metrics',
+      this.logger,
+    );
   }
 
   // Updates the metrics for a single token in a warp route.
@@ -102,23 +110,28 @@ export class Metrics implements IMetrics {
     bridgedSupply?: bigint,
   ): Promise<void> {
     const promises = [
-      tryFn(async () => {
-        const balanceInfo = await this.getTokenBridgedBalance(
-          token,
-          bridgedSupply,
-        );
+      tryFn(
+        async () => {
+          const balanceInfo = await this.getTokenBridgedBalance(
+            token,
+            bridgedSupply,
+          );
 
-        if (!balanceInfo) {
-          return;
-        }
+          if (!balanceInfo) {
+            return;
+          }
 
-        updateTokenBalanceMetrics(
-          this.warpCore,
-          token,
-          balanceInfo,
-          this.warpRouteId,
-        );
-      }, 'Getting bridged balance and value'),
+          updateTokenBalanceMetrics(
+            this.warpCore,
+            token,
+            balanceInfo,
+            this.warpRouteId,
+            this.logger,
+          );
+        },
+        'Getting bridged balance and value',
+        this.logger,
+      ),
     ];
 
     // For Sealevel collateral and synthetic tokens, there is an
@@ -127,35 +140,44 @@ export class Metrics implements IMetrics {
     // This is necessary if the recipient has never received any tokens before.
     if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
       promises.push(
-        tryFn(async () => {
-          const balance = await this.getSealevelAtaPayerBalance(
-            token,
-            this.warpRouteId,
-          );
+        tryFn(
+          async () => {
+            const balance = await this.getSealevelAtaPayerBalance(
+              token,
+              this.warpRouteId,
+            );
 
-          updateNativeWalletBalanceMetrics(balance);
-        }, 'Getting ATA payer balance'),
+            updateNativeWalletBalanceMetrics(balance, this.logger);
+          },
+          'Getting ATA payer balance',
+          this.logger,
+        ),
       );
     }
 
     if (token.isXerc20()) {
       promises.push(
-        tryFn(async () => {
-          const { limits, xERC20Address } = await this.getXERC20Info(token);
-          const routerAddress = token.addressOrDenom;
+        tryFn(
+          async () => {
+            const { limits, xERC20Address } = await this.getXERC20Info(token);
+            const routerAddress = token.addressOrDenom;
 
-          updateXERC20LimitsMetrics(
-            token,
-            limits,
-            routerAddress,
-            token.standard,
-            xERC20Address,
-          );
-        }, 'Getting xERC20 limits'),
+            updateXERC20LimitsMetrics(
+              token,
+              limits,
+              routerAddress,
+              token.standard,
+              xERC20Address,
+              this.logger,
+            );
+          },
+          'Getting xERC20 limits',
+          this.logger,
+        ),
       );
 
       if (!this.warpDeployConfig) {
-        monitorLogger.warn(
+        this.logger.warn(
           {
             tokenSymbol: token.symbol,
             chain: token.chainName,
@@ -172,7 +194,7 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.type !== TokenType.XERC20 &&
         currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
       ) {
-        monitorLogger.error(
+        this.logger.error(
           {
             tokenSymbol: token.symbol,
             chain: token.chainName,
@@ -189,44 +211,54 @@ export class Metrics implements IMetrics {
 
       for (const lockbox of extraLockboxes) {
         promises.push(
-          tryFn(async () => {
-            const { limits, xERC20Address } = await this.getExtraLockboxInfo(
-              token,
-              lockbox.lockbox,
-            );
-
-            updateXERC20LimitsMetrics(
-              token,
-              limits,
-              lockbox.lockbox,
-              'EvmManagedLockbox',
-              xERC20Address,
-            );
-          }, 'Getting extra lockbox limits'),
-          tryFn(async () => {
-            const balance = await this.getExtraLockboxBalance(
-              token,
-              lockbox.lockbox,
-            );
-
-            if (balance) {
-              const { tokenName, tokenAddress } =
-                await this.getManagedLockBoxCollateralInfo(
-                  token,
-                  lockbox.lockbox,
-                );
-
-              updateManagedLockboxBalanceMetrics(
-                this.warpCore,
-                token.chainName,
-                tokenName,
-                tokenAddress,
+          tryFn(
+            async () => {
+              const { limits, xERC20Address } = await this.getExtraLockboxInfo(
+                token,
                 lockbox.lockbox,
-                balance,
-                this.warpRouteId,
               );
-            }
-          }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
+
+              updateXERC20LimitsMetrics(
+                token,
+                limits,
+                lockbox.lockbox,
+                'EvmManagedLockbox',
+                xERC20Address,
+                this.logger,
+              );
+            },
+            'Getting extra lockbox limits',
+            this.logger,
+          ),
+          tryFn(
+            async () => {
+              const balance = await this.getExtraLockboxBalance(
+                token,
+                lockbox.lockbox,
+              );
+
+              if (balance) {
+                const { tokenName, tokenAddress } =
+                  await this.getManagedLockBoxCollateralInfo(
+                    token,
+                    lockbox.lockbox,
+                  );
+
+                updateManagedLockboxBalanceMetrics(
+                  this.warpCore,
+                  token.chainName,
+                  tokenName,
+                  tokenAddress,
+                  lockbox.lockbox,
+                  balance,
+                  this.warpRouteId,
+                  this.logger,
+                );
+              }
+            },
+            `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`,
+            this.logger,
+          ),
         );
       }
     }
@@ -240,7 +272,7 @@ export class Metrics implements IMetrics {
     bridgedSupply?: bigint,
   ): Promise<WarpRouteBalance | undefined> {
     if (!token.isHypToken()) {
-      monitorLogger.warn(
+      this.logger.warn(
         {
           tokenChain: token.chainName,
           tokenSymbol: token.symbol,
@@ -255,7 +287,7 @@ export class Metrics implements IMetrics {
     let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
 
     if (bridgedSupply === undefined) {
-      monitorLogger.warn(
+      this.logger.warn(
         {
           tokenChain: token.chainName,
           tokenSymbol: token.symbol,
@@ -440,7 +472,7 @@ export class Metrics implements IMetrics {
     try {
       balance = await erc20tokenAdapter.getBalance(lockboxAddress);
     } catch (error) {
-      monitorLogger.error(
+      this.logger.error(
         {
           lockboxAddress,
           chain: warpToken.chainName,

@@ -98,6 +98,22 @@ export const testXERC20Lockbox: ChainMetadata = {
   name: 'testxerc20lockbox',
 };
 
+export const testScale1: ChainMetadata = {
+  ...test1,
+  chainId: 9913377,
+  domainId: 9913377,
+  displayName: 'Test Scale 1',
+  name: 'testscale1',
+};
+
+export const testScale2: ChainMetadata = {
+  ...test1,
+  chainId: 9913378,
+  domainId: 9913378,
+  displayName: 'Test Scale 2',
+  name: 'testscale2',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
@@ -177,6 +193,8 @@ export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   testvsxerc20: testVSXERC20,
   testxerc20lockbox: testXERC20Lockbox,
   starknetdevnet: testStarknetChain,
+  testscale1: testScale1,
+  testscale2: testScale2,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

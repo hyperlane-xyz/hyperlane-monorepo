@@ -12,6 +12,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';
+import { isStarknetFeeToken } from '../utils/starknet.js';
 
 import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
@@ -67,6 +68,7 @@ import {
 } from './adapters/SealevelTokenAdapter.js';
 import {
   StarknetHypCollateralAdapter,
+  StarknetHypFeeAdapter,
   StarknetHypNativeAdapter,
   StarknetHypSyntheticAdapter,
 } from './adapters/StarknetTokenAdapter.js';
@@ -300,6 +302,10 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
       return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
+      });
+    } else if (isStarknetFeeToken(chainName, addressOrDenom)) {
+      return new StarknetHypFeeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
       });
     } else if (standard === TokenStandard.StarknetHypNative) {
       return new StarknetHypNativeAdapter(chainName, multiProvider, {

@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
 import type {
@@ -6,7 +8,6 @@ import type {
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { strategyLogger } from '../utils/index.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 
@@ -16,13 +17,15 @@ export type Delta = { chain: ChainName; amount: bigint };
 export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
   protected readonly metrics?: Metrics;
+  protected readonly logger: Logger;
 
-  constructor(chains: ChainName[], metrics?: Metrics) {
+  constructor(chains: ChainName[], logger: Logger, metrics?: Metrics) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
       throw new Error('At least two chains must be configured');
     }
     this.chains = chains;
+    this.logger = logger;
     this.metrics = metrics;
   }
 
@@ -30,14 +33,14 @@ export abstract class BaseStrategy implements IStrategy {
    * Main method to get rebalancing routes
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
-    strategyLogger.info(
+    this.logger.info(
       {
         context: this.constructor.name,
         rawBalances,
       },
       'Input rawBalances',
     );
-    strategyLogger.info(
+    this.logger.info(
       {
         context: this.constructor.name,
       },
@@ -48,14 +51,14 @@ export abstract class BaseStrategy implements IStrategy {
     // Get balances categorized by surplus and deficit
     const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
 
-    strategyLogger.debug(
+    this.logger.debug(
       {
         context: this.constructor.name,
         surpluses,
       },
       'Surpluses calculated',
     );
-    strategyLogger.debug(
+    this.logger.debug(
       {
         context: this.constructor.name,
         deficits,
@@ -73,14 +76,14 @@ export abstract class BaseStrategy implements IStrategy {
       0n,
     );
 
-    strategyLogger.debug(
+    this.logger.debug(
       {
         context: this.constructor.name,
         totalSurplus: totalSurplus.toString(),
       },
       'Total surplus calculated',
     );
-    strategyLogger.debug(
+    this.logger.debug(
       {
         context: this.constructor.name,
         totalDeficit: totalDeficit.toString(),
@@ -90,7 +93,7 @@ export abstract class BaseStrategy implements IStrategy {
 
     // If total surplus is less than total deficit, scale down deficits proportionally
     if (totalSurplus < totalDeficit) {
-      strategyLogger.warn(
+      this.logger.warn(
         {
           context: this.constructor.name,
           totalSurplus: totalSurplus.toString(),
@@ -109,7 +112,7 @@ export abstract class BaseStrategy implements IStrategy {
         deficit.amount = newAmount;
       }
 
-      strategyLogger.debug(
+      this.logger.debug(
         {
           context: this.constructor.name,
           deficits,
@@ -156,14 +159,14 @@ export abstract class BaseStrategy implements IStrategy {
       }
     }
 
-    strategyLogger.debug(
+    this.logger.debug(
       {
         context: this.constructor.name,
         routes,
       },
       'Generated routes',
     );
-    strategyLogger.info(
+    this.logger.info(
       {
         context: this.constructor.name,
         numberOfRoutes: routes.length,

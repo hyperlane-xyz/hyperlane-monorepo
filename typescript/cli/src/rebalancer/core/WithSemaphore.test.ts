@@ -1,6 +1,7 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
+import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { RebalancerStrategyOptions } from '@hyperlane-xyz/sdk';
@@ -12,6 +13,8 @@ import { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { WithSemaphore } from './WithSemaphore.js';
 
 chai.use(chaiAsPromised);
+
+const testLogger = pino({ level: 'silent' });
 
 class MockRebalancer implements IRebalancer {
   rebalance(_routes: RebalancingRoute[]): Promise<void> {
@@ -55,7 +58,7 @@ describe('WithSemaphore', () => {
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, rebalancer);
+    const withSemaphore = new WithSemaphore(config, rebalancer, testLogger);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
@@ -67,7 +70,7 @@ describe('WithSemaphore', () => {
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, rebalancer);
+    const withSemaphore = new WithSemaphore(config, rebalancer, testLogger);
     await withSemaphore.rebalance([]);
 
     expect(rebalanceSpy.calledOnce).to.be.false;
@@ -84,7 +87,7 @@ describe('WithSemaphore', () => {
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, rebalancer);
+    const withSemaphore = new WithSemaphore(config, rebalancer, testLogger);
     await withSemaphore.rebalance(routes);
 
     expect(rebalanceSpy.calledOnce).to.be.true;
@@ -111,7 +114,7 @@ describe('WithSemaphore', () => {
     ];
 
     const rebalancer = new MockRebalancer();
-    const withSemaphore = new WithSemaphore(config, rebalancer);
+    const withSemaphore = new WithSemaphore(config, rebalancer, testLogger);
 
     await expect(withSemaphore.rebalance(routes)).to.be.rejectedWith(
       `Chain ${routes[0].origin} not found in config`,
@@ -129,7 +132,7 @@ describe('WithSemaphore', () => {
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
-    const withSemaphore = new WithSemaphore(config, rebalancer);
+    const withSemaphore = new WithSemaphore(config, rebalancer, testLogger);
 
     const rebalancePromise1 = withSemaphore.rebalance(routes);
     const rebalancePromise2 = withSemaphore.rebalance(routes);

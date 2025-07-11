@@ -1,4 +1,5 @@
 import { BigNumber } from 'bignumber.js';
+import { Logger } from 'pino';
 
 import {
   type ChainMap,
@@ -19,15 +20,19 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  */
 export class MinAmountStrategy extends BaseStrategy {
   private readonly config: MinAmountStrategyConfig = {};
+  protected readonly logger: Logger;
 
   constructor(
     config: MinAmountStrategyConfig,
     private readonly tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
+    logger: Logger,
     metrics?: Metrics,
   ) {
     const chains = Object.keys(config);
-    super(chains, metrics);
+    const log = logger.child({ class: MinAmountStrategy.name });
+    super(chains, log, metrics);
+    this.logger = log;
 
     const minAmountType = config[chains[0]].minAmount.type;
     this.validateAmounts(initialTotalCollateral, minAmountType, config);
@@ -56,6 +61,7 @@ export class MinAmountStrategy extends BaseStrategy {
     }
 
     this.config = config;
+    this.logger.info('MinAmountStrategy created');
   }
 
   /**

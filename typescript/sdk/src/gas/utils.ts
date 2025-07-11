@@ -16,7 +16,11 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 
-import { ProtocolAgnositicGasOracleConfig } from './oracle/types.js';
+import {
+  IgpCostData,
+  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+} from './oracle/types.js';
 
 export interface GasPriceConfig {
   amount: string;
@@ -180,6 +184,7 @@ export function getLocalStorageGasOracleConfig({
   gasOracleParams,
   exchangeRateMarginPct,
   gasPriceModifier,
+  typicalCostGetter,
 }: {
   local: ChainName;
   localProtocolType: ProtocolType;
@@ -190,6 +195,11 @@ export function getLocalStorageGasOracleConfig({
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ) => BigNumberJs.Value;
+  typicalCostGetter?: (
+    local: ChainName,
+    remote: ChainName,
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ) => IgpCostData;
 }): ChainMap<ProtocolAgnositicGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -239,12 +249,8 @@ export function getLocalStorageGasOracleConfig({
 
     // Get a prospective gasOracleConfig, adjusting the gas price and exchange rate
     // as needed to account for precision loss (e.g. if the gas price is super small).
-    let gasOracleConfig = adjustForPrecisionLoss(
-      gasPrice,
-      exchangeRate,
-      remoteDecimals,
-      remote,
-    );
+    let gasOracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost =
+      adjustForPrecisionLoss(gasPrice, exchangeRate, remoteDecimals, remote);
 
     // Apply the modifier if provided.
     if (gasPriceModifier) {
@@ -257,6 +263,13 @@ export function getLocalStorageGasOracleConfig({
       );
     }
 
+    if (typicalCostGetter) {
+      gasOracleConfig.typicalCost = typicalCostGetter(
+        local,
+        remote,
+        gasOracleConfig,
+      );
+    }
     return {
       ...agg,
       [remote]: gasOracleConfig,

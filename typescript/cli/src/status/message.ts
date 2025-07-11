@@ -69,7 +69,16 @@ export async function checkMessageStatus({
     log(
       `Checking status of message ${message.id} on ${message.parsed.destinationChain}`,
     );
-    const delivered = await core.isDelivered(message);
+    let delivered;
+    try {
+      delivered = await core.isDelivered(message);
+    } catch (error) {
+      logRed(
+        `Failed to check if message ${message.id} was delivered: ${error}`,
+      );
+      undelivered.push(message);
+      continue;
+    }
     if (delivered) {
       try {
         const processedReceipt = await core.getProcessedReceipt(message);

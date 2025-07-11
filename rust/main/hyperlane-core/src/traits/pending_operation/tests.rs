@@ -37,6 +37,9 @@ impl PendingOperation for MockQueueOperation {
     fn recipient_address(&self) -> &H256 {
         unimplemented!()
     }
+    fn body(&self) -> &[u8] {
+        unimplemented!()
+    }
     fn app_context(&self) -> Option<String> {
         None
     }
@@ -61,7 +64,7 @@ impl PendingOperation for MockQueueOperation {
     async fn confirm(&mut self) -> PendingOperationResult {
         unimplemented!()
     }
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         _submission_outcome: TxOutcome,
         _submission_estimated_cost: U256,

@@ -1,9 +1,10 @@
+import { Logger } from 'pino';
+
 import { ChainName, Token } from '@hyperlane-xyz/sdk';
 
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { RawBalances } from '../interfaces/IStrategy.js';
 
-import { rebalancerLogger } from './loggerUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 
 /**
@@ -15,6 +16,7 @@ import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 export function getRawBalances(
   chains: ChainName[],
   event: MonitorEvent,
+  logger: Logger,
 ): RawBalances {
   const balances: RawBalances = {};
   const chainSet = new Set(chains);
@@ -24,7 +26,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
-      rebalancerLogger.info(
+      logger.info(
         {
           context: getRawBalances.name,
           chain: token.chainName,
@@ -38,7 +40,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not collateralized or are otherwise ineligible
     if (!isCollateralizedTokenEligibleForRebalancing(token)) {
-      rebalancerLogger.info(
+      logger.info(
         {
           context: getRawBalances.name,
           chain: token.chainName,

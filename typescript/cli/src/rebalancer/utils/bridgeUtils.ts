@@ -1,6 +1,6 @@
-import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { Logger } from 'pino';
 
-import { rebalancerLogger } from './loggerUtils.js';
+import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 export type BridgeConfigWithOverride = BridgeConfig & {
   override?: ChainMap<Partial<BridgeConfig>>;
@@ -23,11 +23,12 @@ export function getBridgeConfig(
   bridges: ChainMap<BridgeConfigWithOverride>,
   fromChain: ChainName,
   toChain: ChainName,
+  logger: Logger,
 ): BridgeConfig {
   const fromConfig = bridges[fromChain];
 
   if (!fromConfig) {
-    rebalancerLogger.error({ fromChain }, 'Bridge config not found');
+    logger.error({ fromChain }, 'Bridge config not found');
     throw new Error(`Bridge config not found for chain ${fromChain}`);
   }
 

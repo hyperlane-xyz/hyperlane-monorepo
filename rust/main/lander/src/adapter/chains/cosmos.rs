@@ -39,7 +39,7 @@ impl AdaptsChain for CosmosAdapter {
         todo!()
     }
 
-    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, LanderError> {
+    async fn simulate_tx(&self, _tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
         todo!()
     }
 

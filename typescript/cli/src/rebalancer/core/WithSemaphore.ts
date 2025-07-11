@@ -1,7 +1,8 @@
+import { Logger } from 'pino';
+
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { rebalancerLogger } from '../utils/index.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
@@ -11,11 +12,15 @@ export class WithSemaphore implements IRebalancer {
   private waitUntil: number = 0;
   // Lock to prevent concurrent rebalance execution
   private executing: boolean = false;
+  private readonly logger: Logger;
 
   constructor(
     private readonly config: RebalancerConfig,
     private readonly rebalancer: IRebalancer,
-  ) {}
+    logger: Logger,
+  ) {
+    this.logger = logger.child({ class: WithSemaphore.name });
+  }
 
   /**
    * Rebalance with timing control
@@ -23,14 +28,14 @@ export class WithSemaphore implements IRebalancer {
    */
   async rebalance(routes: RebalancingRoute[]): Promise<void> {
     if (this.executing) {
-      rebalancerLogger.info('Currently executing rebalance. Skipping.');
+      this.logger.info('Currently executing rebalance. Skipping.');
 
       return;
     }
 
     // No routes mean the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
-      rebalancerLogger.info(
+      this.logger.info(
         'No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.',
       );
 
@@ -40,7 +45,7 @@ export class WithSemaphore implements IRebalancer {
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
-      rebalancerLogger.info('Still in waiting period. Skipping rebalance.');
+      this.logger.info('Still in waiting period. Skipping rebalance.');
 
       return;
     }
@@ -59,7 +64,7 @@ export class WithSemaphore implements IRebalancer {
     // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;
 
-    rebalancerLogger.info(
+    this.logger.info(
       {
         highestTolerance,
         waitUntil: this.waitUntil,
@@ -73,10 +78,7 @@ export class WithSemaphore implements IRebalancer {
       const origin = this.config.strategyConfig.chains[route.origin];
 
       if (!origin) {
-        rebalancerLogger.error(
-          { route },
-          'Chain not found in config. Skipping.',
-        );
+        this.logger.error({ route }, 'Chain not found in config. Skipping.');
         throw new Error(`Chain ${route.origin} not found in config`);
       }
 

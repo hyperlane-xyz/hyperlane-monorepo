@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import {
   ChainMap,
   ChainMetadata,
@@ -5,31 +7,36 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { monitorLogger } from '../utils/index.js';
-
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
+  private readonly logger: Logger;
+
   private constructor({
     chainMetadata,
+    logger,
     apiKey,
     expirySeconds,
     sleepMsBetweenRequests,
   }: {
     chainMetadata: ChainMap<ChainMetadata>;
+    logger: Logger;
     apiKey?: string;
     expirySeconds?: number;
     sleepMsBetweenRequests?: number;
   }) {
     super({ chainMetadata, apiKey, expirySeconds, sleepMsBetweenRequests });
+    this.logger = logger;
   }
 
   public static create(
     chainMetadata: ChainMap<ChainMetadata>,
+    logger: Logger,
     coingeckoApiKey?: string,
     expirySeconds?: number,
     sleepMsBetweenRequests?: number,
   ) {
     return new PriceGetter({
       chainMetadata,
+      logger,
       apiKey: coingeckoApiKey,
       expirySeconds,
       sleepMsBetweenRequests,
@@ -45,7 +52,7 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const coinGeckoId = token.coinGeckoId;
 
     if (!coinGeckoId) {
-      monitorLogger.warn(
+      this.logger.warn(
         {
           tokenSymbol: token.symbol,
           chain: token.chainName,

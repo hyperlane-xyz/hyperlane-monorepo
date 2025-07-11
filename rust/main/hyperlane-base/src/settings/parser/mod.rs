@@ -141,12 +141,6 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    let submitter = chain
-        .chain(&mut err)
-        .get_opt_key("submitter")
-        .parse_from_str::<SubmitterType>("Invalid Submitter type")
-        .unwrap_or_default();
-
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
@@ -260,6 +254,23 @@ fn parse_chain(
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let submitter = match submitter {
+        Some(submitter_type) => submitter_type,
+        None => {
+            if matches!(connection.protocol(), HyperlaneDomainProtocol::Ethereum) {
+                SubmitterType::Lander
+            } else {
+                Default::default()
+            }
+        }
+    };
     err.into_result(ChainConf {
         domain,
         signer,

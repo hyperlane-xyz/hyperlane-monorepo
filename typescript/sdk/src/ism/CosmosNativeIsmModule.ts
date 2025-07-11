@@ -19,6 +19,7 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -51,13 +52,13 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   protected readonly reader: CosmosNativeIsmReader;
   protected readonly mailbox: Address;
 
-  // Adding these to reduce how often we need to grab from MultiProvider.
+  // Adding these to reduce how often we need to grab from MetadataManager.
   public readonly chain: ChainName;
   public readonly chainId: ChainId;
   public readonly domainId: Domain;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
     protected readonly signer: SigningHyperlaneModuleClient,
   ) {
@@ -65,11 +66,11 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     super(params);
 
     this.mailbox = params.addresses.mailbox;
-    this.chain = multiProvider.getChainName(this.args.chain);
-    this.chainId = multiProvider.getChainId(this.chain);
-    this.domainId = multiProvider.getDomainId(this.chain);
+    this.chain = metadataManager.getChainName(this.args.chain);
+    this.chainId = metadataManager.getChainId(this.chain);
+    this.domainId = metadataManager.getDomainId(this.chain);
 
-    this.reader = new CosmosNativeIsmReader(this.multiProvider, this.signer);
+    this.reader = new CosmosNativeIsmReader(this.metadataManager, this.signer);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -225,7 +226,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     // deploy ISMs for each domain
     for (const chainName of Object.keys(config.domains)) {
-      const domainId = this.multiProvider.tryGetDomainId(chainName);
+      const domainId = this.metadataManager.tryGetDomainId(chainName);
       if (!domainId) {
         this.logger.warn(
           `Unknown chain ${chainName}, skipping ISM configuration`,
@@ -257,7 +258,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   }): Promise<AnnotatedCosmJsNativeTransaction[]> {
     const updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
 
-    const knownChains = new Set(this.multiProvider.getKnownChainNames());
+    const knownChains = new Set(this.metadataManager.getKnownChainNames());
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       actual,
@@ -275,7 +276,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
         config: expected.domains[origin],
       });
 
-      const domain = this.multiProvider.getDomainId(origin);
+      const domain = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
@@ -297,7 +298,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     // Unenroll domains
     for (const origin of knownUnenrolls) {
-      const domain = this.multiProvider.getDomainId(origin);
+      const domain = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,

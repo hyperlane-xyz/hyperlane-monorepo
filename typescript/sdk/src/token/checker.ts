@@ -25,6 +25,7 @@ import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
   TokenMetadata,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
@@ -256,6 +257,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCctpTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const provider = this.multiProvider.getProvider(chain);

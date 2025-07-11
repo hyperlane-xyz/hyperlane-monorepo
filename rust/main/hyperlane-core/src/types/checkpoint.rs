@@ -54,7 +54,7 @@ impl Signable for CheckpointWithMessageId {
 pub type SignedCheckpointWithMessageId = SignedType<CheckpointWithMessageId>;
 
 /// A checkpoint and multiple signatures
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: CheckpointWithMessageId,
