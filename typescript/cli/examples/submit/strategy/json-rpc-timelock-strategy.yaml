@@ -1,0 +1,9 @@
+anvil3:
+  submitter:
+    type: timelockController
+    chain: anvil3
+    # Address of the timelock contract
+    timelockAddress: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    # Configuration for how to propose this trasnaction on chain
+    proposerSubmitter:
+      type: jsonRpc

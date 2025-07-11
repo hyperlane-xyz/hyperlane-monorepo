@@ -86,6 +86,7 @@ export const WARP_DEPLOY_CONFIG_CHAIN_2 = `${TEMP_PATH}/warp-route-deployment-2.
 export const WARP_DEPLOY_CONFIG_CHAIN_3 = `${TEMP_PATH}/warp-route-deployment-3.yaml`;
 
 export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
+export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],
