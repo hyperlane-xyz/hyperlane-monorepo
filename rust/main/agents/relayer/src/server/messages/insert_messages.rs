@@ -1,27 +1,12 @@
-use std::collections::HashMap;
-
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use derive_new::new;
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::{
-    db::HyperlaneRocksDB,
-    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+use hyperlane_base::server::utils::{
+    ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
 use hyperlane_core::HyperlaneMessage;
 
-#[derive(Clone, Debug, new)]
-pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
-}
-
-impl ServerState {
-    pub fn router(self) -> Router {
-        Router::new()
-            .route("/messages", post(handler))
-            .with_state(self)
-    }
-}
+use crate::server::messages::ServerState;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Message {
@@ -86,13 +71,16 @@ pub async fn handler(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{
         body::Body,
         http::{header::CONTENT_TYPE, Method, Request, Response, StatusCode},
+        Router,
     };
     use tower::ServiceExt;
 
-    use hyperlane_base::db::DB;
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
     use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 
     use crate::test_utils::request::parse_body_to_json;

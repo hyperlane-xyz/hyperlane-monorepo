@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { pino } from 'pino';
 
 import {
   type ChainMap,
@@ -15,6 +16,8 @@ import {
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
+
+const testLogger = pino({ level: 'silent' });
 
 describe('StrategyFactory', () => {
   const chain1 = 'chain1';
@@ -62,6 +65,7 @@ describe('StrategyFactory', () => {
         strategyConfig,
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
       expect(strategy).to.be.instanceOf(WeightedStrategy);
     });
@@ -97,6 +101,7 @@ describe('StrategyFactory', () => {
         strategyConfig,
         tokensByChainName,
         totalCollateral,
+        testLogger,
       );
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
     });

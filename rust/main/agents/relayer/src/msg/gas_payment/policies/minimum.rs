@@ -6,7 +6,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
 };
 
-use crate::msg::gas_payment::GasPaymentPolicy;
+use crate::{msg::gas_payment::GasPaymentPolicy, settings::GasPaymentEnforcementPolicy};
 
 #[derive(Debug, new)]
 pub struct GasPaymentPolicyMinimum {
@@ -38,6 +38,12 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
 
     fn requires_payment_found(&self) -> bool {
         true
+    }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy {
+        GasPaymentEnforcementPolicy::Minimum {
+            payment: self.minimum_payment,
+        }
     }
 }
 
