@@ -449,7 +449,6 @@ export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmi
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export {
   SubmitterBuilderSettings,
-  SubmitterFactory,
   getSubmitterBuilder,
   getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
