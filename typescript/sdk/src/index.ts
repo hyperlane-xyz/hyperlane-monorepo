@@ -186,6 +186,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
