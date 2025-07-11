@@ -64,7 +64,10 @@ const formatIcaSubmitter = (
   chainName: ChainName,
   strategy: SubmissionStrategy,
 ): SubmissionStrategy => {
-  assert(strategy.submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT, '');
+  assert(
+    strategy.submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+    `[ChainSubmissionStrategy] Expected ${TxSubmitterType.INTERCHAIN_ACCOUNT} strategy but got ${strategy.submitter.type}`,
+  );
 
   // Setting the default internal submitter config for interchain accounts here
   // instead of using zod's default() modifier because we require the chain property to be set
@@ -106,7 +109,10 @@ const formatTimelockSubmitter = (
   chainName: ChainName,
   strategy: SubmissionStrategy,
 ): SubmissionStrategy => {
-  assert(strategy.submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER, '');
+  assert(
+    strategy.submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER,
+    `[ChainSubmissionStrategy] Expected ${TxSubmitterType.TIMELOCK_CONTROLLER} strategy but got ${strategy.submitter.type}`,
+  );
 
   const {
     proposerSubmitter = { type: TxSubmitterType.JSON_RPC, chain: chainName },

@@ -51,11 +51,12 @@ export class EV5TimelockSubmitter
       provider,
     );
 
-    const minDelay = await timelockInstance.getMinDelay();
-
-    const delay = config.delay ?? minDelay.toBigInt();
-
-    assert(delay >= minDelay.toBigInt(), '');
+    const minDelay = (await timelockInstance.getMinDelay()).toBigInt();
+    const delay = config.delay ?? minDelay;
+    assert(
+      delay >= minDelay,
+      `Expected user supplied delay ${delay} to be greater or equal than the configured mindDelay ${minDelay}`,
+    );
 
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
@@ -102,8 +103,11 @@ export class EV5TimelockSubmitter
     );
 
     const calldata: CallData[] = txs.map((transaction): CallData => {
-      assert(transaction.data, '');
-      assert(transaction.to, '');
+      assert(transaction.data, 'Invalid Transaction: data must be defined');
+      assert(
+        transaction.to,
+        'Invalid Transaction: target address must be defined',
+      );
 
       return {
         to: transaction.to,
@@ -147,13 +151,16 @@ export class EV5TimelockSubmitter
     });
 
     if (!proposeFormattedCallData) {
-      return [];
+      // Appending the execute transaction so that it can be written to a file
+      // by the caller
+      return [executeCallData as any];
     }
 
-    if (Array.isArray(proposeFormattedCallData)) {
-      return [...proposeFormattedCallData, executeCallData as any];
-    }
-
-    return [proposeFormattedCallData, executeCallData as any];
+    const proposeTransactions = Array.isArray(proposeFormattedCallData)
+      ? proposeFormattedCallData
+      : [proposeFormattedCallData];
+    // Appending the execute transaction so that it can be written to a file
+    // by the caller
+    return [...proposeTransactions, executeCallData as any];
   }
 }
