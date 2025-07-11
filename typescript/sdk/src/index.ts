@@ -437,6 +437,8 @@ export {
   ChainSubmissionStrategySchema,
   SubmissionStrategy,
   SubmissionStrategySchema,
+  refineChainSubmissionStrategy,
+  preprocessChainSubmissionStrategy,
 } from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
@@ -447,6 +449,7 @@ export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmi
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export {
   SubmitterBuilderSettings,
+  SubmitterFactory,
   getSubmitterBuilder,
   getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
