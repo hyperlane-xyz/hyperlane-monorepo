@@ -137,7 +137,7 @@ export async function createStrategyConfig({
       submitter:
         submitter as ExtendedChainSubmissionStrategy[string]['submitter'],
     },
-  } as ExtendedChainSubmissionStrategy;
+  };
 
   try {
     const strategyConfig =
