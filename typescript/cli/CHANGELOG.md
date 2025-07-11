@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 15.0.0
+
+### Patch Changes
+
+- e407e8bae: Gracefully continue checking delivery of all messages even if one delivery check fails.
+
 ## 14.4.0
 
 ## 14.3.0
