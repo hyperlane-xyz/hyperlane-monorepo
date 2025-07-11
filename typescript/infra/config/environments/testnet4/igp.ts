@@ -13,7 +13,6 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
-import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -30,7 +29,7 @@ const romeTestnetConnectedChains = [
 ];
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
-  let overhead = getOverhead(local, remote, ethereumChainNames);
+  let overhead = getOverhead(local, remote);
 
   // Special case for rometestnet2 due to non-standard gas metering.
   if (remote === 'rometestnet2') {

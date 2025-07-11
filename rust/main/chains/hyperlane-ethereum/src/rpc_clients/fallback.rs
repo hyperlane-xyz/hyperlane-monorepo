@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn, warn_span};
+use tracing::{instrument, warn};
 
 use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
@@ -200,8 +200,14 @@ where
                 let fut = Self::provider_request(provider, method, &params);
                 let resp = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
-                let _span =
-                    warn_span!("fallback_request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                if resp.is_err() {
+                    self.handle_failed_provider(priority).await;
+                }
+                tracing::debug!(
+                    fallback_count = idx,
+                    provider_index = priority.index,
+                    "fallback_request"
+                );
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),

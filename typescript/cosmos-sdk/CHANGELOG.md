@@ -1,5 +1,46 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 14.4.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.3.0
+
+## 14.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.2.0
+
+## 14.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@14.0.0
+
+## 13.4.0
+
+### Minor Changes
+
+- 19384e74b: sdk support for cosmos hyperlane module v1.0.1
+
+### Patch Changes
+
+- Updated dependencies [19384e74b]
+  - @hyperlane-xyz/cosmos-types@13.4.0
+
 ## 13.3.0
 
 ### Patch Changes

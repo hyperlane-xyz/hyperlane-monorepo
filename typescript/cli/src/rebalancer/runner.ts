@@ -1,11 +1,11 @@
-import { format } from 'util';
+import { Logger } from 'pino';
 
 import { Token } from '@hyperlane-xyz/sdk';
-import { assert, toWei } from '@hyperlane-xyz/utils';
+import { assert, createServiceLogger, toWei } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../context/types.js';
-import { errorRed, logGreen, warnYellow } from '../logger.js';
 import { ENV } from '../utils/env.js';
+import { VERSION } from '../version.js';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
@@ -39,6 +39,8 @@ type RebalancerCliArgs = SharedRebalanceArgs & Partial<ManualRebalanceArgs>;
 
 export class RebalancerRunner {
   private isExiting = false;
+  private logger: Logger;
+
   private constructor(
     private readonly contextFactory: RebalancerContextFactory,
     private readonly rebalancerConfig: RebalancerConfig,
@@ -47,7 +49,10 @@ export class RebalancerRunner {
     private readonly rebalancer: IRebalancer | undefined,
     private readonly metrics: Metrics | undefined,
     private readonly manualArgs: ManualRebalanceArgs | undefined,
-  ) {}
+    logger: Logger,
+  ) {
+    this.logger = logger.child({ class: RebalancerRunner.name });
+  }
 
   private static validateManualArgs(
     args: RebalancerCliArgs,
@@ -75,6 +80,14 @@ export class RebalancerRunner {
   ): Promise<RebalancerRunner> {
     const { config, checkFrequency, withMetrics, monitorOnly, manual } = args;
 
+    const logger = await createServiceLogger({
+      service: 'rebalancer',
+      version: VERSION || 'unknown',
+    });
+    logger.info('Starting rebalancer', {
+      args,
+    });
+
     if (manual && monitorOnly) {
       throw new Error(
         'Manual mode is not compatible with monitorOnly. Please disable monitorOnly in your config or via the CLI.',
@@ -88,12 +101,13 @@ export class RebalancerRunner {
 
     // Load rebalancer config from disk
     const rebalancerConfig = RebalancerConfig.load(config);
-    logGreen('✅ Loaded rebalancer config');
+    logger.info('✅ Loaded rebalancer config');
 
     // Instantiate the factory used to create the different rebalancer components
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       context,
+      logger,
     );
 
     // Instantiates the monitor that will observe the warp route
@@ -109,17 +123,17 @@ export class RebalancerRunner {
 
     // Instantiates the rebalancer in charge of executing the rebalancing transactions
     const rebalancer = !monitorOnly
-      ? contextFactory.createRebalancer()
+      ? contextFactory.createRebalancer(metrics)
       : undefined;
 
     if (monitorOnly) {
-      warnYellow(
+      logger.warn(
         'Running in monitorOnly mode: no transactions will be executed.',
       );
     }
 
     if (withMetrics) {
-      warnYellow(
+      logger.warn(
         'Metrics collection has been enabled and will be gathered during execution',
       );
     }
@@ -132,6 +146,7 @@ export class RebalancerRunner {
       rebalancer,
       metrics,
       manualArgs,
+      logger,
     );
   }
 
@@ -148,7 +163,7 @@ export class RebalancerRunner {
     assert(this.rebalancer, 'Rebalancer should be defined for a manual run.');
     const { origin, destination, amount } = this.manualArgs;
 
-    warnYellow(
+    this.logger.warn(
       `Manual rebalance strategy selected. Origin: ${origin}, Destination: ${destination}, Amount: ${amount}`,
     );
 
@@ -158,7 +173,7 @@ export class RebalancerRunner {
     );
 
     if (!originToken) {
-      errorRed(`❌ Origin token not found for chain ${origin}`);
+      this.logger.error(`❌ Origin token not found for chain ${origin}`);
       throw new Error(`Origin token not found for chain ${origin}`);
     }
 
@@ -170,13 +185,15 @@ export class RebalancerRunner {
           amount: BigInt(toWei(amount, originToken.decimals)),
         },
       ]);
-      logGreen(
+      this.logger.info(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );
       return;
     } catch (e: any) {
-      errorRed(`❌ Manual rebalance from ${origin} to ${destination} failed.`);
-      errorRed(format(e));
+      this.logger.error(
+        { err: e },
+        `❌ Manual rebalance from ${origin} to ${destination} failed.`,
+      );
       throw e;
     }
   }
@@ -196,7 +213,7 @@ export class RebalancerRunner {
     try {
       await this.monitor.start();
     } catch (e: any) {
-      errorRed('Rebalancer startup error:', format(e));
+      this.logger.error({ err: e }, 'Rebalancer startup error:');
       throw e;
     }
   }
@@ -213,6 +230,7 @@ export class RebalancerRunner {
     const rawBalances = getRawBalances(
       Object.keys(this.rebalancerConfig.strategyConfig.chains),
       event,
+      this.logger,
     );
 
     const rebalancingRoutes = this.strategy.getRebalancingRoutes(rawBalances);
@@ -222,29 +240,32 @@ export class RebalancerRunner {
       .then(() => {
         // On successful rebalance attempt by monitor
         this.metrics?.recordRebalancerSuccess();
-        logGreen('Rebalancer completed a cycle successfully.');
+        this.logger.info('Rebalancer completed a cycle successfully.');
       })
       .catch((e: any) => {
         this.metrics?.recordRebalancerFailure();
         // This is an operational error, log it but don't stop the monitor.
-        errorRed('Error while rebalancing:', format(e));
+        this.logger.error({ err: e }, 'Error while rebalancing:');
       });
   }
 
   private onMonitorError(e: Error): void {
     if (e instanceof MonitorPollingError) {
-      errorRed(e.message);
+      this.logger.error(e.message);
       this.metrics?.recordPollingError();
     } else if (e instanceof MonitorStartError) {
-      errorRed(e.message);
+      this.logger.error(e.message);
       throw e;
     } else {
-      errorRed('An unexpected error occurred in the monitor:', format(e));
+      this.logger.error(
+        { err: e },
+        'An unexpected error occurred in the monitor:',
+      );
     }
   }
 
   private onMonitorStart(): void {
-    logGreen('Rebalancer started successfully 🚀');
+    this.logger.info('Rebalancer started successfully 🚀');
   }
 
   public stop(): Promise<void> {
@@ -252,14 +273,17 @@ export class RebalancerRunner {
   }
 
   public async gracefulShutdown(): Promise<void> {
-    if (this.isExiting) return;
+    if (this.isExiting) {
+      return;
+    }
     this.isExiting = true;
 
-    logGreen('Gracefully shutting down rebalancer...');
+    this.logger.info('Gracefully shutting down rebalancer...');
     await this.stop();
     // Unregister listeners to prevent them from being called again during shutdown
     process.removeAllListeners('SIGINT');
     process.removeAllListeners('SIGTERM');
+    this.logger.info('Rebalancer shutdown complete.');
     process.exit(0);
   }
 }

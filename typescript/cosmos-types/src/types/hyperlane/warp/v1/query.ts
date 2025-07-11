@@ -83,6 +83,8 @@ export interface QueryRemoteRoutersResponse {
 export interface QueryQuoteRemoteTransferRequest {
   id: string;
   destination_domain: string;
+  custom_hook_id: string;
+  custom_hook_metadata: string;
 }
 
 /** QueryQuoteRemoteTransferResponse ... */
@@ -882,7 +884,12 @@ export const QueryRemoteRoutersResponse = {
 };
 
 function createBaseQueryQuoteRemoteTransferRequest(): QueryQuoteRemoteTransferRequest {
-  return { id: '', destination_domain: '' };
+  return {
+    id: '',
+    destination_domain: '',
+    custom_hook_id: '',
+    custom_hook_metadata: '',
+  };
 }
 
 export const QueryQuoteRemoteTransferRequest = {
@@ -895,6 +902,12 @@ export const QueryQuoteRemoteTransferRequest = {
     }
     if (message.destination_domain !== '') {
       writer.uint32(18).string(message.destination_domain);
+    }
+    if (message.custom_hook_id !== '') {
+      writer.uint32(26).string(message.custom_hook_id);
+    }
+    if (message.custom_hook_metadata !== '') {
+      writer.uint32(34).string(message.custom_hook_metadata);
     }
     return writer;
   },
@@ -924,6 +937,20 @@ export const QueryQuoteRemoteTransferRequest = {
 
           message.destination_domain = reader.string();
           continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.custom_hook_id = reader.string();
+          continue;
+        case 4:
+          if (tag !== 34) {
+            break;
+          }
+
+          message.custom_hook_metadata = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -939,6 +966,12 @@ export const QueryQuoteRemoteTransferRequest = {
       destination_domain: isSet(object.destination_domain)
         ? globalThis.String(object.destination_domain)
         : '',
+      custom_hook_id: isSet(object.custom_hook_id)
+        ? globalThis.String(object.custom_hook_id)
+        : '',
+      custom_hook_metadata: isSet(object.custom_hook_metadata)
+        ? globalThis.String(object.custom_hook_metadata)
+        : '',
     };
   },
 
@@ -949,6 +982,12 @@ export const QueryQuoteRemoteTransferRequest = {
     }
     if (message.destination_domain !== '') {
       obj.destination_domain = message.destination_domain;
+    }
+    if (message.custom_hook_id !== '') {
+      obj.custom_hook_id = message.custom_hook_id;
+    }
+    if (message.custom_hook_metadata !== '') {
+      obj.custom_hook_metadata = message.custom_hook_metadata;
     }
     return obj;
   },
@@ -964,6 +1003,8 @@ export const QueryQuoteRemoteTransferRequest = {
     const message = createBaseQueryQuoteRemoteTransferRequest();
     message.id = object.id ?? '';
     message.destination_domain = object.destination_domain ?? '';
+    message.custom_hook_id = object.custom_hook_id ?? '';
+    message.custom_hook_metadata = object.custom_hook_metadata ?? '';
     return message;
   },
 };

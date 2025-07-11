@@ -5,8 +5,7 @@ use hyperlane_core::{
 };
 use starknet::core::types::{BlockId, EventFilter, Felt};
 use starknet::core::utils::get_selector_from_name;
-use starknet::providers::jsonrpc::HttpTransport;
-use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
+use starknet::providers::Provider;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
@@ -14,8 +13,8 @@ use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
 use crate::types::HyH256;
 use crate::{
-    get_block_height_u32, try_parse_hyperlane_message_from_event, ConnectionConf,
-    HyperlaneStarknetError,
+    build_json_provider, get_block_height_u32, try_parse_hyperlane_message_from_event,
+    ConnectionConf, HyperlaneStarknetError, JsonProvider,
 };
 
 const CHUNK_SIZE: u64 = 50;
@@ -23,7 +22,7 @@ const CHUNK_SIZE: u64 = 50;
 #[derive(Debug)]
 /// Starknet Mailbox Indexer
 pub struct StarknetMailboxIndexer {
-    contract: StarknetMailboxReader<AnyProvider>,
+    contract: StarknetMailboxReader<JsonProvider>,
     reorg_period: ReorgPeriod,
 }
 
@@ -34,8 +33,7 @@ impl StarknetMailboxIndexer {
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client =
-            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
+        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMailboxReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,
@@ -134,7 +132,7 @@ impl SequenceAwareIndexer<H256> for StarknetMailboxIndexer {
 #[derive(Debug)]
 /// Starknet MerkleTreeHook Indexer
 pub struct StarknetMerkleTreeHookIndexer {
-    contract: StarknetMerkleTreeHookReader<AnyProvider>,
+    contract: StarknetMerkleTreeHookReader<JsonProvider>,
     reorg_period: ReorgPeriod,
 }
 
@@ -145,8 +143,7 @@ impl StarknetMerkleTreeHookIndexer {
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client =
-            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
+        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMerkleTreeHookReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
             rpc_client,
@@ -247,7 +244,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for StarknetInterchainGasPaymast
 
 /// Fetch logs in the given range
 async fn fetch_logs_in_range<T>(
-    provider: &AnyProvider,
+    provider: &JsonProvider,
     range: RangeInclusive<u32>,
     address: Felt,
     key: &str,
@@ -256,6 +253,17 @@ async fn fetch_logs_in_range<T>(
 where
     T: std::fmt::Debug,
 {
+    // sanity check the range, because the provider doesn't return an error if the range is invalid
+    // and only returns an empty list
+    let current_block = get_block_height_u32(provider, &ReorgPeriod::None).await?;
+    if *range.start() > current_block || *range.end() > current_block {
+        return Err(HyperlaneStarknetError::Other(format!(
+            "range {:?} is not valid for current block {}",
+            range, current_block
+        ))
+        .into());
+    }
+
     let key = get_selector_from_name(key)
         .map_err(|_| HyperlaneStarknetError::from_other("get selector cannot fail"))?;
 

@@ -6,6 +6,7 @@ use starknet::{
         types::FromStrError,
         utils::{CairoShortStringToFeltError, ParseCairoShortStringError},
     },
+    providers::jsonrpc::HttpTransportError,
 };
 use std::fmt::Debug;
 
@@ -15,6 +16,9 @@ use std::fmt::Debug;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneStarknetError {
+    /// JSON RPC Http error
+    #[error(transparent)]
+    TransportError(#[from] HttpTransportError),
     /// Error during string conversion
     #[error(transparent)]
     StringConversionError(#[from] FromStrError),

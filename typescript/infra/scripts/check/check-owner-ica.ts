@@ -79,11 +79,10 @@ async function main() {
       rootLogger.error(`No expected address found for ${chain}`);
       continue;
     }
-    const actualAccount = await interchainAccountApp.getAccount(
-      chain,
-      ownerConfig,
-      ownerChainInterchainAccountRouter,
-    );
+    const actualAccount = await interchainAccountApp.getAccount(chain, {
+      ...ownerConfig,
+      localRouter: ownerChainInterchainAccountRouter,
+    });
     if (!eqAddress(expectedAddress, actualAccount)) {
       mismatchedResults[chain] = {
         Expected: expectedAddress,

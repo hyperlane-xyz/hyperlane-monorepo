@@ -135,8 +135,11 @@ impl LatestCheckpointReorgReporter {
                 })
             }
             Starknet(conn) => {
-                // Starknet only has a single RPC URL, so we can use it directly
-                vec![(conn.url.clone(), ChainConnectionConf::Starknet(conn))]
+                Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.urls = vec![url];
+                    Starknet(updated_conn)
+                })
             }
         };
 
