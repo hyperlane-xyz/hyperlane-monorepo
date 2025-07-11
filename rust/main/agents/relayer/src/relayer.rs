@@ -55,11 +55,11 @@ use crate::{
         blacklist::AddressBlacklist,
         db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
         gas_payment::GasPaymentEnforcer,
+        message_processor::{MessageProcessor, MessageProcessorMetrics},
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
-        op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
     },
     server::{self as relayer_server},
@@ -543,22 +543,22 @@ impl BaseAgent for Relayer {
                             .operation_submission_config()
                             .and_then(|c| c.max_submit_queue_length)
                     });
-            let serial_submitter = SerialSubmitter::new(
+            let message_processor = MessageProcessor::new(
                 dest_domain.clone(),
                 receive_channel,
                 &sender,
-                SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
+                MessageProcessorMetrics::new(&self.core.metrics, dest_domain),
                 max_batch_size,
                 max_submit_queue_len,
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
             );
-            prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
+            prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
 
-            tasks.push(self.run_destination_submitter(
+            tasks.push(self.run_destination_processor(
                 dest_domain,
-                serial_submitter,
+                message_processor,
                 task_monitor.clone(),
             ));
 
@@ -588,7 +588,7 @@ impl BaseAgent for Relayer {
             };
             tasks.push(metrics_updater.spawn());
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
@@ -1042,25 +1042,25 @@ impl Relayer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, serial_submitter))]
-    fn run_destination_submitter(
+    #[tracing::instrument(skip(self, message_processor))]
+    fn run_destination_processor(
         &self,
         destination: &HyperlaneDomain,
-        serial_submitter: SerialSubmitter,
+        message_processor: MessageProcessor,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
-        let span = info_span!("SerialSubmitter", destination=%destination);
+        let span = info_span!("MessageProcessor", destination=%destination);
         let destination = destination.clone();
-        let name = format!("submitter::destination::{}", destination.name());
+        let name = format!("message_processor::destination::{}", destination.name());
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
                     // Propagate task panics
-                    serial_submitter.spawn().await.unwrap_or_else(|err| {
+                    message_processor.spawn().await.unwrap_or_else(|err| {
                         panic!(
-                            "destination submitter panicked for destination {}: {:?}",
+                            "destination processor panicked for destination {}: {:?}",
                             destination, err
                         )
                     });
