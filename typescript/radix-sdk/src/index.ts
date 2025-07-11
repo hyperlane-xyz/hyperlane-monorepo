@@ -264,6 +264,42 @@ export class RadixSDK {
       address: hook,
     };
   }
+
+  public async queryToken(token: string): Promise<{
+    address: string;
+    tokenType: 'COLLATERAL' | 'SYNTHETIC';
+    mailbox: string;
+    ism: string;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(token);
+
+    assert(
+      (details.details as any).blueprint_name === 'HypToken',
+      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as any).blueprint_name}`,
+    );
+
+    const fields = (details.details as any).state.fields;
+
+    const tokenType =
+      fields.find((f: any) => f.field_name === 'token_type')?.variant_name ??
+      '';
+    assert(
+      tokenType === 'COLLATERAL' || tokenType === 'SYNTHETIC',
+      `unknown token type: ${tokenType}`,
+    );
+
+    const ismFields = fields.find((f: any) => f.field_name === 'ism').fields;
+
+    const result = {
+      address: token,
+      tokenType,
+      mailbox: fields.find((f: any) => f.field_name === 'mailbox')?.value ?? '',
+      ism: ismFields[0]?.value ?? '',
+    };
+
+    return result;
+  }
 }
 
 export class RadixSigningSDK extends RadixSDK {
@@ -317,6 +353,10 @@ export class RadixSigningSDK extends RadixSDK {
       options?.networkId ?? NetworkId.Mainnet,
     );
     return new RadixSigningSDK(account, options);
+  }
+
+  public getAddress() {
+    return this.account.address;
   }
 
   public async getTestnetXrd() {
@@ -412,6 +452,35 @@ export class RadixSigningSDK extends RadixSDK {
         [decimal(this.gasAmount)],
       )
       .callMethod(address, methodName, args)
+      .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+  }
+
+  private async createCallMethodManifestWithOwner(
+    addr: string,
+    methodName: string,
+    args: Value[],
+  ) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(addr);
+
+    const ownerResource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(this.gasAmount)],
+      )
+      .callMethod(this.account.address, 'create_proof_of_amount', [
+        address(ownerResource),
+        decimal(1),
+      ])
+      .callMethod(addr, methodName, args)
       .callMethod(this.account.address, 'try_deposit_batch_or_refund', [
         expression('EntireWorktop'),
         enumeration(0),
@@ -836,17 +905,31 @@ export class RadixSigningSDK extends RadixSDK {
 
     return await this.getNewComponent(intentHashTransactionId);
   }
+
+  public async populateSetTokenIsm(token: string, ism: string) {
+    return this.createCallMethodManifestWithOwner(token, 'set_ism', [
+      enumeration(1, address(ism)),
+    ]);
+  }
+
+  public async setTokenIsm(token: string, ism: string) {
+    const transactionManifest = await this.populateSetTokenIsm(token, ism);
+
+    await this.signAndBroadcast(transactionManifest);
+  }
 }
 
 // TODO: RADIX
 // const main = async () => {
-//   const sdk = new RadixSDK({
-//     networkId: NetworkId.Stokenet,
-//   });
-
-//   sdk.getXrdBalance(
-//     'account_tdx_2_128n2wu49mw3gl3edl73hsrrsty4xj7t2dvmz34ms5e2r7vl8snr8d5',
+//   const sdk = await RadixSigningSDK.fromPrivateKey(
+//     '4f61d7cd8c2bebd01ff86da87001cbe0a2349fa5ba43ef95eee5d0d817b035cc',
+//     {
+//       networkId: NetworkId.Stokenet,
+//     },
 //   );
+
+//   const balance = await sdk.getXrdBalance(sdk.getAddress());
+//   console.log('xrd balance', balance);
 // await sdk.getTestnetXrd();
 
 // const mailbox = await sdk.createMailbox(75898670);
@@ -890,6 +973,37 @@ export class RadixSigningSDK extends RadixSDK {
 //     'component_tdx_2_1crrt89w8hd5jvvh49jcqgl9wmvmauw0k0wf7yafzahfc276xzu3ak2',
 //   );
 //   console.log('igp hook state', JSON.stringify(h), '\n');
+
+// const xrd = await sdk.getXrdAddress();
+// const collateral = await sdk.createCollateralToken(
+//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
+//   xrd,
+// );
+// console.log('created collateral token with id', collateral);
+
+// const c = await sdk.queryToken(
+//   'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
+// );
+// console.log('collateral token state', JSON.stringify(c), '\n');
+
+// await sdk.setTokenIsm(
+//   'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
+//   'component_tdx_2_1czefsgch7kvgvlw2ht5shkna00vjfaexr03xavlcuy73yka6rydr6g',
+// );
+
+// const synthetic = await sdk.createSyntheticToken(
+//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
+//   '',
+//   '',
+//   '',
+//   1,
+// );
+// console.log('created synthetic token with id', synthetic);
+
+//   const s = await sdk.queryToken(
+//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
+//   );
+//   console.log('synthetic token state', JSON.stringify(s));
 // };
 
 // main();
