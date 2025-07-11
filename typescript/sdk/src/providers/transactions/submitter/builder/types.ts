@@ -15,9 +15,9 @@ export const SubmissionStrategySchema = z
 
 export type SubmissionStrategy = z.infer<typeof SubmissionStrategySchema>;
 
-export function preprocessChainSubmissionStrategy<T extends { submitter: any }>(
-  value: unknown,
-): ChainMap<T> {
+export function preprocessChainSubmissionStrategy<
+  T extends { submitter: { type: string } },
+>(value: unknown): ChainMap<T> {
   // Add the chain property to the internal submitter config before validation
   // to avoid having to set the field manually when writing the config
   const castedValued = value as ChainMap<T>;
@@ -70,10 +70,9 @@ export function preprocessChainSubmissionStrategy<T extends { submitter: any }>(
 
   return parsedValue;
 }
-export function refineChainSubmissionStrategy<T extends { submitter: any }>(
-  value: Record<string, T>,
-  ctx: z.RefinementCtx,
-) {
+export function refineChainSubmissionStrategy<
+  T extends { submitter: { type: string } },
+>(value: Record<string, T>, ctx: z.RefinementCtx) {
   Object.entries(value).forEach(([chain, config]) => {
     if (config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
       return;
