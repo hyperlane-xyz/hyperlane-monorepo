@@ -1,5 +1,38 @@
 # @hyperlane-xyz/sdk
 
+## 14.3.0
+
+### Minor Changes
+
+- 9cc7ef6fd: Add `scale` to Token Schema and account for scaling in `WarpCore.isDestinationCollateralSufficient`
+- ae0771d9e: Minor refactoring to deduplicate ism/router overrides passed into the InterchainAccount app.
+
+### Patch Changes
+
+- ae0771d9e: InterchainAccount.getCallRemote now respects the localRouter override if passed in.
+  - @hyperlane-xyz/starknet-core@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+  - @hyperlane-xyz/core@8.1.2
+
+## 14.2.0
+
+### Minor Changes
+
+- 3122bae93: Add support for updating the required and default hooks in core deployments
+- 3e50bd7f0: Modify IGP schema to include the optional typical cost in the schema
+- 147dd360a: add cosmosnative warp deploy sdk logic
+- 8bde1544e: Add helper function for determining if a given address is a ProxyAdmin.
+
+### Patch Changes
+
+- a7d5941c1: Fix Starknet total_supply.
+- Updated dependencies [c177c4733]
+  - @hyperlane-xyz/core@8.1.1
+  - @hyperlane-xyz/starknet-core@14.2.0
+  - @hyperlane-xyz/cosmos-sdk@14.2.0
+  - @hyperlane-xyz/utils@14.2.0
+
 ## 14.1.0
 
 ### Minor Changes

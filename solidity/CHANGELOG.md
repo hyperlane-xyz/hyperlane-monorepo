@@ -1,5 +1,18 @@
 # @hyperlane-xyz/core
 
+## 8.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.3.0
+
+## 8.1.1
+
+### Patch Changes
+
+- c177c4733: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+  - @hyperlane-xyz/utils@14.2.0
+
 ## 8.1.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 14.3.0
+
+### Patch Changes
+
+- b5174ada7: Fix strategy flag propagation
+
+## 14.2.0
+
 ## 14.1.0
 
 ## 14.0.0

@@ -97,10 +97,16 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  // Not present in the registry
-  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  SubtensorUSDC = 'USDC/subtensor',
+  ParadexUSDC = 'USDC/paradex',
+
+  MainnetCCTP = 'USDC/mainnet-cctp',
+  TestnetCCTP = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
+
+  // cttp token bridge
+  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }

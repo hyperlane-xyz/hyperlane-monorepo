@@ -40,6 +40,10 @@ import {
   getBsquaredUBTCWarpConfig,
   getUbtcGnosisSafeBuilderStrategyConfigGenerator,
 } from './environments/mainnet3/warp/configGetters/getBsquaredUBTCWarpConfig.js';
+import {
+  getCCTPStrategyConfig,
+  getCCTPWarpConfig as getMainnetCCTPWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -58,6 +62,7 @@ import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
+import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
@@ -76,12 +81,13 @@ import {
   getRezStagingGnosisSafeBuilderStrategyConfig,
   getRezStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoREZStaging.js';
+import { getSubtensorUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSubtensorUSDCWarpConfig.js';
 import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
-import { getCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
+import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
 type WarpConfigGetter = (
@@ -144,8 +150,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
-  // Not present in the registry
-  // [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
+  [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
+  [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
+  [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
+  [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -164,6 +172,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
+  [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
 };
 
 /**

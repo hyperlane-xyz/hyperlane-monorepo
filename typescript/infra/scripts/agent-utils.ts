@@ -68,7 +68,6 @@ export enum Modules {
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
@@ -643,8 +642,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.LIQUIDITY_LAYER:
-        return 'middleware/liquidity-layer';
       case Modules.HELLO_WORLD:
         return `helloworld/${context}`;
       default:
@@ -696,7 +693,14 @@ export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
+  targetNetworks?: ChainName[],
 ) {
+  if (targetNetworks && targetNetworks.length > 0) {
+    addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
+      return targetNetworks.includes(chain as ChainName);
+    });
+  }
+
   addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
