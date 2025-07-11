@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 // Generated from https://github.com/cosmos/chain-registry/blob/master/chain.schema.json
 // using https://stefanterdell.github.io/json-schema-to-zod-react/

@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -10,7 +10,7 @@ import {
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
-import { ZHash } from '../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import {
   DerivedRouterConfig,
   GasRouterConfigSchema,
@@ -210,6 +210,7 @@ export enum OwnerStatus {
 }
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
+    z.string(),
     z.enum([
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
@@ -218,6 +219,7 @@ export const HypTokenRouterVirtualConfigSchema = z.object({
     ]),
   ),
   ownerStatus: z.record(
+    z.string(),
     z.enum([
       OwnerStatus.Error,
       OwnerStatus.Skipped,
@@ -282,7 +284,7 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
 >;
 
 export const WarpRouteDeployConfigSchema = z
-  .record(HypTokenRouterConfigMailboxOptionalSchema)
+  .record(ZChainName, HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
@@ -377,6 +379,7 @@ export const WarpRouteDeployConfigSchema = z
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 const _RequiredMailboxSchema = z.record(
+  ZChainName,
   z.object({
     mailbox: z.string(),
   }),

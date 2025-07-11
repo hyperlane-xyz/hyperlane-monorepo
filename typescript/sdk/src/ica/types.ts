@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { OffchainLookupIsmConfigSchema } from '../ism/types.js';
 import { RouterConfigSchema } from '../router/types.js';

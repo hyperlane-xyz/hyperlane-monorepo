@@ -2,7 +2,7 @@ import type { Interface } from '@ethersproject/abi';
 import type { BaseContract } from 'ethers';
 import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
 
@@ -72,7 +72,7 @@ export function createAbiHandler<
           handlerLogger.warn({ body }, 'Invalid sender or signature format');
           return res.status(400).json({
             error: 'Invalid sender or signature format',
-            details: parseResult.error.errors,
+            details: parseResult.error.issues,
           });
         }
       }

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { fromError } from 'zod-validation-error';
+import { fromError } from 'zod-validation-error/v4';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {

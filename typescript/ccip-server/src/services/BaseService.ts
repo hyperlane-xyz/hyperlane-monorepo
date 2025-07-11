@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Logger } from 'pino';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';

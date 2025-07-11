@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { ZChainName } from '../metadata/customZodTypes.js';
 import type { TypedTransaction } from '../providers/ProviderType.js';

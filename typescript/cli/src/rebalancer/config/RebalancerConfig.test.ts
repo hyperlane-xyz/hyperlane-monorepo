@@ -101,7 +101,7 @@ describe('RebalancerConfig', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
-      'Validation error: Required at "warpRouteId"',
+      'Validation error: Expected string at "warpRouteId"',
     );
   });
 

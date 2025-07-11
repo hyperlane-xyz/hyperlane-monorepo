@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
@@ -77,7 +77,10 @@ export const ForkedChainConfigSchema = z.object({
 
 export type ForkedChainConfig = z.infer<typeof ForkedChainConfigSchema>;
 
-export const ForkedChainConfigByChainSchema = z.record(ForkedChainConfigSchema);
+export const ForkedChainConfigByChainSchema = z.record(
+  z.string(),
+  ForkedChainConfigSchema,
+);
 export type ForkedChainConfigByChain = z.infer<
   typeof ForkedChainConfigByChainSchema
 >;
@@ -99,7 +102,7 @@ export const RawForkedChainTransactionConfigSchema = z.discriminatedUnion(
       path: z.string(),
       defaultSender: ZHash,
       overrides: z
-        .record(ForkedChainTransactionConfigSchema.partial())
+        .record(z.string(), ForkedChainTransactionConfigSchema.partial())
         .default({}),
     }),
   ],
@@ -115,6 +118,7 @@ export const RawForkedChainConfigSchema = z.object({
 
 export type RawForkedChainConfig = z.infer<typeof RawForkedChainConfigSchema>;
 export const RawForkedChainConfigByChainSchema = z.record(
+  z.string(),
   RawForkedChainConfigSchema,
 );
 export type RawForkedChainConfigByChain = z.infer<

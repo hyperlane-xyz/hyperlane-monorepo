@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { addedDiff, deletedDiff, updatedDiff } from 'deep-object-diff';
 import stringify from 'json-stable-stringify';
-import { fromError } from 'zod-validation-error';
+import { fromError } from 'zod-validation-error/v4';
 
 import {
   CheckerViolation,

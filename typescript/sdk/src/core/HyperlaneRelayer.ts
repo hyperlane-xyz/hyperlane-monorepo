@@ -1,6 +1,6 @@
 import { ethers, providers } from 'ethers';
 import { Logger } from 'pino';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import {
   Address,
@@ -20,6 +20,7 @@ import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
+import { ZChainName, ZHash } from '../metadata/customZodTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -45,8 +46,11 @@ const BacklogMessageSchema = z.object({
 const MessageBacklogSchema = z.array(BacklogMessageSchema);
 
 export const RelayerCacheSchema = z.object({
-  hook: z.record(z.record(DerivedHookConfigWithAddressSchema)),
-  ism: z.record(z.record(DerivedIsmConfigWithAddressSchema)),
+  hook: z.record(
+    ZChainName,
+    z.record(ZHash, DerivedHookConfigWithAddressSchema),
+  ),
+  ism: z.record(ZChainName, z.record(ZHash, DerivedIsmConfigWithAddressSchema)),
   backlog: MessageBacklogSchema,
 });
 

@@ -2,7 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { ModuleType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -11,7 +11,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
-import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
+import { ZChainName, ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -281,7 +281,7 @@ export const AgentConfigSchema = z.object({
       'The port to expose prometheus metrics on. Accessible via `GET /metrics`.',
     ),
   chains: z
-    .record(AgentChainMetadataSchema)
+    .record(ZChainName, AgentChainMetadataSchema)
     .describe('Chain metadata for all chains that the agent will index.')
     .superRefine((data, ctx) => {
       for (const c in data) {

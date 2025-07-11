@@ -515,7 +515,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
+      `Rebalancer startup error: Error: Validation error: Value must match pattern at "strategy.chains.anvil2.bridge"`,
     );
   });
 

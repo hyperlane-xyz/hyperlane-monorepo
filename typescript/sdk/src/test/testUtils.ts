@@ -215,6 +215,7 @@ export function randomHookConfig(
         arbSys: randomAddress(),
         bridge: randomAddress(),
         destinationChain: 'testChain',
+        childHook: { type: HookType.MERKLE_TREE },
       };
 
     case HookType.ROUTING:
