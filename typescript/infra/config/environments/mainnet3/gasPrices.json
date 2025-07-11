@@ -48,7 +48,7 @@
     "decimals": 9
   },
   "botanix": {
-    "amount": "0.000000014",
+    "amount": "0.000000021",
     "decimals": 9
   },
   "flame": {
@@ -408,7 +408,7 @@
     "decimals": 9
   },
   "redstone": {
-    "amount": "0.00010005",
+    "amount": "0.00020005",
     "decimals": 9
   },
   "rivalz": {
