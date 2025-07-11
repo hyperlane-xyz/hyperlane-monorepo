@@ -112,7 +112,12 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             metrics_data.clone(),
         );
         let lowest_block_height_or_sequence = if lowest_block_height_or_sequence < 0 {
-            (sequence_count as i64).saturating_add(lowest_block_height_or_sequence) as u32
+            let result = (sequence_count as i64).saturating_add(lowest_block_height_or_sequence);
+            if result < 0 {
+                0
+            } else {
+                result as u32
+            }
         } else {
             lowest_block_height_or_sequence as u32
         };
