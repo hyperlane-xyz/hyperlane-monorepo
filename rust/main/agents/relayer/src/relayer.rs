@@ -43,11 +43,17 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
+use crate::{db_loader::DbLoader, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+use crate::{
+    db_loader::DbLoaderExt,
+    merkle_tree::db_loader::{MerkleTreeDbLoader, MerkleTreeDbLoaderMetrics},
+};
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
         blacklist::AddressBlacklist,
+        db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
         gas_payment::GasPaymentEnforcer,
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
@@ -55,16 +61,10 @@ use crate::{
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
-        processor::{MessageProcessor, MessageProcessorMetrics},
     },
     server::{self as relayer_server},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
-use crate::{
-    merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
-    processor::ProcessorExt,
-};
-use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
@@ -656,7 +656,7 @@ impl BaseAgent for Relayer {
             };
             tasks.push(merkle_tree_hook_sync);
 
-            let message_processor = match self.run_message_processor(
+            let message_db_loader = match self.run_message_db_loader(
                 origin,
                 send_channels.clone(),
                 task_monitor.clone(),
@@ -667,29 +667,29 @@ impl BaseAgent for Relayer {
                         origin,
                         &self.chain_metrics,
                         &err,
-                        "Failed to run message processor",
+                        "Failed to run message db loader",
                     );
                     continue;
                 }
             };
-            tasks.push(message_processor);
+            tasks.push(message_db_loader);
 
-            let merkle_tree_processor =
-                match self.run_merkle_tree_processor(origin, task_monitor.clone()) {
+            let merkle_tree_db_loader =
+                match self.run_merkle_tree_db_loader(origin, task_monitor.clone()) {
                     Ok(task) => task,
                     Err(err) => {
                         Self::record_critical_error(
                             origin,
                             &self.chain_metrics,
                             &err,
-                            "Failed to run merkle tree processor",
+                            "Failed to run merkle tree db loader",
                         );
                         continue;
                     }
                 };
-            tasks.push(merkle_tree_processor);
+            tasks.push(merkle_tree_db_loader);
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree db loader", "Relayer startup duration measurement");
 
         // run server
         start_entity_init = Instant::now();
@@ -956,17 +956,14 @@ impl Relayer {
         format!("contract::sync::{}{}", prefix, domain)
     }
 
-    fn run_message_processor(
+    fn run_message_db_loader(
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageProcessorMetrics::new(
-            &self.core.metrics,
-            origin,
-            self.destination_chains.keys(),
-        );
+        let metrics =
+            MessageDbLoaderMetrics::new(&self.core.metrics, origin, self.destination_chains.keys());
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
@@ -1004,7 +1001,7 @@ impl Relayer {
             .cloned()
             .ok_or_else(|| eyre::eyre!("Db not found"))?;
 
-        let message_processor = MessageProcessor::new(
+        let message_db_loader = MessageDbLoader::new(
             db,
             self.message_whitelist.clone(),
             self.message_blacklist.clone(),
@@ -1016,17 +1013,17 @@ impl Relayer {
             self.max_retries,
         );
 
-        let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
-        Ok(processor.spawn(span))
+        let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());
+        Ok(db_loader.spawn(span))
     }
 
-    fn run_merkle_tree_processor(
+    fn run_merkle_tree_db_loader(
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
+        let metrics = MerkleTreeDbLoaderMetrics::new(&self.core.metrics, origin);
         let db = self
             .dbs
             .get(origin)
@@ -1038,10 +1035,10 @@ impl Relayer {
             .cloned()
             .ok_or_else(|| eyre::eyre!("No prover sync found"))?;
 
-        let merkle_tree_processor = MerkleTreeProcessor::new(db, metrics, prover_sync);
-        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
-        let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
-        Ok(processor.spawn(span))
+        let merkle_tree_db_loader = MerkleTreeDbLoader::new(db, metrics, prover_sync);
+        let span = info_span!("MerkleTreeDbLoader", origin=%merkle_tree_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(merkle_tree_db_loader), task_monitor.clone());
+        Ok(db_loader.spawn(span))
     }
 
     #[allow(clippy::too_many_arguments)]

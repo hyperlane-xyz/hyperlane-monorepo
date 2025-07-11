@@ -171,6 +171,7 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
+            db_loader::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
@@ -178,7 +179,6 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
