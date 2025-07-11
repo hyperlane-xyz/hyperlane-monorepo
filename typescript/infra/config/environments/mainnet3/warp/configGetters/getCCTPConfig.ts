@@ -12,7 +12,6 @@ import { assert } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { DEPLOYER } from '../../owners.js';
 import {
   messageTransmitterAddresses,
   tokenMessengerAddresses,
