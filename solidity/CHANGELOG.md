@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 9.0.0
+
+### Major Changes
+
+- 155f5a5e8: Remove old liquidity layer contracts
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.4.0
+
 ## 8.1.2
 
 ### Patch Changes
