@@ -11,8 +11,9 @@ use secp256k1::Keypair as SecpKeypair;
 
 use crate::error::ValidationError;
 use corelib::payload::{MessageID, MessageIDs};
-use corelib::util::{get_recipient_address, get_recipient_script_pubkey};
-use corelib::wallet::{EasyKaspaWallet, NetworkInfo};
+use corelib::util;
+use corelib::util::{check_sighash_type, get_recipient_address, get_recipient_script_pubkey};
+use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
 use hex::ToHex;
@@ -33,6 +34,26 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, error, info, warn};
 
+/// Validate WithdrawFXG received from the relayer against Kaspa and Hub.
+/// It verifies that:
+/// (1)  No double spending allowed. All messages must be unique.
+/// (2)  Each message is actually dispatched on the Hub. Achieved by `CosmosGrpcClient.delivered`.
+///      Consequence: `delivered` ensures that the HL message hash in known on the Hub,
+///      which verifies the correctness of all the HL message fields.
+/// (3)  The messages are not yet marked as processed on the Hub.
+/// (4)  The anchor UTXO provided by the relayer is actually still the anchor on the Hub.
+/// (5)  The Kaspa TXs are a linked sequence. The first PSKT contains Hub anchor in inputs.
+/// (6)  Check PSKT:
+///      - The Kaspa TXs have corresponding message IDs in their payload (msg ID == msg hash).
+///        Consequence: Each message actually hashes to the hash stored in the payload.
+///      - Correct sighash type in inputs
+///      - No lock time
+///      - TX version
+/// (7)  TX UTXO spends actually correspond to the message content.
+/// (8)  No message use escrow as a recipient.
+/// (9)  Each PSKT has exactly one anchor.
+///
+/// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
@@ -41,42 +62,46 @@ pub async fn validate_withdrawal_batch(
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
+    let num_msgs = messages.len();
 
-    debug!(
-        "Starting withdrawal validation for {} messages",
-        messages.len()
-    );
+    debug!("Starting withdrawal validation for {} messages", num_msgs);
 
-    // Step 1: Check that all messages are delivered
-    for message in &messages {
-        let delivered_response = cosmos_client
-            .delivered(mailbox_id.clone(), message.id().encode_hex())
+    // Step 1: check double spending
+    let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
+    if let Some(duplicate) = util::find_duplicate(&msg_ids) {
+        let message_id = duplicate.encode_hex();
+        return Err(ValidationError::DoubleSpending { message_id });
+    }
+
+    // Steps 2: Check that all messages are *dispatched* from the Hub.
+    for id in msg_ids {
+        let res = cosmos_client
+            .delivered(mailbox_id.clone(), id.encode_hex())
             .await
             .map_err(|e| ValidationError::SystemError(Report::from(e)))?;
 
-        if !delivered_response.delivered {
-            let message_id = message.id().encode_hex();
-            return Err(ValidationError::MessageNotDelivered { message_id });
+        // Delivered is a confusing name. `delivered` is just the name of the network query.
+        let was_dispatched_on_hub = res.delivered;
+        info!("was_dispatched_on_hub: {}", was_dispatched_on_hub);
+        if !was_dispatched_on_hub {
+            let message_id = id.encode_hex();
+            return Err(ValidationError::MessageNotDispatched { message_id });
         }
     }
 
-    debug!("All messages are delivered");
+    debug!("All messages are dispatched");
 
-    let num_msgs = messages.len();
+    // Step 3: All messages should be unprocessed (pending) on the Hub
+    let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client, None)
+        .await
+        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
-    // Step 2: All messages should be not processed on the Hub
-    let (hub_outpoint, pending_messages) =
-        filter_pending_withdrawals(messages, cosmos_client, None)
-            .await
-            .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
-
-    // All given messages should be pending!
     if num_msgs != pending_messages.len() {
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
-    validate_pskts(fxg, hub_outpoint, address_prefix, escrow_public)
-        .map_err(|e| eyre::eyre!("PSKT validation failed: {}", e))?;
+    validate_pskts(fxg, hub_anchor, address_prefix, escrow_public)
+        .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!(
         "Withdrawal validation completed successfully for {} withdrawals",
@@ -88,41 +113,66 @@ pub async fn validate_withdrawal_batch(
 
 pub fn validate_pskts(
     fxg: &WithdrawFXG,
-    hub_outpoint: TransactionOutpoint,
+    hub_anchor: TransactionOutpoint,
     address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
+    // Step 4: Validate that the Hub anchor in WithdrawFXG is still the actual Hub anchor
+
+    // By convention, the first anchor of `fxg.anchors` is the Hub anchor
     let relayer_hub_outpoint = fxg.anchors.first().unwrap();
-    if relayer_hub_outpoint.index != hub_outpoint.index
-        || relayer_hub_outpoint.transaction_id != hub_outpoint.transaction_id
+    if relayer_hub_outpoint.index != hub_anchor.index
+        || relayer_hub_outpoint.transaction_id != hub_anchor.transaction_id
     {
-        return Err(ValidationError::HubOutpointNotFound { o: hub_outpoint });
+        return Err(ValidationError::HubAnchorMismatch {
+            hub_anchor,
+            relayer_anchor: relayer_hub_outpoint.clone(),
+        });
     }
 
-    let mut prev_outpoint = hub_outpoint;
-    for (idx, pskt) in fxg.bundle.iter().enumerate() {
-        let messages = fxg.messages.get(idx).unwrap();
-        // +1 bc the first anchor is the hub anchor
-        let outpoint = fxg.anchors.get(idx + 1).unwrap();
+    // Step 5: Validate the correct UTXO chaining.
+    // Batch transactoins should follow this approach:
+    //
+    //   TX1   input: `hub_anchor`      TX1   output: `tx1_anchor`
+    //   TX2   input: `tx1_anchor`      TX2   output: `tx2_anchor`
+    //      ...                                    ...
+    //   TX(N) input: `tx(N-1)_anchor`  TX(N) output: `tx(N)_anchor`
 
-        // Get the next anchor UTXO
-        let next_outpoint = validate_pskt(
+    // The first anchor is the hub anchor
+    let mut prev_anchor = hub_anchor;
+
+    // Iterate through all PSKTs in the bundle and verify that the chaining
+    // is satisfied.
+    for (idx, pskt) in fxg.bundle.iter().enumerate() {
+        // Get messages that are covered by the corresponding PSKT
+        let messages = fxg.messages.get(idx).unwrap();
+
+        // Compute the next anchor UTXO
+        let expected_next_outpoint = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
-            prev_outpoint,
+            prev_anchor,
             messages,
             address_prefix,
             escrow_public.clone(),
-        )?;
+        )
+        .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
+
+        // Validate that the computed anchor is the same as the one
+        // provided in WithdrawFXG
+
+        // +1 bc the first anchor is the hub anchor
+        let fxg_anchor = fxg.anchors.get(idx + 1).unwrap();
 
         // Compare field-by-field to avoid copying
-        if next_outpoint.index != outpoint.index
-            || next_outpoint.transaction_id != outpoint.transaction_id
+        if expected_next_outpoint.index != fxg_anchor.index
+            || expected_next_outpoint.transaction_id != fxg_anchor.transaction_id
         {
-            return Err(ValidationError::AnchorMismatch { o: hub_outpoint });
+            return Err(ValidationError::AnchorMismatch { o: hub_anchor });
         }
 
-        // The next anchor UTXO is the prev anchor for the next transaction
-        prev_outpoint = next_outpoint;
+        // The previous anchor for the *next* PSKT is the next anchor of
+        // the *previous* PSKT.
+        prev_anchor = expected_next_outpoint;
     }
 
     Ok(())
@@ -130,17 +180,40 @@ pub fn validate_pskts(
 
 pub fn validate_pskt(
     pskt: PSKT<Signer>,
-    hub_outpoint: TransactionOutpoint,
+    prev_anchor: TransactionOutpoint,
     pending_messages: &Vec<HyperlaneMessage>,
     address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    // Step 3: Check PSKT payload
+    // Step 5 continuing: Check that PSKT contains the previous anchor as input
+    let prev_outpoint_found = pskt.inputs.iter().any(|input| {
+        input.previous_outpoint.transaction_id == prev_anchor.transaction_id
+            && input.previous_outpoint.index == prev_anchor.index
+    });
+    if !prev_outpoint_found {
+        return Err(ValidationError::AnchorNotFound { o: prev_anchor });
+    }
+
+    // Step 6: Check PSKT:
+
+    // - Check if any input has incorrect sighash
+    let incorrect_sig_hash = pskt
+        .inputs
+        .iter()
+        .any(|input| !check_sighash_type(input.sighash_type));
+    if incorrect_sig_hash {
+        return Err(ValidationError::IncorrectSigHashType);
+    }
+
+    // - No lock time
+    if let Some(_) = pskt.global.fallback_lock_time {
+        return Err(ValidationError::UnexpectedLockTime);
+    }
+
+    // - Payload covers corresponding HL messages
     let payload = MessageIDs(pending_messages.iter().map(|m| MessageID(m.id())).collect())
         .to_bytes()
-        .map_err(|e| {
-            ValidationError::SystemError(eyre::eyre!("Failed to serialize MessageIDs: {}", e))
-        })?;
+        .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
     let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
 
@@ -148,17 +221,12 @@ pub fn validate_pskt(
         return Err(ValidationError::PayloadMismatch);
     }
 
-    // Step 4: Check that PSKT contains the Hub outpoint as input
-    let hub_outpoint_found = pskt.inputs.iter().any(|input| {
-        input.previous_outpoint.transaction_id == hub_outpoint.transaction_id
-            && input.previous_outpoint.index == hub_outpoint.index
-    });
-
-    if !hub_outpoint_found {
-        return Err(ValidationError::HubOutpointNotFound { o: hub_outpoint });
+    // - TX version
+    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
+        return Err(ValidationError::TxVersionMismatch);
     }
 
-    // Step 5: Check that UTXO outputs align with withdrawals
+    // Step 7: Check that UTXO outputs align with withdrawals
     // Find escrow input amount
     let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
@@ -184,6 +252,13 @@ pub fn validate_pskt(
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
 
+        // Step 8: Check that there are no withdrawals where escrow is set
+        // as recepient. It would drastically complicate the confirmation flow.
+        if recipient == escrow_public.p2sh {
+            let message_id = m.id().encode_hex();
+            return Err(ValidationError::EscrowWithdrawalNotAllowed { message_id });
+        }
+
         let key = (tm.amount().as_u64(), recipient);
         *expected_outputs.entry(key).or_default() += 1;
     }
@@ -192,7 +267,7 @@ pub fn validate_pskt(
     // Also, calculate the total output amount of withdrawals + escrow change,
     // it should match the input escrow amount.
     let mut escrow_output_amount = 0;
-    let mut next_outpoint_idx: u32 = 0;
+    let mut next_anchor_idx: Option<u32> = None;
     for (idx, output) in pskt.outputs.iter().enumerate() {
         let key = (output.amount, output.script_public_key.clone());
 
@@ -205,16 +280,29 @@ pub fn validate_pskt(
             continue;
         }
 
+        // Check that output is an anchor
         if output.script_public_key == escrow_public.p2sh {
+            // Step 9: Abort if there is more than one anchor candidate
+            if next_anchor_idx.is_some() {
+                return Err(ValidationError::MultipleAnchors);
+            }
+
             escrow_output_amount += output.amount;
-            next_outpoint_idx = idx as u32;
+            next_anchor_idx = Some(idx as u32);
         }
     }
 
+    // Step 9: There should be exactly one anchor
+    let idx = next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?;
+
+    // expected_outputs contains the number of occurrences of (recipiend; amount) pairs.
+    // If it is empty, then all the occurrences are covered by the Kaspa TX.
     if !expected_outputs.is_empty() {
         return Err(ValidationError::MissingOutputs);
     }
 
+    // Verify that the input of escrow funds equals to the output of escrow funds:
+    // Input == output == escrow change + sum(withdrawals)
     if escrow_input_amount != escrow_output_amount {
         return Err(ValidationError::EscrowAmountMismatch {
             input_amount: escrow_input_amount,
@@ -222,16 +310,12 @@ pub fn validate_pskt(
         });
     }
 
-    Ok(TransactionOutpoint::new(
-        pskt.calculate_id(),
-        next_outpoint_idx,
-    ))
+    Ok(TransactionOutpoint::new(pskt.calculate_id(), idx))
 }
 
 pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
-    // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for (pskt) in fxg.bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;

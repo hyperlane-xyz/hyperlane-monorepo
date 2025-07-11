@@ -76,7 +76,7 @@ mod tests {
             "030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8",
         ];
         for input in inputs {
-            let parsed = ParsedHL::parse(input);
+            let parsed = ParsedHL::parse_string(input);
             match parsed {
                 Ok(parsed) => {
                     println!("hl_message: {:?}", parsed.hl_message);

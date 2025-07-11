@@ -19,6 +19,7 @@ use super::hub_to_kaspa::finalize_pskt;
 use super::hub_to_kaspa::sign_pay_fee;
 use kaspa_txscript::standard::pay_to_address_script;
 
+use corelib::util::input_sighash_type;
 use kaspa_rpc_core::api::rpc::RpcApi;
 
 // used by multisig demo
@@ -49,9 +50,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .previous_outpoint(utxo_e_out)
         .redeem_script(e.redeem_script.clone())
         .sig_op_count(e.n() as u8) // Total possible signers
-        .sighash_type(
-            SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
-        )
+        .sighash_type(input_sighash_type())
         .build()
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
@@ -59,9 +58,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
         .sig_op_count(1) // TODO: needed if using p2pk?
-        .sighash_type(
-            SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
-        )
+        .sighash_type(input_sighash_type())
         .build()
         .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
 

@@ -42,7 +42,8 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use corelib::util::get_recipient_script_pubkey;
+use corelib::util;
+use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
@@ -257,10 +258,7 @@ fn create_withdrawal_pskt(
             .utxo_entry(entry)
             .previous_outpoint(input.previous_outpoint)
             .sig_op_count(input.sig_op_count)
-            .sighash_type(
-                SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
-                    .unwrap(),
-            );
+            .sighash_type(input_sighash_type());
 
         if !input.signature_script.is_empty() {
             // escrow inputs need redeem_script
@@ -343,36 +341,11 @@ async fn get_utxo_to_spend(
 
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
-    utxos.retain(|u| is_mature(&u.utxo_entry, current_daa_score, network_id));
+    utxos.retain(|u| {
+        util::maturity::is_mature(u.utxo_entry.block_daa_score, current_daa_score, network_id)
+    });
 
     Ok(utxos)
-}
-
-fn is_mature(utxo: &RpcUtxoEntry, current_daa_score: u64, network_id: NetworkId) -> bool {
-    match maturity_progress(utxo, current_daa_score, network_id) {
-        Some(_) => false,
-        None => true,
-    }
-}
-
-// Copy https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/core/src/storage/transaction/record.rs
-fn maturity_progress(
-    utxo: &RpcUtxoEntry,
-    current_daa_score: u64,
-    network_id: NetworkId,
-) -> Option<f64> {
-    let params = NetworkParams::from(network_id);
-    let maturity = if utxo.is_coinbase {
-        params.coinbase_transaction_maturity_period_daa()
-    } else {
-        params.user_transaction_maturity_period_daa()
-    };
-
-    if current_daa_score < utxo.block_daa_score + maturity {
-        Some((current_daa_score - utxo.block_daa_score) as f64 / maturity as f64)
-    } else {
-        None
-    }
 }
 
 fn estimate_fee(
@@ -650,6 +623,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Re
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use corelib::util::check_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use std::collections::BTreeMap;
 
@@ -788,5 +762,60 @@ mod tests {
             test_proprietaries.len(),
             "Number of proprietaries should be preserved"
         );
+    }
+
+    #[test]
+    fn test_pskt_intput_sighash_type() -> Result<()> {
+        // Create PSKT signer with input
+        let input = kaspa_wallet_pskt::input::InputBuilder::default()
+            .sighash_type(input_sighash_type())
+            .build()
+            .map_err(|e| eyre::eyre!("Failed to build input: {}", e))?;
+
+        let pskt = PSKT::<Creator>::default()
+            .constructor()
+            .input(input)
+            .no_more_inputs()
+            .no_more_outputs()
+            .signer();
+
+        // Verify sighash type
+        let sighash_type_1 = pskt.inputs.first().unwrap().sighash_type;
+        assert!(check_sighash_type(sighash_type_1));
+
+        // Create WithdrawFXG
+        let bundle = Bundle::from(pskt);
+
+        let withdraw_fxg = WithdrawFXG::new(
+            bundle,
+            vec![],
+            vec![
+                TransactionOutpoint::default(),
+                TransactionOutpoint::default(),
+            ],
+        );
+
+        // Convert WithdrawFXG to Bytes
+        let serialized_bytes = Bytes::try_from(&withdraw_fxg)
+            .map_err(|e| eyre::eyre!("Failed to serialize WithdrawFXG to Bytes: {}", e))?;
+
+        // Convert Bytes back to WithdrawFXG
+        let deserialized_withdraw_fxg = WithdrawFXG::try_from(serialized_bytes)
+            .map_err(|e| eyre::eyre!("Failed to deserialize WithdrawFXG from Bytes: {}", e))?;
+
+        // Verify sighash type
+        let sighash_type_2 = deserialized_withdraw_fxg
+            .bundle
+            .iter()
+            .next()
+            .unwrap()
+            .inputs
+            .first()
+            .unwrap()
+            .sighash_type;
+
+        assert!(check_sighash_type(sighash_type_2));
+
+        Ok(())
     }
 }

@@ -90,11 +90,12 @@ mod relayer_validator_flow_tests {
 
         fn create_inputs(
             &self,
+            current_anchor: TransactionOutpoint,
             escrow_amount: u64,
             relayer_amount: u64,
         ) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
             let escrow_input = TransactionInput::new(
-                self.current_anchor,
+                current_anchor,
                 self.escrow_public.redeem_script.clone(),
                 0,
                 self.escrow_public.n() as u8,
@@ -118,7 +119,6 @@ mod relayer_validator_flow_tests {
             ])
         }
 
-        /// Execute the complete relayer flow (simplified for testing)
         fn create_withdraw_fxg(&self, scenario: &TestScenario) -> Result<WithdrawFXG> {
             let messages: Vec<HyperlaneMessage> = scenario
                 .withdrawals
@@ -130,7 +130,11 @@ mod relayer_validator_flow_tests {
             let (valid_msgs, outputs) = filter_outputs_from_msgs(messages, self.address_prefix);
 
             let inputs = self
-                .create_inputs(scenario.escrow_balance, scenario.relayer_balance)
+                .create_inputs(
+                    self.current_anchor,
+                    scenario.escrow_balance,
+                    scenario.relayer_balance,
+                )
                 .map_err(|e| eyre!("Failed to create inputs: {}", e))?;
 
             let payload = MessageIDs(valid_msgs.iter().map(|m| MessageID(m.id())).collect())
