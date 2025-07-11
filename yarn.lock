@@ -8163,7 +8163,7 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/cosmos-sdk": "npm:14.2.0"
-    "@hyperlane-xyz/registry": "npm:17.8.2"
+    "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:14.2.0"
@@ -8321,7 +8321,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:8.1.1"
-    "@hyperlane-xyz/registry": "npm:17.8.2"
+    "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -8361,7 +8361,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:17.8.2"
+    "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:14.2.0"
@@ -8407,7 +8407,7 @@ __metadata:
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:14.2.0"
-    "@hyperlane-xyz/registry": "npm:17.8.2"
+    "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:14.2.0"
@@ -8476,14 +8476,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:17.8.2":
-  version: 17.8.2
-  resolution: "@hyperlane-xyz/registry@npm:17.8.2"
+"@hyperlane-xyz/registry@npm:19.2.0":
+  version: 19.2.0
+  resolution: "@hyperlane-xyz/registry@npm:19.2.0"
   dependencies:
     jszip: "npm:^3.10.1"
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/81f928ad629053d802ffe2806dd4549afa9af402a3793ab5c0465e162cfdefe93c7d2404501d042e6ccfce20f1fbc023e669d7ad1b0ea8dac8aad73d4b130daa
+  checksum: 10/e0868740fac2707ec19a455ef1f0b3802d6958a180e31f5e11d63d46c7816bcbe6e7d9f98061ad6ec487b5285308ee1f33d1746ff9b1f9d5b8c052513c7f9efb
   languageName: node
   linkType: hard
 
@@ -8629,7 +8629,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/cosmos-sdk": "npm:14.2.0"
-    "@hyperlane-xyz/registry": "npm:17.8.2"
+    "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:14.2.0"
