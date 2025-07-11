@@ -15,13 +15,24 @@
   }
 }
 
+.RadixWalletPopupOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #00000078;
+  z-index: 999;
+}
+
 .RadixWalletPopup {
   position: fixed;
 
-  left: 20%;
-  top: 20%;
+  top: 50vh;
+  left: 50vw;
+  transform: translate(-50%, -50%);
 
-  width: 60%;
+  width: 500px;
   padding: 20px;
 
   border: 1px solid black;
@@ -37,5 +48,5 @@
 
   color: #011627;
 
-  z-index: 999;
+  z-index: 1000;
 }

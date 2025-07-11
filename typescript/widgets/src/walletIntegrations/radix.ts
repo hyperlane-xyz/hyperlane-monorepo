@@ -59,18 +59,18 @@ export function useRadixConnectFn(): () => void {
   assert(rdt, `radix dapp toolkit not defined`);
 
   const popUp = usePopup();
+  assert(popUp, `radix wallet popup not defined`);
+
   const { setAccounts } = useAccount();
 
   const connect = async () => {
-    console.log('connect called', 'popup', popUp);
-    popUp?.setShowPopUp(true);
+    popUp.setShowPopUp(true);
     rdt.walletApi.setRequestData(DataRequestBuilder.accounts().reset());
-    console.log('setRequestData');
     const result = await rdt.walletApi.sendRequest();
     if (result.isOk()) {
       setAccounts(result.value.accounts);
     }
-    popUp?.setShowPopUp(false);
+    popUp.setShowPopUp(false);
   };
 
   return connect;
