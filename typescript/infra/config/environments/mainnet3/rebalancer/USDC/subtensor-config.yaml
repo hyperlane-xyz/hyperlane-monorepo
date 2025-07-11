@@ -1,0 +1,18 @@
+warpRouteId: USDC/subtensor
+strategy:
+  rebalanceStrategy: weighted
+  # this config aims to maintain 80% of the total USDC on ethereum
+  chains:
+    base:
+      weighted:
+        weight: 2
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+
+    ethereum:
+      weighted:
+        weight: 8
+        tolerance: 30
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
