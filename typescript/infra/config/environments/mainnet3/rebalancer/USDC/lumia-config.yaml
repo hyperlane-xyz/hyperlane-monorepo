@@ -12,8 +12,8 @@ strategy:
 
     ethereum:
       minAmount:
-        min: 2000
-        target: 2500
+        min: 10000
+        target: 100000
         type: 'absolute'
       bridgeLockTime: 2400 # 40 mins in seconds
       bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
