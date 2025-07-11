@@ -77,9 +77,8 @@ MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 #### It will start listening for relayer requests
 
 AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
-DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
-export SIGS_VAL=$AGENT_TMP/signatures
+DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
 
 trash $AGENT_TMP/dbs

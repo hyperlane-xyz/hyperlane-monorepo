@@ -83,10 +83,10 @@ impl KaspaProvider {
         )
         .await?;
 
-        let kas_key = conf
-            .kaspa_escrow_private_key
-            .as_ref()
-            .map(|k| serde_json::from_str(k).unwrap());
+        let kas_key = match &conf.kaspa_escrow_private_key {
+            Some(k) => Some(serde_json::from_str(k).unwrap()),
+            None => None,
+        };
 
         Ok(KaspaProvider {
             domain: domain.clone(),

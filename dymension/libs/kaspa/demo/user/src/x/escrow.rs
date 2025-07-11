@@ -19,7 +19,7 @@ pub fn get_escrow_address(pub_keys: Vec<&str>) -> String {
 #[derive(Debug, Serialize)]
 pub struct ValidatorInfos {
     // HL style address to register on the Hub for the Kaspa multisig ISM
-    validator_ism_addr: String,
+    pub validator_ism_addr: String,
     /// what validator will use to sign checkpoints for new deposits (and also progress indications)
     validator_ism_priv_key: String,
     /// secret key to sign kaspa inputs for withdrawals
